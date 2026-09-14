@@ -31,3 +31,8 @@
 # Telemetry tooling (repo-local, not deployed)
 !references/
 !references/**
+
+# Publish this approved incident record; keep other postmortems local by default.
+!/postmortems/
+/postmortems/*
+!/postmortems/2026-09-09-workstation-memory-exhaustion.md
