@@ -1,3 +1,15 @@
+## [0.0.40](https://github.com/misty-step/omp-config/compare/v0.0.39...v0.0.40) (2026-09-14)
+
+
+### Bug Fixes
+
+* **workstation:** recover invalid health state and resolve Bun path ([052864b](https://github.com/misty-step/omp-config/commit/052864bb5380b9b175bb25fef66c2f162be4c747))
+
+
+### Features
+
+* **workstation:** publish opt-in bounds and memory postmortem ([1470033](https://github.com/misty-step/omp-config/commit/1470033788822558be44ae1323440c7295d5072c))
+
 ## Unreleased
 
 ### Features
