@@ -82,10 +82,12 @@ systemd-run --user --slice=dev-exec.slice --unit=job-test-001 \
   --service-type=exec --wait --pipe --working-directory="$PWD" \
   -p MemoryHigh=6G -p MemoryMax=10G -p MemorySwapMax=1G \
   -p OOMPolicy=kill -p LimitCORE=0 \
-  /usr/bin/bun test
+  "$(command -v bun)" test
 ```
 
 Services inherit the user manager's environment, not all of the invoking shell's.
+The example resolves Bun from the invoking shell's `PATH` rather than assuming
+it is installed at `/usr/bin/bun`.
 Pass only needed non-secret environment values with `--setenv`, or invoke the
 project's authorized credential launcher inside the job. Never put secrets in
 unit names, command arguments, or metadata. `--pipe` streams output to the caller;

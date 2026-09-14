@@ -105,6 +105,10 @@ def main():
         previous = json.loads(state_path.read_text())
         if not isinstance(previous, dict):
             raise ValueError("state is not an object")
+        for field in ("sample_time", "swap", "last_notified"):
+            value = previous.get(field)
+            if type(value) not in (int, float) or not 0 <= value < float("inf"):
+                raise ValueError(f"state {field} is not a finite nonnegative number")
     except FileNotFoundError:
         previous = {}
     except (OSError, ValueError) as error:
