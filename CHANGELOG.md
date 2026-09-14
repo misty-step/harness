@@ -1,3 +1,10 @@
+## [0.0.39](https://github.com/misty-step/omp-config/compare/v0.0.38...v0.0.39) (2026-09-14)
+
+
+### Features
+
+* **pass-env:** add portable pass launcher and harness guidance ([eb22181](https://github.com/misty-step/omp-config/commit/eb221816a409f9959c9b3d2ec51e5cb23df82856))
+
 ## [0.0.38](https://github.com/misty-step/omp-config/compare/v0.0.37...v0.0.38) (2026-09-11)
 
 
