@@ -1,3 +1,9 @@
+## Unreleased
+
+### Features
+
+* **workstation:** add a user-scope bounded execution workflow and tracked disk/inode, RAM, swap-growth, and slice-pressure notifier; document the 1 GiB containment and visible alert proof.
+
 ## [0.0.39](https://github.com/misty-step/omp-config/compare/v0.0.38...v0.0.39) (2026-09-14)
 
 

@@ -22,6 +22,7 @@ not model runs or synthetic applications by default.
 | `bin/omp-merge-config.ts` | Overlay source-owned YAML keys and remove retired owned keys while preserving foreign config entries |
 | `bin/omp-grievances.ts` | Manual grievance inbox CLI |
 | `bin/pass-env.ts` | Portable pass-backed environment launcher; installed as `~/.local/bin/pass-env` |
+| `bin/tmp-health.py`, `references/dev-exec.md` | Opt-in workstation execution limits, pressure notifications, and rollback workflow |
 | `config.yml` | Model roles, fallbacks, theme/TUI, providers, task/LSP settings |
 | `models.yml` | Local Ollama discovery; cloud models come from omp's bundled catalog |
 | `mcp.json` | Global MCP inventory; Linear is deliberately absent |
@@ -547,6 +548,14 @@ Before first SSH access, verify the
 [VM authentication](https://exe.dev/docs/https-tokens-for-vms.md), and
 [integration](https://exe.dev/docs/integrations.md) contracts for the selected
 deployment rather than assuming Cloudflare proxying or credential isolation.
+
+### Bounded local execution
+
+The workstation's opt-in user slice and delivered pressure alerts are documented
+in [Development execution](references/dev-exec.md), including 48/60/8 GiB
+aggregate limits, 6/10/1 GiB per-job launch examples, accounting, containment
+evidence, exclusions, and rollback. These workstation settings are not installed
+by `./install` and do not move existing processes.
 
 ### Repository-local Parlor
 
