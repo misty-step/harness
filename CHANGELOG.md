@@ -77,6 +77,9 @@
 ## Unreleased
 
 ### Added
+- Add the explicitly invoked `agent-ergonomics` skill for evidence-backed
+  agent-facing design and plan edits, with read-only review support and no
+  implementation, deployment, or tracker writes.
 - Add the explicitly invoked `verification-infrastructure` skill to create or
   repair repository-owned runnable verification and its agent-facing knowledge,
   preserving existing interfaces and requiring meaningful runtime evidence.
@@ -84,8 +87,30 @@
   native tool enforcement, bounded worker/executive admission, durable briefs,
   and owned-subtree cancellation. Keep implementation workers fully capable
   and provide an explicit launch-time hands-on opt-out.
+- Add the portable pass-backed `pass-env` launcher and neutral
+  `authenticated-commands` Agent Skill. Standalone use requires Bun/pass/GPG,
+  not OMP; the OMP-specific `secrets` component (included in `all`) installs the
+  executable under `~/.local/bin` and clean-replaces only the owned skill.
 
 ### Changed
+- Permit delegation and execution through both native OMP and Herdr, including
+  agent spawning and work dispatch. Preserve Main/executive tool boundaries
+  and worker capabilities; distinguish native lifecycle accounting from Herdr
+  ownership, readiness, results, and cleanup. Fresh sessions receive the corrected
+  policy after deployment.
+- Prefer explicit `pass-env run` mappings and names-only references over
+  bulk-exported credentials or a global AGENTS secret policy. Keep local static
+  inventories under `~/.config/pass-env`; preserve historical migration evidence
+  in `~/.local/state/omp-secrets`. Retire the old launcher only after exact
+  SHA-256 ownership verification, with no alias or store/key/value changes.
+- Document human values-only editing, newline-exact nvim saves, pass insertion
+  semantics, authorized agent maintenance, reference updates, issuer revocation
+  boundaries, and explicit skill portability beyond OMP.
+- Recast owned guidance, executive instructions, and homebrew skills around
+  outcome-driven autonomy and proportionate evidence. Make foundation a coherent
+  first-principles recommendation rather than a checklist, and move specialized
+  operating and verification concerns into conditional package references.
+  Preserve authority boundaries and executable executive policy.
 - Prefer Antigravity Gemini 3.8 Flash high for fresh sessions, ordinary task
   workers, smol/tiny/commit/vision roles, and explicit scout/sonic routing. Retain
   Astra for slow/plan/advisor/review and design judgment (`@designer` max); pin
@@ -171,8 +196,7 @@
 - Make verification proportional to concrete risk. Prose and instruction-only
   edits normally need content review and relevant loading or deployment checks,
   not model runs or synthetic applications.
-- Show Git before extension statuses and use only the language icon and
-  percentage in the LOC display, leaving more room for the current branch.
+- Show cwd/loc status, then model, then Git.
 
 ## [0.0.28](https://github.com/misty-step/omp-config/compare/v0.0.27...v0.0.28) (2026-09-03)
 

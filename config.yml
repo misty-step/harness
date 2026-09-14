@@ -3,14 +3,14 @@ modelRoles:
   slow: openai-codex/gpt-6-astra:high
   extreme: openai-codex/gpt-6-astra:max
   plan: openai-codex/gpt-6-astra:high
-  advisor: openai-codex/gpt-6-astra:high
+  advisor: openai-codex/gpt-5.6-luna:max
   task: openai-codex/gpt-6-astra:high
   reviewer: openai-codex/gpt-6-astra:high
   security-reviewer: openai-codex/gpt-6-astra:high
-  vision: google-antigravity/gemini-3.8-flash:high
-  smol: google-antigravity/gemini-3.8-flash:high
-  tiny: google-antigravity/gemini-3.8-flash:high
-  commit: google-antigravity/gemini-3.8-flash:high
+  vision: openai-codex/gpt-5.6-luna:max
+  smol: openai-codex/gpt-5.6-luna:max
+  tiny: openai-codex/gpt-5.6-luna:max
+  commit: openai-codex/gpt-5.6-luna:max
 cycleOrder: [smol, default, extreme]
 symbolPreset: nerd
 theme:
@@ -24,10 +24,10 @@ statusLine:
   compactThinkingLevel: true
   showHookStatus: false
   leftSegments:
-    - model
-    - mode
-    - git
     - status
+    - model
+    - git
+    - mode
     - subagents
   rightSegments:
     - session_name
@@ -75,7 +75,6 @@ providers:
 retry:
   fallbackChains:
     default:
-      - google-antigravity/gemini-3.8-flash:high
       - anthropic/claude-opus-5:max
       - xai-oauth/grok-4.6:xhigh
       - openai-codex/gpt-6-astra:low
@@ -89,19 +88,19 @@ retry:
       - openrouter/deepseek/deepseek-v4.1-flash:max
     smol:
       - xai-oauth/grok-4.6:xhigh
-      - anthropic/claude-sonnet-5:low
+      - anthropic/claude-sonnet-5:high
       - openai-codex/gpt-6-astra:low
       - openrouter/meta/muse-spark-1.3-contributor:max
       - openrouter/deepseek/deepseek-v4.1-flash:max
     tiny:
       - xai-oauth/grok-4.6:xhigh
-      - anthropic/claude-sonnet-5:low
+      - anthropic/claude-sonnet-5:high
       - openai-codex/gpt-6-astra:low
       - openrouter/meta/muse-spark-1.3-contributor:max
       - openrouter/deepseek/deepseek-v4.1-flash:max
     commit:
       - xai-oauth/grok-4.6:xhigh
-      - anthropic/claude-sonnet-5:low
+      - anthropic/claude-sonnet-5:high
       - openai-codex/gpt-6-astra:low
       - openrouter/meta/muse-spark-1.3-contributor:max
       - openrouter/deepseek/deepseek-v4.1-flash:max

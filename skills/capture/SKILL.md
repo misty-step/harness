@@ -1,42 +1,37 @@
 ---
 name: capture
-description: Save durable findings to project notes or the project's required work tracker.
+description: Reconcile durable findings into existing project notes or work records.
 disable-model-invocation: true
 argument-hint: "[optional project or scope]"
 ---
 
 # Capture
 
-Save durable conversation findings in the project's existing notes or required
-work tracker, within the requested scope and without claiming work or changing
-the product.
+Save durable findings within the requested scope. This does not authorize
+implementation, claiming work, assigning people, or bulk historical migration.
 
-Use Linear for durable personal, Misty Step, and other non-R90 work. R90 projects
-continue to use Habitat and its project-specific authority guidance. Resolve
-the intended workspace, team, project, and existing issue from the conversation
-and current project context before writing. Keep design knowledge in existing
-project notes and link it from the work record, rather than duplicating a backlog.
-A capture request does not authorize bulk migration of historical work.
+Use Linear for personal, Misty Step, and other non-R90 work; R90 uses Habitat and
+its project-specific authority guidance. Resolve the destination workspace, team,
+project, and existing record from conversation and project context before writing.
 
-Choose the destination by ownership, not file extension. Put reusable system
-knowledge in the owning repo; put priorities, blockers, and episode-specific
-conclusions in the work record. Link source-versioned procedures instead of
-copying a manual into Linear. Keep raw or sensitive evidence in approved retained
-storage, with a sanitized summary and revision-bound link. Do not treat fixtures,
-published product assets, or native runtime ledgers as disposable attachments.
+Choose by ownership: reusable system knowledge belongs in the owning repository;
+priorities, blockers, and episode-specific conclusions belong in the work record.
+Link existing design notes and source-versioned procedures instead of duplicating
+a backlog or manual. Keep raw or sensitive evidence in approved retained storage
+with sanitized summaries and revision-bound links. Fixtures, published product
+assets, and native runtime ledgers are not disposable attachments.
 
-Distill decisions, defects, risks, and worthwhile ideas into outcomes and why
-they matter. Preserve evidence, boundaries, dependencies, and open choices;
-include observable completion where meaningful. Keep ideas visibly separate
-from accepted work, using the conversation or existing record as authority.
+Distill decisions, defects, risks, and useful ideas into outcomes and rationale.
+Preserve evidence, boundaries, dependencies, open choices, and observable
+completion where meaningful. Keep ideas distinct from accepted work according
+to conversation or record authority; an implementation claim is not delivery proof.
 
-Search existing records by outcome, including completed and superseded work.
-Reconcile the matching item rather than duplicating it; create only for a
-distinct outcome. Link related work and omit transient status or unsupported claims.
-Preserve owners and active claims/leases; surface ownership questions instead
-of assigning people or claiming work. An implementation claim is not delivery proof.
+Search by outcome, including completed and superseded records. Reconcile a match;
+create only for a distinct outcome. Link related work, omit transient status and
+unsupported claims, and preserve owners and active claims or leases. Surface
+unresolved ownership rather than taking it over.
 
-Write the smallest complete record within the destination's visibility boundaries.
-Read meaningful mutations back through its normal interface, confirming the
-intended outcome and preserved ownership. Return note or item links, what changed,
+Write the smallest complete record within its visibility boundaries. Read back
+meaningful mutations through the destination's normal interface to establish
+that the intended change landed and ownership survived. Return links, changes,
 and any omitted findings or writes whose success remains unconfirmed.

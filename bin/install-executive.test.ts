@@ -162,6 +162,8 @@ describe("executive installation", () => {
 		const files = fixture();
 		copyFileSync(join(repo, "bin/omp-install-scopes.ts"), join(files.source, "bin/omp-install-scopes.ts"));
 		copyFileSync(join(repo, "bin/omp-grievances.ts"), join(files.source, "bin/omp-grievances.ts"));
+		copyFileSync(join(repo, "bin/pass-env.ts"), join(files.source, "bin/pass-env.ts"));
+		put(files.source, "skills/authenticated-commands/SKILL.md", readFileSync(join(repo, "skills/authenticated-commands/SKILL.md"), "utf8"));
 		copyFileSync(join(repo, "workspace-mcp.json"), join(files.source, "workspace-mcp.json"));
 		put(files.source, ".githooks/pre-push", readFileSync(join(repo, ".githooks/pre-push"), "utf8"));
 		put(files.source, "models.yml", "providers:\n  owned: {}\n");

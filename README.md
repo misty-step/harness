@@ -8,6 +8,12 @@ Standing guidance lives in `global/AGENTS.md`. It is philosophy, authority,
 and evidence calibration—not a SYSTEM override, sticky RULES file, or second
 canon. Local repository conventions and explicit requests outrank it.
 
+The guidance favors outcome-driven autonomy: continue routine authorized work
+through acceptance, ask about material choices or authority, and honor explicit
+stops. Verification resolves plausible failure rather than demonstrating effort;
+instruction-only edits need meaning, reference, and relevant loading checks,
+not model runs or synthetic applications by default.
+
 ## Layout
 
 | Path | Purpose |
@@ -15,6 +21,7 @@ canon. Local repository conventions and explicit requests outrank it.
 | `install` | Ownership-aware deployment into `$(omp config path)` |
 | `bin/omp-merge-config.ts` | Overlay source-owned YAML keys and remove retired owned keys while preserving foreign config entries |
 | `bin/omp-grievances.ts` | Manual grievance inbox CLI |
+| `bin/pass-env.ts` | Portable pass-backed environment launcher; installed as `~/.local/bin/pass-env` |
 | `config.yml` | Model roles, fallbacks, theme/TUI, providers, task/LSP settings |
 | `models.yml` | Local Ollama discovery; cloud models come from omp's bundled catalog |
 | `mcp.json` | Global MCP inventory; Linear is deliberately absent |
@@ -36,7 +43,7 @@ canon. Local repository conventions and explicit requests outrank it.
 
 Preflight validates every selected input, then writes. Unset selection means
 `all`: owned config overlay, guidance, MCP, scopes, agents, skills, themes,
-extensions, this repo's git hook, and `omp-grievances`. It does not delete
+extensions, this repo's git hook, `omp-grievances`, and `pass-env`. It does not delete
 foreign skills or agents, and it does not import live secrets into this
 checkout.
 
@@ -45,12 +52,13 @@ OMP_INSTALL_COMPONENTS=guidance ./install
 OMP_INSTALL_COMPONENTS=config ./install
 OMP_INSTALL_COMPONENTS=agents ./install
 OMP_INSTALL_COMPONENTS=executive ./install
+OMP_INSTALL_COMPONENTS=secrets ./install
 OMP_INSTALL_COMPONENTS=mcp ./install
 OMP_INSTALL_COMPONENTS="guidance mcp scopes skill:capture" ./install
 ```
 
 Supported components are `guidance`, `config`, `mcp`, `scopes`, `agents`,
-`executive`, and `skill:<source-directory-name>`. `all` cannot be combined with another
+`executive`, `secrets`, and `skill:<source-directory-name>`. `all` cannot be combined with another
 component. Empty, unknown, missing-skill, invalid-name, and invalid YAML
 selections fail before any writes. The retired `OMP_INSTALL_GUIDANCE_ONLY`
 variable fails with migration instructions rather than silently triggering a
@@ -73,6 +81,17 @@ It preserves other live configuration values and does not deploy unrelated
 pending guidance, model, MCP, or skill changes. Configuration preservation is
 semantic, not preservation of YAML comments or formatting. Package preflight
 checks syntax and local imports; native loading must still be confirmed.
+
+`secrets` installs `bin/pass-env.ts` as `~/.local/bin/pass-env` (mode
+`700`) and clean-replaces only `skills/authenticated-commands` in the agent
+directory. It preserves other packages, guidance, and configuration. Preflight
+checks Bun availability, standalone launcher syntax/imports, skill discovery
+metadata, and owned destinations before writing. Installation does not require
+a pass store or decrypt credentials; `pass` and GPG are runtime dependencies.
+The retired `omp-secrets` executable is removed only when its bytes match the
+last shipped version's SHA-256; foreign binaries and symlinks cause preflight to
+fail rather than being overwritten or deleted. Existing `pass-env` destinations
+must carry this launcher's ownership header. There is no compatibility alias.
 
 `scopes` installs Linear only under `~/development/misty-step` and
 `~/development/moomooskycow`, retires the owned global `parlor`, `ast-grep`,
@@ -160,6 +179,192 @@ grievance IDs, outcomes, references, and notes; raw reports remain owned by
 `~/.omp/autoqa.db`. A salted source fingerprint prevents acknowledgements from
 silently attaching to a replaced or rewritten grievance history.
 
+## Authenticated commands
+
+`pass-env` is a standalone Bun executable for scripts needing environment values
+from [`pass`](https://www.passwordstore.org/)/GPG. It uses ordinary cwd,
+environment, and stdio, with no OMP SDK, authentication, or session dependency.
+Keep working native tool authentication as usual; the launcher does not replace
+it. The operator configures the store and GPG key. A dedicated passwordless key
+is practical for noninteractive local use; a passphrase-protected key also works
+from an existing GPG cache. A locked key fails rather than prompting.
+
+### Installation and harness portability
+
+With Bun, pass, and GPG installed, run the source directly from this checkout:
+
+```sh
+bun bin/pass-env.ts --help
+```
+
+For a standalone installation, first check `command -v pass-env` and the
+destination below. Stop if either belongs to another tool; do not overwrite it.
+For a fresh destination, these commands require no `omp` invocation:
+
+```sh
+install -d -m 700 "$HOME/.local/bin"
+install -m 700 bin/pass-env.ts "$HOME/.local/bin/pass-env"
+export PATH="$HOME/.local/bin:$PATH"
+```
+
+The repository's `OMP_INSTALL_COMPONENTS=secrets ./install` is specifically an
+**OMP deployment adapter**: it installs this same executable and clean-replaces
+the owned `authenticated-commands` skill in OMP's agent directory. Neither route
+installs credentials, keys, or store configuration.
+
+The neutral `skills/authenticated-commands/SKILL.md` uses Agent Skills-style
+metadata and ordinary Markdown. OMP discovers it automatically after deployment.
+Other harnesses can import/copy the skill through their supported mechanism, or
+read it as ordinary Markdown and invoke the CLI. This repository does **not**
+automatically install into other harnesses or require their support for OMP's
+`skill://` URI or slash commands.
+
+### Selective command execution
+
+```sh
+pass-env list
+pass-env list projects/example --json
+pass-env run -e API_TOKEN=services/example/api-token -- ./scripts/sync
+pass-env run -f .env.pass -- bun run dev
+```
+
+`list [prefix] [--json]` reports entry names only, without decrypting. It is the
+current store index. `run` needs at least one mapping and a command after `--`.
+Repeat `-e` / `--env` for `NAME=entry` mappings or `-f` / `--env-file` for reference
+files. A project's `.env.pass` might contain:
+
+```text
+# References, not credential values
+API_TOKEN=services/example/api-token
+DATABASE_URL=projects/example/database-url
+```
+
+Reference files are literal data: blank lines and full-line comments are allowed;
+no shell evaluation, quoting syntax, or interpolation. Files apply in order,
+then explicit `-e` mappings override file mappings. Duplicate names within one
+file are errors. Mapped values override inherited variables; other environment
+variables, cwd, and interactive stdio are preserved. Exit status and signals
+propagate. Changes affect **newly launched children**, not already running
+processes or the parent shell. Restart callers after replacing a value.
+
+Workstation entries conventionally use `workstation/ENV_NAME`. The local
+`~/.config/pass-env/workstation.env.pass` is a names-only, static inventory, not an
+authoritative live index or a default environment for every command. Update its
+references when entries change. Select needed entries or a narrow project file;
+do not bulk-export the store or pass the full workstation inventory to unrelated
+commands. Names can still describe private services; review before committing.
+
+### Human credential management
+
+Each encrypted entry contains **only the exact value bytes**: no `NAME=`, wrapping
+quotes, or notes. The entire UTF-8 plaintext, including every newline, becomes
+the variable; empty values work, invalid UTF-8 and NUL bytes do not. This differs
+from pass's first-line-password-plus-notes convention.
+
+```sh
+pass-env list workstation/                 # names only; safe inventory
+pass show workstation/API_TOKEN            # reveals plaintext: private terminal only
+pass show --clip workstation/API_TOKEN     # copies the first line; not a multiline export
+EDITOR=nvim pass edit workstation/API_TOKEN
+```
+
+`pass edit` edits an existing entry or creates a new one. In nvim, enter just the
+value. For a single-line token that must have **no trailing newline**, run
+`:setlocal nofixeol noeol` and then `:wq`. Do not apply that recipe to a value whose
+final newline is intentional. Nvim normally adds a final newline; that newline
+would be a real credential byte. Clipboard use also exposes the value to the
+desktop clipboard and potentially its history; use only in a trusted session.
+
+Default interactive `pass insert` is not byte-exact for newline-free tokens:
+the installed `/usr/bin/pass` encrypts `echo "$password"` in its normal and
+`--echo` branches, adding a newline. Its `--multiline` branch sends stdin directly
+to GPG. Prefer the editor recipe above or `pass insert -m` with exact private
+input; do not use `echo` to supply a newline-free token.
+
+```sh
+pass mv workstation/OLD_NAME workstation/NEW_NAME
+pass rm workstation/UNUSED_NAME
+```
+
+Rename/remove only intentional targets (pass normally asks before deletion or
+overwriting). Update `.env.pass`, the static workstation inventory, scripts, and
+native consumer references together. An environment variable's name can stay
+the same while its mapped entry changes. Removing a local entry does **not**
+revoke the credential at its issuer, remove a copy held by an already running
+process, or rotate other copies. Issuer revocation/rotation is separate,
+explicitly authorized work.
+
+### Agent credential management
+
+First list names; then use selective `run` mappings for the authorized command.
+Do not reveal values to inspect whether they exist. For explicitly authorized
+insertion, stream **exact bytes** from a private source into
+`pass insert -m workstation/API_TOKEN`; add `--force` only for an intentional,
+authorized replacement. Do not put values in arguments, shell history, tool
+transcripts, logs, or generated reference files. Redirect a private file or use
+the execution tool's private stdin mechanism; never copy opaque secret text
+through the model. A newline belongs in that stream only if intended.
+
+Verify without displaying plaintext: list the entry name and run a child that
+checks the required property or performs the authorized operation, returning
+only success/failure. A presence check verifies injection, not issuer validity:
+
+```sh
+pass-env run -e SECRET_CHECK=services/example/api-token -- \
+  bun -e 'process.exit(Object.hasOwn(process.env, "SECRET_CHECK") ? 0 : 1)'
+```
+
+Use ordinary `pass mv` / `pass rm` only for authorized renames/removals; update
+callers and reference inventories as above. `pass-env` deliberately has no
+additional secret-management subcommands.
+
+### Migration and security boundaries
+
+Migrate the application's launch path first: `.env.pass` does not automatically
+replace an app-consumed `.env`. Confirm the app accepts injected values, then
+launch through `pass-env run -f .env.pass -- …` before removing its old dotenv
+file. Native consumers using pass directly need no launcher migration.
+
+The existing workstation names-only configuration moved from
+`~/.config/omp-secrets` to `~/.config/pass-env` without changing its mappings.
+Historical migration receipt and dotenv inventory files intentionally remain at
+`~/.local/state/omp-secrets`; their paths and observations are historical evidence,
+not live configuration. New verification receipts belong under
+`~/.local/state/pass-env`. The store remains `~/.password-store` (or
+`PASSWORD_STORE_DIR`), the key home remains `~/.gnupg`, and entry names/values are
+unchanged by the launcher rename.
+
+Missing entries fail before the child starts. Decryption uses noninteractive GPG
+(`--batch --pinentry-mode error`); unlock with ordinary pass/GPG outside the
+launcher. It adds no daemon, key cache, rotation, or native-auth repair.
+Recovery needs encrypted entries **and** the matching private key. A local copy
+of both is not an independent backup, and removing files is not secure erasure.
+
+The launcher never prints plaintext, but child output is unfiltered and the child
+can disclose its environment. Processes running as the same user can read the
+store. This prevents accidental launcher output; it is not credential isolation
+or sandboxing.
+
+### Focused verification
+
+```sh
+sh -n install
+bun test bin/pass-env.test.ts bin/install-secrets.test.ts bin/install-executive.test.ts
+```
+
+Tests use disposable stores, HOME, agent directories, and source fixtures; no
+live credentials are needed. For a deployed smoke check, use a disposable real
+pass/GPG store with synthetic values, check `pass-env list`, inject into a
+success/failure-only child, and verify lookup failure does not start it.
+
+In a fresh OMP session, `authenticated-commands` should appear in the automatic
+skill index. OMP supports `skill://authenticated-commands` and
+`/skill:authenticated-commands`. A no-model check can launch
+`omp --mode rpc --no-extensions --no-session --no-title` and request
+`{"type":"get_available_commands"}`: the response should contain
+`skill:authenticated-commands` with source `skill`. Discovery does not decrypt a
+credential or call a model. Other harnesses use their own import/read mechanism.
+
 ## Linear
 
 Use the [official Linear MCP server](https://linear.app/docs/mcp) for access and
@@ -240,11 +445,12 @@ font licenses. The external `frontend-design` and `show-me` packages stay verbat
 
 ## Skills and agents
 
-Three homebrew skills are explicitly invoked:
+Four homebrew skills are explicitly invoked:
 
 | Command | Outcome |
 | --- | --- |
-| `/skill:foundation` | Reassess product purpose, backlog, architecture, and development and operational foundations; recommend a coherent direction without making changes |
+| `/skill:foundation` | Recommend a coherent project direction and practical transition without changing the project |
+| `/skill:agent-ergonomics` | Synthesize grounded findings into prioritized improvements in the project's existing backlog and roadmap |
 | `/skill:verification-infrastructure` | Create or repair repository-owned runnable verification and its discoverable skill, preserving existing interfaces |
 | `/skill:capture` | Save durable findings to project notes, or the required tracker, without duplicating or claiming work |
 
@@ -252,11 +458,28 @@ Three homebrew skills are explicitly invoked:
 skill index. It does not prevent an explicit `skill://` read or grant authority
 to act. Read-only requests remain read-only.
 
-`foundation` is an investigation and design proposal, not an implementation
-pass. It distinguishes an ideal destination from a practical transition.
-Invoke `/skill:foundation` with any context or constraints the repository
-cannot supply; select the model separately. Backlog changes and implementation
-remain separately authorized work.
+`authenticated-commands` is a portable homebrew skill for API tokens,
+authenticated scripts, pass entries, `.env.pass`, and migrated project execution.
+OMP automatically discovers it when installed together with `pass-env` by the
+`secrets` component (or `all`), without a global AGENTS secret policy.
+
+`foundation` is a first-principles investigation and design proposal, not an
+implementation pass or an infrastructure checklist. It distinguishes an ideal
+destination from a practical transition; preserving a sound system is a valid
+conclusion. Its [operating reference](skills/foundation/operating-foundations.md)
+is conditional context when verification, hosting, deployment, or operation
+could change the recommendation. Invoke `/skill:foundation` with context or
+constraints the repository cannot supply; select the model separately. Backlog
+changes and implementation remain separately authorized work.
+
+Use `/skill:agent-ergonomics [optional scope or focus]` to consider the project
+from the agent driver's seat: accurate understanding and effective control at
+the least total cost. By default, it synthesizes and prioritizes grounded findings
+into the existing backlog and roadmap, reconciling work rather than duplicating
+it. Documentation supports those improvements only where needed. Existing scope
+and authority govern writes; otherwise it proposes updates. Use `review-only` for
+no writes.
+Repeated use should converge, not accumulate instructions or speculative work.
 
 Five vendored packages remain unchanged except by whole-package refresh:
 `frontend-design`, `herdr`, `show-me`, `wrangler`, and `using-exe-dev`.
@@ -283,6 +506,10 @@ existing setup, fixtures, smoke commands, CI, and specialized skills before
 creating anything. It establishes or repairs a capability; it does not require
 a new CLI, a particular browser vendor, or a uniform receipt schema. Keep a
 sufficient existing skill rather than generating a competing one.
+Its [runtime](skills/verification-infrastructure/runtime.md) and
+[journey](skills/verification-infrastructure/journeys.md) references are read
+when those concerns are in scope, not as a mandatory packet. Selected skill
+installation copies the complete package, including these adjacent references.
 
 `foundation` assesses whether a fresh agent can exercise the core outcome,
 distinguish success from failure, and clean up. It recommends missing capability
@@ -351,13 +578,16 @@ when it owns a distinct scope needing further decomposition.
 The extension restricts Main/executive tools to inspection and coordination.
 Direct editing, shell/eval execution, arbitrary devices, and process-control
 operations through `hub` are rejected. Workers keep their normal capabilities.
-Native `task` and `hub` remain the execution and lifecycle authority: no
-external loop, Herdr executor, or second scheduler is installed.
+Native OMP and Herdr are valid delegation and execution channels, including
+spawning agents and dispatching work. Route Herdr CLI operations through a
+capable native worker; this does not grant Main/executives direct shell access.
+The former blanket executor prohibition could cause refusals despite workers'
+unchanged capabilities; it was prose policy, not a separate Herdr tool ban.
 
-The deployed recursion depth is **3**, allowing
+The deployed native recursion depth is **3**, allowing
 `Main → executive → executive → worker`. Process-local admission permits
-**4 active worker turns and 4 live executive scopes**, excluding Main.
-Waiting executives use no worker permit. Excess admission is rejected rather
+**4 active native worker turns and 4 live native executive scopes**, excluding Main.
+Waiting executives use no worker permit. Excess native admission is rejected rather
 than queued; these limits are not dollar budgets or cross-process limits.
 
 Use the `executive_control` tool to:
@@ -367,10 +597,14 @@ Use the `executive_control` tool to:
   before relying on the policy.
 - `plan`: save this node's current remaining-scope brief in its native session.
   Persistent sessions flush the brief even before their first model response.
-- `cancel`: close one owned descendant subtree, or all owned descendants.
+- `cancel`: close one owned native descendant subtree, or all owned native descendants.
   Require `settled: true`; a turn abort alone is not whole-scope cancellation.
-  Failed cleanup retains admission barriers and supports status inspection
+  Failed native cleanup retains admission barriers and supports status inspection
   and cancellation retry.
+
+Native `task`/`hub` and `executive_control` account only for native descendants.
+Track Herdr agents' ownership, readiness, results, and cleanup through Herdr;
+native status or cancellation does not establish their state.
 
 Native activity and successful tool calls are not acceptance evidence.
 Executives judge worker deliverables and stop when the authorized outcome is
@@ -524,6 +758,11 @@ private data, installs dependencies, or reskins products.
 Run these once after integration against a disposable HOME, agent directory,
 development root, and checkout copy. Do not point `PI_CODING_AGENT_DIR` at the
 live agent tree. Compare path hashes before and after each case.
+For native loader checks, put the disposable agent tree at
+`$HOME/.omp/agent` (and point `PI_CODING_AGENT_DIR` there), or use one consistent
+native profile. An arbitrary `PI_CODING_AGENT_DIR` redirects skill and runtime
+state but not the generic config-directory lookup used by agent discovery.
+Exclude copied local MCP imports and credentials from a loading-only fixture.
 
 1. **Foreign package preservation.** Seed `$agent/skills/foreign-cli/SKILL.md`
    and `$agent/agents/foreign.md`. `./install` must keep both and replace only
