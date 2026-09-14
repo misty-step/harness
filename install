@@ -1,0 +1,98 @@
+#!/bin/sh
+# Deploy owned pi configuration into the pi coding-agent directory.
+#
+# Source of truth for this machine's pi preferences: settings, the custom
+# composer chrome, and the LOC status extension. Preflight validates every
+# selected input before any write.
+set -eu
+umask 077
+
+repo_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+agent_dir=${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}
+
+require_bun() {
+  command -v bun >/dev/null 2>&1 || { echo "bun is required" >&2; exit 1; }
+}
+
+require_nonempty() {
+  [ -s "$1" ] || {
+    printf 'Missing or empty source: %s\n' "$1" >&2
+    exit 1
+  }
+}
+
+selected=${PI_CONFIG_COMPONENTS:-all}
+case "$selected" in
+  all) components="config pi-chrome loc" ;;
+  "") components="" ;;
+  *) components="$selected" ;;
+esac
+
+for component in $components; do
+  case "$component" in
+    config|pi-chrome|loc) ;;
+    *) printf 'Unknown component: %s\n' "$component" >&2; exit 1 ;;
+  esac
+done
+
+has() {
+  case " $components " in
+    *" $1 "*) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+validate_config() {
+  require_bun
+  require_nonempty "$repo_dir/settings.json"
+  bun "$repo_dir/bin/pi-merge-settings.ts" \
+    --source "$repo_dir/settings.json" \
+    --dest "$agent_dir/settings.json" \
+    --check
+}
+
+install_config() {
+  install -d -m 700 "$agent_dir"
+  bun "$repo_dir/bin/pi-merge-settings.ts" \
+    --source "$repo_dir/settings.json" \
+    --dest "$agent_dir/settings.json"
+}
+
+validate_pi_chrome() {
+  require_nonempty "$repo_dir/extensions/pi-chrome.ts"
+}
+
+install_pi_chrome() {
+  install -d -m 700 "$agent_dir/extensions"
+  install -m 600 "$repo_dir/extensions/pi-chrome.ts" "$agent_dir/extensions/pi-chrome.ts"
+}
+
+validate_loc() {
+  for file in analyze.ts index.ts git-hook.sh; do
+    require_nonempty "$repo_dir/extensions/loc/$file"
+  done
+}
+
+install_loc() {
+  # Clean-replace the owned package so obsolete files cannot survive.
+  rm -rf "$agent_dir/extensions/loc"
+  install -d -m 700 "$agent_dir/extensions/loc"
+  for file in analyze.ts index.ts loc.test.ts; do
+    install -m 600 "$repo_dir/extensions/loc/$file" "$agent_dir/extensions/loc/$file"
+  done
+  install -m 700 "$repo_dir/extensions/loc/git-hook.sh" "$agent_dir/extensions/loc/git-hook.sh"
+}
+
+install_git_hook() {
+  [ -d "$repo_dir/.git" ] || return 0
+  install -m 700 "$repo_dir/.githooks/pre-push" "$repo_dir/.git/hooks/pre-push"
+}
+
+if has config; then validate_config; fi
+if has pi-chrome; then validate_pi_chrome; fi
+if has loc; then validate_loc; fi
+
+if has config; then install_config; fi
+if has pi-chrome; then install_pi_chrome; fi
+if has loc; then install_loc; fi
+install_git_hook

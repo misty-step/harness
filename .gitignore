@@ -1,0 +1,16 @@
+/*
+!/.gitignore
+!/README.md
+!/AGENTS.md
+!/CHANGELOG.md
+!/install
+!/settings.json
+!/.landmark.yml
+!/extensions/
+!/extensions/**
+!/bin/
+!/bin/**
+!/.githooks/
+!/.githooks/**
+!/.github/
+!/.github/**

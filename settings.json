@@ -1,0 +1,14 @@
+{
+  "theme": "omarchy-system",
+  "defaultProvider": "openrouter",
+  "defaultModel": "deepseek/deepseek-v4.1-flash",
+  "modelThinkingLevels": {
+    "openrouter/deepseek/deepseek-v4.1-flash": "xhigh"
+  },
+  "editorPaddingX": 2,
+  "outputPad": 1,
+  "fullscreenScrollbar": "always",
+  "markdown": {
+    "codeBlockIndent": "  "
+  }
+}
