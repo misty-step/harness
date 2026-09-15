@@ -40,8 +40,7 @@ never assumes ownership of the rest:
   integration, Omarchy skills, generated themes — are never written.
 - One owned file lives outside the agent directory: the marked `pi()` wrapper
   block in `~/.bashrc`'s user section. It is the only sanctioned touch of the
-  user's dotfiles; the snippet and its mark live in this repo's
-  `web-search/` section.
+  user's dotfiles; the snippet and its mark live in *The launch hook* below.
 
 To adopt a change: edit the source here, run `./install`, restart pi.
 
@@ -59,6 +58,7 @@ presentation; "behavioral" changes agent capability, model input, or data flow.
 | `extensions/web-search/` | this repo | behavioral | yes | `web_search` tool (Exa); registers nothing without `EXA_API_KEY` |
 | `extensions/failover/` | this repo | behavioral | yes | Fallback chain: run dies on a link after stock retry → session moves to the next, strictly forward (ADR-011/013) |
 | `skills/authenticated-commands` | this repo (vendored from omp-config) | skill | yes | Teaches agents disciplined `pass`/`pass-env` credential use |
+| `~/.bashrc` (`pi()` block) | this repo (marked block only) | behavioral | by hand | Launch hook: Exa key from pass (ADR-010); run-scoped scratch `TMPDIR` via `omp-scratch` when installed (ADR-015) |
 | `extensions/agent-usage-telemetry.ts` | external (managed) | telemetry | no | Reports usage to an external endpoint |
 | `extensions/herdr-agent-state.ts` | herdr (managed) | integration | no | Reports pane agent state to herdr |
 | `skills/omarchy`, `skills/diagnose-crash` | Omarchy (symlinks) | skills | no | Omarchy-owned agent skills |
@@ -102,24 +102,9 @@ model's tools or autonomy.
 full_text), backed by a single fetch to `api.exa.ai` — no dependencies beyond
 pi's runtime (ADR-010). `format.ts` is pure and bun-tested; `index.ts` is the
 harness-facing half, mirroring the loc split. The key comes from `EXA_API_KEY`
-in the environment; a marked `pi()` block in `~/.bashrc`'s user section
-injects it from pass on every interactive-shell launch, so plain `pi` always
-has it:
-
-```sh
-# pi-config (ADR-010): run pi with the Exa key injected from pass so the
-# web-search extension is always live. Entry gone (or pass-env missing) and
-# pi starts plain; a pass-side failure fails loudly here instead.
-if type pass-env >/dev/null 2>&1; then
-  pi() {
-    if [ -n "$(command pass-env list workstation/EXA_API_KEY 2>/dev/null)" ]; then
-      command pass-env run -e EXA_API_KEY=workstation/EXA_API_KEY -- pi "$@"
-    else
-      command pi "$@"
-    fi
-  }
-fi
-```
+in the environment, injected from pass by the `pi()` launch hook in
+`~/.bashrc` (ADR-010; snippet under *The launch hook* below), so plain `pi`
+always has it.
 
 Non-interactive launches, or a missing pass entry, start pi plain; without the
 key the tool does not exist at all — stock behavior, no dead affordance.
@@ -155,6 +140,50 @@ one sentence adapted (the discovery note). It keeps credential values out of
 model context: list entries, match names, verify with authenticated side
 effects, bind secrets through `pass-env run`. It is the pi-side counterpart of
 omp-config's secret-discipline skill, and `web-search` is its first consumer.
+
+### The launch hook: `pi()` in `~/.bashrc`
+
+The one owned file outside the agent directory: a marked block in the user
+section of `~/.bashrc`, the only sanctioned touch of the user's dotfiles
+(ADR-010). It does two jobs at launch — inject the Exa key from pass (ADR-010)
+and, once `omp-config` installs `bin/omp-scratch`, run the session under a
+run-scoped scratch `TMPDIR` (ADR-015).
+
+```sh
+# pi-config (ADR-010, ADR-015): the pi launch hook. Injects the Exa key from
+# pass so web-search is always live, and — once omp-config installs
+# bin/omp-scratch — runs the session under a run-scoped TMPDIR under
+# ~/.cache/tmp, so suite scratch and evidence never reach the /tmp RAM tmpfs.
+# Pieces degrade on their own: no omp-scratch keeps the shell's shared
+# TMPDIR; no pass entry starts pi plain. A pass-side failure fails loudly.
+if type pass-env >/dev/null 2>&1 || type omp-scratch >/dev/null 2>&1; then
+  pi() {
+    local -a runner=()
+    type omp-scratch >/dev/null 2>&1 && runner=(omp-scratch exec --)
+    if [ -n "$(command pass-env list workstation/EXA_API_KEY 2>/dev/null)" ]; then
+      command "${runner[@]}" pass-env run \
+        -e EXA_API_KEY=workstation/EXA_API_KEY -- pi "$@"
+    else
+      command "${runner[@]}" pi "$@"
+    fi
+  }
+fi
+```
+
+`omp-scratch` owns the run lifecycle — creation, owner trap, `flock`-keyed
+sweep (`omp-config/references/scratch-routing.md`, §6.1). This repo owns only
+the injection point and deliberately does not reimplement the owner in a
+dotfile: a second lifecycle implementation is the unowned, drifting hand-edit
+that design rejects (the shell's shared `TMPDIR=~/.cache/tmp` export is the
+proof). The hook is deliberately fail-open — no `omp-scratch` degrades to that
+bridge, no pass entry to plain pi — because a launch must not depend on
+scratch infrastructure, and the bridge's failure mode is disk growth, not
+desktop pressure.
+
+Named residual gap: the function covers interactive-shell launches only. A pi
+session started from a desktop launcher, herdr, or a systemd unit never runs
+it, so it gets no run-scoped `TMPDIR`; closing that needs a systemd user
+environment or an Omarchy-level default, not this file.
 
 ### Foreign and managed components (never overwritten)
 
@@ -395,6 +424,36 @@ restating the rule across the 63 repository `AGENTS.md` files under
 `~/development`; repository files add to the global rule (as the file's own
 header states), never restate it.
 
+**ADR-015 — Hang run-scoped scratch routing off the `pi()` launch hook.**
+*Accepted · 2026-09-15.* Element A3-pi of the 2026-09-15 workstation pressure
+report: `omp-config`'s `references/scratch-routing.md` settles the mechanism —
+run-scoped `TMPDIR` under `~/.cache/tmp/runs/<run-id>`, an owner trap, and a
+`flock`-keyed sweep, proven by an executed five-act POC — and its §6.2 assigns
+deployment to the launcher owners. This repo owns the launcher for pi:
+`~/.bashrc`'s marked `pi()` block (ADR-010). The hook now composes scratch
+routing with the existing key injection, selecting the runner through an
+array so the empty case stays a plain launch. Decisions recorded:
+
+- **Injection point only.** `omp-scratch` and the run lifecycle stay in
+  omp-config (§6.1). Reimplementing the owner in a dotfile would create a
+  second lifecycle that drifts — the unowned hand-edit class the design
+  rejects, of which the shell's shared `TMPDIR` export is the existing proof.
+- **Fail-open, deliberately.** No `omp-scratch` degrades to that shared
+  bridge; no pass entry degrades to plain pi. A launch must not depend on
+  scratch infrastructure, and the bridge's failure mode is disk growth, not
+  desktop pressure.
+- **The ADR-014 prose is not shrunk yet.** Routing is not deployed until
+  `bin/omp-scratch` lands; that is ADR-014's own review trigger, and
+  `scratch-routing.md` §6.4 says the same.
+- **The residual gap is named, not papered over.** GUI, herdr, and systemd
+  launches never run this function and get no run-scoped `TMPDIR`; that needs
+  a systemd user environment or an Omarchy-level default.
+
+Deployed by hand to the marked block, per ADR-010. Verified: `bash -n` on the
+source block and the live file, and the four degradation branches exercised
+with stubs, asserting the exact argv and that nothing is written outside
+`~/.cache/tmp`.
+
 ## Research: how pi iterates on other harnesses
 
 Surveyed 2026-09-14 against pi's bundled docs/examples, the community
@@ -492,6 +551,9 @@ failover became sticky (then revisit the once-per-session latch).
 - **ADR-014 (host resources)**: the harness routes `TMPDIR` itself, or
   `dev-exec.slice` admission (`devrun`) and per-repo runner caps land — then
   the prose bridge shrinks to a pointer at the mechanism.
+- **ADR-015 (scratch routing)**: `omp-scratch` ships under another name or
+  another invocation contract (then re-point the hook), or pi gains a native
+  session-environment setting (then set it and delete the hook's scratch half).
 - **Chrome (ADR-004)**: the footer's left side becomes unreadable at 80 columns.
 - **OMP parity**: OMP ships a feature we use daily and pi lacks. Port one thing
   at a time, with an ADR.
