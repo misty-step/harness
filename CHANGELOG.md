@@ -1,3 +1,10 @@
+## [0.0.6](https://github.com/misty-step/pi-config/compare/v0.0.5...v0.0.6) (2026-09-15)
+
+
+### Features
+
+* **chrome:** session card and tool-aware working state (ADR-017) ([6eb0f08](https://github.com/misty-step/pi-config/commit/6eb0f08250c54d4ae4b7cdd3ea4a89b391379698))
+
 ## [0.0.5](https://github.com/misty-step/pi-config/compare/v0.0.4...v0.0.5) (2026-09-15)
 
 
