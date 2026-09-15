@@ -230,7 +230,7 @@ def close_notification(notify_id):
             "--dest", "org.freedesktop.Notifications",
             "--object-path", "/org/freedesktop/Notifications",
             "--method", "org.freedesktop.Notifications.CloseNotification",
-            f"uint32:{int(notify_id)}",
+            str(int(notify_id)),
         ],
         capture_output=True, text=True, timeout=10,
     )
