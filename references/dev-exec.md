@@ -149,20 +149,30 @@ The existing `~/.local/bin/tmp-health` is replaced with the tracked
 [`bin/tmp-health.py`](../bin/tmp-health.py). It retains `/tmp` and
 `~/.cache/tmp` disk/inode checks and adds:
 
-- Disk or inode use **>80%** (dynamic inode counts remain not applicable).
-- Host RAM usage **>80%**, calculated from `MemAvailable`, not merely `MemFree`.
-- Swap usage **>80%**, or net occupied swap growth **>=1 GiB/min** over recent
-  same-boot samples (1–180 seconds apart). Initial/reboot/stale samples do not
-  invent a rate. Fast grow-and-shrink activity between samples can be missed.
-- `dev-exec.slice` current memory **>=90% of MemoryHigh** (43.2 GiB).
+- Disk or inode use **>80%**, remaining latched until **<75%** (dynamic inode
+  counts remain not applicable).
+- Host RAM usage **>80%**, calculated from `MemAvailable`, not merely `MemFree`,
+  remaining latched until **<75%**.
+- Swap usage **>80%** remaining latched until **<75%**, or net occupied swap
+  growth **>=1 GiB/min** over recent same-boot samples (1–180 seconds apart).
+  Growth is a rate: it unlatches as soon as the sample is below 1 GiB/min.
+  Initial/reboot/stale samples do not invent a rate. Fast grow-and-shrink
+  activity between samples can be missed.
+- `dev-exec.slice` current memory **>=90% of MemoryHigh** (43.2 GiB), remaining
+  latched until **<80% of MemoryHigh**.
 - Inspection errors also warn; notification failures fail the service and retry
-  on the next check rather than silently claiming delivery.
+  on the next check rather than silently claiming delivery or clearing latch
+  state.
 
 Breaches go to the user journal **and** `notify-send` critical desktop
-notifications. New sets of alert conditions notify immediately; unchanged active
-conditions repeat at most every 15 minutes. Recovery clears the suppression, so
-recurrence notifies again. `~/.local/state/tmp-health/state.json` (or
-`$XDG_STATE_HOME/tmp-health/state.json`) retains the previous sample and cooldown.
+notifications. Level keys notify on enter and when the latched set changes,
+not every 15 minutes while parked. Rate keys (`swap-growth`) re-arm at most
+every 15 minutes while still active. A new key notifies immediately without
+resetting other keys. Oscillation inside the hysteresis band does not re-arm.
+`notify-send --replace-id` updates one `--expire-time=0` card; full recovery
+closes that id. `~/.local/state/tmp-health/state.json` (or
+`$XDG_STATE_HOME/tmp-health/state.json`) retains the previous sample, per-key
+latch times, and notification id.
 The service's existing `UMask=0077` protects it. Notifications require a logged-in
 notification server; the monitor journals failure when none is available.
 
