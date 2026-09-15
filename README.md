@@ -86,7 +86,7 @@ overwrites the deployed copy; the file tells agents not to hand-edit it.
 with a four-part layout: a session card (pi mark, version, session name,
 compact keyhints) replaces the stock logo banner, the composer's bottom border
 is empty, session identity (model + reasoning) is right-aligned on the top
-border beside a breathing working pulse, and a single footer carries location
+border beside pi's working spinner, and a single footer carries location
 + codebase on the left and session economics on the right. While a tool runs the
 working row names it ("reading src/foo.ts"). It reads git status and session
 usage but writes nothing and changes no agent behavior. Remove the file and
@@ -511,10 +511,12 @@ rails (ADR-004):
   row to a present-tense verb plus a bounded target ("reading src/foo.ts",
   "running cargo test"); `tool_execution_end`, `agent_start`, and
   `agent_settled` restore pi's default.
-- **Breathing indicator.** A four-frame accent pulse in the composer border
-  replaces the braille spinner. Custom frames render verbatim, so the color is
-  baked and re-baked on each `agent_start`; a mid-session theme change
-  therefore self-heals before the next run.
+- **Stock spinner.** (Amended · 2026-09-15.) We first replaced pi's braille
+  spinner with a four-frame accent pulse via `setWorkingIndicator`. It read as
+  motion competing with the working message and the theme's own thinking
+  colour, and custom frames render verbatim — they bake their colour and drift
+  after a mid-session theme change. Reverted: pi's stock spinner is better
+  here.
 
 We keep `quietStartup` off. The `[Context]/[Skills]/[Extensions]/[Themes]`
 listing below the header is the load-proof for foreign extensions

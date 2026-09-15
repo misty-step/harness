@@ -3,8 +3,8 @@
  *
  * Nothing sits on the composer's bottom border. The header is a quiet session
  * card (mark, version, session name, compact keyhints), session identity is
- * right-aligned on the top border beside a breathing working pulse, and
- * everything else lives in the footer below the composer:
+ * right-aligned on the top border beside pi's working spinner, and everything
+ * else lives in the footer below the composer:
  *
  *   ─ ─────────────────────────  ds-v4.1-flash · ◆ xhigh ─
  *    type here
@@ -28,8 +28,6 @@ import {
 	type ExtensionAPI,
 	type ExtensionContext,
 	type KeybindingsManager,
-	type Theme,
-	type WorkingIndicatorOptions,
 } from "@earendil-works/pi-coding-agent";
 import type { Component, EditorTheme, TUI } from "@earendil-works/pi-tui";
 import { truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
@@ -83,18 +81,6 @@ function summarizeTool(toolName: string, args: unknown): string {
 		return `${verb} ${target}`;
 	}
 	return verb;
-}
-
-/**
- * A four-frame pulse that breathes in the accent color while pi works. Custom
- * frames render verbatim in the composer border, so the color is baked here;
- * agent_start re-bakes it so a mid-session theme change self-heals.
- */
-function workingIndicator(thm: Theme): WorkingIndicatorOptions {
-	return {
-		frames: [thm.fg("dim", "·"), thm.fg("muted", "•"), thm.fg("accent", "●"), thm.fg("muted", "•")],
-		intervalMs: 140,
-	};
 }
 
 /** Show the current directory plus its parent, home-relative when possible. */
@@ -380,9 +366,6 @@ export default function (pi: ExtensionAPI) {
 			return sessionCard;
 		});
 
-		// The composer border carries a breathing accent pulse while pi works.
-		ctx.ui.setWorkingIndicator(workingIndicator(ctx.ui.theme));
-
 		// Footer is the single lower rail: location + codebase on the left,
 		// session economics on the right.
 		ctx.ui.setFooter((tui, _theme, footerData) => {
@@ -458,9 +441,7 @@ export default function (pi: ExtensionAPI) {
 
 	pi.on("agent_start", (_event, ctx) => {
 		if (ctx.mode !== "tui") return;
-		// Re-bake the indicator so a mid-session theme change self-heals, and
-		// clear any tool message left over from the previous run.
-		ctx.ui.setWorkingIndicator(workingIndicator(ctx.ui.theme));
+		// Clear any tool message left over from the previous run.
 		ctx.ui.setWorkingMessage();
 	});
 
