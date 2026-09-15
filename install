@@ -3,7 +3,10 @@
 #
 # Source of truth for this machine's pi preferences: settings, the custom
 # composer chrome, and the LOC status extension. Preflight validates every
-# selected input before any write.
+# selected input before any write. Pokayoke: unknown components, empty
+# sources, and invalid settings fail closed before mutation; owned packages
+# are clean-replaced so obsolete files cannot survive; foreign live keys
+# and unmanaged agent files are never overwritten.
 set -eu
 umask 077
 
@@ -74,7 +77,7 @@ validate_loc() {
 }
 
 install_loc() {
-  # Clean-replace the owned package so obsolete files cannot survive.
+  # Pokayoke: clean-replace the owned package so obsolete files cannot survive.
   rm -rf "$agent_dir/extensions/loc"
   install -d -m 700 "$agent_dir/extensions/loc"
   for file in analyze.ts index.ts loc.test.ts; do

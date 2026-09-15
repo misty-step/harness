@@ -7,7 +7,10 @@ status extension. `./install` deploys owned components.
 Sister repository to [omp-config](https://github.com/misty-step/omp-config),
 which owns the same preferences for the OMP harness. Pi and OMP discover their
 configuration differently, so the two repos share intent and conventions rather
-than files.
+than files. One shared convention is pokayoke: after a class of error, change
+the system so that class cannot recur. Prefer shape, type, ownership, a missing
+affordance, or a failing-closed check over a warning. The standing prompt is:
+how can I pokayoke this so this kind of error never happens again?
 
 ## Layout
 
@@ -74,6 +77,20 @@ ln -sf ~/.pi/agent/extensions/loc/git-hook.sh .git/hooks/post-commit
 ln -sf ~/.pi/agent/extensions/loc/git-hook.sh .git/hooks/post-merge
 ln -sf ~/.pi/agent/extensions/loc/git-hook.sh .git/hooks/post-checkout
 ```
+
+## Pokayoke
+
+This harness already error-proofs several classes of mistake. Name them so
+future changes keep the same shape:
+
+- Unknown `PI_CONFIG_COMPONENTS` values fail before any write.
+- `config` overlays owned keys and preserves foreign live keys, so a deploy
+  cannot clobber `auth.json` or runtime state.
+- `loc` is clean-replaced so obsolete files cannot survive inside the package.
+- The installer never touches sessions, telemetry, or herdr-managed files.
+
+When a new failure mode appears, add a shape, check, or missing affordance
+before adding a warning. A comment is not pokayoke.
 
 ## Verification
 
