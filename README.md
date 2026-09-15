@@ -1,27 +1,256 @@
 # pi-config
 
-Pi coding-agent configuration for Phaedrus / Misty Step. Source of truth for
-how this machine's pi runs: settings, the custom composer chrome, and the LOC
-status extension. `./install` deploys owned components.
+Pi coding-agent configuration for Phaedrus / Misty Step. This is the versioned
+source of truth for how pi iterates on raw upstream pi: settings, the custom
+composer chrome, and the LOC status extension. `./install` deploys owned
+components into `$PI_CODING_AGENT_DIR` (default `~/.pi/agent`).
 
 Sister repository to [omp-config](https://github.com/misty-step/omp-config),
-which owns the same preferences for the OMP harness. Pi and OMP discover their
-configuration differently, so the two repos share intent and conventions rather
-than files. One shared convention is pokayoke: after a class of error, change
-the system so that class cannot recur. Prefer shape, type, ownership, a missing
-affordance, or a failing-closed check over a warning. The standing prompt is:
-how can I pokayoke this so this kind of error never happens again?
+which owns the same intent for the OMP harness. Pi and OMP discover their
+configuration differently, so the two repos share conventions and judgment, not
+files.
 
-## Layout
+One shared convention is **pokayoke**: after a class of error, change the system
+so that class cannot recur. Prefer shape, type, ownership, a missing affordance,
+or a failing-closed check over a warning. The standing prompt is: how can I
+pokayoke this so this kind of error never happens again? The installer already
+practices it — unknown components, empty sources, and invalid settings fail
+closed before mutation; owned packages are clean-replaced; foreign live keys and
+unmanaged agent files are never overwritten.
 
-| Path | Purpose |
-| --- | --- |
-| `install` | Ownership-aware deployment into `$PI_CODING_AGENT_DIR` (default `~/.pi/agent`) |
-| `settings.json` | Owned pi settings: theme, default model/thinking, editor padding, markdown |
-| `bin/pi-merge-settings.ts` | Overlay source-owned settings keys while preserving foreign live keys such as runtime changelog state |
-| `extensions/pi-chrome.ts` | Composer-centered status chrome: right-aligned identity on the top rail, empty bottom rail, single footer |
-| `extensions/loc/` | Session-resident LOC status (`/loc`, `/loc-trend`) plus the worktree delta and optional git hook |
-| `.githooks/pre-push` | Secret scanners; installed into this repo's git dir by `./install` |
+The rule for this repo: **every line we add to raw pi must earn its place.**
+Each divergence is either *aesthetic* (it changes only what we see) or
+*behavioral* (it changes what the agent can do or what the model receives). We
+track both here, with a reason and a review trigger.
+
+## How this repo relates to raw pi
+
+`~/.pi/agent` is the live, mutable runtime. This repo owns a declared subset and
+never assumes ownership of the rest:
+
+- `./install` overlays source-owned settings keys and clean-replaces owned
+  extension packages.
+- Foreign live settings keys (runtime state such as `lastChangelogVersion`) are
+  preserved by `bin/pi-merge-settings.ts`.
+- Files this repo does not declare — auth, sessions, telemetry, herdr
+  integration, Omarchy skills, generated themes — are never written.
+
+To adopt a change: edit the source here, run `./install`, restart pi.
+
+## Divergence ledger
+
+What we add to raw pi, and how it is classified. "Aesthetic" changes only
+presentation; "behavioral" changes agent capability, model input, or data flow.
+
+| Component | Owner | Class | Installed by `./install` | Divergence |
+| --- | --- | --- | --- | --- |
+| `settings.json` | this repo | config | yes | Default model/thinking, editor padding, markdown, theme name |
+| `extensions/pi-chrome.ts` | this repo | aesthetic | yes | Composer rail layout and footer |
+| `extensions/loc/` | this repo | behavioral (read-only) | yes | `/loc`, `/loc-trend`, LOC status row |
+| `extensions/agent-usage-telemetry.ts` | external (managed) | telemetry | no | Reports usage to an external endpoint |
+| `extensions/herdr-agent-state.ts` | herdr (managed) | integration | no | Reports pane agent state to herdr |
+| `skills/omarchy`, `skills/diagnose-crash` | Omarchy (symlinks) | skills | no | Omarchy-owned agent skills |
+| `themes/omarchy-system.json` | Omarchy (generated) | generated | no | Theme regenerated on every theme change |
+| `auth.json`, `models-store.json`, `sessions/`, `trust.json`, `usage-outbox/` | pi (runtime) | runtime | no | Credentials, sessions, state |
+
+### Owned extensions
+
+**`pi-chrome.ts` — aesthetic.** Replaces the stock editor/footer with a
+three-part layout: the composer's bottom border is empty, session identity
+(model + reasoning) is right-aligned on the top border beside pi's working
+spinner, and a single footer carries location + codebase on the left and session
+economics on the right. It reads git status and session usage but writes nothing
+and changes no agent behavior. Remove the file and stock pi returns. It is a
+deliberate rebuild of the popular `pi-powerline-footer` idea, kept local so we
+control the layout and take on no third-party dependency.
+
+**`loc/` — behavioral, read-only.** A port of the OMP LOC extension. Adds the
+`/loc` and `/loc-trend` commands and a status row showing top-language share,
+committed code lines, file count, and live net working-tree line movement vs
+`HEAD`. `analyze.ts` counts committed code at `HEAD`; the delta adds staged,
+unstaged, and untracked movement so it moves as you edit. It shells out to `git`
+and reads tracked/untracked files, but never writes to a repository except its
+own `.git/loc_cache`. It changes the command surface and footer output, not the
+model's tools or autonomy.
+
+### Foreign and managed components (never overwritten)
+
+**`agent-usage-telemetry.ts` — telemetry.** Managed by an external
+`agent-usage-telemetry` install. It posts usage events to a hosted endpoint. Its
+configuration, including an API key and machine identity, lives under
+`~/.config/agent-usage-telemetry/`, **outside this repo**, and must never be
+committed. To disable, remove the extension and its config in the owning tool.
+
+**`herdr-agent-state.ts` — integration.** Installed and overwritten by herdr;
+its header forbids editing. It reports this pane's working/blocked/idle state to
+the herdr socket. It is a property of herdr, not of pi-config.
+
+**Omarchy skills (`omarchy`, `diagnose-crash`).** Symlinks into
+`/usr/share/omarchy/default/agents/skills/`. Omarchy owns and updates them; this
+repo neither copies nor replaces them.
+
+**Generated themes.** `themes/omarchy-system.json` is written by
+`omarchy-theme-set-pi` from the active Omarchy theme. We version the *theme name*
+in `settings.json`, never the generated file.
+
+## Core things: have, omit, and why
+
+| Capability | Status | Reason |
+| --- | --- | --- |
+| Global settings | have | Model default, thinking, padding, markdown are stable preferences |
+| Custom chrome | have | The one surface we look at constantly; we want it exactly so |
+| LOC / codebase awareness | have | Cheap, read-only context that changes review behavior |
+| Omarchy theme integration | have | The desktop already owns theming; pi follows `omarchy-system` |
+| Telemetry | present, not owned | Installed by its own tool; we do not add or version it |
+| Approval / permission gates | **omit** | We run with full permissions by choice (pi's default is no gate). Revisit on untrusted repos |
+| OS sandbox | **omit** | Work is on a trusted workstation. Revisit for third-party code |
+| Subagents | **omit for now** | Pi ships no built-in delegation; OMP's executive covers heavy delegation. Revisit if pi-first workflows need it |
+| MCP bridge | **omit** | Prefer native tools; OMP owns the Linear/MCP scoping story |
+| Persistent memory | **omit for now** | Source authority is the repo and OMP's guidance. Revisit deliberately |
+| Notifications | **omit for now** | Terminal focus is usually present; revisit for long unattended runs |
+| Plan mode | **omit for now** | Covered by prompt discipline; revisit if it earns a keybinding |
+| Prompt templates / homebrew skills | **omit for now** | Owned in OMP today; port deliberately, one at a time |
+| Pinned third-party packages | **omit** | Owned code is vendored here. Add packages only with a named reason |
+
+## Decision log
+
+Each entry has an ID, status, date, and the reasoning at the time.
+
+**ADR-001 — Version pi preferences in a dedicated repo.** *Accepted · 2026-09-14.*
+Live edits to `~/.pi/agent` are unauditable. `pi-config` mirrors `omp-config`
+conventions so both harnesses have a reviewed source of truth. Alternative
+(edit live files) rejected: no history, no review, no rollback.
+
+**ADR-002 — Own a declared subset with an allowlist `.gitignore`.** *Accepted ·
+2026-09-14.* The repo ignores everything and re-includes named paths. This makes
+accidental inclusion of secrets (auth, telemetry config) impossible by default.
+Cost: every new owned file must be allowlisted.
+
+**ADR-003 — Overlay settings, preserve runtime keys.** *Accepted · 2026-09-14.*
+`bin/pi-merge-settings.ts` lets source keys win while keeping foreign live keys
+such as `lastChangelogVersion`. Alternative (copy the file wholesale) rejected:
+it resets runtime state and clobbers unknown keys.
+
+**ADR-004 — Bottom rail empty; identity top-right; everything else in the
+footer.** *Accepted · 2026-09-14.* We iterated from "model + reasoning crowd the
+bottom rail" to a strict rule: nothing on the composer's bottom border, identity
+right-aligned on the top rail, and one footer below. The footer aligns to the
+editor's text column via a single padding constant so decorations line up under
+the input. Classification: aesthetic.
+
+**ADR-005 — Port the OMP LOC extension rather than adopt a third-party
+package.** *Accepted · 2026-09-14.* We already trust and maintain the OMP
+analyzer; porting keeps one implementation of the metric and no new dependency.
+Divergence is confined to `index.ts` (theme API); `analyze.ts` is shared
+verbatim. Risk: two copies can drift — see Review triggers.
+
+**ADR-006 — No permission or sandbox gates.** *Accepted · 2026-09-14.* We run
+pi with full permissions on a trusted workstation, matching pi's default and our
+OMP posture. This is explicit, not accidental: gates are omitted, not
+misconfigured. Revisit before running pi on untrusted code.
+
+**ADR-007 — Do not version Omarchy skills, herdr integration, telemetry, or
+generated themes.** *Accepted · 2026-09-14.* Each has an owner that overwrites
+it; copying here would fabricate a second source of truth and break updates.
+
+**ADR-008 — No pinned third-party pi packages, for now.** *Accepted ·
+2026-09-14.* The ecosystem is large but young; owned code is vendored and
+reviewed here. A package is added only with a named capability, a pinned ref,
+and a review trigger.
+
+**ADR-009 — Theme name is config; the theme file is not.** *Accepted ·
+2026-09-14.* We pin `theme: "omarchy-system"` so pi follows the desktop, and
+never commit the generated `omarchy-system.json`.
+
+## Research: how pi iterates on other harnesses
+
+Surveyed 2026-09-14 against pi's bundled docs/examples, the community
+[Awesome Pi Agent](https://github.com/thevibeworks/awesome-pi-agent) list,
+`omp-config`, and the OMP/pi ecosystem. Harness descriptions below are feature
+summaries, not endorsements.
+
+### What raw pi already ships
+
+Pi is deliberately a minimal core with a deep extension API. Out of the box:
+
+- **Built-in tools**: `read`, `bash` (or `powershell`), `edit`, `write`, `grep`,
+  `find`, `ls`.
+- **Context**: global `~/.pi/agent/AGENTS.md`, project `AGENTS.md`/`CLAUDE.md`
+  walking up from cwd, `AGENTS.override.md`.
+- **Resources**: skills, prompt templates, themes, project trust, packages
+  (npm/git/local) with pinned refs.
+- **Session lifecycle**: sessions, forking, tree navigation, compaction, branch
+  summaries.
+- **Model controls**: default provider/model, per-model thinking levels, model
+  cycling, presets via `--preset` (example).
+- **Extension API**: events, custom tools, UI (footer/status/editor/widgets/
+  overlays), providers, commands, shortcuts, flags.
+
+Consequence: most "missing" features in our list are *available* as extensions
+but intentionally not installed.
+
+### What OMP (oh-my-pi) adds over pi
+
+OMP is a heavier distro (pi fork) plus a large config surface. From `omp-config`
+and the ecosystem:
+
+- Hash-anchored edits, an optimized tool harness, LSP, Python, browser control.
+- Declarative `statusLine` with named segments, roles, `agentModelOverrides`,
+  and five explicit retry fallback chains.
+- `executive` extension: recursive, scope-owning subagents.
+- `omp-grievances`, `pass-env` secrets launcher, Linear MCP directory scoping.
+- Homebrew skills (`foundation`, `agent-ergonomics`, `verification-
+  infrastructure`, `capture`), agent definitions, and guidance.
+
+Our stance: keep pi lean. Port only what is independently valuable (`loc`,
+compact cwd) and let OMP keep the heavy orchestration. This is the main
+"include vs omit" line between the sister repos.
+
+### What other harnesses have
+
+| Harness | Signature features | Our reading |
+| --- | --- | --- |
+| **Claude Code** | `CLAUDE.md` memory, plan mode, subagents, hooks, slash commands, MCP, permission modes, skills/plugins, checkpoints | The richest opinionated surface; pi reproduces most as extensions. We adopt the *idea* of plan mode and review, not the system |
+| **OpenAI Codex CLI** | `AGENTS.md`, sandbox modes (read-only / workspace-write / full), approval modes, MCP | Its safety model is the strongest argument for gates; our ADR-006 accepts the tradeoff |
+| **OpenCode** | LSP integration, provider-agnostic TUI, agents, sessions | LSP is the feature we most plausibly want later |
+| **Amp** | Modes, permissions, web access | Its "web access" is served in pi by `pi-web-access` |
+| **IDE agents (Cursor, Windsurf)** | Inline edits, codebase index | Out of scope; pi is terminal-first |
+
+### Popular pi extensions and our stance
+
+From the ecosystem survey. `Adopt` = we run it or an equivalent; `Consider` =
+plausible, not yet; `Decline` = deliberate no.
+
+| Category | Extension | Stance |
+| --- | --- | --- |
+| UI | `pi-powerline-footer`, `status-line`, `model-status` | Adopt *concept* in `pi-chrome.ts`; no dependency |
+| UI | `pi-tool-display`, `pi-response-renderer` | Consider — compact transcripts |
+| Workflow | `plan-mode`, `preset`, `handoff`, `todo` | Consider plan mode; others later |
+| Safety | `pi-permission-system`, `permission-gate`, `protected-paths` | Decline per ADR-006 (revisit on untrusted code) |
+| Sandbox | `sandbox/`, `nono`, `gondolin`, `pi-less-yolo` | Decline now; `nono` is the likely first if we sandbox |
+| Subagents | `subagent/`, `pi-subagents`, `pi-messenger`, `pi-intercom` | Decline now; OMP executive covers delegation |
+| Memory | `pi-hermes-memory`, `pi-memory-workbench`, `magic-context` | Decline now; revisit with a clear source-of-truth story |
+| MCP | `pi-mcp-adapter`, `mcp-to-pi-tools` | Consider if a needed tool is MCP-only |
+| Providers | `pi-anthropic-auth`, `meridian`, `pi-llama-cpp`, `pi-gitlab-duo` | Consider per provider; global routing lives in OMP |
+| Observability | `pi-cost-dashboard`, `pi-sub`, `pisesh` | Decline — our footer covers the daily need |
+| Notifications | `pi-notify`, `pi-notify-pp`, `pi-telegram` | Consider for unattended runs |
+| Review / QA | `pi-review`, `pi-diff-review`, `pi-review-loop` | Consider; OMP owns heavy review today |
+| Sessions | `pisesh`, `pi-session-manager` | Decline — pi's built-ins suffice |
+| Setups | `HazAT/pi-config`, `abhinand5/pi-setup`, `LazyPi`, `monopi` | Reference only; we mirror `omp-config`, not another setup |
+
+## Review triggers
+
+Revisit a decision when its trigger fires, not on a schedule:
+
+- **ADR-005 (LOC drift)**: OMP's `analyze.ts` changes upstream, or the two
+  `index.ts` files diverge beyond the theme API.
+- **ADR-006 (gates)**: pi runs on a repo we do not trust, or installs a
+  third-party package.
+- **ADR-008 (packages)**: a capability is needed that we will not vendor, or the
+  ecosystem matures enough to pin confidently.
+- **Chrome (ADR-004)**: the footer's left side becomes unreadable at 80 columns.
+- **OMP parity**: OMP ships a feature we use daily and pi lacks. Port one thing
+  at a time, with an ADR.
 
 ## Install
 
@@ -29,68 +258,17 @@ how can I pokayoke this so this kind of error never happens again?
 ./install   # requires bun
 ```
 
-Unset `PI_CONFIG_COMPONENTS` means `all`: settings and every owned extension.
-Select a subset with a space-separated list:
+Unset `PI_CONFIG_COMPONENTS` means `all`. Select a subset with a space-separated
+list: `config`, `pi-chrome`, `loc`.
 
 ```sh
 PI_CONFIG_COMPONENTS=config ./install
 PI_CONFIG_COMPONENTS="pi-chrome loc" ./install
 ```
 
-Supported components are `config`, `pi-chrome`, and `loc`. Preflight checks
-bun availability, source presence, and configuration validity before writing.
-The `config` component overlays owned keys and preserves foreign live keys;
-`loc` is clean-replaced so obsolete files cannot survive. The installer never
-touches `auth.json`, sessions, telemetry, or herdr-managed integration files.
-
-Restart pi after deploying so extensions reload.
-
-## Composer chrome
-
-`extensions/pi-chrome.ts` keeps the composer's bottom border empty. Session
-identity (model + reasoning) is right-aligned on the top border, next to pi's
-built-in working spinner. Everything else is one footer below the composer:
-
-```
-  ─── <working spinner> ───────────────────  deepseek-v4.1-flash · ◆ xhigh ─
-   type here
-  ──────────────────────────────────────────────────────────────────────────
-     ~/r90/olympus (  main* +2 ~1 ↑1 ) · ◆ 43% · 3.7k LOC · 40 files · +412   ctx 12%/200k · $0.06 · ↑162k ↓48k
-```
-
-Left of the footer is location (cwd, git branch, dirty counts, ahead/behind)
-followed by extension status. Right is session economics: context window, cost,
-and token/cache counters. Remove the file to restore pi's stock editor/footer.
-
-## LOC extension
-
-The ported OMP extension provides `/loc`, `/loc-trend`, and a status row:
-top-language share, committed code lines, file count, and live net working-tree
-line movement vs `HEAD`. `analyze.ts` counts committed code at `HEAD` and caches
-per commit; the delta adds staged, unstaged, and untracked line movement, so it
-moves as you edit and resets when you commit.
-
-For instant cache updates on commit, link the hook into a repository:
-
-```sh
-ln -sf ~/.pi/agent/extensions/loc/git-hook.sh .git/hooks/post-commit
-ln -sf ~/.pi/agent/extensions/loc/git-hook.sh .git/hooks/post-merge
-ln -sf ~/.pi/agent/extensions/loc/git-hook.sh .git/hooks/post-checkout
-```
-
-## Pokayoke
-
-This harness already error-proofs several classes of mistake. Name them so
-future changes keep the same shape:
-
-- Unknown `PI_CONFIG_COMPONENTS` values fail before any write.
-- `config` overlays owned keys and preserves foreign live keys, so a deploy
-  cannot clobber `auth.json` or runtime state.
-- `loc` is clean-replaced so obsolete files cannot survive inside the package.
-- The installer never touches sessions, telemetry, or herdr-managed files.
-
-When a new failure mode appears, add a shape, check, or missing affordance
-before adding a warning. A comment is not pokayoke.
+Preflight validates bun, source presence, and settings before any write. The
+`loc` package is clean-replaced so obsolete files cannot survive. Restart pi
+after deploying.
 
 ## Verification
 
@@ -100,11 +278,17 @@ bun test extensions/loc/loc.test.ts
 bun bin/pi-merge-settings.ts --source settings.json --dest /tmp/pi-settings.json --check
 ```
 
-Restart pi and confirm the chrome and `/loc` load. Extension loading is proved
-by a fresh session, not by the files being present.
+Restart pi and confirm the chrome and `/loc` load. Extension loading is proved by
+a fresh session, not by file presence. For instant LOC cache updates on commit:
+
+```sh
+ln -sf ~/.pi/agent/extensions/loc/git-hook.sh .git/hooks/post-commit
+ln -sf ~/.pi/agent/extensions/loc/git-hook.sh .git/hooks/post-merge
+ln -sf ~/.pi/agent/extensions/loc/git-hook.sh .git/hooks/post-checkout
+```
 
 ## Ecosystem
 
 Release automation is [Landmark](https://github.com/misty-step/landmark);
-conventional commits become semantic versions, changelogs, and release notes.
-`origin` is `misty-step/pi-config`.
+conventional commits become semantic versions and release notes. Pre-push runs
+gitleaks and trufflehog. `origin` is `misty-step/pi-config`.

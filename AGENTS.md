@@ -19,6 +19,9 @@ Omarchy-owned `omarchy` / `diagnose-crash` skill symlinks, and the generated
 
 ## Conventions
 
+- Keep the divergence ledger in `README.md` honest. When you add, remove, or
+  reclassify an extension or setting, update the ledger and add or amend an ADR.
+  A change absent from the ledger is not finished.
 - Prefer small, single-purpose extensions over one large one. `pi-chrome.ts`
   owns the rails; `loc/` owns codebase metrics.
 - Keep the composer's bottom border empty. Identity is right-aligned on the top
