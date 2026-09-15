@@ -1,3 +1,10 @@
+## [0.0.2](https://github.com/misty-step/pi-config/compare/v0.0.1...v0.0.2) (2026-09-15)
+
+
+### Features
+
+* add Exa web-search extension and authenticated-commands skill ([f58f177](https://github.com/misty-step/pi-config/commit/f58f177c4899a48f7b03dd49ebc6bad07cf6d1c9))
+
 ## [0.0.1](https://github.com/misty-step/pi-config/compare/v0.0.0...v0.0.1) (2026-09-15)
 
 
