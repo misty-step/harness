@@ -2,8 +2,9 @@
 
 Pi coding-agent configuration for Phaedrus / Misty Step. This is the versioned
 source of truth for how pi iterates on raw upstream pi: settings, the custom
-composer chrome, and the LOC status extension. `./install` deploys owned
-components into `$PI_CODING_AGENT_DIR` (default `~/.pi/agent`).
+composer chrome, the LOC status extension, the Exa web-search tool, and the
+pass-env authenticated-commands skill. `./install` deploys owned components
+into `$PI_CODING_AGENT_DIR` (default `~/.pi/agent`).
 
 Sister repository to [omp-config](https://github.com/misty-step/omp-config),
 which owns the same intent for the OMP harness. Pi and OMP discover their
@@ -47,6 +48,8 @@ presentation; "behavioral" changes agent capability, model input, or data flow.
 | `settings.json` | this repo | config | yes | Default model/thinking, editor padding, markdown, theme name |
 | `extensions/pi-chrome.ts` | this repo | aesthetic | yes | Composer rail layout and footer |
 | `extensions/loc/` | this repo | behavioral (read-only) | yes | `/loc`, `/loc-trend`, LOC status row |
+| `extensions/web-search/` | this repo | behavioral | yes | `web_search` tool (Exa); registers nothing without `EXA_API_KEY` |
+| `skills/authenticated-commands` | this repo (vendored from omp-config) | skill | yes | Teaches agents disciplined `pass`/`pass-env` credential use |
 | `extensions/agent-usage-telemetry.ts` | external (managed) | telemetry | no | Reports usage to an external endpoint |
 | `extensions/herdr-agent-state.ts` | herdr (managed) | integration | no | Reports pane agent state to herdr |
 | `skills/omarchy`, `skills/diagnose-crash` | Omarchy (symlinks) | skills | no | Omarchy-owned agent skills |
@@ -72,6 +75,22 @@ unstaged, and untracked movement so it moves as you edit. It shells out to `git`
 and reads tracked/untracked files, but never writes to a repository except its
 own `.git/loc_cache`. It changes the command surface and footer output, not the
 model's tools or autonomy.
+
+**`web-search/` — behavioral.** One tool, `web_search` (query, num_results,
+full_text), backed by a single fetch to `api.exa.ai` — no dependencies beyond
+pi's runtime (ADR-010). `format.ts` is pure and bun-tested; `index.ts` is the
+harness-facing half, mirroring the loc split. The key comes from `EXA_API_KEY`
+in the environment: launch pi with `pass-env run -e
+EXA_API_KEY=workstation/EXA_API_KEY -- pi`. Without the key the tool does not
+exist at all — stock behavior, no dead affordance. Failures carry the HTTP
+status and raw body excerpt, never a bare "search failed" (the Cerebras 402
+lesson).
+
+**`skills/authenticated-commands/` — skill.** Vendored from omp-config with
+one sentence adapted (the discovery note). It keeps credential values out of
+model context: list entries, match names, verify with authenticated side
+effects, bind secrets through `pass-env run`. It is the pi-side counterpart of
+omp-config's secret-discipline skill, and `web-search` is its first consumer.
 
 ### Foreign and managed components (never overwritten)
 
@@ -102,6 +121,7 @@ in `settings.json`, never the generated file.
 | LOC / codebase awareness | have | Cheap, read-only context that changes review behavior |
 | Omarchy theme integration | have | The desktop already owns theming; pi follows `omarchy-system` |
 | Telemetry | present, not owned | Installed by its own tool; we do not add or version it |
+| Web search | have | Research-backed `web_search` (Exa); the tool exists only when the key is in the environment (ADR-010) |
 | Approval / permission gates | **omit** | We run with full permissions by choice (pi's default is no gate). Revisit on untrusted repos |
 | OS sandbox | **omit** | Work is on a trusted workstation. Revisit for third-party code |
 | Subagents | **omit for now** | Pi ships no built-in delegation; OMP's executive covers heavy delegation. Revisit if pi-first workflows need it |
@@ -109,7 +129,7 @@ in `settings.json`, never the generated file.
 | Persistent memory | **omit for now** | Source authority is the repo and OMP's guidance. Revisit deliberately |
 | Notifications | **omit for now** | Terminal focus is usually present; revisit for long unattended runs |
 | Plan mode | **omit for now** | Covered by prompt discipline; revisit if it earns a keybinding |
-| Prompt templates / homebrew skills | **omit for now** | Owned in OMP today; port deliberately, one at a time |
+| Prompt templates / homebrew skills | **porting, one at a time** | Owned in OMP today; `authenticated-commands` is the first deliberate port (ADR-010); the rest wait for a name |
 | Pinned third-party packages | **omit** | Owned code is vendored here. Add packages only with a named reason |
 
 ## Decision log
@@ -161,6 +181,23 @@ and a review trigger.
 **ADR-009 — Theme name is config; the theme file is not.** *Accepted ·
 2026-09-14.* We pin `theme: "omarchy-system"` so pi follows the desktop, and
 never commit the generated `omarchy-system.json`.
+
+**ADR-010 — Own a minimal Exa web-search extension; decline the ecosystem
+pi-exa packages; vendor the pass-env skill.** *Accepted · 2026-09-15.* Web
+search was the highest-leverage missing capability ("super, obviously, for
+research"). Two ecosystem Exa extensions were vetted and declined: the active
+51-star package also bridges Exa's MCP server and reads pi's unexported
+credential API (ADR-008 bars MCP and private-API dependence); the minimal one
+persists its key as plaintext at `~/.pi/config/exa-api-key`, bypassing the pass
+store both harnesses treat as the secret authority. Both also pull the
+`exa-js` SDK for what one raw fetch does. So we own `extensions/web-search/`:
+zero-dependency, one `web_search` tool, capped output, and errors that carry
+the HTTP status plus raw body excerpts — the failure class the Cerebras 402
+incident proved pi's default rendering loses. The key stays in pass; pi is
+launched with `pass-env run -e EXA_API_KEY=workstation/EXA_API_KEY -- pi`.
+With no key the tool is unregistered (stock behavior, no dead affordance).
+The `authenticated-commands` skill is vendored from omp-config (one sentence
+adapted) so agents learn that credential discipline inside pi.
 
 ## Research: how pi iterates on other harnesses
 
@@ -236,6 +273,7 @@ plausible, not yet; `Decline` = deliberate no.
 | Notifications | `pi-notify`, `pi-notify-pp`, `pi-telegram` | Consider for unattended runs |
 | Review / QA | `pi-review`, `pi-diff-review`, `pi-review-loop` | Consider; OMP owns heavy review today |
 | Sessions | `pisesh`, `pi-session-manager` | Decline — pi's built-ins suffice |
+| Web | `pi-exa` (junnjiee), `pi-exa` (rbwsam), `pi-web-access` | Decline both pi-exa packages — see ADR-010; own `web-search/` instead |
 | Setups | `HazAT/pi-config`, `abhinand5/pi-setup`, `LazyPi`, `monopi` | Reference only; we mirror `omp-config`, not another setup |
 
 ## Review triggers
@@ -248,6 +286,9 @@ Revisit a decision when its trigger fires, not on a schedule:
   third-party package.
 - **ADR-008 (packages)**: a capability is needed that we will not vendor, or the
   ecosystem matures enough to pin confidently.
+- **ADR-010 (web search)**: an ecosystem Exa package matures without the MCP
+  bridge and with pass-compatible key handling, or sessions show repeated
+  hand-rolled `curl` + HTML scraping (then add a `web_fetch` tool).
 - **Chrome (ADR-004)**: the footer's left side becomes unreadable at 80 columns.
 - **OMP parity**: OMP ships a feature we use daily and pi lacks. Port one thing
   at a time, with an ADR.
@@ -259,7 +300,7 @@ Revisit a decision when its trigger fires, not on a schedule:
 ```
 
 Unset `PI_CONFIG_COMPONENTS` means `all`. Select a subset with a space-separated
-list: `config`, `pi-chrome`, `loc`.
+list: `config`, `pi-chrome`, `loc`, `web-search`, `skills`.
 
 ```sh
 PI_CONFIG_COMPONENTS=config ./install
@@ -267,19 +308,22 @@ PI_CONFIG_COMPONENTS="pi-chrome loc" ./install
 ```
 
 Preflight validates bun, source presence, and settings before any write. The
-`loc` package is clean-replaced so obsolete files cannot survive. Restart pi
-after deploying.
+`loc` and `web-search` packages and the `authenticated-commands` skill are
+clean-replaced so obsolete files cannot survive. Restart pi after deploying.
 
 ## Verification
 
 ```sh
 sh -n install
-bun test extensions/loc/loc.test.ts
+bun test extensions/
 bun bin/pi-merge-settings.ts --source settings.json --dest /tmp/pi-settings.json --check
 ```
 
-Restart pi and confirm the chrome and `/loc` load. Extension loading is proved by
-a fresh session, not by file presence. For instant LOC cache updates on commit:
+Restart pi and confirm the chrome, `/loc`, and `web_search` load. Extension
+loading is proved by a fresh session, not by file presence. `web_search`
+presence additionally requires `EXA_API_KEY` in the environment, e.g.
+`pass-env run -e EXA_API_KEY=workstation/EXA_API_KEY -- pi`. For instant LOC
+cache updates on commit:
 
 ```sh
 ln -sf ~/.pi/agent/extensions/loc/git-hook.sh .git/hooks/post-commit

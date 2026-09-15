@@ -10,6 +10,10 @@ keys, and clean-replaces owned extension packages.
 - `settings.json` — global pi preferences.
 - `extensions/pi-chrome.ts` — composer chrome.
 - `extensions/loc/` — LOC status extension.
+- `extensions/web-search/` — Exa web-search extension (registers `web_search`
+  only when `EXA_API_KEY` is in the environment).
+- `skills/authenticated-commands/` — pass-env credential-discipline skill
+  (vendored from omp-config).
 
 Everything else under `~/.pi/agent` is foreign and must not be overwritten:
 `auth.json`, sessions, `models-store.json`, `usage-outbox/`, telemetry
@@ -34,7 +38,7 @@ Omarchy-owned `omarchy` / `diagnose-crash` skill symlinks, and the generated
 ## Verification
 
 - `sh -n install` for the deploy script.
-- `bun test extensions/loc/loc.test.ts` for the analyzer.
+- `bun test extensions/` for the analyzer and search renderer.
 - `bun bin/pi-merge-settings.ts --source settings.json --dest /tmp/pi-settings.json --check`
   for configuration validity.
 - Extension loading is proved by a fresh pi session, not by file presence.

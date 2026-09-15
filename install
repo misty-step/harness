@@ -2,11 +2,12 @@
 # Deploy owned pi configuration into the pi coding-agent directory.
 #
 # Source of truth for this machine's pi preferences: settings, the custom
-# composer chrome, and the LOC status extension. Preflight validates every
-# selected input before any write. Pokayoke: unknown components, empty
-# sources, and invalid settings fail closed before mutation; owned packages
-# are clean-replaced so obsolete files cannot survive; foreign live keys
-# and unmanaged agent files are never overwritten.
+# composer chrome, the LOC status extension, the Exa web-search extension,
+# and the authenticated-commands skill. Preflight validates every selected
+# input before any write. Pokayoke: unknown components, empty sources, and
+# invalid settings fail closed before mutation; owned packages are
+# clean-replaced so obsolete files cannot survive; foreign live keys and
+# unmanaged agent files are never overwritten.
 set -eu
 umask 077
 
@@ -26,14 +27,14 @@ require_nonempty() {
 
 selected=${PI_CONFIG_COMPONENTS:-all}
 case "$selected" in
-  all) components="config pi-chrome loc" ;;
+  all) components="config pi-chrome loc web-search skills" ;;
   "") components="" ;;
   *) components="$selected" ;;
 esac
 
 for component in $components; do
   case "$component" in
-    config|pi-chrome|loc) ;;
+    config|pi-chrome|loc|web-search|skills) ;;
     *) printf 'Unknown component: %s\n' "$component" >&2; exit 1 ;;
   esac
 done
@@ -91,11 +92,43 @@ install_git_hook() {
   install -m 700 "$repo_dir/.githooks/pre-push" "$repo_dir/.git/hooks/pre-push"
 }
 
+validate_web_search() {
+  for file in index.ts format.ts web-search.test.ts; do
+    require_nonempty "$repo_dir/extensions/web-search/$file"
+  done
+}
+
+install_web_search() {
+  # Pokayoke: clean-replace the owned package so obsolete files cannot survive.
+  rm -rf "$agent_dir/extensions/web-search"
+  install -d -m 700 "$agent_dir/extensions/web-search"
+  for file in index.ts format.ts web-search.test.ts; do
+    install -m 600 "$repo_dir/extensions/web-search/$file" "$agent_dir/extensions/web-search/$file"
+  done
+}
+
+validate_skills() {
+  require_nonempty "$repo_dir/skills/authenticated-commands/SKILL.md"
+}
+
+install_skills() {
+  # Clean-replace the owned skill so obsolete files cannot survive.
+  # Omarchy skill symlinks live in this same parent and are foreign.
+  rm -rf "$agent_dir/skills/authenticated-commands"
+  install -d -m 700 "$agent_dir/skills/authenticated-commands"
+  install -m 600 "$repo_dir/skills/authenticated-commands/SKILL.md" \
+    "$agent_dir/skills/authenticated-commands/SKILL.md"
+}
+
 if has config; then validate_config; fi
 if has pi-chrome; then validate_pi_chrome; fi
 if has loc; then validate_loc; fi
+if has web-search; then validate_web_search; fi
+if has skills; then validate_skills; fi
 
 if has config; then install_config; fi
 if has pi-chrome; then install_pi_chrome; fi
 if has loc; then install_loc; fi
+if has web-search; then install_web_search; fi
+if has skills; then install_skills; fi
 install_git_hook
