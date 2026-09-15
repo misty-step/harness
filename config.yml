@@ -109,7 +109,7 @@ task:
   showResolvedModelBadge: true
   enableLsp: true
   isolation:
-    enabled: true
+    enabled: false
     apply: true
     merge: patch
   agentModelOverrides:
