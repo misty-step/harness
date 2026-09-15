@@ -14,6 +14,8 @@ keys, and clean-replaces owned extension packages.
   only when `EXA_API_KEY` is in the environment).
 - `skills/authenticated-commands/` — pass-env credential-discipline skill
   (vendored from omp-config).
+- `~/.bashrc` (marked block only; snippet in the README) — `pi()` wrapper that
+  injects the Exa key from pass for interactive-shell launches (ADR-010).
 
 Everything else under `~/.pi/agent` is foreign and must not be overwritten:
 `auth.json`, sessions, `models-store.json`, `usage-outbox/`, telemetry

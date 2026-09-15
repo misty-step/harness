@@ -2,9 +2,11 @@
 
 Pi coding-agent configuration for Phaedrus / Misty Step. This is the versioned
 source of truth for how pi iterates on raw upstream pi: settings, the custom
-composer chrome, the LOC status extension, the Exa web-search tool, and the
-pass-env authenticated-commands skill. `./install` deploys owned components
-into `$PI_CODING_AGENT_DIR` (default `~/.pi/agent`).
+composer chrome, the LOC status extension, the Exa web-search tool, the
+pass-env authenticated-commands skill, and the `pi()` key-injection wrapper
+block in `~/.bashrc`. `./install` deploys the owned agent-directory components
+into `$PI_CODING_AGENT_DIR` (default `~/.pi/agent`); the wrapper block is
+applied to `~/.bashrc` by hand (snippet below, source of truth is this repo).
 
 Sister repository to [omp-config](https://github.com/misty-step/omp-config),
 which owns the same intent for the OMP harness. Pi and OMP discover their
@@ -35,6 +37,10 @@ never assumes ownership of the rest:
   preserved by `bin/pi-merge-settings.ts`.
 - Files this repo does not declare — auth, sessions, telemetry, herdr
   integration, Omarchy skills, generated themes — are never written.
+- One owned file lives outside the agent directory: the marked `pi()` wrapper
+  block in `~/.bashrc`'s user section. It is the only sanctioned touch of the
+  user's dotfiles; the snippet and its mark live in this repo's
+  `web-search/` section.
 
 To adopt a change: edit the source here, run `./install`, restart pi.
 
@@ -80,11 +86,29 @@ model's tools or autonomy.
 full_text), backed by a single fetch to `api.exa.ai` — no dependencies beyond
 pi's runtime (ADR-010). `format.ts` is pure and bun-tested; `index.ts` is the
 harness-facing half, mirroring the loc split. The key comes from `EXA_API_KEY`
-in the environment: launch pi with `pass-env run -e
-EXA_API_KEY=workstation/EXA_API_KEY -- pi`. Without the key the tool does not
-exist at all — stock behavior, no dead affordance. Failures carry the HTTP
-status and raw body excerpt, never a bare "search failed" (the Cerebras 402
-lesson).
+in the environment; a marked `pi()` block in `~/.bashrc`'s user section
+injects it from pass on every interactive-shell launch, so plain `pi` always
+has it:
+
+```sh
+# pi-config (ADR-010): run pi with the Exa key injected from pass so the
+# web-search extension is always live. Entry gone (or pass-env missing) and
+# pi starts plain; a pass-side failure fails loudly here instead.
+if type pass-env >/dev/null 2>&1; then
+  pi() {
+    if [ -n "$(command pass-env list workstation/EXA_API_KEY 2>/dev/null)" ]; then
+      command pass-env run -e EXA_API_KEY=workstation/EXA_API_KEY -- pi "$@"
+    else
+      command pi "$@"
+    fi
+  }
+fi
+```
+
+Non-interactive launches, or a missing pass entry, start pi plain; without the
+key the tool does not exist at all — stock behavior, no dead affordance.
+Failures carry the HTTP status and raw body excerpt, never a bare
+"search failed" (the Cerebras 402 lesson).
 
 **`skills/authenticated-commands/` — skill.** Vendored from omp-config with
 one sentence adapted (the discovery note). It keeps credential values out of
@@ -193,11 +217,13 @@ store both harnesses treat as the secret authority. Both also pull the
 `exa-js` SDK for what one raw fetch does. So we own `extensions/web-search/`:
 zero-dependency, one `web_search` tool, capped output, and errors that carry
 the HTTP status plus raw body excerpts — the failure class the Cerebras 402
-incident proved pi's default rendering loses. The key stays in pass; pi is
-launched with `pass-env run -e EXA_API_KEY=workstation/EXA_API_KEY -- pi`.
-With no key the tool is unregistered (stock behavior, no dead affordance).
-The `authenticated-commands` skill is vendored from omp-config (one sentence
-adapted) so agents learn that credential discipline inside pi.
+incident proved pi's default rendering loses. The key stays in pass; a `pi()`
+wrapper in `~/.bashrc` (snippet under `## Owned extensions` above) runs every
+interactive-shell launch under exactly that `pass-env run` invocation, so
+plain `pi` always has the key and non-interactive launches stay keyless by
+default. With no key the tool is unregistered (stock behavior, no dead
+affordance). The `authenticated-commands` skill is vendored from omp-config
+(one sentence adapted) so agents learn that credential discipline inside pi.
 
 ## Research: how pi iterates on other harnesses
 
@@ -321,8 +347,10 @@ bun bin/pi-merge-settings.ts --source settings.json --dest /tmp/pi-settings.json
 
 Restart pi and confirm the chrome, `/loc`, and `web_search` load. Extension
 loading is proved by a fresh session, not by file presence. `web_search`
-presence additionally requires `EXA_API_KEY` in the environment, e.g.
-`pass-env run -e EXA_API_KEY=workstation/EXA_API_KEY -- pi`. For instant LOC
+presence additionally requires `EXA_API_KEY` in the environment — an
+interactive-shell `pi` gets it from the `~/.bashrc` wrapper (pass entry
+`workstation/EXA_API_KEY`); a session started without the key degrades to no
+tool. For instant LOC
 cache updates on commit:
 
 ```sh
