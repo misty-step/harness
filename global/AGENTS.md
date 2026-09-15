@@ -28,6 +28,13 @@ appearance. Tests protect observable behavior and invariants. Use executable
 experiments or compare alternatives when consequential uncertainty warrants it;
 distinguish observations from hypotheses.
 
+Pokayoke is the standing name for the mechanism rule above: after a class of
+error, change the system so that class cannot recur — shape, type, ownership,
+a missing affordance, or a failing-closed check, not a warning or a remembered
+rule. The standing prompt after a mistake or near-miss: how can I pokayoke
+this so this kind of error never happens again? `/skill:pokayoke` closes a
+named incident; postmortems require the same close.
+
 Repository code, tests, and versioned docs own technical truth; work records own
 priorities, owners, blockers, and change-specific conclusions. Keep knowledge
 near its source. Vision documents are optional context; current operator
