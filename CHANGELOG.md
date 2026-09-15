@@ -1,3 +1,10 @@
+## [0.0.4](https://github.com/misty-step/pi-config/compare/v0.0.3...v0.0.4) (2026-09-15)
+
+
+### Features
+
+* **harness:** hang run-scoped scratch routing off the pi() launch hook ([15c3b87](https://github.com/misty-step/pi-config/commit/15c3b87006763e73e2690455a93e49241d7fd54d))
+
 ## [0.0.3](https://github.com/misty-step/pi-config/compare/v0.0.2...v0.0.3) (2026-09-15)
 
 
