@@ -1,9 +1,10 @@
 {
   "theme": "omarchy-system",
-  "defaultProvider": "openrouter",
-  "defaultModel": "deepseek/deepseek-v4.1-flash",
+  "defaultProvider": "cerebras",
+  "defaultModel": "qwen-3.8-27b",
   "modelThinkingLevels": {
-    "openrouter/deepseek/deepseek-v4.1-flash": "xhigh"
+    "cerebras/qwen-3.8-27b": "high",
+    "openrouter/inception/mercury-2.5": "high"
   },
   "editorPaddingX": 2,
   "outputPad": 1,

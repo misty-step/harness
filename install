@@ -3,7 +3,7 @@
 #
 # Source of truth for this machine's pi preferences: settings, the custom
 # composer chrome, the LOC status extension, the Exa web-search extension,
-# and the authenticated-commands skill. Preflight validates every selected
+# the model-failover extension, and the authenticated-commands skill. Preflight validates every selected
 # input before any write. Pokayoke: unknown components, empty sources, and
 # invalid settings fail closed before mutation; owned packages are
 # clean-replaced so obsolete files cannot survive; foreign live keys and
@@ -27,14 +27,14 @@ require_nonempty() {
 
 selected=${PI_CONFIG_COMPONENTS:-all}
 case "$selected" in
-  all) components="config pi-chrome loc web-search skills" ;;
+  all) components="config pi-chrome loc web-search failover skills" ;;
   "") components="" ;;
   *) components="$selected" ;;
 esac
 
 for component in $components; do
   case "$component" in
-    config|pi-chrome|loc|web-search|skills) ;;
+    config|pi-chrome|loc|web-search|failover|skills) ;;
     *) printf 'Unknown component: %s\n' "$component" >&2; exit 1 ;;
   esac
 done
@@ -107,6 +107,21 @@ install_web_search() {
   done
 }
 
+validate_failover() {
+  for file in index.ts decide.ts decide.test.ts; do
+    require_nonempty "$repo_dir/extensions/failover/$file"
+  done
+}
+
+install_failover() {
+  # Pokayoke: clean-replace the owned package so obsolete files cannot survive.
+  rm -rf "$agent_dir/extensions/failover"
+  install -d -m 700 "$agent_dir/extensions/failover"
+  for file in index.ts decide.ts decide.test.ts; do
+    install -m 600 "$repo_dir/extensions/failover/$file" "$agent_dir/extensions/failover/$file"
+  done
+}
+
 validate_skills() {
   require_nonempty "$repo_dir/skills/authenticated-commands/SKILL.md"
 }
@@ -124,11 +139,13 @@ if has config; then validate_config; fi
 if has pi-chrome; then validate_pi_chrome; fi
 if has loc; then validate_loc; fi
 if has web-search; then validate_web_search; fi
+if has failover; then validate_failover; fi
 if has skills; then validate_skills; fi
 
 if has config; then install_config; fi
 if has pi-chrome; then install_pi_chrome; fi
 if has loc; then install_loc; fi
 if has web-search; then install_web_search; fi
+if has failover; then install_failover; fi
 if has skills; then install_skills; fi
 install_git_hook

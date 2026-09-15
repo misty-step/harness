@@ -12,6 +12,9 @@ keys, and clean-replaces owned extension packages.
 - `extensions/loc/` — LOC status extension.
 - `extensions/web-search/` — Exa web-search extension (registers `web_search`
   only when `EXA_API_KEY` is in the environment).
+- `extensions/failover/` — one-shot model failover: primary Cerebras turn
+  dies after stock recovery → session switches to the OpenRouter fallback
+  (ADR-011).
 - `skills/authenticated-commands/` — pass-env credential-discipline skill
   (vendored from omp-config).
 - `~/.bashrc` (marked block only; snippet in the README) — `pi()` wrapper that

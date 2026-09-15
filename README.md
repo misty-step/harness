@@ -3,8 +3,8 @@
 Pi coding-agent configuration for Phaedrus / Misty Step. This is the versioned
 source of truth for how pi iterates on raw upstream pi: settings, the custom
 composer chrome, the LOC status extension, the Exa web-search tool, the
-pass-env authenticated-commands skill, and the `pi()` key-injection wrapper
-block in `~/.bashrc`. `./install` deploys the owned agent-directory components
+model-failover extension, the pass-env authenticated-commands skill, and the
+`pi()` key-injection wrapper block in `~/.bashrc`. `./install` deploys the owned agent-directory components
 into `$PI_CODING_AGENT_DIR` (default `~/.pi/agent`); the wrapper block is
 applied to `~/.bashrc` by hand (snippet below, source of truth is this repo).
 
@@ -55,6 +55,7 @@ presentation; "behavioral" changes agent capability, model input, or data flow.
 | `extensions/pi-chrome.ts` | this repo | aesthetic | yes | Composer rail layout and footer |
 | `extensions/loc/` | this repo | behavioral (read-only) | yes | `/loc`, `/loc-trend`, LOC status row |
 | `extensions/web-search/` | this repo | behavioral | yes | `web_search` tool (Exa); registers nothing without `EXA_API_KEY` |
+| `extensions/failover/` | this repo | behavioral | yes | One-shot model failover: primary turn dies after stock recovery → session switches to fallback (ADR-011) |
 | `skills/authenticated-commands` | this repo (vendored from omp-config) | skill | yes | Teaches agents disciplined `pass`/`pass-env` credential use |
 | `extensions/agent-usage-telemetry.ts` | external (managed) | telemetry | no | Reports usage to an external endpoint |
 | `extensions/herdr-agent-state.ts` | herdr (managed) | integration | no | Reports pane agent state to herdr |
@@ -110,6 +111,20 @@ key the tool does not exist at all — stock behavior, no dead affordance.
 Failures carry the HTTP status and raw body excerpt, never a bare
 "search failed" (the Cerebras 402 lesson).
 
+**`failover/` — behavioral.** Own one-shot model failover (ADR-011). Pi has
+no native cross-model fallback — only same-model retry-with-backoff and
+compaction recovery — so the extension listens to stock lifecycle events: when
+a run ends (`agent_end`) with a provider error on the last assistant message,
+and stock recovery is finished (`agent_settled`, so it never fights pi's own
+retry), it switches the session `cerebras/qwen-3.8-27b` →
+`openrouter/inception/mercury-2.5` via `pi.setModel` and shows a warning. The
+switch happens once per session (no flapping, no automatic return to the
+primary), never touches a user-chosen model, and never re-sends the user's
+prompt — a run that dies mid-turn may already have executed tools. `decide.ts`
+is pure and bun-tested; `index.ts` is the harness-facing half. No
+configuration: the primary must match the `settings.json` startup default,
+and removing the directory leaves stock retry behavior exactly intact.
+
 **`skills/authenticated-commands/` — skill.** Vendored from omp-config with
 one sentence adapted (the discovery note). It keeps credential values out of
 model context: list entries, match names, verify with authenticated side
@@ -146,6 +161,7 @@ in `settings.json`, never the generated file.
 | Omarchy theme integration | have | The desktop already owns theming; pi follows `omarchy-system` |
 | Telemetry | present, not owned | Installed by its own tool; we do not add or version it |
 | Web search | have | Research-backed `web_search` (Exa); the tool exists only when the key is in the environment (ADR-010) |
+| Model fallback | have | One-shot auto-switch primary → fallback on a provider error, with user re-send (ADR-011) |
 | Approval / permission gates | **omit** | We run with full permissions by choice (pi's default is no gate). Revisit on untrusted repos |
 | OS sandbox | **omit** | Work is on a trusted workstation. Revisit for third-party code |
 | Subagents | **omit for now** | Pi ships no built-in delegation; OMP's executive covers heavy delegation. Revisit if pi-first workflows need it |
@@ -224,6 +240,24 @@ plain `pi` always has the key and non-interactive launches stay keyless by
 default. With no key the tool is unregistered (stock behavior, no dead
 affordance). The `authenticated-commands` skill is vendored from omp-config
 (one sentence adapted) so agents learn that credential discipline inside pi.
+
+**ADR-011 — Default to Cerebras qwen-3.8-27b with a one-shot failover to
+OpenRouter inception/mercury-2.5.** *Accepted · 2026-09-15.* The user's daily
+driver becomes the Cerebras key-model pair at `high` thinking, with Mercury as
+the fallback. Stock pi deliberately has no cross-model fallback — retry is
+same-model backoff, and compaction retry only re-tries the same model — so a
+core setting cannot express "model A, else model B" without a fork. Instead of
+adopting a third-party retry package (ADR-008), we own a small
+`extensions/failover/` extension over stock lifecycle events: it engages only
+after pi's own recovery is finished (`agent_settled`), switches once per
+session, never re-sends the user's prompt (a dead mid-turn run may have
+executed tools, and silently re-running user intent duplicates side effects),
+and never disturbs a model the user chose manually. The settings change is
+pure configuration: `defaultProvider`/`defaultModel` → Cerebras at `high`,
+plus a `high` thinking pin for the fallback so the switch carries the same
+posture. Mercury 2.5's listed 260K context window (OpenRouter) sits well
+above the primary's, so a context-bound run that dies on the primary has room
+on the fallback.
 
 ## Research: how pi iterates on other harnesses
 
@@ -315,6 +349,10 @@ Revisit a decision when its trigger fires, not on a schedule:
 - **ADR-010 (web search)**: an ecosystem Exa package matures without the MCP
   bridge and with pass-compatible key handling, or sessions show repeated
   hand-rolled `curl` + HTML scraping (then add a `web_fetch` tool).
+- **ADR-011 (failover)**: pi ships a native model-fallback setting (then
+  delete the extension and set it), the fallback stops being a sensible
+target, or sessions show manual `ctrl+p` switches to the primary after a
+failover became sticky (then revisit the once-per-session latch).
 - **Chrome (ADR-004)**: the footer's left side becomes unreadable at 80 columns.
 - **OMP parity**: OMP ships a feature we use daily and pi lacks. Port one thing
   at a time, with an ADR.
@@ -326,7 +364,7 @@ Revisit a decision when its trigger fires, not on a schedule:
 ```
 
 Unset `PI_CONFIG_COMPONENTS` means `all`. Select a subset with a space-separated
-list: `config`, `pi-chrome`, `loc`, `web-search`, `skills`.
+list: `config`, `pi-chrome`, `loc`, `web-search`, `failover`, `skills`.
 
 ```sh
 PI_CONFIG_COMPONENTS=config ./install
@@ -334,8 +372,9 @@ PI_CONFIG_COMPONENTS="pi-chrome loc" ./install
 ```
 
 Preflight validates bun, source presence, and settings before any write. The
-`loc` and `web-search` packages and the `authenticated-commands` skill are
-clean-replaced so obsolete files cannot survive. Restart pi after deploying.
+`loc`, `web-search`, and `failover` packages and the `authenticated-commands`
+skill are clean-replaced so obsolete files cannot survive. Restart pi after
+deploying.
 
 ## Verification
 
@@ -350,7 +389,8 @@ loading is proved by a fresh session, not by file presence. `web_search`
 presence additionally requires `EXA_API_KEY` in the environment — an
 interactive-shell `pi` gets it from the `~/.bashrc` wrapper (pass entry
 `workstation/EXA_API_KEY`); a session started without the key degrades to no
-tool. For instant LOC
+tool. `failover` needs no configuration or key: a fresh Cerebras session is
+the proof that the extension loaded (it registers nothing visible). For instant LOC
 cache updates on commit:
 
 ```sh
