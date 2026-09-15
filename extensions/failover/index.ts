@@ -14,10 +14,12 @@
  * executed tools (ADR-011).
  *
  * The walk is strictly forward: one link per failed run, no flapping, no
- * automatic return. A run that dies on the last link reports chain
+ * automatic return. It is keyed to the current model, not to a remembered
+ * position, so the only way to land on an earlier link is for the user to
+ * explicitly select one. A run that dies on the last link reports chain
  * exhaustion instead of looping. The extension never touches a model the
- * user chose. Removing this directory leaves stock pi behavior (retry +
- * compaction) intact.
+ * user chose that is outside the chain. Removing this directory leaves
+ * stock pi behavior (retry + compaction) intact.
  */
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { modelKey, nextInChain, runError, summarize } from "./decide.ts";
@@ -26,18 +28,20 @@ import { modelKey, nextInChain, runError, summarize } from "./decide.ts";
  * The fallback chain, in order. The first link must match the startup
  * default in the repo's settings.json; every link must be a model the
  * session can resolve and authenticate (and thinking models should carry a
- * modelThinkingLevels entry so the switch keeps posture). Extend by editing
- * this list and redeploying (ADR-013).
+ * modelThinkingLevels entry so the switch keeps posture). Order: cheap/fast
+ * first, heavy backup last — a dead Cerebras stock lands on the fast Open
+ * Router flash, and only if that also dies do we pay mercury's overhead.
+ * Extend by editing this list and redeploying (ADR-013).
  */
 const CHAIN = [
 	"cerebras/qwen-3.8-27b",
+	"openrouter/deepseek/deepseek-v4.1-flash",
 	"openrouter/inception/mercury-2.5",
 ];
 
 export default function (pi: ExtensionAPI) {
 	let hadError = false;
 	let errorText = "";
-	let position = 0;
 
 	pi.on("agent_end", async (event) => {
 		const error = runError((event as { messages?: unknown })?.messages);
@@ -51,16 +55,16 @@ export default function (pi: ExtensionAPI) {
 		hadError = false;
 		errorText = "";
 		if (!failed) return;
-		const decision = nextInChain(CHAIN, position, modelKey(ctx.model));
+		const from = modelKey(ctx.model);
+		const decision = nextInChain(CHAIN, from);
 		if (!decision) return;
 		if (decision.action === "exhausted") {
 			ctx.ui.notify(
-				`failover: ${CHAIN[position]} failed (${summarize(err)}) and the fallback chain is exhausted; check provider status`,
+				`failover: ${from} failed (${summarize(err)}) and the fallback chain is exhausted; check provider status`,
 				"error",
 			);
 			return;
 		}
-		const from = CHAIN[position];
 		const slash = decision.key.indexOf("/");
 		const model = ctx.modelRegistry.find(
 			decision.key.slice(0, slash),
@@ -75,9 +79,8 @@ export default function (pi: ExtensionAPI) {
 			ctx.ui.notify(`failover: no auth for fallback model ${decision.key}`, "error");
 			return;
 		}
-		position = decision.position;
 		ctx.ui.notify(
-			`failover: ${from} failed (${summarize(err)}) — now on ${decision.key} (${position + 1}/${CHAIN.length} in chain); re-send your prompt`,
+			`failover: ${from} failed (${summarize(err)}) — now on ${decision.key} (${decision.link + 1}/${CHAIN.length} in chain); re-send your prompt`,
 			"warning",
 		);
 	});

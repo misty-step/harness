@@ -43,27 +43,30 @@ export function runError(messages: unknown): string | undefined {
 
 /**
  * Where a failed run goes next along the fallback chain (ADR-013).
+ * Membership-based: the decision is a pure function of the session's current
+ * model. There is no separately tracked position, so the walk cannot drift
+ * out of sync with what the session actually runs — the only way to move to
+ * an earlier link is for the user to explicitly select one.
  *
- * `null` — no action: the session is not on the chain's current link, either
- * because the user chose another model (never second-guessed) or because
- * state drifted; staying put is the safe thing.
- * `advance` — the session is on `chain[position]`; switch to the next link.
- * `exhausted` — the session is on the last link; nothing left to switch to.
+ * `null` — no action: the current model is not a link of the chain (the user
+ * chose another model, or it cannot be named); we never second-guess.
+ * `advance` — the current model is `chain[k]` and is not the last link;
+ * switch to `chain[k + 1]` (`link` is that link's index).
+ * `exhausted` — the current model is the last link; nothing left to switch to.
  */
 export type ChainDecision =
-	| { action: "advance"; key: string; position: number }
+	| { action: "advance"; key: string; link: number }
 	| { action: "exhausted" }
 	| null;
 
 export function nextInChain(
 	chain: readonly string[],
-	position: number,
 	currentKey: string,
 ): ChainDecision {
-	if (position < 0 || position >= chain.length) return null;
-	if (currentKey !== chain[position]) return null;
-	if (position + 1 < chain.length) {
-		return { action: "advance", key: chain[position + 1], position: position + 1 };
+	const k = chain.indexOf(currentKey);
+	if (k < 0) return null;
+	if (k + 1 < chain.length) {
+		return { action: "advance", key: chain[k + 1], link: k + 1 };
 	}
 	return { action: "exhausted" };
 }

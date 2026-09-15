@@ -6,7 +6,11 @@
 import { expect, test } from "bun:test";
 import { modelKey, nextInChain, runError, summarize } from "./decide.ts";
 
-const CHAIN = ["cerebras/qwen-3.8-27b", "openrouter/inception/mercury-2.5"];
+const CHAIN = [
+	"cerebras/qwen-3.8-27b",
+	"openrouter/deepseek/deepseek-v4.1-flash",
+	"openrouter/inception/mercury-2.5",
+];
 
 test("modelKey joins provider and modelId", () => {
 	expect(modelKey({ provider: "cerebras", id: "qwen-3.8-27b" })).toBe(
@@ -58,43 +62,47 @@ test("runError ignores aborts, tool errors, and non-array input", () => {
 });
 
 test("chain: a run that dies on a link advances to the next link", () => {
-	expect(nextInChain(CHAIN, 0, CHAIN[0])).toEqual({
+	expect(nextInChain(CHAIN, CHAIN[0])).toEqual({
+		action: "advance",
+		key: "openrouter/deepseek/deepseek-v4.1-flash",
+		link: 1,
+	});
+	expect(nextInChain(CHAIN, CHAIN[1])).toEqual({
 		action: "advance",
 		key: "openrouter/inception/mercury-2.5",
-		position: 1,
+		link: 2,
 	});
 });
 
 test("chain: a run that dies on the last link exhausts the chain", () => {
-	expect(nextInChain(CHAIN, 1, CHAIN[1])).toEqual({ action: "exhausted" });
+	expect(nextInChain(CHAIN, CHAIN[2])).toEqual({ action: "exhausted" });
 });
 
 test("chain: a longer chain walks link by link to exhaustion", () => {
-	const three = [...CHAIN, "openai/gpt-5.5"];
-	expect(nextInChain(three, 0, three[0])).toEqual({
-		action: "advance",
-		key: CHAIN[1],
-		position: 1,
-	});
-	expect(nextInChain(three, 1, three[1])).toEqual({
+	const four = [...CHAIN, "openai/gpt-5.5"];
+	expect(nextInChain(four, four[2])).toEqual({
 		action: "advance",
 		key: "openai/gpt-5.5",
-		position: 2,
+		link: 3,
 	});
-	expect(nextInChain(three, 2, three[2])).toEqual({ action: "exhausted" });
+	expect(nextInChain(four, four[3])).toEqual({ action: "exhausted" });
 });
 
 test("chain: never fires for a model the user chose outside the chain", () => {
-	expect(nextInChain(CHAIN, 0, "openai/gpt-5.5")).toBeNull();
-	// Drifted position: the run is on the primary while the walk thinks it is
-	// past it — staying put is the safe thing.
-	expect(nextInChain(CHAIN, 1, "cerebras/qwen-3.8-27b")).toBeNull();
+	expect(nextInChain(CHAIN, "openai/gpt-5.5")).toBeNull();
+	expect(nextInChain(CHAIN, "")).toBeNull();
 });
 
-test("chain: never fires for an unnameable model or drifted position", () => {
-	expect(nextInChain(CHAIN, 0, "")).toBeNull();
-	expect(nextInChain(CHAIN, 2, "x/y")).toBeNull();
-	expect(nextInChain(CHAIN, -1, "x/y")).toBeNull();
+test("chain: keyed to the current model, so it cannot drift", () => {
+	// After an exhaustion the user explicitly re-selects the primary: the
+	// walk resumes from that link (forward from where the user put it).
+	expect(nextInChain(CHAIN, CHAIN[0])).toEqual({
+		action: "advance",
+		key: CHAIN[1],
+		link: 1,
+	});
+	// A manual jump straight to the tail also exhausts on the next failure.
+	expect(nextInChain(CHAIN, CHAIN[2])).toEqual({ action: "exhausted" });
 });
 
 test("summarize clamps to one short line", () => {

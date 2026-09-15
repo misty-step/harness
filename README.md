@@ -135,11 +135,14 @@ models: when a run that just settled died on the current link of the chain
 finished), the session moves to the next link via `pi.setModel` and a
 notification says so. The walk is strictly forward: one link per failed run,
 no flapping, no automatic return; a run that dies on the last link reports
-chain exhaustion instead of looping. It never touches a model the user chose,
-and never re-sends the user's prompt — a run that dies mid-turn may already
-have executed tools. The chain is the `CHAIN` constant in `index.ts`
-(currently `cerebras/qwen-3.8-27b` → `openrouter/inception/mercury-2.5`);
-extend it there and redeploy. `decide.ts` is pure and bun-tested;
+chain exhaustion instead of looping. The walk is keyed to the session's
+current model — never to a remembered position — so it cannot drift out of
+sync with what the session actually runs. It never touches a model the user
+chose, and never re-sends the user's prompt — a run that dies mid-turn may
+already have executed tools. The chain is the `CHAIN` constant in `index.ts`
+(currently `cerebras/qwen-3.8-27b` → `openrouter/deepseek/deepseek-v4.1-flash`
+→ `openrouter/inception/mercury-2.5`; cheap and fast first, heavy backup
+last); extend it there and redeploy. `decide.ts` is pure and bun-tested;
 `index.ts` is the harness-facing half. Removing the directory leaves stock
 retry + compaction recovery exactly intact.
 
@@ -310,8 +313,11 @@ extension would duplicate a pi-owned mechanism (double retries, hidden backoff
 state); let the code that owns the concern own the concern.
 
 - `settings.json` now declares `retry.enabled: true`, `retry.maxRetries: 3`,
-  `retry.baseDelayMs: 2000` — the stock budget made explicit in the repo and
-  tunable in one place.
+  `retry.baseDelayMs: 2000` — the budget made explicit in the repo and
+  tunable in one place. `maxRetries` matches the stock default (3); the base
+  delay is deliberately twice the stock 1 s (delays 2 s / 4 s / 8 s
+  instead of 1 s / 2 s / 4 s), giving a Cerebras stockout 429 window a real
+  chance to recover before the chain leaves.
 - `extensions/failover/` now walks `CHAIN`, an ordered constant in `index.ts`
   (currently Cerebras `qwen-3.8-27b` → OpenRouter `mercury-2.5`; extend by
   editing the list and redeploying). When a run that settled died on link
@@ -332,6 +338,21 @@ state); let the code that owns the concern own the concern.
   *switch* changes provider and key, so even quota or billing failures are a
   valid reason to move — same-model retry stays classified, cross-model
   advance does not).
+
+*Amended 2026-09-15 (same day):* session evidence (`~/.pi/agent/sessions/`)
+showed the operator's second workhorse, `deepseek-v4.1-flash`, dying on
+errors stock retry does not cover (Together `h2 protocol error`, provider
+`finish_reason: error`, OpenRouter admission limits) with no fallback, because
+it was outside the chain. The chain gains it as the middle link —
+`qwen-3.8-27b` → `deepseek-v4.1-flash` → `mercury-2.5` — cheap/fast first,
+heavy backup last, so both daily models get a full runway. The walk becomes
+membership-based: `nextInChain(chain, currentKey)` derives the next link from
+the session's *current model* (`CHAIN.indexOf`) instead of a remembered
+position, so the position-drift state and its desync path are deleted and the
+only way to land on an earlier link is an explicit user selection (which
+resumes the walk forward from that link). The repo now owns
+`deepseek-v4.1-flash`'s `xhigh` thinking pin in `settings.json` (it had been
+a foreign live key — the ledger hole this closes).
 
 ## Research: how pi iterates on other harnesses
 
