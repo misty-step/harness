@@ -1,3 +1,20 @@
+## [0.0.41](https://github.com/misty-step/omp-config/compare/v0.0.40...v0.0.41) (2026-09-15)
+
+
+### Bug Fixes
+
+* **harness:** run delegated tasks in the working tree, not worktrees ([0e0083c](https://github.com/misty-step/omp-config/commit/0e0083cae95b26d84a148827c22f339e0a0ccf81))
+* **workstation:** latch pressure alerts with hysteresis and per-key cooldown ([4c54650](https://github.com/misty-step/omp-config/commit/4c54650af133c8162e8a4ff25edc0b3e3cc6c624))
+* **workstation:** send a plain uint32 to gdbus CloseNotification ([065d547](https://github.com/misty-step/omp-config/commit/065d5472f1ec20082e0a6162af79fa12bb732c46))
+
+
+### Features
+
+* **harness:** add pokayoke as an explicit error-proofing skill ([2b98b32](https://github.com/misty-step/omp-config/commit/2b98b3274a45d07ede8b37375a116f1cf103c383))
+* **harness:** make host-resource bounds binding in the global guidance ([519aa2c](https://github.com/misty-step/omp-config/commit/519aa2c30b180caca13d078279eb064408ddeb8e))
+* **harness:** name pokayoke in the global standing guidance ([eeba5c2](https://github.com/misty-step/omp-config/commit/eeba5c2ee63d9c39cb0115c6bf7a91275dffc290))
+* **workstation:** specify run-scoped TMPDIR scratch routing ([fbf5b53](https://github.com/misty-step/omp-config/commit/fbf5b53f87d58ddb9e47be23a0dde94fafbeb69a))
+
 ## [0.0.40](https://github.com/misty-step/omp-config/compare/v0.0.39...v0.0.40) (2026-09-14)
 
 
