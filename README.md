@@ -58,6 +58,7 @@ presentation; "behavioral" changes agent capability, model input, or data flow.
 | `extensions/web-search/` | this repo | behavioral | yes | `web_search` tool (Exa); registers nothing without `EXA_API_KEY` |
 | `extensions/failover/` | this repo | behavioral | yes | Fallback chain: run dies on a link after stock retry → session moves to the next, strictly forward (ADR-011/013) |
 | `skills/authenticated-commands` | this repo (vendored from omp-config) | skill | yes | Teaches agents disciplined `pass`/`pass-env` credential use |
+| `skills/decide` | this repo | skill | yes | High-context executive brief in ASD-STE100 for fast decisions (ADR-016) |
 | `~/.bashrc` (`pi()` block) | this repo (marked block only) | behavioral | by hand | Launch hook: Exa key from pass (ADR-010); run-scoped scratch `TMPDIR` via `omp-scratch` when installed (ADR-015) |
 | `extensions/agent-usage-telemetry.ts` | external (managed) | telemetry | no | Reports usage to an external endpoint |
 | `extensions/herdr-agent-state.ts` | herdr (managed) | integration | no | Reports pane agent state to herdr |
@@ -141,6 +142,13 @@ model context: list entries, match names, verify with authenticated side
 effects, bind secrets through `pass-env run`. It is the pi-side counterpart of
 omp-config's secret-discipline skill, and `web-search` is its first consumer.
 
+**`skills/decide/` — skill.** High-context executive brief in ASD-STE100 for
+fast technical decisions (ADR-016). Formats facts, root causes, invariants,
+viable candidate paths, and a structured tradeoff matrix across reversibility,
+blast radius, effort, operational cost, and risk. Hidden from automatic skill
+discovery (`disable-model-invocation: true`); invoked on-demand via
+`/skill:decide [optional topic]`.
+
 ### The launch hook: `pi()` in `~/.bashrc`
 
 The one owned file outside the agent directory: a marked block in the user
@@ -223,7 +231,7 @@ in `settings.json`, never the generated file.
 | Persistent memory | **omit for now** | Source authority is the repo and OMP's guidance. Revisit deliberately |
 | Notifications | **omit for now** | Terminal focus is usually present; revisit for long unattended runs |
 | Plan mode | **omit for now** | Covered by prompt discipline; revisit if it earns a keybinding |
-| Prompt templates / homebrew skills | **porting, one at a time** | Owned in OMP today; `authenticated-commands` is the first deliberate port (ADR-010); the rest wait for a name |
+| Prompt templates / homebrew skills | **porting, one at a time** | Owned in OMP today; `authenticated-commands` (ADR-010) and `decide` (ADR-016) are ported; others wait for a name |
 | Pinned third-party packages | **omit** | Owned code is vendored here. Add packages only with a named reason |
 
 ## Decision log
@@ -454,6 +462,31 @@ source block and the live file, and the four degradation branches exercised
 with stubs, asserting the exact argv and that nothing is written outside
 `~/.cache/tmp`.
 
+**ADR-016 — Provide a dedicated 'decide' skill for dense, ASD-STE100 executive decision briefs.**
+*Accepted · 2026-09-15.* When an operator asks an agent to "help me make a high
+quality decision here," the agent frequently defaults to conversational filler,
+false balance, or open-ended clarifying questions. For frontier reasoning models
+(GPT-6 Astra, Claude Fable 5), modern prompt engineering research establishes
+that models reason best when given clear outcomes, permission to infer intent
+and inspect local context autonomously, and tight stylistic constraints. We
+provide `skills/decide/SKILL.md` with `disable-model-invocation: true`:
+
+- **ASD-STE100 controlled language.** Sentences are limited to 20 words for
+  instructions and 25 words for descriptions. Active voice and direct verbs are
+  mandatory. Conversational preamble, apologies, and AI clichés ("delve",
+  "foster", "leverage", "crucial", "seamless") are prohibited.
+- **Autonomous context gathering.** The model infers intent and inspects primary
+  artifacts (git diffs, error logs, interface boundaries, ADRs) before writing,
+  rather than stalling with clarifying questions.
+- **Structured decision memo.** Outputs context, forcing function, non-negotiable
+  invariants, candidate paths, a Markdown tradeoff matrix (reversibility, blast
+  radius, effort, operational cost, primary risk), a justified stance with
+  decision boundary conditions, and the single next action.
+- **On-demand invocation only.** Hidden from ambient context via
+  `disable-model-invocation: true` to avoid token bloat during normal turns;
+  invoked explicitly via `/skill:decide [optional topic]`.
+- **Sister repo parity.** Authored identically across `pi-config` and `omp-config`.
+
 ## Research: how pi iterates on other harnesses
 
 Surveyed 2026-09-14 against pi's bundled docs/examples, the community
@@ -573,9 +606,9 @@ PI_CONFIG_COMPONENTS="pi-chrome loc" ./install
 ```
 
 Preflight validates bun, source presence, and settings before any write. The
-`loc`, `web-search`, and `failover` packages and the `authenticated-commands`
-skill are clean-replaced so obsolete files cannot survive. Restart pi after
-deploying.
+`loc`, `web-search`, and `failover` packages and owned skills
+(`authenticated-commands`, `decide`) are clean-replaced so obsolete files
+cannot survive. Restart pi after deploying.
 
 ## Verification
 
