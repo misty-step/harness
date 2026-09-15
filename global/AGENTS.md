@@ -89,6 +89,22 @@ Existing grants count; this preference adds none. Separate agent/build execution
 from production capabilities; workspace clones must not duplicate a live
 scheduler's ownership.
 
+Heavy execution is bounded. Full suites, coverage runs, Electron and browser
+verification, and image builds run off-host by default (`skill://using-exe-dev`),
+or locally inside `dev-exec.slice` with an explicit per-job budget
+(`references/dev-exec.md`, `skill://dev-exec`). A heavy run's `TMPDIR` is a
+run-scoped directory under `~/.cache/tmp` on disk, never `/tmp` (a 46 GiB RAM
+tmpfs); the mechanism is specified in `references/scratch-routing.md`. Runner
+worker concurrency comes from repository config, never host defaults.
+
+Check for a live run before starting one, and stop only the scope this session
+owns. Keep evidence in bounded per-run directories with retention, not an
+accumulating `/tmp` mountain.
+
+Repository `AGENTS.md` files point at these host-resource rules instead of
+restating them, and add only repository-specific facts—commands, budgets,
+exceptions—that the global rule cannot know.
+
 Make results inspectable through the revision, exercised behavior, and useful
 private previews with access and expiry/revocation instructions. Use synthetic
 preview data and reproducible setup. Retain handoff/recovery work and evidence;
