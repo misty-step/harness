@@ -53,7 +53,7 @@ presentation; "behavioral" changes agent capability, model input, or data flow.
 | --- | --- | --- | --- | --- |
 | `settings.json` | this repo | config | yes | Default model/thinking, editor padding, markdown, theme name, retry budget |
 | `global/AGENTS.md` | this repo | behavioral | yes | Global `~/.pi/agent/AGENTS.md`: session guidance for every pi session — names pokayoke (ADR-012) and the host-resource rule (ADR-014) |
-| `extensions/pi-chrome.ts` | this repo | aesthetic | yes | Composer rail layout and footer |
+| `extensions/pi-chrome.ts` | this repo | aesthetic | yes | Session card, composer rail layout, live working state, footer |
 | `extensions/loc/` | this repo | behavioral (read-only) | yes | `/loc`, `/loc-trend`, LOC status row |
 | `extensions/web-search/` | this repo | behavioral | yes | `web_search` tool (Exa); registers nothing without `EXA_API_KEY` |
 | `extensions/failover/` | this repo | behavioral | yes | Fallback chain: run dies on a link after stock retry → session moves to the next, strictly forward (ADR-011/013) |
@@ -81,14 +81,17 @@ overwrites the deployed copy; the file tells agents not to hand-edit it.
 
 ### Owned extensions
 
-**`pi-chrome.ts` — aesthetic.** Replaces the stock editor/footer with a
-three-part layout: the composer's bottom border is empty, session identity
-(model + reasoning) is right-aligned on the top border beside pi's working
-spinner, and a single footer carries location + codebase on the left and session
-economics on the right. It reads git status and session usage but writes nothing
-and changes no agent behavior. Remove the file and stock pi returns. It is a
-deliberate rebuild of the popular `pi-powerline-footer` idea, kept local so we
-control the layout and take on no third-party dependency.
+**`pi-chrome.ts` — aesthetic.** Replaces the stock header, editor, and footer
+with a four-part layout: a session card (pi mark, version, session name,
+compact keyhints) replaces the stock logo banner, the composer's bottom border
+is empty, session identity (model + reasoning) is right-aligned on the top
+border beside a breathing working pulse, and a single footer carries location
++ codebase on the left and session economics on the right. While a tool runs the
+working row names it ("reading src/foo.ts"). It reads git status and session
+usage but writes nothing and changes no agent behavior. Remove the file and
+stock pi returns. It is a deliberate rebuild of the popular
+`pi-powerline-footer` idea, kept local so we control the layout and take on no
+third-party dependency.
 
 **`loc/` — behavioral, read-only.** A port of the OMP LOC extension. Adds the
 `/loc` and `/loc-trend` commands and a status row showing top-language share,
@@ -487,6 +490,32 @@ provide `skills/decide/SKILL.md` with `disable-model-invocation: true`:
   invoked explicitly via `/skill:decide [optional topic]`.
 - **Sister repo parity.** Authored identically across `pi-config` and `omp-config`.
 
+**ADR-017 — Session card replaces the stock header; the working row names the
+tool.** *Accepted · 2026-09-15.* pi's stock header spends four lines on a logo,
+keybinding hints, and two prose sentences, and its working row says only that
+something is running. We restyle both from `pi-chrome.ts` without touching the
+rails (ADR-004):
+
+- **Session card.** `setHeader` replaces the stock banner with the pi mark,
+  version, session name, and the compact keyhints. ctrl+o still expands it to
+  the full startup help, because the card implements the same `setExpanded`
+  interface pi already drives for tool-output expansion. On a resumed session
+  the card also shows prior tokens and cost.
+- **Tool-aware working message.** `tool_execution_start` rewrites the working
+  row to a present-tense verb plus a bounded target ("reading src/foo.ts",
+  "running cargo test"); `tool_execution_end`, `agent_start`, and
+  `agent_settled` restore pi's default.
+- **Breathing indicator.** A four-frame accent pulse in the composer border
+  replaces the braille spinner. Custom frames render verbatim, so the color is
+  baked and re-baked on each `agent_start`; a mid-session theme change
+  therefore self-heals before the next run.
+
+We keep `quietStartup` off. The `[Context]/[Skills]/[Extensions]/[Themes]`
+listing below the header is the load-proof for foreign extensions
+(`agent-usage-telemetry.ts`, `herdr-agent-state.ts`), and the extension API
+exposes no way to enumerate extensions, so hiding it would trade proof for
+polish. Classification: aesthetic.
+
 ## Research: how pi iterates on other harnesses
 
 Surveyed 2026-09-14 against pi's bundled docs/examples, the community
@@ -588,6 +617,8 @@ failover became sticky (then revisit the once-per-session latch).
   another invocation contract (then re-point the hook), or pi gains a native
   session-environment setting (then set it and delete the hook's scratch half).
 - **Chrome (ADR-004)**: the footer's left side becomes unreadable at 80 columns.
+- **Chrome (ADR-017)**: pi exposes extension enumeration to extensions (then
+  fold the resource listing into the session card and enable `quietStartup`).
 - **OMP parity**: OMP ships a feature we use daily and pi lacks. Port one thing
   at a time, with an ADR.
 

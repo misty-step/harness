@@ -1,8 +1,9 @@
 /**
  * pi-chrome — composer-centered status chrome.
  *
- * Nothing sits on the composer's bottom border. Session identity is
- * right-aligned on the top border (next to pi's built-in working spinner), and
+ * Nothing sits on the composer's bottom border. The header is a quiet session
+ * card (mark, version, session name, compact keyhints), session identity is
+ * right-aligned on the top border beside a breathing working pulse, and
  * everything else lives in the footer below the composer:
  *
  *   ─ ─────────────────────────  ds-v4.1-flash · ◆ xhigh ─
@@ -12,19 +13,27 @@
  *                                        ctx 12%/200k · $0.06 · ↑162k ↓48k
  *
  * The footer is indented to the editor's text column (EDITOR_PAD_X) so the
- * decorations line up under the input. Remove this file (or set "extensions"
- * exclusions in settings) to restore the stock editor and footer.
+ * decorations line up under the input. While a tool runs, the working message
+ * names it ("reading src/foo.ts"), so the composer says what is happening.
+ * Remove this file (or set "extensions" exclusions in settings) to restore the
+ * stock header, editor, and footer.
  */
 
 import {
 	CustomEditor,
+	VERSION,
+	keyHint,
+	keyText,
+	rawKeyHint,
 	type ExtensionAPI,
 	type ExtensionContext,
 	type KeybindingsManager,
+	type Theme,
+	type WorkingIndicatorOptions,
 } from "@earendil-works/pi-coding-agent";
 import type { Component, EditorTheme, TUI } from "@earendil-works/pi-tui";
 import { truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
-import { resolve, sep } from "node:path";
+import { basename, resolve, sep } from "node:path";
 
 const THINKING_GLYPH = "◆";
 
@@ -39,6 +48,54 @@ const ICONS = {
 	gauge: "\uf0e4",
 	cost: "\uf155",
 };
+
+/** The session card's mark. */
+const PI_MARK = "π";
+
+/** Longest target token shown in the working message. */
+const WORKING_TARGET_MAX = 42;
+
+/**
+ * Present-tense verbs for the working message. The message replaces pi's
+ * default while a tool runs, so the composer says *what* is happening rather
+ * than only that something is.
+ */
+const TOOL_VERBS: Record<string, string> = {
+	read: "reading",
+	write: "writing",
+	edit: "editing",
+	bash: "running",
+	grep: "searching",
+	find: "finding",
+	ls: "listing",
+	web_search: "searching the web for",
+};
+
+function summarizeTool(toolName: string, args: unknown): string {
+	const verb = TOOL_VERBS[toolName] ?? `running ${toolName}`;
+	const input = (args ?? {}) as Record<string, unknown>;
+	for (const key of ["query", "command", "pattern", "path", "file_path"]) {
+		const value = input[key];
+		if (typeof value !== "string" || value.trim().length === 0) continue;
+		const isPath = key === "path" || key === "file_path";
+		let target = (isPath ? basename(value) : value).replace(/\s+/g, " ").trim();
+		if (target.length > WORKING_TARGET_MAX) target = `${target.slice(0, WORKING_TARGET_MAX - 1)}…`;
+		return `${verb} ${target}`;
+	}
+	return verb;
+}
+
+/**
+ * A four-frame pulse that breathes in the accent color while pi works. Custom
+ * frames render verbatim in the composer border, so the color is baked here;
+ * agent_start re-bakes it so a mid-session theme change self-heals.
+ */
+function workingIndicator(thm: Theme): WorkingIndicatorOptions {
+	return {
+		frames: [thm.fg("dim", "·"), thm.fg("muted", "•"), thm.fg("accent", "●"), thm.fg("muted", "•")],
+		intervalMs: 140,
+	};
+}
 
 /** Show the current directory plus its parent, home-relative when possible. */
 function formatCwd(cwd: string): string {
@@ -123,6 +180,101 @@ function formatLocation(theme: ExtensionContext["ui"]["theme"], git: GitState, c
 	return `${theme.fg("dim", ICONS.folder)} ${theme.fg("muted", formatCwd(cwd))}${branchText}`;
 }
 
+/**
+ * The session card: a quiet replacement for pi's stock logo banner. Collapsed
+ * it shows the mark, version, session name, and compact keyhints; ctrl+o
+ * (app.tools.expand) expands it to the full startup help, exactly like the
+ * stock header. Rendering is cached per width and invalidated on theme or
+ * session-identity change.
+ */
+class SessionCard implements Component {
+	private expanded = false;
+	private cachedWidth: number | undefined;
+	private cachedLines: string[] | undefined;
+
+	constructor(private readonly build: (expanded: boolean) => string[]) {}
+
+	setExpanded(expanded: boolean): void {
+		if (this.expanded === expanded) return;
+		this.expanded = expanded;
+		this.invalidate();
+	}
+
+	invalidate(): void {
+		this.cachedWidth = undefined;
+		this.cachedLines = undefined;
+	}
+
+	render(width: number): string[] {
+		if (this.cachedLines && this.cachedWidth === width) return this.cachedLines;
+		this.cachedLines = ["", ...this.build(this.expanded).map((line) => truncateToWidth(line, width, "")), ""];
+		this.cachedWidth = width;
+		return this.cachedLines;
+	}
+}
+
+/** The card's left margin, matching the stock header's one-column indent. */
+const CARD_PAD = " ";
+
+const CARD_ONBOARDING = "Pi can explain its own features and look up its docs. Ask it how to use or extend Pi.";
+
+function buildSessionCard(pi: ExtensionAPI, ctx: ExtensionContext, expanded: boolean): string[] {
+	const thm = ctx.ui.theme;
+	const parts = [thm.bold(thm.fg("accent", PI_MARK)) + thm.fg("dim", ` v${VERSION}`)];
+
+	const session = pi.getSessionName();
+	if (session) parts.push(thm.fg("muted", session));
+
+	// On a resumed session, show what earlier turns already spent.
+	const totals = computeTotals(ctx);
+	const burn: string[] = [];
+	if (totals.input) burn.push(`↑${formatTokens(totals.input)}`);
+	if (totals.output) burn.push(`↓${formatTokens(totals.output)}`);
+	if (burn.length) parts.push(thm.fg("dim", burn.join(" ")));
+	if (totals.cost) parts.push(thm.fg("dim", `$${totals.cost.toFixed(2)}`));
+
+	const identity = CARD_PAD + parts.join(thm.fg("dim", " · "));
+
+	if (expanded) {
+		const hints = [
+			keyHint("app.interrupt", "to interrupt"),
+			keyHint("app.clear", "to clear"),
+			rawKeyHint(`${keyText("app.clear")} twice`, "to exit"),
+			keyHint("app.exit", "to exit (empty)"),
+			keyHint("app.suspend", "to suspend"),
+			keyHint("tui.editor.deleteToLineEnd", "to delete to end"),
+			keyHint("app.thinking.cycle", "to cycle thinking level"),
+			rawKeyHint(`${keyText("app.model.cycleForward")}/${keyText("app.model.cycleBackward")}`, "to cycle models"),
+			keyHint("app.model.select", "to select model"),
+			keyHint("app.tools.expand", "to expand tools"),
+			keyHint("app.thinking.toggle", "to expand thinking"),
+			keyHint("app.editor.external", "for external editor"),
+			rawKeyHint("/", "for commands"),
+			rawKeyHint("!", "to run bash"),
+			rawKeyHint("!!", "to run bash (no context)"),
+			keyHint("app.message.followUp", "to queue follow-up"),
+			keyHint("app.message.dequeue", "to edit all queued messages"),
+			keyHint("app.clipboard.pasteImage", "to paste image (with text fallback)"),
+			rawKeyHint("drop files", "to attach"),
+		];
+		return [
+			identity,
+			...hints.map((hint) => CARD_PAD + hint),
+			"",
+			CARD_PAD + thm.fg("dim", CARD_ONBOARDING),
+		];
+	}
+
+	const compact = [
+		keyHint("app.interrupt", "interrupt"),
+		rawKeyHint(`${keyText("app.clear")}/${keyText("app.exit")}`, "clear/exit"),
+		rawKeyHint("/", "commands"),
+		rawKeyHint("!", "bash"),
+		keyHint("app.tools.expand", "more"),
+	].join(thm.fg("dim", " · "));
+	return [identity, CARD_PAD + compact];
+}
+
 class ChromeEditor extends CustomEditor {
 	private ctx: ExtensionContext;
 	private getThinkingLevel: () => ReturnType<ExtensionAPI["getThinkingLevel"]>;
@@ -169,6 +321,7 @@ class ChromeEditor extends CustomEditor {
 
 export default function (pi: ExtensionAPI) {
 	let activeTui: TUI | undefined;
+	let sessionCard: SessionCard | undefined;
 	const gitState: GitState = {
 		branch: null,
 		dirty: false,
@@ -219,6 +372,16 @@ export default function (pi: ExtensionAPI) {
 
 	pi.on("session_start", (_event, ctx) => {
 		if (ctx.mode !== "tui") return;
+
+		// Header is the session card: mark, version, session name, compact
+		// keyhints. ctrl+o expands it to the full startup help, like stock.
+		ctx.ui.setHeader(() => {
+			sessionCard = new SessionCard((expanded) => buildSessionCard(pi, ctx, expanded));
+			return sessionCard;
+		});
+
+		// The composer border carries a breathing accent pulse while pi works.
+		ctx.ui.setWorkingIndicator(workingIndicator(ctx.ui.theme));
 
 		// Footer is the single lower rail: location + codebase on the left,
 		// session economics on the right.
@@ -293,8 +456,38 @@ export default function (pi: ExtensionAPI) {
 		void refreshGit(ctx.cwd);
 	});
 
+	pi.on("agent_start", (_event, ctx) => {
+		if (ctx.mode !== "tui") return;
+		// Re-bake the indicator so a mid-session theme change self-heals, and
+		// clear any tool message left over from the previous run.
+		ctx.ui.setWorkingIndicator(workingIndicator(ctx.ui.theme));
+		ctx.ui.setWorkingMessage();
+	});
+
+	// The working message names the tool in flight: "reading src/foo.ts",
+	// "running cargo test", "searching the web for ...". Restore pi's default
+	// once the tool settles.
+	pi.on("tool_execution_start", (event, ctx) => {
+		if (ctx.mode !== "tui") return;
+		ctx.ui.setWorkingMessage(summarizeTool(event.toolName, event.args));
+	});
+
+	pi.on("tool_execution_end", (_event, ctx) => {
+		if (ctx.mode !== "tui") return;
+		ctx.ui.setWorkingMessage();
+	});
+
 	pi.on("agent_settled", (_event, ctx) => {
-		if (ctx.mode === "tui") void refreshGit(ctx.cwd);
+		if (ctx.mode !== "tui") return;
+		ctx.ui.setWorkingMessage();
+		void refreshGit(ctx.cwd);
+	});
+
+	// The card carries the session name; rebuild it when the name changes.
+	pi.on("session_info_changed", (_event, ctx) => {
+		if (ctx.mode !== "tui") return;
+		sessionCard?.invalidate();
+		activeTui?.requestRender();
 	});
 
 	// Model/thinking live on the top border; re-render when either changes.
