@@ -1,3 +1,10 @@
+## [0.0.5](https://github.com/misty-step/pi-config/compare/v0.0.4...v0.0.5) (2026-09-15)
+
+
+### Features
+
+* **skills:** add 'decide' executive brief skill (ADR-016) ([6108cbc](https://github.com/misty-step/pi-config/commit/6108cbc8bf9a57d30f79c4f9638ad0a3c15b7d98))
+
 ## [0.0.4](https://github.com/misty-step/pi-config/compare/v0.0.3...v0.0.4) (2026-09-15)
 
 
