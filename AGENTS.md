@@ -8,6 +8,8 @@ keys, and clean-replaces owned extension packages.
 ## What this repo owns
 
 - `settings.json` — global pi preferences.
+- `global/AGENTS.md` — global session guidance (names pokayoke), deployed to
+  `~/.pi/agent/AGENTS.md`.
 - `extensions/pi-chrome.ts` — composer chrome.
 - `extensions/loc/` — LOC status extension.
 - `extensions/web-search/` — Exa web-search extension (registers `web_search`

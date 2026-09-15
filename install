@@ -1,13 +1,14 @@
 #!/bin/sh
 # Deploy owned pi configuration into the pi coding-agent directory.
 #
-# Source of truth for this machine's pi preferences: settings, the custom
-# composer chrome, the LOC status extension, the Exa web-search extension,
-# the model-failover extension, and the authenticated-commands skill. Preflight validates every selected
-# input before any write. Pokayoke: unknown components, empty sources, and
-# invalid settings fail closed before mutation; owned packages are
-# clean-replaced so obsolete files cannot survive; foreign live keys and
-# unmanaged agent files are never overwritten.
+# Source of truth for this machine's pi preferences: settings, global session
+# guidance (AGENTS.md), the custom composer chrome, the LOC status extension,
+# the Exa web-search extension, the model-failover extension, and the
+# authenticated-commands skill. Preflight validates every selected input
+# before any write. Pokayoke: unknown components, empty sources, and invalid
+# settings fail closed before mutation; owned packages are clean-replaced so
+# obsolete files cannot survive; foreign live keys and unmanaged agent files
+# are never overwritten.
 set -eu
 umask 077
 
@@ -27,14 +28,14 @@ require_nonempty() {
 
 selected=${PI_CONFIG_COMPONENTS:-all}
 case "$selected" in
-  all) components="config pi-chrome loc web-search failover skills" ;;
+  all) components="config guidance pi-chrome loc web-search failover skills" ;;
   "") components="" ;;
   *) components="$selected" ;;
 esac
 
 for component in $components; do
   case "$component" in
-    config|pi-chrome|loc|web-search|failover|skills) ;;
+    config|guidance|pi-chrome|loc|web-search|failover|skills) ;;
     *) printf 'Unknown component: %s\n' "$component" >&2; exit 1 ;;
   esac
 done
@@ -60,6 +61,15 @@ install_config() {
   bun "$repo_dir/bin/pi-merge-settings.ts" \
     --source "$repo_dir/settings.json" \
     --dest "$agent_dir/settings.json"
+}
+
+validate_guidance() {
+  require_nonempty "$repo_dir/global/AGENTS.md"
+}
+
+install_guidance() {
+  install -d -m 700 "$agent_dir"
+  install -m 600 "$repo_dir/global/AGENTS.md" "$agent_dir/AGENTS.md"
 }
 
 validate_pi_chrome() {
@@ -136,6 +146,7 @@ install_skills() {
 }
 
 if has config; then validate_config; fi
+if has guidance; then validate_guidance; fi
 if has pi-chrome; then validate_pi_chrome; fi
 if has loc; then validate_loc; fi
 if has web-search; then validate_web_search; fi
@@ -143,6 +154,7 @@ if has failover; then validate_failover; fi
 if has skills; then validate_skills; fi
 
 if has config; then install_config; fi
+if has guidance; then install_guidance; fi
 if has pi-chrome; then install_pi_chrome; fi
 if has loc; then install_loc; fi
 if has web-search; then install_web_search; fi

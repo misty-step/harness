@@ -5,6 +5,8 @@
 !/CHANGELOG.md
 !/install
 !/settings.json
+!/global/
+!/global/**
 !/.landmark.yml
 !/extensions/
 !/extensions/**

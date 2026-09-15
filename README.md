@@ -1,8 +1,9 @@
 # pi-config
 
 Pi coding-agent configuration for Phaedrus / Misty Step. This is the versioned
-source of truth for how pi iterates on raw upstream pi: settings, the custom
-composer chrome, the LOC status extension, the Exa web-search tool, the
+source of truth for how pi iterates on raw upstream pi: settings, global session
+guidance (`AGENTS.md`, which names pokayoke), the custom composer chrome, the
+LOC status extension, the Exa web-search tool, the
 model-failover extension, the pass-env authenticated-commands skill, and the
 `pi()` key-injection wrapper block in `~/.bashrc`. `./install` deploys the owned agent-directory components
 into `$PI_CODING_AGENT_DIR` (default `~/.pi/agent`); the wrapper block is
@@ -31,8 +32,8 @@ track both here, with a reason and a review trigger.
 `~/.pi/agent` is the live, mutable runtime. This repo owns a declared subset and
 never assumes ownership of the rest:
 
-- `./install` overlays source-owned settings keys and clean-replaces owned
-  extension packages.
+- `./install` overlays source-owned settings keys, clean-replaces owned
+  extension packages, and installs the global `AGENTS.md`.
 - Foreign live settings keys (runtime state such as `lastChangelogVersion`) are
   preserved by `bin/pi-merge-settings.ts`.
 - Files this repo does not declare — auth, sessions, telemetry, herdr
@@ -52,6 +53,7 @@ presentation; "behavioral" changes agent capability, model input, or data flow.
 | Component | Owner | Class | Installed by `./install` | Divergence |
 | --- | --- | --- | --- | --- |
 | `settings.json` | this repo | config | yes | Default model/thinking, editor padding, markdown, theme name |
+| `global/AGENTS.md` | this repo | behavioral | yes | Global `~/.pi/agent/AGENTS.md`: session guidance for every pi session, names pokayoke (ADR-012) |
 | `extensions/pi-chrome.ts` | this repo | aesthetic | yes | Composer rail layout and footer |
 | `extensions/loc/` | this repo | behavioral (read-only) | yes | `/loc`, `/loc-trend`, LOC status row |
 | `extensions/web-search/` | this repo | behavioral | yes | `web_search` tool (Exa); registers nothing without `EXA_API_KEY` |
@@ -62,6 +64,15 @@ presentation; "behavioral" changes agent capability, model input, or data flow.
 | `skills/omarchy`, `skills/diagnose-crash` | Omarchy (symlinks) | skills | no | Omarchy-owned agent skills |
 | `themes/omarchy-system.json` | Omarchy (generated) | generated | no | Theme regenerated on every theme change |
 | `auth.json`, `models-store.json`, `sessions/`, `trust.json`, `usage-outbox/` | pi (runtime) | runtime | no | Credentials, sessions, state |
+
+### Global guidance
+
+**`global/AGENTS.md` — behavioral.** Installs `~/.pi/agent/AGENTS.md`, the
+file pi concatenates into every session in every repository (ADR-012). It
+names the shared pokayoke convention in the model's standing context, so a
+repository without its own `AGENTS.md` still inherits "fix the class, not the
+instance" after an error. The repo owns the text and `./install` overwrites
+the deployed copy; the file tells agents not to hand-edit it.
 
 ### Owned extensions
 
@@ -258,6 +269,21 @@ plus a `high` thinking pin for the fallback so the switch carries the same
 posture. Mercury 2.5's listed 260K context window (OpenRouter) sits well
 above the primary's, so a context-bound run that dies on the primary has room
 on the fallback.
+
+**ADR-012 — Own a global `AGENTS.md` so every pi session carries the shared
+conventions.** *Accepted · 2026-09-15.* Pi loads `~/.pi/agent/AGENTS.md` into
+every session in every repository — the one hook that reaches every pi agent
+everywhere — but on this machine it did not exist, so a session in a
+repository without its own `AGENTS.md` (such as this repo) never saw the
+pokayoke convention that the README and `install` already name. The omp
+harness ships the matching conventions through `omp-config`'s
+`global/AGENTS.md`; this is the pi counterpart, scoped to what is universal to
+the operator rather than to one harness's model routing or trackers. We own
+`global/AGENTS.md` here and `./install` deploys it to
+`~/.pi/agent/AGENTS.md` (ledger row, allowlisted in `.gitignore`). Alternative
+(edit the live file directly) rejected: no source of truth, and the file would
+drift or be silently clobbered by the next install — the same error class
+ADR-001 already closed for settings.
 
 ## Research: how pi iterates on other harnesses
 
