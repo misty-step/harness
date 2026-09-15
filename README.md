@@ -443,7 +443,7 @@ font licenses. The external `frontend-design` and `show-me` packages stay verbat
 
 ## Skills and agents
 
-Five homebrew skills are explicitly invoked:
+Six homebrew skills are explicitly invoked:
 
 | Command | Outcome |
 | --- | --- |
@@ -452,6 +452,7 @@ Five homebrew skills are explicitly invoked:
 | `/skill:verification-infrastructure` | Create or repair repository-owned runnable verification and its discoverable skill, preserving existing interfaces |
 | `/skill:capture` | Save durable findings to project notes, or the required tracker, without duplicating or claiming work |
 | `/skill:pokayoke` | Make a class of error impossible (shape, type, ownership, missing affordance, or a failing-closed check) instead of warning about it |
+| `/skill:decide` | Synthesize current context, tradeoffs, and candidate paths into an executive decision brief |
 
 `disable-model-invocation: true` hides these descriptions from the automatic
 skill index. It does not prevent an explicit `skill://` read or grant authority
@@ -484,6 +485,14 @@ Use `/skill:pokayoke [optional error class or incident]` after a defect,
 incident, or near-miss. The outcome is a mechanism that makes that class of
 error impossible—not a warning, comment, or extra instruction layer. A reminder
 is not pokayoke. `postmortems/TEMPLATE.md` requires the same close.
+
+Use `/skill:decide [optional fork, question, or decision topic]` to request a
+dense, high-context executive brief in ASD-STE100 style when facing a technical
+decision point. It is read-only analysis. It leads with facts, root causes,
+invariants, viable candidate paths, and a structured tradeoff matrix across
+reversibility, blast radius, effort, operational cost, and primary risk. It
+states a clear technical recommendation with an explicit decision boundary, and
+ends with the exact next action to take upon approval.
 
 Five vendored packages remain unchanged except by whole-package refresh:
 `frontend-design`, `herdr`, `show-me`, `wrangler`, and `using-exe-dev`.
