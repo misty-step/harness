@@ -12,7 +12,10 @@ The guidance favors outcome-driven autonomy: continue routine authorized work
 through acceptance, ask about material choices or authority, and honor explicit
 stops. Verification resolves plausible failure rather than demonstrating effort;
 instruction-only edits need meaning, reference, and relevant loading checks,
-not model runs or synthetic applications by default.
+not model runs or synthetic applications by default. After a class of error,
+pokayoke it: make that class impossible (shape, type, ownership, a missing
+affordance, or a failing-closed check), not merely documented. The standing
+prompt is: how can I pokayoke this so this kind of error never happens again?
 
 ## Layout
 
@@ -28,13 +31,11 @@ not model runs or synthetic applications by default.
 | `mcp.json` | Global MCP inventory; Linear is deliberately absent |
 | `workspace-mcp.json`, `bin/omp-install-scopes.ts` | Linear directory scopes, native project-local imports, owned skill retirement |
 | `global/AGENTS.md` | Collaboration, verification, Linear/Habitat routing, privilege boundaries |
-| `agents/executive.md` | Recursive scope-owning subagents through Astra-backed `@plan` |
 | `global/WATCHDOG.md`, `global/WATCHDOG.yml` | One read-only Steward advisor |
 | `themes/` | TUI themes (`tokyonight`, `everforest`, `everforest-light`) |
 | `skills/` | Owned skill packages, clean-replaced when selected |
 | `.githooks/pre-push` | Secret scanners only; installed into this repo's git dir by `./install` |
 | `extensions/loc/` | Session-resident LOC status and commands |
-| `extensions/executive/` | Main/executive role boundary, native admission, briefs, and scoped cancellation |
 
 ## Install
 
@@ -52,14 +53,13 @@ checkout.
 OMP_INSTALL_COMPONENTS=guidance ./install
 OMP_INSTALL_COMPONENTS=config ./install
 OMP_INSTALL_COMPONENTS=agents ./install
-OMP_INSTALL_COMPONENTS=executive ./install
 OMP_INSTALL_COMPONENTS=secrets ./install
 OMP_INSTALL_COMPONENTS=mcp ./install
 OMP_INSTALL_COMPONENTS="guidance mcp scopes skill:capture" ./install
 ```
 
 Supported components are `guidance`, `config`, `mcp`, `scopes`, `agents`,
-`executive`, `secrets`, and `skill:<source-directory-name>`. `all` cannot be combined with another
+`secrets`, and `skill:<source-directory-name>`. `all` cannot be combined with another
 component. Empty, unknown, missing-skill, invalid-name, and invalid YAML
 selections fail before any writes. The retired `OMP_INSTALL_GUIDANCE_ONLY`
 variable fails with migration instructions rather than silently triggering a
@@ -76,12 +76,9 @@ declared server inventory and preserves live `auth`/`oauth` metadata for those
 servers only. OMP's managed OAuth tokens remain in its auth storage, never in
 this repository.
 
-`executive` clean-replaces only `extensions/executive`, installs
-`agents/executive.md`, and merges the canonical `task.maxRecursionDepth` leaf.
-It preserves other live configuration values and does not deploy unrelated
-pending guidance, model, MCP, or skill changes. Configuration preservation is
-semantic, not preservation of YAML comments or formatting. Package preflight
-checks syntax and local imports; native loading must still be confirmed.
+Configuration preservation is semantic, not preservation of YAML comments or
+formatting. Package preflight checks syntax and local imports; native loading
+must still be confirmed.
 
 `secrets` installs `bin/pass-env.ts` as `~/.local/bin/pass-env` (mode
 `700`) and clean-replaces only `skills/authenticated-commands` in the agent
@@ -350,7 +347,7 @@ or sandboxing.
 
 ```sh
 sh -n install
-bun test bin/pass-env.test.ts bin/install-secrets.test.ts bin/install-executive.test.ts
+bun test bin/pass-env.test.ts bin/install-secrets.test.ts
 ```
 
 Tests use disposable stores, HOME, agent directories, and source fixtures; no
@@ -446,7 +443,7 @@ font licenses. The external `frontend-design` and `show-me` packages stay verbat
 
 ## Skills and agents
 
-Four homebrew skills are explicitly invoked:
+Five homebrew skills are explicitly invoked:
 
 | Command | Outcome |
 | --- | --- |
@@ -454,6 +451,7 @@ Four homebrew skills are explicitly invoked:
 | `/skill:agent-ergonomics` | Synthesize grounded findings into prioritized improvements in the project's existing backlog and roadmap |
 | `/skill:verification-infrastructure` | Create or repair repository-owned runnable verification and its discoverable skill, preserving existing interfaces |
 | `/skill:capture` | Save durable findings to project notes, or the required tracker, without duplicating or claiming work |
+| `/skill:pokayoke` | Make a class of error impossible (shape, type, ownership, missing affordance, or a failing-closed check) instead of warning about it |
 
 `disable-model-invocation: true` hides these descriptions from the automatic
 skill index. It does not prevent an explicit `skill://` read or grant authority
@@ -481,6 +479,11 @@ it. Documentation supports those improvements only where needed. Existing scope
 and authority govern writes; otherwise it proposes updates. Use `review-only` for
 no writes.
 Repeated use should converge, not accumulate instructions or speculative work.
+
+Use `/skill:pokayoke [optional error class or incident]` after a defect,
+incident, or near-miss. The outcome is a mechanism that makes that class of
+error impossible—not a warning, comment, or extra instruction layer. A reminder
+is not pokayoke. `postmortems/TEMPLATE.md` requires the same close.
 
 Five vendored packages remain unchanged except by whole-package refresh:
 `frontend-design`, `herdr`, `show-me`, `wrangler`, and `using-exe-dev`.
@@ -575,61 +578,6 @@ The importer records provenance, leaves identical imports unchanged, and refuses
 to overwrite differing copies. Follow the owner procedure when refreshing;
 do not maintain another skill copy in omp-config or install it globally.
 
-### Recursive executives
-
-Ordinary `omp` sessions make Main the root executive. Main and nested
-`executive` agents own outcomes, decomposition, decisions, and acceptance;
-they delegate implementation, integration, executable verification, and
-authorized operations to workers. Read-only answers need no worker. A single
-implementation slice can use one worker; another executive is useful only
-when it owns a distinct scope needing further decomposition.
-
-The extension restricts Main/executive tools to inspection and coordination.
-Direct editing, shell/eval execution, arbitrary devices, and process-control
-operations through `hub` are rejected. Workers keep their normal capabilities.
-Native OMP and Herdr are valid delegation and execution channels, including
-spawning agents and dispatching work. Route Herdr CLI operations through a
-capable native worker; this does not grant Main/executives direct shell access.
-The former blanket executor prohibition could cause refusals despite workers'
-unchanged capabilities; it was prose policy, not a separate Herdr tool ban.
-
-The deployed native recursion depth is **3**, allowing
-`Main → executive → executive → worker`. Process-local admission permits
-**4 active native worker turns and 4 live native executive scopes**, excluding Main.
-Waiting executives use no worker permit. Excess native admission is rejected rather
-than queued; these limits are not dollar budgets or cross-process limits.
-
-Use the `executive_control` tool to:
-
-- `status`: inspect readiness, the current brief, native descendants, jobs,
-  and cancellation state. Require `ready: true` and `policy: enforced`
-  before relying on the policy.
-- `plan`: save this node's current remaining-scope brief in its native session.
-  Persistent sessions flush the brief even before their first model response.
-- `cancel`: close one owned native descendant subtree, or all owned native descendants.
-  Require `settled: true`; a turn abort alone is not whole-scope cancellation.
-  Failed native cleanup retains admission barriers and supports status inspection
-  and cancellation retry.
-
-Native `task`/`hub` and `executive_control` account only for native descendants.
-Track Herdr agents' ownership, readiness, results, and cleanup through Herdr;
-native status or cancellation does not establish their state.
-
-Native activity and successful tool calls are not acceptance evidence.
-Executives judge worker deliverables and stop when the authorized outcome is
-met; they do not invent work to keep a loop alive.
-
-Start a fresh session after deployment; running sessions are not retrofitted.
-For an explicit hands-on Main session, opt out before launching:
-
-```sh
-OMP_EXECUTIVE_POLICY=off omp
-```
-
-This is a trusted-extension role boundary, not an OS security sandbox.
-Workers and other trusted extensions retain their authority. OMP can continue
-after an extension-load failure, so installation alone does not prove enforcement.
-
 ## Interactive and recurring work
 
 ### Model routing
@@ -643,7 +591,7 @@ default-and-role policy, not a prompt classifier or automatic mid-session switch
 | Fresh `omp`, `@default` | `openai-codex/gpt-6-astra:high` |
 | Ordinary `task` workers, `@task` | `openai-codex/gpt-6-astra:high` |
 | `@smol`, `@tiny`, `@commit`; bundled `scout` and `sonic` | `google-antigravity/gemini-3.8-flash:high` |
-| `@slow`, `@plan`; nested `executive` agents | `openai-codex/gpt-6-astra:high` |
+| `@slow`, `@plan` | `openai-codex/gpt-6-astra:high` |
 | `@extreme` (rare unconstrained reasoning) | `openai-codex/gpt-6-astra:max` |
 | `@advisor`, `reviewer` | `openai-codex/gpt-6-astra:high` |
 | `security-reviewer` | `openai-codex/gpt-6-astra:high` |
@@ -655,9 +603,7 @@ difficult debugging, security review, and high-consequence decisions.
 reasoning in rare cases. Vision retains Gemini 3.8
 Flash high as an explicit exception. A configured role does not create an agent. Native OMP
 bundles `task`, `scout`, `sonic`, `reviewer`, and `security-reviewer`, not
-`designer`. This repo supplies `executive`, whose `@plan` selection is independent
-of ordinary `@task`. Main still uses the session model even when the executive
-extension makes it a scope owner.
+`designer`. Main uses the session model.
 
 For a new session:
 
@@ -801,24 +747,21 @@ Exclude copied local MCP imports and credentials from a loading-only fixture.
 Rollback is component-scoped: restore prior owned bytes and modes. Do not use a
 historical full-directory skills replacement as rollback.
 
-### Focused executive checks
+### Focused config checks
 
 ```sh
 sh -n install
-bun test bin/omp-merge-config.test.ts bin/install-executive.test.ts
+bun test bin/omp-merge-config.test.ts
 ```
 
-These checks use temporary destinations and cover selected-leaf preservation,
-old-config → new-config retirement of owned keys without losing foreign config
-entries, foreign packages, and preflight failures. They do not prove native SDK behavior.
+These checks use temporary destinations and cover old-config → new-config
+retirement of owned keys without losing foreign config entries, foreign
+packages, and preflight failures. They do not prove native SDK behavior.
 For runtime changes, use one bounded native OMP run in a disposable workspace:
-confirm Main/executive readiness and forbidden-tool rejection, a depth-3 worker
-result, failure/reassignment, and settled ancestor cancellation with the worker
-process actually gone. Save a brief and switch away/back to check restoration.
-Use native lifecycle observations and actual file/process results, not an
-agent's success claim. After deployment, confirm automatic extension discovery
-in a fresh session; this loading check needs no model turn. Prose-only changes
-do not require repeating the runtime exercise.
+confirm native delegation, a depth-3 worker result, and real file and process
+results rather than an agent's success claim. After deployment, confirm
+automatic extension discovery in a fresh session; this loading check needs no
+model turn. Prose-only changes do not require repeating the runtime exercise.
 
 ## Ecosystem
 

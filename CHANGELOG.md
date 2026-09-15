@@ -14,7 +14,12 @@
 
 ### Features
 
+* **harness:** make pokayoke a standing primitive: named in guidance, an explicit `/skill:pokayoke`, capture/ergonomics/foundation references, and a postmortem template that requires closing the error class.
 * **workstation:** add a user-scope bounded execution workflow and tracked disk/inode, RAM, swap-growth, and slice-pressure notifier; document the 1 GiB containment and visible alert proof.
+
+### Bug Fixes
+
+* **workstation:** latch pressure alerts with hysteresis and per-key cooldown so a parked `/tmp` or flapping swap-growth key cannot restack desktop notifications.
 
 ## [0.0.39](https://github.com/misty-step/omp-config/compare/v0.0.38...v0.0.39) (2026-09-14)
 

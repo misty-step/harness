@@ -148,125 +148,19 @@ install_owned_skills() {
 }
 
 validate_agents() {
-  found=
   for agent_file in "$repo_dir"/agents/*.md; do
     [ -s "$agent_file" ] || continue
-    found=1
     require_nonempty "$agent_file"
   done
-  [ -n "$found" ] || { echo "Missing source agents" >&2; exit 1; }
 }
 
 install_agents() {
   install -d -m 700 "$agent_dir/agents"
+  rm -f -- "$agent_dir/agents/executive.md"
   for agent_file in "$repo_dir"/agents/*.md; do
     [ -s "$agent_file" ] || continue
     install -m 600 "$agent_file" "$agent_dir/agents/${agent_file##*/}"
   done
-}
-
-validate_executive() {
-  require_bun
-  require_nonempty "$repo_dir/extensions/executive/index.ts"
-  require_nonempty "$repo_dir/agents/executive.md"
-  require_nonempty "$repo_dir/config.yml"
-  require_nonempty "$repo_dir/bin/omp-merge-config.ts"
-  bun "$repo_dir/bin/omp-merge-config.ts" \
-    --source "$repo_dir/config.yml" --dest "$agent_dir/config.yml" \
-    --key task.maxRecursionDepth --check
-  OMP_EXECUTIVE_SOURCE="$repo_dir" OMP_EXECUTIVE_DEST="$agent_dir" bun -e '
-    import { lstat, readdir, readFile } from "node:fs/promises";
-    import { dirname, extname, join, resolve, sep } from "node:path";
-    const source = process.env.OMP_EXECUTIVE_SOURCE;
-    const target = process.env.OMP_EXECUTIVE_DEST;
-    const extension = resolve(source, "extensions/executive");
-    const files = new Set();
-    async function collect(directory) {
-      const info = await lstat(directory);
-      if (!info.isDirectory() || info.isSymbolicLink()) throw new Error(`Expected an ordinary package directory: ${directory}`);
-      for (const entry of await readdir(directory, { withFileTypes: true })) {
-        const path = join(directory, entry.name);
-        if (entry.isDirectory()) await collect(path);
-        else if (entry.isFile()) files.add(path);
-        else throw new Error(`Refusing non-file package entry: ${path}`);
-      }
-    }
-    await collect(extension);
-    const transpilers = {
-      ".ts": new Bun.Transpiler({ loader: "ts" }),
-      ".tsx": new Bun.Transpiler({ loader: "tsx" }),
-      ".js": new Bun.Transpiler({ loader: "js" }),
-      ".jsx": new Bun.Transpiler({ loader: "jsx" }),
-    };
-    for (const path of files) {
-      const suffix = extname(path);
-      if (suffix === ".json") JSON.parse(await readFile(path, "utf8"));
-      const transpiler = transpilers[suffix] ?? (suffix === ".mjs" || suffix === ".cjs" ? transpilers[".js"] : undefined);
-      if (!transpiler) continue;
-      const text = await readFile(path, "utf8");
-      const scanned = transpiler.scan(text);
-      if (path === join(extension, "index.ts") && !scanned.exports.includes("default")) {
-        throw new Error(`Missing executive extension default export: ${path}`);
-      }
-      for (const imported of scanned.imports) {
-        if (!imported.path.startsWith(".") && !imported.path.startsWith("/")) continue;
-        const local = resolve(dirname(path), imported.path);
-        if (!local.startsWith(`${extension}${sep}`)) throw new Error(`Package import leaves executive: ${imported.path}`);
-        const candidates = [
-          local,
-          ...[".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", ".json"].map(suffix => `${local}${suffix}`),
-          ...["index.ts", "index.tsx", "index.js", "index.mjs", "index.cjs"].map(name => join(local, name)),
-        ];
-        if (local.endsWith(".js")) candidates.push(`${local.slice(0, -3)}.ts`, `${local.slice(0, -3)}.tsx`);
-        if (!candidates.some(candidate => files.has(candidate))) throw new Error(`Missing package import: ${imported.path} from ${path}`);
-      }
-    }
-    const agentPath = join(source, "agents/executive.md");
-    const agentInfo = await lstat(agentPath);
-    if (!agentInfo.isFile() || agentInfo.isSymbolicLink()) throw new Error(`Expected an ordinary agent file: ${agentPath}`);
-    const agentText = await readFile(agentPath, "utf8");
-    const frontmatter = /^---\r?\n([\s\S]*?)\r?\n---\r?\n([\s\S]+)$/.exec(agentText);
-    if (!frontmatter || !frontmatter[2].trim()) throw new Error(`Missing agent frontmatter or instructions: ${agentPath}`);
-    const agent = Bun.YAML.parse(frontmatter[1]);
-    if (!agent || agent.name !== "executive" || typeof agent.description !== "string" || !agent.description.trim()) {
-      throw new Error(`Invalid executive agent definition: ${agentPath}`);
-    }
-    for (const field of ["tools", "spawns"]) {
-      const entries = typeof agent[field] === "string" ? agent[field].split(",").map(value => value.trim()) : agent[field];
-      if (!Array.isArray(entries) || !entries.length || entries.some(value => typeof value !== "string" || !value.trim())) {
-        throw new Error(`Invalid executive ${field}: ${agentPath}`);
-      }
-    }
-    for (const path of [target, join(target, "extensions"), join(target, "agents"), join(target, "extensions/executive"), join(target, "agents/executive.md")]) {
-      try {
-        const info = await lstat(path);
-        const valid = path === join(target, "agents/executive.md") ? info.isFile() : info.isDirectory();
-        if (!valid || info.isSymbolicLink()) throw new Error(`Refusing invalid or symlinked executive destination: ${path}`);
-      } catch (error) {
-        if (error.code !== "ENOENT") throw error;
-      }
-    }
-  '
-}
-
-install_executive_extension() {
-  install -d -m 700 "$agent_dir/extensions"
-  executive_temp=$(mktemp -d "$agent_dir/.executive.XXXXXX")
-  trap 'rm -rf "$executive_temp"' 0 1 2 15
-  cp -R "$repo_dir/extensions/executive"/. "$executive_temp"/
-  chmod -R u=rwX,go= "$executive_temp"
-  rm -rf -- "$agent_dir/extensions/executive"
-  mv "$executive_temp" "$agent_dir/extensions/executive"
-  trap - 0 1 2 15
-}
-
-install_executive() {
-  install_executive_extension
-  install -d -m 700 "$agent_dir/agents"
-  install -m 600 "$repo_dir/agents/executive.md" "$agent_dir/agents/executive.md"
-  bun "$repo_dir/bin/omp-merge-config.ts" \
-    --source "$repo_dir/config.yml" --dest "$agent_dir/config.yml" \
-    --key task.maxRecursionDepth
 }
 
 validate_themes() {
@@ -291,10 +185,10 @@ install_themes() {
 
 install_extensions() {
   rm -f "$agent_dir/extensions/evidence-packet.ts"
+  rm -rf -- "$agent_dir/extensions/executive"
   rm -rf -- "$agent_dir/references/review"
   for ext_dir in "$repo_dir"/extensions/*; do
     [ -d "$ext_dir" ] || continue
-    [ "${ext_dir##*/}" != executive ] || continue
     ext_name=${ext_dir##*/}
     install -d -m 700 "$agent_dir/extensions/$ext_name"
     for ext_entry in "$ext_dir"/*; do
@@ -440,7 +334,6 @@ for component do
       validate_scopes
       validate_owned_skills
       validate_agents
-      validate_executive
       validate_themes
       validate_secrets
       require_nonempty "$repo_dir/bin/omp-grievances.ts"
@@ -451,7 +344,6 @@ for component do
     mcp) validate_mcp ;;
     scopes) validate_scopes ;;
     agents) validate_agents ;;
-    executive) validate_executive ;;
     secrets) validate_secrets ;;
     skill:*) validate_skill "${component#skill:}" ;;
     *)
@@ -469,7 +361,6 @@ if [ "$1" != all ]; then
       mcp) install_mcp ;;
       scopes) install_scopes ;;
       agents) install_agents ;;
-      executive) install_executive ;;
       secrets) install_secrets ;;
       skill:*) install_skill "${component#skill:}" ;;
     esac
@@ -482,7 +373,6 @@ install_config
 install_themes
 install_guidance
 install_agents
-install_executive_extension
 install_mcp
 install_scopes
 install_owned_skills
