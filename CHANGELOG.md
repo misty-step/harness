@@ -1,3 +1,18 @@
+## [0.0.3](https://github.com/misty-step/pi-config/compare/v0.0.2...v0.0.3) (2026-09-15)
+
+
+### Bug Fixes
+
+* **harness:** give deepseek a fallback runway; make the chain walk drift-free ([f90ec78](https://github.com/misty-step/pi-config/commit/f90ec78abfc87e66616f994ede28082330c08929))
+
+
+### Features
+
+* default to Cerebras qwen-3.8-27b with one-shot failover to OpenRouter mercury-2.5 ([cac2b69](https://github.com/misty-step/pi-config/commit/cac2b69ddefb6e23cadc6224e93dbde77399045e))
+* **harness:** carry the host-resource rule into every pi session ([f012891](https://github.com/misty-step/pi-config/commit/f012891a412d4348ee9fcd6a40e7b7567b95a4cd))
+* **harness:** declare the retry budget; walk a configured fallback chain ([5dfad82](https://github.com/misty-step/pi-config/commit/5dfad82c6101baa0f90b1f39c5289fcb32664d3e))
+* **harness:** own global AGENTS.md so every pi session carries pokayoke ([30edf53](https://github.com/misty-step/pi-config/commit/30edf538793af7fcc84f8a0cba95b98dd2c774dd))
+
 ## [0.0.2](https://github.com/misty-step/pi-config/compare/v0.0.1...v0.0.2) (2026-09-15)
 
 
