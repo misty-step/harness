@@ -1,3 +1,10 @@
+## [0.0.42](https://github.com/misty-step/omp-config/compare/v0.0.41...v0.0.42) (2026-09-15)
+
+
+### Features
+
+* **skills:** add 'decide' executive brief skill ([dcc1165](https://github.com/misty-step/omp-config/commit/dcc1165a345d3f774d24b4406472c67d522bbc01))
+
 ## [0.0.41](https://github.com/misty-step/omp-config/compare/v0.0.40...v0.0.41) (2026-09-15)
 
 
