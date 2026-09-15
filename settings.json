@@ -6,6 +6,11 @@
     "cerebras/qwen-3.8-27b": "high",
     "openrouter/inception/mercury-2.5": "high"
   },
+  "retry": {
+    "enabled": true,
+    "maxRetries": 3,
+    "baseDelayMs": 2000
+  },
   "editorPaddingX": 2,
   "outputPad": 1,
   "fullscreenScrollbar": "always",

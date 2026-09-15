@@ -1,33 +1,43 @@
 /**
- * failover — one-shot model failover for pi.
+ * failover — the configured model-fallback chain for pi.
  *
- * When the turn a user submits dies on the primary model — a provider error,
- * after stock retry-with-backoff and compaction recovery have finished, as
- * known by agent_settled — the session is switched to the fallback model and
- * a warning notification is shown. The user re-sends the prompt; we do not
- * re-send it, because a run that dies mid-turn may have already executed
- * tools (ADR-011).
+ * Retry and fallback are two layers, each owned by the code that already
+ * understands it (ADR-013). Stock pi owns same-model retry: a run that dies
+ * on a transient provider error (rate limit, overloaded, 429/5xx, network)
+ * is retried with exponential backoff per the `retry.*` settings, and
+ * compaction overflow runs its own recovery loop. This extension owns the
+ * boundary stock pi has no concept of — switching models: when a run that
+ * just settled died on the current link of CHAIN (`agent_end` saw the error,
+ * `agent_settled` means stock recovery is finished), the session moves to
+ * the next link and a notification says so. The user re-sends the prompt; we
+ * do not re-send it, because a run that dies mid-turn may have already
+ * executed tools (ADR-011).
  *
- * The switch happens at most once per session: no flapping, no automatic
- * return to the primary. It does nothing on a clean run, on a run the user
- * aborted, or while the user has chosen a model other than the primary.
- * Removing this directory leaves stock pi behavior (retry + compaction)
- * intact.
+ * The walk is strictly forward: one link per failed run, no flapping, no
+ * automatic return. A run that dies on the last link reports chain
+ * exhaustion instead of looping. The extension never touches a model the
+ * user chose. Removing this directory leaves stock pi behavior (retry +
+ * compaction) intact.
  */
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { modelKey, runError, shouldFailover, summarize } from "./decide.ts";
+import { modelKey, nextInChain, runError, summarize } from "./decide.ts";
 
 /**
- * Must match the startup default in the repo's settings.json. If the session
- * is on any other model, this extension never fires.
+ * The fallback chain, in order. The first link must match the startup
+ * default in the repo's settings.json; every link must be a model the
+ * session can resolve and authenticate (and thinking models should carry a
+ * modelThinkingLevels entry so the switch keeps posture). Extend by editing
+ * this list and redeploying (ADR-013).
  */
-const PRIMARY = "cerebras/qwen-3.8-27b";
-const FALLBACK = "openrouter/inception/mercury-2.5";
+const CHAIN = [
+	"cerebras/qwen-3.8-27b",
+	"openrouter/inception/mercury-2.5",
+];
 
 export default function (pi: ExtensionAPI) {
 	let hadError = false;
 	let errorText = "";
-	let failedOver = false;
+	let position = 0;
 
 	pi.on("agent_end", async (event) => {
 		const error = runError((event as { messages?: unknown })?.messages);
@@ -36,37 +46,38 @@ export default function (pi: ExtensionAPI) {
 	});
 
 	pi.on("agent_settled", async (_event, ctx) => {
-		const currentKey = modelKey(ctx.model);
 		const failed = hadError;
 		const err = errorText;
 		hadError = false;
 		errorText = "";
-		if (
-			!shouldFailover(
-				{ hadError: failed, alreadyFailedOver: failedOver },
-				currentKey,
-				PRIMARY,
-			)
-		) {
+		if (!failed) return;
+		const decision = nextInChain(CHAIN, position, modelKey(ctx.model));
+		if (!decision) return;
+		if (decision.action === "exhausted") {
+			ctx.ui.notify(
+				`failover: ${CHAIN[position]} failed (${summarize(err)}) and the fallback chain is exhausted; check provider status`,
+				"error",
+			);
 			return;
 		}
-		const slash = FALLBACK.indexOf("/");
+		const from = CHAIN[position];
+		const slash = decision.key.indexOf("/");
 		const model = ctx.modelRegistry.find(
-			FALLBACK.slice(0, slash),
-			FALLBACK.slice(slash + 1),
+			decision.key.slice(0, slash),
+			decision.key.slice(slash + 1),
 		);
 		if (!model) {
-			ctx.ui.notify(`failover: fallback model ${FALLBACK} not found`, "error");
+			ctx.ui.notify(`failover: fallback model ${decision.key} not found`, "error");
 			return;
 		}
 		const ok = await pi.setModel(model);
 		if (!ok) {
-			ctx.ui.notify(`failover: no auth for fallback model ${FALLBACK}`, "error");
+			ctx.ui.notify(`failover: no auth for fallback model ${decision.key}`, "error");
 			return;
 		}
-		failedOver = true;
+		position = decision.position;
 		ctx.ui.notify(
-			`failover: ${PRIMARY} failed (${summarize(err)}) — now on ${FALLBACK}; re-send your prompt`,
+			`failover: ${from} failed (${summarize(err)}) — now on ${decision.key} (${position + 1}/${CHAIN.length} in chain); re-send your prompt`,
 			"warning",
 		);
 	});

@@ -1,114 +1,112 @@
-import { describe, expect, test } from "bun:test";
-import { modelKey, runError, shouldFailover, summarize } from "./decide.ts";
+/**
+ * Pure unit tests for extensions/failover/decide.ts. Run with
+ * `bun test extensions/` — same contract as extensions/loc/loc.test.ts:
+ * brain-only, no harness import.
+ */
+import { expect, test } from "bun:test";
+import { modelKey, nextInChain, runError, summarize } from "./decide.ts";
 
-describe("modelKey", () => {
-	test("joins provider and id", () => {
-		expect(modelKey({ provider: "cerebras", id: "qwen-3.8-27b" })).toBe(
-			"cerebras/qwen-3.8-27b",
-		);
-	});
-	test("accepts the modelId spelling", () => {
-		expect(modelKey({ provider: "openrouter", modelId: "inception/mercury-2.5" })).toBe(
-			"openrouter/inception/mercury-2.5",
-		);
-	});
-	test("prefers id over modelId when both are present", () => {
-		expect(modelKey({ provider: "p", id: "a", modelId: "b" })).toBe("p/a");
-	});
-	test("returns empty string when the model cannot be named", () => {
-		expect(modelKey(undefined)).toBe("");
-		expect(modelKey(null)).toBe("");
-		expect(modelKey({})).toBe("");
-		expect(modelKey({ provider: "p" })).toBe("");
+const CHAIN = ["cerebras/qwen-3.8-27b", "openrouter/inception/mercury-2.5"];
+
+test("modelKey joins provider and modelId", () => {
+	expect(modelKey({ provider: "cerebras", id: "qwen-3.8-27b" })).toBe(
+		"cerebras/qwen-3.8-27b",
+	);
+});
+
+test("modelKey falls back to modelId", () => {
+	expect(modelKey({ provider: "cerebras", modelId: "qwen-3.8-27b" })).toBe(
+		"cerebras/qwen-3.8-27b",
+	);
+});
+
+test("modelKey is empty without a full identity", () => {
+	expect(modelKey(null)).toBe("");
+	expect(modelKey(undefined)).toBe("");
+	expect(modelKey({})).toBe("");
+	expect(modelKey({ provider: "cerebras" })).toBe("");
+	expect(modelKey({ id: "qwen-3.8-27b" })).toBe("");
+});
+
+test("runError surfaces the last assistant message's errorMessage", () => {
+	const messages = [
+		{ role: "assistant", content: [] },
+		{ role: "user", content: [] },
+		{ role: "assistant", content: [], errorMessage: "429 ... out of stock" },
+	];
+	expect(runError(messages)).toBe("429 ... out of stock");
+});
+
+test("runError is undefined when the last assistant message is clean", () => {
+	const messages = [
+		{ role: "assistant", content: [], errorMessage: "429" },
+		{ role: "assistant", content: [] },
+	];
+	expect(runError(messages)).toBeUndefined();
+});
+
+test("runError ignores aborts, tool errors, and non-array input", () => {
+	const messages = [
+		{ role: "user", content: [] },
+		{ role: "toolResult", status: "error" },
+		{ role: "assistant", content: [], stopReason: "aborted" },
+	];
+	expect(runError(messages)).toBeUndefined();
+	expect(runError(null)).toBeUndefined();
+	expect(runError("nope")).toBeUndefined();
+	expect(runError([])).toBeUndefined();
+});
+
+test("chain: a run that dies on a link advances to the next link", () => {
+	expect(nextInChain(CHAIN, 0, CHAIN[0])).toEqual({
+		action: "advance",
+		key: "openrouter/inception/mercury-2.5",
+		position: 1,
 	});
 });
 
-describe("runError", () => {
-	const assistant = (errorMessage?: string) => ({
-		role: "assistant",
-		...(errorMessage === undefined ? {} : { errorMessage }),
-	});
-
-	test("absent or non-array messages settle cleanly", () => {
-		expect(runError(undefined)).toBeUndefined();
-		expect(runError(null)).toBeUndefined();
-		expect(runError("nope")).toBeUndefined();
-		expect(runError([])).toBeUndefined();
-	});
-	test("a clean run has no error even after a failed tool", () => {
-		expect(
-			runError([
-				{ role: "toolResult", toolName: "bash", isError: true },
-				assistant(),
-			]),
-		).toBeUndefined();
-	});
-	test("returns the last assistant message's error", () => {
-		expect(
-			runError([
-				assistant("402 status code (no body)"),
-				{ role: "toolResult", toolName: "bash" },
-				assistant("boom"),
-			]),
-		).toBe("boom");
-	});
-	test("an errored assistant that did not end the run does not count", () => {
-		expect(runError([assistant("first dead"), assistant("")])).toBeUndefined();
-	});
-	test("a whitespace-only error settles cleanly", () => {
-		expect(runError([assistant("   ")])).toBeUndefined();
-	});
-	test("a non-string errorMessage settles cleanly", () => {
-		expect(runError([{ role: "assistant", errorMessage: 429 }])).toBeUndefined();
-	});
+test("chain: a run that dies on the last link exhausts the chain", () => {
+	expect(nextInChain(CHAIN, 1, CHAIN[1])).toEqual({ action: "exhausted" });
 });
 
-describe("shouldFailover", () => {
-	const primary = "cerebras/qwen-3.8-27b";
-
-	test("switches when the primary run died and we have not switched yet", () => {
-		expect(
-			shouldFailover({ hadError: true, alreadyFailedOver: false }, primary, primary),
-		).toBe(true);
+test("chain: a longer chain walks link by link to exhaustion", () => {
+	const three = [...CHAIN, "openai/gpt-5.5"];
+	expect(nextInChain(three, 0, three[0])).toEqual({
+		action: "advance",
+		key: CHAIN[1],
+		position: 1,
 	});
-	test("clean runs never switch", () => {
-		expect(
-			shouldFailover({ hadError: false, alreadyFailedOver: false }, primary, primary),
-		).toBe(false);
+	expect(nextInChain(three, 1, three[1])).toEqual({
+		action: "advance",
+		key: "openai/gpt-5.5",
+		position: 2,
 	});
-	test("a user-chosen model is never yanked", () => {
-		expect(
-			shouldFailover(
-				{ hadError: true, alreadyFailedOver: false },
-				"openrouter/other-model",
-				primary,
-			),
-		).toBe(false);
-	});
-	test("an unknown current model never switches", () => {
-		expect(
-			shouldFailover({ hadError: true, alreadyFailedOver: false }, "", primary),
-		).toBe(false);
-	});
-	test("never switches twice (no flapping)", () => {
-		expect(
-			shouldFailover({ hadError: true, alreadyFailedOver: true }, primary, primary),
-		).toBe(false);
-	});
+	expect(nextInChain(three, 2, three[2])).toEqual({ action: "exhausted" });
 });
 
-describe("summarize", () => {
-	test("collapses whitespace and trims", () => {
-		expect(summarize("  402\nstatus code\n(no body)  ")).toBe(
-			"402 status code (no body)",
-		);
-	});
-	test("short messages pass through", () => {
-		expect(summarize("boom", 40)).toBe("boom");
-	});
-	test("clamps long messages with an ellipsis", () => {
-		const s = summarize("a".repeat(500), 100);
-		expect(s.length).toBe(100);
-		expect(s.endsWith("…")).toBe(true);
-	});
+test("chain: never fires for a model the user chose outside the chain", () => {
+	expect(nextInChain(CHAIN, 0, "openai/gpt-5.5")).toBeNull();
+	// Drifted position: the run is on the primary while the walk thinks it is
+	// past it — staying put is the safe thing.
+	expect(nextInChain(CHAIN, 1, "cerebras/qwen-3.8-27b")).toBeNull();
+});
+
+test("chain: never fires for an unnameable model or drifted position", () => {
+	expect(nextInChain(CHAIN, 0, "")).toBeNull();
+	expect(nextInChain(CHAIN, 2, "x/y")).toBeNull();
+	expect(nextInChain(CHAIN, -1, "x/y")).toBeNull();
+});
+
+test("summarize clamps to one short line", () => {
+	const raw =
+		"line one\n\n" +
+		"the provider is overloaded, rate limited, please retry shortly ".repeat(4);
+	const out = summarize(raw);
+	expect(out.includes("\n")).toBe(false);
+	expect(out.length).toBeLessThanOrEqual(140);
+	expect(out.endsWith("…")).toBe(true);
+});
+
+test("summarize leaves short messages untouched", () => {
+	expect(summarize("429 ... out of stock")).toBe("429 ... out of stock");
 });

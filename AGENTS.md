@@ -7,16 +7,16 @@ keys, and clean-replaces owned extension packages.
 
 ## What this repo owns
 
-- `settings.json` — global pi preferences.
+- `settings.json` — global pi preferences (theme, paddings, default model, thinking, retry budget).
 - `global/AGENTS.md` — global session guidance (names pokayoke), deployed to
   `~/.pi/agent/AGENTS.md`.
 - `extensions/pi-chrome.ts` — composer chrome.
 - `extensions/loc/` — LOC status extension.
 - `extensions/web-search/` — Exa web-search extension (registers `web_search`
   only when `EXA_API_KEY` is in the environment).
-- `extensions/failover/` — one-shot model failover: primary Cerebras turn
-  dies after stock recovery → session switches to the OpenRouter fallback
-  (ADR-011).
+- `extensions/failover/` — fallback chain: a run that dies on a link after
+  stock retry + compaction recovery moves the session to the next link,
+  strictly forward; chain lives in the extension source (ADR-011/013).
 - `skills/authenticated-commands/` — pass-env credential-discipline skill
   (vendored from omp-config).
 - `~/.bashrc` (marked block only; snippet in the README) — `pi()` wrapper that

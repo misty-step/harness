@@ -1,7 +1,7 @@
 /**
- * Pure failover decisions for extensions/failover. No runtime imports,
- * unit-tested with `bun test` (see decide.test.ts). Mirrors the loc and
- * web-search split: this module reasons, index.ts talks to the harness.
+ * Pure failover decisions for extensions/failover. No runtime imports, so it
+ * is unit-tested with `bun test` (see decide.test.ts). Same split as loc and
+ * web-search: this module only reasons; index.ts talks to pi.
  */
 
 export interface ModelRef {
@@ -21,10 +21,10 @@ export function modelKey(model: ModelRef | null | undefined): string {
 }
 
 /**
- * The errorMessage of the *last* assistant message in a run. Present means the
- * run ended on a provider failure; user aborts and tool errors leave the last
- * assistant message error-free, so they settle as clean. Absent means the run
- * settled cleanly.
+ * The errorMessage of the *last* assistant message in a run. Present means
+ * the run ended in a provider failure; user aborts and tool errors leave the
+ * last assistant message error-free, so they settle clean. Absent means the
+ * run settled clean.
  */
 export function runError(messages: unknown): string | undefined {
 	if (!Array.isArray(messages)) return undefined;
@@ -41,29 +41,31 @@ export function runError(messages: unknown): string | undefined {
 	return undefined;
 }
 
-export interface FailoverState {
-	/** agent_end saw a provider error on the run that just finished. */
-	hadError: boolean;
-	/** We already switched this session; never flap back. */
-	alreadyFailedOver: boolean;
-}
-
 /**
- * Switch iff the finished run died, we are still on the primary, and we have
- * not already switched. A current model that is not the primary means the
- * user chose their own model and we do not second-guess it.
+ * Where a failed run goes next along the fallback chain (ADR-013).
+ *
+ * `null` — no action: the session is not on the chain's current link, either
+ * because the user chose another model (never second-guessed) or because
+ * state drifted; staying put is the safe thing.
+ * `advance` — the session is on `chain[position]`; switch to the next link.
+ * `exhausted` — the session is on the last link; nothing left to switch to.
  */
-export function shouldFailover(
-	state: FailoverState,
+export type ChainDecision =
+	| { action: "advance"; key: string; position: number }
+	| { action: "exhausted" }
+	| null;
+
+export function nextInChain(
+	chain: readonly string[],
+	position: number,
 	currentKey: string,
-	primaryKey: string,
-): boolean {
-	return (
-		state.hadError &&
-		!state.alreadyFailedOver &&
-		currentKey !== "" &&
-		currentKey === primaryKey
-	);
+): ChainDecision {
+	if (position < 0 || position >= chain.length) return null;
+	if (currentKey !== chain[position]) return null;
+	if (position + 1 < chain.length) {
+		return { action: "advance", key: chain[position + 1], position: position + 1 };
+	}
+	return { action: "exhausted" };
 }
 
 /** One line, trimmed and clamped, for a status notification. */

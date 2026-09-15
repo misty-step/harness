@@ -4,7 +4,7 @@ Pi coding-agent configuration for Phaedrus / Misty Step. This is the versioned
 source of truth for how pi iterates on raw upstream pi: settings, global session
 guidance (`AGENTS.md`, which names pokayoke), the custom composer chrome, the
 LOC status extension, the Exa web-search tool, the
-model-failover extension, the pass-env authenticated-commands skill, and the
+model-fallback-chain extension, the pass-env authenticated-commands skill, and the
 `pi()` key-injection wrapper block in `~/.bashrc`. `./install` deploys the owned agent-directory components
 into `$PI_CODING_AGENT_DIR` (default `~/.pi/agent`); the wrapper block is
 applied to `~/.bashrc` by hand (snippet below, source of truth is this repo).
@@ -52,12 +52,12 @@ presentation; "behavioral" changes agent capability, model input, or data flow.
 
 | Component | Owner | Class | Installed by `./install` | Divergence |
 | --- | --- | --- | --- | --- |
-| `settings.json` | this repo | config | yes | Default model/thinking, editor padding, markdown, theme name |
+| `settings.json` | this repo | config | yes | Default model/thinking, editor padding, markdown, theme name, retry budget |
 | `global/AGENTS.md` | this repo | behavioral | yes | Global `~/.pi/agent/AGENTS.md`: session guidance for every pi session, names pokayoke (ADR-012) |
 | `extensions/pi-chrome.ts` | this repo | aesthetic | yes | Composer rail layout and footer |
 | `extensions/loc/` | this repo | behavioral (read-only) | yes | `/loc`, `/loc-trend`, LOC status row |
 | `extensions/web-search/` | this repo | behavioral | yes | `web_search` tool (Exa); registers nothing without `EXA_API_KEY` |
-| `extensions/failover/` | this repo | behavioral | yes | One-shot model failover: primary turn dies after stock recovery → session switches to fallback (ADR-011) |
+| `extensions/failover/` | this repo | behavioral | yes | Fallback chain: run dies on a link after stock retry → session moves to the next, strictly forward (ADR-011/013) |
 | `skills/authenticated-commands` | this repo (vendored from omp-config) | skill | yes | Teaches agents disciplined `pass`/`pass-env` credential use |
 | `extensions/agent-usage-telemetry.ts` | external (managed) | telemetry | no | Reports usage to an external endpoint |
 | `extensions/herdr-agent-state.ts` | herdr (managed) | integration | no | Reports pane agent state to herdr |
@@ -122,19 +122,26 @@ key the tool does not exist at all — stock behavior, no dead affordance.
 Failures carry the HTTP status and raw body excerpt, never a bare
 "search failed" (the Cerebras 402 lesson).
 
-**`failover/` — behavioral.** Own one-shot model failover (ADR-011). Pi has
-no native cross-model fallback — only same-model retry-with-backoff and
-compaction recovery — so the extension listens to stock lifecycle events: when
-a run ends (`agent_end`) with a provider error on the last assistant message,
-and stock recovery is finished (`agent_settled`, so it never fights pi's own
-retry), it switches the session `cerebras/qwen-3.8-27b` →
-`openrouter/inception/mercury-2.5` via `pi.setModel` and shows a warning. The
-switch happens once per session (no flapping, no automatic return to the
-primary), never touches a user-chosen model, and never re-sends the user's
-prompt — a run that dies mid-turn may already have executed tools. `decide.ts`
-is pure and bun-tested; `index.ts` is the harness-facing half. No
-configuration: the primary must match the `settings.json` startup default,
-and removing the directory leaves stock retry behavior exactly intact.
+**`failover/` — behavioral.** Owns the model-fallback chain (ADR-011/013).
+Retry and fallback are two layers, each owned by the code that already
+understands it. Stock pi owns same-model retry: a run that dies on a
+transient provider error (rate limit, overloaded, 429/5xx, network) is
+retried with exponential backoff — `retry.maxRetries` attempts at delays
+doubling from `retry.baseDelayMs`, declared in `settings.json` as 3 attempts
+at 2 s / 4 s / 8 s; quota and billing errors are deliberately never retried.
+This extension owns the boundary stock pi has no concept of — switching
+models: when a run that just settled died on the current link of the chain
+(`agent_end` saw the error, `agent_settled` means stock recovery is
+finished), the session moves to the next link via `pi.setModel` and a
+notification says so. The walk is strictly forward: one link per failed run,
+no flapping, no automatic return; a run that dies on the last link reports
+chain exhaustion instead of looping. It never touches a model the user chose,
+and never re-sends the user's prompt — a run that dies mid-turn may already
+have executed tools. The chain is the `CHAIN` constant in `index.ts`
+(currently `cerebras/qwen-3.8-27b` → `openrouter/inception/mercury-2.5`);
+extend it there and redeploy. `decide.ts` is pure and bun-tested;
+`index.ts` is the harness-facing half. Removing the directory leaves stock
+retry + compaction recovery exactly intact.
 
 **`skills/authenticated-commands/` — skill.** Vendored from omp-config with
 one sentence adapted (the discovery note). It keeps credential values out of
@@ -172,7 +179,7 @@ in `settings.json`, never the generated file.
 | Omarchy theme integration | have | The desktop already owns theming; pi follows `omarchy-system` |
 | Telemetry | present, not owned | Installed by its own tool; we do not add or version it |
 | Web search | have | Research-backed `web_search` (Exa); the tool exists only when the key is in the environment (ADR-010) |
-| Model fallback | have | One-shot auto-switch primary → fallback on a provider error, with user re-send (ADR-011) |
+| Model fallback | have | Configured chain, strictly forward: stock retry first, then the next model per failed run, with user re-send (ADR-011/013) |
 | Approval / permission gates | **omit** | We run with full permissions by choice (pi's default is no gate). Revisit on untrusted repos |
 | OS sandbox | **omit** | Work is on a trusted workstation. Revisit for third-party code |
 | Subagents | **omit for now** | Pi ships no built-in delegation; OMP's executive covers heavy delegation. Revisit if pi-first workflows need it |
@@ -270,6 +277,10 @@ posture. Mercury 2.5's listed 260K context window (OpenRouter) sits well
 above the primary's, so a context-bound run that dies on the primary has room
 on the fallback.
 
+*Amended by ADR-013 (2026-09-15):* the one-shot single fallback is now a
+strictly-forward **chain** walk, and the same-model retry budget is declared
+in `settings.json` (`retry.*`) instead of left to stock defaults.
+
 **ADR-012 — Own a global `AGENTS.md` so every pi session carries the shared
 conventions.** *Accepted · 2026-09-15.* Pi loads `~/.pi/agent/AGENTS.md` into
 every session in every repository — the one hook that reaches every pi agent
@@ -284,6 +295,43 @@ the operator rather than to one harness's model routing or trackers. We own
 (edit the live file directly) rejected: no source of truth, and the file would
 drift or be silently clobbered by the next install — the same error class
 ADR-001 already closed for settings.
+
+**ADR-013 — Walk a configured fallback chain; declare the same-model retry
+budget.** *Accepted · 2026-09-15.* The ask: when a model fails, retry (with
+exponential backoff) a number of times, then fall back to the next model in a
+configured chain. Source-verified in pi 0.85.1's bundled runtime, pi already
+owns the first half: a run ending `stopReason: "error"` on a matching
+transient pattern (rate limit, overloaded, 429/5xx, network, timeouts) is
+retried up to `retry.maxRetries` times (default 3) at
+`retry.baseDelayMs * 2^(n-1)` — 2 s / 4 s / 8 s — with
+`auto_retry_start`/`auto_retry_end` events; quota, billing, and usage-limit
+errors are explicitly never retried. Stacking our own retry loop in the
+extension would duplicate a pi-owned mechanism (double retries, hidden backoff
+state); let the code that owns the concern own the concern.
+
+- `settings.json` now declares `retry.enabled: true`, `retry.maxRetries: 3`,
+  `retry.baseDelayMs: 2000` — the stock budget made explicit in the repo and
+  tunable in one place.
+- `extensions/failover/` now walks `CHAIN`, an ordered constant in `index.ts`
+  (currently Cerebras `qwen-3.8-27b` → OpenRouter `mercury-2.5`; extend by
+  editing the list and redeploying). When a run that settled died on link
+  *i*, the session moves to link *i+1*, warns, and waits for the user to
+  re-send (ADR-011's no-resend rule stands). Strictly forward: one link per
+  failed run, no flapping, no automatic return; a failure on the last link
+  reports chain exhaustion and stops.
+- The chain lives in extension source, not settings: it is policy this repo
+  owns (versioned, reviewed, unit-tested through `decide.ts`), while
+  `retry.*` stays user-visible per-run tuning in settings. The layers
+  compose: pi exhausts same-model retries, then the chain crosses the model
+  boundary stock pi has no concept of.
+- Rejected: a retry loop in the extension (duplicate of a pi-owned
+  mechanism); the chain as a `settings.json` key (pi has no fallback-chain
+  setting; a foreign key is less reviewable than a named constant); automatic
+  re-send after a switch (ADR-011's tool-safety reason is unchanged); and
+  gating the chain advance on pi's transient-error classifier (a model
+  *switch* changes provider and key, so even quota or billing failures are a
+  valid reason to move — same-model retry stays classified, cross-model
+  advance does not).
 
 ## Research: how pi iterates on other harnesses
 
