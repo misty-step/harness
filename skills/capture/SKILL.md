@@ -23,8 +23,10 @@ assets, and native runtime ledgers are not disposable attachments.
 
 Distill decisions, defects, risks, and useful ideas into outcomes and rationale.
 Preserve evidence, boundaries, dependencies, open choices, and observable
-completion where meaningful. Keep ideas distinct from accepted work according
-to conversation or record authority; an implementation claim is not delivery proof.
+completion where meaningful. When capturing a defect or incident, record the
+pokayoke that closes the class of error, or that none exists yet. Keep ideas
+distinct from accepted work according to conversation or record authority; an
+implementation claim is not delivery proof.
 
 Search by outcome, including completed and superseded records. Reconcile a match;
 create only for a distinct outcome. Link related work, omit transient status and

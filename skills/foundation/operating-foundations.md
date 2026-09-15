@@ -16,9 +16,11 @@ smallest repair. Creating it requires a separately commissioned
 `verification-infrastructure` pass.
 
 Judge checks, local development, CI, builds, and recovery by consequential failures
-they catch or prevent, not tool count. Assess reproducibility or a retained preview
-only where the development workflow needs it. Documentation and backlog should
-preserve intent and ownership without competing sources of truth.
+they catch or prevent, not tool count. Prefer a pokayoke — a check or missing
+affordance that makes a failure class impossible — over instructions that warn
+about it. Assess reproducibility or a retained preview only where the development
+workflow needs it. Documentation and backlog should preserve intent and ownership
+without competing sources of truth.
 
 ## Hosting and transition
 

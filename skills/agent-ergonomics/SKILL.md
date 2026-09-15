@@ -17,7 +17,8 @@ recovery fit together. Ground judgment in actual workflow, evidence, and operato
 intent, not imagined friction. Keep uncertainty visible.
 
 Favor structure that makes the right action natural. Remove special cases and
-competing truths rather than layering instructions over them. Prefer small
+competing truths rather than layering instructions over them. That is pokayoke:
+make the wrong action impossible rather than warning about it. Prefer small
 interfaces hiding real complexity, not meaningful state. Reduce the whole
 system's burden rather than transferring complexity to people, callers, or
 recovery. Leave sound design alone.
