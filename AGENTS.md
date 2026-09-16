@@ -3,12 +3,14 @@
 Edit harness sources here. Run `./install` to deploy owned components to
 `$PI_CODING_AGENT_DIR`; keep live deployed files out of manual edits. The
 installer overlays source-owned settings keys without deleting foreign live
-keys, and clean-replaces owned extension packages.
+keys, clean-replaces owned extension packages, and deploys shared primitives
+through the sibling [agent-config](https://github.com/misty-step/agent-config).
 
 ## What this repo owns
 
 - `settings.json` — global pi preferences (theme, paddings, default model, thinking, retry budget).
-- `global/AGENTS.md` — global session guidance (names pokayoke), deployed to
+- `global/AGENTS.md` — pi's global session-guidance intro. `./install` composes
+  it with shared sections from `agent-config` and deploys the result to
   `~/.pi/agent/AGENTS.md`.
 - `extensions/pi-chrome.ts` — composer chrome.
 - `extensions/loc/` — LOC status extension.
@@ -17,8 +19,6 @@ keys, and clean-replaces owned extension packages.
 - `extensions/failover/` — fallback chain: a run that dies on a link after
   stock retry + compaction recovery moves the session to the next link,
   strictly forward; chain lives in the extension source (ADR-011/013).
-- `skills/authenticated-commands/` — pass-env credential-discipline skill
-  (vendored from omp-config).
 - `bin/linear.ts` — Linear workspace CLI, deployed to `~/.local/bin/linear`
   (ADR-020). Adding `Agent: *` labels requires `--authorize-agent-work`.
 - `~/.bashrc` (marked block only; snippet in the README) — `pi()` wrapper that
@@ -29,6 +29,14 @@ Everything else under `~/.pi/agent` is foreign and must not be overwritten:
 (`agent-usage-telemetry.ts`), the herdr-managed `herdr-agent-state.ts`, the
 Omarchy-owned `omarchy` / `diagnose-crash` skill symlinks, and the generated
 `themes/omarchy-system.json`. Deploy only what this repo declares.
+
+## Shared primitives
+
+Skill packages, global-guidance sections, and the `pass-env` launcher are owned
+by [agent-config](https://github.com/misty-step/agent-config), checked out as
+the sibling `../agent-config` (override with `AGENT_CONFIG_DIR`). This repo
+declares its selection in `install`; it does not carry those files. Add a
+harness-neutral primitive there, not here.
 
 ## Conventions
 
@@ -51,6 +59,8 @@ Omarchy-owned `omarchy` / `diagnose-crash` skill symlinks, and the generated
 - `bun test bin/` for the Linear CLI.
 - `bun bin/pi-merge-settings.ts --source settings.json --dest /tmp/pi-settings.json --check`
   for configuration validity.
+- `(cd "${AGENT_CONFIG_DIR:-../agent-config}" && sh -n install && bun test bin/)`
+  for the shared primitives this repo deploys.
 - Extension loading is proved by a fresh pi session, not by file presence.
 
 ## Shipping

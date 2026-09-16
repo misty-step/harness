@@ -1,19 +1,22 @@
 #!/bin/sh
 # Deploy owned pi configuration into the pi coding-agent directory.
 #
-# Source of truth for this machine's pi preferences: settings, global session
-# guidance (AGENTS.md), the custom composer chrome, the LOC status extension,
-# the Exa web-search extension, the model-failover extension, and the
-# authenticated-commands skill. Preflight validates every selected input
-# before any write. Pokayoke: unknown components, empty sources, and invalid
-# settings fail closed before mutation; owned packages are clean-replaced so
-# obsolete files cannot survive; foreign live keys and unmanaged agent files
-# are never overwritten.
+# Source of truth for this machine's pi preferences: settings, the custom
+# composer chrome, the LOC status extension, the Exa web-search extension, the
+# model-failover extension, and the image-budget extension. Shared primitives —
+# skill packages, global guidance, and the pass-env launcher — come from the
+# sibling agent-config repo through its single deploy contract.
+#
+# Preflight validates every selected input before any write. Pokayoke: unknown
+# components, empty sources, and invalid settings fail closed before mutation;
+# owned packages are clean-replaced so obsolete files cannot survive; foreign
+# live keys and unmanaged agent files are never overwritten.
 set -eu
 umask 077
 
 repo_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 agent_dir=${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}
+base_dir=${AGENT_CONFIG_DIR:-$repo_dir/../agent-config}
 
 require_bun() {
   command -v bun >/dev/null 2>&1 || { echo "bun is required" >&2; exit 1; }
@@ -26,16 +29,23 @@ require_nonempty() {
   }
 }
 
+require_base() {
+  [ -f "$base_dir/install" ] || {
+    printf 'agent-config installer not found at %s; set AGENT_CONFIG_DIR\n' "$base_dir" >&2
+    exit 1
+  }
+}
+
 selected=${PI_CONFIG_COMPONENTS:-all}
 case "$selected" in
-  all) components="config guidance pi-chrome loc web-search failover image-budget skills linear" ;;
+  all) components="config guidance pi-chrome loc web-search failover image-budget pass-env skills linear" ;;
   "") components="" ;;
   *) components="$selected" ;;
 esac
 
 for component in $components; do
   case "$component" in
-    config|guidance|pi-chrome|loc|web-search|failover|image-budget|skills|linear) ;;
+    config|guidance|pi-chrome|loc|web-search|failover|image-budget|pass-env|skills|linear) ;;
     *) printf 'Unknown component: %s\n' "$component" >&2; exit 1 ;;
   esac
 done
@@ -63,13 +73,31 @@ install_config() {
     --dest "$agent_dir/settings.json"
 }
 
-validate_guidance() {
-  require_nonempty "$repo_dir/global/AGENTS.md"
+# Shared primitives deploy from agent-config. The flag list is assembled once
+# from the selected components and reused for preflight and deploy.
+run_shared() {
+  mode=${1-}
+  set --
+  if has pass-env; then set -- "$@" --bin pass-env.ts; fi
+  if has skills; then set -- "$@" --skill all; fi
+  if has guidance; then
+    set -- "$@" \
+      --guidance pokayoke \
+      --guidance communication-and-verification \
+      --guidance host-resources \
+      --guidance-source "$repo_dir/global/AGENTS.md"
+  fi
+  [ $# -gt 0 ] || return 0
+  "$base_dir/install" $mode --agent-dir "$agent_dir" "$@"
 }
 
-install_guidance() {
-  install -d -m 700 "$agent_dir"
-  install -m 600 "$repo_dir/global/AGENTS.md" "$agent_dir/AGENTS.md"
+validate_shared() {
+  require_base
+  run_shared --check
+}
+
+install_shared() {
+  run_shared
 }
 
 validate_pi_chrome() {
@@ -168,42 +196,21 @@ install_linear() {
   install -m 700 "$repo_dir/bin/linear.ts" "$dest"
 }
 
-validate_skills() {
-  for skill_dir in "$repo_dir"/skills/*; do
-    [ -d "$skill_dir" ] || continue
-    require_nonempty "$skill_dir/SKILL.md"
-  done
-}
-
-install_skills() {
-  # Clean-replace owned skills so obsolete files cannot survive.
-  # Omarchy skill symlinks live in this same parent and are foreign.
-  for skill_dir in "$repo_dir"/skills/*; do
-    [ -d "$skill_dir" ] || continue
-    skill_name=${skill_dir##*/}
-    rm -rf "$agent_dir/skills/$skill_name"
-    install -d -m 700 "$agent_dir/skills/$skill_name"
-    install -m 600 "$skill_dir/SKILL.md" "$agent_dir/skills/$skill_name/SKILL.md"
-  done
-}
-
 if has config; then validate_config; fi
-if has guidance; then validate_guidance; fi
+if has guidance || has pass-env || has skills; then validate_shared; fi
 if has pi-chrome; then validate_pi_chrome; fi
 if has loc; then validate_loc; fi
 if has web-search; then validate_web_search; fi
 if has failover; then validate_failover; fi
 if has image-budget; then validate_image_budget; fi
-if has skills; then validate_skills; fi
 if has linear; then validate_linear; fi
 
 if has config; then install_config; fi
-if has guidance; then install_guidance; fi
+if has guidance || has pass-env || has skills; then install_shared; fi
 if has pi-chrome; then install_pi_chrome; fi
 if has loc; then install_loc; fi
 if has web-search; then install_web_search; fi
 if has failover; then install_failover; fi
 if has image-budget; then install_image_budget; fi
-if has skills; then install_skills; fi
 if has linear; then install_linear; fi
 install_git_hook

@@ -10,8 +10,6 @@
 !/.landmark.yml
 !/extensions/
 !/extensions/**
-!/skills/
-!/skills/**
 !/bin/
 !/bin/**
 !/.githooks/

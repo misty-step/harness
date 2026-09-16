@@ -1,18 +1,21 @@
 # pi-config
 
 Pi coding-agent configuration for Phaedrus / Misty Step. This is the versioned
-source of truth for how pi iterates on raw upstream pi: settings, global session
-guidance (`AGENTS.md`, which names pokayoke), the custom composer chrome, the
-LOC status extension, the Exa web-search tool, the image-budget extension, the
-model-fallback-chain extension, the pass-env authenticated-commands skill, and the
-`pi()` key-injection wrapper block in `~/.bashrc`. `./install` deploys the owned agent-directory components
-into `$PI_CODING_AGENT_DIR` (default `~/.pi/agent`); the wrapper block is
-applied to `~/.bashrc` by hand (snippet below, source of truth is this repo).
+source of truth for how pi iterates on raw upstream pi: settings, the custom
+composer chrome, the LOC status extension, the Exa web-search tool, the
+image-budget extension, the model-fallback-chain extension, the Linear CLI, and
+the `pi()` key-injection wrapper block in `~/.bashrc`. Shared primitives — skill
+packages, global guidance, and the `pass-env` launcher — come from the sibling
+base [agent-config](https://github.com/misty-step/agent-config). `./install`
+deploys the owned agent-directory components into `$PI_CODING_AGENT_DIR`
+(default `~/.pi/agent`); the wrapper block is applied to `~/.bashrc` by hand
+(snippet below, source of truth is this repo).
 
 Sister repository to [omp-config](https://github.com/misty-step/omp-config),
-which owns the same intent for the OMP harness. Pi and OMP discover their
-configuration differently, so the two repos share conventions and judgment, not
-files.
+which owns the same intent for the OMP harness, over the shared base
+[agent-config](https://github.com/misty-step/agent-config). Pi and OMP discover
+their configuration differently; harness-specific work stays in each harness,
+while harness-neutral primitives live once in the base (ADR-021).
 
 One shared convention is **pokayoke**: after a class of error, change the system
 so that class cannot recur. Prefer shape, type, ownership, a missing affordance,
@@ -33,7 +36,7 @@ track both here, with a reason and a review trigger.
 never assumes ownership of the rest:
 
 - `./install` overlays source-owned settings keys, clean-replaces owned
-  extension packages, and installs the global `AGENTS.md`.
+  extension packages, and deploys shared primitives through `agent-config`.
 - Foreign live settings keys (runtime state such as `lastChangelogVersion`) are
   preserved by `bin/pi-merge-settings.ts`.
 - Files this repo does not declare — auth, sessions, telemetry, herdr
@@ -53,14 +56,13 @@ presentation; "behavioral" changes agent capability, model input, or data flow.
 | Component | Owner | Class | Installed by `./install` | Divergence |
 | --- | --- | --- | --- | --- |
 | `settings.json` | this repo | config | yes | Default model/thinking, editor padding, markdown, theme name, retry budget |
-| `global/AGENTS.md` | this repo | behavioral | yes | Global `~/.pi/agent/AGENTS.md`: session guidance for every pi session — names pokayoke (ADR-012) and the host-resource rule (ADR-014) |
+| `global/AGENTS.md` | this repo | behavioral | yes | Global `~/.pi/agent/AGENTS.md`: pi's intro plus shared sections spliced from `agent-config` |
 | `extensions/pi-chrome.ts` | this repo | aesthetic | yes | Session card, composer rail layout, live working state, footer |
 | `extensions/loc/` | this repo | behavioral (read-only) | yes | `/loc`, `/loc-trend`, LOC status row |
 | `extensions/web-search/` | this repo | behavioral | yes | `web_search` tool (Exa); registers nothing without `EXA_API_KEY` |
 | `extensions/failover/` | this repo | behavioral | yes | Fallback chain: run dies on a link after stock retry → session moves to the next, strictly forward (ADR-011/013) |
 | `extensions/image-budget/` | this repo | behavioral | yes | Inline-image ceiling: oldest images dropped over 15 MB per request; large images shrunk with ffmpeg at ingest (ADR-019) |
-| `skills/authenticated-commands` | this repo (vendored from omp-config) | skill | yes | Teaches agents disciplined `pass`/`pass-env` credential use |
-| `skills/decide` | this repo | skill | yes | High-context executive brief in ASD-STE100 for fast decisions (ADR-016) |
+| `agent-config` (skills, guidance, `pass-env`) | external (sibling base) | behavioral | yes | Portable skill packages, shared guidance sections, and the `pass-env` launcher, clean-replaced from `agent-config` (ADR-021) |
 | `bin/linear.ts` → `~/.local/bin/linear` | this repo | behavioral | yes | Linear workspace CLI: GraphQL porcelain, names not ids, `--json` always parseable, `Agent: *` labels require `--authorize-agent-work` (ADR-020) |
 | `~/.bashrc` (`pi()` block) | this repo (marked block only) | behavioral | by hand | Launch hook: Exa key from pass (ADR-010); run-scoped scratch `TMPDIR` via `omp-scratch` when installed (ADR-015) |
 | `~/.config/omarchy/themed/pi.json.tpl` | this repo (hand-managed) | aesthetic | by hand | pi theme template override for every Omarchy theme: readable semantic ink, accent-derived thinking ramp, deeper surfaces (ADR-018) |
@@ -72,16 +74,13 @@ presentation; "behavioral" changes agent capability, model input, or data flow.
 
 ### Global guidance
 
-**`global/AGENTS.md` — behavioral.** Installs `~/.pi/agent/AGENTS.md`, the
-file pi concatenates into every session in every repository (ADR-012). It
-names the shared pokayoke convention in the model's standing context, so a
-repository without its own `AGENTS.md` still inherits "fix the class, not the
-instance" after an error. Since ADR-014 it also carries the host-resource
-rule — scratch and evidence on disk under `~/.cache/tmp`, heavy execution
-off-host or bounded, runner concurrency capped in repo config, one fleet per
-host, artifacts bounded — the pi-side counterpart, in pi's own voice, of
-`omp-config`'s `global/AGENTS.md`. The repo owns the text and `./install`
-overwrites the deployed copy; the file tells agents not to hand-edit it.
+**`global/AGENTS.md` — behavioral.** Deploys `~/.pi/agent/AGENTS.md`, the file
+pi concatenates into every session in every repository (ADR-012). The file is
+composed at install time: pi's title and intro, then `agent-config`'s shared
+sections — pokayoke, communication and verification, and host resources —
+spliced at the marker line (ADR-021). The shared sections carry the conventions
+every session inherits; the intro is pi's own. `./install` overwrites the
+deployed copy, and the file tells agents not to hand-edit it.
 
 ### Owned extensions
 
@@ -158,18 +157,14 @@ fail-closed. `budget.ts` is pure and bun-tested; `compress.ts` is the ffmpeg
 edge; `index.ts` is the harness-facing half. Removing the directory restores
 stock behavior: images accumulate until the provider refuses the request.
 
-**`skills/authenticated-commands/` — skill.** Vendored from omp-config with
-one sentence adapted (the discovery note). It keeps credential values out of
-model context: list entries, match names, verify with authenticated side
-effects, bind secrets through `pass-env run`. It is the pi-side counterpart of
-omp-config's secret-discipline skill, and `web-search` is its first consumer.
-
-**`skills/decide/` — skill.** High-context executive brief in ASD-STE100 for
-fast technical decisions (ADR-016). Formats facts, root causes, invariants,
-viable candidate paths, and a structured tradeoff matrix across reversibility,
-blast radius, effort, operational cost, and risk. Hidden from automatic skill
-discovery (`disable-model-invocation: true`); invoked on-demand via
-`/skill:decide [optional topic]`.
+**Shared primitives — `agent-config`.** Skill packages, guidance sections, and
+the `pass-env` launcher live once in the base and deploy through its single
+contract (ADR-021). pi selects all 13 portable skills (the homebrew `pokayoke`,
+`capture`, `foundation`, `agent-ergonomics`, `verification-infrastructure`,
+`dev-exec`, `decide`, and `authenticated-commands`, plus the vendored
+`frontend-design`, `show-me`, `wrangler`, `herdr`, and `using-exe-dev`), the
+three shared guidance sections, and `pass-env`. `web-search`'s key injection is
+the launcher's first pi consumer (ADR-010).
 
 **`bin/linear.ts` — Linear CLI.** Deployed to `~/.local/bin/linear` (ADR-020).
 A bun script: one GraphQL primitive and thin porcelain for backlog work.
@@ -267,7 +262,7 @@ resolves the same file into the OMP theme.
 | Persistent memory | **omit for now** | Source authority is the repo and OMP's guidance. Revisit deliberately |
 | Notifications | **omit for now** | Terminal focus is usually present; revisit for long unattended runs |
 | Plan mode | **omit for now** | Covered by prompt discipline; revisit if it earns a keybinding |
-| Prompt templates / homebrew skills | **porting, one at a time** | Owned in OMP today; `authenticated-commands` (ADR-010) and `decide` (ADR-016) are ported; others wait for a name |
+| Prompt templates / homebrew skills | have | Portable skills are shared from `agent-config` (ADR-021); pi deploys all 13, with hidden homebrew ones invoked on demand |
 | Pinned third-party packages | **omit** | Owned code is vendored here. Add packages only with a named reason |
 
 ## Decision log
@@ -299,8 +294,9 @@ the input. Classification: aesthetic.
 **ADR-005 — Port the OMP LOC extension rather than adopt a third-party
 package.** *Accepted · 2026-09-14.* We already trust and maintain the OMP
 analyzer; porting keeps one implementation of the metric and no new dependency.
-Divergence is confined to `index.ts` (theme API); `analyze.ts` is shared
-verbatim. Risk: two copies can drift — see Review triggers.
+Divergence is confined to `index.ts` (theme API); `analyze.ts` was ported from
+OMP's copy and has since gained a worktree-delta helper. Risk: two copies can
+drift — see Review triggers.
 
 **ADR-006 — No permission or sandbox gates.** *Accepted · 2026-09-14.* We run
 pi with full permissions on a trusted workstation, matching pi's default and our
@@ -641,6 +637,33 @@ never printed.
 `./install` refuses to replace a non-regular `~/.local/bin/linear` or a regular
 file that is not this client. Classification: behavioral.
 
+**ADR-021 — Extract shared primitives into a base repo; keep the harnesses
+thin.** *Accepted · 2026-09-16.* `decide` was byte-identical in both harness
+repos, `authenticated-commands` differed by one sentence, the `pass-env`
+launcher had one source and two consumers, and the pokayoke and host-resource
+guidance was maintained twice — while `analyze.ts` had already drifted from the
+"shared verbatim" claim in ADR-005. The "share conventions, not files" posture
+had quietly stopped being true.
+
+So the harness-neutral primitives move to
+[agent-config](https://github.com/misty-step/agent-config): the 13 portable skill
+packages, three guidance sections (`pokayoke`,
+`communication-and-verification`, `host-resources`), and `bin/pass-env.ts`. Each
+harness declares its selection through one deploy contract; `agent-config` owns
+the deploy mechanism, so neither harness reimplements it. `./install` composes
+`~/.pi/agent/AGENTS.md` from pi's intro plus the selected sections at a marker
+line, and validates the whole selection before any write.
+
+What stays here: everything pi-specific — settings, extensions, the launch hook,
+the Linear CLI, and pi's guidance intro. What pi gains: the shared skills it
+lacked (`pokayoke`, `capture`, `foundation`, `agent-ergonomics`,
+`verification-infrastructure`, `dev-exec`, and the vendored externals) and the
+communication-and-verification discipline. Alternatives rejected: a git
+submodule (pinning is not yet needed; the sibling path fails closed and the base
+is checked out anyway), and duplicating the deploy mechanism in each harness
+(the duplication this ADR removes). Revisit: if a harness must build without the
+sibling checkout, pin the base as a submodule.
+
 ## Research: how pi iterates on other harnesses
 
 Surveyed 2026-09-14 against pi's bundled docs/examples, the community
@@ -755,6 +778,9 @@ failover became sticky (then revisit the once-per-session latch).
 - **ADR-020 (Linear CLI)**: Linear ships an official CLI, pi gains native MCP
   we actually want, or Iron Forest grows a mutation path we can share — then
   delete this client and point at the one owner.
+- **ADR-021 (shared base)**: a harness must build without the sibling checkout
+  (then pin `agent-config` as a submodule), or a primitive becomes
+  harness-specific (then move it back into the harness repo).
 - **OMP parity**: OMP ships a feature we use daily and pi lacks. Port one thing
   at a time, with an ADR.
 
@@ -765,17 +791,23 @@ failover became sticky (then revisit the once-per-session latch).
 ```
 
 Unset `PI_CONFIG_COMPONENTS` means `all`. Select a subset with a space-separated
-list: `config`, `pi-chrome`, `loc`, `web-search`, `failover`, `image-budget`, `skills`, `linear`.
+list: `config`, `guidance`, `pi-chrome`, `loc`, `web-search`, `failover`,
+`image-budget`, `pass-env`, `skills`, `linear`.
+
+`agent-config` must be checked out beside this repo (default
+`$repo_dir/../agent-config`; override with `AGENT_CONFIG_DIR`). `guidance`,
+`pass-env`, and `skills` deploy through it; the installer fails closed when it
+is missing.
 
 ```sh
 PI_CONFIG_COMPONENTS=config ./install
 PI_CONFIG_COMPONENTS="pi-chrome loc" ./install
 ```
 
-Preflight validates bun, source presence, and settings before any write. The
-`loc`, `web-search`, `failover`, and `image-budget` packages and owned skills
-(`authenticated-commands`, `decide`) are clean-replaced so obsolete files
-cannot survive. Restart pi after deploying.
+Preflight validates bun, source presence, settings, and the whole `agent-config`
+selection before any write. The `loc`, `web-search`, `failover`, and
+`image-budget` packages and every shared skill package are clean-replaced so
+obsolete files cannot survive. Restart pi after deploying.
 
 ## Verification
 
@@ -784,6 +816,7 @@ sh -n install
 bun test extensions/
 bun test bin/
 bun bin/pi-merge-settings.ts --source settings.json --dest /tmp/pi-settings.json --check
+(cd "${AGENT_CONFIG_DIR:-../agent-config}" && sh -n install && bun test bin/)
 ```
 
 Restart pi and confirm the chrome, `/loc`, and `web_search` load. Extension
