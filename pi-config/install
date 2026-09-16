@@ -1,0 +1,214 @@
+#!/bin/sh
+# Deploy owned pi configuration into the pi coding-agent directory.
+#
+# Source of truth for this machine's pi preferences: settings, the custom
+# composer chrome, the LOC status extension, the Exa web-search extension, the
+# model-failover extension, and the image-budget extension. Shared primitives —
+# skill packages, global guidance, and the pass-env launcher — come from the
+# sibling agent-config repo through its single deploy contract.
+#
+# Preflight validates every selected input before any write. Pokayoke: unknown
+# components, empty sources, and invalid settings fail closed before mutation;
+# owned packages are clean-replaced so obsolete files cannot survive; foreign
+# live keys and unmanaged agent files are never overwritten.
+set -eu
+umask 077
+
+repo_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+agent_dir=${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}
+base_dir=${AGENT_CONFIG_DIR:-$repo_dir/../agent-config}
+
+require_bun() {
+  command -v bun >/dev/null 2>&1 || { echo "bun is required" >&2; exit 1; }
+}
+
+require_nonempty() {
+  [ -s "$1" ] || {
+    printf 'Missing or empty source: %s\n' "$1" >&2
+    exit 1
+  }
+}
+
+require_base() {
+  [ -f "$base_dir/install" ] || {
+    printf 'agent-config installer not found at %s; set AGENT_CONFIG_DIR\n' "$base_dir" >&2
+    exit 1
+  }
+}
+
+components_all="config guidance pi-chrome loc web-search failover image-budget openrouter-live pass-env skills"
+
+selected=${PI_CONFIG_COMPONENTS:-all}
+case "$selected" in
+  all) components="$components_all" ;;
+  "") components="" ;;
+  *) components="$selected" ;;
+esac
+
+for component in $components; do
+  case " $components_all " in
+    *" $component "*) ;;
+    *) printf 'Unknown component: %s\n' "$component" >&2; exit 1 ;;
+  esac
+done
+
+has() {
+  case " $components " in
+    *" $1 "*) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+validate_config() {
+  require_bun
+  require_nonempty "$repo_dir/settings.json"
+  bun "$repo_dir/bin/pi-merge-settings.ts" \
+    --source "$repo_dir/settings.json" \
+    --dest "$agent_dir/settings.json" \
+    --check
+}
+
+install_config() {
+  install -d -m 700 "$agent_dir"
+  bun "$repo_dir/bin/pi-merge-settings.ts" \
+    --source "$repo_dir/settings.json" \
+    --dest "$agent_dir/settings.json"
+}
+
+# Shared primitives deploy from agent-config. The flag list is assembled once
+# from the selected components and reused for preflight and deploy.
+run_shared() {
+  mode=${1-}
+  set --
+  if has pass-env; then set -- "$@" --bin pass-env.ts; fi
+  if has skills; then set -- "$@" --skill all; fi
+  if has guidance; then
+    set -- "$@" \
+      --guidance pokayoke \
+      --guidance communication-and-verification \
+      --guidance host-resources \
+      --guidance-source "$repo_dir/global/AGENTS.md"
+  fi
+  [ $# -gt 0 ] || return 0
+  "$base_dir/install" $mode --agent-dir "$agent_dir" "$@"
+}
+
+validate_shared() {
+  require_base
+  run_shared --check
+}
+
+install_shared() {
+  run_shared
+}
+
+validate_pi_chrome() {
+  require_nonempty "$repo_dir/extensions/pi-chrome.ts"
+}
+
+install_pi_chrome() {
+  install -d -m 700 "$agent_dir/extensions"
+  install -m 600 "$repo_dir/extensions/pi-chrome.ts" "$agent_dir/extensions/pi-chrome.ts"
+}
+
+validate_loc() {
+  for file in analyze.ts index.ts git-hook.sh; do
+    require_nonempty "$repo_dir/extensions/loc/$file"
+  done
+}
+
+install_loc() {
+  # Pokayoke: clean-replace the owned package so obsolete files cannot survive.
+  rm -rf "$agent_dir/extensions/loc"
+  install -d -m 700 "$agent_dir/extensions/loc"
+  for file in analyze.ts index.ts loc.test.ts; do
+    install -m 600 "$repo_dir/extensions/loc/$file" "$agent_dir/extensions/loc/$file"
+  done
+  install -m 700 "$repo_dir/extensions/loc/git-hook.sh" "$agent_dir/extensions/loc/git-hook.sh"
+}
+
+install_git_hook() {
+  [ -d "$repo_dir/.git" ] || return 0
+  install -m 700 "$repo_dir/.githooks/pre-push" "$repo_dir/.git/hooks/pre-push"
+}
+
+validate_web_search() {
+  for file in index.ts format.ts web-search.test.ts; do
+    require_nonempty "$repo_dir/extensions/web-search/$file"
+  done
+}
+
+install_web_search() {
+  # Pokayoke: clean-replace the owned package so obsolete files cannot survive.
+  rm -rf "$agent_dir/extensions/web-search"
+  install -d -m 700 "$agent_dir/extensions/web-search"
+  for file in index.ts format.ts web-search.test.ts; do
+    install -m 600 "$repo_dir/extensions/web-search/$file" "$agent_dir/extensions/web-search/$file"
+  done
+}
+
+validate_failover() {
+  for file in index.ts decide.ts decide.test.ts; do
+    require_nonempty "$repo_dir/extensions/failover/$file"
+  done
+}
+
+install_failover() {
+  # Pokayoke: clean-replace the owned package so obsolete files cannot survive.
+  rm -rf "$agent_dir/extensions/failover"
+  install -d -m 700 "$agent_dir/extensions/failover"
+  for file in index.ts decide.ts decide.test.ts; do
+    install -m 600 "$repo_dir/extensions/failover/$file" "$agent_dir/extensions/failover/$file"
+  done
+}
+
+validate_image_budget() {
+  for file in budget.ts budget.test.ts compress.ts index.ts index.test.ts; do
+    require_nonempty "$repo_dir/extensions/image-budget/$file"
+  done
+}
+
+install_image_budget() {
+  # Pokayoke: clean-replace the owned package so obsolete files cannot survive.
+  rm -rf "$agent_dir/extensions/image-budget"
+  install -d -m 700 "$agent_dir/extensions/image-budget"
+  for file in budget.ts budget.test.ts compress.ts index.ts index.test.ts; do
+    install -m 600 "$repo_dir/extensions/image-budget/$file" "$agent_dir/extensions/image-budget/$file"
+  done
+}
+
+validate_openrouter_live() {
+  for file in index.ts live.ts openrouter-live.test.ts; do
+    require_nonempty "$repo_dir/extensions/openrouter-live/$file"
+  done
+}
+
+install_openrouter_live() {
+  # Pokayoke: clean-replace the owned package so obsolete files cannot survive.
+  # openrouter-live-status.json lives in the agent dir, not in the package;
+  # it is runtime state owned by this extension and survives clean-replace.
+  rm -rf "$agent_dir/extensions/openrouter-live"
+  install -d -m 700 "$agent_dir/extensions/openrouter-live"
+  for file in index.ts live.ts openrouter-live.test.ts; do
+    install -m 600 "$repo_dir/extensions/openrouter-live/$file" "$agent_dir/extensions/openrouter-live/$file"
+  done
+}
+
+if has config; then validate_config; fi
+if has guidance || has pass-env || has skills; then validate_shared; fi
+if has pi-chrome; then validate_pi_chrome; fi
+if has loc; then validate_loc; fi
+if has web-search; then validate_web_search; fi
+if has failover; then validate_failover; fi
+if has image-budget; then validate_image_budget; fi
+if has openrouter-live; then validate_openrouter_live; fi
+
+if has config; then install_config; fi
+if has guidance || has pass-env || has skills; then install_shared; fi
+if has pi-chrome; then install_pi_chrome; fi
+if has loc; then install_loc; fi
+if has web-search; then install_web_search; fi
+if has failover; then install_failover; fi
+if has image-budget; then install_image_budget; fi
+if has openrouter-live; then install_openrouter_live; fi
+install_git_hook
