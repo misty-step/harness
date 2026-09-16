@@ -19,8 +19,6 @@ through the sibling [agent-config](https://github.com/misty-step/agent-config).
 - `extensions/failover/` — fallback chain: a run that dies on a link after
   stock retry + compaction recovery moves the session to the next link,
   strictly forward; chain lives in the extension source (ADR-011/013).
-- `bin/linear.ts` — Linear workspace CLI, deployed to `~/.local/bin/linear`
-  (ADR-020). Adding `Agent: *` labels requires `--authorize-agent-work`.
 - `~/.bashrc` (marked block only; snippet in the README) — `pi()` wrapper that
   injects the Exa key from pass for interactive-shell launches (ADR-010).
 
@@ -37,6 +35,9 @@ by [agent-config](https://github.com/misty-step/agent-config), checked out as
 the sibling `../agent-config` (override with `AGENT_CONFIG_DIR`). This repo
 declares its selection in `install`; it does not carry those files. Add a
 harness-neutral primitive there, not here.
+
+The Linear CLI is a separate host tool, [linear-cli](https://github.com/misty-step/linear-cli);
+this repo neither owns nor deploys it (ADR-020, amended).
 
 ## Conventions
 
@@ -56,7 +57,6 @@ harness-neutral primitive there, not here.
 
 - `sh -n install` for the deploy script.
 - `bun test extensions/` for the analyzer and search renderer.
-- `bun test bin/` for the Linear CLI.
 - `bun bin/pi-merge-settings.ts --source settings.json --dest /tmp/pi-settings.json --check`
   for configuration validity.
 - `(cd "${AGENT_CONFIG_DIR:-../agent-config}" && sh -n install && bun test bin/)`

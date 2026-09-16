@@ -36,7 +36,7 @@ require_base() {
   }
 }
 
-components_all="config guidance pi-chrome loc web-search failover image-budget pass-env skills linear"
+components_all="config guidance pi-chrome loc web-search failover image-budget pass-env skills"
 
 selected=${PI_CONFIG_COMPONENTS:-all}
 case "$selected" in
@@ -177,27 +177,6 @@ install_image_budget() {
   done
 }
 
-validate_linear() {
-  require_bun
-  require_nonempty "$repo_dir/bin/linear.ts"
-}
-
-install_linear() {
-  dest="$HOME/.local/bin/linear"
-  mkdir -p "$HOME/.local/bin"
-  if [ -e "$dest" ] || [ -L "$dest" ]; then
-    if [ -L "$dest" ] || [ ! -f "$dest" ]; then
-      printf 'Refusing to replace non-regular %s\n' "$dest" >&2
-      exit 1
-    fi
-    if ! grep -q 'linear — a small Linear workspace client' "$dest" 2>/dev/null; then
-      printf 'Existing %s is not this Linear client; inspect and remove it first.\n' "$dest" >&2
-      exit 1
-    fi
-  fi
-  install -m 700 "$repo_dir/bin/linear.ts" "$dest"
-}
-
 if has config; then validate_config; fi
 if has guidance || has pass-env || has skills; then validate_shared; fi
 if has pi-chrome; then validate_pi_chrome; fi
@@ -205,7 +184,6 @@ if has loc; then validate_loc; fi
 if has web-search; then validate_web_search; fi
 if has failover; then validate_failover; fi
 if has image-budget; then validate_image_budget; fi
-if has linear; then validate_linear; fi
 
 if has config; then install_config; fi
 if has guidance || has pass-env || has skills; then install_shared; fi
@@ -214,5 +192,4 @@ if has loc; then install_loc; fi
 if has web-search; then install_web_search; fi
 if has failover; then install_failover; fi
 if has image-budget; then install_image_budget; fi
-if has linear; then install_linear; fi
 install_git_hook

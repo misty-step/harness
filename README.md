@@ -3,7 +3,7 @@
 Pi coding-agent configuration for Phaedrus / Misty Step. This is the versioned
 source of truth for how pi iterates on raw upstream pi: settings, the custom
 composer chrome, the LOC status extension, the Exa web-search tool, the
-image-budget extension, the model-fallback-chain extension, the Linear CLI, and
+image-budget extension, the model-fallback-chain extension, and
 the `pi()` key-injection wrapper block in `~/.bashrc`. Shared primitives — skill
 packages, global guidance, and the `pass-env` launcher — come from the sibling
 base [agent-config](https://github.com/misty-step/agent-config). `./install`
@@ -41,10 +41,9 @@ never assumes ownership of the rest:
   preserved by `bin/pi-merge-settings.ts`.
 - Files this repo does not declare — auth, sessions, telemetry, herdr
   integration, Omarchy skills, generated themes — are never written.
-- Two owned files live outside the agent directory: the marked `pi()` wrapper
+- One owned file lives outside the agent directory: the marked `pi()` wrapper
   block in `~/.bashrc`'s user section (the only sanctioned touch of the user's
-  shell rc; snippet and mark in *The launch hook* below), and
-  `~/.local/bin/linear` (ADR-020), a bun script for Linear backlog work.
+  shell rc; snippet and mark in *The launch hook* below).
 
 To adopt a change: edit the source here, run `./install`, restart pi.
 
@@ -63,7 +62,6 @@ presentation; "behavioral" changes agent capability, model input, or data flow.
 | `extensions/failover/` | this repo | behavioral | yes | Fallback chain: run dies on a link after stock retry → session moves to the next, strictly forward (ADR-011/013) |
 | `extensions/image-budget/` | this repo | behavioral | yes | Inline-image ceiling: oldest images dropped over 15 MB per request; large images shrunk with ffmpeg at ingest (ADR-019) |
 | `agent-config` (skills, guidance, `pass-env`) | external (sibling base) | behavioral | yes | Portable skill packages, shared guidance sections, and the `pass-env` launcher, clean-replaced from `agent-config` (ADR-021) |
-| `bin/linear.ts` → `~/.local/bin/linear` | this repo | behavioral | yes | Linear workspace CLI: GraphQL porcelain, names not ids, `--json` always parseable, `Agent: *` labels require `--authorize-agent-work` (ADR-020) |
 | `~/.bashrc` (`pi()` block) | this repo (marked block only) | behavioral | by hand | Launch hook: Exa key from pass (ADR-010); run-scoped scratch `TMPDIR` via `omp-scratch` when installed (ADR-015) |
 | `~/.config/omarchy/themed/pi.json.tpl` | this repo (hand-managed) | aesthetic | by hand | pi theme template override for every Omarchy theme: readable semantic ink, accent-derived thinking ramp, deeper surfaces (ADR-018) |
 | `extensions/agent-usage-telemetry.ts` | external (managed) | telemetry | no | Reports usage to an external endpoint |
@@ -166,12 +164,10 @@ contract (ADR-021). pi selects all 13 portable skills (the homebrew `pokayoke`,
 three shared guidance sections, and `pass-env`. `web-search`'s key injection is
 the launcher's first pi consumer (ADR-010).
 
-**`bin/linear.ts` — Linear CLI.** Deployed to `~/.local/bin/linear` (ADR-020).
-A bun script: one GraphQL primitive and thin porcelain for backlog work.
-Names resolve to ids; `--json` is always parseable; adding `Agent: *` labels
-requires `--authorize-agent-work`. Credential from the environment or
-`pass show workstation/LINEAR_API_KEY`, never printed. `./install` refuses to
-overwrite a foreign file at that path. `bun test bin/` is the proof.
+**The Linear CLI is a separate repo.** The client moved to
+[linear-cli](https://github.com/misty-step/linear-cli) (ADR-020, amended): a
+standalone host tool, installed to `~/.local/bin/linear` by its own `./install`.
+pi does not own or deploy it.
 
 ### The launch hook: `pi()` in `~/.bashrc`
 
@@ -257,8 +253,8 @@ resolves the same file into the OMP theme.
 | Approval / permission gates | **omit** | We run with full permissions by choice (pi's default is no gate). Revisit on untrusted repos |
 | OS sandbox | **omit** | Work is on a trusted workstation. Revisit for third-party code |
 | Subagents | **omit for now** | Pi ships no built-in delegation; OMP's executive covers heavy delegation. Revisit if pi-first workflows need it |
-| Linear CLI | have | Native `linear` on PATH for backlog work; Linear ships no official CLI and pi has no MCP (ADR-020) |
-| MCP bridge | **omit** | Prefer native tools; Linear access is the `linear` CLI, not an MCP session |
+| Linear CLI | separate repo | The `linear` CLI is the standalone [linear-cli](https://github.com/misty-step/linear-cli); pi has no MCP and does not own or deploy it (ADR-020) |
+| MCP bridge | **omit** | Prefer native tools; Linear access is the standalone `linear` CLI, not an MCP session |
 | Persistent memory | **omit for now** | Source authority is the repo and OMP's guidance. Revisit deliberately |
 | Notifications | **omit for now** | Terminal focus is usually present; revisit for long unattended runs |
 | Plan mode | **omit for now** | Covered by prompt discipline; revisit if it earns a keybinding |
@@ -637,6 +633,12 @@ never printed.
 `./install` refuses to replace a non-regular `~/.local/bin/linear` or a regular
 file that is not this client. Classification: behavioral.
 
+*Amended 2026-09-16:* the client moved to its own repo,
+[linear-cli](https://github.com/misty-step/linear-cli). It is a host tool, not
+pi configuration, and releases independently; `pi-config` no longer carries or
+deploys it, and `./install` lost the `linear` component. The client's own
+`./install` owns the destination.
+
 **ADR-021 — Extract shared primitives into a base repo; keep the harnesses
 thin.** *Accepted · 2026-09-16.* `decide` was byte-identical in both harness
 repos, `authenticated-commands` differed by one sentence, the `pass-env`
@@ -655,7 +657,7 @@ the deploy mechanism, so neither harness reimplements it. `./install` composes
 line, and validates the whole selection before any write.
 
 What stays here: everything pi-specific — settings, extensions, the launch hook,
-the Linear CLI, and pi's guidance intro. What pi gains: the shared skills it
+and pi's guidance intro. What pi gains: the shared skills it
 lacked (`pokayoke`, `capture`, `foundation`, `agent-ergonomics`,
 `verification-infrastructure`, `dev-exec`, and the vendored externals) and the
 communication-and-verification discipline. Alternatives rejected: a git
@@ -775,9 +777,9 @@ failover became sticky (then revisit the once-per-session latch).
   stops being an assumption on this host (then make `compress.ts` optional at
   install), or a provider ceiling below 15 MB appears (then lower
   `DEFAULT_BUDGET_BYTES`).
-- **ADR-020 (Linear CLI)**: Linear ships an official CLI, pi gains native MCP
-  we actually want, or Iron Forest grows a mutation path we can share — then
-  delete this client and point at the one owner.
+- **ADR-020 (Linear CLI)**: Linear ships an official CLI, or Iron Forest grows
+  a mutation path we can share — then retire `linear-cli` and point at the one
+  owner.
 - **ADR-021 (shared base)**: a harness must build without the sibling checkout
   (then pin `agent-config` as a submodule), or a primitive becomes
   harness-specific (then move it back into the harness repo).
@@ -792,7 +794,7 @@ failover became sticky (then revisit the once-per-session latch).
 
 Unset `PI_CONFIG_COMPONENTS` means `all`. Select a subset with a space-separated
 list: `config`, `guidance`, `pi-chrome`, `loc`, `web-search`, `failover`,
-`image-budget`, `pass-env`, `skills`, `linear`.
+`image-budget`, `pass-env`, `skills`.
 
 `agent-config` must be checked out beside this repo (default
 `$repo_dir/../agent-config`; override with `AGENT_CONFIG_DIR`). `guidance`,
@@ -814,7 +816,6 @@ obsolete files cannot survive. Restart pi after deploying.
 ```sh
 sh -n install
 bun test extensions/
-bun test bin/
 bun bin/pi-merge-settings.ts --source settings.json --dest /tmp/pi-settings.json --check
 (cd "${AGENT_CONFIG_DIR:-../agent-config}" && sh -n install && bun test bin/)
 ```
