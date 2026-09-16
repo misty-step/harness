@@ -25,7 +25,7 @@ cd harness
 
 Bootstrap requires Git, gitleaks, and trufflehog and wires the tracked root
 pre-push hook. It installs no dependencies and deploys no agent configuration.
-Verification requires Bun 1.4.2 or later, Git, jq, and Python 3. Tests use synthetic
+Verification requires Bun 1.4.2 or later, Git, and jq. Tests use synthetic
 credentials and isolated destinations; no provider tokens or model calls are needed.
 Keep the component directories as siblings. `AGENT_CONFIG_DIR` is an advanced
 base-source override, not required for a normal clone.
@@ -37,7 +37,7 @@ base-source override, not required for a normal clone.
 ./scripts/verify pi          # pi logic and isolated pi install
 ./scripts/verify omp         # OMP logic and isolated OMP install
 ./scripts/verify shared      # shared unit tests and both isolated installs
-./scripts/verify workspace   # repository shape and both isolated installs
+./scripts/verify workspace   # shell syntax and both isolated installs
 ```
 
 See [verification and local resource limits](docs/verification.md). The root owns
@@ -69,7 +69,7 @@ does not own auth stores, sessions, foreign packages, or generated desktop theme
 
 Use conventional commits and the root issue tracker. Labels `area:shared`,
 `area:pi`, `area:omp`, and `area:workspace` identify ownership, not separate release
-units. CI runs one selected check job at a time; shared changes check both consumers.
+units. CI runs all components sequentially in one check job, including both consumers.
 Pull requests use the same commands as local verification.
 
 Landmark produces one release stream from `main`, gated on verification. The
