@@ -1,0 +1,29 @@
+#!/bin/sh
+# Canonical checks. Suites are sequential; installers test committed HEAD.
+set -eu
+root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+cd "$root"
+[ "$#" -le 1 ] || { echo 'Usage: scripts/verify [all|shared|pi|omp|workspace]' >&2; exit 1; }
+selection=${1:-all}
+case "$selection" in all|shared|pi|omp|workspace) ;; *) echo "Unknown selection: $selection" >&2; exit 1 ;; esac
+for tool in git bun jq; do
+  command -v "$tool" >/dev/null 2>&1 || { echo "$tool is required" >&2; exit 1; }
+done
+mkdir -p "$HOME/.cache/tmp"
+work=$(mktemp -d "$HOME/.cache/tmp/harness-verify.XXXXXX")
+trap 'rm -rf -- "$work"' 0
+trap 'exit 130' 2
+trap 'exit 143' 15
+export TMPDIR="$work"
+printf 'Source: %s (%s)\n' "$(git rev-parse HEAD)" "$selection"
+if [ -n "$(git status --porcelain)" ]; then
+  printf 'Note: unit tests read working files; isolated installer checks read committed HEAD.\n'
+fi
+for script in scripts/bootstrap scripts/verify scripts/verify-installers .githooks/pre-push agent-config/install pi-config/install omp-config/install; do
+  sh -n "$script"
+done
+case "$selection" in all|shared) (cd agent-config && bun test --max-concurrency=1 bin/);; esac
+case "$selection" in all|pi) (cd pi-config && bun test --max-concurrency=1 extensions/);; esac
+case "$selection" in all|omp) (cd omp-config && bun test --max-concurrency=1 bin/ extensions/);; esac
+./scripts/verify-installers
+printf 'Verification complete: %s\n' "$selection"

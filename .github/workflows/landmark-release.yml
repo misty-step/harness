@@ -1,27 +1,26 @@
-name: Landmark Release
-
+name: Verify and Release
 on:
   push:
-    branches:
-      - master
+    branches: [main]
   workflow_dispatch:
-
 concurrency:
-  group: landmark-release-${{ github.ref }}
+  group: release-${{ github.ref }}
   cancel-in-progress: false
-
 permissions:
-  contents: write
-  issues: write
-  pull-requests: write
-
+  contents: read
 jobs:
+  verify:
+    uses: ./.github/workflows/ci.yml
   release:
+    needs: verify
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
     steps:
-      - name: Checkout repository history
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
           persist-credentials: false
@@ -29,9 +28,7 @@ jobs:
         uses: misty-step/landmark@d3b07452500e6cdf3ddead1c11ba5584287a80c9
         with:
           mode: full
-          healthcheck: "true"
           github-token: ${{ github.token }}
-          llm-api-key: ${{ secrets.OPENROUTER_API_KEY }}
-          node-version: "24"
-          synthesis: "true"
-          synthesis-required: "false"
+          node-version: '24'
+          synthesis: 'false'
+          healthcheck: 'false'

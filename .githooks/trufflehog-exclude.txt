@@ -1,0 +1,2 @@
+# Same policy as the component hooks: everything is scanned except .git
+.*\.git/.*

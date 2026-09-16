@@ -1,0 +1,11 @@
+# Runtime state, caches, credentials and machine-local agent imports are not source.
+.omp/
+.pi/
+node_modules/
+__pycache__/
+*.pyc
+.env
+.env.*
+!.env.example
+.landmark/
+coverage/

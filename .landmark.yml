@@ -1,6 +1,6 @@
 product:
-  name: pi-config
-  description: Pi coding-agent configuration for Phaedrus and Misty Step. Source of truth for pi settings, composer chrome, and the LOC status extension.
+  name: harness
+  description: Misty Step agent configuration. Shared primitives and thin pi and OMP adapters in one versioned workspace.
 audience: general
 voice: clear, specific, user-facing
 changelog:
