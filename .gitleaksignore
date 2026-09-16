@@ -1,0 +1,4 @@
+# Historical false positive: SHA-256 of the owned retired omp-secrets launcher,
+# compared with Bun.CryptoHasher("sha256") before removal; not a credential.
+# Exact imported finding only; do not exclude the file, rule, or commit broadly.
+eb221816a409f9959c9b3d2ec51e5cb23df82856:install:generic-api-key:338
