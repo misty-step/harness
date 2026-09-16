@@ -13,6 +13,12 @@ while read -r local_ref local_oid remote_ref remote_oid; do
   if [ "$remote_oid" = "$zero" ]; then
     log_opts="$local_oid --not --remotes"
   else
+    # gitleaks can report success after Git rejects an unknown revision range.
+    # Refuse before scanning; fetch/reconcile the remote rather than scan nothing.
+    git cat-file -e "$remote_oid^{commit}" 2>/dev/null || {
+      printf 'Remote revision is missing locally; fetch and reconcile before pushing\n' >&2
+      exit 1
+    }
     log_opts="$remote_oid..$local_oid"
   fi
   gitleaks git . --log-opts="$log_opts" --redact --no-banner || {
