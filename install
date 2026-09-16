@@ -36,7 +36,7 @@ require_base() {
   }
 }
 
-components_all="config guidance pi-chrome loc web-search failover image-budget pass-env skills"
+components_all="config guidance pi-chrome loc web-search failover image-budget openrouter-live pass-env skills"
 
 selected=${PI_CONFIG_COMPONENTS:-all}
 case "$selected" in
@@ -177,6 +177,23 @@ install_image_budget() {
   done
 }
 
+validate_openrouter_live() {
+  for file in index.ts live.ts openrouter-live.test.ts; do
+    require_nonempty "$repo_dir/extensions/openrouter-live/$file"
+  done
+}
+
+install_openrouter_live() {
+  # Pokayoke: clean-replace the owned package so obsolete files cannot survive.
+  # openrouter-live-status.json lives in the agent dir, not in the package;
+  # it is runtime state owned by this extension and survives clean-replace.
+  rm -rf "$agent_dir/extensions/openrouter-live"
+  install -d -m 700 "$agent_dir/extensions/openrouter-live"
+  for file in index.ts live.ts openrouter-live.test.ts; do
+    install -m 600 "$repo_dir/extensions/openrouter-live/$file" "$agent_dir/extensions/openrouter-live/$file"
+  done
+}
+
 if has config; then validate_config; fi
 if has guidance || has pass-env || has skills; then validate_shared; fi
 if has pi-chrome; then validate_pi_chrome; fi
@@ -184,6 +201,7 @@ if has loc; then validate_loc; fi
 if has web-search; then validate_web_search; fi
 if has failover; then validate_failover; fi
 if has image-budget; then validate_image_budget; fi
+if has openrouter-live; then validate_openrouter_live; fi
 
 if has config; then install_config; fi
 if has guidance || has pass-env || has skills; then install_shared; fi
@@ -192,4 +210,5 @@ if has loc; then install_loc; fi
 if has web-search; then install_web_search; fi
 if has failover; then install_failover; fi
 if has image-budget; then install_image_budget; fi
+if has openrouter-live; then install_openrouter_live; fi
 install_git_hook

@@ -3,7 +3,8 @@
 Pi coding-agent configuration for Phaedrus / Misty Step. This is the versioned
 source of truth for how pi iterates on raw upstream pi: settings, the custom
 composer chrome, the LOC status extension, the Exa web-search tool, the
-image-budget extension, the model-fallback-chain extension, and
+image-budget extension, the model-fallback-chain extension, the OpenRouter
+live-model bridge, and
 the `pi()` key-injection wrapper block in `~/.bashrc`. Shared primitives — skill
 packages, global guidance, and the `pass-env` launcher — come from the sibling
 base [agent-config](https://github.com/misty-step/agent-config). `./install`
@@ -61,6 +62,7 @@ presentation; "behavioral" changes agent capability, model input, or data flow.
 | `extensions/web-search/` | this repo | behavioral | yes | `web_search` tool (Exa); registers nothing without `EXA_API_KEY` |
 | `extensions/failover/` | this repo | behavioral | yes | Fallback chain: run dies on a link after stock retry → session moves to the next, strictly forward (ADR-011/013) |
 | `extensions/image-budget/` | this repo | behavioral | yes | Inline-image ceiling: oldest images dropped over 15 MB per request; large images shrunk with ffmpeg at ingest (ADR-019) |
+| `extensions/openrouter-live/` | this repo | behavioral | yes | Live OpenRouter bridge: models the `pi.dev` mirror lacks are appended to `models.json`, additive-only, at session start (≥2 h) and `/models-live` (ADR-022) |
 | `agent-config` (skills, guidance, `pass-env`) | external (sibling base) | behavioral | yes | Portable skill packages, shared guidance sections, and the `pass-env` launcher, clean-replaced from `agent-config` (ADR-021) |
 | `~/.bashrc` (`pi()` block) | this repo (marked block only) | behavioral | by hand | Launch hook: Exa key from pass (ADR-010); run-scoped scratch `TMPDIR` via `omp-scratch` when installed (ADR-015) |
 | `~/.config/omarchy/themed/pi.json.tpl` | this repo (hand-managed) | aesthetic | by hand | pi theme template override for every Omarchy theme: readable semantic ink, accent-derived thinking ramp, deeper surfaces (ADR-018) |
@@ -154,6 +156,23 @@ compressor is fail-open — no ffmpeg, no change — while the budget is
 fail-closed. `budget.ts` is pure and bun-tested; `compress.ts` is the ffmpeg
 edge; `index.ts` is the harness-facing half. Removing the directory restores
 stock behavior: images accumulate until the provider refuses the request.
+
+**`openrouter-live/` — behavioral.** Closes pi's model-availability gap
+(ADR-022). pi's remote catalog is a `pi.dev` mirror, refreshed on a 4-hour
+ETag cycle, so a brand-new OpenRouter model is invisible to pi until the
+mirror crawl catches up — while `omp`, which queries `openrouter.ai`
+directly, lists it in minutes. This extension queries the live public list
+(key-free) on session start (at most every 2 h) and on `/models-live`, maps it
+to the exact entry shape the mirror serves, and **appends** the tool-capable
+models pi does not already know to `~/.pi/agent/models.json` — the user
+overlay pi merges on top of its builtins. It never removes models, never
+rewrites an existing entry, refuses to act on an implausibly small catalog
+(fail-closed, the 2026-09-16 union-alpha incident), and keeps one status file
+(`openrouter-live-status.json`, extension-owned runtime state). `live.ts` is
+pure and bun-tested; `index.ts` is the fetch/write/UI half. Because the mirror
+replaces same-id entries through pi's own merge, the overlay needs no cleanup
+once `pi.dev` catches up. Removing the directory restores stock behavior: pi
+sees OpenRouter models on the mirror's schedule.
 
 **Shared primitives — `agent-config`.** Skill packages, guidance sections, and
 the `pass-env` launcher live once in the base and deploy through its single
@@ -783,6 +802,14 @@ failover became sticky (then revisit the once-per-session latch).
 - **ADR-021 (shared base)**: a harness must build without the sibling checkout
   (then pin `agent-config` as a submodule), or a primitive becomes
   harness-specific (then move it back into the harness repo).
+- **ADR-022 (openrouter live)**: pi ships a direct-provider catalog fetch or a
+  configurable mirror base with visible freshness (then set it and delete the
+  extension, and prune the leftover `models.json` entries), or the mirror lag
+  stops costing us missed model launches (then revisit the refresh cadence).
+  Standing ask upstream: key-free OpenRouter should not route through a relay
+  whose crawl schedule we cannot see (incident: OpenRouter model 091,
+  2026-09-16 — `omp` listed `stealth/union-alpha` within an hour of launch,
+  `pi` hours later).
 - **OMP parity**: OMP ships a feature we use daily and pi lacks. Port one thing
   at a time, with an ADR.
 
@@ -794,7 +821,7 @@ failover became sticky (then revisit the once-per-session latch).
 
 Unset `PI_CONFIG_COMPONENTS` means `all`. Select a subset with a space-separated
 list: `config`, `guidance`, `pi-chrome`, `loc`, `web-search`, `failover`,
-`image-budget`, `pass-env`, `skills`.
+`image-budget`, `openrouter-live`, `pass-env`, `skills`.
 
 `agent-config` must be checked out beside this repo (default
 `$repo_dir/../agent-config`; override with `AGENT_CONFIG_DIR`). `guidance`,

@@ -19,6 +19,10 @@ through the sibling [agent-config](https://github.com/misty-step/agent-config).
 - `extensions/failover/` — fallback chain: a run that dies on a link after
   stock retry + compaction recovery moves the session to the next link,
   strictly forward; chain lives in the extension source (ADR-011/013).
+- `extensions/openrouter-live/` — live OpenRouter bridge: appended to
+  `models.json` (additive-only, fail-closed) the models the `pi.dev` mirror
+  lacks, so model launches land on the provider's schedule, not the
+  mirror's (ADR-022).
 - `~/.bashrc` (marked block only; snippet in the README) — `pi()` wrapper that
   injects the Exa key from pass for interactive-shell launches (ADR-010).
 
@@ -56,7 +60,7 @@ this repo neither owns nor deploys it (ADR-020, amended).
 ## Verification
 
 - `sh -n install` for the deploy script.
-- `bun test extensions/` for the analyzer and search renderer.
+- `bun test extensions/` for the extensions' pure logic.
 - `bun bin/pi-merge-settings.ts --source settings.json --dest /tmp/pi-settings.json --check`
   for configuration validity.
 - `(cd "${AGENT_CONFIG_DIR:-../agent-config}" && sh -n install && bun test bin/)`
