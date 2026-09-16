@@ -36,16 +36,18 @@ require_base() {
   }
 }
 
+components_all="config guidance pi-chrome loc web-search failover image-budget pass-env skills linear"
+
 selected=${PI_CONFIG_COMPONENTS:-all}
 case "$selected" in
-  all) components="config guidance pi-chrome loc web-search failover image-budget pass-env skills linear" ;;
+  all) components="$components_all" ;;
   "") components="" ;;
   *) components="$selected" ;;
 esac
 
 for component in $components; do
-  case "$component" in
-    config|guidance|pi-chrome|loc|web-search|failover|image-budget|pass-env|skills|linear) ;;
+  case " $components_all " in
+    *" $component "*) ;;
     *) printf 'Unknown component: %s\n' "$component" >&2; exit 1 ;;
   esac
 done
