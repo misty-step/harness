@@ -7,6 +7,13 @@ agent_dir=${PI_CODING_AGENT_DIR:-$(omp config path)}
 development_root=${OMP_DEVELOPMENT_ROOT:-$HOME/development}
 base_dir=${AGENT_CONFIG_DIR:-$repo_dir/../agent-config}
 
+# No arguments: selection is by environment, and repository hooks are owned by
+# the monorepo root (scripts/bootstrap), not by this installer.
+[ "$#" -eq 0 ] || {
+  echo 'install takes no arguments; select components with OMP_INSTALL_COMPONENTS' >&2
+  exit 1
+}
+
 require_bun() {
   command -v bun >/dev/null 2>&1 || { echo "bun is required" >&2; exit 1; }
 }
@@ -212,30 +219,12 @@ install_extensions() {
       install -m 700 "$ext_entry" "$agent_dir/extensions/$ext_name/${ext_entry##*/}"
     done
   done
+  # LOC status hooks are a per-checkout convenience; the monorepo root owns
+  # hook installation, so this installer documents the recipe instead of
+  # writing hooks into whatever repository contains it.
   loc_hook="$repo_dir/extensions/loc/git-hook.sh"
-  if [ -x "$loc_hook" ]; then
-    git_dir=$(git -C "$repo_dir" rev-parse --absolute-git-dir 2>/dev/null) || git_dir=
-    if [ -n "$git_dir" ]; then
-      install -d "$git_dir/hooks"
-      for hook_name in post-commit post-merge post-checkout; do
-        target="$git_dir/hooks/$hook_name"
-        if [ ! -e "$target" ]; then
-          ln -sf "../../extensions/loc/git-hook.sh" "$target" 2>/dev/null || install -m 700 "$loc_hook" "$target"
-        fi
-      done
-    fi
-  fi
-}
-
-install_hooks() {
-  hook_src="$repo_dir/.githooks/pre-push"
-  if [ -s "$hook_src" ]; then
-    git_dir=$(git -C "$repo_dir" rev-parse --absolute-git-dir 2>/dev/null) || git_dir=
-    if [ -n "$git_dir" ]; then
-      install -d "$git_dir/hooks"
-      install -m 700 "$hook_src" "$git_dir/hooks/pre-push"
-    fi
-  fi
+  [ -x "$loc_hook" ] && printf '%s\n' \
+    'note: to enable LOC status hooks in a checkout, see README (post-commit/post-merge/post-checkout symlink recipe)'
 }
 
 install_cli() {
@@ -268,7 +257,6 @@ for component do
       validate_agents
       validate_themes
       require_nonempty "$repo_dir/bin/omp-grievances.ts"
-      require_nonempty "$repo_dir/.githooks/pre-push"
       ;;
     guidance) validate_guidance ;;
     config) validate_config ;;
@@ -308,7 +296,6 @@ install_mcp
 install_scopes
 install_shared
 install_extensions
-install_hooks
 install_cli
 
 printf 'Installed owned OMP config in %s; foreign packages and runtime keys preserved\n' "$agent_dir"
