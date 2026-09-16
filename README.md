@@ -64,6 +64,27 @@ Section text stays harness-neutral: vehicle pointers belong in the harness file.
 Execution environments (exe.dev and `dev-exec.slice` vehicles), and Authority
 and operations. `pi-config`'s file is title and intro only.
 
+## Fresh setup
+
+Clone the repos beside each other so a harness can resolve the base at
+`../agent-config` (override with `AGENT_CONFIG_DIR`):
+
+```sh
+git clone https://github.com/misty-step/agent-config.git
+git clone https://github.com/misty-step/pi-config.git
+git clone https://github.com/misty-step/omp-config.git
+git clone https://github.com/misty-step/linear-cli.git
+```
+
+Then install each harness and the standalone tool. Harness installers invoke
+this repo's `install` themselves; a missing sibling fails closed.
+
+```sh
+pi-config/install
+omp-config/install
+linear-cli/install
+```
+
 ## Not yet here
 
 Single-owner or repo-local pieces that stay with their harness for now:
@@ -84,6 +105,13 @@ bun test bin/
 
 Compose a harness file into a temporary directory and diff it against the live
 deployed file before trusting a change to shared guidance.
+
+## Related repositories
+
+- [pi-config](https://github.com/misty-step/pi-config) and
+  [omp-config](https://github.com/misty-step/omp-config) consume this base.
+- [linear-cli](https://github.com/misty-step/linear-cli) is an independent host
+  tool.
 
 ## Ecosystem
 
