@@ -5,6 +5,7 @@ umask 077
 repo_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 agent_dir=${PI_CODING_AGENT_DIR:-$(omp config path)}
 development_root=${OMP_DEVELOPMENT_ROOT:-$HOME/development}
+base_dir=${AGENT_CONFIG_DIR:-$repo_dir/../agent-config}
 
 require_bun() {
   command -v bun >/dev/null 2>&1 || { echo "bun is required" >&2; exit 1; }
@@ -21,20 +22,43 @@ require_nonempty() {
   }
 }
 
+require_base() {
+  [ -f "$base_dir/install" ] || {
+    printf 'agent-config installer not found at %s; set AGENT_CONFIG_DIR\n' "$base_dir" >&2
+    exit 1
+  }
+}
+
+# Shared primitives — skills, guidance sections, and the pass-env launcher —
+# deploy from agent-config through its single contract. Pass no flags to skip.
+run_shared() {
+  mode=
+  if [ "${1-}" = --check ]; then mode=--check; shift; fi
+  [ $# -gt 0 ] || return 0
+  "$base_dir/install" $mode --agent-dir "$agent_dir" "$@"
+}
+
 guidance_files='AGENTS.md WATCHDOG.md WATCHDOG.yml'
 
 validate_guidance() {
   for file in $guidance_files; do
     require_nonempty "$repo_dir/global/$file"
   done
+  require_base
+  run_shared --check \
+    --guidance pokayoke --guidance communication-and-verification --guidance host-resources \
+    --guidance-source "$repo_dir/global/AGENTS.md"
 }
 
 install_guidance() {
   install -d -m 700 "$agent_dir"
-  for file in $guidance_files; do
+  for file in WATCHDOG.md WATCHDOG.yml; do
     install -m 600 "$repo_dir/global/$file" "$agent_dir/$file"
   done
   rm -f -- "$agent_dir/RULES.md"
+  run_shared \
+    --guidance pokayoke --guidance communication-and-verification --guidance host-resources \
+    --guidance-source "$repo_dir/global/AGENTS.md"
 }
 
 validate_config() {
@@ -106,45 +130,37 @@ install_scopes() {
     --development-root "$development_root"
 }
 
-
 validate_skill() {
-  skill=$1
-  case $skill in
+  case "${1-}" in
     ''|*[!a-zA-Z0-9_-]*)
-      printf 'Invalid skill name: %s\n' "$skill" >&2
+      printf 'Invalid skill name: %s\n' "${1-}" >&2
       exit 1
       ;;
   esac
-  require_nonempty "$repo_dir/skills/$skill/SKILL.md"
+  require_base
+  run_shared --check --skill "$1"
 }
 
 install_skill() {
-  skill=$1
-  install -d -m 700 "$agent_dir/skills"
-  skill_temp=$(mktemp -d "$agent_dir/.skill.XXXXXX")
-  trap 'rm -rf "$skill_temp"' 0 1 2 15
-  cp -R "$repo_dir/skills/$skill"/. "$skill_temp"/
-  chmod -R u=rwX,go= "$skill_temp"
-  rm -rf -- "$agent_dir/skills/$skill"
-  mv "$skill_temp" "$agent_dir/skills/$skill"
-  trap - 0 1 2 15
+  run_shared --skill "$1"
 }
 
-validate_owned_skills() {
-  found=
-  for skill_dir in "$repo_dir"/skills/*; do
-    [ -d "$skill_dir" ] || continue
-    found=1
-    require_nonempty "$skill_dir/SKILL.md"
-  done
-  [ -n "$found" ] || { echo "Missing source skills" >&2; exit 1; }
+validate_shared() {
+  require_base
+  run_shared --check --skill all --bin pass-env.ts
 }
 
-install_owned_skills() {
-  for skill_dir in "$repo_dir"/skills/*; do
-    [ -d "$skill_dir" ] || continue
-    install_skill "${skill_dir##*/}"
-  done
+install_shared() {
+  run_shared --skill all --bin pass-env.ts
+}
+
+validate_secrets() {
+  require_base
+  run_shared --check --bin pass-env.ts --skill authenticated-commands
+}
+
+install_secrets() {
+  run_shared --bin pass-env.ts --skill authenticated-commands
 }
 
 validate_agents() {
@@ -228,90 +244,6 @@ install_cli() {
   install -m 700 "$repo_dir/bin/omp-grievances.ts" "$HOME/.local/bin/omp-grievances"
 }
 
-# Exact last shipped launcher: never remove an unrelated executable with this name.
-retired_secrets_sha256=1caedcbb2d86624df3beaf7e67a5563ea641b8245c16d787f3081d8791499287
-
-validate_secrets() {
-  require_bun
-  require_nonempty "$repo_dir/bin/pass-env.ts"
-  validate_skill authenticated-commands
-  PASS_ENV_SOURCE="$repo_dir" PASS_ENV_DEST="$agent_dir" PASS_ENV_RETIRED_SHA256="$retired_secrets_sha256" bun -e '
-    import { lstat, readFile } from "node:fs/promises";
-    import { isBuiltin } from "node:module";
-    import { join } from "node:path";
-    const source = process.env.PASS_ENV_SOURCE;
-    const target = process.env.PASS_ENV_DEST;
-    const home = process.env.HOME;
-    const cli = join(source, "bin/pass-env.ts");
-    const skill = join(source, "skills/authenticated-commands/SKILL.md");
-    for (const path of [cli, skill]) {
-      const info = await lstat(path);
-      if (!info.isFile() || info.isSymbolicLink()) throw new Error(`Expected an ordinary source file: ${path}`);
-    }
-    const transpiler = new Bun.Transpiler({ loader: "ts" });
-    const text = await readFile(cli, "utf8");
-    transpiler.transformSync(text);
-    for (const imported of transpiler.scan(text).imports) {
-      if (imported.path !== "bun" && !isBuiltin(imported.path)) {
-        throw new Error(`Standalone launcher cannot depend on external modules: ${imported.path}`);
-      }
-    }
-    const skillText = await readFile(skill, "utf8");
-    const frontmatter = /^---\r?\n([\s\S]*?)\r?\n---\r?\n([\s\S]+)$/.exec(skillText);
-    if (!frontmatter || !frontmatter[2].trim()) throw new Error("Missing authenticated-commands skill instructions");
-    const definition = Bun.YAML.parse(frontmatter[1]);
-    if (!definition || definition.name !== "authenticated-commands" ||
-        typeof definition.description !== "string" || !definition.description.trim() ||
-        definition["disable-model-invocation"] === true) {
-      throw new Error("Invalid or undiscoverable authenticated-commands skill");
-    }
-    const destination = join(home, ".local/bin/pass-env");
-    const retired = join(home, ".local/bin/omp-secrets");
-    for (const path of [join(home, ".local"), join(home, ".local/bin"), destination, retired,
-        target, join(target, "skills"), join(target, "skills/authenticated-commands")]) {
-      try {
-        const info = await lstat(path);
-        const valid = path === destination || path === retired ? info.isFile() : info.isDirectory();
-        if (!valid || info.isSymbolicLink()) throw new Error(`Refusing invalid or symlinked secrets destination: ${path}`);
-        if (path === destination && !(await readFile(path, "utf8")).startsWith(
-            "#!/usr/bin/env bun\n// pass-env: owned standalone launcher (misty-step/omp-config)\n")) {
-          throw new Error(`Refusing unowned launcher: ${path}`);
-        }
-        if (path === retired && new Bun.CryptoHasher("sha256").update(await readFile(path)).digest("hex") !== process.env.PASS_ENV_RETIRED_SHA256) {
-          throw new Error(`Refusing unowned retired launcher: ${path}`);
-        }
-      } catch (error) {
-        if (error.code !== "ENOENT") throw error;
-      }
-    }
-  '
-}
-
-install_secrets_cli() {
-  install -d -m 700 "$HOME/.local/bin"
-  install -m 700 "$repo_dir/bin/pass-env.ts" "$HOME/.local/bin/pass-env"
-  PASS_ENV_RETIRED_SHA256="$retired_secrets_sha256" bun -e '
-    import { lstat, readFile, unlink } from "node:fs/promises";
-    import { join } from "node:path";
-    const path = join(process.env.HOME, ".local/bin/omp-secrets");
-    try {
-      const info = await lstat(path);
-      if (!info.isFile() || info.isSymbolicLink() ||
-          new Bun.CryptoHasher("sha256").update(await readFile(path)).digest("hex") !== process.env.PASS_ENV_RETIRED_SHA256) {
-        throw new Error(`Refusing unowned retired launcher: ${path}`);
-      }
-      await unlink(path);
-    } catch (error) {
-      if (error.code !== "ENOENT") throw error;
-    }
-  '
-}
-
-install_secrets() {
-  install_secrets_cli
-  install_skill authenticated-commands
-}
-
 if [ "${OMP_INSTALL_GUIDANCE_ONLY+x}" = x ]; then
   printf 'OMP_INSTALL_GUIDANCE_ONLY was replaced; use OMP_INSTALL_COMPONENTS=guidance\n' >&2
   exit 1
@@ -332,10 +264,9 @@ for component do
       validate_guidance
       validate_mcp
       validate_scopes
-      validate_owned_skills
+      validate_shared
       validate_agents
       validate_themes
-      validate_secrets
       require_nonempty "$repo_dir/bin/omp-grievances.ts"
       require_nonempty "$repo_dir/.githooks/pre-push"
       ;;
@@ -375,10 +306,9 @@ install_guidance
 install_agents
 install_mcp
 install_scopes
-install_owned_skills
+install_shared
 install_extensions
 install_hooks
 install_cli
-install_secrets_cli
 
 printf 'Installed owned OMP config in %s; foreign packages and runtime keys preserved\n' "$agent_dir"

@@ -1,4 +1,12 @@
-# Working together
+# OMP global guidance
+
+Loads into every OMP session on this machine, in every repository. `./install`
+composes this file with shared sections from
+[agent-config](https://github.com/misty-step/agent-config) and deploys the
+result to the OMP agent directory — do not edit the deployed copy. Repository
+`AGENTS.md` files add to this, never replace it.
+
+## Working together
 
 Own the requested outcome through completion: findings for investigation or
 review, a working verified result for implementation. Routine in-scope
@@ -28,13 +36,6 @@ appearance. Tests protect observable behavior and invariants. Use executable
 experiments or compare alternatives when consequential uncertainty warrants it;
 distinguish observations from hypotheses.
 
-Pokayoke is the standing name for the mechanism rule above: after a class of
-error, change the system so that class cannot recur — shape, type, ownership,
-a missing affordance, or a failing-closed check, not a warning or a remembered
-rule. The standing prompt after a mistake or near-miss: how can I pokayoke
-this so this kind of error never happens again? `/skill:pokayoke` closes a
-named incident; postmortems require the same close.
-
 Repository code, tests, and versioned docs own technical truth; work records own
 priorities, owners, blockers, and change-specific conclusions. Keep knowledge
 near its source. Vision documents are optional context; current operator
@@ -54,29 +55,9 @@ state, keep information dense but legible, and treat performance and
 accessibility as design properties. Respect existing product identities and
 explicit briefs.
 
-# Communication and verification
+<!-- shared guidance: agent-config -->
 
-Lead with the result and explain consequential decisions plainly. PRs show the
-problem, design rationale, evidence, and remaining risk; use visual or sequential
-evidence when review benefits. Claim TDD only after observed failure then success.
-
-Verification should resolve plausible failure, not demonstrate effort. Use the least
-costly meaningful check and reuse valid evidence. Prose-only changes call for
-meaning and consistency review, plus loading/deployment checks when relevant—not
-model runs or synthetic apps by default. Executable changes use repository-owned
-checks and exercise the affected behavior. Evidence must be sanitized, tied to
-the relevant revision, and show postconditions rather than an agent's self-report
-or a successful tool invocation. Stop checking when the uncertainty is resolved.
-
-Use the product's verification skill and runnable procedures for executable
-work; update affected setup, identity, navigation, behavior, and cleanup knowledge
-with the change. If capability is missing, identify the smallest gap and what
-remains unverified. Substantial repair requires an explicit
-`verification-infrastructure` scope; `foundation` diagnoses, not implements.
-A missing skill filename alone is no blocker or reason to build a second
-framework. Never call an unsupported outcome verified.
-
-# Execution environments
+## Execution environments
 
 Prefer approved isolated persistent workspaces when work should outlive the
 workstation or benefits from private full-stack review. Keep desktop, GPU,
@@ -89,28 +70,16 @@ Existing grants count; this preference adds none. Separate agent/build execution
 from production capabilities; workspace clones must not duplicate a live
 scheduler's ownership.
 
-Heavy execution is bounded. Full suites, coverage runs, Electron and browser
-verification, and image builds run off-host by default (`skill://using-exe-dev`),
-or locally inside `dev-exec.slice` with an explicit per-job budget
-(`references/dev-exec.md`, `skill://dev-exec`). A heavy run's `TMPDIR` is a
-run-scoped directory under `~/.cache/tmp` on disk, never `/tmp` (a 46 GiB RAM
-tmpfs); the mechanism is specified in `references/scratch-routing.md`. Runner
-worker concurrency comes from repository config, never host defaults.
-
-Check for a live run before starting one, and stop only the scope this session
-owns. Keep evidence in bounded per-run directories with retention, not an
-accumulating `/tmp` mountain.
+Bounded local execution follows the shared Host resources rule. Run a heavy job
+locally only inside `dev-exec.slice` with an explicit per-job budget
+(`references/dev-exec.md`, `skill://dev-exec`); the run-scoped `TMPDIR`
+mechanism is specified in `references/scratch-routing.md`.
 
 Repository `AGENTS.md` files point at these host-resource rules instead of
 restating them, and add only repository-specific facts—commands, budgets,
 exceptions—that the global rule cannot know.
 
-Make results inspectable through the revision, exercised behavior, and useful
-private previews with access and expiry/revocation instructions. Use synthetic
-preview data and reproducible setup. Retain handoff/recovery work and evidence;
-a VM is not the sole record.
-
-# Authority and operations
+## Authority and operations
 
 Linear is the durable tracker for personal, Misty Step, and other non-R90 work;
 R90 stays on Habitat. Operator requests remain authority: tickets are not a

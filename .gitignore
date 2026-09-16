@@ -17,8 +17,6 @@
 !/.agents/skills/writing-for-agents/**
 !/agents/
 !/agents/**
-!/skills/
-!/skills/**
 !/themes/
 !/themes/**
 !/.githooks/

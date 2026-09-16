@@ -24,16 +24,16 @@ prompt is: how can I pokayoke this so this kind of error never happens again?
 | `install` | Ownership-aware deployment into `$(omp config path)` |
 | `bin/omp-merge-config.ts` | Overlay source-owned YAML keys and remove retired owned keys while preserving foreign config entries |
 | `bin/omp-grievances.ts` | Manual grievance inbox CLI |
-| `bin/pass-env.ts` | Portable pass-backed environment launcher; installed as `~/.local/bin/pass-env` |
+| `bin/pass-env.ts` | Moved to [agent-config](https://github.com/misty-step/agent-config): pass-backed launcher, installed as `~/.local/bin/pass-env` |
 | `bin/tmp-health.py`, `references/dev-exec.md` | Opt-in workstation execution limits, pressure notifications, and rollback workflow |
 | `config.yml` | Model roles, fallbacks, theme/TUI, providers, task/LSP settings |
 | `models.yml` | Local Ollama discovery; cloud models come from omp's bundled catalog |
 | `mcp.json` | Global MCP inventory; Linear is deliberately absent |
 | `workspace-mcp.json`, `bin/omp-install-scopes.ts` | Linear directory scopes, native project-local imports, owned skill retirement |
-| `global/AGENTS.md` | Collaboration, verification, Linear/Habitat routing, privilege boundaries |
+| `global/AGENTS.md` | OMP-specific guidance; `./install` composes it with shared sections from [agent-config](https://github.com/misty-step/agent-config) |
 | `global/WATCHDOG.md`, `global/WATCHDOG.yml` | One read-only Steward advisor |
 | `themes/` | TUI themes (`tokyonight`, `everforest`, `everforest-light`) |
-| `skills/` | Owned skill packages, clean-replaced when selected |
+| `skills/` | Moved to [agent-config](https://github.com/misty-step/agent-config): portable skill packages, clean-replaced when selected |
 | `.githooks/pre-push` | Secret scanners only; installed into this repo's git dir by `./install` |
 | `extensions/loc/` | Session-resident LOC status and commands |
 
@@ -47,7 +47,10 @@ Preflight validates every selected input, then writes. Unset selection means
 `all`: owned config overlay, guidance, MCP, scopes, agents, skills, themes,
 extensions, this repo's git hook, `omp-grievances`, and `pass-env`. It does not delete
 foreign skills or agents, and it does not import live secrets into this
-checkout.
+checkout. Skills, shared guidance sections, and `pass-env` deploy from the
+sibling [agent-config](https://github.com/misty-step/agent-config) checkout
+(default `$repo_dir/../agent-config`; override with `AGENT_CONFIG_DIR`); the
+installer fails closed when it is missing.
 
 ```sh
 OMP_INSTALL_COMPONENTS=guidance ./install
@@ -80,16 +83,17 @@ Configuration preservation is semantic, not preservation of YAML comments or
 formatting. Package preflight checks syntax and local imports; native loading
 must still be confirmed.
 
-`secrets` installs `bin/pass-env.ts` as `~/.local/bin/pass-env` (mode
-`700`) and clean-replaces only `skills/authenticated-commands` in the agent
+`secrets` deploys the shared `pass-env` launcher and the
+`authenticated-commands` skill through
+[agent-config](https://github.com/misty-step/agent-config): `pass-env` as
+`~/.local/bin/pass-env` (mode `700`), and only that skill package in the agent
 directory. It preserves other packages, guidance, and configuration. Preflight
 checks Bun availability, standalone launcher syntax/imports, skill discovery
 metadata, and owned destinations before writing. Installation does not require
 a pass store or decrypt credentials; `pass` and GPG are runtime dependencies.
-The retired `omp-secrets` executable is removed only when its bytes match the
-last shipped version's SHA-256; foreign binaries and symlinks cause preflight to
-fail rather than being overwritten or deleted. Existing `pass-env` destinations
-must carry this launcher's ownership header. There is no compatibility alias.
+Foreign binaries and symlinks at the launcher destination cause preflight to
+fail rather than being overwritten or deleted; an earlier
+`misty-step/omp-config` launcher header is accepted and upgraded in place.
 
 `scopes` installs Linear only under `~/development/misty-step` and
 `~/development/moomooskycow`, retires the owned global `parlor`, `ast-grep`,
@@ -456,7 +460,9 @@ Six homebrew skills are explicitly invoked:
 
 `disable-model-invocation: true` hides these descriptions from the automatic
 skill index. It does not prevent an explicit `skill://` read or grant authority
-to act. Read-only requests remain read-only.
+to act. Read-only requests remain read-only. These skills are owned by
+`agent-config` and deployed through its contract; this repo no longer carries a
+`skills/` directory.
 
 `authenticated-commands` is a portable homebrew skill for API tokens,
 authenticated scripts, pass entries, `.env.pass`, and migrated project execution.
@@ -502,7 +508,8 @@ at `d924cd8` with its Apache 2.0 license. `using-exe-dev` is the
 [`boldsoftware/exe.dev` at `9af0789cf2417fc16cab7684cc401967a17060d0`](https://github.com/boldsoftware/exe.dev/blob/9af0789cf2417fc16cab7684cc401967a17060d0/skill/SKILL.md)
 (skill blob `5c3018342ee964c0c5384772e42e30256e10def8`).
 Update them from upstream or remove the whole package; use a distinctly named
-homebrew skill for different behavior. Omarchy's `omarchy` and
+homebrew skill for different behavior. These packages are owned by
+`agent-config`; provenance and refresh live there. Omarchy's `omarchy` and
 `diagnose-crash` retain their own owners and discovery paths; this installer
 does not replace them. Todoist is owned by Daybook and is not shipped here.
 
