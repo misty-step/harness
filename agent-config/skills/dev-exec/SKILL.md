@@ -9,8 +9,10 @@ Bound heavy local execution to `dev-exec.slice`. Full suites, coverage runs,
 Electron/browser verification, and image builds run off-host by default
 (`skill://using-exe-dev`); run them locally only with an explicit per-job
 budget. The slice is opt-in, has no admission control, and its cap does not
-reserve desktop memory. Rationale, installed files, containment proof, and
-rollback: `references/dev-exec.md`.
+reserve desktop memory. This skill is an operating procedure, not automatic
+resource enforcement. Machine-specific setup, containment evidence, and rollback
+live in the [workstation runbook](https://github.com/misty-step/harness/blob/main/omp-config/references/dev-exec.md),
+not in this deployed package.
 
 ## Budget
 
