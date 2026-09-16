@@ -3,7 +3,7 @@
 Pi coding-agent configuration for Phaedrus / Misty Step. This is the versioned
 source of truth for how pi iterates on raw upstream pi: settings, global session
 guidance (`AGENTS.md`, which names pokayoke), the custom composer chrome, the
-LOC status extension, the Exa web-search tool, the
+LOC status extension, the Exa web-search tool, the image-budget extension, the
 model-fallback-chain extension, the pass-env authenticated-commands skill, and the
 `pi()` key-injection wrapper block in `~/.bashrc`. `./install` deploys the owned agent-directory components
 into `$PI_CODING_AGENT_DIR` (default `~/.pi/agent`); the wrapper block is
@@ -57,6 +57,7 @@ presentation; "behavioral" changes agent capability, model input, or data flow.
 | `extensions/loc/` | this repo | behavioral (read-only) | yes | `/loc`, `/loc-trend`, LOC status row |
 | `extensions/web-search/` | this repo | behavioral | yes | `web_search` tool (Exa); registers nothing without `EXA_API_KEY` |
 | `extensions/failover/` | this repo | behavioral | yes | Fallback chain: run dies on a link after stock retry → session moves to the next, strictly forward (ADR-011/013) |
+| `extensions/image-budget/` | this repo | behavioral | yes | Inline-image ceiling: oldest images dropped over 15 MB per request; large images shrunk with ffmpeg at ingest (ADR-019) |
 | `skills/authenticated-commands` | this repo (vendored from omp-config) | skill | yes | Teaches agents disciplined `pass`/`pass-env` credential use |
 | `skills/decide` | this repo | skill | yes | High-context executive brief in ASD-STE100 for fast decisions (ADR-016) |
 | `~/.bashrc` (`pi()` block) | this repo (marked block only) | behavioral | by hand | Launch hook: Exa key from pass (ADR-010); run-scoped scratch `TMPDIR` via `omp-scratch` when installed (ADR-015) |
@@ -139,6 +140,21 @@ already have executed tools. The chain is the `CHAIN` constant in `index.ts`
 last); extend it there and redeploy. `decide.ts` is pure and bun-tested;
 `index.ts` is the harness-facing half. Removing the directory leaves stock
 retry + compaction recovery exactly intact.
+
+**`image-budget/` — behavioral.** Owns a hard ceiling on inline image bytes
+per request (ADR-019). Two layers, in order of authority. `context` enforces a
+15 MB decoded-image budget before every LLM call, dropping the oldest images
+first: the invariant that makes OpenRouter's 30 MB "Downloaded image content"
+413 unreachable, and the repair for a session that already holds too much
+history — only the request is trimmed, the session file is untouched, so the
+next prompt in that same session succeeds. `tool_result` then shrinks a large
+image at ingestion with ffmpeg (longest edge 1536 px, mjpeg quality 5, only
+above 600 KB), so a 1.6 MB contact sheet reaches the model as a fully legible
+~120 KB JPEG and a long visual-QA session stays inside the budget. The
+compressor is fail-open — no ffmpeg, no change — while the budget is
+fail-closed. `budget.ts` is pure and bun-tested; `compress.ts` is the ffmpeg
+edge; `index.ts` is the harness-facing half. Removing the directory restores
+stock behavior: images accumulate until the provider refuses the request.
 
 **`skills/authenticated-commands/` — skill.** Vendored from omp-config with
 one sentence adapted (the discovery note). It keeps credential values out of
@@ -233,6 +249,7 @@ resolves the same file into the OMP theme.
 | Telemetry | present, not owned | Installed by its own tool; we do not add or version it |
 | Web search | have | Research-backed `web_search` (Exa); the tool exists only when the key is in the environment (ADR-010) |
 | Model fallback | have | Configured chain, strictly forward: stock retry first, then the next model per failed run, with user re-send (ADR-011/013) |
+| Image budget | have | Hard 15 MB per-request image ceiling (oldest dropped first) plus ffmpeg shrink at ingest; a 30 MB provider 413 is unreachable, and a session that already holds too much history is repaired by its next request (ADR-019) |
 | Approval / permission gates | **omit** | We run with full permissions by choice (pi's default is no gate). Revisit on untrusted repos |
 | OS sandbox | **omit** | Work is on a trusted workstation. Revisit for third-party code |
 | Subagents | **omit for now** | Pi ships no built-in delegation; OMP's executive covers heavy delegation. Revisit if pi-first workflows need it |
@@ -554,6 +571,44 @@ change only how pi's tokens map onto them:
 The file is hand-managed for now, like the `~/.bashrc` hook. It is not part of
 `./install`. Classification: aesthetic.
 
+**ADR-019 — Cap inline image bytes per request, and shrink large images at
+ingest.** *Accepted · 2026-09-16.* A long visual-QA session in `cyoa-video`
+read screenshots and contact sheets for every playtest iteration. The session
+reached 34 MB on disk; the request that carried its history to
+`openrouter/deepseek/deepseek-v4.1-flash` (the failover link) was refused with
+HTTP 413, "Downloaded image content cannot exceed 30MB". The limit was on the
+whole conversation, not on one tool result, so the session could not recover:
+every later prompt re-sent the same history and failed the same way. Retry and
+failover cannot help — the request is malformed, not the link.
+
+Pi already caps image *dimensions* (`images.autoResize`, 2000 px), but it keeps
+the PNG lossless: a Chromium screenshot of a story node costs 1–2.5 MB, and
+forty of them are enough to break any session. Two layers, each with the
+authority it can carry:
+
+- **A per-request budget, fail-closed.** The `context` hook sees the messages
+  before every LLM call; `enforceImageBudget` measures decoded image bytes and
+  replaces the oldest images over 15 MB with a one-line omission placeholder.
+  Decoded bytes are what the provider counts and 4/3 smaller than the base64 pi
+  sends, so a 15 MB budget is conservative on both readings, and it sits well
+  under the smallest ceiling we know of. Oldest first keeps the screenshots a
+  live diagnosis needs. The hook's copy is request-scoped and non-destructive,
+  so the budget can never corrupt the session file — and a session that is
+  already broken is repaired by its next request.
+- **Compression at ingestion, fail-open.** The `tool_result` hook shrinks an
+  image over 600 KB before it is stored: ffmpeg, longest edge 1536 px, mjpeg
+  quality 5. Measured on the `cyoa-video` artifacts: 1.6 MB → 121 KB (7.4%),
+  0.83 MB → 92 KB (11.1%), both fully legible. The budget is then rarely
+  reached and the session file stops growing by megabytes per screenshot. No
+  ffmpeg (or any failure) leaves the image untouched and the budget holds.
+
+Alternatives rejected: `images.blockImages` (drops vision entirely — the
+project needs it); trimming whole messages (loses the transcript text with the
+images); a bigger budget (the next provider's ceiling is not ours to set);
+fixing it only in the `cyoa-video` playtest scripts (the failure is a property
+of every pi session that reads many images, not of one repo). The extension is
+behavioral: it changes what the model receives. Classification: behavioral.
+
 ## Research: how pi iterates on other harnesses
 
 Surveyed 2026-09-14 against pi's bundled docs/examples, the community
@@ -660,6 +715,11 @@ failover became sticky (then revisit the once-per-session latch).
 - **Chrome (ADR-018)**: the pi theme template must survive a machine rebuild or
   be shared with the other harness repo (then version it here and add an
   `omarchy` component to `./install`).
+- **ADR-019 (image budget)**: pi ships a per-request image cap or a lossy
+  `images.autoResize` mode (then set it and delete the compressor), ffmpeg
+  stops being an assumption on this host (then make `compress.ts` optional at
+  install), or a provider ceiling below 15 MB appears (then lower
+  `DEFAULT_BUDGET_BYTES`).
 - **OMP parity**: OMP ships a feature we use daily and pi lacks. Port one thing
   at a time, with an ADR.
 
@@ -670,7 +730,7 @@ failover became sticky (then revisit the once-per-session latch).
 ```
 
 Unset `PI_CONFIG_COMPONENTS` means `all`. Select a subset with a space-separated
-list: `config`, `pi-chrome`, `loc`, `web-search`, `failover`, `skills`.
+list: `config`, `pi-chrome`, `loc`, `web-search`, `failover`, `image-budget`, `skills`.
 
 ```sh
 PI_CONFIG_COMPONENTS=config ./install
@@ -678,7 +738,7 @@ PI_CONFIG_COMPONENTS="pi-chrome loc" ./install
 ```
 
 Preflight validates bun, source presence, and settings before any write. The
-`loc`, `web-search`, and `failover` packages and owned skills
+`loc`, `web-search`, `failover`, and `image-budget` packages and owned skills
 (`authenticated-commands`, `decide`) are clean-replaced so obsolete files
 cannot survive. Restart pi after deploying.
 
@@ -696,7 +756,10 @@ presence additionally requires `EXA_API_KEY` in the environment — an
 interactive-shell `pi` gets it from the `~/.bashrc` wrapper (pass entry
 `workstation/EXA_API_KEY`); a session started without the key degrades to no
 tool. `failover` needs no configuration or key: a fresh Cerebras session is
-the proof that the extension loaded (it registers nothing visible). For instant LOC
+the proof that the extension loaded (it registers nothing visible).
+`image-budget` is proved by reading one large image: the stored tool result is
+a JPEG an order of magnitude smaller, and the footer shows `img-budget N
+dropped` only when the request budget is actually crossed. For instant LOC
 cache updates on commit:
 
 ```sh

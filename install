@@ -28,14 +28,14 @@ require_nonempty() {
 
 selected=${PI_CONFIG_COMPONENTS:-all}
 case "$selected" in
-  all) components="config guidance pi-chrome loc web-search failover skills" ;;
+  all) components="config guidance pi-chrome loc web-search failover image-budget skills" ;;
   "") components="" ;;
   *) components="$selected" ;;
 esac
 
 for component in $components; do
   case "$component" in
-    config|guidance|pi-chrome|loc|web-search|failover|skills) ;;
+    config|guidance|pi-chrome|loc|web-search|failover|image-budget|skills) ;;
     *) printf 'Unknown component: %s\n' "$component" >&2; exit 1 ;;
   esac
 done
@@ -132,6 +132,21 @@ install_failover() {
   done
 }
 
+validate_image_budget() {
+  for file in budget.ts budget.test.ts compress.ts index.ts index.test.ts; do
+    require_nonempty "$repo_dir/extensions/image-budget/$file"
+  done
+}
+
+install_image_budget() {
+  # Pokayoke: clean-replace the owned package so obsolete files cannot survive.
+  rm -rf "$agent_dir/extensions/image-budget"
+  install -d -m 700 "$agent_dir/extensions/image-budget"
+  for file in budget.ts budget.test.ts compress.ts index.ts index.test.ts; do
+    install -m 600 "$repo_dir/extensions/image-budget/$file" "$agent_dir/extensions/image-budget/$file"
+  done
+}
+
 validate_skills() {
   for skill_dir in "$repo_dir"/skills/*; do
     [ -d "$skill_dir" ] || continue
@@ -157,6 +172,7 @@ if has pi-chrome; then validate_pi_chrome; fi
 if has loc; then validate_loc; fi
 if has web-search; then validate_web_search; fi
 if has failover; then validate_failover; fi
+if has image-budget; then validate_image_budget; fi
 if has skills; then validate_skills; fi
 
 if has config; then install_config; fi
@@ -165,5 +181,6 @@ if has pi-chrome; then install_pi_chrome; fi
 if has loc; then install_loc; fi
 if has web-search; then install_web_search; fi
 if has failover; then install_failover; fi
+if has image-budget; then install_image_budget; fi
 if has skills; then install_skills; fi
 install_git_hook
