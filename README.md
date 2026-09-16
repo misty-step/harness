@@ -838,6 +838,14 @@ ln -sf ~/.pi/agent/extensions/loc/git-hook.sh .git/hooks/post-merge
 ln -sf ~/.pi/agent/extensions/loc/git-hook.sh .git/hooks/post-checkout
 ```
 
+## Related repositories
+
+- [agent-config](https://github.com/misty-step/agent-config) owns the shared
+  primitives this repo deploys.
+- [omp-config](https://github.com/misty-step/omp-config) is the sister harness.
+- [linear-cli](https://github.com/misty-step/linear-cli) is the standalone
+  Linear client (ADR-020).
+
 ## Ecosystem
 
 Release automation is [Landmark](https://github.com/misty-step/landmark);
