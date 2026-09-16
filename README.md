@@ -779,6 +779,14 @@ results rather than an agent's success claim. After deployment, confirm
 automatic extension discovery in a fresh session; this loading check needs no
 model turn. Prose-only changes do not require repeating the runtime exercise.
 
+## Related repositories
+
+- [agent-config](https://github.com/misty-step/agent-config) owns the shared
+  primitives this repo deploys.
+- [pi-config](https://github.com/misty-step/pi-config) is the sister harness.
+- [linear-cli](https://github.com/misty-step/linear-cli) is the standalone
+  Linear client.
+
 ## Ecosystem
 
 - Non-R90 work uses Linear for durable tracking and project notes for design
