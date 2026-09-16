@@ -1,0 +1,314 @@
+#!/bin/sh
+set -eu
+umask 077
+
+repo_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+agent_dir=${PI_CODING_AGENT_DIR:-$(omp config path)}
+development_root=${OMP_DEVELOPMENT_ROOT:-$HOME/development}
+base_dir=${AGENT_CONFIG_DIR:-$repo_dir/../agent-config}
+
+require_bun() {
+  command -v bun >/dev/null 2>&1 || { echo "bun is required" >&2; exit 1; }
+}
+
+require_jq() {
+  command -v jq >/dev/null 2>&1 || { echo "jq is required" >&2; exit 1; }
+}
+
+require_nonempty() {
+  [ -s "$1" ] || {
+    printf 'Missing or empty source: %s\n' "$1" >&2
+    exit 1
+  }
+}
+
+require_base() {
+  [ -f "$base_dir/install" ] || {
+    printf 'agent-config installer not found at %s; set AGENT_CONFIG_DIR\n' "$base_dir" >&2
+    exit 1
+  }
+}
+
+# Shared primitives — skills, guidance sections, and the pass-env launcher —
+# deploy from agent-config through its single contract. Pass no flags to skip.
+run_shared() {
+  mode=
+  if [ "${1-}" = --check ]; then mode=--check; shift; fi
+  [ $# -gt 0 ] || return 0
+  "$base_dir/install" $mode --agent-dir "$agent_dir" "$@"
+}
+
+guidance_files='AGENTS.md WATCHDOG.md WATCHDOG.yml'
+
+validate_guidance() {
+  for file in $guidance_files; do
+    require_nonempty "$repo_dir/global/$file"
+  done
+  require_base
+  run_shared --check \
+    --guidance pokayoke --guidance communication-and-verification --guidance host-resources \
+    --guidance-source "$repo_dir/global/AGENTS.md"
+}
+
+install_guidance() {
+  install -d -m 700 "$agent_dir"
+  for file in WATCHDOG.md WATCHDOG.yml; do
+    install -m 600 "$repo_dir/global/$file" "$agent_dir/$file"
+  done
+  rm -f -- "$agent_dir/RULES.md"
+  run_shared \
+    --guidance pokayoke --guidance communication-and-verification --guidance host-resources \
+    --guidance-source "$repo_dir/global/AGENTS.md"
+}
+
+validate_config() {
+  require_bun
+  require_nonempty "$repo_dir/config.yml"
+  require_nonempty "$repo_dir/models.yml"
+  bun "$repo_dir/bin/omp-merge-config.ts" --source "$repo_dir/config.yml" --dest "$agent_dir/config.yml" --check
+  bun "$repo_dir/bin/omp-merge-config.ts" --source "$repo_dir/models.yml" --dest "$agent_dir/models.yml" --check
+}
+
+install_config() {
+  install -d -m 700 "$agent_dir"
+  bun "$repo_dir/bin/omp-merge-config.ts" --source "$repo_dir/config.yml" --dest "$agent_dir/config.yml"
+  bun "$repo_dir/bin/omp-merge-config.ts" --source "$repo_dir/models.yml" --dest "$agent_dir/models.yml"
+}
+
+validate_mcp() {
+  require_jq
+  require_nonempty "$repo_dir/mcp.json"
+  jq empty "$repo_dir/mcp.json" >/dev/null
+  if [ -f "$agent_dir/mcp.json" ]; then
+    jq empty "$agent_dir/mcp.json" >/dev/null
+  fi
+}
+
+install_mcp() {
+  install -d -m 700 "$agent_dir"
+  mcp_target="$agent_dir/mcp.json"
+  if [ -f "$mcp_target" ]; then
+    temp=$(mktemp "$agent_dir/.mcp.json.XXXXXX")
+    trap 'rm -f "$temp"' 0 1 2 15
+    jq -s '
+      .[0] as $policy
+      | .[1] as $live
+      | $policy
+      | .mcpServers = (
+          $policy.mcpServers
+          | with_entries(
+              . as $server
+              | .value += (
+                  ($live.mcpServers[$server.key] // {})
+                  | {auth, oauth}
+                  | with_entries(select(.value != null))
+                )
+            )
+        )
+    ' "$repo_dir/mcp.json" "$mcp_target" > "$temp"
+    chmod 600 "$temp"
+    mv "$temp" "$mcp_target"
+    trap - 0 1 2 15
+  else
+    install -m 600 "$repo_dir/mcp.json" "$mcp_target"
+  fi
+}
+
+validate_scopes() {
+  require_bun
+  require_nonempty "$repo_dir/workspace-mcp.json"
+  require_nonempty "$repo_dir/bin/omp-install-scopes.ts"
+  bun "$repo_dir/bin/omp-install-scopes.ts" \
+    --agent-dir "$agent_dir" \
+    --development-root "$development_root" \
+    --check
+}
+
+install_scopes() {
+  bun "$repo_dir/bin/omp-install-scopes.ts" \
+    --agent-dir "$agent_dir" \
+    --development-root "$development_root"
+}
+
+validate_skill() {
+  case "${1-}" in
+    ''|*[!a-zA-Z0-9_-]*)
+      printf 'Invalid skill name: %s\n' "${1-}" >&2
+      exit 1
+      ;;
+  esac
+  require_base
+  run_shared --check --skill "$1"
+}
+
+install_skill() {
+  run_shared --skill "$1"
+}
+
+validate_shared() {
+  require_base
+  run_shared --check --skill all --bin pass-env.ts
+}
+
+install_shared() {
+  run_shared --skill all --bin pass-env.ts
+}
+
+validate_secrets() {
+  require_base
+  run_shared --check --bin pass-env.ts --skill authenticated-commands
+}
+
+install_secrets() {
+  run_shared --bin pass-env.ts --skill authenticated-commands
+}
+
+validate_agents() {
+  for agent_file in "$repo_dir"/agents/*.md; do
+    [ -s "$agent_file" ] || continue
+    require_nonempty "$agent_file"
+  done
+}
+
+install_agents() {
+  install -d -m 700 "$agent_dir/agents"
+  rm -f -- "$agent_dir/agents/executive.md"
+  for agent_file in "$repo_dir"/agents/*.md; do
+    [ -s "$agent_file" ] || continue
+    install -m 600 "$agent_file" "$agent_dir/agents/${agent_file##*/}"
+  done
+}
+
+validate_themes() {
+  require_jq
+  found=
+  for theme_file in "$repo_dir"/themes/*.json; do
+    [ -s "$theme_file" ] || continue
+    found=1
+    jq empty "$theme_file" >/dev/null
+  done
+  [ -n "$found" ] || { echo "Missing source themes" >&2; exit 1; }
+}
+
+install_themes() {
+  install -d -m 700 "$agent_dir/themes"
+  rm -f -- "$agent_dir/themes/ember.json" "$agent_dir/themes/ember-dawn.json"
+  for theme_file in "$repo_dir"/themes/*.json; do
+    [ -s "$theme_file" ] || continue
+    install -m 600 "$theme_file" "$agent_dir/themes/${theme_file##*/}"
+  done
+}
+
+install_extensions() {
+  rm -f "$agent_dir/extensions/evidence-packet.ts"
+  rm -rf -- "$agent_dir/extensions/executive"
+  rm -rf -- "$agent_dir/references/review"
+  for ext_dir in "$repo_dir"/extensions/*; do
+    [ -d "$ext_dir" ] || continue
+    ext_name=${ext_dir##*/}
+    install -d -m 700 "$agent_dir/extensions/$ext_name"
+    for ext_entry in "$ext_dir"/*; do
+      [ -f "$ext_entry" ] || continue
+      install -m 700 "$ext_entry" "$agent_dir/extensions/$ext_name/${ext_entry##*/}"
+    done
+  done
+  loc_hook="$repo_dir/extensions/loc/git-hook.sh"
+  if [ -x "$loc_hook" ]; then
+    git_dir=$(git -C "$repo_dir" rev-parse --absolute-git-dir 2>/dev/null) || git_dir=
+    if [ -n "$git_dir" ]; then
+      install -d "$git_dir/hooks"
+      for hook_name in post-commit post-merge post-checkout; do
+        target="$git_dir/hooks/$hook_name"
+        if [ ! -e "$target" ]; then
+          ln -sf "../../extensions/loc/git-hook.sh" "$target" 2>/dev/null || install -m 700 "$loc_hook" "$target"
+        fi
+      done
+    fi
+  fi
+}
+
+install_hooks() {
+  hook_src="$repo_dir/.githooks/pre-push"
+  if [ -s "$hook_src" ]; then
+    git_dir=$(git -C "$repo_dir" rev-parse --absolute-git-dir 2>/dev/null) || git_dir=
+    if [ -n "$git_dir" ]; then
+      install -d "$git_dir/hooks"
+      install -m 700 "$hook_src" "$git_dir/hooks/pre-push"
+    fi
+  fi
+}
+
+install_cli() {
+  require_nonempty "$repo_dir/bin/omp-grievances.ts"
+  install -d -m 700 "$HOME/.local/bin"
+  install -m 700 "$repo_dir/bin/omp-grievances.ts" "$HOME/.local/bin/omp-grievances"
+}
+
+if [ "${OMP_INSTALL_GUIDANCE_ONLY+x}" = x ]; then
+  printf 'OMP_INSTALL_GUIDANCE_ONLY was replaced; use OMP_INSTALL_COMPONENTS=guidance\n' >&2
+  exit 1
+fi
+
+# Split the explicit component list without expanding filesystem patterns.
+set -f
+set -- ${OMP_INSTALL_COMPONENTS-all}
+set +f
+[ "$#" -gt 0 ] || { echo "OMP_INSTALL_COMPONENTS must not be empty" >&2; exit 1; }
+
+# Reject the entire selection before deploying anything.
+for component do
+  case $component in
+    all)
+      [ "$#" -eq 1 ] || { echo "all must be the only component" >&2; exit 1; }
+      validate_config
+      validate_guidance
+      validate_mcp
+      validate_scopes
+      validate_shared
+      validate_agents
+      validate_themes
+      require_nonempty "$repo_dir/bin/omp-grievances.ts"
+      require_nonempty "$repo_dir/.githooks/pre-push"
+      ;;
+    guidance) validate_guidance ;;
+    config) validate_config ;;
+    mcp) validate_mcp ;;
+    scopes) validate_scopes ;;
+    agents) validate_agents ;;
+    secrets) validate_secrets ;;
+    skill:*) validate_skill "${component#skill:}" ;;
+    *)
+      printf 'Unknown install component: %s\n' "$component" >&2
+      exit 1
+      ;;
+  esac
+done
+
+if [ "$1" != all ]; then
+  for component do
+    case $component in
+      guidance) install_guidance ;;
+      config) install_config ;;
+      mcp) install_mcp ;;
+      scopes) install_scopes ;;
+      agents) install_agents ;;
+      secrets) install_secrets ;;
+      skill:*) install_skill "${component#skill:}" ;;
+    esac
+  done
+  printf 'Installed OMP components (%s) in %s; other deployed state unchanged\n' "$*" "$agent_dir"
+  exit 0
+fi
+
+install_config
+install_themes
+install_guidance
+install_agents
+install_mcp
+install_scopes
+install_shared
+install_extensions
+install_hooks
+install_cli
+
+printf 'Installed owned OMP config in %s; foreign packages and runtime keys preserved\n' "$agent_dir"

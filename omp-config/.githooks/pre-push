@@ -1,0 +1,29 @@
+#!/bin/sh
+set -eu
+cd "$(git rev-parse --show-toplevel)"
+
+command -v gitleaks >/dev/null 2>&1 || {
+  printf 'gitleaks is required for pre-push secret scanning\n' >&2
+  exit 1
+}
+zero=0000000000000000000000000000000000000000
+while read -r local_ref local_oid remote_ref remote_oid; do
+  [ "$local_oid" = "$zero" ] && continue
+  if [ "$remote_oid" = "$zero" ]; then
+    log_opts="$local_oid --not --remotes"
+  else
+    log_opts="$remote_oid..$local_oid"
+  fi
+  gitleaks git . --log-opts="$log_opts" --redact --no-banner || {
+    printf 'gitleaks found a potential secret in outgoing commits\n' >&2
+    exit 1
+  }
+done
+command -v trufflehog >/dev/null 2>&1 || {
+  printf 'trufflehog is required for pre-push secret scanning\n' >&2
+  exit 1
+}
+trufflehog filesystem . --exclude-paths=.githooks/trufflehog-exclude.txt --no-verification --no-update --fail >/dev/null 2>&1 || {
+  printf 'trufflehog found a potential secret; inspect locally before pushing\n' >&2
+  exit 1
+}

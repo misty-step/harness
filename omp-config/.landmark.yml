@@ -1,0 +1,17 @@
+product:
+  name: omp-config
+  description: OMP harness configuration for Phaedrus and Misty Step. Source of truth for model routing, skills, policy, themes, agents, and installed OMP configuration.
+audience: general
+voice: clear, specific, user-facing
+changelog:
+  source: auto
+artifacts:
+  markdown: docs/releases/{version}.md
+  json: docs/releases/releases.json
+release:
+  profile: full
+model:
+  policy: balanced
+budget:
+  max_input_tokens: 12000
+  max_output_tokens: 1200
