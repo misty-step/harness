@@ -4,7 +4,7 @@ Edit harness sources here. Run `./install` to deploy owned components to
 `$PI_CODING_AGENT_DIR`; keep live deployed files out of manual edits. The
 installer overlays source-owned settings keys without deleting foreign live
 keys, clean-replaces owned extension packages, and deploys shared primitives
-through the sibling [agent-config](https://github.com/misty-step/agent-config).
+through the sibling `agent-config`.
 
 ## What this repo owns
 
@@ -35,7 +35,7 @@ Omarchy-owned `omarchy` / `diagnose-crash` skill symlinks, and the generated
 ## Shared primitives
 
 Skill packages, global-guidance sections, and the `pass-env` launcher are owned
-by [agent-config](https://github.com/misty-step/agent-config), checked out as
+by `agent-config`, checked out as
 the sibling `../agent-config` (override with `AGENT_CONFIG_DIR`). This repo
 declares its selection in `install`; it does not carry those files. Add a
 harness-neutral primitive there, not here.

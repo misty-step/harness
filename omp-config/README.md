@@ -24,20 +24,24 @@ prompt is: how can I pokayoke this so this kind of error never happens again?
 | `install` | Ownership-aware deployment into `$(omp config path)` |
 | `bin/omp-merge-config.ts` | Overlay source-owned YAML keys and remove retired owned keys while preserving foreign config entries |
 | `bin/omp-grievances.ts` | Manual grievance inbox CLI |
-| `bin/pass-env.ts` | Moved to [agent-config](https://github.com/misty-step/agent-config): pass-backed launcher, installed as `~/.local/bin/pass-env` |
+| `bin/pass-env.ts` | Moved to `agent-config`: pass-backed launcher, installed as `~/.local/bin/pass-env` |
 | `bin/tmp-health.py`, `references/dev-exec.md` | Opt-in workstation execution limits, pressure notifications, and rollback workflow |
 | `config.yml` | Model roles, fallbacks, theme/TUI, providers, task/LSP settings |
 | `models.yml` | Local Ollama discovery; cloud models come from omp's bundled catalog |
 | `mcp.json` | Global MCP inventory; Linear is deliberately absent |
 | `workspace-mcp.json`, `bin/omp-install-scopes.ts` | Linear directory scopes, native project-local imports, owned skill retirement |
-| `global/AGENTS.md` | OMP-specific guidance; `./install` composes it with shared sections from [agent-config](https://github.com/misty-step/agent-config) |
+| `global/AGENTS.md` | OMP-specific guidance; `./install` composes it with shared sections from `agent-config` |
 | `global/WATCHDOG.md`, `global/WATCHDOG.yml` | One read-only Steward advisor |
 | `themes/` | TUI themes (`tokyonight`, `everforest`, `everforest-light`) |
-| `skills/` | Moved to [agent-config](https://github.com/misty-step/agent-config): portable skill packages, clean-replaced when selected |
-| `.githooks/pre-push` | Secret scanners only; installed into this repo's git dir by `./install` |
+| `skills/` | Moved to `agent-config`: portable skill packages, clean-replaced when selected |
+| `../.githooks/pre-push` | Root scanners; wired by `../scripts/bootstrap`, not runtime deployment |
 | `extensions/loc/` | Session-resident LOC status and commands |
 
 ## Install
+
+This is a component of [harness](../README.md), not a standalone checkout.
+Repository setup and releases belong to the root. `./install` rejects positional
+arguments (including `--check`); use `../scripts/verify omp` for isolated checks.
 
 ```sh
 ./install   # requires jq, bun, and omp
@@ -45,10 +49,10 @@ prompt is: how can I pokayoke this so this kind of error never happens again?
 
 Preflight validates every selected input, then writes. Unset selection means
 `all`: owned config overlay, guidance, MCP, scopes, agents, skills, themes,
-extensions, this repo's git hook, `omp-grievances`, and `pass-env`. It does not delete
+extensions, `omp-grievances`, and `pass-env`. It does not delete
 foreign skills or agents, and it does not import live secrets into this
 checkout. Skills, shared guidance sections, and `pass-env` deploy from the
-sibling [agent-config](https://github.com/misty-step/agent-config) checkout
+sibling `agent-config` checkout
 (default `$repo_dir/../agent-config`; override with `AGENT_CONFIG_DIR`); the
 installer fails closed when it is missing.
 
@@ -85,7 +89,7 @@ must still be confirmed.
 
 `secrets` deploys the shared `pass-env` launcher and the
 `authenticated-commands` skill through
-[agent-config](https://github.com/misty-step/agent-config): `pass-env` as
+`agent-config`: `pass-env` as
 `~/.local/bin/pass-env` (mode `700`), and only that skill package in the agent
 directory. It preserves other packages, guidance, and configuration. Preflight
 checks Bun availability, standalone launcher syntax/imports, skill discovery
@@ -196,7 +200,7 @@ from an existing GPG cache. A locked key fails rather than prompting.
 With Bun, pass, and GPG installed, run the source directly from this checkout:
 
 ```sh
-bun bin/pass-env.ts --help
+bun ../agent-config/bin/pass-env.ts --help
 ```
 
 For a standalone installation, first check `command -v pass-env` and the
@@ -205,7 +209,7 @@ For a fresh destination, these commands require no `omp` invocation:
 
 ```sh
 install -d -m 700 "$HOME/.local/bin"
-install -m 700 bin/pass-env.ts "$HOME/.local/bin/pass-env"
+install -m 700 ../agent-config/bin/pass-env.ts "$HOME/.local/bin/pass-env"
 export PATH="$HOME/.local/bin:$PATH"
 ```
 
@@ -351,7 +355,7 @@ or sandboxing.
 
 ```sh
 sh -n install
-bun test bin/pass-env.test.ts bin/install-secrets.test.ts
+../scripts/verify shared
 ```
 
 Tests use disposable stores, HOME, agent directories, and source fixtures; no
@@ -781,9 +785,9 @@ model turn. Prose-only changes do not require repeating the runtime exercise.
 
 ## Related repositories
 
-- [agent-config](https://github.com/misty-step/agent-config) owns the shared
+- `agent-config` owns the shared
   primitives this repo deploys.
-- [pi-config](https://github.com/misty-step/pi-config) is the sister harness.
+- `pi-config` is the sister harness.
 - [linear-cli](https://github.com/misty-step/linear-cli) is the standalone
   Linear client.
 

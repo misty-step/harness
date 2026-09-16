@@ -7,14 +7,14 @@ image-budget extension, the model-fallback-chain extension, the OpenRouter
 live-model bridge, and
 the `pi()` key-injection wrapper block in `~/.bashrc`. Shared primitives — skill
 packages, global guidance, and the `pass-env` launcher — come from the sibling
-base [agent-config](https://github.com/misty-step/agent-config). `./install`
+base `agent-config`. `./install`
 deploys the owned agent-directory components into `$PI_CODING_AGENT_DIR`
 (default `~/.pi/agent`); the wrapper block is applied to `~/.bashrc` by hand
 (snippet below, source of truth is this repo).
 
-Sister repository to [omp-config](https://github.com/misty-step/omp-config),
+Sister repository to `omp-config`,
 which owns the same intent for the OMP harness, over the shared base
-[agent-config](https://github.com/misty-step/agent-config). Pi and OMP discover
+`agent-config`. Pi and OMP discover
 their configuration differently; harness-specific work stays in each harness,
 while harness-neutral primitives live once in the base (ADR-021).
 
@@ -667,7 +667,7 @@ guidance was maintained twice — while `analyze.ts` had already drifted from th
 had quietly stopped being true.
 
 So the harness-neutral primitives move to
-[agent-config](https://github.com/misty-step/agent-config): the 13 portable skill
+`agent-config`: the 13 portable skill
 packages, three guidance sections (`pokayoke`,
 `communication-and-verification`, `host-resources`), and `bin/pass-env.ts`. Each
 harness declares its selection through one deploy contract; `agent-config` owns
@@ -867,9 +867,9 @@ ln -sf ~/.pi/agent/extensions/loc/git-hook.sh .git/hooks/post-checkout
 
 ## Related repositories
 
-- [agent-config](https://github.com/misty-step/agent-config) owns the shared
+- `agent-config` owns the shared
   primitives this repo deploys.
-- [omp-config](https://github.com/misty-step/omp-config) is the sister harness.
+- `omp-config` is the sister harness.
 - [linear-cli](https://github.com/misty-step/linear-cli) is the standalone
   Linear client (ADR-020).
 

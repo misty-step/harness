@@ -2,7 +2,7 @@
 
 Loads into every OMP session on this machine, in every repository. `./install`
 composes this file with shared sections from
-[agent-config](https://github.com/misty-step/agent-config) and deploys the
+`agent-config` and deploys the
 result to the OMP agent directory — do not edit the deployed copy. Repository
 `AGENTS.md` files add to this, never replace it.
 

@@ -1,8 +1,8 @@
 # agent-config
 
 Shared, harness-neutral agent primitives for the Misty Step harnesses. It is the
-base layer under [pi-config](https://github.com/misty-step/pi-config) and
-[omp-config](https://github.com/misty-step/omp-config): portable skills, shared
+base layer under `pi-config` and
+`omp-config`: portable skills, shared
 global guidance, and the `pass-env` secret launcher live here once, and each
 harness declares which primitives it selects.
 
@@ -19,7 +19,7 @@ harness repo. When in doubt, leave it in the harness.
 | `skills/` | Portable skill packages, clean-replaced when selected |
 | `guidance/*.md` | Shared global-guidance sections, spliced at the harness marker |
 | `bin/pass-env.ts` | Standalone pass-backed environment launcher |
-| `.githooks/pre-push` | Secret scanners for this repo's own pushes |
+| `../.githooks/pre-push` | Workspace secret scanners, wired by root `scripts/bootstrap` |
 
 ## Install contract
 
@@ -66,24 +66,10 @@ and operations. `pi-config`'s file is title and intro only.
 
 ## Fresh setup
 
-Clone the repos beside each other so a harness can resolve the base at
-`../agent-config` (override with `AGENT_CONFIG_DIR`):
-
-```sh
-git clone https://github.com/misty-step/agent-config.git
-git clone https://github.com/misty-step/pi-config.git
-git clone https://github.com/misty-step/omp-config.git
-git clone https://github.com/misty-step/linear-cli.git
-```
-
-Then install each harness and the standalone tool. Harness installers invoke
-this repo's `install` themselves; a missing sibling fails closed.
-
-```sh
-pi-config/install
-omp-config/install
-linear-cli/install
-```
+Clone [harness](https://github.com/misty-step/harness) once; this base and both
+consumers are sibling components. Follow the [root setup guide](../README.md).
+Harness installers invoke this component's `install`; a missing base fails closed.
+`AGENT_CONFIG_DIR` remains an advanced override. `linear-cli` is installed separately.
 
 ## Not yet here
 
@@ -92,7 +78,7 @@ Single-owner or repo-local pieces that stay with their harness for now:
 - `omp-config/references/` — host docs (`dev-exec.md`, `scratch-routing.md`).
 - `omp-config/bin/tmp-health.py` — workstation pressure monitor.
 - The Linear CLI is its own repo, [linear-cli](https://github.com/misty-step/linear-cli).
-- The pre-push hook is repo-local and stays with each repo.
+- Repository hooks and release automation belong to the monorepo root.
 
 Each is a candidate to move when a second harness consumes it.
 
@@ -108,8 +94,8 @@ deployed file before trusting a change to shared guidance.
 
 ## Related repositories
 
-- [pi-config](https://github.com/misty-step/pi-config) and
-  [omp-config](https://github.com/misty-step/omp-config) consume this base.
+- `pi-config` and
+  `omp-config` consume this base.
 - [linear-cli](https://github.com/misty-step/linear-cli) is an independent host
   tool.
 
@@ -117,4 +103,4 @@ deployed file before trusting a change to shared guidance.
 
 Release automation is [Landmark](https://github.com/misty-step/landmark);
 conventional commits become semantic versions and release notes. Pre-push runs
-gitleaks and trufflehog. `origin` is `misty-step/agent-config`.
+gitleaks and trufflehog. `origin` is `misty-step/harness`; releases are workspace-wide.

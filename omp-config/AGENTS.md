@@ -10,7 +10,7 @@ packages.
 ## Shared primitives
 
 Skill packages, shared global-guidance sections, and the `pass-env` launcher are
-owned by [agent-config](https://github.com/misty-step/agent-config), checked out
+owned by `agent-config`, checked out
 as the sibling `../agent-config` (override with `AGENT_CONFIG_DIR`). This repo
 declares its selection in `install` and keeps only OMP-specific guidance (model
 roles, execution vehicles, tracker routing) in its own file. Add a
