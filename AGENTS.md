@@ -19,6 +19,8 @@ keys, and clean-replaces owned extension packages.
   strictly forward; chain lives in the extension source (ADR-011/013).
 - `skills/authenticated-commands/` — pass-env credential-discipline skill
   (vendored from omp-config).
+- `bin/linear.ts` — Linear workspace CLI, deployed to `~/.local/bin/linear`
+  (ADR-020). Adding `Agent: *` labels requires `--authorize-agent-work`.
 - `~/.bashrc` (marked block only; snippet in the README) — `pi()` wrapper that
   injects the Exa key from pass for interactive-shell launches (ADR-010).
 
@@ -46,6 +48,7 @@ Omarchy-owned `omarchy` / `diagnose-crash` skill symlinks, and the generated
 
 - `sh -n install` for the deploy script.
 - `bun test extensions/` for the analyzer and search renderer.
+- `bun test bin/` for the Linear CLI.
 - `bun bin/pi-merge-settings.ts --source settings.json --dest /tmp/pi-settings.json --check`
   for configuration validity.
 - Extension loading is proved by a fresh pi session, not by file presence.

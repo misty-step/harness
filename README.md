@@ -38,9 +38,10 @@ never assumes ownership of the rest:
   preserved by `bin/pi-merge-settings.ts`.
 - Files this repo does not declare — auth, sessions, telemetry, herdr
   integration, Omarchy skills, generated themes — are never written.
-- One owned file lives outside the agent directory: the marked `pi()` wrapper
-  block in `~/.bashrc`'s user section. It is the only sanctioned touch of the
-  user's dotfiles; the snippet and its mark live in *The launch hook* below.
+- Two owned files live outside the agent directory: the marked `pi()` wrapper
+  block in `~/.bashrc`'s user section (the only sanctioned touch of the user's
+  shell rc; snippet and mark in *The launch hook* below), and
+  `~/.local/bin/linear` (ADR-020), a bun script for Linear backlog work.
 
 To adopt a change: edit the source here, run `./install`, restart pi.
 
@@ -60,6 +61,7 @@ presentation; "behavioral" changes agent capability, model input, or data flow.
 | `extensions/image-budget/` | this repo | behavioral | yes | Inline-image ceiling: oldest images dropped over 15 MB per request; large images shrunk with ffmpeg at ingest (ADR-019) |
 | `skills/authenticated-commands` | this repo (vendored from omp-config) | skill | yes | Teaches agents disciplined `pass`/`pass-env` credential use |
 | `skills/decide` | this repo | skill | yes | High-context executive brief in ASD-STE100 for fast decisions (ADR-016) |
+| `bin/linear.ts` → `~/.local/bin/linear` | this repo | behavioral | yes | Linear workspace CLI: GraphQL porcelain, names not ids, `--json` always parseable, `Agent: *` labels require `--authorize-agent-work` (ADR-020) |
 | `~/.bashrc` (`pi()` block) | this repo (marked block only) | behavioral | by hand | Launch hook: Exa key from pass (ADR-010); run-scoped scratch `TMPDIR` via `omp-scratch` when installed (ADR-015) |
 | `~/.config/omarchy/themed/pi.json.tpl` | this repo (hand-managed) | aesthetic | by hand | pi theme template override for every Omarchy theme: readable semantic ink, accent-derived thinking ramp, deeper surfaces (ADR-018) |
 | `extensions/agent-usage-telemetry.ts` | external (managed) | telemetry | no | Reports usage to an external endpoint |
@@ -169,10 +171,17 @@ blast radius, effort, operational cost, and risk. Hidden from automatic skill
 discovery (`disable-model-invocation: true`); invoked on-demand via
 `/skill:decide [optional topic]`.
 
+**`bin/linear.ts` — Linear CLI.** Deployed to `~/.local/bin/linear` (ADR-020).
+A bun script: one GraphQL primitive and thin porcelain for backlog work.
+Names resolve to ids; `--json` is always parseable; adding `Agent: *` labels
+requires `--authorize-agent-work`. Credential from the environment or
+`pass show workstation/LINEAR_API_KEY`, never printed. `./install` refuses to
+overwrite a foreign file at that path. `bun test bin/` is the proof.
+
 ### The launch hook: `pi()` in `~/.bashrc`
 
-The one owned file outside the agent directory: a marked block in the user
-section of `~/.bashrc`, the only sanctioned touch of the user's dotfiles
+One of two owned files outside the agent directory: a marked block in the user
+section of `~/.bashrc`, the only sanctioned touch of the user's shell rc
 (ADR-010). It does two jobs at launch — inject the Exa key from pass (ADR-010)
 and, once `omp-config` installs `bin/omp-scratch`, run the session under a
 run-scoped scratch `TMPDIR` (ADR-015).
@@ -253,7 +262,8 @@ resolves the same file into the OMP theme.
 | Approval / permission gates | **omit** | We run with full permissions by choice (pi's default is no gate). Revisit on untrusted repos |
 | OS sandbox | **omit** | Work is on a trusted workstation. Revisit for third-party code |
 | Subagents | **omit for now** | Pi ships no built-in delegation; OMP's executive covers heavy delegation. Revisit if pi-first workflows need it |
-| MCP bridge | **omit** | Prefer native tools; OMP owns the Linear/MCP scoping story |
+| Linear CLI | have | Native `linear` on PATH for backlog work; Linear ships no official CLI and pi has no MCP (ADR-020) |
+| MCP bridge | **omit** | Prefer native tools; Linear access is the `linear` CLI, not an MCP session |
 | Persistent memory | **omit for now** | Source authority is the repo and OMP's guidance. Revisit deliberately |
 | Notifications | **omit for now** | Terminal focus is usually present; revisit for long unattended runs |
 | Plan mode | **omit for now** | Covered by prompt discipline; revisit if it earns a keybinding |
@@ -609,6 +619,28 @@ fixing it only in the `cyoa-video` playtest scripts (the failure is a property
 of every pi session that reads many images, not of one repo). The extension is
 behavioral: it changes what the model receives. Classification: behavioral.
 
+**ADR-020 — A small Linear CLI instead of an MCP bridge.** *Accepted ·
+2026-09-16.* Linear ships no official CLI. Its official agent surface is a
+hosted MCP server (`https://mcp.linear.app/mcp`). Pi has no built-in MCP, and
+this repo already omits an MCP bridge. Iron Forest's `.iron-forest/linear.py`
+is a read-only eligibility gate for autonomous work — a different program's
+adapter, vendored into other repos, with no mutation path. Community CLIs exist
+and would still leave the workspace's authority-label hazard unencoded.
+
+So: `bin/linear.ts`, a bun script deployed to `~/.local/bin/linear`. One
+GraphQL primitive (`gql`) and thin porcelain (`ls`, `show`, `create`, `update`,
+`comment`, `projects`, `labels`, `states`). Project, team, state, and label
+names resolve to ids at call time, so a rename upstream is not a code change.
+`--json` always prints a parseable object, including
+`{"error":{"kind","message"}}` on failure. Adding any `Agent: *` label
+requires `--authorize-agent-work`, because those labels enroll an issue in Iron
+Forest's 300 s builder poll; removing them is always allowed. The credential
+comes from the environment or `pass show workstation/LINEAR_API_KEY` and is
+never printed.
+
+`./install` refuses to replace a non-regular `~/.local/bin/linear` or a regular
+file that is not this client. Classification: behavioral.
+
 ## Research: how pi iterates on other harnesses
 
 Surveyed 2026-09-14 against pi's bundled docs/examples, the community
@@ -720,6 +752,9 @@ failover became sticky (then revisit the once-per-session latch).
   stops being an assumption on this host (then make `compress.ts` optional at
   install), or a provider ceiling below 15 MB appears (then lower
   `DEFAULT_BUDGET_BYTES`).
+- **ADR-020 (Linear CLI)**: Linear ships an official CLI, pi gains native MCP
+  we actually want, or Iron Forest grows a mutation path we can share — then
+  delete this client and point at the one owner.
 - **OMP parity**: OMP ships a feature we use daily and pi lacks. Port one thing
   at a time, with an ADR.
 
@@ -730,7 +765,7 @@ failover became sticky (then revisit the once-per-session latch).
 ```
 
 Unset `PI_CONFIG_COMPONENTS` means `all`. Select a subset with a space-separated
-list: `config`, `pi-chrome`, `loc`, `web-search`, `failover`, `image-budget`, `skills`.
+list: `config`, `pi-chrome`, `loc`, `web-search`, `failover`, `image-budget`, `skills`, `linear`.
 
 ```sh
 PI_CONFIG_COMPONENTS=config ./install
@@ -747,6 +782,7 @@ cannot survive. Restart pi after deploying.
 ```sh
 sh -n install
 bun test extensions/
+bun test bin/
 bun bin/pi-merge-settings.ts --source settings.json --dest /tmp/pi-settings.json --check
 ```
 

@@ -28,14 +28,14 @@ require_nonempty() {
 
 selected=${PI_CONFIG_COMPONENTS:-all}
 case "$selected" in
-  all) components="config guidance pi-chrome loc web-search failover image-budget skills" ;;
+  all) components="config guidance pi-chrome loc web-search failover image-budget skills linear" ;;
   "") components="" ;;
   *) components="$selected" ;;
 esac
 
 for component in $components; do
   case "$component" in
-    config|guidance|pi-chrome|loc|web-search|failover|image-budget|skills) ;;
+    config|guidance|pi-chrome|loc|web-search|failover|image-budget|skills|linear) ;;
     *) printf 'Unknown component: %s\n' "$component" >&2; exit 1 ;;
   esac
 done
@@ -147,6 +147,27 @@ install_image_budget() {
   done
 }
 
+validate_linear() {
+  require_bun
+  require_nonempty "$repo_dir/bin/linear.ts"
+}
+
+install_linear() {
+  dest="$HOME/.local/bin/linear"
+  mkdir -p "$HOME/.local/bin"
+  if [ -e "$dest" ] || [ -L "$dest" ]; then
+    if [ -L "$dest" ] || [ ! -f "$dest" ]; then
+      printf 'Refusing to replace non-regular %s\n' "$dest" >&2
+      exit 1
+    fi
+    if ! grep -q 'linear — a small Linear workspace client' "$dest" 2>/dev/null; then
+      printf 'Existing %s is not this Linear client; inspect and remove it first.\n' "$dest" >&2
+      exit 1
+    fi
+  fi
+  install -m 700 "$repo_dir/bin/linear.ts" "$dest"
+}
+
 validate_skills() {
   for skill_dir in "$repo_dir"/skills/*; do
     [ -d "$skill_dir" ] || continue
@@ -174,6 +195,7 @@ if has web-search; then validate_web_search; fi
 if has failover; then validate_failover; fi
 if has image-budget; then validate_image_budget; fi
 if has skills; then validate_skills; fi
+if has linear; then validate_linear; fi
 
 if has config; then install_config; fi
 if has guidance; then install_guidance; fi
@@ -183,4 +205,5 @@ if has web-search; then install_web_search; fi
 if has failover; then install_failover; fi
 if has image-budget; then install_image_budget; fi
 if has skills; then install_skills; fi
+if has linear; then install_linear; fi
 install_git_hook
