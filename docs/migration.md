@@ -11,8 +11,12 @@ The monorepo imports the original histories without rewriting commits:
 | omp-config | 67159dd |
 
 All three component trees matched their original Git trees immediately after
-import. Historical tags are namespaced under `legacy/<component>/`; original
-release pages and retired branches remain in the legacy GitHub repositories.
+import. 53 historical tags are namespaced under `legacy/<component>/`; original
+release pages and historical references remain in the legacy GitHub repositories.
+The pre-rewrite `archive/pre-lean-2026-08-13` tag was deliberately not republished:
+its separate history triggered 21 scanner findings. Their credential validity is
+unconfirmed; the tag remains in the old archive and local rollback bundle. No broad
+scanner exclusion or history rewrite was used to publish it.
 There were no open GitHub issues or pull requests in any of the three at migration
 preflight. The initial histories remain reachable through subtree merge parents.
 
@@ -41,6 +45,16 @@ installer ran with a disposable agent directory but without a HOME override; its
 shared launcher destination was therefore live. The launcher source was unchanged.
 The committed verification script uses a sanitized environment and disposable HOME
 for both consumers so that isolation error cannot recur on that path.
+
+## Completed GitHub cutover
+
+- Canonical main at `8a9ba0a` passed [Verify and Release run 35136285993](https://github.com/misty-step/harness/actions/runs/35136285993).
+- Local full verification passed 92 unit tests and both fresh-clone installer checks.
+- All three legacy repositories received destination notices and were archived;
+  no open GitHub issues or PRs remained to transfer.
+- Area labels: shared, pi, omp, workspace. The workspace root owns future work.
+- Both secret scanners passed. One exact historical ownership-checksum false
+  positive is documented in `.gitleaksignore`; no credential finding was waived.
 
 ## Cutover and recovery
 
