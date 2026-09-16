@@ -59,12 +59,9 @@ this repo neither owns nor deploys it (ADR-020, amended).
 
 ## Verification
 
-- `sh -n install` for the deploy script.
-- `bun test extensions/` for the extensions' pure logic.
-- `bun bin/pi-merge-settings.ts --source settings.json --dest /tmp/pi-settings.json --check`
-  for configuration validity.
-- `(cd "${AGENT_CONFIG_DIR:-../agent-config}" && sh -n install && bun test bin/)`
-  for the shared primitives this repo deploys.
+- `../scripts/verify pi` covers shell syntax, extension logic, and both consumers'
+  fresh-clone installer checks, including settings validation. Installer checks
+  exercise committed HEAD; commit installer changes before using that evidence.
 - Extension loading is proved by a fresh pi session, not by file presence.
 
 ## Shipping

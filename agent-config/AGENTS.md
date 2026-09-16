@@ -21,7 +21,7 @@ in the harness file, not in a shared section.
 
 ## Verification
 
-- `sh -n install`
-- `bun test bin/`
+- `../scripts/verify shared` — syntax, shared unit tests, and both consumers'
+  fresh-clone installer checks.
 - Compose a harness guidance file into a temporary directory and diff it against
   the live deployed copy before trusting a shared-guidance change.

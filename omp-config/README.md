@@ -354,7 +354,6 @@ or sandboxing.
 ### Focused verification
 
 ```sh
-sh -n install
 ../scripts/verify shared
 ```
 
@@ -770,9 +769,10 @@ historical full-directory skills replacement as rollback.
 ### Focused config checks
 
 ```sh
-sh -n install
-bun test bin/omp-merge-config.test.ts
+../scripts/verify omp
 ```
+
+Covers `sh -n install`, the merge/suite checks, and the installer isolation invariants.
 
 These checks use temporary destinations and cover old-config → new-config
 retirement of owned keys without losing foreign config entries, foreign

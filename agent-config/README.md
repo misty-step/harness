@@ -85,8 +85,7 @@ Each is a candidate to move when a second harness consumes it.
 ## Verification
 
 ```sh
-sh -n install
-bun test bin/
+../scripts/verify shared
 ```
 
 Compose a harness file into a temporary directory and diff it against the live

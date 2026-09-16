@@ -841,13 +841,13 @@ obsolete files cannot survive. Restart pi after deploying.
 ## Verification
 
 ```sh
-sh -n install
-bun test extensions/
-bun bin/pi-merge-settings.ts --source settings.json --dest /tmp/pi-settings.json --check
-(cd "${AGENT_CONFIG_DIR:-../agent-config}" && sh -n install && bun test bin/)
+../scripts/verify pi
 ```
 
-Restart pi and confirm the chrome, `/loc`, and `web_search` load. Extension
+Runs the extension suites and both fresh-clone installer checks, including
+settings validation during isolated installation. Scratch is run-scoped under
+`~/.cache/tmp`. Installer checks exercise committed HEAD. Restart pi and
+confirm the chrome, `/loc`, and `web_search` load. Extension
 loading is proved by a fresh session, not by file presence. `web_search`
 presence additionally requires `EXA_API_KEY` in the environment — an
 interactive-shell `pi` gets it from the `~/.bashrc` wrapper (pass entry
