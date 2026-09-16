@@ -1,3 +1,10 @@
+## [0.1.1](https://github.com/misty-step/harness/compare/v0.1.0...v0.1.1) (2026-09-16)
+
+
+### Bug Fixes
+
+* **hooks:** reject unknown remote revisions before secret scanning ([9655a4b](https://github.com/misty-step/harness/commit/9655a4b974e05db0bf690d670cf27924ca5baddb))
+
 ## [0.0.1](https://github.com/misty-step/harness/compare/v0.0.0...v0.0.1) (2026-09-16)
 
 
