@@ -6,6 +6,9 @@ This is opt-in, user-manager configuration, not a global harness policy or an
 installer default. `./install` does not deploy these workstation-specific files.
 No sudo, system units, `user.slice`, `app.slice`, or desktop limits are changed.
 
+For the current reference repair and the remaining automatic-enforcement gap,
+see the [dev-exec assessment](../../docs/dev-exec-assessment.md).
+
 ## Scope and limits
 
 **Opt-in only: normal agent execution remains unbounded by this slice until a
@@ -80,10 +83,17 @@ For a noninteractive job whose whole process group should stop on OOM:
 ```sh
 systemd-run --user --slice=dev-exec.slice --unit=job-test-001 \
   --service-type=exec --wait --pipe --working-directory="$PWD" \
+  --setenv="TMPDIR=${TMPDIR:?Set a run-scoped disk-backed TMPDIR first}" \
   -p MemoryHigh=6G -p MemoryMax=10G -p MemorySwapMax=1G \
   -p OOMPolicy=kill -p LimitCORE=0 \
   "$(command -v bun)" test
 ```
+
+Use an owned, run-scoped disk-backed `TMPDIR` under `~/.cache/tmp` and clean it
+only after the job and its owned children have ended. The service example refuses
+an unset/empty `TMPDIR` and explicitly passes it; it does not validate its location
+or create/clean the directory. See the [scratch-routing design](scratch-routing.md)
+for lifecycle details and its deployment limitations.
 
 Services inherit the user manager's environment, not all of the invoking shell's.
 The example resolves Bun from the invoking shell's `PATH` rather than assuming

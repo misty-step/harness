@@ -1,6 +1,6 @@
 ---
 name: dev-exec
-description: Bound heavy local builds, tests, and verification to dev-exec.slice so one job fails alone instead of taking the desktop down. Use before running full suites, coverage, Electron/browser verification, or image builds on the workstation.
+description: Launch heavy local builds, tests, and verification in an opt-in systemd resource boundary to reduce workstation-wide failure risk. Use before running full suites, coverage, Electron/browser verification, or image builds on the workstation.
 ---
 
 # dev-exec
@@ -21,6 +21,10 @@ not in this deployed package.
 | `dev-exec.slice` aggregate | 48 GiB | 60 GiB | 8 GiB |
 | Per job | 6 GiB | 10 GiB | 1 GiB |
 
+These are this workstation's configured aggregate limits and starting per-job
+budgets, not portable capacity guarantees. Inspect effective limits before using
+a different machine; a slice name alone does not prove limits were installed.
+
 All three per-job properties are required for an individual boundary; the slice
 alone applies only the shared aggregate cap. `MemoryHigh` throttles and
 reclaims; `MemoryMax` can OOM-kill the job.
@@ -40,6 +44,7 @@ Noninteractive job whose whole process group stops on OOM:
 ```sh
 systemd-run --user --slice=dev-exec.slice --unit=job-test-001 \
   --service-type=exec --wait --pipe --working-directory="$PWD" \
+  --setenv="TMPDIR=${TMPDIR:?Set a run-scoped disk-backed TMPDIR first}" \
   -p MemoryHigh=6G -p MemoryMax=10G -p MemorySwapMax=1G \
   -p OOMPolicy=kill -p LimitCORE=0 \
   "$(command -v bun)" test
@@ -67,6 +72,7 @@ populated slice—review `systemd-cgls` first.
 
 ## Escapes
 
-Docker-daemon containers, daemon-launched services, and detached children can
-leave the caller's cgroup. Bound and place them explicitly; a client wrapper
-does not contain what it launches.
+Docker-daemon containers and separately manager-launched services may execute
+outside the caller's cgroup. Bound and place them explicitly; containing a client
+does not contain work created by another manager. Ordinary forked or detached
+children inherit the cgroup; detaching alone does not escape it.

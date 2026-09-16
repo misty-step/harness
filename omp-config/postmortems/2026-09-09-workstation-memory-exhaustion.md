@@ -2,7 +2,10 @@
 
 - **Incident date:** 2026-09-09
 - **Observed acute window:** 18:31:52–18:34:18 America/Chicago (CDT, UTC−05:00)
-- **Status:** incident ended; diagnosis incomplete; mitigations proposed, not implemented
+- **Status:** incident ended; diagnosis incomplete. Original proposals below describe
+  the investigation state. Subsequent opt-in limits and pressure monitoring are
+  recorded in the [2026-09-14 deployment runbook](../references/dev-exec.md);
+  automatic routing and admission control remain unimplemented.
 - **Operational owner:** operator / omp-config; individual follow-up owners unassigned
 - **Intended tracker:** [omp-config in Misty Step Linear](https://linear.app/misty-step/project/omp-config-47a74679f980)
 - **Publication:** repository draft; not yet published to Linear

@@ -218,7 +218,7 @@ The repository's `OMP_INSTALL_COMPONENTS=secrets ./install` is specifically an
 the owned `authenticated-commands` skill in OMP's agent directory. Neither route
 installs credentials, keys, or store configuration.
 
-The neutral `skills/authenticated-commands/SKILL.md` uses Agent Skills-style
+The neutral [authenticated-commands skill](../agent-config/skills/authenticated-commands/SKILL.md) uses Agent Skills-style
 metadata and ordinary Markdown. OMP discovers it automatically after deployment.
 Other harnesses can import/copy the skill through their supported mechanism, or
 read it as ordinary Markdown and invoke the CLI. This repository does **not**
@@ -475,7 +475,7 @@ OMP automatically discovers it when installed together with `pass-env` by the
 `foundation` is a first-principles investigation and design proposal, not an
 implementation pass or an infrastructure checklist. It distinguishes an ideal
 destination from a practical transition; preserving a sound system is a valid
-conclusion. Its [operating reference](skills/foundation/operating-foundations.md)
+conclusion. Its [operating reference](../agent-config/skills/foundation/operating-foundations.md)
 is conditional context when verification, hosting, deployment, or operation
 could change the recommendation. Invoke `/skill:foundation` with context or
 constraints the repository cannot supply; select the model separately. Backlog
@@ -524,13 +524,13 @@ From the product checkout, invoke:
 /skill:verification-infrastructure
 ```
 
-The [authoring skill](skills/verification-infrastructure/SKILL.md) discovers
+The [authoring skill](../agent-config/skills/verification-infrastructure/SKILL.md) discovers
 existing setup, fixtures, smoke commands, CI, and specialized skills before
 creating anything. It establishes or repairs a capability; it does not require
 a new CLI, a particular browser vendor, or a uniform receipt schema. Keep a
 sufficient existing skill rather than generating a competing one.
-Its [runtime](skills/verification-infrastructure/runtime.md) and
-[journey](skills/verification-infrastructure/journeys.md) references are read
+Its [runtime](../agent-config/skills/verification-infrastructure/runtime.md) and
+[journey](../agent-config/skills/verification-infrastructure/journeys.md) references are read
 when those concerns are in scope, not as a mandatory packet. Selected skill
 installation copies the complete package, including these adjacent references.
 

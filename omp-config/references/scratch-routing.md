@@ -1,7 +1,9 @@
 # Agent scratch routing: a run-scoped `TMPDIR`
 
-Element **A3** of the [2026-09-15 workstation pressure
-report](../../workstation-pressure-report-2026-09-15.md) (§3 A3, §4 B2, §6, §7).
+Element **A3** of the 2026-09-15 workstation pressure report
+(§3 A3, §4 B2, §6, §7). That historical report is not in this repository;
+its old workspace-relative location is no longer available. The findings and
+executed proof retained below are the available reference.
 This is a **specification plus an executed proof of concept**, not a deployment:
 it is the mechanism the report identifies as the single highest-value structural
 change (§6: "route scratch to `~/.cache/tmp`"), and the one `pi-config` ADR-014
@@ -142,7 +144,7 @@ Rejected candidates:
 | --- | --- | --- | --- |
 | Agent tool subprocess, forked/reparented children, worker fleets | **yes** | this session; PoC acts 1–4 | — |
 | `systemd-run --user --scope` | **yes** (caller's env) | with `env -u TMPDIR` the scope saw empty; with it set, the scope saw `~/.cache/tmp` | `devrun` should still pass `--setenv=TMPDIR="$TMPDIR"` to be explicit |
-| `systemd-run --user` (service — the pattern `references/dev-exec.md` recommends for non-interactive jobs) | **no** — it gets the **user manager's login-time value** | with the caller's `TMPDIR` stripped, the service still saw `~/.cache/tmp` | must pass `-p Setenv=TMPDIR=…`. **Never rely on the manager value**: under this design it is a stale run id |
+| `systemd-run --user` (service — the pattern `references/dev-exec.md` recommends for non-interactive jobs) | **no** — it gets the **user manager's login-time value** | with the caller's `TMPDIR` stripped, the service still saw `~/.cache/tmp` | must pass `--setenv=TMPDIR=…`. **Never rely on the manager value**: under this design it is a stale run id |
 | Containers (`docker run`) | **no** (Docker does not forward host env) | documented behaviour; Docker is present | `-e TMPDIR=/scratch` plus a bind or tmpfs, owned by the container wrapper |
 | `ssh <remote>` | **no** (`TMPDIR` is not in the default `AcceptEnv`; no `SendEnv` is configured here) | config inspection | the remote host needs its own session rule |
 | `sudo`/`pkexec` | **no** (`env_reset`) | documented | not on the agent-scratch path |
@@ -292,7 +294,7 @@ What each act establishes:
 4. **`policy` (`omp-config/global/AGENTS.md`, `skills/`, `pi-config/global/AGENTS.md`).**
    Nothing is needed today; the prose rule is already correct. Once routing is
    deployed, per ADR-014 the five-rule section can shrink to a pointer at the
-   mechanism, and `references/dev-exec.md` should gain the `-p Setenv=TMPDIR=…`
+   mechanism, and `references/dev-exec.md` should gain the `--setenv=TMPDIR=…`
    requirement for its `systemd-run --user` service examples. This document does
    not edit those files.
 5. **`devrun` (§A4, separate owner).** Must compose: pass

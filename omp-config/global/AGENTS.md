@@ -72,8 +72,10 @@ scheduler's ownership.
 
 Bounded local execution follows the shared Host resources rule. Run a heavy job
 locally only inside `dev-exec.slice` with an explicit per-job budget
-(`references/dev-exec.md`, `skill://dev-exec`); the run-scoped `TMPDIR`
-mechanism is specified in `references/scratch-routing.md`.
+(`skill://dev-exec`;
+[workstation runbook](https://github.com/misty-step/harness/blob/main/omp-config/references/dev-exec.md)).
+The [scratch-routing design](https://github.com/misty-step/harness/blob/main/omp-config/references/scratch-routing.md)
+is a specification and proof of concept, not an automatically deployed mechanism.
 
 Repository `AGENTS.md` files point at these host-resource rules instead of
 restating them, and add only repository-specific facts—commands, budgets,

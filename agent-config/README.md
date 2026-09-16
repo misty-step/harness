@@ -75,12 +75,16 @@ Harness installers invoke this component's `install`; a missing base fails close
 
 Single-owner or repo-local pieces that stay with their harness for now:
 
-- `omp-config/references/` — host docs (`dev-exec.md`, `scratch-routing.md`).
-- `omp-config/bin/tmp-health.py` — workstation pressure monitor.
+- [Workstation runbook](../omp-config/references/dev-exec.md) and
+  [scratch-routing design](../omp-config/references/scratch-routing.md) — host docs,
+  retained with their operational implementation; linked by both harnesses.
+- [Pressure monitor](../omp-config/bin/tmp-health.py) — workstation-specific tool.
 - The Linear CLI is its own repo, [linear-cli](https://github.com/misty-step/linear-cli).
 - Repository hooks and release automation belong to the monorepo root.
 
-Each is a candidate to move when a second harness consumes it.
+A reference from another harness does not make machine-specific setup a portable
+primitive. Keep deployable skill dependencies inside their package; use canonical
+repository URLs for optional workstation context outside a deployed package.
 
 ## Verification
 

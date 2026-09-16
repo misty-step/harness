@@ -26,6 +26,14 @@ owned directory. Remove only that directory once its process has ended.
 
 ## Observable contracts
 
+- `scripts/references.test.ts` checks tracked Markdown file targets and canonical
+  `harness/blob/main/` URLs against the working tree. It also deploys all shared
+  skills and both guidance compositions into disposable directories and rejects
+  missing/out-of-package references, including legacy backticked `references/`
+  paths. Regression fixtures reproduce the original defect and package escapes.
+  This is a CI guard, not an installer preflight or general Markdown/network
+  crawler: external web availability, anchors, `skill://` discovery, and arbitrary
+  prose/code paths need semantic review.
 - Existing shared, pi and OMP suites exercise component logic.
 - `scripts/verify-installers` clones committed HEAD and runs both actual installers
   with a sanitized environment, synthetic HOME, agent directories and development
@@ -35,8 +43,8 @@ owned directory. Remove only that directory once its process has ended.
 - Foreign skill and synthetic auth files must remain byte-identical.
 - Disposable clone and destinations are removed on exit.
 
-`workspace` runs shell syntax and both installer checks without component unit
-suites. All selections run both installer checks because their shared contract is
+`workspace` runs shell syntax, reference tests, and both installer checks without
+component unit suites. All selections run both installer checks because their shared contract is
 cheap to exercise. These checks do not claim scope-discovery, idempotence, native
 extension loading, rendering, provider calls or OAuth validity. Component tests
 cover some related behavior; consult their actual assertions before claiming it.

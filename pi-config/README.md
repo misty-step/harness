@@ -218,7 +218,7 @@ fi
 ```
 
 `omp-scratch` owns the run lifecycle — creation, owner trap, `flock`-keyed
-sweep (`omp-config/references/scratch-routing.md`, §6.1). This repo owns only
+sweep ([scratch-routing design](../omp-config/references/scratch-routing.md), §6.1). This repo owns only
 the injection point and deliberately does not reimplement the owner in a
 dotfile: a second lifecycle implementation is the unowned, drifting hand-edit
 that design rejects (the shell's shared `TMPDIR=~/.cache/tmp` export is the
@@ -481,7 +481,7 @@ header states), never restate it.
 
 **ADR-015 — Hang run-scoped scratch routing off the `pi()` launch hook.**
 *Accepted · 2026-09-15.* Element A3-pi of the 2026-09-15 workstation pressure
-report: `omp-config`'s `references/scratch-routing.md` settles the mechanism —
+report: the [scratch-routing design](../omp-config/references/scratch-routing.md) specifies the mechanism —
 run-scoped `TMPDIR` under `~/.cache/tmp/runs/<run-id>`, an owner trap, and a
 `flock`-keyed sweep, proven by an executed five-act POC — and its §6.2 assigns
 deployment to the launcher owners. This repo owns the launcher for pi:
@@ -856,14 +856,10 @@ tool. `failover` needs no configuration or key: a fresh Cerebras session is
 the proof that the extension loaded (it registers nothing visible).
 `image-budget` is proved by reading one large image: the stored tool result is
 a JPEG an order of magnitude smaller, and the footer shows `img-budget N
-dropped` only when the request budget is actually crossed. For instant LOC
-cache updates on commit:
-
-```sh
-ln -sf ~/.pi/agent/extensions/loc/git-hook.sh .git/hooks/post-commit
-ln -sf ~/.pi/agent/extensions/loc/git-hook.sh .git/hooks/post-merge
-ln -sf ~/.pi/agent/extensions/loc/git-hook.sh .git/hooks/post-checkout
-```
+dropped` only when the request budget is actually crossed. Workspace Git hooks
+are owned by [root bootstrap](../scripts/bootstrap); runtime installation does
+not wire LOC hooks. Do not install hooks into `.git/hooks` here: the workspace
+uses `core.hooksPath=.githooks`.
 
 ## Related repositories
 
@@ -877,4 +873,4 @@ ln -sf ~/.pi/agent/extensions/loc/git-hook.sh .git/hooks/post-checkout
 
 Release automation is [Landmark](https://github.com/misty-step/landmark);
 conventional commits become semantic versions and release notes. Pre-push runs
-gitleaks and trufflehog. `origin` is `misty-step/pi-config`.
+gitleaks and trufflehog. `origin` is `misty-step/harness`; releases are workspace-wide.
