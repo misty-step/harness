@@ -70,7 +70,7 @@ Single-owner or repo-local pieces that stay with their harness for now:
 
 - `omp-config/references/` — host docs (`dev-exec.md`, `scratch-routing.md`).
 - `omp-config/bin/tmp-health.py` — workstation pressure monitor.
-- `pi-config/bin/linear.ts` — pi's Linear client.
+- The Linear CLI is its own repo, [linear-cli](https://github.com/misty-step/linear-cli).
 - The pre-push hook is repo-local and stays with each repo.
 
 Each is a candidate to move when a second harness consumes it.
