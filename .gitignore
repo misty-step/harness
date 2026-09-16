@@ -1,0 +1,17 @@
+/*
+!/.gitignore
+!/README.md
+!/AGENTS.md
+!/CHANGELOG.md
+!/install
+!/skills/
+!/skills/**
+!/guidance/
+!/guidance/**
+!/bin/
+!/bin/**
+!/.githooks/
+!/.githooks/**
+!/.github/
+!/.github/**
+!/.landmark.yml

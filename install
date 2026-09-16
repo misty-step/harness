@@ -1,0 +1,207 @@
+#!/bin/sh
+# Deploy shared agent primitives into a harness agent directory.
+#
+# This repo owns harness-neutral primitives: skill packages, shared global
+# guidance sections, and the pass-env secret launcher. A harness declares which
+# primitives it selects; this installer is the single deployment mechanism.
+#
+# Preflight validates the whole selection before any write. Owned skill
+# packages are clean-replaced, so obsolete files cannot survive. Foreign skill
+# packages, unowned launcher destinations, and unselected primitives are never
+# touched. Pokayoke: unknown names, empty sources, an invalid launcher, a
+# missing guidance insertion point, and a foreign destination all fail closed
+# before mutation.
+set -eu
+umask 077
+
+repo_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+marker='<!-- shared guidance: agent-config -->'
+
+usage() {
+  cat <<'EOF'
+Usage: install --agent-dir DIR [--check] [--home DIR]
+               [--skill NAME|all]...
+               [--bin NAME]...
+               [--guidance NAME]... --guidance-source FILE
+
+  --agent-dir DIR        Harness agent directory (required).
+  --home DIR             Home for ~/.local/bin tools (default $HOME).
+  --skill NAME|all       Skill package to clean-replace; repeatable.
+  --bin NAME             Standalone launcher to install; repeatable.
+  --guidance NAME        Shared guidance section to inject; repeatable.
+  --guidance-source FILE Harness AGENTS.md holding the insertion marker.
+  --check                Validate the selection; write nothing.
+EOF
+}
+
+agent_dir=
+home_dir=${HOME}
+guidance_source=
+check=0
+skills=
+bins=
+guidance=
+
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --agent-dir) agent_dir=${2-}; shift 2 ;;
+    --home) home_dir=${2-}; shift 2 ;;
+    --skill) skills="$skills ${2-}"; shift 2 ;;
+    --bin) bins="$bins ${2-}"; shift 2 ;;
+    --guidance) guidance="$guidance ${2-}"; shift 2 ;;
+    --guidance-source) guidance_source=${2-}; shift 2 ;;
+    --check) check=1; shift ;;
+    -h|--help) usage; exit 0 ;;
+    *) printf 'Unknown argument: %s\n' "$1" >&2; usage >&2; exit 1 ;;
+  esac
+done
+
+require_nonempty() {
+  [ -s "$1" ] || {
+    printf 'Missing or empty source: %s\n' "$1" >&2
+    exit 1
+  }
+}
+
+require_bun() {
+  command -v bun >/dev/null 2>&1 || { echo "bun is required" >&2; exit 1; }
+}
+
+[ -n "$agent_dir" ] || { echo "--agent-dir is required" >&2; usage >&2; exit 1; }
+
+# Expand "all" to every skill package, preserving the declared order otherwise.
+skill_list=
+for name in $skills; do
+  if [ "$name" = all ]; then
+    for dir in "$repo_dir"/skills/*; do
+      [ -d "$dir" ] || continue
+      skill_list="$skill_list ${dir##*/}"
+    done
+  else
+    skill_list="$skill_list $name"
+  fi
+done
+
+validate_skills() {
+  for name in $skill_list; do
+    case "$name" in
+      ''|*/*|.|..) printf 'Invalid skill name: %s\n' "$name" >&2; exit 1 ;;
+    esac
+    require_nonempty "$repo_dir/skills/$name/SKILL.md"
+  done
+}
+
+validate_guidance() {
+  for name in $guidance; do
+    case "$name" in
+      ''|*/*|.|..) printf 'Invalid guidance name: %s\n' "$name" >&2; exit 1 ;;
+    esac
+    require_nonempty "$repo_dir/guidance/$name.md"
+  done
+  if [ -n "$guidance" ] || [ -n "$guidance_source" ]; then
+    require_nonempty "$guidance_source"
+    grep -Fqx "$marker" "$guidance_source" || {
+      printf 'Guidance source lacks the insertion marker %s: %s\n' "$marker" "$guidance_source" >&2
+      exit 1
+    }
+  fi
+}
+
+# A standalone launcher carries an ownership header on its second line. The
+# prefix match accepts an earlier owner's header so a launcher this repo now
+# owns can be upgraded in place, while a foreign file is still refused.
+validate_launcher_header() {
+  [ "$(sed -n 1p "$1")" = '#!/usr/bin/env bun' ] || return 1
+  sed -n 2p "$1" | grep -Fq -- ': owned standalone launcher (misty-step/' || return 1
+}
+
+validate_bin() {
+  name=$1
+  case "$name" in
+    ''|*/*|.|..) printf 'Invalid launcher name: %s\n' "$name" >&2; exit 1 ;;
+  esac
+  require_nonempty "$repo_dir/bin/$name"
+  case "$name" in
+    *.ts)
+      require_bun
+      validate_launcher_header "$repo_dir/bin/$name" || {
+        printf 'Standalone launcher lacks its ownership header: %s\n' "$name" >&2
+        exit 1
+      }
+      BIN_SOURCE="$repo_dir/bin/$name" bun -e '
+        import { readFileSync } from "node:fs";
+        import { isBuiltin } from "node:module";
+        const text = readFileSync(process.env.BIN_SOURCE, "utf8");
+        const transpiler = new Bun.Transpiler({ loader: "ts" });
+        transpiler.transformSync(text);
+        for (const imported of transpiler.scan(text).imports) {
+          if (imported.path !== "bun" && !isBuiltin(imported.path)) {
+            throw new Error(`Standalone launcher cannot depend on external modules: ${imported.path}`);
+          }
+        }
+      '
+      dest="$home_dir/.local/bin/${name%.ts}"
+      if [ -e "$dest" ] || [ -L "$dest" ]; then
+        if [ ! -f "$dest" ] || [ -L "$dest" ] || ! validate_launcher_header "$dest"; then
+          printf 'Refusing unowned launcher destination: %s\n' "$dest" >&2
+          exit 1
+        fi
+      fi
+      ;;
+  esac
+}
+
+validate_bins() {
+  for name in $bins; do
+    validate_bin "$name"
+  done
+}
+
+install_skill() {
+  name=$1
+  install -d -m 700 "$agent_dir/skills"
+  temp=$(mktemp -d "$agent_dir/skills/.$name.XXXXXX")
+  trap 'rm -rf "$temp"' 0 1 2 15
+  cp -R "$repo_dir/skills/$name"/. "$temp"/
+  chmod -R u=rwX,go= "$temp"
+  rm -rf -- "$agent_dir/skills/$name"
+  mv "$temp" "$agent_dir/skills/$name"
+  trap - 0 1 2 15
+}
+
+install_bin() {
+  name=$1
+  install -d -m 700 "$home_dir/.local/bin"
+  install -m 700 "$repo_dir/bin/$name" "$home_dir/.local/bin/${name%.ts}"
+}
+
+install_guidance() {
+  install -d -m 700 "$agent_dir"
+  temp=$(mktemp "$agent_dir/.AGENTS.md.XXXXXX")
+  trap 'rm -f "$temp"' 0 1 2 15
+  while IFS= read -r line || [ -n "$line" ]; do
+    if [ "$line" = "$marker" ]; then
+      for name in $guidance; do
+        cat "$repo_dir/guidance/$name.md"
+        printf '\n'
+      done
+    else
+      printf '%s\n' "$line"
+    fi
+  done < "$guidance_source" > "$temp"
+  chmod 600 "$temp"
+  mv "$temp" "$agent_dir/AGENTS.md"
+  trap - 0 1 2 15
+}
+
+validate_skills
+validate_guidance
+validate_bins
+
+if [ "$check" = 1 ]; then
+  exit 0
+fi
+
+for name in $skill_list; do install_skill "$name"; done
+for name in $bins; do install_bin "$name"; done
+if [ -n "$guidance" ]; then install_guidance; fi
