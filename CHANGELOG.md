@@ -1,3 +1,16 @@
+## [0.0.7](https://github.com/misty-step/pi-config/compare/v0.0.6...v0.0.7) (2026-09-16)
+
+
+### Features
+
+* **image-budget:** cap inline image bytes per request (ADR-019) ([b9833a7](https://github.com/misty-step/pi-config/commit/b9833a753791575612a7a3523ba3edfc76a595b1))
+* **linear:** small workspace CLI instead of an MCP bridge ([7fa2224](https://github.com/misty-step/pi-config/commit/7fa2224d43fee1b439bf71db84bd9f101da470f8))
+
+
+### Reverts
+
+* **chrome:** keep pi's stock working spinner (ADR-017) ([9dfb12f](https://github.com/misty-step/pi-config/commit/9dfb12fc0e1098d4038c55c97442e219bf76bccd))
+
 ## [0.0.6](https://github.com/misty-step/pi-config/compare/v0.0.5...v0.0.6) (2026-09-15)
 
 
