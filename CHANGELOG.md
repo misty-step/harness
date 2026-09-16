@@ -1,3 +1,11 @@
+## [0.1.2](https://github.com/misty-step/harness/compare/v0.1.1...v0.1.2) (2026-09-16)
+
+
+### Bug Fixes
+
+* **dev-exec:** point deployed skill to canonical workstation runbook ([5d00e61](https://github.com/misty-step/harness/commit/5d00e61fe714968fb58da1c149daf2f3f6a65747))
+* **references:** repair deployed navigation and guard package boundaries ([0ba6496](https://github.com/misty-step/harness/commit/0ba64964213a272b0cc34ba8de8db5fb08c74803))
+
 ## [0.1.1](https://github.com/misty-step/harness/compare/v0.1.0...v0.1.1) (2026-09-16)
 
 
