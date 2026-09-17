@@ -1,3 +1,10 @@
+## [0.1.5](https://github.com/misty-step/harness/compare/v0.1.4...v0.1.5) (2026-09-17)
+
+
+### Features
+
+* **session-close:** lease-gated wrap of session-owned host resources (US-004) ([5a6ffe0](https://github.com/misty-step/harness/commit/5a6ffe00d05e53c22cef68aabba598fd7f5691ae))
+
 ## [0.1.4](https://github.com/misty-step/harness/compare/v0.1.3...v0.1.4) (2026-09-17)
 
 
