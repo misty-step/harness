@@ -23,7 +23,7 @@ for script in scripts/bootstrap scripts/verify scripts/verify-installers .githoo
   sh -n "$script"
 done
 bun test --max-concurrency=1 scripts/references.test.ts
-case "$selection" in all|shared) (cd agent-config && bun test --max-concurrency=1 bin/);; esac
+case "$selection" in all|shared) (cd agent-config && bun test --max-concurrency=1 bin/ skills/);; esac
 case "$selection" in all|pi) (cd pi-config && bun test --max-concurrency=1 extensions/);; esac
 case "$selection" in all|omp) (cd omp-config && bun test --max-concurrency=1 bin/ extensions/);; esac
 ./scripts/verify-installers

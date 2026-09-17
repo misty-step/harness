@@ -53,10 +53,9 @@ validate_guidance() {
   done
   require_base
   run_shared --check \
-    --guidance pokayoke --guidance communication-and-verification --guidance host-resources --guidance user-stories \
+    --guidance pokayoke --guidance communication-and-verification --guidance host-resources --guidance user-stories --guidance session-close \
     --guidance-source "$repo_dir/global/AGENTS.md"
 }
-
 install_guidance() {
   install -d -m 700 "$agent_dir"
   for file in WATCHDOG.md WATCHDOG.yml; do
@@ -64,10 +63,9 @@ install_guidance() {
   done
   rm -f -- "$agent_dir/RULES.md"
   run_shared \
-    --guidance pokayoke --guidance communication-and-verification --guidance host-resources --guidance user-stories \
+    --guidance pokayoke --guidance communication-and-verification --guidance host-resources --guidance user-stories --guidance session-close \
     --guidance-source "$repo_dir/global/AGENTS.md"
 }
-
 validate_config() {
   require_bun
   require_nonempty "$repo_dir/config.yml"
