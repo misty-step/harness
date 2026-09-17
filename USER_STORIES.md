@@ -63,3 +63,25 @@ Criteria:
 No-gos: no automatic VM creation without authorized account and spend limits.
 
 Evidence: `agent-config/guidance/host-resources.md`
+
+## Capability: Session close
+
+## US-004 Close session-owned host resources
+
+Statement: When I finish a session that created git worktrees or exe.dev VMs, I
+want a single check that fails until those creates are leased and then dropped,
+so leftover machines and trees cannot be treated as done.
+
+Criteria:
+1. WHEN a worktree or exe.dev VM is created in-session, THE SYSTEM SHALL record
+   a lease via `session-close.ts add` in the same turn.
+2. WHEN any lease remains, `session-close.ts` SHALL exit nonzero.
+3. IF the lease directory is empty of valid leases, THEN `session-close.ts`
+   SHALL exit 0.
+4. IF a lease file is corrupt, THEN `session-close.ts` SHALL exit nonzero
+   without treating the store as clean.
+
+No-gos: no destruction of unleased or standing VMs; no global scan of other
+sessions' worktrees; no network in the unit check.
+
+Evidence: `agent-config/skills/session-close/session-close.test.ts`

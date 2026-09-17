@@ -60,7 +60,7 @@ test("tracked Markdown links resolve in the repository", () => {
 test.each(["pi", "omp"])("%s shared deployment has self-contained skill and guidance references", (consumer) => {
 	const dir = temp();
 	const result = Bun.spawnSync([resolve(root, "agent-config/install"), "--agent-dir", dir, "--skill", "all",
-		"--guidance", "pokayoke", "--guidance", "communication-and-verification", "--guidance", "host-resources", "--guidance", "user-stories",
+		"--guidance", "pokayoke", "--guidance", "communication-and-verification", "--guidance", "host-resources", "--guidance", "user-stories", "--guidance", "session-close",
 		"--guidance-source", resolve(root, `${consumer}-config/global/AGENTS.md`)], { env: { ...process.env, TMPDIR: dir } });
 	expect(result.exitCode).toBe(0);
 	const failures = readdirSync(resolve(dir, "skills")).flatMap((name) => {
