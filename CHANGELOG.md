@@ -1,3 +1,10 @@
+## [0.1.4](https://github.com/misty-step/harness/compare/v0.1.3...v0.1.4) (2026-09-17)
+
+
+### Features
+
+* **guidance:** lift exe.dev mandate into agent-config (US-003) ([7577b6f](https://github.com/misty-step/harness/commit/7577b6fea8b002929d00fd082610d381f2c571fe))
+
 ## [0.1.3](https://github.com/misty-step/harness/compare/v0.1.2...v0.1.3) (2026-09-17)
 
 
