@@ -15,9 +15,10 @@ repo. When in doubt, leave it in the harness.
 
 `guidance/*.md` are complete `##` sections. Each harness guidance file carries
 the `<!-- shared guidance: agent-config -->` marker; `./install` splices the
-selected sections at that line and fails closed when the marker is absent. Keep
-section text harness-neutral: a pointer such as `skill://using-exe-dev` belongs
-in the harness file, not in a shared section.
+selected sections at that line and fails closed when the marker is absent.
+Shared guidance sections may reference shared primitives and vehicles deployed
+across both harnesses, such as `skill://using-exe-dev`. Harness-specific policy
+stays in the harness repo.
 
 ## Verification
 

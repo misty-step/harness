@@ -52,7 +52,7 @@ the insertion marker:
 `./install` replaces that line with the selected sections, in the order given,
 and leaves the rest of the harness file — its title, intro, and vehicle-specific
 sections — untouched. The marker is required; its absence aborts the deploy.
-Section text stays harness-neutral: vehicle pointers belong in the harness file.
+Shared guidance sections may reference shared primitives and vehicles deployed across both harnesses, such as `skill://using-exe-dev`.
 
 ## What each harness selects
 

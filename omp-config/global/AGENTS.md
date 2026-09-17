@@ -37,15 +37,12 @@ requires single-authority ownership and a verified backup/restore path.
 
 ## Execution environments
 
-Heavy execution (full test suites, coverage, browser/Electron verification)
-and long-running work MUST run off-host in an approved isolated persistent
-workspace on exe.dev (`skill://using-exe-dev`). Keep native desktop, GPU,
-offline, and data-constrained work local.
+Follow the shared Host resources exe.dev mandate: offload heavy and long-running
+execution to approved persistent workspaces (`skill://using-exe-dev`); keep
+native desktop, GPU, offline, and data-constrained work local.
 
 Before provisioning or recurring work, resolve account, capabilities, spend,
-and lifetime. Bounded local execution follows the shared Host resources rule:
-cap runner concurrency in repo config (never host default), use run-scoped
-`~/.cache/tmp` scratch, and never use `/tmp`.
+and lifetime. Local execution follows the shared Host resources rule.
 
 ## Authority and operations
 
