@@ -450,7 +450,7 @@ font licenses. The external `frontend-design` and `show-me` packages stay verbat
 
 ## Skills and agents
 
-Six homebrew skills are explicitly invoked:
+Seven homebrew skills are explicitly invoked:
 
 | Command | Outcome |
 | --- | --- |
@@ -460,6 +460,7 @@ Six homebrew skills are explicitly invoked:
 | `/skill:capture` | Save durable findings to project notes, or the required tracker, without duplicating or claiming work |
 | `/skill:pokayoke` | Make a class of error impossible (shape, type, ownership, missing affordance, or a failing-closed check) instead of warning about it |
 | `/skill:decide` | Synthesize current context, tradeoffs, and candidate paths into an executive decision brief |
+| `/skill:user-stories` | Draft, extend, or reconcile a repository's root user stories |
 
 `disable-model-invocation: true` hides these descriptions from the automatic
 skill index. It does not prevent an explicit `skill://` read or grant authority
@@ -502,6 +503,11 @@ invariants, viable candidate paths, and a structured tradeoff matrix across
 reversibility, blast radius, effort, operational cost, and primary risk. It
 states a clear technical recommendation with an explicit decision boundary, and
 ends with the exact next action to take upon approval.
+
+Use `/skill:user-stories [optional repository, capability, or story id]` to
+keep a repository's root `USER_STORIES.md` honest: draft stories from observed
+behavior, extend them with the feature PR that ships the change, or audit gaps
+read-only. Stories are the root artifact; downstream work cites the story id.
 
 Five vendored packages remain unchanged except by whole-package refresh:
 `frontend-design`, `herdr`, `show-me`, `wrangler`, and `using-exe-dev`.

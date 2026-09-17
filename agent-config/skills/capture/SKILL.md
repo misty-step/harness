@@ -24,7 +24,9 @@ assets, and native runtime ledgers are not disposable attachments.
 Distill decisions, defects, risks, and useful ideas into outcomes and rationale.
 Preserve evidence, boundaries, dependencies, open choices, and observable
 completion where meaningful. When capturing a defect or incident, record the
-pokayoke that closes the class of error, or that none exists yet. Keep ideas
+pokayoke that closes the class of error, or that none exists yet. When a
+durable finding changes a story's intent, propose the split or supersede in
+`USER_STORIES.md` and link the work record to the story id. Keep ideas
 distinct from accepted work according to conversation or record authority; an
 implementation claim is not delivery proof.
 

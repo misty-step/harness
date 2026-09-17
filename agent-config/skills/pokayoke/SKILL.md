@@ -32,3 +32,6 @@ authority; without write authority, propose the pokayoke instead.
 
 Deliver the error class, the mechanism, proof that the original mistake path is
 closed, and any residual class that remains possible.
+
+A user-story criterion enforced by a fail-closed check is a pokayoke; cite the
+story id where the check runs.

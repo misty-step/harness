@@ -16,9 +16,10 @@ assessment; they do not authorize shared-state changes.
 
 ## Basis for judgment
 
-Use the repository, relevant backlog, and available product evidence to examine
-intended users, promised outcomes, and actual behavior. Existing vision and
-backlog are claims, not proof of necessity. Preserve explicit obligations and
+Use the repository, its root `USER_STORIES.md` when present, the relevant
+backlog, and available product evidence to examine intended users, promised
+outcomes, and actual behavior. Vision, stories, and backlog are claims, not
+proof of necessity. Preserve explicit obligations and
 operator-owned constraints; distinguish them from inherited choices. Missing
 product evidence is an uncertainty, not permission to invent needs.
 

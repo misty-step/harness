@@ -94,6 +94,7 @@ run_shared() {
       --guidance pokayoke \
       --guidance communication-and-verification \
       --guidance host-resources \
+      --guidance user-stories \
       --guidance-source "$repo_dir/global/AGENTS.md"
   fi
   [ $# -gt 0 ] || return 0

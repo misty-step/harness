@@ -33,6 +33,7 @@ all fail closed.
   --skill all \
   --bin pass-env.ts \
   --guidance pokayoke --guidance communication-and-verification --guidance host-resources \
+  --guidance user-stories \
   --guidance-source ../pi-config/global/AGENTS.md
 ```
 
@@ -57,8 +58,8 @@ Section text stays harness-neutral: vehicle pointers belong in the harness file.
 
 | Harness | Skills | Guidance | Launcher |
 | --- | --- | --- | --- |
-| `pi-config` | all | pokayoke, communication-and-verification, host-resources | `pass-env` |
-| `omp-config` | all | pokayoke, communication-and-verification, host-resources | `pass-env` |
+| `pi-config` | all | pokayoke, communication-and-verification, host-resources, user-stories | `pass-env` |
+| `omp-config` | all | pokayoke, communication-and-verification, host-resources, user-stories | `pass-env` |
 
 `omp-config`'s own guidance file adds Working together (including model roles),
 Execution environments (exe.dev vehicle), and Authority

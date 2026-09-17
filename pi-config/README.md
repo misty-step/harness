@@ -77,7 +77,7 @@ presentation; "behavioral" changes agent capability, model input, or data flow.
 **`global/AGENTS.md` — behavioral.** Deploys `~/.pi/agent/AGENTS.md`, the file
 pi concatenates into every session in every repository (ADR-012). The file is
 composed at install time: pi's title and intro, then `agent-config`'s shared
-sections — pokayoke, communication and verification, and host resources —
+sections — pokayoke, communication and verification, host resources, and user stories —
 spliced at the marker line (ADR-021). The shared sections carry the conventions
 every session inherits; the intro is pi's own. `./install` overwrites the
 deployed copy, and the file tells agents not to hand-edit it.
@@ -176,11 +176,11 @@ sees OpenRouter models on the mirror's schedule.
 
 **Shared primitives — `agent-config`.** Skill packages, guidance sections, and
 the `pass-env` launcher live once in the base and deploy through its single
-contract (ADR-021). pi selects all 12 portable skills (the homebrew `pokayoke`,
-`capture`, `foundation`, `agent-ergonomics`, `verification-infrastructure`,
-`decide`, and `authenticated-commands`, plus the vendored
-`frontend-design`, `show-me`, `wrangler`, `herdr`, and `using-exe-dev`), the
-three shared guidance sections, and `pass-env`. `web-search`'s key injection is
+contract (ADR-021). pi selects all 13 portable skills (the homebrew `pokayoke`,
+`user-stories`, `capture`, `foundation`, `agent-ergonomics`,
+`verification-infrastructure`, `decide`, and `authenticated-commands`, plus the
+vendored `frontend-design`, `show-me`, `wrangler`, `herdr`, and
+`using-exe-dev`), the four shared guidance sections, and `pass-env`. `web-search`'s key injection is
 the launcher's first pi consumer (ADR-010).
 
 **The Linear CLI is a separate repo.** The client moved to
@@ -277,7 +277,7 @@ resolves the same file into the OMP theme.
 | Persistent memory | **omit for now** | Source authority is the repo and OMP's guidance. Revisit deliberately |
 | Notifications | **omit for now** | Terminal focus is usually present; revisit for long unattended runs |
 | Plan mode | **omit for now** | Covered by prompt discipline; revisit if it earns a keybinding |
-| Prompt templates / homebrew skills | have | Portable skills are shared from `agent-config` (ADR-021); pi deploys all 12, with hidden homebrew ones invoked on demand |
+| Prompt templates / homebrew skills | have | Portable skills are shared from `agent-config` (ADR-021); pi deploys all 13, with hidden homebrew ones invoked on demand |
 | Pinned third-party packages | **omit** | Owned code is vendored here. Add packages only with a named reason |
 
 ## Decision log
