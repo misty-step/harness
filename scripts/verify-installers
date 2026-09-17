@@ -49,7 +49,7 @@ for consumer in pi omp; do
   : > "$expected"
   while IFS= read -r line || [ -n "$line" ]; do
     if [ "$line" = '<!-- shared guidance: agent-config -->' ]; then
-      for section in pokayoke communication-and-verification host-resources user-stories; do
+      for section in pokayoke communication-and-verification host-resources user-stories session-close; do
         # Match the shared contract: a blank separator follows each section.
         awk '{ print }' "$work/source/agent-config/guidance/$section.md" >> "$expected"
         printf '\n' >> "$expected"
