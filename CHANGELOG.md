@@ -1,3 +1,11 @@
+## [0.1.3](https://github.com/misty-step/harness/compare/v0.1.2...v0.1.3) (2026-09-17)
+
+
+### Features
+
+* **guidance:** add the user-stories root primitive ([73b4365](https://github.com/misty-step/harness/commit/73b4365c383b567a2a97f978980afe9a6e97f259))
+* **guidance:** mandate exe.dev for heavy execution ([1c91f44](https://github.com/misty-step/harness/commit/1c91f44fbe02ad84b375c6ef5b7e76eb6f55a83c))
+
 ## [0.1.2](https://github.com/misty-step/harness/compare/v0.1.1...v0.1.2) (2026-09-16)
 
 
