@@ -176,9 +176,9 @@ sees OpenRouter models on the mirror's schedule.
 
 **Shared primitives — `agent-config`.** Skill packages, guidance sections, and
 the `pass-env` launcher live once in the base and deploy through its single
-contract (ADR-021). pi selects all 13 portable skills (the homebrew `pokayoke`,
+contract (ADR-021). pi selects all 12 portable skills (the homebrew `pokayoke`,
 `capture`, `foundation`, `agent-ergonomics`, `verification-infrastructure`,
-`dev-exec`, `decide`, and `authenticated-commands`, plus the vendored
+`decide`, and `authenticated-commands`, plus the vendored
 `frontend-design`, `show-me`, `wrangler`, `herdr`, and `using-exe-dev`), the
 three shared guidance sections, and `pass-env`. `web-search`'s key injection is
 the launcher's first pi consumer (ADR-010).
@@ -277,7 +277,7 @@ resolves the same file into the OMP theme.
 | Persistent memory | **omit for now** | Source authority is the repo and OMP's guidance. Revisit deliberately |
 | Notifications | **omit for now** | Terminal focus is usually present; revisit for long unattended runs |
 | Plan mode | **omit for now** | Covered by prompt discipline; revisit if it earns a keybinding |
-| Prompt templates / homebrew skills | have | Portable skills are shared from `agent-config` (ADR-021); pi deploys all 13, with hidden homebrew ones invoked on demand |
+| Prompt templates / homebrew skills | have | Portable skills are shared from `agent-config` (ADR-021); pi deploys all 12, with hidden homebrew ones invoked on demand |
 | Pinned third-party packages | **omit** | Owned code is vendored here. Add packages only with a named reason |
 
 ## Decision log
@@ -678,7 +678,7 @@ line, and validates the whole selection before any write.
 What stays here: everything pi-specific — settings, extensions, the launch hook,
 and pi's guidance intro. What pi gains: the shared skills it
 lacked (`pokayoke`, `capture`, `foundation`, `agent-ergonomics`,
-`verification-infrastructure`, `dev-exec`, and the vendored externals) and the
+`verification-infrastructure`, and the vendored externals) and the
 communication-and-verification discipline. Alternatives rejected: a git
 submodule (pinning is not yet needed; the sibling path fails closed and the base
 is checked out anyway), and duplicating the deploy mechanism in each harness

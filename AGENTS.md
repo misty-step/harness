@@ -41,8 +41,8 @@ alone isolates HOME, scope, or launcher writes.
   point; see [verification](docs/verification.md) for bounds and postconditions.
 - Shared changes require both consumers' affected checks. Prose needs consistency
   review; composed-guidance changes need composition inspection, not a model run.
-- Keep scratch in run-scoped `~/.cache/tmp`; bound heavy local runs with
-  `dev-exec.slice`. CI has an explicit single-job/test-concurrency budget.
+- Keep scratch in run-scoped `~/.cache/tmp`; cap runner and test concurrency.
+  CI has an explicit single-job/test-concurrency budget.
 - Inspect status first, preserve unrelated work, and report evidence plus whether
   live deployment occurred. File presence does not prove native extension loading.
 - Use conventional commits. Root Landmark automation owns the single release

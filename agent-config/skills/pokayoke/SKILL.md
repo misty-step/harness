@@ -7,12 +7,10 @@ argument-hint: "[optional error class or incident]"
 
 # Pokayoke
 
-Pokayoke is error-proofing: a simple, low-complexity change that makes a
-particular kind of mistake impossible. A keyed connector that will not insert
-the wrong way is the classic. A comment, warning, checklist, or "be careful"
-is not pokayoke.
+Pokayoke is error-proofing: a structural change that makes a specific class of
+mistake impossible. A comment, warning, checklist, or reminder is not pokayoke.
 
-After a defect, incident, operator error, agent error, or near-miss, ask:
+After a defect, incident, or near-miss, ask:
 
 > how can I pokayoke this so this kind of error never happens again
 

@@ -11,19 +11,10 @@ Provide a dense, high-context executive brief for a fast technical decision.
 Lead with facts, root causes, and consequences. This skill is read-only; do not
 apply changes until the user selects a path.
 
-## Style and language
+## Approach
 
-Follow ASD-STE100 principles:
-
-- Keep sentences short. Use at most 20 words for instructions and at most 25
-  words for descriptions.
-- Use active voice and direct verbs.
-- Express one main idea per sentence.
-- Define one term for each concept and use that term consistently.
-- Avoid noun clusters of more than three nouns.
-- Omit conversational filler, preambles, and apologies.
-- Omit AI clichés: "delve", "foster", "leverage", "navigate", "tapestry",
-  "testament", "crucial", "seamless", "robust".
+Lead with facts, root causes, and architectural consequences. Omit conversational
+filler and speculative prose. Distinguish verified facts from inferences.
 
 ## Gather context
 

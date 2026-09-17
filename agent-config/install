@@ -202,6 +202,9 @@ if [ "$check" = 1 ]; then
   exit 0
 fi
 
+for retired in dev-exec; do
+  rm -rf -- "$agent_dir/skills/$retired"
+done
 for name in $skill_list; do install_skill "$name"; done
 for name in $bins; do install_bin "$name"; done
 if [ -n "$guidance" ]; then install_guidance; fi

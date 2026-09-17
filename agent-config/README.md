@@ -61,7 +61,7 @@ Section text stays harness-neutral: vehicle pointers belong in the harness file.
 | `omp-config` | all | pokayoke, communication-and-verification, host-resources | `pass-env` |
 
 `omp-config`'s own guidance file adds Working together (including model roles),
-Execution environments (exe.dev and `dev-exec.slice` vehicles), and Authority
+Execution environments (exe.dev vehicle), and Authority
 and operations. `pi-config`'s file is title and intro only.
 
 ## Fresh setup

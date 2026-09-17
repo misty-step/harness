@@ -6,29 +6,22 @@ disable-model-invocation: true
 
 # Agent ergonomics
 
-If you were the agent in the driver's seat, what would let you understand this
-project accurately and control it effectively with the least total resources?
-Optimize accurate outcomes per total cost: context, discovery, execution, human
-attention, and maintenance—not token savings at correctness's expense.
+Evaluate how effectively an agent or engineer can understand, modify, and verify
+this project with minimal friction and resource overhead.
 
-See a coherent, cohesive, modular, connected system—not a collection of parts.
-Understand how purpose, authoritative state, interfaces, actions, feedback, and
-recovery fit together. Ground judgment in actual workflow, evidence, and operator
-intent, not imagined friction. Keep uncertainty visible.
+## Principles
 
-Favor structure that makes the right action natural. Remove special cases and
-competing truths rather than layering instructions over them. That is pokayoke:
-make the wrong action impossible rather than warning about it. Prefer small
-interfaces hiding real complexity, not meaningful state. Reduce the whole
-system's burden rather than transferring complexity to people, callers, or
-recovery. Leave sound design alone.
+1. **Single source of truth:** Repository code, tests, and versioned docs define
+   technical reality. Avoid competing stores of truth or fragmented conventions.
+2. **Structural guardrails over warnings:** Prefer pokayoke (types, missing
+   affordances, fail-closed checks) over advisory documentation or warnings.
+3. **Discoverable contracts:** Keep interfaces compact and purposeful. Ensure
+   developer workflows (build, test, verify) are discoverable and deterministic.
+4. **Actionable diagnostics:** Errors must explain what failed, the violated
+   invariant, and how to recover.
 
-By default, synthesize grounded findings into prioritized improvements and
-integrate them into the project's existing backlog and roadmap. Reconcile
-existing work; don't create a parallel plan or duplicate tickets. Documentation
-is supporting work only where needed; update its owning source and link, not copy.
+## Output
 
-Honor scope and existing authority for backlog changes, implementation, and
-external writes; without write authority, propose the updates instead. Keep
-proposals distinct from current capabilities. Scale work to demonstrated need.
-Repeated use should converge, not generate speculative work or wording churn.
+Synthesize grounded findings into prioritized, concrete improvements integrated
+directly into the project's existing roadmap or backlog. Reconcile existing work;
+do not generate speculative work, duplicate tickets, or wording churn.

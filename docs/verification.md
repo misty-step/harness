@@ -8,15 +8,11 @@ that evidence. Both source identity and dirty-tree status are reported.
 
 ## Resource boundary
 
-Tests run sequentially with Bun concurrency capped at one. On the workstation,
-check for an existing run and use a bounded scope:
+Tests run sequentially with Bun concurrency capped at one. All scratch is
+run-scoped under `~/.cache/tmp` and removed on ordinary exit. Run:
 
 ```sh
-systemctl --user list-units 'harness-verify-*' --state=running
-systemd-run --user --scope --slice=dev-exec.slice \
-  --unit=harness-verify-$(date +%s) \
-  -p MemoryHigh=2G -p MemoryMax=4G -p MemorySwapMax=1G \
-  ./scripts/verify all
+./scripts/verify all
 ```
 
 CI uses one job, the same command, and a 15-minute timeout. No browser, Electron,
