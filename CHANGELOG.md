@@ -1,3 +1,10 @@
+## [0.1.9](https://github.com/misty-step/harness/compare/v0.1.8...v0.1.9) (2026-09-18)
+
+
+### Features
+
+* **omp-config:** implement continuous semantic diff review and security sentinel (US-005) ([c0a607f](https://github.com/misty-step/harness/commit/c0a607fd4d3a9aabfaefa1677c2e6359a3523e0d))
+
 ## [0.1.8](https://github.com/misty-step/harness/compare/v0.1.7...v0.1.8) (2026-09-18)
 
 
