@@ -574,6 +574,18 @@ export class HeuristicEngine implements SystemOneProvider {
 					prob = 0.05;
 				} else if (key === "user_visible_impact") {
 					prob = 0.90;
+				} else if (key === "hickey_complecting") {
+					if (/complect|braided_state|intertwined/i.test(state)) {
+						prob = 0.90;
+					}
+				} else if (key === "erasure") {
+					if (/deletable_feature|speculative_flag/i.test(state)) {
+						prob = 0.88;
+					}
+				} else if (key === "small_app") {
+					if (/kernel_framework|monolithic_platform/i.test(state)) {
+						prob = 0.89;
+					}
 				} else if (key === "test_asserts_implementation") {
 					if (/(?:toHaveBeenCalledWith|calledTimes|spyOn\([^)]*\)\.mock)/.test(state)) {
 						prob = 0.87;
