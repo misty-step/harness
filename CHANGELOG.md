@@ -1,3 +1,10 @@
+## [0.1.16](https://github.com/misty-step/harness/compare/v0.1.15...v0.1.16) (2026-09-18)
+
+
+### Features
+
+* **visual-state-review:** capture every named UI state (US-006) ([#5](https://github.com/misty-step/harness/issues/5)) ([fedc266](https://github.com/misty-step/harness/commit/fedc266c0be0a2d31104cd64361f5a304f80644b))
+
 ## [0.1.15](https://github.com/misty-step/harness/compare/v0.1.14...v0.1.15) (2026-09-18)
 
 
