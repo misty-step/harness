@@ -1,3 +1,10 @@
+## [0.1.7](https://github.com/misty-step/harness/compare/v0.1.6...v0.1.7) (2026-09-18)
+
+
+### Bug Fixes
+
+* **omp-config:** restore subscription route preference to global guidance ([7d419fc](https://github.com/misty-step/harness/commit/7d419fcf6244610f480348c66c5b669215eb3f21))
+
 ## [0.1.6](https://github.com/misty-step/harness/compare/v0.1.5...v0.1.6) (2026-09-18)
 
 
