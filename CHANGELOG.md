@@ -1,3 +1,10 @@
+## [0.1.10](https://github.com/misty-step/harness/compare/v0.1.9...v0.1.10) (2026-09-18)
+
+
+### Features
+
+* **omp-config:** wire OpenRouter typesafe/jev-1.13 into semantic diff review (US-005) ([63202bd](https://github.com/misty-step/harness/commit/63202bd36fb7e51ed559488b2d8706c9d0a30d89))
+
 ## [0.1.9](https://github.com/misty-step/harness/compare/v0.1.8...v0.1.9) (2026-09-18)
 
 
