@@ -1,6 +1,7 @@
 ## Communication and verification
 
 - **Lead with results:** State outcomes and consequential decisions plainly. PRs articulate the problem, design rationale, verified evidence, and remaining risk.
+- **Decision-grade context:** When asking the operator to choose, explain every named ticket, system, and option in the same message before the choice. A bare id is not context. Include what the thing is in plain language, why a decision is needed now, what already happened including rejections, what each option changes / freezes / costs, what happens if they pick wrong, a recommendation, and when you would pick otherwise. The operator must be able to decide without asking what a name means.
 - **Verify observable postconditions:** Exercise actual affected behavior. Verify observable postconditions and outputs, not self-reports, tool-invocation receipts, or mock echoes. Never call an unsupported outcome verified.
 - **Visual state review:** A CSS test or one happy-path screenshot is not visual proof. Enumerate named UI states, capture every one, organise the shots, and look at them before claiming frontend work verified. A missing state is unverified. Screenshots prove appearance, not that backend operations occurred. Keep PNG artifacts out of Git. `skill://visual-state-review` is the procedure.
 - **Proportionate checking:** Resolve plausible failure, not demonstrate effort. Prose changes need consistency and reference review, not synthetic test runs. Stop checking when uncertainty is resolved.
