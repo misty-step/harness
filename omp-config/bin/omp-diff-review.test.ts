@@ -1,11 +1,17 @@
 import { describe, expect, test } from "bun:test";
 import {
 	evaluateDiff,
+	getGitDiff,
 	HeuristicEngine,
 	parseDiffStats,
 	resolveProvider,
 	TypeSafeJevProvider,
 	OpenRouterJevProvider,
+	splitDiffIntoFiles,
+	bundleDiffChunks,
+	routeBatteryForChunk,
+	generateStructuralMap,
+	HARNESS_BATTERY,
 } from "./omp-diff-review.ts";
 
 describe("Diff Review - Line Statistics Parser", () => {
@@ -286,6 +292,122 @@ describe("Diff Review - Providers & Resolution", () => {
 			}
 		} finally {
 			globalThis.fetch = originalFetch;
+		}
+	});
+});
+
+describe("Diff Review - Semantic Chunking & Routing", () => {
+	test("splitDiffIntoFiles splits unified diff into distinct files", () => {
+		const sampleDiff = `diff --git a/src/a.ts b/src/a.ts
+--- a/src/a.ts
++++ b/src/a.ts
+@@ -1,1 +1,2 @@
++const a = 1;
+diff --git a/src/b.ts b/src/b.ts
+--- a/src/b.ts
++++ b/src/b.ts
+@@ -1,1 +1,2 @@
++const b = 2;
+`;
+		const files = splitDiffIntoFiles(sampleDiff);
+		expect(files.length).toBe(2);
+		expect(files[0].path).toBe("src/a.ts");
+		expect(files[1].path).toBe("src/b.ts");
+	});
+
+	test("bundleDiffChunks bundles small files together under char limit", () => {
+		const files = [
+			{ path: "src/a.ts", diff: "diff A content", linesAdded: 1, linesRemoved: 0 },
+			{ path: "src/b.ts", diff: "diff B content", linesAdded: 1, linesRemoved: 0 },
+		];
+		const chunks = bundleDiffChunks(files, 500);
+		expect(chunks.length).toBe(1);
+		expect(chunks[0].paths).toEqual(["src/a.ts", "src/b.ts"]);
+	});
+
+	test("routeBatteryForChunk omits code architecture rules on doc-only chunks", () => {
+		const docBattery = routeBatteryForChunk(HARNESS_BATTERY, ["README.md", "docs/architecture.md"]);
+		expect(docBattery.torvalds_taste).toBeUndefined();
+		expect(docBattery.ousterhout_complexity).toBeUndefined();
+		expect(docBattery.credential_leak).toBeDefined();
+	});
+
+	test("routeBatteryForChunk omits tests_missing rule on test-only chunks", () => {
+		const testBattery = routeBatteryForChunk(HARNESS_BATTERY, [
+			"src/math.test.ts",
+			"tests/integration.test.ts",
+		]);
+		expect(testBattery.tests_missing).toBeUndefined();
+		expect(testBattery.credential_leak).toBeDefined();
+	});
+
+	test("generateStructuralMap extracts symbols and stats concisely", () => {
+		const sampleDiff = `diff --git a/src/math.ts b/src/math.ts
+new file mode 100644
+--- /dev/null
++++ b/src/math.ts
+@@ -0,0 +1,5 @@
++export function add(a: number, b: number): number {
++	return a + b;
++}
++export const PI = 3.14159;
+`;
+		const map = generateStructuralMap(sampleDiff);
+		expect(map).toContain("Structural Diff Map");
+		expect(map).toContain("src/math.ts");
+		expect(map).toContain("add");
+	});
+
+	test("evaluateDiff evaluates multi-chunk diffs in parallel without truncating", async () => {
+		const engine = new HeuristicEngine();
+		const multiFileDiff = `diff --git a/src/one.ts b/src/one.ts
+--- a/src/one.ts
++++ b/src/one.ts
+@@ -1,1 +1,2 @@
++export function one() { return 1; }
+diff --git a/src/two.ts b/src/two.ts
+--- a/src/two.ts
++++ b/src/two.ts
+@@ -1,1 +1,2 @@
++export function two() { return 2; }
+`;
+		const verdict = await evaluateDiff(multiFileDiff, { provider: engine, chunkSize: 100 });
+		expect(verdict.passed).toBe(true);
+		expect(verdict.summary).toContain("across 4 chunk(s)");
+	});
+
+	test("getGitDiff includes untracked files by default and excludes them when disabled", () => {
+		const { mkdtempSync, rmSync, writeFileSync } = require("node:fs");
+		const { tmpdir } = require("node:os");
+		const { join } = require("node:path");
+		const { spawnSync } = require("node:child_process");
+
+		const tmp = mkdtempSync(join(tmpdir(), "harness-diff-untracked-"));
+		try {
+			spawnSync("git", ["init"], { cwd: tmp });
+			spawnSync("git", ["config", "user.email", "test@example.com"], { cwd: tmp });
+			spawnSync("git", ["config", "user.name", "Test User"], { cwd: tmp });
+
+			writeFileSync(join(tmp, "tracked.txt"), "line 1\n");
+			spawnSync("git", ["add", "tracked.txt"], { cwd: tmp });
+			spawnSync("git", ["commit", "-m", "initial"], { cwd: tmp });
+
+			writeFileSync(join(tmp, "tracked.txt"), "line 1\nline 2\n");
+			writeFileSync(join(tmp, "untracked.txt"), "brand new untracked content\n");
+
+			// 1. Default (includeUntracked: true) sees both
+			const fullDiff = getGitDiff({ cwd: tmp });
+			expect(fullDiff).toContain("tracked.txt");
+			expect(fullDiff).toContain("line 2");
+			expect(fullDiff).toContain("untracked.txt");
+			expect(fullDiff).toContain("brand new untracked content");
+
+			// 2. includeUntracked: false sees only tracked
+			const trackedOnly = getGitDiff({ cwd: tmp, includeUntracked: false });
+			expect(trackedOnly).toContain("tracked.txt");
+			expect(trackedOnly).not.toContain("untracked.txt");
+		} finally {
+			rmSync(tmp, { recursive: true, force: true });
 		}
 	});
 });

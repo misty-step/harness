@@ -111,8 +111,12 @@ Criteria:
 6. WHEN testing offline or without remote keys, THE SYSTEM SHALL evaluate using
    deterministic heuristics only under explicit request (`--provider heuristic` or
    `MOCK_SYSTEM_ONE=1`).
+7. WHEN reviewing working tree diffs, THE SYSTEM SHALL include untracked files
+   by default unless explicitly disabled.
+8. WHEN a diff exceeds context limits, THE SYSTEM SHALL chunk changes by file
+   and hunk boundaries, evaluating chunks in parallel without truncation.
 
 No-gos: no fabricated probability or confidence numbers in live sessions; no
-live credential storage on disk; no uncredentialed blocking of interactive turns.
-
+live credential storage on disk; no uncredentialed blocking of interactive turns;
+no silent truncation of multi-file diffs.
 Evidence: `omp-config/bin/omp-diff-review.test.ts`, `omp-config/extensions/diff-review/diff-review.test.ts`, `pi-config/extensions/diff-review/diff-review.test.ts`

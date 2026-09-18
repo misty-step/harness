@@ -306,7 +306,43 @@ export const VERIFICATION_BATTERY: Record<string, Question> = {
 	},
 };
 
-export type BatteryName = "all" | "security" | "taste" | "pokayoke" | "strategy" | "verification";
+export const MACRO_BATTERY: Record<string, Question> = {
+	blast_radius: {
+		type: "choice",
+		instructions:
+			"Classify the blast radius of this changeset based on the structural map of modified files and symbols.",
+		criteria: {
+			isolated_leaf: "Localized change affecting a single component, leaf utility, or isolated test",
+			module_internal: "Internal module or feature implementation without breaking external public API contracts",
+			cross_cutting: "Touches shared protocols, core configuration, authentication, or cross-cutting subsystems",
+			architectural_shift: "Major refactor, framework expansion, or fundamental structural migration",
+		},
+	},
+	primary_risk_area: {
+		type: "choice",
+		instructions:
+			"Identify the primary risk domain that requires closest semantic scrutiny in this diff.",
+		criteria: {
+			credentials_or_auth: "Touches security, tokens, secrets, keyrings, or permissions",
+			correctness_and_logic: "Touches business logic, decision gates, state transitions, or algorithm correctness",
+			breaking_api_change: "Alters public types, signatures, CLI flags, or wire schemas",
+			test_and_docs_only: "Low risk: changes are limited to tests, documentation, or static assets",
+			low_risk_cosmetic: "Minimal risk: comments, typos, or minor styling adjustments",
+		},
+	},
+	recommended_review_depth: {
+		type: "choice",
+		instructions:
+			"What level of System One semantic review does this changeset warrant?",
+		criteria: {
+			fast_security_gate: "Security-only pass is sufficient (docs, tests, or trivial changes)",
+			standard_review: "Standard multi-battery review across taste, pokayoke, and verification",
+			deep_hierarchical_review: "Deep multi-chunk review with strict invariant enforcement",
+		},
+	},
+};
+
+export type BatteryName = "all" | "security" | "taste" | "pokayoke" | "strategy" | "verification" | "macro";
 
 export const BATTERIES: Record<BatteryName, Record<string, Question>> = {
 	security: SECURITY_BATTERY,
@@ -314,6 +350,7 @@ export const BATTERIES: Record<BatteryName, Record<string, Question>> = {
 	pokayoke: POKAYOKE_BATTERY,
 	strategy: STRATEGY_BATTERY,
 	verification: VERIFICATION_BATTERY,
+	macro: MACRO_BATTERY,
 	all: {
 		...SECURITY_BATTERY,
 		...TASTE_BATTERY,
@@ -720,6 +757,264 @@ export function parseDiffStats(diffText: string): {
 	};
 }
 
+export interface FileDiffChunk {
+	path: string;
+	diff: string;
+	linesAdded: number;
+	linesRemoved: number;
+}
+
+export interface DiffChunk {
+	id: string;
+	diff: string;
+	paths: string[];
+}
+
+/**
+ * Split unified diff text into per-file chunks.
+ */
+export function splitDiffIntoFiles(diffText: string): FileDiffChunk[] {
+	const chunks: FileDiffChunk[] = [];
+	const lines = diffText.split("\n");
+	let currentPath = "unknown";
+	let currentLines: string[] = [];
+	let added = 0;
+	let removed = 0;
+
+	for (const line of lines) {
+		if (line.startsWith("diff --git ")) {
+			if (currentLines.length > 0) {
+				chunks.push({
+					path: currentPath,
+					diff: currentLines.join("\n"),
+					linesAdded: added,
+					linesRemoved: removed,
+				});
+				currentLines = [];
+				added = 0;
+				removed = 0;
+			}
+			const match = line.match(/^diff --git a\/\S+ b\/(\S+)/);
+			currentPath = match ? match[1] : "unknown";
+		}
+		if (line.startsWith("+") && !line.startsWith("+++")) added++;
+		if (line.startsWith("-") && !line.startsWith("---")) removed++;
+		currentLines.push(line);
+	}
+	if (currentLines.length > 0) {
+		chunks.push({
+			path: currentPath,
+			diff: currentLines.join("\n"),
+			linesAdded: added,
+			linesRemoved: removed,
+		});
+	}
+	return chunks;
+}
+
+function splitFileByHunks(file: FileDiffChunk, maxChunkChars: number): DiffChunk[] {
+	const lines = file.diff.split("\n");
+	const headerLines: string[] = [];
+	let i = 0;
+	while (i < lines.length && !lines[i].startsWith("@@ ")) {
+		headerLines.push(lines[i]);
+		i++;
+	}
+	const header = headerLines.join("\n");
+
+	const hunks: string[] = [];
+	let currentHunk: string[] = [];
+	for (; i < lines.length; i++) {
+		if (lines[i].startsWith("@@ ") && currentHunk.length > 0) {
+			hunks.push(currentHunk.join("\n"));
+			currentHunk = [];
+		}
+		currentHunk.push(lines[i]);
+	}
+	if (currentHunk.length > 0) {
+		hunks.push(currentHunk.join("\n"));
+	}
+
+	if (hunks.length <= 1) {
+		const slices: DiffChunk[] = [];
+		let pos = 0;
+		let idx = 1;
+		while (pos < file.diff.length) {
+			const sliceText = file.diff.slice(pos, pos + maxChunkChars);
+			slices.push({
+				id: `${file.path}-part-${idx++}`,
+				diff: `[File: ${file.path} | Part ${idx - 1}]\n${sliceText}`,
+				paths: [file.path],
+			});
+			pos += maxChunkChars;
+		}
+		return slices;
+	}
+
+	const result: DiffChunk[] = [];
+	let batch: string[] = [];
+	let batchLen = header.length;
+
+	for (const hunk of hunks) {
+		if (batchLen + hunk.length > maxChunkChars && batch.length > 0) {
+			result.push({
+				id: `${file.path}-hunks-${result.length + 1}`,
+				diff: `${header}\n${batch.join("\n")}`,
+				paths: [file.path],
+			});
+			batch = [];
+			batchLen = header.length;
+		}
+		batch.push(hunk);
+		batchLen += hunk.length + 1;
+	}
+	if (batch.length > 0) {
+		result.push({
+			id: `${file.path}-hunks-${result.length + 1}`,
+			diff: `${header}\n${batch.join("\n")}`,
+			paths: [file.path],
+		});
+	}
+	return result;
+}
+
+/**
+ * Group file diffs into size-bounded bundles.
+ */
+export function bundleDiffChunks(files: FileDiffChunk[], maxChunkChars = 20000): DiffChunk[] {
+	if (files.length === 0) return [];
+
+	const chunks: DiffChunk[] = [];
+	let currentBatch: FileDiffChunk[] = [];
+	let currentLength = 0;
+
+	for (const file of files) {
+		if (file.diff.length > maxChunkChars) {
+			if (currentBatch.length > 0) {
+				chunks.push({
+					id: `bundle-${chunks.length + 1}`,
+					diff: currentBatch.map((f) => f.diff).join("\n\n"),
+					paths: currentBatch.map((f) => f.path),
+				});
+				currentBatch = [];
+				currentLength = 0;
+			}
+			const hunkChunks = splitFileByHunks(file, maxChunkChars);
+			chunks.push(...hunkChunks);
+			continue;
+		}
+
+		if (currentLength + file.diff.length > maxChunkChars && currentBatch.length > 0) {
+			chunks.push({
+				id: `bundle-${chunks.length + 1}`,
+				diff: currentBatch.map((f) => f.diff).join("\n\n"),
+				paths: currentBatch.map((f) => f.path),
+			});
+			currentBatch = [];
+			currentLength = 0;
+		}
+
+		currentBatch.push(file);
+		currentLength += file.diff.length;
+	}
+
+	if (currentBatch.length > 0) {
+		chunks.push({
+			id: `bundle-${chunks.length + 1}`,
+			diff: currentBatch.map((f) => f.diff).join("\n\n"),
+			paths: currentBatch.map((f) => f.path),
+		});
+	}
+
+	return chunks;
+}
+
+/**
+ * Filter question batteries to match the semantic domain of files in the chunk.
+ */
+export function routeBatteryForChunk(
+	baseBattery: Record<string, Question>,
+	paths: string[],
+): Record<string, Question> {
+	const isAllDocs =
+		paths.length > 0 &&
+		paths.every((p) => p.endsWith(".md") || p.endsWith(".txt") || p.startsWith("docs/"));
+	const isAllTests =
+		paths.length > 0 &&
+		paths.every(
+			(p) =>
+				p.includes("test") ||
+				p.endsWith(".test.ts") ||
+				p.endsWith(".test.js") ||
+				p.endsWith("_test.go") ||
+				p.endsWith("_test.py"),
+		);
+
+	if (isAllDocs) {
+		const routed = { ...baseBattery };
+		delete routed.torvalds_taste;
+		delete routed.ousterhout_complexity;
+		delete routed.needless_abstraction;
+		delete routed.incomplete_cutover;
+		delete routed.fails_open;
+		return routed;
+	}
+
+	if (isAllTests) {
+		const routed = { ...baseBattery };
+		delete routed.tests_missing;
+		return routed;
+	}
+
+	return baseBattery;
+}
+
+/**
+ * Generate a compact structural AST/symbol map of a diff for macro-level triage.
+ */
+export function generateStructuralMap(diffText: string): string {
+	const files = splitDiffIntoFiles(diffText);
+	const stats = parseDiffStats(diffText);
+
+	let map = `# Structural Diff Map\n`;
+	map += `Files changed: ${stats.filesChanged}, Additions: +${stats.linesAdded}, Deletions: -${stats.linesRemoved}\n\n`;
+	map += `## File Manifest\n`;
+
+	for (const f of files) {
+		const isNew = f.diff.includes("new file mode");
+		const isDeleted = f.diff.includes("deleted file mode");
+		const status = isNew ? "added" : isDeleted ? "deleted" : "modified";
+
+		const symbols: string[] = [];
+		for (const line of f.diff.split("\n")) {
+			if (line.startsWith("+") && !line.startsWith("+++")) {
+				const trimmed = line.slice(1).trim();
+				if (
+					trimmed.startsWith("export function ") ||
+					trimmed.startsWith("function ") ||
+					trimmed.startsWith("export class ") ||
+					trimmed.startsWith("class ") ||
+					trimmed.startsWith("pub fn ") ||
+					trimmed.startsWith("pub struct ") ||
+					trimmed.startsWith("pub enum ") ||
+					trimmed.startsWith("export interface ") ||
+					trimmed.startsWith("export type ") ||
+					trimmed.startsWith("export const ")
+				) {
+					const name = trimmed.split(/[(<{\s]/)[2] || trimmed.slice(0, 30);
+					if (name && !symbols.includes(name)) symbols.push(name);
+				}
+			}
+		}
+
+		const symText = symbols.length > 0 ? ` (symbols: ${symbols.slice(0, 4).join(", ")})` : "";
+		map += `- \`${f.path}\` [${status}] (+${f.linesAdded}/-${f.linesRemoved})${symText}\n`;
+	}
+
+	return map;
+}
+
+
 /**
  * Core Review Evaluator: Dispatches battery and applies confidence-gated thresholds.
  *
@@ -737,6 +1032,7 @@ export async function evaluateDiff(
 		battery?: Record<string, Question>;
 		batteryName?: BatteryName;
 		timeoutMs?: number;
+		chunkSize?: number;
 	} = {},
 ): Promise<ReviewVerdict> {
 	const stats = parseDiffStats(diffText);
@@ -771,52 +1067,148 @@ export async function evaluateDiff(
 		};
 	}
 
-	// Bounded state slice to protect against context window overflow.
-	// Cap to 24,000 characters (~6k tokens) to stay well within Jev's prompt limit.
-	const maxChars = 24000;
-	const boundedDiff =
-		diffText.length > maxChars
-			? diffText.slice(0, maxChars) + "\n\n[... diff truncated for System One context limit ...]"
-			: diffText;
+	const maxChunkChars = options.chunkSize ?? 20000;
+	const files = splitDiffIntoFiles(diffText);
+	const chunks =
+		diffText.length <= maxChunkChars
+			? [{ id: "single", diff: diffText, paths: files.map((f) => f.path) }]
+			: bundleDiffChunks(files, maxChunkChars);
 
 	const battery =
 		options.battery ??
 		(options.batteryName ? BATTERIES[options.batteryName] ?? HARNESS_BATTERY : HARNESS_BATTERY);
 	const start = Date.now();
 
-	let answers: Record<string, Answer>;
-	try {
-		answers = await provider.evaluate(boundedDiff, battery, options.timeoutMs);
-	} catch (err) {
-		const latencyMs = Date.now() - start;
-		return {
-			passed: true,
-			clean: false,
-			enabled: true,
-			provider: provider.name,
-			latencyMs,
-			stats,
-			blocks: [],
-			warnings: [
-				{
-					rule: "provider_error",
-					category: "verification",
-					severity: "warning",
-					message: `System One provider error: ${err instanceof Error ? err.message : String(err)}`,
-					evidence: "Non-fatal provider error during review",
-					probability: 0,
-					confidence: 0,
-				},
-			],
-			summary: `Review skipped hard gating due to provider error: ${err instanceof Error ? err.message : String(err)}`,
-		};
-	}
+	const chunkResults = await Promise.all(
+		chunks.map(async (chunk) => {
+			const chunkBattery = options.battery ? options.battery : routeBatteryForChunk(battery, chunk.paths);
+			try {
+				const answers = await provider.evaluate(chunk.diff, chunkBattery, options.timeoutMs);
+				return { chunk, answers, error: null };
+			} catch (err) {
+				return { chunk, answers: null, error: err };
+			}
+		}),
+	);
 
 	const latencyMs = Date.now() - start;
 	const blocks: RuleFinding[] = [];
 	const warnings: RuleFinding[] = [];
 
-	// Evaluate Rules against Confidence-Gated Hard & Soft Thresholds
+	for (const res of chunkResults) {
+		if (res.error) {
+			warnings.push({
+				rule: "provider_error",
+				category: "verification",
+				severity: "warning",
+				message: `System One provider error on ${res.chunk.id}: ${res.error instanceof Error ? res.error.message : String(res.error)}`,
+				evidence: `Paths: ${res.chunk.paths.join(", ")}`,
+				probability: 0,
+				confidence: 0,
+			});
+			continue;
+		}
+
+		if (res.answers) {
+			const findings = parseRuleFindings(res.answers);
+			for (const b of findings.blocks) {
+				if (!blocks.some((existing) => existing.rule === b.rule && existing.message === b.message)) {
+					blocks.push(b);
+				}
+			}
+			for (const w of findings.warnings) {
+				if (!warnings.some((existing) => existing.rule === w.rule && existing.message === w.message)) {
+					warnings.push(w);
+				}
+			}
+		}
+	}
+
+	const passed = blocks.length === 0;
+	const clean = blocks.length === 0 && warnings.length === 0;
+	const chunkInfo = chunks.length > 1 ? ` across ${chunks.length} chunk(s)` : "";
+	const summary = clean
+		? `Review PASSED cleanly (${latencyMs}ms, ${provider.name}${chunkInfo}).`
+		: passed
+			? `Review PASSED with ${warnings.length} warning(s) (${latencyMs}ms, ${provider.name}${chunkInfo}).`
+			: `Review BLOCKED by ${blocks.length} rule violation(s) (${latencyMs}ms, ${provider.name}${chunkInfo}).`;
+
+	return {
+		passed,
+		clean,
+		enabled: true,
+		provider: provider.name,
+		latencyMs,
+		stats,
+		blocks,
+		warnings,
+		summary,
+	};
+}
+
+/**
+ * Fetch git diff from repository (including untracked files by default).
+ */
+export function getGitDiff(options: {
+	staged?: boolean;
+	commit?: string;
+	range?: string;
+	path?: string;
+	includeUntracked?: boolean;
+	cwd?: string;
+} = {}): string {
+	const args = ["diff"];
+	if (options.staged) {
+		args.push("--cached");
+	} else if (options.commit) {
+		return spawnSync("git", ["show", options.commit], { encoding: "utf8", cwd: options.cwd }).stdout ?? "";
+	} else if (options.range) {
+		args.push(options.range);
+	} else {
+		args.push("HEAD");
+	}
+
+	if (options.path) {
+		args.push("--", options.path);
+	}
+
+	const res = spawnSync("git", args, { encoding: "utf8", cwd: options.cwd });
+	let diff = res.stdout ?? "";
+
+	if (options.includeUntracked !== false && !options.staged && !options.commit && !options.range) {
+		const untrackedArgs = ["ls-files", "--others", "--exclude-standard"];
+		if (options.path) {
+			untrackedArgs.push("--", options.path);
+		}
+		const untrackedRes = spawnSync("git", untrackedArgs, { encoding: "utf8", cwd: options.cwd });
+		const untrackedFiles = (untrackedRes.stdout ?? "")
+			.split("\n")
+			.map((f) => f.trim())
+			.filter((f) => f.length > 0);
+
+		for (const file of untrackedFiles) {
+			const fileDiff = spawnSync("git", ["diff", "--no-index", "--", "/dev/null", file], {
+				encoding: "utf8",
+				cwd: options.cwd,
+			});
+			if (fileDiff.stdout) {
+				diff += (diff.length > 0 ? "\n" : "") + fileDiff.stdout;
+			}
+		}
+	}
+
+	return diff;
+}
+
+/**
+ * Parse System One decision answers into rule findings according to confidence thresholds.
+ */
+export function parseRuleFindings(answers: Record<string, Answer>): {
+	blocks: RuleFinding[];
+	warnings: RuleFinding[];
+} {
+	const blocks: RuleFinding[] = [];
+	const warnings: RuleFinding[] = [];
 	for (const [key, ans] of Object.entries(answers)) {
 		if (ans.type === "noul") {
 			const p = ans.probability;
@@ -1183,53 +1575,5 @@ export async function evaluateDiff(
 		}
 	}
 
-	const passed = blocks.length === 0;
-	const clean = blocks.length === 0 && warnings.length === 0;
-	const summary = clean
-		? `Review PASSED cleanly (${latencyMs}ms, ${provider.name}).`
-		: passed
-			? `Review PASSED with ${warnings.length} warning(s) (${latencyMs}ms, ${provider.name}).`
-			: `Review BLOCKED by ${blocks.length} rule violation(s) (${latencyMs}ms, ${provider.name}).`;
-
-	return {
-		passed,
-		clean,
-		enabled: true,
-		provider: provider.name,
-		latencyMs,
-		stats,
-		blocks,
-		warnings,
-		summary,
-	};
-}
-
-/**
- * Fetch git diff from repository.
- */
-export function getGitDiff(options: {
-	staged?: boolean;
-	commit?: string;
-	range?: string;
-	path?: string;
-}): string {
-	const args = ["diff"];
-	if (options.staged) {
-		args.push("--cached");
-	} else if (options.commit) {
-		return (
-			spawnSync("git", ["show", options.commit], { encoding: "utf8" }).stdout ?? ""
-		);
-	} else if (options.range) {
-		args.push(options.range);
-	} else {
-		args.push("HEAD");
-	}
-
-	if (options.path) {
-		args.push("--", options.path);
-	}
-
-	const res = spawnSync("git", args, { encoding: "utf8" });
-	return res.stdout ?? "";
+	return { blocks, warnings };
 }

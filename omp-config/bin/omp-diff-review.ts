@@ -21,8 +21,12 @@ import {
 	OpenRouterJevProvider,
 	HeuristicEngine,
 	parseDiffStats,
+	splitDiffIntoFiles,
+	bundleDiffChunks,
+	routeBatteryForChunk,
+	generateStructuralMap,
+	MACRO_BATTERY,
 } from "../extensions/diff-review/engine.ts";
-
 import type {
 	SystemOneProvider,
 	ReviewVerdict,
@@ -49,8 +53,12 @@ export {
 	OpenRouterJevProvider,
 	HeuristicEngine,
 	parseDiffStats,
+	splitDiffIntoFiles,
+	bundleDiffChunks,
+	routeBatteryForChunk,
+	generateStructuralMap,
+	MACRO_BATTERY,
 };
-
 export type {
 	SystemOneProvider,
 	ReviewVerdict,
