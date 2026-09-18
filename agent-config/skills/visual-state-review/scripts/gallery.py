@@ -30,11 +30,16 @@ def load_manifest(path: Path) -> dict[str, Any]:
     states = data.get("states")
     if not isinstance(states, list) or not states:
         raise SystemExit("gallery: manifest.states must be a non-empty array")
+    seen_ids: set[str] = set()
     for i, state in enumerate(states):
         if not isinstance(state, dict):
             raise SystemExit(f"gallery: states[{i}] must be an object")
-        if not str(state.get("id") or "").strip():
+        state_id = str(state.get("id") or "").strip()
+        if not state_id:
             raise SystemExit(f"gallery: states[{i}].id is required")
+        if state_id in seen_ids:
+            raise SystemExit(f"gallery: duplicate state id {state_id}")
+        seen_ids.add(state_id)
         if not str(state.get("file") or "").strip():
             raise SystemExit(f"gallery: states[{i}].file is required")
         status = str(state.get("status") or "captured").strip().lower()
@@ -275,7 +280,9 @@ def write_png(path: Path, width: int = 1, height: int = 1) -> None:
 
 
 def self_test() -> int:
-    with tempfile.TemporaryDirectory(prefix="visual-state-review-") as raw:
+    base = os.environ.get("TMPDIR") or str(Path.home() / ".cache" / "tmp")
+    Path(base).mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix="visual-state-review-", dir=base) as raw:
         root = Path(raw)
         png = root / "01-home.png"
         write_png(png)

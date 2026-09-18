@@ -53,6 +53,24 @@ test("US-006 --check fails when a captured file is missing", () => {
 	expect(result.err).toContain("unverified");
 });
 
+test("US-006 duplicate state ids fail closed", () => {
+	const root = dir();
+	const manifest = join(root, "manifest.json");
+	writeFileSync(
+		manifest,
+		JSON.stringify({
+			title: "Dup",
+			states: [
+				{ id: "01-home", file: "a.png", status: "skipped", reason: "x" },
+				{ id: "01-home", file: "b.png", status: "skipped", reason: "y" },
+			],
+		}),
+	);
+	const result = run([manifest, "--check"]);
+	expect(result.code).toBe(1);
+	expect(result.err).toContain("duplicate state id");
+});
+
 test("US-006 skipped state requires a reason", () => {
 	const root = dir();
 	const manifest = join(root, "manifest.json");
