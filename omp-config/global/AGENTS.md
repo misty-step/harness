@@ -22,8 +22,9 @@ V4.1 Flash builds (task), and Gemini 3.8 Flash verifies (reviewer/vision).
 Cerebras Qwen3.8 27B serves the cheap tier (`smol`, `tiny`, `commit`). Astra is
 strategic, not default: reserved for `@slow`, `@extreme`, and `security-reviewer`.
 Mechanical VCS and install-only deploys require sonic (`@smol`). Model selections
-and provider-failure chains live in `config.yml`. Role routing does not switch
-the current session's selected model.
+and provider-failure chains live in `config.yml`; exhaust configured subscription
+routes before paid OpenRouter recovery. Role routing does not switch the current
+session's selected model.
 
 Repository code, tests, and versioned docs own technical truth; work records
 track priorities, owners, and blockers. Delete unnecessary code, state, and
