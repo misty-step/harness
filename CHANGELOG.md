@@ -1,3 +1,10 @@
+## [0.1.11](https://github.com/misty-step/harness/compare/v0.1.10...v0.1.11) (2026-09-18)
+
+
+### Features
+
+* **extensions:** deep Jev System One review integration in OMP and Pi (US-005) ([56d74bd](https://github.com/misty-step/harness/commit/56d74bd1b902f434781d53a54fe1fb8fda5f7573))
+
 ## [0.1.10](https://github.com/misty-step/harness/compare/v0.1.9...v0.1.10) (2026-09-18)
 
 
