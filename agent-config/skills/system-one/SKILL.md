@@ -116,16 +116,28 @@ def ask_jev(state: str, questions: dict, api_key: str = None) -> dict:
 ### Pattern A: Relationalizing Unstructured Streams (SQLite / Postgres)
 Convert messy prose into structured, B-tree indexable relational columns on ingest:
 
-```sql
--- In SQLite / Postgres ingestion pipelines:
-INSERT INTO tickets (id, body, category, is_urgent)
-VALUES (
-  $1, $2,
-  jev_choice($2, 'billing', 'technical', 'sales', 'other'),
-  jev_noul($2, 'Customer states service is completely down')
-);
--- Instant SQL filtering with zero vector search overhead:
-SELECT * FROM tickets WHERE category = 'technical' AND is_urgent = 1;
+```python
+# In Python / Node ingest worker before inserting into SQLite / Postgres:
+verdict = ask_jev(raw_ticket_body, {
+    "category": {
+        "type": "choice",
+        "instructions": "Classify department",
+        "criteria": {"billing": None, "technical": None, "sales": None, "other": None}
+    },
+    "is_urgent": {
+        "type": "noul",
+        "instructions": "Is service completely down or time-critical?"
+    }
+})
+
+# Stored into native relational columns:
+cursor.execute(
+    "INSERT INTO tickets (body, category, is_urgent) VALUES (?, ?, ?)",
+    (raw_ticket_body, verdict["answers"]["category"]["choice"], verdict["answers"]["is_urgent"]["noul"] > 0.8)
+)
+
+# Instant SQL B-tree filtering with zero vector search overhead:
+# SELECT * FROM tickets WHERE category = 'technical' AND is_urgent = 1;
 ```
 
 ### Pattern B: Candidate Selection Replacing Open-Ended Generation
