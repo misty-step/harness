@@ -450,7 +450,7 @@ font licenses. The external `frontend-design` and `show-me` packages stay verbat
 
 ## Skills and agents
 
-Seven homebrew skills are explicitly invoked:
+Eight homebrew skills are explicitly invoked:
 
 | Command | Outcome |
 | --- | --- |
@@ -461,6 +461,7 @@ Seven homebrew skills are explicitly invoked:
 | `/skill:pokayoke` | Make a class of error impossible (shape, type, ownership, missing affordance, or a failing-closed check) instead of warning about it |
 | `/skill:decide` | Synthesize current context, tradeoffs, and candidate paths into an executive decision brief |
 | `/skill:user-stories` | Draft, extend, or reconcile a repository's root user stories |
+| `/skill:visual-state-review` | Capture every named UI state as screenshots, organise them, and look before claiming frontend work verified |
 
 `disable-model-invocation: true` hides these descriptions from the automatic
 skill index. It does not prevent an explicit `skill://` read or grant authority

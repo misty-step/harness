@@ -120,3 +120,24 @@ No-gos: no fabricated probability or confidence numbers in live sessions; no
 live credential storage on disk; no uncredentialed blocking of interactive turns;
 no silent truncation of multi-file diffs.
 Evidence: `omp-config/bin/omp-diff-review.test.ts`, `omp-config/extensions/diff-review/diff-review.test.ts`, `pi-config/extensions/diff-review/diff-review.test.ts`
+
+## Capability: Visual verification
+
+## US-006 Review named UI states
+
+Statement: When I ship a visual change, I want every named UI state captured
+and organised, so I can see how each state looks before the work is called
+verified.
+
+Criteria:
+1. WHEN frontend work is claimed verified, THE SYSTEM SHALL present a named-state
+   matrix whose captured files match the declared state list.
+2. WHEN a declared captured state has no screenshot, THE SYSTEM SHALL treat that
+   state as unverified and `scripts/gallery.py --check` SHALL exit nonzero.
+3. WHEN a state cannot be produced, THE SYSTEM SHALL record it as skipped with a
+   reason rather than omit it.
+4. THE SYSTEM SHALL keep PNG capture artifacts out of Git by default.
+
+No-gos: not a pixel-diff CI product; not a replacement for journey tests.
+
+Evidence: `agent-config/skills/visual-state-review/scripts/gallery.test.ts`
