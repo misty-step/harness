@@ -1,3 +1,10 @@
+## [0.1.8](https://github.com/misty-step/harness/compare/v0.1.7...v0.1.8) (2026-09-18)
+
+
+### Features
+
+* **omp-config:** implement continuous System One diff review and security sentinel ([4b1d04b](https://github.com/misty-step/harness/commit/4b1d04b104aed317d570f2b3d9372b890c2f8aa7))
+
 ## [0.1.7](https://github.com/misty-step/harness/compare/v0.1.6...v0.1.7) (2026-09-18)
 
 
