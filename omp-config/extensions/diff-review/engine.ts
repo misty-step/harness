@@ -11,13 +11,13 @@ export type NoulQuestion = {
 export type ChoiceQuestion = {
 	type: "choice";
 	instructions: string;
-	options: string[];
+	criteria: Record<string, string | null>;
 };
 
 export type ScoreQuestion = {
 	type: "score";
 	instructions: string;
-	levels: string[];
+	criteria: string[];
 };
 
 export type Question = NoulQuestion | ChoiceQuestion | ScoreQuestion;
@@ -38,6 +38,7 @@ export type ChoiceAnswer = {
 export type ScoreAnswer = {
 	type: "score";
 	score: number;
+	legend?: Record<string, string>;
 	probabilities: Record<string, number>;
 	confidence: number;
 };
@@ -58,7 +59,7 @@ export type ReviewVerdict = {
 	passed: boolean;
 	clean: boolean;
 	enabled: boolean;
-	provider: "typesafe" | "openrouter" | "heuristic" | "none";
+	provider: "typesafe" | "heuristic" | "none";
 	latencyMs: number;
 	stats: {
 		linesAdded: number;
@@ -71,7 +72,7 @@ export type ReviewVerdict = {
 };
 
 export interface SystemOneProvider {
-	readonly name: "typesafe" | "openrouter" | "heuristic";
+	readonly name: "typesafe" | "heuristic";
 	evaluate(
 		state: string,
 		questions: Record<string, Question>,
@@ -80,7 +81,7 @@ export interface SystemOneProvider {
 }
 
 /**
- * Standing harness philosophy and security battery.
+ * Standing harness philosophy and security battery matching canonical TypeSafe API schemas.
  */
 export const HARNESS_BATTERY: Record<string, Question> = {
 	// --- Security ---
@@ -88,73 +89,115 @@ export const HARNESS_BATTERY: Record<string, Question> = {
 		type: "noul",
 		instructions:
 			"Does this diff introduce an active API key, raw authentication token, private key, or password in plaintext?",
+		criteria: {
+			true: "Contains unmasked private key, secret token, or active API credential",
+			false: "No unmasked credentials present",
+		},
 	},
 	disk_secret_persistence: {
 		type: "noul",
 		instructions:
 			"Does this diff write or persist live credentials to a file on disk rather than using runtime memory injection (pass-env, op run)?",
+		criteria: {
+			true: "Writes plaintext credentials to local file or renders secrets to disk",
+			false: "Credentials injected into runtime memory or no secrets touched",
+		},
 	},
 	authority_escalation: {
 		type: "noul",
 		instructions:
 			"Does this diff or script invoke unverified root/sudo commands, modify system-wide sudoers/polkit policies, or bypass authentication boundaries?",
+		criteria: {
+			true: "Elevates privilege to root without sanitization or tampers with security policies",
+			false: "Runs within ordinary user privileges and bounds",
+		},
 	},
 	// --- Taste & Simplicity ---
 	needless_abstraction: {
 		type: "noul",
 		instructions:
 			"Does this diff introduce a helper, wrapper class, factory, or abstraction layer that is only used by a single caller?",
+		criteria: {
+			true: "Introduces single-caller indirection or speculative abstraction",
+			false: "Inlines behavior or serves multiple independent callsites",
+		},
 	},
 	weightless_code: {
 		type: "noul",
 		instructions:
 			"Does this diff introduce code that performs no observable work (e.g. redundant defensive null checks on internal invariants, forwarders, mock echoes)?",
+		criteria: {
+			true: "Adds dead code, tautological type guards, or non-functional forwarders",
+			false: "All added code performs observable contract work",
+		},
 	},
 	incomplete_cutover: {
 		type: "noul",
 		instructions:
 			"Does this diff introduce a new path while leaving deprecated aliases, shims, or obsolete paths behind rather than performing a clean cutover?",
+		criteria: {
+			true: "Leaves deprecated shims or duplicate paths active",
+			false: "Performs clean cutover migrating all callers",
+		},
 	},
 	accidental_churn: {
 		type: "score",
 		instructions:
-			"Rate incidental churn: 0 is surgical and targeted; 3 is widespread unrelated reformatting or unnecessary touch of untouched files.",
-		levels: ["surgical", "minor_noise", "moderate_churn", "severe_sprawl"],
+			"Rate incidental churn: surgical is targeted; severe_sprawl is widespread unrelated reformatting or touching unaffected files.",
+		criteria: [
+			"Surgical and minimal change to relevant lines only",
+			"Minor incidental whitespace or comment noise",
+			"Moderate reformatting or touching adjacent functions",
+			"Severe sprawl touching unrelated modules or widespread restyling",
+		],
 	},
 	// --- Pokayoke ---
 	pokayoke_mechanism: {
 		type: "choice",
 		instructions:
 			"What is the mechanism of the fix or change in this diff? Pick the primary category.",
-		options: [
-			"structural_type_or_shape",
-			"fail_closed_check",
-			"removed_affordance",
-			"suppressed_symptom",
-			"warning_or_comment",
-			"feature_addition",
-		],
+		criteria: {
+			structural_type_or_shape: "Eliminates failure class structurally via types, shape, or API design",
+			fail_closed_check: "Enforces strict fail-closed boundary validation before execution",
+			removed_affordance: "Removes dangerous capability or API affordance entirely",
+			suppressed_symptom: "Silences error, catches and ignores exception, or masks symptoms",
+			warning_or_comment: "Adds a warning log, comment, or instruction instead of mechanical guard",
+			feature_addition: "Standard feature or capability addition",
+		},
 	},
 	preserves_root_cause: {
 		type: "noul",
 		instructions:
 			"Does this diff handle an invalid state after it occurred (e.g. silencing an exception or null-checking a corrupted state) instead of eliminating the root cause?",
+		criteria: {
+			true: "Suppresses symptom or paper-overs invalid state downstream",
+			false: "Pushes invariant upstream or makes invalid state unrepresentable",
+		},
 	},
 	// --- Verification ---
 	test_asserts_implementation: {
 		type: "noul",
 		instructions:
 			"Do the added tests merely assert internal wiring, mock calls, or parameter forwarding rather than observable consumer postconditions?",
+		criteria: {
+			true: "Asserts mocks, spy counts, or internal implementation details",
+			false: "Asserts observable contract output and domain behavior",
+		},
 	},
 	is_test_padding: {
 		type: "noul",
 		instructions:
 			"Is any added test a tautology, a bare not-throw, or testing incidental wording rather than defending against a plausible regression?",
+		criteria: {
+			true: "Padding test that cannot fail on realistic regression",
+			false: "High-signal test defending against plausible bug",
+		},
 	},
 };
 
 /**
  * Native TypeSafe Jev Provider.
+ * Adheres strictly to the published TypeSafe System One HTTP API.
  */
 export class TypeSafeJevProvider implements SystemOneProvider {
 	readonly name = "typesafe" as const;
@@ -196,173 +239,44 @@ export class TypeSafeJevProvider implements SystemOneProvider {
 			}
 
 			const data = (await res.json()) as {
-				answers?: Record<string, unknown>;
-				nouls?: Record<string, { noul: number; confidence?: number }>;
-				choices?: Record<
+				model?: string;
+				answers?: Record<
 					string,
-					{ choice: string; probabilities: Record<string, number>; confidence?: number }
+					| { type: "noul"; noul: number }
+					| { type: "choice"; choice: string; probabilities: Record<string, number>; confidence: number }
+					| { type: "score"; score: number; legend: Record<string, string>; probabilities: Record<string, number>; confidence: number }
 				>;
-				scores?: Record<
-					string,
-					{ score: number; probabilities: Record<string, number>; confidence?: number }
-				>;
+				usage?: { input_tokens: number; output_tokens: number };
 			};
 
 			const results: Record<string, Answer> = {};
 
 			if (data.answers) {
-				for (const [key, val] of Object.entries(data.answers)) {
-					const answer = val as Record<string, unknown>;
-					if (typeof answer.noul === "number") {
+				for (const [key, raw] of Object.entries(data.answers)) {
+					if (raw.type === "noul") {
+						// Confidence for noul derived from distance to decision boundary (0.5)
+						const conf = Math.abs(raw.noul - 0.5) * 2;
 						results[key] = {
 							type: "noul",
-							probability: answer.noul,
-							confidence: (answer.confidence as number) ?? 0.9,
+							probability: raw.noul,
+							confidence: conf,
 						};
-					} else if (typeof answer.choice === "string") {
+					} else if (raw.type === "choice") {
 						results[key] = {
 							type: "choice",
-							choice: answer.choice,
-							probabilities: (answer.probabilities as Record<string, number>) ?? {},
-							confidence: (answer.confidence as number) ?? 0.9,
+							choice: raw.choice,
+							probabilities: raw.probabilities ?? {},
+							confidence: raw.confidence ?? 0.85,
 						};
-					} else if (typeof answer.score === "number") {
+					} else if (raw.type === "score") {
 						results[key] = {
 							type: "score",
-							score: answer.score,
-							probabilities: (answer.probabilities as Record<string, number>) ?? {},
-							confidence: (answer.confidence as number) ?? 0.9,
+							score: raw.score,
+							legend: raw.legend,
+							probabilities: raw.probabilities ?? {},
+							confidence: raw.confidence ?? 0.85,
 						};
 					}
-				}
-			}
-
-			if (data.nouls) {
-				for (const [k, v] of Object.entries(data.nouls)) {
-					results[k] = {
-						type: "noul",
-						probability: v.noul,
-						confidence: v.confidence ?? 0.9,
-					};
-				}
-			}
-			if (data.choices) {
-				for (const [k, v] of Object.entries(data.choices)) {
-					results[k] = {
-						type: "choice",
-						choice: v.choice,
-						probabilities: v.probabilities ?? {},
-						confidence: v.confidence ?? 0.9,
-					};
-				}
-			}
-			if (data.scores) {
-				for (const [k, v] of Object.entries(data.scores)) {
-					results[k] = {
-						type: "score",
-						score: v.score,
-						probabilities: v.probabilities ?? {},
-						confidence: v.confidence ?? 0.9,
-					};
-				}
-			}
-
-			return results;
-		} finally {
-			clearTimeout(timer);
-		}
-	}
-}
-
-/**
- * OpenRouter Fast Reflex Provider.
- */
-export class OpenRouterReflexProvider implements SystemOneProvider {
-	readonly name = "openrouter" as const;
-
-	constructor(
-		private apiKey: string,
-		private model = "deepseek/deepseek-v4.1-flash",
-		private endpoint = "https://openrouter.ai/api/v1/chat/completions",
-	) {}
-
-	async evaluate(
-		state: string,
-		questions: Record<string, Question>,
-		timeoutMs = 15000,
-	): Promise<Record<string, Answer>> {
-		const prompt = `You are a System One semantic evaluator. Evaluate the following STATE against each QUESTION.
-Return a single JSON object where each question key maps to its typed answer:
-- For 'noul': { "type": "noul", "probability": 0.0 to 1.0, "confidence": 0.0 to 1.0 }
-- For 'choice': { "type": "choice", "choice": "selected_option", "confidence": 0.0 to 1.0 }
-- For 'score': { "type": "score", "score": integer_index, "confidence": 0.0 to 1.0 }
-
-STATE:
-"""
-${state.slice(0, 32000)}
-"""
-
-QUESTIONS:
-${JSON.stringify(questions, null, 2)}
-
-Respond with valid JSON ONLY.`;
-
-		const controller = new AbortController();
-		const timer = setTimeout(() => controller.abort(), timeoutMs);
-
-		try {
-			const res = await fetch(this.endpoint, {
-				method: "POST",
-				headers: {
-					"Content-Type": "application/json",
-					Authorization: `Bearer ${this.apiKey}`,
-				},
-				body: JSON.stringify({
-					model: this.model,
-					messages: [{ role: "user", content: prompt }],
-					temperature: 0.0,
-					response_format: { type: "json_object" },
-				}),
-				signal: controller.signal,
-			});
-
-			if (!res.ok) {
-				throw new Error(`OpenRouter API error ${res.status}: ${await res.text()}`);
-			}
-
-			const data = (await res.json()) as {
-				choices?: Array<{ message?: { content?: string } }>;
-			};
-			const content = data.choices?.[0]?.message?.content?.trim();
-			if (!content) throw new Error("Empty response from OpenRouter");
-
-			const parsed = JSON.parse(content) as Record<string, Record<string, unknown>>;
-			const results: Record<string, Answer> = {};
-
-			for (const [key, q] of Object.entries(questions)) {
-				const ans = parsed[key];
-				if (!ans) continue;
-
-				if (q.type === "noul") {
-					results[key] = {
-						type: "noul",
-						probability: Number(ans.probability ?? ans.noul ?? 0.0),
-						confidence: Number(ans.confidence ?? 0.85),
-					};
-				} else if (q.type === "choice") {
-					results[key] = {
-						type: "choice",
-						choice: String(ans.choice ?? q.options[0]),
-						probabilities: (ans.probabilities as Record<string, number>) ?? {},
-						confidence: Number(ans.confidence ?? 0.85),
-					};
-				} else if (q.type === "score") {
-					results[key] = {
-						type: "score",
-						score: Number(ans.score ?? 0),
-						probabilities: (ans.probabilities as Record<string, number>) ?? {},
-						confidence: Number(ans.confidence ?? 0.85),
-					};
 				}
 			}
 
@@ -375,7 +289,8 @@ Respond with valid JSON ONLY.`;
 
 /**
  * Deterministic Heuristic Engine.
- * Used for unit tests, offline reproduction, and explicit dry-runs.
+ * Used strictly for unit tests, offline reproduction, and explicit dry-runs.
+ * Never used implicitly in live uncredentialed runs.
  */
 export class HeuristicEngine implements SystemOneProvider {
 	readonly name = "heuristic" as const;
@@ -391,8 +306,9 @@ export class HeuristicEngine implements SystemOneProvider {
 				let prob = 0.05;
 
 				if (key === "credential_leak") {
+					// Detects raw plaintext credentials; does NOT match already-redacted masks
 					if (
-						/(?:\$\$[A-Z0-9_]+:[A-Z]\$\$|sk_live_|ghp_[A-Za-z0-9]{30,}|BEGIN (?:RSA|OPENSSH) PRIVATE KEY|AIzaSy[A-Za-z0-9_-]{33}|xox[baprs]-[A-Za-z0-9-]+)/.test(
+						/(?:sk_live_[A-Za-z0-9]{24,}|ghp_[A-Za-z0-9]{30,}|BEGIN (?:RSA|OPENSSH) PRIVATE KEY|AIzaSy[A-Za-z0-9_-]{33}|xox[baprs]-[A-Za-z0-9-]+)/.test(
 							state,
 						)
 					) {
@@ -449,7 +365,8 @@ export class HeuristicEngine implements SystemOneProvider {
 					confidence: 0.9,
 				};
 			} else if (q.type === "choice") {
-				let choice = q.options[0];
+				const optionKeys = Object.keys(q.criteria);
+				let choice = optionKeys[0];
 				if (key === "pokayoke_mechanism") {
 					if (
 						/try\s*\{[\s\S]*?\}\s*catch\s*\([^)]*\)\s*\{[\s\S]*?\}/.test(
@@ -505,11 +422,6 @@ export function resolveProvider(forced?: string): SystemOneProvider | null {
 	if (forced === "typesafe" || (!forced && process.env.TYPESAFE_API_KEY)) {
 		const key = process.env.TYPESAFE_API_KEY;
 		if (key) return new TypeSafeJevProvider(key);
-	}
-
-	if (forced === "openrouter" || (!forced && process.env.OPENROUTER_API_KEY)) {
-		const key = process.env.OPENROUTER_API_KEY;
-		if (key) return new OpenRouterReflexProvider(key);
 	}
 
 	return null;
@@ -587,7 +499,7 @@ export async function evaluateDiff(
 			blocks: [],
 			warnings: [],
 			summary:
-				"Diff review disabled: neither TYPESAFE_API_KEY nor OPENROUTER_API_KEY is configured for System One evaluation.",
+				"Diff review disabled: no TYPESAFE_API_KEY configured for System One evaluation.",
 		};
 	}
 

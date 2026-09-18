@@ -85,3 +85,33 @@ No-gos: no destruction of unleased or standing VMs; no global scan of other
 sessions' worktrees; no network in the unit check.
 
 Evidence: `agent-config/skills/session-close/session-close.test.ts`
+
+## Capability: Semantic Review
+
+## US-005 Semantic diff review and security sentinel
+
+Statement: When an agent produces working tree diffs, I want continuous semantic
+evaluation against our standing harness principles, security rules, and pokayoke
+invariants using a System One decision model, so violations and credential leaks are
+intercepted before commit without token or latency waste.
+
+Criteria:
+1. WHEN diff review runs with no `TYPESAFE_API_KEY` configured, THE SYSTEM SHALL
+   report disabled-uncredentialed status without fabricating confidence scores or
+   failing live turns.
+2. WHEN evaluating diffs via TypeSafe Jev, THE SYSTEM SHALL encode queries to the
+   native System One API schema (`map<string, Question>` with Noul, Choice, and Score).
+3. IF a diff contains an active credential, unmasked disk secret, or authority
+   escalation, THEN THE SYSTEM SHALL flag a hard block.
+4. IF a diff silences an error or handles invalid state after occurrence rather
+   than eliminating root cause, THEN THE SYSTEM SHALL flag a pokayoke violation.
+5. WHEN the OMP extension is installed, THE SYSTEM SHALL load all review modules
+   self-contained from the deployed extension directory.
+6. WHEN testing offline or without remote keys, THE SYSTEM SHALL evaluate using
+   deterministic heuristics only under explicit request (`--provider heuristic` or
+   `MOCK_SYSTEM_ONE=1`).
+
+No-gos: no fabricated probability or confidence numbers in live sessions; no
+live credential storage on disk; no uncredentialed blocking of interactive turns.
+
+Evidence: `omp-config/bin/omp-diff-review.test.ts`, `omp-config/extensions/diff-review/diff-review.test.ts`
