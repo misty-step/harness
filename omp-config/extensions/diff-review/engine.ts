@@ -59,7 +59,7 @@ export type ReviewVerdict = {
 	passed: boolean;
 	clean: boolean;
 	enabled: boolean;
-	provider: "typesafe" | "heuristic" | "none";
+	provider: "typesafe" | "openrouter" | "heuristic" | "none";
 	latencyMs: number;
 	stats: {
 		linesAdded: number;
@@ -72,7 +72,7 @@ export type ReviewVerdict = {
 };
 
 export interface SystemOneProvider {
-	readonly name: "typesafe" | "heuristic";
+	readonly name: "typesafe" | "openrouter" | "heuristic";
 	evaluate(
 		state: string,
 		questions: Record<string, Question>,
@@ -197,7 +197,7 @@ export const HARNESS_BATTERY: Record<string, Question> = {
 
 /**
  * Native TypeSafe Jev Provider.
- * Adheres strictly to the published TypeSafe System One HTTP API.
+ * Calls TypeSafe System One API directly.
  */
 export class TypeSafeJevProvider implements SystemOneProvider {
 	readonly name = "typesafe" as const;
@@ -244,7 +244,7 @@ export class TypeSafeJevProvider implements SystemOneProvider {
 					string,
 					| { type: "noul"; noul: number }
 					| { type: "choice"; choice: string; probabilities: Record<string, number>; confidence: number }
-					| { type: "score"; score: number; legend: Record<string, string>; probabilities: Record<string, number>; confidence: number }
+					| { type: "score"; score: number; legend?: Record<string, string>; probabilities: Record<string, number>; confidence: number }
 				>;
 				usage?: { input_tokens: number; output_tokens: number };
 			};
@@ -254,7 +254,99 @@ export class TypeSafeJevProvider implements SystemOneProvider {
 			if (data.answers) {
 				for (const [key, raw] of Object.entries(data.answers)) {
 					if (raw.type === "noul") {
-						// Confidence for noul derived from distance to decision boundary (0.5)
+						const conf = Math.abs(raw.noul - 0.5) * 2;
+						results[key] = {
+							type: "noul",
+							probability: raw.noul,
+							confidence: conf,
+						};
+					} else if (raw.type === "choice") {
+						results[key] = {
+							type: "choice",
+							choice: raw.choice,
+							probabilities: raw.probabilities ?? {},
+							confidence: raw.confidence ?? 0.85,
+						};
+					} else if (raw.type === "score") {
+						results[key] = {
+							type: "score",
+							score: raw.score,
+							legend: raw.legend,
+							probabilities: raw.probabilities ?? {},
+							confidence: raw.confidence ?? 0.85,
+						};
+					}
+				}
+			}
+
+			return results;
+		} finally {
+			clearTimeout(timer);
+		}
+	}
+}
+
+/**
+ * OpenRouter TypeSafe Jev Provider.
+ * Calls OpenRouter's decisions endpoint for typesafe/jev-1.13.
+ */
+export class OpenRouterJevProvider implements SystemOneProvider {
+	readonly name = "openrouter" as const;
+
+	constructor(
+		private apiKey: string,
+		private model = "typesafe/jev-1.13",
+		private endpoint = "https://openrouter.ai/api/alpha/decisions",
+	) {}
+
+	async evaluate(
+		state: string,
+		questions: Record<string, Question>,
+		timeoutMs = 15000,
+	): Promise<Record<string, Answer>> {
+		const payload = {
+			model: this.model,
+			state,
+			questions,
+		};
+
+		const controller = new AbortController();
+		const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+		try {
+			const res = await fetch(this.endpoint, {
+				method: "POST",
+				headers: {
+					"Content-Type": "application/json",
+					Authorization: `Bearer ${this.apiKey}`,
+					"HTTP-Referer": "https://github.com/misty-step/harness",
+					"X-Title": "Harness Semantic Diff Review",
+				},
+				body: JSON.stringify(payload),
+				signal: controller.signal,
+			});
+
+			if (!res.ok) {
+				const errorText = await res.text();
+				throw new Error(`OpenRouter Jev error ${res.status}: ${errorText}`);
+			}
+
+			const data = (await res.json()) as {
+				model?: string;
+				answers?: Record<
+					string,
+					| { type: "noul"; noul: number }
+					| { type: "choice"; choice: string; probabilities: Record<string, number>; confidence: number }
+					| { type: "score"; score: number; legend?: Record<string, string>; probabilities: Record<string, number>; confidence: number }
+				>;
+				usage?: { input_tokens: number; output_tokens: number };
+			};
+
+			const results: Record<string, Answer> = {};
+
+			if (data.answers) {
+				for (const [key, raw] of Object.entries(data.answers)) {
+					if (raw.type === "noul") {
 						const conf = Math.abs(raw.noul - 0.5) * 2;
 						results[key] = {
 							type: "noul",
@@ -306,7 +398,6 @@ export class HeuristicEngine implements SystemOneProvider {
 				let prob = 0.05;
 
 				if (key === "credential_leak") {
-					// Detects raw plaintext credentials; does NOT match already-redacted masks
 					if (
 						/(?:sk_live_[A-Za-z0-9]{24,}|ghp_[A-Za-z0-9]{30,}|BEGIN (?:RSA|OPENSSH) PRIVATE KEY|AIzaSy[A-Za-z0-9_-]{33}|xox[baprs]-[A-Za-z0-9-]+)/.test(
 							state,
@@ -411,8 +502,8 @@ export class HeuristicEngine implements SystemOneProvider {
 
 /**
  * Resolve provider.
+ * Supports direct TypeSafe API or OpenRouter TypeSafe Jev routing.
  * Returns null if no live provider is credentialed and mock is not explicitly requested.
- * Prevents keyless live sessions from fabricating confidences.
  */
 export function resolveProvider(forced?: string): SystemOneProvider | null {
 	if (forced === "heuristic" || forced === "mock" || process.env.MOCK_SYSTEM_ONE === "1") {
@@ -422,6 +513,14 @@ export function resolveProvider(forced?: string): SystemOneProvider | null {
 	if (forced === "typesafe" || (!forced && process.env.TYPESAFE_API_KEY)) {
 		const key = process.env.TYPESAFE_API_KEY;
 		if (key) return new TypeSafeJevProvider(key);
+	}
+
+	if (forced === "openrouter" || (!forced && process.env.OPENROUTER_API_KEY)) {
+		const key = process.env.OPENROUTER_API_KEY;
+		if (key) {
+			const model = process.env.OPENROUTER_JEV_MODEL || "typesafe/jev-1.13";
+			return new OpenRouterJevProvider(key, model);
+		}
 	}
 
 	return null;
@@ -499,7 +598,7 @@ export async function evaluateDiff(
 			blocks: [],
 			warnings: [],
 			summary:
-				"Diff review disabled: no TYPESAFE_API_KEY configured for System One evaluation.",
+				"Diff review disabled: neither TYPESAFE_API_KEY nor OPENROUTER_API_KEY is configured for System One evaluation.",
 		};
 	}
 

@@ -96,11 +96,12 @@ invariants using a System One decision model, so violations and credential leaks
 intercepted before commit without token or latency waste.
 
 Criteria:
-1. WHEN diff review runs with no `TYPESAFE_API_KEY` configured, THE SYSTEM SHALL
-   report disabled-uncredentialed status without fabricating confidence scores or
-   failing live turns.
-2. WHEN evaluating diffs via TypeSafe Jev, THE SYSTEM SHALL encode queries to the
-   native System One API schema (`map<string, Question>` with Noul, Choice, and Score).
+1. WHEN diff review runs with neither `OPENROUTER_API_KEY` nor `TYPESAFE_API_KEY`
+   configured, THE SYSTEM SHALL report disabled-uncredentialed status without
+   fabricating confidence scores or failing live turns.
+2. WHEN evaluating diffs via OpenRouter (`typesafe/jev-1.13`) or TypeSafe direct,
+   THE SYSTEM SHALL encode queries to the native System One API schema
+   (`map<string, Question>` with Noul, Choice, and Score).
 3. IF a diff contains an active credential, unmasked disk secret, or authority
    escalation, THEN THE SYSTEM SHALL flag a hard block.
 4. IF a diff silences an error or handles invalid state after occurrence rather

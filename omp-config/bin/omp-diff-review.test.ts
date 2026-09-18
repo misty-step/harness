@@ -5,6 +5,7 @@ import {
 	parseDiffStats,
 	resolveProvider,
 	TypeSafeJevProvider,
+	OpenRouterJevProvider,
 } from "./omp-diff-review.ts";
 
 describe("Diff Review - Line Statistics Parser", () => {
@@ -140,17 +141,22 @@ describe("Diff Review - Rule Battery Violations", () => {
 describe("Diff Review - Providers & Resolution", () => {
 	test("resolveProvider returns null when uncredentialed (does not fabricate verdicts)", () => {
 		const prevTypeSafe = process.env.TYPESAFE_API_KEY;
+		const prevOpenRouter = process.env.OPENROUTER_API_KEY;
 		delete process.env.TYPESAFE_API_KEY;
+		delete process.env.OPENROUTER_API_KEY;
 
 		const provider = resolveProvider();
 		expect(provider).toBeNull();
 
 		if (prevTypeSafe) process.env.TYPESAFE_API_KEY = prevTypeSafe;
+		if (prevOpenRouter) process.env.OPENROUTER_API_KEY = prevOpenRouter;
 	});
 
 	test("evaluateDiff handles uncredentialed state gracefully without fabricating answers", async () => {
 		const prevTypeSafe = process.env.TYPESAFE_API_KEY;
+		const prevOpenRouter = process.env.OPENROUTER_API_KEY;
 		delete process.env.TYPESAFE_API_KEY;
+		delete process.env.OPENROUTER_API_KEY;
 
 		const verdict = await evaluateDiff("+const x = 1;", { provider: null });
 		expect(verdict.enabled).toBe(false);
@@ -159,6 +165,7 @@ describe("Diff Review - Providers & Resolution", () => {
 		expect(verdict.summary).toContain("Diff review disabled");
 
 		if (prevTypeSafe) process.env.TYPESAFE_API_KEY = prevTypeSafe;
+		if (prevOpenRouter) process.env.OPENROUTER_API_KEY = prevOpenRouter;
 	});
 
 	test("forced heuristic returns HeuristicEngine explicitly", () => {
@@ -172,9 +179,30 @@ describe("Diff Review - Providers & Resolution", () => {
 		expect(p.name).toBe("typesafe");
 	});
 
-	test("parses recorded TypeSafe System One HTTP API response fixture correctly", async () => {
+	test("instantiates OpenRouterJevProvider with decisions endpoint and key", () => {
+		const p = new OpenRouterJevProvider("mock-or-key", "typesafe/jev-1.13");
+		expect(p.name).toBe("openrouter");
+	});
+
+	test("resolveProvider prioritizes OpenRouter when OPENROUTER_API_KEY is present", () => {
+		const prevTypeSafe = process.env.TYPESAFE_API_KEY;
+		const prevOpenRouter = process.env.OPENROUTER_API_KEY;
+		delete process.env.TYPESAFE_API_KEY;
+		process.env.OPENROUTER_API_KEY = "sk-or-test-key";
+
+		const provider = resolveProvider();
+		expect(provider).not.toBeNull();
+		expect(provider?.name).toBe("openrouter");
+
+		if (prevTypeSafe) process.env.TYPESAFE_API_KEY = prevTypeSafe;
+		else delete process.env.TYPESAFE_API_KEY;
+		if (prevOpenRouter) process.env.OPENROUTER_API_KEY = prevOpenRouter;
+		else delete process.env.OPENROUTER_API_KEY;
+	});
+
+	test("parses recorded OpenRouter / TypeSafe System One response fixture correctly", async () => {
 		const fixtureResponse = {
-			model: "jev-latest",
+			model: "typesafe/jev-1.13",
 			answers: {
 				credential_leak: {
 					type: "noul",
@@ -201,7 +229,6 @@ describe("Diff Review - Providers & Resolution", () => {
 			usage: { input_tokens: 1420, output_tokens: 36 },
 		};
 
-		// Mock fetch returning the canonical fixture
 		const originalFetch = globalThis.fetch;
 		globalThis.fetch = (async () => ({
 			ok: true,
@@ -211,7 +238,7 @@ describe("Diff Review - Providers & Resolution", () => {
 		})) as unknown as typeof fetch;
 
 		try {
-			const provider = new TypeSafeJevProvider("test-key");
+			const provider = new OpenRouterJevProvider("test-key", "typesafe/jev-1.13");
 			const answers = await provider.evaluate("+const x = 1;", {
 				credential_leak: { type: "noul", instructions: "test" },
 				pokayoke_mechanism: {

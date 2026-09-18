@@ -12,6 +12,7 @@ import {
 	resolveProvider,
 	HARNESS_BATTERY,
 	TypeSafeJevProvider,
+	OpenRouterJevProvider,
 	HeuristicEngine,
 	parseDiffStats,
 } from "../extensions/diff-review/engine.ts";
@@ -32,6 +33,7 @@ export {
 	resolveProvider,
 	HARNESS_BATTERY,
 	TypeSafeJevProvider,
+	OpenRouterJevProvider,
 	HeuristicEngine,
 	parseDiffStats,
 };
@@ -74,7 +76,7 @@ Options:
   --range <A..B>         Review a commit range
   --path <file>          Limit review to a specific path
   --strict               Exit 1 if any blocks or warnings exist
-  --provider <p>         Force provider: typesafe | heuristic
+  --provider <p>         Force provider: typesafe | openrouter | heuristic
   --json                 Output machine-readable JSON
   -h, --help             Show help
 `);
@@ -97,7 +99,7 @@ Options:
 		if (!verdict.enabled) {
 			console.log(`\x1b[33m⚠ ${verdict.summary}\x1b[0m\n`);
 			console.log(
-				`To enable live System One evaluations, export TYPESAFE_API_KEY (from console.typesafe.ai), or pass --provider heuristic for offline evaluation.\n`,
+				`To enable live System One evaluations, export OPENROUTER_API_KEY (or TYPESAFE_API_KEY), or pass --provider heuristic for offline evaluation.\n`,
 			);
 			process.exit(0);
 		}
