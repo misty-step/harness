@@ -245,6 +245,33 @@ export const STRATEGY_BATTERY: Record<string, Question> = {
 			false: "Harness trivia with no observable outcome",
 		},
 	},
+	hickey_complecting: {
+		type: "noul",
+		instructions:
+			"Rich Hickey: does this intertwine two concerns that could have remained independent (complecting), rather than composing simple things?",
+		criteria: {
+			true: "Two reasons to change are now braided in one place",
+			false: "Each concept still has one job",
+		},
+	},
+	erasure: {
+		type: "noul",
+		instructions:
+			"Could this file, abstraction, or flag be deleted with the user outcome still intact?",
+		criteria: {
+			true: "Removing it would not take a user capability away",
+			false: "A user-visible or load-bearing job disappears if it is removed",
+		},
+	},
+	small_app: {
+		type: "noul",
+		instructions:
+			"Is this growing a platform, framework, or shared kernel when a small focused application would do?",
+		criteria: {
+			true: "New generality or cross-cutting kernel without a user who needs it today",
+			false: "A small app or a local change would not suffice",
+		},
+	},
 };
 
 export const VERIFICATION_BATTERY: Record<string, Question> = {
@@ -858,6 +885,36 @@ export async function evaluateDiff(
 					category: "strategy",
 					severity: "warning",
 					message: "Diff appears to modify harness trivia without serving observable capability.",
+					evidence: `Probability: ${p.toFixed(2)}, Confidence: ${conf.toFixed(2)}`,
+					probability: p,
+					confidence: conf,
+				});
+			} else if (key === "hickey_complecting" && p > 0.85) {
+				warnings.push({
+					rule: key,
+					category: "strategy",
+					severity: "warning",
+					message: "Hickey: two concerns look complected that could have stayed independent.",
+					evidence: `Probability: ${p.toFixed(2)}, Confidence: ${conf.toFixed(2)}`,
+					probability: p,
+					confidence: conf,
+				});
+			} else if (key === "erasure" && p > 0.85) {
+				warnings.push({
+					rule: key,
+					category: "strategy",
+					severity: "warning",
+					message: "Erasure: this addition looks deletable without losing a user outcome.",
+					evidence: `Probability: ${p.toFixed(2)}, Confidence: ${conf.toFixed(2)}`,
+					probability: p,
+					confidence: conf,
+				});
+			} else if (key === "small_app" && p > 0.85) {
+				warnings.push({
+					rule: key,
+					category: "strategy",
+					severity: "warning",
+					message: "Small-app: this looks like a platform/kernel where a focused app would do.",
 					evidence: `Probability: ${p.toFixed(2)}, Confidence: ${conf.toFixed(2)}`,
 					probability: p,
 					confidence: conf,
