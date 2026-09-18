@@ -1,3 +1,11 @@
+## [0.1.6](https://github.com/misty-step/harness/compare/v0.1.5...v0.1.6) (2026-09-18)
+
+
+### Bug Fixes
+
+* **omp-config:** rewrite global guidance to cheap triad for daily roles ([bee6b05](https://github.com/misty-step/harness/commit/bee6b0582465ab649c4621436d4cbcc726f3f46e))
+* **omp-config:** route daily roles to the cheap triad, keep Astra strategic ([#3](https://github.com/misty-step/harness/issues/3)) ([a9c1f92](https://github.com/misty-step/harness/commit/a9c1f926e07814251dddad374bbb52eec34a8f55))
+
 ## [0.1.5](https://github.com/misty-step/harness/compare/v0.1.4...v0.1.5) (2026-09-17)
 
 
