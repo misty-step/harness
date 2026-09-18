@@ -106,7 +106,7 @@ Criteria:
    escalation, THEN THE SYSTEM SHALL flag a hard block.
 4. IF a diff silences an error or handles invalid state after occurrence rather
    than eliminating root cause, THEN THE SYSTEM SHALL flag a pokayoke violation.
-5. WHEN the OMP extension is installed, THE SYSTEM SHALL load all review modules
+5. WHEN the OMP or Pi extension is installed, THE SYSTEM SHALL load all review modules
    self-contained from the deployed extension directory.
 6. WHEN testing offline or without remote keys, THE SYSTEM SHALL evaluate using
    deterministic heuristics only under explicit request (`--provider heuristic` or
@@ -115,4 +115,4 @@ Criteria:
 No-gos: no fabricated probability or confidence numbers in live sessions; no
 live credential storage on disk; no uncredentialed blocking of interactive turns.
 
-Evidence: `omp-config/bin/omp-diff-review.test.ts`, `omp-config/extensions/diff-review/diff-review.test.ts`
+Evidence: `omp-config/bin/omp-diff-review.test.ts`, `omp-config/extensions/diff-review/diff-review.test.ts`, `pi-config/extensions/diff-review/diff-review.test.ts`

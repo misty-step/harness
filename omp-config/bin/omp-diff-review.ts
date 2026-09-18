@@ -11,6 +11,12 @@ import {
 	getGitDiff,
 	resolveProvider,
 	HARNESS_BATTERY,
+	BATTERIES,
+	SECURITY_BATTERY,
+	TASTE_BATTERY,
+	POKAYOKE_BATTERY,
+	STRATEGY_BATTERY,
+	VERIFICATION_BATTERY,
 	TypeSafeJevProvider,
 	OpenRouterJevProvider,
 	HeuristicEngine,
@@ -20,6 +26,7 @@ import {
 import type {
 	SystemOneProvider,
 	ReviewVerdict,
+	BatteryName,
 	Question,
 	NoulQuestion,
 	ChoiceQuestion,
@@ -32,6 +39,12 @@ export {
 	getGitDiff,
 	resolveProvider,
 	HARNESS_BATTERY,
+	BATTERIES,
+	SECURITY_BATTERY,
+	TASTE_BATTERY,
+	POKAYOKE_BATTERY,
+	STRATEGY_BATTERY,
+	VERIFICATION_BATTERY,
 	TypeSafeJevProvider,
 	OpenRouterJevProvider,
 	HeuristicEngine,
@@ -41,6 +54,7 @@ export {
 export type {
 	SystemOneProvider,
 	ReviewVerdict,
+	BatteryName,
 	Question,
 	NoulQuestion,
 	ChoiceQuestion,
@@ -57,6 +71,7 @@ if (import.meta.main) {
 	let strict = false;
 	let json = false;
 	let providerOverride: string | undefined;
+	let batteryName: BatteryName | undefined;
 
 	for (let i = 0; i < args.length; i++) {
 		const arg = args[i];
@@ -67,6 +82,7 @@ if (import.meta.main) {
 		else if (arg === "--range" && args[i + 1]) range = args[++i];
 		else if (arg === "--path" && args[i + 1]) path = args[++i];
 		else if (arg === "--provider" && args[i + 1]) providerOverride = args[++i];
+		else if (arg === "--battery" && args[i + 1]) batteryName = args[++i] as BatteryName;
 		else if (arg === "-h" || arg === "--help") {
 			console.log(`Usage: omp-diff-review [options]
 
@@ -77,6 +93,7 @@ Options:
   --path <file>          Limit review to a specific path
   --strict               Exit 1 if any blocks or warnings exist
   --provider <p>         Force provider: typesafe | openrouter | heuristic
+  --battery <name>       Battery: all | security | taste | pokayoke | strategy | verification
   --json                 Output machine-readable JSON
   -h, --help             Show help
 `);
@@ -86,7 +103,7 @@ Options:
 
 	const diffText = getGitDiff({ staged, commit, range, path });
 	const provider = resolveProvider(providerOverride);
-	const verdict = await evaluateDiff(diffText, { provider });
+	const verdict = await evaluateDiff(diffText, { provider, batteryName });
 
 	if (json) {
 		console.log(JSON.stringify(verdict, null, 2));

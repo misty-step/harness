@@ -43,7 +43,7 @@ require_base() {
   }
 }
 
-components_all="config guidance pi-chrome loc web-search failover image-budget openrouter-live pass-env skills"
+components_all="config guidance pi-chrome loc web-search failover image-budget openrouter-live diff-review pass-env skills"
 
 selected=${PI_CONFIG_COMPONENTS:-all}
 case "$selected" in
@@ -198,6 +198,21 @@ install_openrouter_live() {
   done
 }
 
+validate_diff_review() {
+  for file in index.ts engine.ts diff-review.test.ts; do
+    require_nonempty "$repo_dir/extensions/diff-review/$file"
+  done
+}
+
+install_diff_review() {
+  # Pokayoke: clean-replace the owned package so obsolete files cannot survive.
+  rm -rf "$agent_dir/extensions/diff-review"
+  install -d -m 700 "$agent_dir/extensions/diff-review"
+  for file in index.ts engine.ts diff-review.test.ts; do
+    install -m 600 "$repo_dir/extensions/diff-review/$file" "$agent_dir/extensions/diff-review/$file"
+  done
+}
+
 if has config; then validate_config; fi
 if has guidance || has pass-env || has skills; then validate_shared; fi
 if has pi-chrome; then validate_pi_chrome; fi
@@ -206,6 +221,7 @@ if has web-search; then validate_web_search; fi
 if has failover; then validate_failover; fi
 if has image-budget; then validate_image_budget; fi
 if has openrouter-live; then validate_openrouter_live; fi
+if has diff-review; then validate_diff_review; fi
 
 if has config; then install_config; fi
 if has guidance || has pass-env || has skills; then install_shared; fi
@@ -215,3 +231,4 @@ if has web-search; then install_web_search; fi
 if has failover; then install_failover; fi
 if has image-budget; then install_image_budget; fi
 if has openrouter-live; then install_openrouter_live; fi
+if has diff-review; then install_diff_review; fi

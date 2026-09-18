@@ -86,7 +86,7 @@ export default function registerDiffReviewExtension(pi: ExtensionAPI): void {
 				if (!verdict.enabled) {
 					pi.sendMessage({
 						customType: RESULT_TYPE,
-						content: `## System One Diff Review (Disabled)\n\n${verdict.summary}\n\nTo enable live System One code reviews, set \`TYPESAFE_API_KEY\` or \`OPENROUTER_API_KEY\` in your environment.`,
+						content: `## System One Diff Review (Disabled)\n\n${verdict.summary}\n\nTo enable live System One code reviews, set \`OPENROUTER_API_KEY\` (or \`TYPESAFE_API_KEY\`) in your environment.`,
 						display: true,
 					});
 					if (ctx.hasUI) ctx.ui.setStatus("diff-review", undefined);
