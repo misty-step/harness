@@ -25,7 +25,7 @@ cd harness
 
 Bootstrap requires Git, gitleaks, and trufflehog and wires the tracked root
 pre-push hook. It installs no dependencies and deploys no agent configuration.
-Verification requires Bun 1.4.2 or later, Git, and jq. Tests use synthetic
+Verification requires Bun 1.4.2 or later, Git, jq, and Python 3 (shared gallery checks). Tests use synthetic
 credentials and isolated destinations; no provider tokens or model calls are needed.
 Keep the component directories as siblings. `AGENT_CONFIG_DIR` is an advanced
 base-source override, not required for a normal clone.

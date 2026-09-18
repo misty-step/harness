@@ -1,7 +1,7 @@
 # Verification
 
 Canonical entry point: `./scripts/verify [all|shared|pi|omp|workspace]` from any cwd.
-Requires Git, Bun >=1.4.2, jq and a POSIX shell. No bootstrap, provider credentials,
+Requires Git, Bun >=1.4.2, jq, a POSIX shell, and Python 3 for shared gallery checks. No bootstrap, provider credentials,
 or installed harness is needed. Unit suites read working files; the installer
 check deliberately clones committed HEAD. Commit installer changes before using
 that evidence. Both source identity and dirty-tree status are reported.

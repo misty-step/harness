@@ -9,6 +9,10 @@ case "$selection" in all|shared|pi|omp|workspace) ;; *) echo "Unknown selection:
 for tool in git bun jq; do
   command -v "$tool" >/dev/null 2>&1 || { echo "$tool is required" >&2; exit 1; }
 done
+case "$selection" in all|shared)
+  command -v python3 >/dev/null 2>&1 || { echo "python3 is required for shared gallery checks" >&2; exit 1; }
+  ;;
+esac
 mkdir -p "$HOME/.cache/tmp"
 work=$(mktemp -d "$HOME/.cache/tmp/harness-verify.XXXXXX")
 trap 'rm -rf -- "$work"' 0
