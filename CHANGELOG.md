@@ -1,3 +1,10 @@
+## [0.1.14](https://github.com/misty-step/harness/compare/v0.1.13...v0.1.14) (2026-09-18)
+
+
+### Features
+
+* **skills:** add system-one skill for classical software and agent harnesses (US-005) ([c9c8714](https://github.com/misty-step/harness/commit/c9c87143b2040ee7419ee20d7f1288caffd86d80))
+
 ## [0.1.13](https://github.com/misty-step/harness/compare/v0.1.12...v0.1.13) (2026-09-18)
 
 
