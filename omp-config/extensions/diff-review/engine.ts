@@ -206,13 +206,13 @@ export const POKAYOKE_BATTERY: Record<string, Question> = {
 			false: "Pushes invariant upstream or makes invalid state unrepresentable",
 		},
 	},
-	fail_closed: {
+	fails_open: {
 		type: "noul",
 		instructions:
-			"If this diff introduces or modifies a guard, parser, or security check, does it fail closed on unknown or malformed input?",
+			"Does this diff introduce or modify a boundary guard, parser, or security check in a way that fails open (allowing execution on invalid or unknown input) rather than failing closed?",
 		criteria: {
-			true: "Rejects or halts safely on unknown input",
-			false: "Fails open, silently ignores, or permits execution on malformed input",
+			true: "Validation/guard fails open or permits execution on malformed/unknown input",
+			false: "Fails closed, safely rejects invalid input, or diff does not modify boundary guards",
 		},
 	},
 	tests_missing: {
@@ -243,6 +243,33 @@ export const STRATEGY_BATTERY: Record<string, Question> = {
 		criteria: {
 			true: "Serves a user capability, observable contract, or eliminates a failure class",
 			false: "Harness trivia with no observable outcome",
+		},
+	},
+	hickey_complecting: {
+		type: "noul",
+		instructions:
+			"Rich Hickey: does this intertwine two concerns that could have remained independent (complecting), rather than composing simple things?",
+		criteria: {
+			true: "Two reasons to change are now braided in one place",
+			false: "Each concept still has one job",
+		},
+	},
+	erasure: {
+		type: "noul",
+		instructions:
+			"Could this file, abstraction, or flag be deleted with the user outcome still intact?",
+		criteria: {
+			true: "Removing it would not take a user capability away",
+			false: "A user-visible or load-bearing job disappears if it is removed",
+		},
+	},
+	small_app: {
+		type: "noul",
+		instructions:
+			"Is this growing a platform, framework, or shared kernel when a small focused application would do?",
+		criteria: {
+			true: "New generality or cross-cutting kernel without a user who needs it today",
+			false: "A small app or a local change would not suffice",
 		},
 	},
 };
@@ -539,14 +566,26 @@ export class HeuristicEngine implements SystemOneProvider {
 					) {
 						prob = 0.93;
 					}
-				} else if (key === "fail_closed") {
-					prob = 0.85;
+				} else if (key === "fails_open") {
+					prob = 0.05;
 				} else if (key === "tests_missing") {
 					prob = 0.10;
 				} else if (key === "scope_creep") {
 					prob = 0.05;
 				} else if (key === "user_visible_impact") {
 					prob = 0.90;
+				} else if (key === "hickey_complecting") {
+					if (/complect|braided_state|intertwined/i.test(state)) {
+						prob = 0.90;
+					}
+				} else if (key === "erasure") {
+					if (/deletable_feature|speculative_flag/i.test(state)) {
+						prob = 0.88;
+					}
+				} else if (key === "small_app") {
+					if (/kernel_framework|monolithic_platform/i.test(state)) {
+						prob = 0.89;
+					}
 				} else if (key === "test_asserts_implementation") {
 					if (/(?:toHaveBeenCalledWith|calledTimes|spyOn\([^)]*\)\.mock)/.test(state)) {
 						prob = 0.87;
@@ -822,7 +861,7 @@ export async function evaluateDiff(
 					probability: p,
 					confidence: conf,
 				});
-			} else if (key === "fail_closed" && p < 0.25) {
+			} else if (key === "fails_open" && p > 0.75) {
 				blocks.push({
 					rule: key,
 					category: "pokayoke",
@@ -858,6 +897,36 @@ export async function evaluateDiff(
 					category: "strategy",
 					severity: "warning",
 					message: "Diff appears to modify harness trivia without serving observable capability.",
+					evidence: `Probability: ${p.toFixed(2)}, Confidence: ${conf.toFixed(2)}`,
+					probability: p,
+					confidence: conf,
+				});
+			} else if (key === "hickey_complecting" && p > 0.85) {
+				warnings.push({
+					rule: key,
+					category: "strategy",
+					severity: "warning",
+					message: "Hickey: two concerns look complected that could have stayed independent.",
+					evidence: `Probability: ${p.toFixed(2)}, Confidence: ${conf.toFixed(2)}`,
+					probability: p,
+					confidence: conf,
+				});
+			} else if (key === "erasure" && p > 0.85) {
+				warnings.push({
+					rule: key,
+					category: "strategy",
+					severity: "warning",
+					message: "Erasure: this addition looks deletable without losing a user outcome.",
+					evidence: `Probability: ${p.toFixed(2)}, Confidence: ${conf.toFixed(2)}`,
+					probability: p,
+					confidence: conf,
+				});
+			} else if (key === "small_app" && p > 0.85) {
+				warnings.push({
+					rule: key,
+					category: "strategy",
+					severity: "warning",
+					message: "Small-app: this looks like a platform/kernel where a focused app would do.",
 					evidence: `Probability: ${p.toFixed(2)}, Confidence: ${conf.toFixed(2)}`,
 					probability: p,
 					confidence: conf,

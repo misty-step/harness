@@ -136,7 +136,22 @@ describe("Diff Review - Rule Battery Violations", () => {
 		expect(verdict.passed).toBe(false);
 		expect(verdict.blocks.some((b) => b.rule === "is_test_padding")).toBe(true);
 	});
-});
+		test("warns on Hickey complecting, erasure, and small_app strategy findings", async () => {
+			const strategyDiff = `diff --git a/src/core.ts b/src/core.ts
+--- a/src/core.ts
++++ b/src/core.ts
+@@ -1,3 +1,6 @@
++// complect: braided_state across domains
++// deletable_feature with speculative_flag
++// kernel_framework instead of focused tool
+`;
+			const verdict = await evaluateDiff(strategyDiff, { provider: engine, batteryName: "strategy" });
+			expect(verdict.passed).toBe(true);
+			expect(verdict.warnings.some((w) => w.rule === "hickey_complecting")).toBe(true);
+			expect(verdict.warnings.some((w) => w.rule === "erasure")).toBe(true);
+			expect(verdict.warnings.some((w) => w.rule === "small_app")).toBe(true);
+		});
+	});
 
 describe("Diff Review - Providers & Resolution", () => {
 	test("resolveProvider returns null when uncredentialed (does not fabricate verdicts)", () => {
