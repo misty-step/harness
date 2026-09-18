@@ -206,13 +206,13 @@ export const POKAYOKE_BATTERY: Record<string, Question> = {
 			false: "Pushes invariant upstream or makes invalid state unrepresentable",
 		},
 	},
-	fail_closed: {
+	fails_open: {
 		type: "noul",
 		instructions:
-			"If this diff introduces or modifies a guard, parser, or security check, does it fail closed on unknown or malformed input?",
+			"Does this diff introduce or modify a boundary guard, parser, or security check in a way that fails open (allowing execution on invalid or unknown input) rather than failing closed?",
 		criteria: {
-			true: "Rejects or halts safely on unknown input",
-			false: "Fails open, silently ignores, or permits execution on malformed input",
+			true: "Validation/guard fails open or permits execution on malformed/unknown input",
+			false: "Fails closed, safely rejects invalid input, or diff does not modify boundary guards",
 		},
 	},
 	tests_missing: {
@@ -566,8 +566,8 @@ export class HeuristicEngine implements SystemOneProvider {
 					) {
 						prob = 0.93;
 					}
-				} else if (key === "fail_closed") {
-					prob = 0.85;
+				} else if (key === "fails_open") {
+					prob = 0.05;
 				} else if (key === "tests_missing") {
 					prob = 0.10;
 				} else if (key === "scope_creep") {
@@ -849,7 +849,7 @@ export async function evaluateDiff(
 					probability: p,
 					confidence: conf,
 				});
-			} else if (key === "fail_closed" && p < 0.25) {
+			} else if (key === "fails_open" && p > 0.75) {
 				blocks.push({
 					rule: key,
 					category: "pokayoke",
