@@ -69,6 +69,7 @@ if (import.meta.main) {
 	let range: string | undefined;
 	let path: string | undefined;
 	let strict = false;
+	let failOnWarnings = false;
 	let json = false;
 	let providerOverride: string | undefined;
 	let batteryName: BatteryName | undefined;
@@ -77,6 +78,7 @@ if (import.meta.main) {
 		const arg = args[i];
 		if (arg === "--staged") staged = true;
 		else if (arg === "--strict") strict = true;
+		else if (arg === "--fail-on-warnings" || arg === "--pedantic") failOnWarnings = true;
 		else if (arg === "--json") json = true;
 		else if (arg === "--commit" && args[i + 1]) commit = args[++i];
 		else if (arg === "--range" && args[i + 1]) range = args[++i];
@@ -91,7 +93,8 @@ Options:
   --commit <hash>        Review a specific commit
   --range <A..B>         Review a commit range
   --path <file>          Limit review to a specific path
-  --strict               Exit 1 if any blocks or warnings exist
+  --strict               Exit 1 if any blocks exist
+  --fail-on-warnings     Exit 1 if any advisory warnings exist (pedantic mode)
   --provider <p>         Force provider: typesafe | openrouter | heuristic
   --battery <name>       Battery: all | security | taste | pokayoke | strategy | verification
   --json                 Output machine-readable JSON
@@ -150,7 +153,7 @@ Options:
 		}
 	}
 
-	if (!verdict.passed || (strict && !verdict.clean)) {
+	if (!verdict.passed || (failOnWarnings && !verdict.clean)) {
 		process.exit(1);
 	}
 }

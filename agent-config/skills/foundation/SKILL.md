@@ -30,6 +30,10 @@ of shifting complexity onto callers, users, or operators. Compare meaningful
 alternatives—including doing less, reusing a capability, or keeping the system.
 Sunk effort is not a benefit; migration, compatibility, and data safety are costs.
 
+
+Exercise System One strategy review (`omp-diff-review --battery strategy`) to evaluate
+complected concerns, deletable surface (erasure), and platform sprawl before proposing
+new structural mechanisms.
 Inspect or exercise evidence that could change a consequential recommendation.
 Consult current primary sources for external technology claims. Distinguish
 observations, inferences, preferences, and unknowns; identify inaccessible or

@@ -10,6 +10,8 @@
 !/guidance/**
 !/bin/
 !/bin/**
+!/system-one/
+!/system-one/**
 !/.githooks/
 !/.githooks/**
 !/.github/

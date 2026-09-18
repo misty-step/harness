@@ -208,9 +208,9 @@ install_diff_review() {
   # Pokayoke: clean-replace the owned package so obsolete files cannot survive.
   rm -rf "$agent_dir/extensions/diff-review"
   install -d -m 700 "$agent_dir/extensions/diff-review"
-  for file in index.ts engine.ts diff-review.test.ts; do
-    install -m 600 "$repo_dir/extensions/diff-review/$file" "$agent_dir/extensions/diff-review/$file"
-  done
+  install -m 600 "$repo_dir/extensions/diff-review/index.ts" "$agent_dir/extensions/diff-review/index.ts"
+  install -m 600 "$repo_dir/extensions/diff-review/diff-review.test.ts" "$agent_dir/extensions/diff-review/diff-review.test.ts"
+  install -m 600 "$base_dir/system-one/engine.ts" "$agent_dir/extensions/diff-review/engine.ts"
 }
 
 if has config; then validate_config; fi

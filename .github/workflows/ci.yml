@@ -22,3 +22,14 @@ jobs:
           bun-version: '1.4.2'
       - name: Check workspace and all components sequentially
         run: ./scripts/verify all
+      - name: System One semantic review gate
+        env:
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+        run: |
+          if [ -n "$OPENROUTER_API_KEY" ] && [ "${{ github.event_name }}" = "pull_request" ]; then
+            bun omp-config/bin/omp-diff-review.ts --range "origin/${{ github.base_ref }}..HEAD" --strict
+          elif [ -n "$OPENROUTER_API_KEY" ]; then
+            bun omp-config/bin/omp-diff-review.ts --commit HEAD --strict
+          else
+            echo "Semantic review gate skipped in uncredentialed CI run."
+          fi

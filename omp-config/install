@@ -217,6 +217,10 @@ install_extensions() {
       install -m 700 "$ext_entry" "$agent_dir/extensions/$ext_name/${ext_entry##*/}"
     done
   done
+  # Canonical System One shared engine deployment
+  if [ -d "$agent_dir/extensions/diff-review" ] && [ -f "$base_dir/system-one/engine.ts" ]; then
+    install -m 600 "$base_dir/system-one/engine.ts" "$agent_dir/extensions/diff-review/engine.ts"
+  fi
   # LOC status hooks are a per-checkout convenience; the monorepo root owns
   # hook installation, so this installer documents the recipe instead of
   # writing hooks into whatever repository contains it.
