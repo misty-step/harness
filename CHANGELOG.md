@@ -1,3 +1,10 @@
+## [0.1.15](https://github.com/misty-step/harness/compare/v0.1.14...v0.1.15) (2026-09-18)
+
+
+### Features
+
+* **system-one:** add multi-chunk parallel review and untracked file visibility (US-005) ([2d78d69](https://github.com/misty-step/harness/commit/2d78d69d1098f132a22c3da3cf7a232f84101c23))
+
 ## [0.1.14](https://github.com/misty-step/harness/compare/v0.1.13...v0.1.14) (2026-09-18)
 
 
