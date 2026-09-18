@@ -1,3 +1,15 @@
+## [0.1.13](https://github.com/misty-step/harness/compare/v0.1.12...v0.1.13) (2026-09-18)
+
+
+### Bug Fixes
+
+* **system-one:** bound diff context size and handle provider errors gracefully (US-005) ([7df7310](https://github.com/misty-step/harness/commit/7df7310e3215f25a2ff715ce05171ccc973e1c76))
+
+
+### Features
+
+* **system-one:** centralize shared engine, wire pre-push, CI gate, and guidance (US-005) ([51fa5c1](https://github.com/misty-step/harness/commit/51fa5c1d3db6891b765db18aa7dafd6bd2b2c033))
+
 ## [0.1.12](https://github.com/misty-step/harness/compare/v0.1.11...v0.1.12) (2026-09-18)
 
 
