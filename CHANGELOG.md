@@ -1,3 +1,10 @@
+## [0.1.12](https://github.com/misty-step/harness/compare/v0.1.11...v0.1.12) (2026-09-18)
+
+
+### Features
+
+* **diff-review:** Hickey complecting, erasure, small-app (US-005) ([#4](https://github.com/misty-step/harness/issues/4)) ([87f42f5](https://github.com/misty-step/harness/commit/87f42f54f1452ffb8849634d2ba345d38f2624b2))
+
 ## [0.1.11](https://github.com/misty-step/harness/compare/v0.1.10...v0.1.11) (2026-09-18)
 
 
