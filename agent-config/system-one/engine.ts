@@ -771,14 +771,48 @@ export async function evaluateDiff(
 		};
 	}
 
+	// Bounded state slice to protect against context window overflow.
+	// Cap to 24,000 characters (~6k tokens) to stay well within Jev's prompt limit.
+	const maxChars = 24000;
+	const boundedDiff =
+		diffText.length > maxChars
+			? diffText.slice(0, maxChars) + "\n\n[... diff truncated for System One context limit ...]"
+			: diffText;
+
 	const battery =
 		options.battery ??
 		(options.batteryName ? BATTERIES[options.batteryName] ?? HARNESS_BATTERY : HARNESS_BATTERY);
 	const start = Date.now();
 
-	const answers = await provider.evaluate(diffText, battery, options.timeoutMs);
-	const latencyMs = Date.now() - start;
+	let answers: Record<string, Answer>;
+	try {
+		answers = await provider.evaluate(boundedDiff, battery, options.timeoutMs);
+	} catch (err) {
+		const latencyMs = Date.now() - start;
+		return {
+			passed: true,
+			clean: false,
+			enabled: true,
+			provider: provider.name,
+			latencyMs,
+			stats,
+			blocks: [],
+			warnings: [
+				{
+					rule: "provider_error",
+					category: "verification",
+					severity: "warning",
+					message: `System One provider error: ${err instanceof Error ? err.message : String(err)}`,
+					evidence: "Non-fatal provider error during review",
+					probability: 0,
+					confidence: 0,
+				},
+			],
+			summary: `Review skipped hard gating due to provider error: ${err instanceof Error ? err.message : String(err)}`,
+		};
+	}
 
+	const latencyMs = Date.now() - start;
 	const blocks: RuleFinding[] = [];
 	const warnings: RuleFinding[] = [];
 
