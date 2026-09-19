@@ -1,0 +1,22 @@
+{
+  "steps": [
+    {
+      "url_contains": "/copy-lie.html",
+      "answers": {
+        "operation": {"choice": "CLICK", "confidence": 0.78, "probabilities": {"CLICK": 0.78, "DONE": 0.13, "ESCALATE": 0.05, "BLOCKED": 0.02, "WAIT": 0.01, "SCROLL_DOWN": 0.01}},
+        "click_target": {"choice": "2", "confidence": 0.73, "probabilities": {"2": 0.73, "3": 0.13, "1": 0.08, "none": 0.06}},
+        "which_screen": {"choice": "dashboard", "confidence": 0.9, "probabilities": {"dashboard": 0.9, "unknown": 0.1}},
+        "criterion_met": {"noul": 0.21},
+        "criterion_partial": {"noul": 0.49},
+        "page_broken": {"noul": 0.08},
+        "empty_state": {"noul": 0.62},
+        "overlay_trap": {"noul": 0.04},
+        "lookalike_conflict": {"noul": 0.19},
+        "needs_vision": {"noul": 0.07},
+        "copy_lie": {"noul": 0.75},
+        "primary_missing": {"noul": 0.25},
+        "qa_severity": {"score": 0.86}
+      }
+    }
+  ]
+}
