@@ -618,7 +618,7 @@ classifier or automatic mid-session switch.
 | --- | --- |
 | Fresh `omp`, `@default` | `openrouter/z-ai/glm-5.3:high` |
 | Ordinary `task` workers, `@task` | `openrouter/deepseek/deepseek-v4.1-flash:max` |
-| `@smol`, `@tiny`, `@commit`; bundled `scout` and `sonic` | `cerebras/qwen-3.8-27b:high` |
+| `@smol`, `@tiny`, `@commit`; bundled `scout` and `sonic` | `openrouter/z-ai/glm-5.3-flash:max` |
 | `@plan`, `@advisor` | `openrouter/z-ai/glm-5.3:high` |
 | `@slow` (explicit thorough pass) | `openai-codex/gpt-6-astra:high` |
 | `@extreme` (rare unconstrained reasoning) | `openai-codex/gpt-6-astra:max` |

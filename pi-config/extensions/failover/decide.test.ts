@@ -7,20 +7,19 @@ import { expect, test } from "bun:test";
 import { modelKey, nextInChain, runError, summarize } from "./decide.ts";
 
 const CHAIN = [
-	"cerebras/qwen-3.8-27b",
 	"openrouter/deepseek/deepseek-v4.1-flash",
 	"openrouter/inception/mercury-2.5",
 ];
 
 test("modelKey joins provider and modelId", () => {
-	expect(modelKey({ provider: "cerebras", id: "qwen-3.8-27b" })).toBe(
-		"cerebras/qwen-3.8-27b",
+	expect(modelKey({ provider: "openrouter", id: "deepseek/deepseek-v4.1-flash" })).toBe(
+		"openrouter/deepseek/deepseek-v4.1-flash",
 	);
 });
 
 test("modelKey falls back to modelId", () => {
-	expect(modelKey({ provider: "cerebras", modelId: "qwen-3.8-27b" })).toBe(
-		"cerebras/qwen-3.8-27b",
+	expect(modelKey({ provider: "openrouter", modelId: "deepseek/deepseek-v4.1-flash" })).toBe(
+		"openrouter/deepseek/deepseek-v4.1-flash",
 	);
 });
 
@@ -28,8 +27,8 @@ test("modelKey is empty without a full identity", () => {
 	expect(modelKey(null)).toBe("");
 	expect(modelKey(undefined)).toBe("");
 	expect(modelKey({})).toBe("");
-	expect(modelKey({ provider: "cerebras" })).toBe("");
-	expect(modelKey({ id: "qwen-3.8-27b" })).toBe("");
+	expect(modelKey({ provider: "openrouter" })).toBe("");
+	expect(modelKey({ id: "deepseek/deepseek-v4.1-flash" })).toBe("");
 });
 
 test("runError surfaces the last assistant message's errorMessage", () => {
@@ -64,25 +63,20 @@ test("runError ignores aborts, tool errors, and non-array input", () => {
 test("chain: a run that dies on a link advances to the next link", () => {
 	expect(nextInChain(CHAIN, CHAIN[0])).toEqual({
 		action: "advance",
-		key: "openrouter/deepseek/deepseek-v4.1-flash",
-		link: 1,
-	});
-	expect(nextInChain(CHAIN, CHAIN[1])).toEqual({
-		action: "advance",
 		key: "openrouter/inception/mercury-2.5",
-		link: 2,
+		link: 1,
 	});
 });
 
 test("chain: a run that dies on the last link exhausts the chain", () => {
-	expect(nextInChain(CHAIN, CHAIN[2])).toEqual({ action: "exhausted" });
+	expect(nextInChain(CHAIN, CHAIN[1])).toEqual({ action: "exhausted" });
 });
 
 test("chain: a longer chain walks link by link to exhaustion", () => {
-	const four = [...CHAIN, "openai/gpt-5.5"];
+	const four = [...CHAIN, "openai/gpt-5.5", "openai/gpt-5.6"];
 	expect(nextInChain(four, four[2])).toEqual({
 		action: "advance",
-		key: "openai/gpt-5.5",
+		key: "openai/gpt-5.6",
 		link: 3,
 	});
 	expect(nextInChain(four, four[3])).toEqual({ action: "exhausted" });
@@ -102,7 +96,7 @@ test("chain: keyed to the current model, so it cannot drift", () => {
 		link: 1,
 	});
 	// A manual jump straight to the tail also exhausts on the next failure.
-	expect(nextInChain(CHAIN, CHAIN[2])).toEqual({ action: "exhausted" });
+	expect(nextInChain(CHAIN, CHAIN[1])).toEqual({ action: "exhausted" });
 });
 
 test("summarize clamps to one short line", () => {

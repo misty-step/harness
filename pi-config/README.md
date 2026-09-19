@@ -136,7 +136,7 @@ current model — never to a remembered position — so it cannot drift out of
 sync with what the session actually runs. It never touches a model the user
 chose, and never re-sends the user's prompt — a run that dies mid-turn may
 already have executed tools. The chain is the `CHAIN` constant in `index.ts`
-(currently `cerebras/qwen-3.8-27b` → `openrouter/deepseek/deepseek-v4.1-flash`
+(currently `openrouter/deepseek/deepseek-v4.1-flash`
 → `openrouter/inception/mercury-2.5`; cheap and fast first, heavy backup
 last); extend it there and redeploy. `decide.ts` is pure and bun-tested;
 `index.ts` is the harness-facing half. Removing the directory leaves stock

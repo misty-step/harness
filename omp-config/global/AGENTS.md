@@ -19,9 +19,10 @@ existing functionality, and avoids unrelated churn.
 
 Daily roles run the cheap triad: GLM-5.3 plans (default/plan/advisor), DeepSeek
 V4.1 Flash builds (task), and Gemini 3.8 Flash verifies (reviewer/vision).
-Cerebras Qwen3.8 27B serves the cheap tier (`smol`, `tiny`, `commit`). Astra is
+Cheap mechanical work (`smol`, `tiny`, `commit`) is GLM-5.3-flash at max.
+Cerebras is retired (operator 2026-09-18: too expensive). Astra is
 strategic, not default: reserved for `@slow`, `@extreme`, and `security-reviewer`.
-Mechanical VCS and install-only deploys require sonic (`@smol`). Model selections
+Mechanical VCS and install-only deploys use `@smol`. Model selections
 and provider-failure chains live in `config.yml`; exhaust configured subscription
 routes before paid OpenRouter recovery. Role routing does not switch the current
 session's selected model.

@@ -29,12 +29,11 @@ import { modelKey, nextInChain, runError, summarize } from "./decide.ts";
  * default in the repo's settings.json; every link must be a model the
  * session can resolve and authenticate (and thinking models should carry a
  * modelThinkingLevels entry so the switch keeps posture). Order: cheap/fast
- * first, heavy backup last — a dead Cerebras stock lands on the fast Open
- * Router flash, and only if that also dies do we pay mercury's overhead.
- * Extend by editing this list and redeploying (ADR-013).
+ * first, heavy backup last. Cerebras is out of the fleet (operator
+ * 2026-09-18: too expensive). Startup is DeepSeek flash; mercury is the
+ * last hop. Extend by editing this list and redeploying (ADR-013).
  */
 const CHAIN = [
-	"cerebras/qwen-3.8-27b",
 	"openrouter/deepseek/deepseek-v4.1-flash",
 	"openrouter/inception/mercury-2.5",
 ];
