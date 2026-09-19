@@ -1,3 +1,10 @@
+## [0.1.17](https://github.com/misty-step/harness/compare/v0.1.16...v0.1.17) (2026-09-19)
+
+
+### Bug Fixes
+
+* **harness:** retire Cerebras (too expensive) ([#11](https://github.com/misty-step/harness/issues/11)) ([b92534a](https://github.com/misty-step/harness/commit/b92534ae2d5cecf59a0d1118170f09d9d1b9160e))
+
 ## [0.1.16](https://github.com/misty-step/harness/compare/v0.1.15...v0.1.16) (2026-09-18)
 
 
