@@ -3,7 +3,7 @@
  * review-check — advisory-only continuous diff review CLI (review-1).
  *
  * Reads a git change set, builds the bounded/redacted review contract, and
- * renders one compact line (plus machine JSON and a JSONL log). This tool is
+ * renders one compact line (plus machine JSON and JSONL logs). This tool is
  * advisory by construction: every path exits 0, and an unavailable provider is
  * always visible in the output.
  *
@@ -16,6 +16,7 @@ import { appendFileSync, mkdirSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import type { SystemOneProvider } from "../system-one/engine.ts";
 import { resolveProvider } from "../system-one/engine.ts";
+import type { ReviewOutcome } from "../system-one/review.ts";
 import {
 	REVIEW_SCHEMA,
 	gatherGitChangeSet,
@@ -35,6 +36,7 @@ type CliOptions = {
 	descFile?: string;
 	live: boolean;
 	mockFile?: string;
+	rulesFile?: string;
 	maxBytes?: number;
 	json: boolean;
 };
@@ -56,6 +58,7 @@ function parseArgs(argv: string[]): CliOptions {
 		else if (arg === "--desc-file" && argv[i + 1]) options.descFile = argv[++i];
 		else if (arg === "--live") options.live = true;
 		else if (arg === "--mock" && argv[i + 1]) options.mockFile = argv[++i];
+		else if (arg === "--rules" && argv[i + 1]) options.rulesFile = argv[++i];
 		else if (arg === "--max-bytes" && argv[i + 1]) {
 			const parsed = Number.parseInt(argv[++i], 10);
 			if (Number.isFinite(parsed) && parsed > 0) options.maxBytes = parsed;
@@ -75,6 +78,17 @@ function readDescription(options: CliOptions): string {
 	}
 }
 
+function readRules(options: CliOptions): string | undefined {
+	if (!options.rulesFile) return undefined;
+	try {
+		return readFileSync(options.rulesFile, "utf8");
+	} catch {
+		// Deterministic matches are optional context; an unreadable rules file
+		// simply produces no matches rather than hiding the Jev review.
+		return undefined;
+	}
+}
+
 function mockProvider(file: string): SystemOneProvider {
 	return {
 		name: "heuristic",
@@ -86,14 +100,33 @@ function mockProvider(file: string): SystemOneProvider {
 	};
 }
 
-function appendLog(gitDir: string | undefined, outcome: unknown): void {
+function cacheDirOf(gitDir: string | undefined): string | undefined {
+	return gitDir ? join(gitDir, "jev-review-cache") : undefined;
+}
+
+function appendLog(gitDir: string | undefined, outcome: ReviewOutcome): void {
 	if (!gitDir) return;
 	try {
-		const dir = join(gitDir, "jev-review-cache");
+		const dir = cacheDirOf(gitDir);
+		if (!dir) return;
 		mkdirSync(dir, { recursive: true });
 		appendFileSync(join(dir, "log.jsonl"), `${redactText(JSON.stringify(outcome))}\n`);
 	} catch {
 		// Logging is best effort; the review result is already printed.
+	}
+}
+
+function appendSecurityRequest(gitDir: string | undefined, outcome: ReviewOutcome): void {
+	if (!gitDir) return;
+	const request = outcome.security_request;
+	if (!request || request.requested_action !== "security_review") return;
+	try {
+		const dir = cacheDirOf(gitDir);
+		if (!dir) return;
+		mkdirSync(dir, { recursive: true });
+		appendFileSync(join(dir, "security-requests.jsonl"), `${redactText(JSON.stringify(request))}\n`);
+	} catch {
+		// The request line is also in the machine record; disk failure is non-fatal.
 	}
 }
 
@@ -110,7 +143,7 @@ async function main(): Promise<void> {
 	if (!options.base) {
 		console.log(
 			redactText(
-				`[jev-review ${REVIEW_SCHEMA} 0000000] jev unavailable (missing_base) — nothing assessed (advisory; never a gate)`,
+				`[jev-review ${REVIEW_SCHEMA} unresolved] jev unavailable (missing_base) — nothing assessed (advisory; never a gate)`,
 			),
 		);
 		console.log(FOOTER);
@@ -118,12 +151,13 @@ async function main(): Promise<void> {
 	}
 
 	const description = readDescription(options);
+	const rulesText = readRules(options);
 	const change = gatherGitChangeSet(repo, {
 		base: options.base,
 		head: options.head,
 		staged: options.staged,
 	});
-	const cacheDir = change.gitDir ? join(change.gitDir, "jev-review-cache") : undefined;
+	const cacheDir = cacheDirOf(change.gitDir);
 
 	let provider: SystemOneProvider | null = null;
 	let dryRun = false;
@@ -139,13 +173,16 @@ async function main(): Promise<void> {
 		? await runReviewCheck({
 				repoDir: repo,
 				repoLabel: change.repo,
-				base: change.base,
-				head: change.head,
+				base: change.base.ref,
+				head: change.head.ref,
+				baseSha: change.base.sha,
+				headSha: change.head.sha,
 				staged: options.staged,
 				stagedTree: change.stagedTree,
 				description,
 				provider,
 				dryRun,
+				rulesText,
 				maxBytes: options.maxBytes,
 				cacheDir,
 				diffText: change.diffText,
@@ -159,12 +196,15 @@ async function main(): Promise<void> {
 				description,
 				provider,
 				dryRun,
+				rulesText,
 				maxBytes: options.maxBytes,
 			});
 
 	console.log(redactText(renderLine(outcome)));
 	if (options.json) console.log(redactText(renderMachine(outcome)));
-	appendLog(change.gitDir ?? gitDirOf(repo), outcome);
+	const gitDir = change.gitDir ?? gitDirOf(repo);
+	appendLog(gitDir, outcome);
+	appendSecurityRequest(gitDir, outcome);
 	console.log(FOOTER);
 	process.exit(0);
 }
@@ -175,7 +215,7 @@ try {
 	const message = error instanceof Error ? error.message : String(error);
 	console.log(
 		redactText(
-			`[jev-review ${REVIEW_SCHEMA} 0000000] jev unavailable (internal_error: ${message}) — nothing assessed (advisory; never a gate)`,
+			`[jev-review ${REVIEW_SCHEMA} unresolved] jev unavailable (internal_error: ${message}) — nothing assessed (advisory; never a gate)`,
 		),
 	);
 	console.log(FOOTER);

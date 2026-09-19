@@ -12,9 +12,12 @@ import {
 	REVIEW_SCHEMA,
 	REVIEW_THRESHOLDS_VERSION,
 	SEVERITY_CLASS,
+	buildContract,
 	deriveChangedFiles,
 	gatherGitChangeSet,
+	parseRulesJsonl,
 	policyCheckEvent,
+	relevantPathsFor,
 	renderLine,
 	renderMachine,
 	runReviewCheck,
@@ -71,7 +74,14 @@ function spyProvider(answers: Record<string, Answer>): Spy {
 }
 
 async function run(overrides: Partial<RunReviewCheckOptions> = {}): Promise<ReviewOutcome> {
-	return runReviewCheck({ repoDir: scratch(), base: "base0000", head: "head1111", ...overrides });
+	return runReviewCheck({
+		repoDir: scratch(),
+		base: "base0000",
+		head: "head1111",
+		baseSha: "1".repeat(40),
+		headSha: "2".repeat(40),
+		...overrides,
+	});
 }
 
 function gitRepo(): string {
@@ -155,6 +165,8 @@ describe("review-1 contract", () => {
 			repoDir: dir,
 			base: "base0000",
 			head: "head1111",
+			baseSha: "1".repeat(40),
+			headSha: "2".repeat(40),
 			diffText: fixtureText("clean.diff"),
 			changedFiles: ["src/math.ts"],
 			cacheDir: join(dir, "cache"),
@@ -167,6 +179,10 @@ describe("review-1 contract", () => {
 		expect(first.calls()).toBe(1);
 		expect(second.calls()).toBe(0);
 		expect(two.raw_answers?.["sec::secret_material"]).toBeDefined();
+		// F3: the cached original's latency is labeled, never presented as now.
+		expect(two.inferenceLatencyMs).toBe(one.inferenceLatencyMs);
+		expect(two.latencyMs).toBeGreaterThanOrEqual(0);
+		expect(renderLine(two)).toContain(`cached:yes (prior inference ${one.latencyMs}ms)`);
 	});
 
 	test("e. an oversized diff truncates and disables the context-dependent lenses", async () => {
@@ -292,6 +308,8 @@ describe("review-1 contract", () => {
 			repoDir: dir,
 			base: "same-base",
 			head: "same-head",
+			baseSha: "3".repeat(40),
+			headSha: "4".repeat(40),
 			diffText: fixtureText("clean.diff"),
 			changedFiles: ["src/math.ts"],
 			cacheDir: join(dir, "cache"),
@@ -391,6 +409,135 @@ describe("review-1 contract", () => {
 	});
 });
 
+describe("review-1 resolved refs and relevance", () => {
+	test("F1: identity and the human line use resolved SHAs, never mutable refs", async () => {
+		const spy = spyProvider(fixtureAnswers("mock-low.json"));
+		const baseSha = "a".repeat(40);
+		const headSha = "b".repeat(40);
+		const outcome = await run({
+			base: "origin/main",
+			head: "pr/10",
+			baseSha,
+			headSha,
+			diffText: fixtureText("clean.diff"),
+			changedFiles: ["src/math.ts"],
+			provider: spy.provider,
+		});
+		expect(outcome.base).toEqual({ ref: "origin/main", sha: baseSha });
+		expect(outcome.head).toEqual({ ref: "pr/10", sha: headSha });
+		expect(outcome.contract.base).toEqual({ ref: "origin/main", sha: baseSha });
+		expect(outcome.contract.head).toEqual({ ref: "pr/10", sha: headSha });
+		const line = renderLine(outcome);
+		expect(line).toContain(`[jev-review review-1 ${headSha.slice(0, 7)}]`);
+		expect(line).not.toContain("origin/main");
+		expect(line).not.toContain("pr/10");
+	});
+
+	test("F1: an unresolved head renders as unresolved, not as a ref label", async () => {
+		const spy = spyProvider(fixtureAnswers("mock-low.json"));
+		const outcome = await run({
+			base: "main",
+			head: "pr/10",
+			baseSha: "",
+			headSha: "",
+			diffText: fixtureText("clean.diff"),
+			changedFiles: ["src/math.ts"],
+			provider: spy.provider,
+		});
+		expect(renderLine(outcome)).toContain("[jev-review review-1 unresolved]");
+		expect(renderLine(outcome)).not.toContain("pr/10");
+	});
+
+	test("F2: a flagged lens cites only its deterministically relevant file", async () => {
+		const spy = spyProvider({
+			"tests::missing_regression": { type: "noul", probability: 0.9, confidence: 0.9 },
+			"tests::deleted_weakened": { type: "noul", probability: 0.8, confidence: 0.9 },
+			"deps::supply_chain": { type: "noul", probability: 0.9, confidence: 0.9 },
+		});
+		const diff = [
+			"diff --git a/src/app.ts b/src/app.ts",
+			"index 1111111..2222222 100644",
+			"--- a/src/app.ts",
+			"+++ b/src/app.ts",
+			"@@ -1 +1,2 @@",
+			" export const app = 1;",
+			"+export const changed = true;",
+			"diff --git a/tests/app.test.ts b/tests/app.test.ts",
+			"index 1111111..2222222 100644",
+			"--- a/tests/app.test.ts",
+			"+++ b/tests/app.test.ts",
+			"@@ -1 +1,2 @@",
+			" test(\"app\", () => {});",
+			"+test(\"changed\", () => {});",
+			"",
+		].join("\n");
+		const outcome = await run({
+			diffText: diff,
+			changedFiles: ["src/app.ts", "tests/app.test.ts"],
+			provider: spy.provider,
+		});
+		const testFinding = outcome.leads.find((finding) => finding.question_id === "tests::missing_regression");
+		expect(testFinding?.disposition).toBe("test_follow_up");
+		expect(testFinding?.evidence_refs).toEqual(["tests/app.test.ts"]);
+		expect(testFinding?.evidence_refs).not.toContain("src/app.ts");
+		const depsFinding = outcome.leads.find((finding) => finding.question_id === "deps::supply_chain");
+		expect(depsFinding?.evidence_refs).toEqual([]);
+	});
+
+	test("F2: sec::secret_material cites only excluded or redacted paths", async () => {
+		const spy = spyProvider({
+			"sec::secret_material": {
+				type: "noul",
+				probability: 0.95,
+				confidence: 0.9,
+				evidence_refs: ["src/math.ts"],
+			} as unknown as Answer,
+		});
+		const combined = `${fixtureText("secret.diff").replace("__AWS_ACCESS_KEY__", AWS_KEY)}\n${fixtureText("envfile.diff")}`;
+		const outcome = await run({
+			diffText: combined,
+			changedFiles: ["src/aws.ts", "config/.env", "src/config.ts", "src/math.ts"],
+			provider: spy.provider,
+		});
+		const finding = outcome.leads.find((item) => item.question_id === "sec::secret_material");
+		expect(finding?.evidence_refs).toEqual(["src/aws.ts", "config/.env"]);
+		expect(finding?.evidence_refs).not.toContain("src/math.ts");
+		expect(outcome.local_facts.redacted_files).toContain("src/aws.ts");
+		expect(outcome.local_facts.excluded_files).toContain("config/.env");
+	});
+
+	test("F2: relevance rules split test, dependency, data, and ops paths", () => {
+		const contract = buildContract({
+			repo: "example/repo",
+			base: { ref: "main", sha: "a".repeat(40) },
+			head: { ref: "HEAD", sha: "b".repeat(40) },
+			diffText: fixtureText("clean.diff"),
+			changedFiles: [
+				"src/app.ts",
+				"tests/app.test.ts",
+				"package-lock.json",
+				".github/workflows/ci.yml",
+				"scripts/release.sh",
+				"migrations/0001.sql",
+				"Dockerfile",
+			],
+		});
+		expect(relevantPathsFor("tests::missing_regression", contract)).toEqual(["tests/app.test.ts"]);
+		expect(relevantPathsFor("deps::supply_chain", contract)).toEqual([
+			"package-lock.json",
+			".github/workflows/ci.yml",
+			"Dockerfile",
+		]);
+		expect(relevantPathsFor("data::destructive", contract)).toEqual(["migrations/0001.sql"]);
+		expect(relevantPathsFor("ops::observability", contract)).toEqual([
+			".github/workflows/ci.yml",
+			"scripts/release.sh",
+			"Dockerfile",
+		]);
+		expect(relevantPathsFor("corr::semantic_defect", contract)).toEqual([]);
+	});
+});
+
 describe("review-1 classification", () => {
 	test("thresholds map high-signal answers to the specified dispositions", async () => {
 		const spy = spyProvider(fixtureAnswers("mock-suspicious.json"));
@@ -467,7 +614,80 @@ describe("review-1 classification", () => {
 	});
 });
 
-describe("review-1 staged identity", () => {
+describe("review-1 deterministic rules envelope", () => {
+	test("F4: the fixture parses and the frozen envelope carries the exact fields", async () => {
+		const rulesText = fixtureText("rules-matches.jsonl");
+		const parsed = parseRulesJsonl(rulesText);
+		expect(parsed.meta?.rules_version).toBe("rules-2026.02");
+		expect(parsed.matches).toHaveLength(2);
+		expect(parsed.line_errors).toBe(0);
+
+		const spy = spyProvider(fixtureAnswers("mock-suspicious.json"));
+		const nowMs = Date.parse("2026-02-20T12:00:00.000Z");
+		const outcome = await run({
+			diffText: fixtureText("clean.diff"),
+			changedFiles: ["src/math.ts"],
+			provider: spy.provider,
+			rulesText,
+			now: () => nowMs,
+		});
+		expect(outcome.deterministic_matches).toHaveLength(2);
+		const request = outcome.security_request;
+		expect(request).toBeDefined();
+		if (!request) return;
+		expect(Object.keys(request).sort()).toEqual(
+			[
+				"schema_version",
+				"repo",
+				"base_sha",
+				"head_sha",
+				"diff_sha256",
+				"changed_paths",
+				"risk",
+				"advisory",
+				"coverage",
+				"requested_action",
+				"created_at",
+				"expires_at",
+			].sort(),
+		);
+		expect(request.schema_version).toBe("security-review-request-1");
+		expect(request.base_sha).toBe("1".repeat(40));
+		expect(request.head_sha).toBe("2".repeat(40));
+		expect(request.diff_sha256).toBe(outcome.contract.diff_sha256);
+		expect(request.requested_action).toBe("security_review");
+		expect(request.risk.rules_version).toBe("rules-2026.02");
+		expect(request.risk.taxonomy_version).toBe("taxonomy-3");
+		expect(request.risk.matched_categories).toEqual(["credentials", "supply_chain"]);
+		expect(request.risk.deterministic_matches).toEqual(outcome.deterministic_matches);
+		expect(request.advisory.source).toBe("jev");
+		// mock-suspicious leaves one lens under-evidenced, so the status is partial.
+		expect(request.advisory.status).toBe("partial");
+		expect(request.advisory.question_pack_version).toBe("review-questions-1");
+		expect(request.created_at).toBe("2026-02-20T12:00:00.000Z");
+		expect(request.expires_at).toBe("2026-02-27T12:00:00.000Z");
+		expect(request.coverage.truncated).toBe(false);
+		expect(request.coverage.not_assessed).toEqual(["data::destructive"]);
+		expect(JSON.stringify(request)).not.toMatch(/"(probability|confidence|score)"/);
+	});
+
+	test("F4 invariant: deterministic matches survive an unavailable provider", async () => {
+		const outcome = await run({
+			diffText: fixtureText("clean.diff"),
+			changedFiles: ["src/math.ts"],
+			provider: null,
+			rulesText: fixtureText("rules-matches.jsonl"),
+		});
+		expect(outcome.available).toBe(false);
+		expect(outcome.deterministic_matches).toHaveLength(2);
+		expect(outcome.security_request?.requested_action).toBe("security_review");
+		expect(outcome.security_request?.advisory.status).toBe("unavailable");
+		expect(outcome.security_request?.risk.deterministic_matches).toHaveLength(2);
+		expect(outcome.security_request?.coverage.not_assessed).toHaveLength(15);
+	});
+});
+
+ describe("review-1 staged identity", () => {
 	test("--staged records the staged tree via git write-tree and its identity differs from the same-content HEAD run", async () => {
 		const repo = scratch();
 		const git = (args: string[]) => spawnSync("git", args, { cwd: repo, encoding: "utf8" });
@@ -486,13 +706,17 @@ describe("review-1 staged identity", () => {
 		const stagedTree = staged.stagedTree;
 		expect(stagedTree).toMatch(/^[0-9a-f]{40}$/);
 		expect(stagedTree).not.toBe(git(["rev-parse", "HEAD^{tree}"]).stdout.trim());
+		expect(staged.base.sha).toMatch(/^[0-9a-f]{40}$/);
+		expect(staged.base.sha).toBe(staged.head.sha);
 
 		const stagedSpy = spyProvider(fixtureAnswers("mock-low.json"));
 		const stagedOutcome = await runReviewCheck({
 			repoDir: repo,
 			repoLabel: staged.repo,
-			base: "HEAD",
-			head: "HEAD",
+			base: staged.base.ref,
+			head: staged.head.ref,
+			baseSha: staged.base.sha,
+			headSha: staged.head.sha,
 			staged: true,
 			stagedTree,
 			diffText: staged.diffText,
@@ -501,6 +725,8 @@ describe("review-1 staged identity", () => {
 			model: "typesafe/jev-1.13",
 		});
 		expect(stagedOutcome.staged_tree).toBe(stagedTree);
+		expect(stagedOutcome.head).toEqual({ ref: "HEAD", sha: staged.head.sha });
+		expect(renderLine(stagedOutcome)).toContain(`[jev-review review-1 ${staged.head.sha.slice(0, 7)}]`);
 
 		// Commit the identical content so the same diff is reachable without an index.
 		commit("v2");
@@ -512,8 +738,12 @@ describe("review-1 staged identity", () => {
 		const rangeOutcome = await runReviewCheck({
 			repoDir: repo,
 			repoLabel: range.repo,
-			base: "HEAD",
-			head: "HEAD",
+			// Same labels and resolved SHAs as the staged run: identity may only
+			// diverge because the staged tree participates in it.
+			base: staged.base.ref,
+			head: staged.head.ref,
+			baseSha: staged.base.sha,
+			headSha: staged.head.sha,
 			diffText: range.diffText,
 			changedFiles: range.changedFiles,
 			provider: rangeSpy.provider,
@@ -535,6 +765,26 @@ describe("review-check CLI", () => {
 		expect(result.stdout).toContain(FOOTER);
 		const gitDir = spawnSync("git", ["rev-parse", "--absolute-git-dir"], { cwd: repo, encoding: "utf8" }).stdout.trim();
 		expect(existsSync(join(gitDir, "jev-review-cache", "log.jsonl"))).toBe(true);
+	});
+
+	test("--rules appends a security-review-request-1 line when matches exist", () => {
+		const repo = gitRepo();
+		const result = runCli(repo, [
+			"--mock",
+			join(fixtures, "mock-low.json"),
+			"--rules",
+			join(fixtures, "rules-matches.jsonl"),
+			"--json",
+		]);
+		expect(result.status).toBe(0);
+		expect(result.stdout).toContain('"requested_action": "security_review"');
+		const gitDir = spawnSync("git", ["rev-parse", "--absolute-git-dir"], { cwd: repo, encoding: "utf8" }).stdout.trim();
+		const requests = join(gitDir, "jev-review-cache", "security-requests.jsonl");
+		expect(existsSync(requests)).toBe(true);
+		const lines = readFileSync(requests, "utf8").trim().split("\n");
+		const line = JSON.parse(lines[lines.length - 1]) as { schema_version: string; requested_action: string };
+		expect(line.schema_version).toBe("security-review-request-1");
+		expect(line.requested_action).toBe("security_review");
 	});
 
 	test("without --live or --mock the CLI reports dry_run and exits 0", () => {

@@ -207,12 +207,83 @@ export type ReviewFinding = {
 	reason?: string;
 };
 
+export type ResolvedRef = {
+	/** Human ref label (HEAD, origin/main, pr/10); never used for identity. */
+	ref: string;
+	/** Resolved commit SHA (`git rev-parse <ref>^{commit}`); empty when unresolved. */
+	sha: string;
+};
+
+export type DeterministicMatch = {
+	rule_id: string;
+	version: string;
+	category: string;
+	path: string;
+	evidence: string;
+	severity_class: "secret_candidate" | "review";
+};
+
+export type RulesMeta = {
+	schema_version: string;
+	schema_revision: string;
+	repo: string;
+	base_sha: string;
+	head_sha: string;
+	rules_version: string;
+	taxonomy_version: string;
+};
+
+export type RulesParseResult = {
+	meta: RulesMeta | null;
+	matches: DeterministicMatch[];
+	line_errors: number;
+};
+
+export type AdvisorySignal = {
+	question_id: string;
+	direction: string;
+	strength_bucket: "low" | "medium" | "high";
+	evidence_refs: string[];
+};
+
+export type SecurityReviewRequest = {
+	schema_version: "security-review-request-1";
+	repo: string;
+	base_sha: string;
+	head_sha: string;
+	diff_sha256: string;
+	changed_paths: string[];
+	risk: {
+		rules_version: string;
+		taxonomy_version: string;
+		matched_categories: string[];
+		deterministic_matches: DeterministicMatch[];
+	};
+	advisory: {
+		source: "jev";
+		model: string;
+		question_pack_version: string;
+		status: "assessed" | "partial" | "unavailable";
+		signals: AdvisorySignal[];
+	};
+	coverage: {
+		truncated: boolean;
+		bytes: number;
+		files_omitted: string[];
+		not_assessed: string[];
+	};
+	requested_action: "security_review" | "no_action";
+	created_at: string;
+	expires_at: string;
+};
+
 export type ReviewContextFacts = {
 	truncated: boolean;
 	original_diff_chars: number;
 	included_diff_chars: number;
 	excluded_files: string[];
 	binary_files: string[];
+	redacted_files: string[];
 	redactions: number;
 	description_truncated: boolean;
 	injection_markers: number;
@@ -221,8 +292,8 @@ export type ReviewContextFacts = {
 
 export type ReviewContract = {
 	repo: string;
-	base: string;
-	head: string;
+	base: ResolvedRef;
+	head: ResolvedRef;
 	stagedTree?: string;
 	changedFiles: string[];
 	diffHash: string;
@@ -241,21 +312,27 @@ export type ReviewOutcome = {
 	identity: string;
 	model: string;
 	repo: string;
-	base: string;
-	head: string;
+	base: ResolvedRef;
+	head: ResolvedRef;
 	staged_tree?: string;
 	available: boolean;
 	reason: string;
 	cached: boolean;
-	latency_ms: number;
+	/** Wall-clock time for this invocation (cache lookup included). */
+	latencyMs: number;
+	/** Actual inference time carried from the cached original when `cached:true`. */
+	inferenceLatencyMs?: number;
 	leads: ReviewFinding[];
 	findings: ReviewFinding[];
 	dispositions: Record<string, ReviewDispositionRecord>;
 	coverage: { assessed: number; total: number };
 	unsupported_locations: number;
+	deterministic_matches: DeterministicMatch[];
+	security_request?: SecurityReviewRequest;
 	local_facts: {
 		changed_files: string[];
 		excluded_files: string[];
+		redacted_files: string[];
 		binary_files: string[];
 		redactions: number;
 		injection_markers: number;
@@ -263,8 +340,8 @@ export type ReviewOutcome = {
 	};
 	contract: {
 		repo: string;
-		base: string;
-		head: string;
+		base: ResolvedRef;
+		head: ResolvedRef;
 		staged_tree?: string;
 		diff_sha256: string;
 		description_sha256: string;
@@ -286,8 +363,8 @@ export type ClassifyResult = {
 
 export type ContractInputs = {
 	repo: string;
-	base: string;
-	head: string;
+	base: ResolvedRef;
+	head: ResolvedRef;
 	stagedTree?: string;
 	diffText: string;
 	changedFiles?: string[];
@@ -300,8 +377,8 @@ export type GitChangeSet = {
 	ok: boolean;
 	error?: string;
 	repo: string;
-	base: string;
-	head: string;
+	base: ResolvedRef;
+	head: ResolvedRef;
 	stagedTree?: string;
 	gitDir?: string;
 	diffText: string;
@@ -312,6 +389,9 @@ export type RunReviewCheckOptions = {
 	repoDir: string;
 	base: string;
 	head: string;
+	/** Resolved SHAs supplied by a caller that already ran `git rev-parse`. */
+	baseSha?: string;
+	headSha?: string;
 	staged?: boolean;
 	description?: string;
 	provider?: SystemOneProvider | null;
@@ -319,6 +399,8 @@ export type RunReviewCheckOptions = {
 	maxBytes?: number;
 	cacheDir?: string;
 	now?: () => number;
+	/** Raw `risk_rules.py matches --jsonl` output (meta line + match lines). */
+	rulesText?: string;
 	/** Explicit dry run: no provider is consulted; every question is not_assessed. */
 	dryRun?: boolean;
 	/** Injection points for tests and callers that already gathered git state. */
@@ -533,26 +615,36 @@ export function buildContract(inputs: ContractInputs): ReviewContract {
 
 	// Bound at a file boundary when possible; only a single oversized first
 	// file is hard-sliced.
-	const bounded: string[] = [];
+	const bounded: DiffChunk[] = [];
 	let boundedLength = 0;
 	let truncated = false;
 	for (const chunk of kept) {
 		const addition = chunk.text.length + (bounded.length > 0 ? 1 : 0);
 		if (boundedLength + addition > maxBytes) {
 			truncated = true;
-			if (bounded.length === 0) bounded.push(chunk.text.slice(0, maxBytes));
+			if (bounded.length === 0) bounded.push({ path: chunk.path, text: chunk.text.slice(0, maxBytes) });
 			break;
 		}
-		bounded.push(chunk.text);
+		bounded.push({ path: chunk.path, text: chunk.text });
 		boundedLength += addition;
 	}
 	if (bounded.length < kept.length) truncated = true;
-	const boundedRaw = bounded.join("\n");
 
 	// Pre-egress redaction runs on exactly the text that would be sent, so the
-	// count describes sent material rather than dropped material.
-	const diffRedaction = redactDetailed(boundedRaw);
-	const sentDiff = diffRedaction.text;
+	// count describes sent material rather than dropped material. Each affected
+	// path is tracked for relevance-validated evidence refs.
+	const redacted_files: string[] = [];
+	let diffReplacements = 0;
+	const sentDiff = bounded
+		.map((chunk) => {
+			const redaction = redactDetailed(chunk.text);
+			diffReplacements += redaction.replacements;
+			if (redaction.replacements > 0 && !redacted_files.includes(chunk.path)) {
+				redacted_files.push(chunk.path);
+			}
+			return redaction.text;
+		})
+		.join("\n");
 
 	const rawDescription = inputs.description ?? "";
 	const description_truncated = rawDescription.length > maxDescriptionBytes;
@@ -586,7 +678,8 @@ export function buildContract(inputs: ContractInputs): ReviewContract {
 			included_diff_chars: sentDiff.length,
 			excluded_files,
 			binary_files,
-			redactions: diffRedaction.replacements + descriptionRedaction.replacements,
+			redacted_files,
+			redactions: diffReplacements + descriptionRedaction.replacements,
 			description_truncated,
 			injection_markers: countInjectionMarkers(`${sentDiff}\n${sentDescription}`),
 			empty_diff: countTextLines(sentDiff) === 0,
@@ -597,8 +690,8 @@ export function buildContract(inputs: ContractInputs): ReviewContract {
 export function identityOf(contract: ReviewContract, model: string): string {
 	const payload = JSON.stringify({
 		repo: contract.repo,
-		base: contract.base,
-		head: contract.stagedTree ?? contract.head,
+		base: contract.base.sha,
+		head: contract.stagedTree ?? contract.head.sha,
 		diffHash: contract.diffHash,
 		descriptionHash: contract.descriptionHash,
 		questions: REVIEW_QUESTIONS_VERSION,
@@ -683,6 +776,76 @@ function normalizeAnswer(question: Question, raw: unknown): NormalizedAnswer | n
 	return null;
 }
 
+/* ------------------------------------------------------------------ */
+/* Relevance-validated evidence                                        */
+/* ------------------------------------------------------------------ */
+
+// Deterministic path relevance. A question with no relevance rule cites no
+// location: findings never fall back to the first N changed files.
+const TEST_PATH = /(^|\/)(tests?|__tests__|spec)/i;
+const TEST_FILE = /\.(test|spec)\./i;
+const LOCKFILE_BASENAMES = new Set([
+	"bun.lockb",
+	"bun.lock",
+	"package-lock.json",
+	"go.sum",
+	"Cargo.lock",
+]);
+
+function isTestPath(path: string): boolean {
+	return TEST_PATH.test(path) || TEST_FILE.test(path);
+}
+
+function isDependencyPath(path: string): boolean {
+	const base = path.split("/").pop() ?? path;
+	if (path.startsWith(".github/workflows/")) return true;
+	if (LOCKFILE_BASENAMES.has(base)) return true;
+	if (/^requirements.*\.txt$/i.test(base)) return true;
+	if (/^Dockerfile/i.test(base)) return true;
+	return false;
+}
+
+function isDestructiveDataPath(path: string): boolean {
+	return /migration/i.test(path) || /\.sql$/i.test(path);
+}
+
+function isOpsPath(path: string): boolean {
+	const base = path.split("/").pop() ?? path;
+	if (path.startsWith(".github/workflows/")) return true;
+	if (path === "scripts" || path.startsWith("scripts/") || path.includes("/scripts/")) return true;
+	if (/\.(tf|tfvars)$/i.test(path)) return true;
+	if (/^Dockerfile/i.test(base)) return true;
+	if (/^docker-compose/i.test(base)) return true;
+	if (/(^|\/)(k8s|kubernetes|helm|charts|deploy|deployment)\//i.test(path)) return true;
+	if (/(^|\/)deploy[a-z0-9_-]*/i.test(path)) return true;
+	return false;
+}
+
+/**
+ * Paths a given lens may cite, restricted to files the change set contains
+ * and to deterministic relevance rules.
+ */
+export function relevantPathsFor(questionId: string, contract: ReviewContract): string[] {
+	switch (questionId) {
+		case "tests::deleted_weakened":
+		case "tests::missing_regression":
+			return contract.changedFiles.filter(isTestPath);
+		case "deps::supply_chain":
+			return contract.changedFiles.filter(isDependencyPath);
+		case "data::destructive":
+			return contract.changedFiles.filter(isDestructiveDataPath);
+		case "sec::secret_material": {
+			const flagged = new Set([...contract.context.excluded_files, ...contract.context.redacted_files]);
+			return contract.changedFiles.filter((path) => flagged.has(path));
+		}
+		case "ops::observability":
+		case "ops::blast_radius":
+			return contract.changedFiles.filter(isOpsPath);
+		default:
+			return [];
+	}
+}
+
 export function classify(
 	answers: Record<string, Answer> | null | undefined,
 	contract: ReviewContract,
@@ -703,11 +866,14 @@ export function classify(
 		const finish = (disposition: ReviewDisposition, reason?: string) => {
 			let evidence: string[] = [];
 			if (disposition !== "not_assessed") {
+				// Code supplies the citable set: relevant changed files per the
+				// deterministic lens rule. Provider-supplied refs are validated for
+				// membership and counted, but never cited on their own.
 				const supplied = extractEvidenceRefs(raw);
-				const candidates = supplied.length > 0 ? supplied : contract.changedFiles.slice(0, 3);
-				const validated = validateEvidence(candidates, contract.changedFiles);
-				evidence = validated.ok;
-				unsupportedLocations += validated.dropped.length;
+				if (supplied.length > 0) {
+					unsupportedLocations += validateEvidence(supplied, contract.changedFiles).dropped.length;
+				}
+				evidence = relevantPathsFor(id, contract);
 			}
 			const note =
 				disposition === "not_assessed"
@@ -802,11 +968,159 @@ export function policyCheckEvent(input: {
 }
 
 /* ------------------------------------------------------------------ */
+/* Deterministic rules consumption                                     */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Parse `risk_rules.py matches --jsonl` output: one meta line followed by
+ * zero or more match lines. Unrecognized lines are counted, never thrown.
+ */
+export function parseRulesJsonl(text: string): RulesParseResult {
+	const result: RulesParseResult = { meta: null, matches: [], line_errors: 0 };
+	for (const line of text.split("\n")) {
+		const trimmed = line.trim();
+		if (!trimmed) continue;
+		let parsed: unknown;
+		try {
+			parsed = JSON.parse(trimmed);
+		} catch {
+			result.line_errors++;
+			continue;
+		}
+		if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+			result.line_errors++;
+			continue;
+		}
+		const record = parsed as Record<string, unknown>;
+		if (typeof record.rule_id === "string") {
+			const severity = record.severity_class;
+			if (severity !== "secret_candidate" && severity !== "review") {
+				result.line_errors++;
+				continue;
+			}
+			result.matches.push({
+				rule_id: record.rule_id,
+				version: typeof record.version === "string" ? record.version : "",
+				category: typeof record.category === "string" ? record.category : "",
+				path: typeof record.path === "string" ? record.path : "",
+				evidence: typeof record.evidence === "string" ? record.evidence : "",
+				severity_class: severity,
+			});
+			continue;
+		}
+		if (typeof record.schema_version === "string" || typeof record.rules_version === "string") {
+			result.meta = {
+				schema_version: typeof record.schema_version === "string" ? record.schema_version : "",
+				schema_revision: typeof record.schema_revision === "string" ? record.schema_revision : "",
+				repo: typeof record.repo === "string" ? record.repo : "",
+				base_sha: typeof record.base_sha === "string" ? record.base_sha : "",
+				head_sha: typeof record.head_sha === "string" ? record.head_sha : "",
+				rules_version: typeof record.rules_version === "string" ? record.rules_version : "",
+				taxonomy_version: typeof record.taxonomy_version === "string" ? record.taxonomy_version : "",
+			};
+			continue;
+		}
+		result.line_errors++;
+	}
+	return result;
+}
+
+/** Bucket a raw answer coarsely; raw probabilities never leave the machine record. */
+function strengthBucket(answer: unknown): "low" | "medium" | "high" {
+	if (!answer || typeof answer !== "object") return "low";
+	const record = answer as Record<string, unknown>;
+	if (typeof record.probability === "number" && Number.isFinite(record.probability)) {
+		if (record.probability >= 0.85) return "high";
+		if (record.probability >= 0.7) return "medium";
+		return "low";
+	}
+	if (typeof record.score === "number" && Number.isFinite(record.score)) {
+		if (record.score >= 4) return "high";
+		if (record.score >= 3) return "medium";
+		return "low";
+	}
+	return "low";
+}
+
+/** Leads become signals; only a coarse strength bucket crosses the boundary. */
+export function advisorySignals(
+	findings: ReviewFinding[],
+	rawAnswers: Record<string, unknown> | undefined,
+): AdvisorySignal[] {
+	return findings
+		.filter((finding) => LEAD_DISPOSITIONS.has(finding.disposition))
+		.map((finding) => ({
+			question_id: finding.question_id,
+			direction: "risk",
+			strength_bucket: strengthBucket(rawAnswers ? rawAnswers[finding.question_id] : undefined),
+			evidence_refs: [...finding.evidence_refs],
+		}));
+}
+
+/**
+ * Freeze the `security-review-request-1` envelope. Deterministic matches are
+ * code-supplied and survive an unavailable Jev provider; raw probabilities
+ * stay in the machine record.
+ */
+export function buildSecurityReviewRequest(input: {
+	repo: string;
+	baseSha: string;
+	headSha: string;
+	diffSha256: string;
+	changedPaths: string[];
+	meta: RulesMeta | null;
+	matches: DeterministicMatch[];
+	model: string;
+	status: "assessed" | "partial" | "unavailable";
+	signals: AdvisorySignal[];
+	truncated: boolean;
+	bytes: number;
+	filesOmitted: string[];
+	notAssessed: string[];
+	now?: Date;
+}): SecurityReviewRequest {
+	const created = input.now ?? new Date();
+	const expires = new Date(created.getTime() + 7 * 24 * 60 * 60 * 1000);
+	const categories = [...new Set(input.matches.map((match) => match.category).filter((category) => category.length > 0))];
+	return {
+		schema_version: "security-review-request-1",
+		repo: input.repo,
+		base_sha: input.baseSha,
+		head_sha: input.headSha,
+		diff_sha256: input.diffSha256,
+		changed_paths: [...input.changedPaths],
+		risk: {
+			rules_version: input.meta?.rules_version ?? "",
+			taxonomy_version: input.meta?.taxonomy_version ?? "",
+			matched_categories: categories,
+			deterministic_matches: input.matches.map((match) => ({ ...match })),
+		},
+		advisory: {
+			source: "jev",
+			model: input.model,
+			question_pack_version: REVIEW_QUESTIONS_VERSION,
+			status: input.status,
+			signals: input.signals.map((signal) => ({ ...signal, evidence_refs: [...signal.evidence_refs] })),
+		},
+		coverage: {
+			truncated: input.truncated,
+			bytes: input.bytes,
+			files_omitted: [...input.filesOmitted],
+			not_assessed: [...input.notAssessed],
+		},
+		requested_action: input.matches.length > 0 ? "security_review" : "no_action",
+		created_at: created.toISOString(),
+		expires_at: expires.toISOString(),
+	};
+}
+
+/* ------------------------------------------------------------------ */
 /* Rendering                                                           */
 /* ------------------------------------------------------------------ */
 
 export function renderLine(outcome: ReviewOutcome): string {
-	const head = `[jev-review ${REVIEW_SCHEMA} ${outcome.identity.slice(0, 7)}]`;
+	const revision = outcome.head.sha ? outcome.head.sha.slice(0, 7) : "unresolved";
+	const head = `[jev-review ${REVIEW_SCHEMA} ${revision}]`;
 	if (!outcome.available) {
 		return `${head} jev unavailable (${outcome.reason}) — nothing assessed (advisory; never a gate)`;
 	}
@@ -816,14 +1130,17 @@ export function renderLine(outcome: ReviewOutcome): string {
 			: `leads:${outcome.leads.length} (${outcome.leads
 					.map((finding) => `${finding.question_id}→${finding.disposition}`)
 					.join(", ")})`;
+	const cachedText = outcome.cached
+		? `cached:yes (prior inference ${outcome.inferenceLatencyMs ?? 0}ms)`
+		: "cached:no";
 	return [
 		head,
 		leadText,
 		`coverage ${outcome.coverage.assessed}/${outcome.coverage.total}`,
 		`trunc:${outcome.local_facts.truncated ? "yes" : "no"}`,
 		`model:${outcome.model}`,
-		`${outcome.latency_ms}ms`,
-		`cached:${outcome.cached ? "yes" : "no"}`,
+		`${outcome.latencyMs}ms`,
+		cachedText,
 	].join(" · ");
 }
 
@@ -860,6 +1177,13 @@ function parseNameStatus(text: string): string[] {
 	return [...new Set(files)];
 }
 
+function resolveRef(repoDir: string, ref: string): string | null {
+	const resolved = git(repoDir, ["rev-parse", "--verify", "--quiet", `${ref}^{commit}`]);
+	if (resolved.status !== 0) return null;
+	const sha = resolved.stdout.trim();
+	return sha.length > 0 ? sha : null;
+}
+
 export function gatherGitChangeSet(
 	repoDir: string,
 	options: { base: string; head: string; staged?: boolean },
@@ -869,8 +1193,8 @@ export function gatherGitChangeSet(
 	const empty: GitChangeSet = {
 		ok: false,
 		repo: resolve(repoDir),
-		base,
-		head,
+		base: { ref: base, sha: "" },
+		head: { ref: head, sha: "" },
 		diffText: "",
 		changedFiles: [],
 	};
@@ -878,6 +1202,14 @@ export function gatherGitChangeSet(
 	const top = git(repoDir, ["rev-parse", "--show-toplevel"]);
 	if (top.status !== 0) return { ...empty, error: "not_a_repository" };
 	const repo = top.stdout.trim() || resolve(repoDir);
+
+	// F1: the contract carries resolved commit SHAs; a mutable ref label alone
+	// is never enough for identity or rendering.
+	const baseSha = resolveRef(repoDir, base);
+	const headSha = resolveRef(repoDir, head);
+	if (!baseSha || !headSha) return { ...empty, repo, error: "ref_unresolved" };
+	const resolvedBase: ResolvedRef = { ref: base, sha: baseSha };
+	const resolvedHead: ResolvedRef = { ref: head, sha: headSha };
 
 	const range = `${base}..${head}`;
 	const diffArgs = options.staged
@@ -904,8 +1236,8 @@ export function gatherGitChangeSet(
 	return {
 		ok: true,
 		repo,
-		base,
-		head,
+		base: resolvedBase,
+		head: resolvedHead,
 		stagedTree,
 		gitDir,
 		diffText: diff.stdout,
@@ -951,13 +1283,15 @@ function baseOutcome(
 		head: contract.head,
 		staged_tree: contract.stagedTree,
 		cached: false,
-		latency_ms: 0,
+		latencyMs: 0,
 		leads: [],
 		coverage: { assessed: 0, total: Object.keys(REVIEW_QUESTIONS).length },
 		unsupported_locations: 0,
+		deterministic_matches: [],
 		local_facts: {
 			changed_files: [...contract.changedFiles],
 			excluded_files: [...contract.context.excluded_files],
+			redacted_files: [...contract.context.redacted_files],
 			binary_files: [...contract.context.binary_files],
 			redactions: contract.context.redactions,
 			injection_markers: contract.context.injection_markers,
@@ -993,6 +1327,55 @@ function unavailableOutcome(
 		findings,
 		dispositions,
 	};
+}
+
+/**
+ * Attach deterministic rule matches and the frozen security-review-request
+ * envelope. This runs on every path, including an unavailable provider, so a
+ * Jev outage never suppresses deterministic findings.
+ */
+function completeOutcome(
+	contract: ReviewContract,
+	outcome: ReviewOutcome,
+	rules: RulesParseResult | null,
+	elapsedMs: number,
+	now: Date,
+): ReviewOutcome {
+	const completed: ReviewOutcome = {
+		...outcome,
+		latencyMs: elapsedMs,
+		deterministic_matches: rules ? rules.matches.map((match) => ({ ...match })) : [],
+	};
+	if (!rules) return completed;
+	const signals = advisorySignals(completed.findings, completed.raw_answers as Record<string, unknown> | undefined);
+	const notAssessed = Object.entries(completed.dispositions)
+		.filter(([, record]) => record.disposition === "not_assessed")
+		.map(([questionId]) => questionId);
+	const status: "assessed" | "partial" | "unavailable" = !completed.available
+		? "unavailable"
+		: completed.coverage.assessed === completed.coverage.total
+			? "assessed"
+			: "partial";
+	completed.security_request = buildSecurityReviewRequest({
+		repo: contract.repo,
+		baseSha: contract.base.sha,
+		// The reviewed revision is the staged tree when one exists, else the
+		// resolved head commit.
+		headSha: contract.stagedTree ?? contract.head.sha,
+		diffSha256: contract.diffHash,
+		changedPaths: contract.changedFiles,
+		meta: rules.meta,
+		matches: rules.matches,
+		model: completed.model,
+		status,
+		signals,
+		truncated: contract.context.truncated,
+		bytes: contract.context.included_diff_chars,
+		filesOmitted: contract.context.excluded_files,
+		notAssessed,
+		now,
+	});
+	return completed;
 }
 
 function cachePath(cacheDir: string, identity: string): string {
@@ -1034,20 +1417,23 @@ export async function runReviewCheck(opts: RunReviewCheckOptions): Promise<Revie
 	const clock = opts.now ?? Date.now;
 	const started = clock();
 	const model = opts.model ?? process.env.OPENROUTER_JEV_MODEL ?? "typesafe/jev-1.13";
+	const rules = opts.rulesText !== undefined ? parseRulesJsonl(opts.rulesText) : null;
 
 	try {
 		let repoLabel: string;
-		let base: string;
-		let head: string;
+		let baseRef: ResolvedRef;
+		let headRef: ResolvedRef;
 		let stagedTree: string | undefined;
 		let diffText: string;
 		let changedFiles: string[];
 		let gitDir: string | undefined;
 
 		if (opts.diffText !== undefined) {
+			// Caller-supplied change set: resolved SHAs are theirs to provide.
+			// Missing SHAs stay explicitly empty and render as "unresolved".
 			repoLabel = opts.repoLabel ?? opts.repoDir;
-			base = opts.base;
-			head = opts.head;
+			baseRef = { ref: opts.base, sha: opts.baseSha ?? "" };
+			headRef = { ref: opts.head, sha: opts.headSha ?? "" };
 			stagedTree = opts.stagedTree;
 			diffText = opts.diffText;
 			changedFiles = opts.changedFiles ?? deriveChangedFiles(diffText);
@@ -1058,8 +1444,8 @@ export async function runReviewCheck(opts: RunReviewCheckOptions): Promise<Revie
 				staged: opts.staged,
 			});
 			repoLabel = gathered.repo;
-			base = gathered.base;
-			head = gathered.head;
+			baseRef = gathered.base;
+			headRef = gathered.head;
 			stagedTree = gathered.stagedTree;
 			diffText = gathered.diffText;
 			changedFiles = gathered.changedFiles;
@@ -1067,8 +1453,8 @@ export async function runReviewCheck(opts: RunReviewCheckOptions): Promise<Revie
 			if (!gathered.ok) {
 				const emptyContract = buildContract({
 					repo: repoLabel,
-					base,
-					head,
+					base: baseRef,
+					head: headRef,
 					stagedTree,
 					diffText: "",
 					changedFiles: [],
@@ -1076,14 +1462,15 @@ export async function runReviewCheck(opts: RunReviewCheckOptions): Promise<Revie
 					maxBytes: opts.maxBytes,
 				});
 				const identity = identityOf(emptyContract, model);
-				return unavailableOutcome(emptyContract, identity, model, gathered.error ?? "diff_unavailable");
+				const unavailable = unavailableOutcome(emptyContract, identity, model, gathered.error ?? "diff_unavailable");
+				return completeOutcome(emptyContract, unavailable, rules, clock() - started, new Date(clock()));
 			}
 		}
 
 		const contract = buildContract({
 			repo: repoLabel,
-			base,
-			head,
+			base: baseRef,
+			head: headRef,
 			stagedTree,
 			diffText,
 			changedFiles,
@@ -1093,42 +1480,48 @@ export async function runReviewCheck(opts: RunReviewCheckOptions): Promise<Revie
 		const identity = identityOf(contract, model);
 
 		if (opts.dryRun) {
-			return unavailableOutcome(contract, identity, model, "dry_run", "dry_run");
+			const unavailable = unavailableOutcome(contract, identity, model, "dry_run", "dry_run");
+			return completeOutcome(contract, unavailable, rules, clock() - started, new Date(clock()));
 		}
 
 		const provider = opts.provider === undefined ? resolveProvider("openrouter") : opts.provider;
 		if (!provider) {
-			return unavailableOutcome(contract, identity, model, "no_api_key", "no_api_key");
+			const unavailable = unavailableOutcome(contract, identity, model, "no_api_key", "no_api_key");
+			return completeOutcome(contract, unavailable, rules, clock() - started, new Date(clock()));
 		}
 
 		const cacheDir = opts.cacheDir ?? (gitDir ? join(gitDir, "jev-review-cache") : undefined);
 		const cached = readCache(cacheDir, identity);
 		if (cached) {
-			return { ...cached, cached: true };
+			const hit: ReviewOutcome = {
+				...cached,
+				cached: true,
+				// The old inference time is a label, never this run's latency.
+				inferenceLatencyMs: cached.inferenceLatencyMs ?? cached.latencyMs,
+			};
+			return completeOutcome(contract, hit, rules, clock() - started, new Date(clock()));
 		}
 
 		let answers: Record<string, Answer>;
 		try {
 			const result = await provider.evaluate(contract.text, REVIEW_QUESTIONS);
 			if (!result || typeof result !== "object" || Array.isArray(result)) {
-				return {
-					...unavailableOutcome(contract, identity, model, "malformed_response", "malformed_answer"),
-					latency_ms: clock() - started,
-				};
+				const unavailable = unavailableOutcome(contract, identity, model, "malformed_response", "malformed_answer");
+				return completeOutcome(contract, unavailable, rules, clock() - started, new Date(clock()));
 			}
 			answers = result;
 		} catch {
-			const outcome = unavailableOutcome(contract, identity, model, "provider_error", "provider_error");
-			outcome.latency_ms = clock() - started;
-			return outcome;
+			const unavailable = unavailableOutcome(contract, identity, model, "provider_error", "provider_error");
+			return completeOutcome(contract, unavailable, rules, clock() - started, new Date(clock()));
 		}
 
 		const classified = classify(answers, contract);
+		const inferenceMs = clock() - started;
 		const outcome: ReviewOutcome = {
 			...baseOutcome(contract, identity, model),
 			available: true,
 			reason: "ok",
-			latency_ms: clock() - started,
+			inferenceLatencyMs: inferenceMs,
 			findings: classified.findings,
 			dispositions: classified.dispositions,
 			leads: classified.leads,
@@ -1136,20 +1529,20 @@ export async function runReviewCheck(opts: RunReviewCheckOptions): Promise<Revie
 			unsupported_locations: classified.unsupported_locations,
 			raw_answers: answers,
 		};
-		writeCache(cacheDir, identity, outcome);
-		return outcome;
+		const completed = completeOutcome(contract, outcome, rules, inferenceMs, new Date(clock()));
+		writeCache(cacheDir, identity, completed);
+		return completed;
 	} catch {
 		// Last-resort fail-safe: advisory review can never take the caller down.
 		const fallback = buildContract({
 			repo: opts.repoLabel ?? opts.repoDir,
-			base: opts.base,
-			head: opts.head,
+			base: { ref: opts.base, sha: opts.baseSha ?? "" },
+			head: { ref: opts.head, sha: opts.headSha ?? "" },
 			diffText: "",
 			changedFiles: [],
 		});
 		const identity = identityOf(fallback, model);
-		const outcome = unavailableOutcome(fallback, identity, model, "internal_error", "internal_error");
-		outcome.latency_ms = clock() - started;
-		return outcome;
+		const unavailable = unavailableOutcome(fallback, identity, model, "internal_error", "internal_error");
+		return completeOutcome(fallback, unavailable, rules, clock() - started, new Date(clock()));
 	}
 }

@@ -25,18 +25,15 @@ while read -r local_ref local_oid remote_ref remote_oid; do
     printf 'gitleaks found a potential secret in outgoing commits\n' >&2
     exit 1
   }
-  # System One semantic diff review on outgoing commits (blocks only)
+  # Jev diff review is advisory context only: a model probability is never the
+  # sole gate, and an outage changes nothing about the blocking scanners above.
   if command -v bun >/dev/null 2>&1 && [ -f "omp-config/bin/omp-diff-review.ts" ]; then
     if command -v pass-env >/dev/null 2>&1 && [ -f ".env.pass" ]; then
-      pass-env run -f .env.pass -- bun omp-config/bin/omp-diff-review.ts --range "$log_opts" || {
-        printf 'omp-diff-review blocked outgoing commits violating harness invariants\n' >&2
-        exit 1
-      }
+      pass-env run -f .env.pass -- bun omp-config/bin/omp-diff-review.ts --range "$log_opts" || \
+        printf 'jev diff-review: advisory context only — never blocks (deterministic scanners above remain blocking)\n'
     else
-      bun omp-config/bin/omp-diff-review.ts --range "$log_opts" || {
-        printf 'omp-diff-review blocked outgoing commits violating harness invariants\n' >&2
-        exit 1
-      }
+      bun omp-config/bin/omp-diff-review.ts --range "$log_opts" || \
+        printf 'jev diff-review: advisory context only — never blocks (deterministic scanners above remain blocking)\n'
     fi
   fi
 done
