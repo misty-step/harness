@@ -972,6 +972,22 @@ export function policyCheckEvent(input: {
 /* ------------------------------------------------------------------ */
 
 /**
+ * Normalize the `evidence` field from `risk_rules.py`. The live producer emits
+ * an object ({kind, path, line}); earlier hand-written fixtures used a string.
+ * Objects normalize to `path[:line]`; anything else non-string becomes "".
+ */
+export function normalizeRulesEvidence(value: unknown): string {
+	if (typeof value === "string") return value;
+	if (value && typeof value === "object" && !Array.isArray(value)) {
+		const record = value as Record<string, unknown>;
+		const path = typeof record.path === "string" ? record.path : "";
+		const line = typeof record.line === "number" ? record.line : null;
+		if (path) return line === null ? path : `${path}:${line}`;
+	}
+	return "";
+}
+
+/**
  * Parse `risk_rules.py matches --jsonl` output: one meta line followed by
  * zero or more match lines. Unrecognized lines are counted, never thrown.
  */
@@ -1003,7 +1019,7 @@ export function parseRulesJsonl(text: string): RulesParseResult {
 				version: typeof record.version === "string" ? record.version : "",
 				category: typeof record.category === "string" ? record.category : "",
 				path: typeof record.path === "string" ? record.path : "",
-				evidence: typeof record.evidence === "string" ? record.evidence : "",
+				evidence: normalizeRulesEvidence(record.evidence),
 				severity_class: severity,
 			});
 			continue;

@@ -685,6 +685,29 @@ describe("review-1 deterministic rules envelope", () => {
 		expect(outcome.security_request?.risk.deterministic_matches).toHaveLength(2);
 		expect(outcome.security_request?.coverage.not_assessed).toHaveLength(15);
 	});
+
+	test("F5: live producer output (object evidence) parses and normalizes", async () => {
+		const rulesText = fixtureText("rules-matches-object-evidence.jsonl");
+		const parsed = parseRulesJsonl(rulesText);
+		expect(parsed.line_errors).toBe(0);
+		expect(parsed.meta?.rules_version).toBe("1.1.0");
+		expect(parsed.matches).toHaveLength(2);
+		expect(parsed.matches[0].evidence).toBe("agent-config/bin/hook.test.ts");
+		expect(parsed.matches[1].evidence).toBe("agent-config/system-one/fixtures/review/secret.diff");
+
+		// Advisory-clean answers plus deterministic matches still force security_review.
+		const spy = spyProvider(fixtureAnswers("mock-low.json"));
+		const outcome = await run({
+			diffText: fixtureText("clean.diff"),
+			changedFiles: ["canary.ts"],
+			provider: spy.provider,
+			rulesText,
+		});
+		expect(outcome.security_request?.requested_action).toBe("security_review");
+		expect(outcome.security_request?.risk.deterministic_matches[0]?.evidence).toBe(
+			"agent-config/bin/hook.test.ts",
+		);
+	});
 });
 
  describe("review-1 staged identity", () => {
