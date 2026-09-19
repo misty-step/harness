@@ -20,6 +20,8 @@ pages this task needs (append `.md` to docs paths).
 - An LLM classify-and-parse step can become a typed decision.
 - Brainstorming where Jev could replace slow generation.
 - Changing OpenRouter or TypeSafe Jev calls in this fleet.
+- Wiring compaction advice or a post-run child verdict; the shared judge and
+  `jev-verdict` are described in [references/fleet.md](references/fleet.md).
 
 Don't use for: writing prose; counting, dates, or money math; Hermes tool
 permission gates; generating UI trees or patches.

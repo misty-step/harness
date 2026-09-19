@@ -61,6 +61,8 @@ for consumer in pi omp; do
   check "$consumer composition" cmp -s "$expected" "$agent/AGENTS.md"
   check "$consumer launcher bytes" cmp -s "$work/source/agent-config/bin/pass-env.ts" "$home/.local/bin/pass-env"
   check "$consumer launcher executable" test -x "$home/.local/bin/pass-env"
+  check "$consumer verdict bytes" cmp -s "$work/source/agent-config/bin/jev-verdict.ts" "$home/.local/bin/jev-verdict"
+  check "$consumer verdict executable" test -x "$home/.local/bin/jev-verdict"
   check "$consumer foreign skill" cmp -s "$work/expected-skill" "$agent/skills/foreign/SKILL.md"
   check "$consumer auth" cmp -s "$work/expected-auth" "$agent/auth.json"
 done

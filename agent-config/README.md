@@ -18,7 +18,10 @@ harness repo. When in doubt, leave it in the harness.
 | `install` | The single deploy contract: skills, guidance, and launchers |
 | `skills/` | Portable skill packages, clean-replaced when selected |
 | `guidance/*.md` | Shared global-guidance sections, spliced at the harness marker |
+| `system-one/engine.ts` | Shared System One diff-review engine, deployed into each harness's `diff-review` extension |
+| `system-one/compact.ts` | Shared compact-adviser judge (turn-boundary hint), deployed into the Pi `compact-hint` extension |
 | `bin/pass-env.ts` | Standalone pass-backed environment launcher |
+| `bin/jev-verdict.ts` | Standalone advisory child-summary verdict command (pass/fail/uncertain JSON) |
 | `../.githooks/pre-push` | Workspace secret scanners, wired by root `scripts/bootstrap` |
 
 ## Install contract
@@ -58,8 +61,8 @@ Shared guidance sections may reference shared primitives and vehicles deployed a
 
 | Harness | Skills | Guidance | Launcher |
 | --- | --- | --- | --- |
-| `pi-config` | all | pokayoke, communication-and-verification, host-resources, user-stories | `pass-env` |
-| `omp-config` | all | pokayoke, communication-and-verification, host-resources, user-stories | `pass-env` |
+| `pi-config` | all | pokayoke, communication-and-verification, host-resources, user-stories | `pass-env`, `jev-verdict` |
+| `omp-config` | all | pokayoke, communication-and-verification, host-resources, user-stories | `pass-env`, `jev-verdict` |
 
 `omp-config`'s own guidance file adds Working together (including model roles),
 Execution environments (exe.dev vehicle), and Authority

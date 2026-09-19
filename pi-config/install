@@ -43,7 +43,7 @@ require_base() {
   }
 }
 
-components_all="config guidance pi-chrome loc web-search failover image-budget openrouter-live diff-review pass-env skills"
+components_all="config guidance pi-chrome loc web-search failover image-budget openrouter-live compact-hint diff-review pass-env jev-verdict skills"
 
 selected=${PI_CONFIG_COMPONENTS:-all}
 case "$selected" in
@@ -88,6 +88,7 @@ run_shared() {
   mode=${1-}
   set --
   if has pass-env; then set -- "$@" --bin pass-env.ts; fi
+  if has jev-verdict; then set -- "$@" --bin jev-verdict.ts; fi
   if has skills; then set -- "$@" --skill all; fi
   if has guidance; then
     set -- "$@" \
@@ -198,6 +199,27 @@ install_openrouter_live() {
   done
 }
 
+validate_compact_hint() {
+  for file in index.ts decide.ts decide.test.ts; do
+    require_nonempty "$repo_dir/extensions/compact-hint/$file"
+  done
+  require_base
+  require_nonempty "$base_dir/system-one/compact.ts"
+}
+
+install_compact_hint() {
+  # Pokayoke: clean-replace the owned package so obsolete files cannot survive.
+  # The shared judge and the System One client deploy beside it (same pattern
+  # as diff-review/engine.ts), so the extension loads self-contained.
+  rm -rf "$agent_dir/extensions/compact-hint"
+  install -d -m 700 "$agent_dir/extensions/compact-hint"
+  for file in index.ts decide.ts decide.test.ts; do
+    install -m 600 "$repo_dir/extensions/compact-hint/$file" "$agent_dir/extensions/compact-hint/$file"
+  done
+  install -m 600 "$base_dir/system-one/compact.ts" "$agent_dir/extensions/compact-hint/compact.ts"
+  install -m 600 "$base_dir/system-one/engine.ts" "$agent_dir/extensions/compact-hint/engine.ts"
+}
+
 validate_diff_review() {
   for file in index.ts engine.ts diff-review.test.ts; do
     require_nonempty "$repo_dir/extensions/diff-review/$file"
@@ -221,6 +243,7 @@ if has web-search; then validate_web_search; fi
 if has failover; then validate_failover; fi
 if has image-budget; then validate_image_budget; fi
 if has openrouter-live; then validate_openrouter_live; fi
+if has compact-hint; then validate_compact_hint; fi
 if has diff-review; then validate_diff_review; fi
 
 if has config; then install_config; fi
@@ -231,4 +254,5 @@ if has web-search; then install_web_search; fi
 if has failover; then install_failover; fi
 if has image-budget; then install_image_budget; fi
 if has openrouter-live; then install_openrouter_live; fi
+if has compact-hint; then install_compact_hint; fi
 if has diff-review; then install_diff_review; fi

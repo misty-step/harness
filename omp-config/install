@@ -152,11 +152,11 @@ install_skill() {
 
 validate_shared() {
   require_base
-  run_shared --check --skill all --bin pass-env.ts
+  run_shared --check --skill all --bin pass-env.ts --bin jev-verdict.ts
 }
 
 install_shared() {
-  run_shared --skill all --bin pass-env.ts
+  run_shared --skill all --bin pass-env.ts --bin jev-verdict.ts
 }
 
 validate_secrets() {
