@@ -128,6 +128,54 @@ describe("Diff Review - Rule Battery Violations", () => {
 		expect(verdict.blocks.some((b) => b.rule === "pokayoke_mechanism" || b.rule === "preserves_root_cause")).toBe(true);
 	});
 
+	test("fails_open semantic lead is advisory, never a block (US-010 regression)", async () => {
+		// Live System One flagged the mandated fail-open adapter at p 0.93 and
+		// hard-blocked the PR #15 gate. Semantic leads inform; they never gate.
+		const provider = {
+			name: "heuristic" as const,
+			evaluate: async () => ({
+				fails_open: { type: "noul" as const, probability: 0.93, confidence: 0.86 },
+			}),
+		};
+		const guardDiff = `diff --git a/pi-config/extensions/continuation-nudge/index.ts b/pi-config/extensions/continuation-nudge/index.ts
+--- a/pi-config/extensions/continuation-nudge/index.ts
++++ b/pi-config/extensions/continuation-nudge/index.ts
+@@ -1,2 +1,5 @@
++try {
++	const decision = await classify(context);
++} catch {
++	return;
++}
+`;
+		const verdict = await evaluateDiff(guardDiff, { provider });
+		expect(verdict.passed).toBe(true);
+		expect(verdict.blocks.some((b) => b.rule === "fails_open")).toBe(false);
+		const warning = verdict.warnings.find((w) => w.rule === "fails_open");
+		expect(warning).toBeDefined();
+		expect(warning?.severity).toBe("warning");
+	});
+
+	test("other semantic block ladders are unchanged by the fails_open demotion", async () => {
+		const provider = {
+			name: "heuristic" as const,
+			evaluate: async () => ({
+				preserves_root_cause: { type: "noul" as const, probability: 0.93, confidence: 0.86 },
+			}),
+		};
+		const badFixDiff = `diff --git a/src/reader.ts b/src/reader.ts
+--- a/src/reader.ts
++++ b/src/reader.ts
+@@ -20,2 +0,0 @@
+-try {
+-	const data = parse(input);
+-} catch (e) {
+-}
+`;
+		const verdict = await evaluateDiff(badFixDiff, { provider });
+		expect(verdict.passed).toBe(false);
+		expect(verdict.blocks.some((b) => b.rule === "preserves_root_cause")).toBe(true);
+	});
+
 	test("blocks test padding tautologies", async () => {
 		const paddingDiff = `diff --git a/test/sanity.test.ts b/test/sanity.test.ts
 --- a/test/sanity.test.ts
