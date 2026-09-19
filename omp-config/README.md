@@ -36,6 +36,17 @@ prompt is: how can I pokayoke this so this kind of error never happens again?
 | `skills/` | Moved to `agent-config`: portable skill packages, clean-replaced when selected |
 | `../.githooks/pre-push` | Root scanners; wired by `../scripts/bootstrap`, not runtime deployment |
 | `extensions/loc/` | Session-resident LOC status and commands |
+| `extensions/continuation-nudge/` | Bounded Jev continuation nudge at settle (US-010; installer wiring deferred) |
+
+### Divergence ledger
+
+What this repo adds to raw OMP. "Aesthetic" changes only presentation;
+"behavioral" changes agent capability, model input, or data flow. Earlier
+components predate this table and are documented in the sections below.
+
+| Component | Owner | Class | Installed by `./install` | Divergence |
+| --- | --- | --- | --- | --- |
+| `extensions/continuation-nudge/` | this repo | behavioral | no (deferred; PR #8 owns `install`) | Bounded Jev continuation nudge at agent settle: advisory, fail-open, max 2 per prompt, `JEV_NUDGE_MODE=off` disables. OMP settle is `agent_end` with `willContinue !== true` (OMP 18.2.6 has no `agent_settled`) and auth resolves through `modelRegistry.getApiKey`. Review trigger: OMP gains `agent_settled`/`getProviderAuth`, or nudges fire on completed work |
 
 ## Install
 
@@ -162,6 +173,34 @@ Disable only LOC for a large repository with project-local configuration:
 disabledExtensions:
   - extension-module:loc
 ```
+
+## Continuation nudge
+
+`extensions/continuation-nudge/` owns the anti-premature-stop nudge (US-010),
+the OMP mirror of `pi-config`'s extension. On a terminal `agent_end` it asks
+one byte-frozen Choice question through the OpenRouter Decisions API
+(`typesafe/jev-1.13`; OpenRouter credentials only — no TypeSafe-direct
+fallback) and, only on a confident `nudge`, injects the fixed advisory message
+as a follow-up turn. It is advisory only: nothing is registered on tool,
+permission, or approval paths, and the answer never authorizes new work. Every
+error, timeout, missing key, or unusable answer fails open. Loops are bounded
+per user prompt (`JEV_NUDGE_MAX`, default 2); a previous nudge with no tool
+result after it is suppressed without calling Jev. Classifier state is capped
+and redacted; `JEV_NUDGE_MODE=off` restores stock OMP; `/continuation` prints
+read-only status, and `continuation-nudge-status.json` is the load evidence.
+
+**OMP API gap (honest, not faked).** OMP 18.2.6 has no `agent_settled` event,
+so the settle moment is `agent_end` with `willContinue !== true`, which is the
+condition OMP's own integrations use to detect a finished run. OMP's
+`isIdle()` is false during that event by construction (deferring a macrotask
+is unreliable: print mode exits at the event), so the terminal event itself is
+the idle evidence and `hasPendingMessages()` still guards queued work. OMP's
+registry also lacks pi's `getProviderAuth`, so the key resolves through
+`modelRegistry.getApiKey("openrouter")` before the agent-dir `auth.json` and
+`OPENROUTER_API_KEY` fallbacks. **`omp-config/install` does not deploy this
+directory yet — wiring is deliberately deferred to PR #8, which owns
+`install`; the exact component spec (including materializing the real shared
+`continuation.ts` over the repo shim) is in the PR body and REPORT.**
 
 ## Grievance inbox
 
