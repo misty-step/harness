@@ -657,7 +657,7 @@ project config, and one-run `--config` overlays can override the global default.
 
 Task dispatch selects an **agent**, not a per-item model. Native precedence is
 `task.agentModelOverrides` → agent frontmatter → parent/default fallback.
-Explicit `scout`/`sonic` overrides use `@smol`; its `:high` suffix takes precedence
+Explicit `scout`/`sonic` overrides use `@smol`; its `:max` suffix takes precedence
 over their bundled `medium` thinking defaults. New task/eval dispatches reload
 persisted routing settings, but changing Main's model alone does not remap
 workers. Ordinary workers use DeepSeek V4.1 Flash; Gemini Flash serves `vision`

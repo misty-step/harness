@@ -373,6 +373,10 @@ on the fallback.
 strictly-forward **chain** walk, and the same-model retry budget is declared
 in `settings.json` (`retry.*`) instead of left to stock defaults.
 
+*Amended 2026-09-18:* Cerebras retired (operator: too expensive); the default
+is `openrouter/deepseek/deepseek-v4.1-flash` at `xhigh`, `mercury-2.5` the
+failover link.
+
 **ADR-012 — Own a global `AGENTS.md` so every pi session carries the shared
 conventions.** *Accepted · 2026-09-15.* Pi loads `~/.pi/agent/AGENTS.md` into
 every session in every repository — the one hook that reaches every pi agent
@@ -408,8 +412,9 @@ state); let the code that owns the concern own the concern.
   instead of 1 s / 2 s / 4 s), giving a Cerebras stockout 429 window a real
   chance to recover before the chain leaves.
 - `extensions/failover/` now walks `CHAIN`, an ordered constant in `index.ts`
-  (currently Cerebras `qwen-3.8-27b` → OpenRouter `mercury-2.5`; extend by
-  editing the list and redeploying). When a run that settled died on link
+  (currently `openrouter/deepseek/deepseek-v4.1-flash` →
+  `openrouter/inception/mercury-2.5`; extend by editing the list and
+  redeploying). When a run that settled died on link
   *i*, the session moves to link *i+1*, warns, and waits for the user to
   re-send (ADR-011's no-resend rule stands). Strictly forward: one link per
   failed run, no flapping, no automatic return; a failure on the last link
@@ -853,8 +858,9 @@ loading is proved by a fresh session, not by file presence. `web_search`
 presence additionally requires `EXA_API_KEY` in the environment — an
 interactive-shell `pi` gets it from the `~/.bashrc` wrapper (pass entry
 `workstation/EXA_API_KEY`); a session started without the key degrades to no
-tool. `failover` needs no configuration or key: a fresh Cerebras session is
-the proof that the extension loaded (it registers nothing visible).
+tool. `failover` needs no configuration or key: a fresh
+`openrouter/deepseek/deepseek-v4.1-flash` session is the proof that the
+extension loaded (it registers nothing visible).
 `image-budget` is proved by reading one large image: the stored tool result is
 a JPEG an order of magnitude smaller, and the footer shows `img-budget N
 dropped` only when the request budget is actually crossed. Workspace Git hooks
