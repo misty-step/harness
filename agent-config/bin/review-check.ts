@@ -147,7 +147,10 @@ async function main(): Promise<void> {
 			),
 		);
 		console.log(FOOTER);
-		process.exit(0);
+		// Set the exit code instead of an immediate process.exit: a piped stdout
+		// can be truncated by an early exit before its buffer drains.
+		process.exitCode = 0;
+		return;
 	}
 
 	const description = readDescription(options);
@@ -206,7 +209,7 @@ async function main(): Promise<void> {
 	appendLog(gitDir, outcome);
 	appendSecurityRequest(gitDir, outcome);
 	console.log(FOOTER);
-	process.exit(0);
+	process.exitCode = 0;
 }
 
 try {
@@ -219,5 +222,5 @@ try {
 		),
 	);
 	console.log(FOOTER);
-	process.exit(0);
+	process.exitCode = 0;
 }

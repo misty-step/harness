@@ -239,6 +239,20 @@ export type RulesParseResult = {
 	line_errors: number;
 };
 
+/**
+ * Provenance of consumed deterministic rules matches. Producer matches are
+ * current evidence only when bound to this change set; everything else is
+ * counted here and excluded from the record.
+ */
+export type RulesProvenance = {
+	revision: "bound" | "mismatch" | "unverifiable";
+	accepted: number;
+	/** Match path is not part of the change set. */
+	unmatched: number;
+	/** Rejected because the producer revision is mismatched or unverifiable. */
+	rejected: number;
+};
+
 export type AdvisorySignal = {
 	question_id: string;
 	direction: string;
@@ -328,6 +342,7 @@ export type ReviewOutcome = {
 	coverage: { assessed: number; total: number };
 	unsupported_locations: number;
 	deterministic_matches: DeterministicMatch[];
+	rules_provenance?: RulesProvenance;
 	security_request?: SecurityReviewRequest;
 	local_facts: {
 		changed_files: string[];
@@ -447,7 +462,10 @@ const LEAD_NOTES: Record<string, string> = {
 /* ------------------------------------------------------------------ */
 
 const PRIVATE_KEY_BLOCK = /-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?-----END [A-Z ]*PRIVATE KEY-----/g;
-const PRIVATE_KEY_ORPHAN = /-----BEGIN [A-Z ]*PRIVATE KEY-----/g;
+// An orphan BEGIN marker (no END) leaves the key body behind if only the
+// marker line is replaced. Redact from the marker to the end of the chunk:
+// for orphaned key material, over-redaction is the safe direction.
+const PRIVATE_KEY_ORPHAN = /-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*/g;
 const AWS_KEY = /AKIA[0-9A-Z]{16}/g;
 const GITHUB_TOKEN = /github_pat_[A-Za-z0-9_]{20,}|gh[pors]_[A-Za-z0-9]{20,}/g;
 const OPENAI_TOKEN = /sk-[A-Za-z0-9_-]{20,}/g;
@@ -456,6 +474,29 @@ const SECRET_ASSIGNMENT =
 	/((?:["']?)[A-Za-z0-9_.-]*(?:secret|token|password|passwd|api[_-]?key)[A-Za-z0-9_.-]*(?:["']?)\s*[:=]\s*)(?:"([^"\n]{12,})"|'([^'\n]{12,})'|([A-Za-z0-9_\-./+=]{12,}))/gi;
 
 const REDACTED = "[REDACTED:suspected-secret]";
+
+/** Count redaction markers present in a text; the sent-material measure. */
+function countRedactions(text: string): number {
+	const matches = text.match(/\[REDACTED:suspected-secret\]/g);
+	return matches ? matches.length : 0;
+}
+
+/**
+ * Bound redacted text to a byte limit without leaving a torn marker at the
+ * cut: a marker bisected by the bound is dropped entirely. Everything before
+ * it still carries no secret material, and no torn marker can confuse the
+ * redaction count.
+ */
+function boundRedacted(text: string, limit: number): string {
+	if (text.length <= limit) return text;
+	let cut = text.slice(0, limit);
+	const lastStart = cut.lastIndexOf("[REDACTED:");
+	if (lastStart !== -1) {
+		const tail = cut.slice(lastStart);
+		if (tail.length < REDACTED.length && REDACTED.startsWith(tail)) cut = cut.slice(0, lastStart);
+	}
+	return cut;
+}
 
 type RedactionResult = { text: string; replacements: number };
 
@@ -523,16 +564,17 @@ export function isCredentialPath(path: string): boolean {
 	return CREDENTIAL_PATH_PATTERNS.some((pattern) => pattern.test(path));
 }
 
-type DiffChunk = { path: string; text: string };
+type DiffChunk = { path: string; sourcePath?: string; text: string };
 
-function pathFromGitHeader(line: string): string | null {
+function pathsFromGitHeader(line: string): { source: string; target: string } | null {
 	// Git varies the prefix pair by diff source: a/ b/ (trees), c/ i/ (index),
 	// i/ w/ (working tree). Accept any single-letter prefix pair and the
-	// quoted form, then use the destination path.
+	// quoted form, then keep BOTH sides: a rename can move a credential path to
+	// an innocent-looking destination (or back), so exclusion must see both.
 	const quoted = line.match(/^diff --git "([a-z])\/(.+)" "([a-z])\/(.+)"$/);
-	if (quoted) return quoted[4];
+	if (quoted) return { source: quoted[2], target: quoted[4] };
 	const plain = line.match(/^diff --git ([a-z])\/(.+?) ([a-z])\/(.+)$/);
-	if (plain) return plain[4];
+	if (plain) return { source: plain[2], target: plain[4] };
 	return null;
 }
 
@@ -542,7 +584,9 @@ function splitDiffChunks(diffText: string): DiffChunk[] {
 	for (const line of diffText.split("\n")) {
 		if (line.startsWith("diff --git ")) {
 			if (current) chunks.push(current);
-			current = { path: pathFromGitHeader(line) ?? "unknown", text: line };
+			const paths = pathsFromGitHeader(line);
+			current = { path: paths?.target ?? "unknown", text: line };
+			if (paths && paths.source !== paths.target) current.sourcePath = paths.source;
 			continue;
 		}
 		if (!current) {
@@ -605,8 +649,16 @@ export function buildContract(inputs: ContractInputs): ReviewContract {
 	const binary_files: string[] = [];
 	const kept: DiffChunk[] = [];
 	for (const chunk of chunks) {
-		if (isCredentialPath(chunk.path)) {
-			excluded_files.push(chunk.path);
+		// A rename is checked on BOTH sides: `config/.env` renamed to
+		// `src/settings.txt` would otherwise smuggle credential-file content past
+		// the pre-egress exclusion under its new, innocent-looking path.
+		const credentialSides = [chunk.path, chunk.sourcePath].filter(
+			(side): side is string => side !== undefined && isCredentialPath(side),
+		);
+		if (credentialSides.length > 0) {
+			for (const side of credentialSides) {
+				if (!excluded_files.includes(side)) excluded_files.push(side);
+			}
 			continue;
 		}
 		if (isBinaryChunk(chunk.text)) binary_files.push(chunk.path);
@@ -614,7 +666,9 @@ export function buildContract(inputs: ContractInputs): ReviewContract {
 	}
 
 	// Bound at a file boundary when possible; only a single oversized first
-	// file is hard-sliced.
+	// file is hard-sliced. The oversized chunk is redacted BEFORE the byte
+	// bound: a raw slice can bisect a secret into a fragment that no longer
+	// matches the redactor, and truncation must never defeat the egress gate.
 	const bounded: DiffChunk[] = [];
 	let boundedLength = 0;
 	let truncated = false;
@@ -622,36 +676,44 @@ export function buildContract(inputs: ContractInputs): ReviewContract {
 		const addition = chunk.text.length + (bounded.length > 0 ? 1 : 0);
 		if (boundedLength + addition > maxBytes) {
 			truncated = true;
-			if (bounded.length === 0) bounded.push({ path: chunk.path, text: chunk.text.slice(0, maxBytes) });
+			if (bounded.length === 0) {
+				bounded.push({
+					path: chunk.path,
+					...(chunk.sourcePath ? { sourcePath: chunk.sourcePath } : {}),
+					text: boundRedacted(redactDetailed(chunk.text).text, maxBytes),
+				});
+			}
 			break;
 		}
-		bounded.push({ path: chunk.path, text: chunk.text });
+		bounded.push(chunk);
 		boundedLength += addition;
 	}
 	if (bounded.length < kept.length) truncated = true;
 
-	// Pre-egress redaction runs on exactly the text that would be sent, so the
-	// count describes sent material rather than dropped material. Each affected
-	// path is tracked for relevance-validated evidence refs.
+	// Redaction is idempotent, so re-running it here keeps one code path.
+	// Counts are marker occurrences inside the sent text: material dropped by
+	// the byte bound is never claimed as redacted, and each affected path stays
+	// tracked for relevance-validated evidence refs.
 	const redacted_files: string[] = [];
 	let diffReplacements = 0;
 	const sentDiff = bounded
 		.map((chunk) => {
-			const redaction = redactDetailed(chunk.text);
-			diffReplacements += redaction.replacements;
-			if (redaction.replacements > 0 && !redacted_files.includes(chunk.path)) {
+			const text = redactDetailed(chunk.text).text;
+			const redactions = countRedactions(text);
+			diffReplacements += redactions;
+			if (redactions > 0 && !redacted_files.includes(chunk.path)) {
 				redacted_files.push(chunk.path);
 			}
-			return redaction.text;
+			return text;
 		})
 		.join("\n");
 
 	const rawDescription = inputs.description ?? "";
 	const description_truncated = rawDescription.length > maxDescriptionBytes;
-	const boundedDescription =
-		rawDescription.length > maxDescriptionBytes ? rawDescription.slice(0, maxDescriptionBytes) : rawDescription;
-	const descriptionRedaction = redactDetailed(boundedDescription);
-	const sentDescription = descriptionRedaction.text;
+	// Same ordering rule for the PR text: redact the whole description, then
+	// bound the redacted text.
+	const sentDescription = boundRedacted(redactDetailed(rawDescription).text, maxDescriptionBytes);
+	const descriptionReplacements = countRedactions(sentDescription);
 
 	const text = [
 		`<untrusted:diff>\n${sentDiff}\n</untrusted:diff>`,
@@ -679,7 +741,7 @@ export function buildContract(inputs: ContractInputs): ReviewContract {
 			excluded_files,
 			binary_files,
 			redacted_files,
-			redactions: diffReplacements + descriptionRedaction.replacements,
+			redactions: diffReplacements + descriptionReplacements,
 			description_truncated,
 			injection_markers: countInjectionMarkers(`${sentDiff}\n${sentDescription}`),
 			empty_diff: countTextLines(sentDiff) === 0,
@@ -687,13 +749,19 @@ export function buildContract(inputs: ContractInputs): ReviewContract {
 	};
 }
 
-export function identityOf(contract: ReviewContract, model: string): string {
+export function identityOf(contract: ReviewContract, model: string, provider: string): string {
 	const payload = JSON.stringify({
 		repo: contract.repo,
 		base: contract.base.sha,
 		head: contract.stagedTree ?? contract.head.sha,
 		diffHash: contract.diffHash,
 		descriptionHash: contract.descriptionHash,
+		// Provider identity and the change-set file list participate in the
+		// cache key: a heuristic/mock answer must never satisfy a live run, and
+		// the same bounded diff with a different file set is a different record.
+		provider,
+		changed_files: [...contract.changedFiles],
+		excluded_files: [...contract.context.excluded_files],
 		questions: REVIEW_QUESTIONS_VERSION,
 		context: REVIEW_CONTEXT_POLICY,
 		thresholds: REVIEW_THRESHOLDS_VERSION,
@@ -770,6 +838,9 @@ function normalizeAnswer(question: Question, raw: unknown): NormalizedAnswer | n
 		const score = record.score;
 		if (typeof score !== "number" || !Number.isFinite(score)) return null;
 		if (confidence === undefined) return null;
+		// The criteria array is the question's 1..N ladder. A value outside that
+		// range is a malformed answer, never an assessment.
+		if (score < 1 || score > Math.max(1, question.criteria.length)) return null;
 		return { kind: "score", score, confidence };
 	}
 
@@ -1041,6 +1112,54 @@ export function parseRulesJsonl(text: string): RulesParseResult {
 	return result;
 }
 
+/**
+ * Bind producer matches to THIS change set. A match becomes current evidence
+ * only when the producer's revision fields agree with the reviewed revision
+ * and the match path is one of the change set's files. Repo identifiers differ
+ * between producer (e.g. `misty-step/harness`) and consumer (local checkout
+ * path), so binding uses commit SHAs, which are content-addressed. Anything
+ * else is counted and excluded, never silently carried as current evidence.
+ */
+export function validateRulesMatches(
+	rules: RulesParseResult,
+	contract: ReviewContract,
+): { accepted: DeterministicMatch[]; provenance: RulesProvenance } {
+	const meta = rules.meta;
+	const reviewedHead = contract.stagedTree ?? contract.head.sha;
+	const hasRevision = Boolean(meta && (meta.base_sha.length > 0 || meta.head_sha.length > 0));
+	const baseOk = !meta || meta.base_sha.length === 0 || meta.base_sha === contract.base.sha;
+	const headOk =
+		!meta ||
+		meta.head_sha.length === 0 ||
+		meta.head_sha === reviewedHead ||
+		meta.head_sha === contract.head.sha;
+	const revision: RulesProvenance["revision"] = !hasRevision
+		? "unverifiable"
+		: baseOk && headOk
+			? "bound"
+			: "mismatch";
+
+	const known = new Set(contract.changedFiles);
+	const accepted: DeterministicMatch[] = [];
+	let unmatched = 0;
+	let rejected = 0;
+	for (const match of rules.matches) {
+		if (revision !== "bound") {
+			rejected++;
+			continue;
+		}
+		if (match.path.length === 0 || !known.has(match.path)) {
+			unmatched++;
+			continue;
+		}
+		accepted.push({ ...match });
+	}
+	return {
+		accepted,
+		provenance: { revision, accepted: accepted.length, unmatched, rejected },
+	};
+}
+
 /** Bucket a raw answer coarsely; raw probabilities never leave the machine record. */
 function strengthBucket(answer: unknown): "low" | "medium" | "high" {
 	if (!answer || typeof answer !== "object") return "low";
@@ -1228,14 +1347,18 @@ export function gatherGitChangeSet(
 	const resolvedHead: ResolvedRef = { ref: head, sha: headSha };
 
 	const range = `${base}..${head}`;
+	// Staged diffs compare the index against the RESOLVED base commit, not an
+	// implicit HEAD: `git diff --cached` alone describes a different base than
+	// the contract reports when the caller passes a base other than HEAD. The
+	// resolved SHA also cannot be mistaken for an option.
 	const diffArgs = options.staged
-		? ["diff", "--cached", "--src-prefix=a/", "--dst-prefix=b/"]
+		? ["diff", "--cached", "--src-prefix=a/", "--dst-prefix=b/", baseSha]
 		: ["diff", range];
 	const diff = git(repoDir, diffArgs);
 	if (diff.status !== 0) return { ...empty, repo, error: "diff_failed" };
 
 	const nameArgs = options.staged
-		? ["diff", "--cached", "--name-status", "-M"]
+		? ["diff", "--cached", "--name-status", "-M", baseSha]
 		: ["diff", "--name-status", "-M", range];
 	const names = git(repoDir, nameArgs);
 	const changedFiles = names.status === 0 ? parseNameStatus(names.stdout) : deriveChangedFiles(diff.stdout);
@@ -1357,12 +1480,14 @@ function completeOutcome(
 	elapsedMs: number,
 	now: Date,
 ): ReviewOutcome {
+	const validation = rules ? validateRulesMatches(rules, contract) : null;
 	const completed: ReviewOutcome = {
 		...outcome,
 		latencyMs: elapsedMs,
-		deterministic_matches: rules ? rules.matches.map((match) => ({ ...match })) : [],
+		deterministic_matches: validation ? validation.accepted.map((match) => ({ ...match })) : [],
+		...(validation ? { rules_provenance: validation.provenance } : {}),
 	};
-	if (!rules) return completed;
+	if (!rules || !validation) return completed;
 	const signals = advisorySignals(completed.findings, completed.raw_answers as Record<string, unknown> | undefined);
 	const notAssessed = Object.entries(completed.dispositions)
 		.filter(([, record]) => record.disposition === "not_assessed")
@@ -1381,7 +1506,7 @@ function completeOutcome(
 		diffSha256: contract.diffHash,
 		changedPaths: contract.changedFiles,
 		meta: rules.meta,
-		matches: rules.matches,
+		matches: validation.accepted,
 		model: completed.model,
 		status,
 		signals,
@@ -1434,6 +1559,11 @@ export async function runReviewCheck(opts: RunReviewCheckOptions): Promise<Revie
 	const started = clock();
 	const model = opts.model ?? process.env.OPENROUTER_JEV_MODEL ?? "typesafe/jev-1.13";
 	const rules = opts.rulesText !== undefined ? parseRulesJsonl(opts.rulesText) : null;
+	// Resolve the provider before the first identity is computed: provider
+	// identity participates in the cache key so a mock/heuristic result can
+	// never satisfy a live run (or vice versa).
+	const provider = opts.dryRun ? null : opts.provider === undefined ? resolveProvider("openrouter") : opts.provider;
+	const providerName = opts.dryRun ? "dry_run" : provider ? provider.name : "none";
 
 	try {
 		let repoLabel: string;
@@ -1477,7 +1607,7 @@ export async function runReviewCheck(opts: RunReviewCheckOptions): Promise<Revie
 					description: opts.description,
 					maxBytes: opts.maxBytes,
 				});
-				const identity = identityOf(emptyContract, model);
+				const identity = identityOf(emptyContract, model, providerName);
 				const unavailable = unavailableOutcome(emptyContract, identity, model, gathered.error ?? "diff_unavailable");
 				return completeOutcome(emptyContract, unavailable, rules, clock() - started, new Date(clock()));
 			}
@@ -1493,14 +1623,13 @@ export async function runReviewCheck(opts: RunReviewCheckOptions): Promise<Revie
 			description: opts.description,
 			maxBytes: opts.maxBytes,
 		});
-		const identity = identityOf(contract, model);
+		const identity = identityOf(contract, model, providerName);
 
 		if (opts.dryRun) {
 			const unavailable = unavailableOutcome(contract, identity, model, "dry_run", "dry_run");
 			return completeOutcome(contract, unavailable, rules, clock() - started, new Date(clock()));
 		}
 
-		const provider = opts.provider === undefined ? resolveProvider("openrouter") : opts.provider;
 		if (!provider) {
 			const unavailable = unavailableOutcome(contract, identity, model, "no_api_key", "no_api_key");
 			return completeOutcome(contract, unavailable, rules, clock() - started, new Date(clock()));
@@ -1557,7 +1686,7 @@ export async function runReviewCheck(opts: RunReviewCheckOptions): Promise<Revie
 			diffText: "",
 			changedFiles: [],
 		});
-		const identity = identityOf(fallback, model);
+		const identity = identityOf(fallback, model, providerName);
 		const unavailable = unavailableOutcome(fallback, identity, model, "internal_error", "internal_error");
 		return completeOutcome(fallback, unavailable, rules, clock() - started, new Date(clock()));
 	}

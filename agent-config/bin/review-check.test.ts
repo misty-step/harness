@@ -59,11 +59,11 @@ const AWS_KEY = `AKIA${"FAKEFAKEFAKEFAKE"}`;
 
 type Spy = { provider: SystemOneProvider; calls: () => number; lastState: () => string };
 
-function spyProvider(answers: Record<string, Answer>): Spy {
+function spyProvider(answers: Record<string, Answer>, name: SystemOneProvider["name"] = "heuristic"): Spy {
 	let calls = 0;
 	let lastState = "";
 	const provider: SystemOneProvider = {
-		name: "heuristic",
+		name,
 		async evaluate(state) {
 			calls += 1;
 			lastState = state;
@@ -626,7 +626,7 @@ describe("review-1 deterministic rules envelope", () => {
 		const nowMs = Date.parse("2026-02-20T12:00:00.000Z");
 		const outcome = await run({
 			diffText: fixtureText("clean.diff"),
-			changedFiles: ["src/math.ts"],
+			changedFiles: ["src/aws.ts", ".github/workflows/pr.yml"],
 			provider: spy.provider,
 			rulesText,
 			now: () => nowMs,
@@ -674,7 +674,7 @@ describe("review-1 deterministic rules envelope", () => {
 	test("F4 invariant: deterministic matches survive an unavailable provider", async () => {
 		const outcome = await run({
 			diffText: fixtureText("clean.diff"),
-			changedFiles: ["src/math.ts"],
+			changedFiles: ["src/aws.ts", ".github/workflows/pr.yml"],
 			provider: null,
 			rulesText: fixtureText("rules-matches.jsonl"),
 		});
@@ -695,18 +695,80 @@ describe("review-1 deterministic rules envelope", () => {
 		expect(parsed.matches[0].evidence).toBe("agent-config/bin/hook.test.ts");
 		expect(parsed.matches[1].evidence).toBe("agent-config/system-one/fixtures/review/secret.diff");
 
-		// Advisory-clean answers plus deterministic matches still force security_review.
+		// Bound to the exact producer revision and file set, the matches are
+		// current evidence: advisory-clean answers plus deterministic matches
+		// still force security_review.
 		const spy = spyProvider(fixtureAnswers("mock-low.json"));
+		const outcome = await run({
+			diffText: fixtureText("clean.diff"),
+			changedFiles: ["agent-config/bin/hook.test.ts", "agent-config/system-one/fixtures/review/secret.diff"],
+			baseSha: parsed.meta?.base_sha,
+			headSha: parsed.meta?.head_sha,
+			provider: spy.provider,
+			rulesText,
+		});
+		expect(outcome.rules_provenance).toEqual({ revision: "bound", accepted: 2, unmatched: 0, rejected: 0 });
+		expect(outcome.security_request?.requested_action).toBe("security_review");
+		expect(outcome.security_request?.risk.deterministic_matches[0]?.evidence).toBe(
+			"agent-config/bin/hook.test.ts",
+		);
+	});
+
+	test("F6: cross-revision matches are rejected, never silently current evidence", async () => {
+		const rulesText = fixtureText("rules-matches-object-evidence.jsonl");
+		const spy = spyProvider(fixtureAnswers("mock-low.json"));
+		// The recorded cross-tool trace reviewed a different change set: the
+		// producer revision disagrees with this contract, so nothing may cross
+		// into deterministic_matches or the envelope as current evidence.
 		const outcome = await run({
 			diffText: fixtureText("clean.diff"),
 			changedFiles: ["canary.ts"],
 			provider: spy.provider,
 			rulesText,
 		});
-		expect(outcome.security_request?.requested_action).toBe("security_review");
-		expect(outcome.security_request?.risk.deterministic_matches[0]?.evidence).toBe(
-			"agent-config/bin/hook.test.ts",
-		);
+		expect(outcome.deterministic_matches).toEqual([]);
+		expect(outcome.rules_provenance).toEqual({ revision: "mismatch", accepted: 0, unmatched: 0, rejected: 2 });
+		expect(outcome.security_request?.requested_action).toBe("no_action");
+		expect(outcome.security_request?.risk.deterministic_matches).toEqual([]);
+	});
+
+	test("F6: a bound revision with absent paths counts unmatched and cites nothing", async () => {
+		const rulesText = fixtureText("rules-matches-object-evidence.jsonl");
+		const parsed = parseRulesJsonl(rulesText);
+		const spy = spyProvider(fixtureAnswers("mock-low.json"));
+		const outcome = await run({
+			diffText: fixtureText("clean.diff"),
+			changedFiles: ["canary.ts"],
+			baseSha: parsed.meta?.base_sha,
+			headSha: parsed.meta?.head_sha,
+			provider: spy.provider,
+			rulesText,
+		});
+		expect(outcome.deterministic_matches).toEqual([]);
+		expect(outcome.rules_provenance).toEqual({ revision: "bound", accepted: 0, unmatched: 2, rejected: 0 });
+		expect(outcome.security_request?.requested_action).toBe("no_action");
+	});
+
+	test("F6: matches without producer revision fields are unverifiable and rejected", async () => {
+		const rulesText = [
+			JSON.stringify({
+				rule_id: "review.sample",
+				version: "1.0.0",
+				category: "review",
+				path: "src/math.ts",
+				evidence: "sample",
+				severity_class: "review",
+			}),
+		].join("\n");
+		const spy = spyProvider(fixtureAnswers("mock-low.json"));
+		const outcome = await run({
+			diffText: fixtureText("clean.diff"),
+			changedFiles: ["src/math.ts"],
+			provider: spy.provider,
+			rulesText,
+		});
+		expect(outcome.deterministic_matches).toEqual([]);
+		expect(outcome.rules_provenance).toEqual({ revision: "unverifiable", accepted: 0, unmatched: 0, rejected: 1 });
 	});
 });
 
@@ -776,6 +838,197 @@ describe("review-1 deterministic rules envelope", () => {
 		expect(rangeOutcome.contract.diff_sha256).toBe(stagedOutcome.contract.diff_sha256);
 		expect(rangeOutcome.identity).not.toBe(stagedOutcome.identity);
 	});
+
+	test("staged diffs compare the index against the resolved base, not an implicit HEAD", () => {
+		const repo = scratch();
+		const git = (args: string[]) => spawnSync("git", args, { cwd: repo, encoding: "utf8" });
+		const commit = (message: string) =>
+			git(["-c", "user.email=test@example.com", "-c", "user.name=Review Test", "commit", "-q", "-m", message]);
+		git(["init", "-q"]);
+		commit("init");
+		writeFileSync(join(repo, "app.ts"), "export const app = 1;\n");
+		git(["add", "app.ts"]);
+		commit("v1");
+		writeFileSync(join(repo, "app.ts"), "export const app = 2;\n");
+		git(["add", "app.ts"]);
+		commit("v2");
+		writeFileSync(join(repo, "app.ts"), "export const app = 3;\n");
+		git(["add", "app.ts"]);
+
+		const baseSha = git(["rev-parse", "HEAD~1"]).stdout.trim();
+		const change = gatherGitChangeSet(repo, { base: "HEAD~1", head: "HEAD", staged: true });
+		expect(change.ok).toBe(true);
+		expect(change.base.sha).toBe(baseSha);
+		// The change set is base..index: the committed v1 -> v2 step is inside it.
+		expect(change.diffText).toContain("-export const app = 1;");
+		expect(change.diffText).toContain("+export const app = 3;");
+		expect(change.diffText).not.toContain("app = 2");
+	});
+});
+
+describe("review-1 post-review hardening", () => {
+	test("F7: a rename out of a credential path is excluded on both sides", async () => {
+		const spy = spyProvider(fixtureAnswers("mock-low.json"));
+		const diff = [
+			"diff --git a/config/.env b/src/settings.txt",
+			"similarity index 80%",
+			"rename from config/.env",
+			"rename to src/settings.txt",
+			"index 1111111..2222222 100644",
+			"--- a/config/.env",
+			"+++ b/src/settings.txt",
+			"@@ -1,1 +1,2 @@",
+			" APP_BOOT_MODE=production73",
+			"+APP_BOOT_MODE=production74",
+			"",
+		].join("\n");
+		const outcome = await run({ diffText: diff, changedFiles: ["src/settings.txt"], provider: spy.provider });
+		expect(outcome.local_facts.excluded_files).toContain("config/.env");
+		expect(spy.lastState()).not.toContain("production73");
+		expect(spy.lastState()).not.toContain("production74");
+		expect(spy.lastState()).not.toContain("APP_BOOT_MODE");
+	});
+
+	test("F8: truncation cannot bisect a secret into a non-matching fragment", async () => {
+		const key = AWS_KEY;
+		const header = "diff --git a/src/big.ts b/src/big.ts\n--- a/src/big.ts\n+++ b/src/big.ts\n@@ -1,1 +1,2 @@\n";
+		const diff = `${header} const filler = "${"x".repeat(220)}";\n+const leak = "${key}";\n`;
+		const keyIndex = diff.indexOf(key);
+		// The byte bound lands in the middle of the key: a raw slice would send
+		// its first 12 characters; redaction-first keeps the whole key off egress.
+		const bisected = await run({
+			diffText: diff,
+			changedFiles: ["src/big.ts"],
+			provider: spyProvider(fixtureAnswers("mock-low.json")).provider,
+			maxBytes: keyIndex + 12,
+		});
+		expect(bisected.local_facts.truncated).toBe(true);
+		expect(bisected.contract.diff_sha256.length).toBe(64);
+		const sent = spyProvider(fixtureAnswers("mock-low.json"));
+		await run({
+			diffText: diff,
+			changedFiles: ["src/big.ts"],
+			provider: sent.provider,
+			maxBytes: keyIndex + 12,
+		});
+		expect(sent.lastState()).not.toContain(key.slice(0, 12));
+		expect(sent.lastState()).not.toContain(key);
+		// A bound that lands past the marker still counts the redaction.
+		const counted = await run({
+			diffText: diff,
+			changedFiles: ["src/big.ts"],
+			provider: spyProvider(fixtureAnswers("mock-low.json")).provider,
+			maxBytes: keyIndex + 40,
+		});
+		expect(counted.local_facts.redactions).toBeGreaterThanOrEqual(1);
+	});
+
+	test("F8: the PR-description bound applies after redaction too", () => {
+		const key = AWS_KEY;
+		const description = `${"y".repeat(100)}${key} tail`;
+		const keyIndex = description.indexOf(key);
+		const contract = buildContract({
+			repo: "example/repo",
+			base: { ref: "main", sha: "a".repeat(40) },
+			head: { ref: "HEAD", sha: "b".repeat(40) },
+			diffText: fixtureText("clean.diff"),
+			description,
+			maxDescriptionBytes: keyIndex + 12,
+		});
+		expect(contract.context.description_truncated).toBe(true);
+		expect(contract.text).not.toContain(key.slice(0, 12));
+		expect(contract.text).not.toContain(key);
+	});
+
+	test("F9: cache identity separates providers so mock results never satisfy a live run", async () => {
+		const dir = scratch();
+		const options = {
+			repoDir: dir,
+			base: "same-base",
+			head: "same-head",
+			baseSha: "3".repeat(40),
+			headSha: "4".repeat(40),
+			diffText: fixtureText("clean.diff"),
+			changedFiles: ["src/math.ts"],
+			cacheDir: join(dir, "cache"),
+		};
+		const mock = spyProvider(fixtureAnswers("mock-low.json"), "heuristic");
+		const live = spyProvider(fixtureAnswers("mock-low.json"), "openrouter");
+		const one = await runReviewCheck({ ...options, provider: mock.provider });
+		const two = await runReviewCheck({ ...options, provider: live.provider });
+		expect(one.identity).not.toBe(two.identity);
+		expect(two.cached).toBe(false);
+		expect(live.calls()).toBe(1);
+	});
+
+	test("F9: cache identity includes the change-set file list", async () => {
+		const dir = scratch();
+		const base = {
+			repoDir: dir,
+			base: "b",
+			head: "h",
+			baseSha: "5".repeat(40),
+			headSha: "6".repeat(40),
+			diffText: fixtureText("clean.diff"),
+			cacheDir: join(dir, "cache"),
+		};
+		const one = await runReviewCheck({
+			...base,
+			changedFiles: ["src/math.ts"],
+			provider: spyProvider(fixtureAnswers("mock-low.json")).provider,
+		});
+		const two = await runReviewCheck({
+			...base,
+			changedFiles: ["src/math.ts", "src/extra.ts"],
+			provider: spyProvider(fixtureAnswers("mock-low.json")).provider,
+		});
+		expect(one.identity).not.toBe(two.identity);
+	});
+
+	test("F10: scores outside the question ladder are malformed, never assessed", async () => {
+		for (const score of [999, -1]) {
+			const spy = spyProvider({ "ops::blast_radius": { type: "score", score, confidence: 0.9 } as unknown as Answer });
+			const outcome = await run({
+				diffText: fixtureText("clean.diff"),
+				changedFiles: ["src/math.ts"],
+				provider: spy.provider,
+			});
+			expect(outcome.dispositions["ops::blast_radius"]).toEqual({
+				disposition: "not_assessed",
+				reason: "malformed_answer",
+			});
+		}
+		const spy = spyProvider({ "ops::blast_radius": { type: "score", score: 5, confidence: 0.9 } as unknown as Answer });
+		const outcome = await run({
+			diffText: fixtureText("clean.diff"),
+			changedFiles: ["src/math.ts"],
+			provider: spy.provider,
+		});
+		expect(outcome.dispositions["ops::blast_radius"]).toEqual({ disposition: "investigate" });
+	});
+
+	test("F11: an orphan private-key BEGIN redacts the key body, not just the marker", async () => {
+		const spy = spyProvider(fixtureAnswers("mock-low.json"));
+		const begin = ["-----BEGIN", "RSA PRIVATE KEY-----"].join(" ");
+		const body1 = "fakekeybodylineone0000000000000000";
+		const body2 = "fakekeybodylinetwo1111111111111111";
+		const diff = [
+			"diff --git a/src/key.ts b/src/key.ts",
+			"--- a/src/key.ts",
+			"+++ b/src/key.ts",
+			"@@ -1,2 +1,4 @@",
+			" const x = 1;",
+			`+${begin}`,
+			`+${body1}`,
+			`+${body2}`,
+			"",
+		].join("\n");
+		const outcome = await run({ diffText: diff, changedFiles: ["src/key.ts"], provider: spy.provider });
+		expect(outcome.local_facts.redactions).toBeGreaterThanOrEqual(1);
+		expect(spy.lastState()).not.toContain(body1);
+		expect(spy.lastState()).not.toContain(body2);
+		expect(spy.lastState()).toContain("[REDACTED:suspected-secret]");
+	});
 });
 
 describe("review-check CLI", () => {
@@ -792,13 +1045,32 @@ describe("review-check CLI", () => {
 
 	test("--rules appends a security-review-request-1 line when matches exist", () => {
 		const repo = gitRepo();
-		const result = runCli(repo, [
-			"--mock",
-			join(fixtures, "mock-low.json"),
-			"--rules",
-			join(fixtures, "rules-matches.jsonl"),
-			"--json",
-		]);
+		// A rules file bound to this repo's exact revision and staged path.
+		const headSha = spawnSync("git", ["rev-parse", "HEAD"], { cwd: repo, encoding: "utf8" }).stdout.trim();
+		const rulesPath = join(scratch(), "rules.jsonl");
+		writeFileSync(
+			rulesPath,
+			[
+				JSON.stringify({
+					schema_version: "risk-rules-1",
+					schema_revision: "risk-rules-1.2",
+					repo: "example/local",
+					base_sha: headSha,
+					head_sha: headSha,
+					rules_version: "rules-test",
+					taxonomy_version: "taxonomy-test",
+				}),
+				JSON.stringify({
+					rule_id: "review.sample",
+					version: "1.0.0",
+					category: "review",
+					path: "app.ts",
+					evidence: "staged app.ts",
+					severity_class: "review",
+				}),
+			].join("\n"),
+		);
+		const result = runCli(repo, ["--mock", join(fixtures, "mock-low.json"), "--rules", rulesPath, "--json"]);
 		expect(result.status).toBe(0);
 		expect(result.stdout).toContain('"requested_action": "security_review"');
 		const gitDir = spawnSync("git", ["rev-parse", "--absolute-git-dir"], { cwd: repo, encoding: "utf8" }).stdout.trim();
