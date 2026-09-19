@@ -25,6 +25,7 @@ prompt is: how can I pokayoke this so this kind of error never happens again?
 | `bin/omp-merge-config.ts` | Overlay source-owned YAML keys and remove retired owned keys while preserving foreign config entries |
 | `bin/omp-grievances.ts` | Manual grievance inbox CLI |
 | `bin/pass-env.ts` | Moved to `agent-config`: pass-backed launcher, installed as `~/.local/bin/pass-env` |
+| `bin/jev-verdict.ts` | Moved to `agent-config`: advisory child-summary verdict command, installed as `~/.local/bin/jev-verdict` |
 | `bin/tmp-health.py`, `references/dev-exec.md` | Opt-in workstation execution limits, pressure notifications, and rollback workflow |
 | `config.yml` | Model roles, fallbacks, theme/TUI, providers, task/LSP settings |
 | `models.yml` | Local Ollama discovery; cloud models come from omp's bundled catalog |
@@ -49,10 +50,10 @@ arguments (including `--check`); use `../scripts/verify omp` for isolated checks
 
 Preflight validates every selected input, then writes. Unset selection means
 `all`: owned config overlay, guidance, MCP, scopes, agents, skills, themes,
-extensions, `omp-grievances`, and `pass-env`. It does not delete
+extensions, `omp-grievances`, `pass-env`, and `jev-verdict`. It does not delete
 foreign skills or agents, and it does not import live secrets into this
-checkout. Skills, shared guidance sections, and `pass-env` deploy from the
-sibling `agent-config` checkout
+checkout. Skills, shared guidance sections, `pass-env`, and `jev-verdict`
+deploy from the sibling `agent-config` checkout
 (default `$repo_dir/../agent-config`; override with `AGENT_CONFIG_DIR`); the
 installer fails closed when it is missing.
 

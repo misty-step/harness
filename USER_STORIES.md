@@ -141,3 +141,57 @@ Criteria:
 No-gos: not a pixel-diff CI product; not a replacement for journey tests.
 
 Evidence: `agent-config/skills/visual-state-review/scripts/gallery.test.ts`
+
+## Capability: Context stewardship
+
+## US-008 Advise compaction at a completed unit
+
+Statement: When a harness session reaches a settled turn, I want a System One
+judgment on whether the current unit of work is finished and hands-on, so
+compaction is suggested near a safe boundary and never forced by a model guess.
+
+Criteria:
+1. WHEN context usage is below the configured minimum (40,000 tokens) or
+   unknown, THE SYSTEM SHALL skip the judgment without a remote call.
+2. WHEN the composed score clears the usage-dependent floor (0.90 through 10%
+   used, relaxing to 0.50 by 90%), THE SYSTEM SHALL present a hint to run
+   `/compact`.
+3. IF the provider is unavailable or the answers are unusable, THEN THE SYSTEM
+   SHALL fail open and present nothing.
+4. WHERE the session is fully interactive and auto mode is explicitly enabled
+   (`PI_COMPACT_HINT_AUTO=1`), THE SYSTEM MAY trigger compaction; THE SYSTEM
+   SHALL NOT trigger compaction in unattended modes.
+5. THE SYSTEM SHALL treat the judgment as advisory: never a permission or
+   pre-tool gate, no fabricated scores, and one kill switch
+   (`COMPACT_ADVISER_DISABLE`).
+
+No-gos: no third-party compact-adviser package; no compaction from a failed
+judgment; no transcript state above the request cap.
+
+Evidence: `agent-config/system-one/compact.test.ts`,
+`pi-config/extensions/compact-hint/decide.test.ts`
+
+## Capability: Delegation review
+
+## US-009 Judge a child summary after the run
+
+Statement: When an agent delegates a run to a child, I want one advisory
+verdict on the child's summary, so a reviewer sees pass, fail, or uncertain
+before trusting the claim.
+
+Criteria:
+1. WHEN `jev-verdict` receives a child summary on stdin, `--file`, or `--text`,
+   THE SYSTEM SHALL print one JSON verdict of `pass`, `fail`, or `uncertain`.
+2. WHEN the provider is unavailable, the key is missing, or the summary is
+   empty, THE SYSTEM SHALL print `uncertain` and exit 0.
+3. IF the summary reports an unresolved blocker or unfinished work, THEN THE
+   SYSTEM SHALL return `fail`; IF it claims results without evidence, THEN THE
+   SYSTEM SHALL return `uncertain`.
+4. THE SYSTEM SHALL redact credential shapes and cap the state at 32,000 bytes
+   before any request.
+5. THE SYSTEM SHALL remain advisory: exit 0 for every judgment, never a merge
+   oracle or a failing gate.
+
+No-gos: no merge decision, no permission gate, no unredacted state.
+
+Evidence: `agent-config/bin/jev-verdict.test.ts`

@@ -4,9 +4,10 @@ Pi coding-agent configuration for Phaedrus / Misty Step. This is the versioned
 source of truth for how pi iterates on raw upstream pi: settings, the custom
 composer chrome, the LOC status extension, the Exa web-search tool, the
 image-budget extension, the model-fallback-chain extension, the OpenRouter
-live-model bridge, and
+live-model bridge, the advisory compact-hint extension, and
 the `pi()` key-injection wrapper block in `~/.bashrc`. Shared primitives — skill
-packages, global guidance, and the `pass-env` launcher — come from the sibling
+packages, global guidance, the `pass-env` launcher, and the `jev-verdict` host
+command — come from the sibling
 base `agent-config`. `./install`
 deploys the owned agent-directory components into `$PI_CODING_AGENT_DIR`
 (default `~/.pi/agent`); the wrapper block is applied to `~/.bashrc` by hand
@@ -63,7 +64,8 @@ presentation; "behavioral" changes agent capability, model input, or data flow.
 | `extensions/failover/` | this repo | behavioral | yes | Fallback chain: run dies on a link after stock retry → session moves to the next, strictly forward (ADR-011/013) |
 | `extensions/image-budget/` | this repo | behavioral | yes | Inline-image ceiling: oldest images dropped over 15 MB per request; large images shrunk with ffmpeg at ingest (ADR-019) |
 | `extensions/openrouter-live/` | this repo | behavioral | yes | Live OpenRouter bridge: models the `pi.dev` mirror lacks are appended to `models.json`, additive-only, at session start (≥2 h) and `/models-live` (ADR-022) |
-| `agent-config` (skills, guidance, `pass-env`) | external (sibling base) | behavioral | yes | Portable skill packages, shared guidance sections, and the `pass-env` launcher, clean-replaced from `agent-config` (ADR-021) |
+| `extensions/compact-hint/` | this repo | behavioral | yes | Advisory compaction advice at a settled turn: System One (Jev) judges whether the unit finished; hint `/compact`, auto only with `PI_COMPACT_HINT_AUTO=1` in a tui session (ADR-023) |
+| `agent-config` (skills, guidance, `pass-env`, `jev-verdict`) | external (sibling base) | behavioral | yes | Portable skill packages, shared guidance sections, the `pass-env` launcher, and the `jev-verdict` child-summary judgment command, clean-replaced from `agent-config` (ADR-021) |
 | `~/.bashrc` (`pi()` block) | this repo (marked block only) | behavioral | by hand | Launch hook: Exa key from pass (ADR-010); run-scoped scratch `TMPDIR` via `omp-scratch` when installed (ADR-015) |
 | `~/.config/omarchy/themed/pi.json.tpl` | this repo (hand-managed) | aesthetic | by hand | pi theme template override for every Omarchy theme: readable semantic ink, accent-derived thinking ramp, deeper surfaces (ADR-018) |
 | `extensions/agent-usage-telemetry.ts` | external (managed) | telemetry | no | Reports usage to an external endpoint |
@@ -174,6 +176,25 @@ replaces same-id entries through pi's own merge, the overlay needs no cleanup
 once `pi.dev` catches up. Removing the directory restores stock behavior: pi
 sees OpenRouter models on the mirror's schedule.
 
+**`compact-hint/` — behavioral, advisory.** Answers one question at a settled
+turn: should this session `/compact` now? (ADR-023). Two System One (Jev)
+questions in one request — is the unit of work finished, is this hands-on work
+or coordination — are composed in code into one score, compared to a floor
+that relaxes as the context window fills (0.90 through 10% used, 0.50 by 90%;
+a wrong hint costs most while there is room left). When the score clears the
+floor, one line is painted: `/compact` or nothing. The judgment lives in
+`agent-config/system-one/compact.ts` (deployed beside `engine.ts`); this
+directory is only the pi glue, and `decide.ts` is pure and bun-tested. Cheap
+local gates run before any provider call: `COMPACT_ADVISER_DISABLE` (any
+truthy value, the upstream package's switch), print/JSON modes (advice has
+nobody to read it), unknown context, under 40 k tokens, and a 60 s cooldown.
+Automatic compaction happens only when `PI_COMPACT_HINT_AUTO=1` is set *and*
+the session is fully interactive (`ctx.mode === "tui"`); RPC sessions stay
+hint-only, and no mode ever compacts on an error, a missing key, or unusable
+answers. It never edits files, never blocks a tool, and removing the directory
+restores stock pi behavior. `/compact-hint` prints mode, context, and the last
+judgment.
+
 **Shared primitives — `agent-config`.** Skill packages, guidance sections, and
 the `pass-env` launcher live once in the base and deploy through its single
 contract (ADR-021). pi selects all 16 portable skills (the homebrew `pokayoke`,
@@ -270,6 +291,7 @@ resolves the same file into the OMP theme.
 | Web search | have | Research-backed `web_search` (Exa); the tool exists only when the key is in the environment (ADR-010) |
 | Model fallback | have | Configured chain, strictly forward: stock retry first, then the next model per failed run, with user re-send (ADR-011/013) |
 | Image budget | have | Hard 15 MB per-request image ceiling (oldest dropped first) plus ffmpeg shrink at ingest; a 30 MB provider 413 is unreachable, and a session that already holds too much history is repaired by its next request (ADR-019) |
+| Compaction advice | have | `compact-hint/`: advisory System One judgment at a settled turn; hint `/compact`, auto only with explicit opt-in in a tui session (ADR-023) |
 | Approval / permission gates | **omit** | We run with full permissions by choice (pi's default is no gate). Revisit on untrusted repos |
 | OS sandbox | **omit** | Work is on a trusted workstation. Revisit for third-party code |
 | Subagents | **omit for now** | Pi ships no built-in delegation; OMP's executive covers heavy delegation. Revisit if pi-first workflows need it |
@@ -691,6 +713,51 @@ is checked out anyway), and duplicating the deploy mechanism in each harness
 (the duplication this ADR removes). Revisit: if a harness must build without the
 sibling checkout, pin the base as a submodule.
 
+**ADR-023 — Advisory compaction advice, hint-first, auto behind an explicit
+interactive opt-in.** *Accepted · 2026-09-18.* Two operator asks landed the
+same day: Nico Bailon's pi-subagents post-run Jev gate, and kunchenguid's
+compact-adviser. The adviser answers one question — should I `/compact` now? —
+with two one-sentence Jev questions (is the unit finished; hands-on work or
+coordination), a code-composed score, and a floor that slides from 0.90 to
+0.50 as the context window fills. We adopt the judgment, not the package:
+`pi install npm:compact-adviser` is consent to send checkpoints to
+api.typesafe.ai and needs a TypeSafe key this fleet does not hold (ADR-008);
+the same questions run through the existing OpenRouter client
+(`typesafe/jev-1.13`), and the judge is shared in
+`agent-config/system-one/compact.ts` so OMP and a future Codex hint can reuse
+it without a second copy.
+
+Policy, decided here and encoded in `decide.ts`:
+
+- **Hint-first.** The default mode paints one line and nothing else.
+- **Auto behind two keys.** `PI_COMPACT_HINT_AUTO=1` *and* a fully
+  interactive session (`ctx.mode === "tui"`). RPC stays hint-only; print and
+  JSON runs are inert, because advice has nobody to read it. There is no
+  settings file and no first-use dialog; the environment variable is the
+  opt-in.
+- **Fail open, never a gate.** No key, a provider error, unusable answers,
+  unknown usage, under 40 k tokens, or a 60 s cooldown all mean silence. The
+  judgment never blocks a tool, edits a file, or forces compaction from a bad
+  answer (ADR-006 stands: no permission or sandbox gates).
+- **One kill switch, shared with upstream.** `COMPACT_ADVISER_DISABLE` (any
+  truthy value) silences this extension, so a machine running both cannot
+  double-advise by accident.
+- **Bounded, redacted state.** The transcript snapshot is clipped to the
+  upstream 32 KB request bound, credential shapes are redacted best-effort, and
+  only user constraints, the recent tail, and a prior summary are sent.
+
+The same PR adds `jev-verdict` (shared, `agent-config/bin/`), the post-run
+child-summary judgment from the pi-subagents `gate:` pattern: it prints
+pass/fail/uncertain JSON, exits 0 for every judgment, and is documented as the
+future `gate:` command rather than a merge oracle.
+
+Rejected: installing `npm:compact-adviser`; a second Hermes plugin (the
+jev-checks `turn` battery already carries `next=compact`); the hint as a
+permission gate; auto as a default (a wrong compaction costs context the
+operator may still need). Review trigger: pi ships native compaction advice,
+or the judgment stops matching our sessions (retune the floor constants in
+`compact.ts`, not the questions).
+
 ## Research: how pi iterates on other harnesses
 
 Surveyed 2026-09-14 against pi's bundled docs/examples, the community
@@ -818,6 +885,11 @@ failover became sticky (then revisit the once-per-session latch).
   `pi` hours later).
 - **OMP parity**: OMP ships a feature we use daily and pi lacks. Port one thing
   at a time, with an ADR.
+- **ADR-023 (compact hint)**: pi ships native compaction advice, the judgment
+  stops matching our sessions (then retune the floor constants in
+  `agent-config/system-one/compact.ts`, not the questions), or a second
+  harness wants the hint (then wire the shared judge there instead of copying
+  it).
 
 ## Install
 
@@ -827,12 +899,13 @@ failover became sticky (then revisit the once-per-session latch).
 
 Unset `PI_CONFIG_COMPONENTS` means `all`. Select a subset with a space-separated
 list: `config`, `guidance`, `pi-chrome`, `loc`, `web-search`, `failover`,
-`image-budget`, `openrouter-live`, `pass-env`, `skills`.
+`image-budget`, `openrouter-live`, `compact-hint`, `diff-review`, `pass-env`,
+`jev-verdict`, `skills`.
 
 `agent-config` must be checked out beside this repo (default
 `$repo_dir/../agent-config`; override with `AGENT_CONFIG_DIR`). `guidance`,
-`pass-env`, and `skills` deploy through it; the installer fails closed when it
-is missing.
+`pass-env`, `jev-verdict`, and `skills` deploy through it; the installer fails
+closed when it is missing.
 
 ```sh
 PI_CONFIG_COMPONENTS=config ./install
@@ -840,9 +913,10 @@ PI_CONFIG_COMPONENTS="pi-chrome loc" ./install
 ```
 
 Preflight validates bun, source presence, settings, and the whole `agent-config`
-selection before any write. The `loc`, `web-search`, `failover`, and
-`image-budget` packages and every shared skill package are clean-replaced so
-obsolete files cannot survive. Restart pi after deploying.
+selection before any write. The `loc`, `web-search`, `failover`,
+`image-budget`, `openrouter-live`, `compact-hint`, and `diff-review` packages
+and every shared skill package are clean-replaced so obsolete files cannot
+survive. Restart pi after deploying.
 
 ## Verification
 
@@ -863,7 +937,10 @@ tool. `failover` needs no configuration or key: a fresh
 extension loaded (it registers nothing visible).
 `image-budget` is proved by reading one large image: the stored tool result is
 a JPEG an order of magnitude smaller, and the footer shows `img-budget N
-dropped` only when the request budget is actually crossed. Workspace Git hooks
+dropped` only when the request budget is actually crossed. `compact-hint` is
+proved by `/compact-hint` reporting mode and context in a fresh session; it
+stays silent until a judgment clears the floor, so a quiet session is the
+expected shape, not a missing extension. Workspace Git hooks
 are owned by [root bootstrap](../scripts/bootstrap); runtime installation does
 not wire LOC hooks. Do not install hooks into `.git/hooks` here: the workspace
 uses `core.hooksPath=.githooks`.
