@@ -618,7 +618,7 @@ classifier or automatic mid-session switch.
 | --- | --- |
 | Fresh `omp`, `@default` | `openrouter/z-ai/glm-5.3:high` |
 | Ordinary `task` workers, `@task` | `openrouter/deepseek/deepseek-v4.1-flash:max` |
-| `@smol`, `@tiny`, `@commit`; bundled `scout` and `sonic` | `cerebras/qwen-3.8-27b:high` |
+| `@smol`, `@tiny`, `@commit`; bundled `scout` and `sonic` | `openrouter/z-ai/glm-5.3-flash:max` |
 | `@plan`, `@advisor` | `openrouter/z-ai/glm-5.3:high` |
 | `@slow` (explicit thorough pass) | `openai-codex/gpt-6-astra:high` |
 | `@extreme` (rare unconstrained reasoning) | `openai-codex/gpt-6-astra:max` |
@@ -657,7 +657,7 @@ project config, and one-run `--config` overlays can override the global default.
 
 Task dispatch selects an **agent**, not a per-item model. Native precedence is
 `task.agentModelOverrides` → agent frontmatter → parent/default fallback.
-Explicit `scout`/`sonic` overrides use `@smol`; its `:high` suffix takes precedence
+Explicit `scout`/`sonic` overrides use `@smol`; its `:max` suffix takes precedence
 over their bundled `medium` thinking defaults. New task/eval dispatches reload
 persisted routing settings, but changing Main's model alone does not remap
 workers. Ordinary workers use DeepSeek V4.1 Flash; Gemini Flash serves `vision`

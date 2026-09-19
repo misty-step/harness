@@ -8,9 +8,9 @@ modelRoles:
   reviewer: google-antigravity/gemini-3.8-flash:high
   security-reviewer: openai-codex/gpt-6-astra:max
   vision: google-antigravity/gemini-3.8-flash:high
-  smol: cerebras/qwen-3.8-27b:high
-  tiny: cerebras/qwen-3.8-27b:high
-  commit: cerebras/qwen-3.8-27b:high
+  smol: openrouter/z-ai/glm-5.3-flash:max
+  tiny: openrouter/z-ai/glm-5.3-flash:max
+  commit: openrouter/z-ai/glm-5.3-flash:max
 cycleOrder: [smol, default, extreme]
 symbolPreset: nerd
 theme:
