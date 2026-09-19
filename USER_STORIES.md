@@ -144,7 +144,7 @@ Evidence: `agent-config/skills/visual-state-review/scripts/gallery.test.ts`
 
 ## Capability: Context stewardship
 
-## US-007 Advise compaction at a completed unit
+## US-008 Advise compaction at a completed unit
 
 Statement: When a harness session reaches a settled turn, I want a System One
 judgment on whether the current unit of work is finished and hands-on, so
@@ -173,7 +173,7 @@ Evidence: `agent-config/system-one/compact.test.ts`,
 
 ## Capability: Delegation review
 
-## US-008 Judge a child summary after the run
+## US-009 Judge a child summary after the run
 
 Statement: When an agent delegates a run to a child, I want one advisory
 verdict on the child's summary, so a reviewer sees pass, fail, or uncertain
