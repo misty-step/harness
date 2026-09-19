@@ -141,3 +141,27 @@ Criteria:
 No-gos: not a pixel-diff CI product; not a replacement for journey tests.
 
 Evidence: `agent-config/skills/visual-state-review/scripts/gallery.test.ts`
+
+## Capability: Story walk
+
+## US-007 Walk cited story criteria on an isolated candidate
+
+Statement: When I ship a user-visible change, I want an agent to walk the cited
+story criteria on an isolated candidate, so merge does not wait on a generative
+essay.
+
+Criteria:
+1. WHEN `scripts/walk.py` walks a selected story criterion, THE SYSTEM SHALL
+   exit 0 only when that criterion's code postcondition holds.
+2. WHEN Jev reports DONE but the code postcondition is false, THE SYSTEM SHALL
+   exit nonzero and name the lie instead of passing the walk.
+3. IF the walk needs visual judgment or cannot resolve a click, THEN THE SYSTEM
+   SHALL exit 3 and name the escalation reason.
+4. WHEN the provider is mock, THE SYSTEM SHALL replay a recorded answers
+   fixture and make no network call.
+5. WHEN the provider is jev and no key is configured, THE SYSTEM SHALL exit 2
+   without fabricating a verdict.
+
+No-gos: not a merge authority; Jev never merges; no production target.
+
+Evidence: `agent-config/skills/jev-qa-walk/scripts/walk.test.ts`

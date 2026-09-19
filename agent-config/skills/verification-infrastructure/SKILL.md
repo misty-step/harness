@@ -26,6 +26,9 @@ the custom part; a library need not acquire a browser stack or container setup.
 Resolve consequential uncertainty with a small experiment, not a feature catalog.
 Derive the journey list from `USER_STORIES.md` when the repository has one;
 each significant journey carries its story id, so coverage is provable by scan.
+When the journey is a browser, the driver is `skill://jev-qa-walk`; keep the
+repository's existing `qa:agent` or `qa:agentic` entry point and call it — do
+not wrap it in a new name.
 
 - Read [runtime boundaries](runtime.md) when changing setup, environments,
   identities, external integrations, or retained previews.

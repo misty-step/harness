@@ -7,7 +7,9 @@ does not justify a new platform or work item.
 ## Ability to change
 
 Can a fresh agent exercise the core user outcome or consumer contract, distinguish
-success from plausible failure, and clean up in an authorized environment? Inspect
+success from plausible failure, and clean up in an authorized environment? A browser
+product is not agent-ergonomic until its story criteria can be walked by
+`skill://jev-qa-walk` on an isolated candidate. Inspect
 repository-owned procedures, commands, representative data, isolated identities,
 and external-service dependencies where they affect that answer. A skill file,
 successful tool invocation, or historical receipt does not establish capability.

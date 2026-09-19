@@ -1,0 +1,22 @@
+{
+  "steps": [
+    {
+      "url_contains": "/partial.html",
+      "answers": {
+        "operation": {"choice": "CLICK", "confidence": 0.67, "probabilities": {"CLICK": 0.67, "ESCALATE": 0.06, "DONE": 0.07, "BLOCKED": 0.07, "WAIT": 0.07, "SCROLL_DOWN": 0.06}},
+        "click_target": {"choice": "none", "confidence": 0.56, "probabilities": {"none": 0.56, "4": 0.19, "1": 0.15, "2": 0.05, "3": 0.05}},
+        "which_screen": {"choice": "project_desk", "confidence": 0.88, "probabilities": {"project_desk": 0.88, "error": 0.12}},
+        "criterion_met": {"noul": 0.02},
+        "criterion_partial": {"noul": 0.96},
+        "page_broken": {"noul": 0.5},
+        "empty_state": {"noul": 0.77},
+        "overlay_trap": {"noul": 0.04},
+        "lookalike_conflict": {"noul": 0.29},
+        "needs_vision": {"noul": 0.09},
+        "copy_lie": {"noul": 0.1},
+        "primary_missing": {"noul": 0.91},
+        "qa_severity": {"score": 1.9}
+      }
+    }
+  ]
+}

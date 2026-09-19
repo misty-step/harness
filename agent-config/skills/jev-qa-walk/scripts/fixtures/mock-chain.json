@@ -1,0 +1,40 @@
+{
+  "steps": [
+    {
+      "url_contains": "/index.html",
+      "answers": {
+        "operation": {"choice": "CLICK", "confidence": 0.98, "probabilities": {"CLICK": 0.98, "DONE": 0.01, "ESCALATE": 0.01}},
+        "click_target": {"choice": "2", "confidence": 0.9, "probabilities": {"1": 0.0, "2": 0.9, "3": 0.06, "4": 0.03, "5": 0.01, "none": 0.0}},
+        "which_screen": {"choice": "dashboard", "confidence": 0.92, "probabilities": {"dashboard": 0.92, "unknown": 0.08}},
+        "criterion_met": {"noul": 0.08},
+        "criterion_partial": {"noul": 0.41},
+        "page_broken": {"noul": 0.08},
+        "empty_state": {"noul": 0.37},
+        "overlay_trap": {"noul": 0.03},
+        "lookalike_conflict": {"noul": 0.19},
+        "needs_vision": {"noul": 0.07},
+        "copy_lie": {"noul": 0.09},
+        "primary_missing": {"noul": 0.11},
+        "qa_severity": {"score": 0.81}
+      }
+    },
+    {
+      "url_contains": "/habitat.html",
+      "answers": {
+        "operation": {"choice": "CLICK", "confidence": 0.9, "probabilities": {"CLICK": 0.9, "DONE": 0.05, "ESCALATE": 0.05}},
+        "click_target": {"choice": "3", "confidence": 0.26, "probabilities": {"3": 0.26, "2": 0.1, "1": 0.1, "none": 0.54}},
+        "which_screen": {"choice": "project_desk", "confidence": 0.85, "probabilities": {"project_desk": 0.85, "unknown": 0.15}},
+        "criterion_met": {"noul": 0.15},
+        "criterion_partial": {"noul": 0.54},
+        "page_broken": {"noul": 0.1},
+        "empty_state": {"noul": 0.39},
+        "overlay_trap": {"noul": 0.03},
+        "lookalike_conflict": {"noul": 0.32},
+        "needs_vision": {"noul": 0.08},
+        "copy_lie": {"noul": 0.13},
+        "primary_missing": {"noul": 0.51},
+        "qa_severity": {"score": 1.15}
+      }
+    }
+  ]
+}

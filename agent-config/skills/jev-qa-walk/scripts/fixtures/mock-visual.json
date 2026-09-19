@@ -1,0 +1,22 @@
+{
+  "steps": [
+    {
+      "url_contains": "/visual.html",
+      "answers": {
+        "operation": {"choice": "ESCALATE", "confidence": 0.95, "probabilities": {"ESCALATE": 0.95, "CLICK": 0.01, "DONE": 0.01, "BLOCKED": 0.01, "WAIT": 0.01, "SCROLL_DOWN": 0.01}},
+        "click_target": {"choice": "none", "confidence": 0.78, "probabilities": {"none": 0.78, "1": 0.08, "2": 0.08, "3": 0.06}},
+        "which_screen": {"choice": "dashboard", "confidence": 0.9, "probabilities": {"dashboard": 0.9, "unknown": 0.1}},
+        "criterion_met": {"noul": 0.23},
+        "criterion_partial": {"noul": 0.55},
+        "page_broken": {"noul": 0.24},
+        "empty_state": {"noul": 0.45},
+        "overlay_trap": {"noul": 0.03},
+        "lookalike_conflict": {"noul": 0.39},
+        "needs_vision": {"noul": 0.89},
+        "copy_lie": {"noul": 0.11},
+        "primary_missing": {"noul": 0.72},
+        "qa_severity": {"score": 1.17}
+      }
+    }
+  ]
+}
