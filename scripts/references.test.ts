@@ -23,7 +23,7 @@ function errors(file: string, boundary = root, portable = false): string[] {
 	const targets = [
 		...text.matchAll(/\]\(<?([^\s)>]+)>?(?:\s+"[^"]*")?\)/g),
 		...text.matchAll(/^\s*\[[^\]]+\]:\s*<?([^\s>]+)>?/gm),
-		...(portable ? text.matchAll(/`(references\/[^`\s]+\.(?:md|sh|py|ts))`/g) : []),
+		...(portable ? text.matchAll(/`((?:\.\.\/)?(?:references|scripts|templates)\/[^`\s]+\.(?:md|sh|py|ts))`/g) : []),
 	];
 	for (const [, raw] of targets) {
 		const target = decodeURIComponent(raw.split("#")[0]);
@@ -76,7 +76,7 @@ test("guard rejects the original missing backtick reference, broken links, and p
 	const pkg = resolve(dir, "skill"); mkdirSync(pkg);
 	writeFileSync(resolve(dir, "outside.md"), "# Exists only in source\n");
 	const file = resolve(pkg, "SKILL.md");
-	for (const content of ["Read `references/dev-exec.md`.", "[missing](references/absent.md)", "[outside](../outside.md)"]) {
+	for (const content of ["Read `references/dev-exec.md`.", "Read `scripts/missing.py`.", "Read `../scripts/missing.py`.", "[missing](references/absent.md)", "[outside](../outside.md)"]) {
 		writeFileSync(file, content);
 		expect(errors(file, pkg, true)).toHaveLength(1);
 	}

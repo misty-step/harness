@@ -6,5 +6,5 @@ and run its loop: divergent named concepts across multiple dimensions, comparati
 recombination, then a spec handoff. Do not present cosmetic-only changes as design work.
 One-line copy/color/size fixes do not need the loop; say plainly what changed.
 Design exploration never changes a live product or a locked requirement by itself.
-Generated images are for breadth only; UX, accessibility, and behavior need real HTML and
-rendered-state QA (`skill://visual-state-review`).
+Generated mockups propose layout, typography, and hierarchy for breadth; UX, accessibility,
+and behavior need real HTML and rendered-state QA (`skill://visual-state-review`).

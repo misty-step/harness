@@ -35,7 +35,8 @@ Generate the full concept set (default 6 for major work). Each concept: a name, 
 stance, its surface archetype, and how it diverges (multiple rubric dimensions, including
 structure or behavior). Cheap breadth lives here:
 
-- A generated styleframe/moodboard per concept where useful (see media-policy).
+- A generated software-interface mockup per concept where useful (see media-policy) — it may
+  propose IA, layout, typography, and exact labels; the rendered build must verify them.
 - Or a structural diagram plus a compact visual composition when image generation is not useful.
 - Concept notes go in [templates/concept-board.md](../templates/concept-board.md).
 

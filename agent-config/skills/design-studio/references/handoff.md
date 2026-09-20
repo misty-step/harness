@@ -3,7 +3,10 @@
 The loop is not done when it looks good. It is done when someone (human or agent) can build
 it without guessing. Produce or update these, in the product's existing format when one
 exists; otherwise use a DESIGN.md-compatible file (`design-md` skill owns the spec format
-and its CLI — lint before shipping).
+and its CLI — lint before shipping). Where the design-md CLI or skill is absent (fresh
+Pi/OMP consumer installs), run the bundled minimal fallback `../scripts/check_design_md.py`
+instead and record the reduced coverage — it checks structure only, not the full schema or
+WCAG contrast.
 
 ## Spec file (DESIGN.md or compatible)
 

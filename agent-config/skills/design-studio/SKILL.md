@@ -1,7 +1,7 @@
 ---
 name: design-studio
 description: "Use when exploring UI/UX design before committing to code: divergent concepts, comparative critique, refinement, spec handoff."
-version: 1.0.0
+version: 1.1.0
 author: Misty Step harness
 license: MIT
 platforms: [linux, macos]
@@ -71,16 +71,25 @@ Library: [references/references.md](references/references.md).
 
 ## Media policy
 
-- **Generated images** (see provider policy): moodboards, styleframes, radical visual
-  compositions, palette/material studies. Never as proof of UX, accessibility, or final UI.
+- **Generated images are software-interface mockups first** (see provider policy): early IA,
+  layout, typography, component and content-hierarchy proposals, visual language, and
+  iterative edit exploration — including exact labels and copy when the evaluation target
+  needs them. Radical variants must still be recognizable, useful software; moodboards and
+  styleframes are optional supporting artifacts, not the target.
+- A raster mockup is a **visual proposal**. It may propose text, layout, and hierarchy;
+  rendered HTML/CSS on the actual stack must verify them. Generated images are never proof
+  of UX, accessibility, or behavior — screenshots of raster mockups are not interaction
+  evidence.
 - **Text and diagrams**: IA, journeys, content models, rubrics.
 - **Real HTML/CSS or the product's actual stack**: layout, exact copy, behavior, motion,
-  and states. Screenshots of raster mockups are not interaction evidence.
+  and states.
 - Cost: default **$3.00 exploratory cap** per substantial round unless the operator sets
-  one. Record provider, model, settings, prompt, artifact hash, and latency; label
-  estimates as estimates.
-- Workflow and provider discovery: [references/media-policy.md](references/media-policy.md);
-  batch helper: [scripts/imagine.py](scripts/imagine.py).
+  one. The bundled adapter enforces the cap against caller-supplied price evidence and
+  fails closed when price is unknown. Record provider, model, settings, prompt, artifact
+  hash, and latency; label estimates as estimates and reserves as reserves.
+- Workflow, evaluated backend evidence, and provider discovery:
+  [references/media-policy.md](references/media-policy.md); batch helper:
+  [scripts/imagine.py](scripts/imagine.py).
 
 ## Per-concept craft
 
@@ -100,13 +109,22 @@ work. Keep the anti-slop discipline: one bold element, everything else quiet.
 - `visual-state-review` — the rendered-QA leg; use it for every named UI state.
 - `user-stories` — intake source; the primary user job comes from stories, not guesses.
 
+Sibling skills live in host profiles, not in this package. A fresh Pi/OMP consumer install
+carries only `agent-config/skills/*`, so some siblings may be absent; the loop must degrade
+cleanly: run sketch/claude-design/popular-web-designs steps from this package's own rubric,
+craft rules, and reference library, and for the spec leg use the design-md CLI when it is
+available — otherwise run the bundled minimal validator `scripts/check_design_md.py` and
+record the reduced coverage (structure only; no schema or contrast checks).
+
 ## Handoff
 
 Produce (or update) a DESIGN.md-compatible spec plus: semantic tokens, component states,
 navigation and journey decisions, responsive rules, typography with licensing/availability,
 icon and media treatment, motion timings/easing/purpose with reduced-motion behavior,
 copy/empty/error/loading/success patterns, accessibility constraints, implementation mapping,
-and a validation plan. Tokens do not stand in for product design.
+and a validation plan. Tokens do not stand in for product design. Lint the spec with the
+design-md CLI when available; otherwise run `scripts/check_design_md.py` and say so in the
+handoff (minimal structural fallback).
 Format and checklist: [references/handoff.md](references/handoff.md).
 
 ## Evidence and QA
