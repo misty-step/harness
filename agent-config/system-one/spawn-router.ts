@@ -12,7 +12,10 @@
  *  - Never promote to frontier from stakes/difficulty alone. Frontier only
  *    when Jev picks it at >= 0.85, or when a security review's seat is
  *    uncertain (< 0.70).
- *  - Fail open to builder_flash on timeout, error, or low confidence.
+ *  - Fail open to builder_flash on timeout, error, or low confidence. A
+ *    missing or non-finite seat confidence counts as 0 (untrusted): engine.ts
+ *    preserves a provider-omitted confidence as `undefined` ("never
+ *    fabricate"), so this module must not assume a number is present.
  *  - Never fast_cerebras for docs/intake/roam.
  *  - needs_human >= 0.75: a live path would block the card needs_input and
  *    not spawn; this shadow module only records `block_for_human`.
@@ -123,10 +126,25 @@ export const SPAWN_TIMEOUT_MS = 8000;
 
 type Choice = { choice: string; confidence: number };
 
+/**
+ * Provider confidence is optional on current main: engine.ts preserves a
+ * missing or non-finite value as `undefined` ("never fabricate"). Treat it
+ * as 0 — untrusted — so a confidence-less answer fails open instead of
+ * reaching the reason formatter as `undefined`.
+ */
+function confidenceOf(raw: Answer): number {
+	return typeof raw.confidence === "number" && Number.isFinite(raw.confidence) ? raw.confidence : 0;
+}
+
+/** Format a confidence for a reason line; never throws on odd values. */
+function fmtConfidence(value: number): string {
+	return Number.isFinite(value) ? value.toFixed(2) : "?";
+}
+
 function choiceOf(answers: Record<string, Answer> | null | undefined, name: string): Choice {
 	const raw = answers?.[name];
 	if (!raw || raw.type !== "choice") return { choice: "none_of_these", confidence: 0 };
-	return { choice: raw.choice, confidence: raw.confidence };
+	return { choice: raw.choice, confidence: confidenceOf(raw) };
 }
 
 function noulOf(answers: Record<string, Answer> | null | undefined, name: string): number {
@@ -186,18 +204,18 @@ export function mapSeat(answers: Record<string, Answer> | null | undefined): Sea
 
 	if (answers && isNamedSeat(jevSeat.choice) && jevSeat.confidence >= TRUST_CONFIDENCE) {
 		seat = jevSeat.choice;
-		reason = `jev seat ${seat} at confidence ${jevSeat.confidence.toFixed(2)} (>= ${TRUST_CONFIDENCE})`;
+		reason = `jev seat ${seat} at confidence ${fmtConfidence(jevSeat.confidence)} (>= ${TRUST_CONFIDENCE})`;
 	} else if (
 		job.choice === "review" &&
 		depth.choice === "security" &&
 		jevSeat.confidence < UNCERTAIN_CONFIDENCE
 	) {
 		seat = "frontier";
-		reason = `security review with uncertain seat (${jevSeat.confidence.toFixed(2)} < ${UNCERTAIN_CONFIDENCE})`;
+		reason = `security review with uncertain seat (${fmtConfidence(jevSeat.confidence)} < ${UNCERTAIN_CONFIDENCE})`;
 	} else {
 		seat = FAIL_OPEN_SEAT;
 		reason = answers
-			? `fail open: no trusted seat (${jevSeat.choice} at ${jevSeat.confidence.toFixed(2)})`
+			? `fail open: no trusted seat (${jevSeat.choice} at ${fmtConfidence(jevSeat.confidence)})`
 			: "fail open: no answers";
 	}
 

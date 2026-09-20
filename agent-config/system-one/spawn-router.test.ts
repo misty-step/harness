@@ -30,6 +30,17 @@ const score = (value: number, confidence = 0.9): Answer => ({
 	confidence,
 });
 
+/**
+ * Choice answer with the confidence field omitted — legal on current main,
+ * where engine.ts preserves a provider-omitted confidence as `undefined`
+ * ("never fabricate") instead of fabricating a number.
+ */
+const choiceless = (name: string): Answer => ({
+	type: "choice",
+	choice: name,
+	probabilities: { [name]: 1 },
+});
+
 const answers = (overrides: Record<string, Answer> = {}): Record<string, Answer> => ({
 	seat: choice("builder_flash", 1.0),
 	job_kind: choice("implement", 0.95),
@@ -135,6 +146,50 @@ describe("seat mapping (decision 5)", () => {
 	test("needs_human at 0.75 blocks a live spawn; below it does not", () => {
 		expect(mapSeat(answers({ needs_human: noul(0.8) })).blockForHuman).toBe(true);
 		expect(mapSeat(answers({ needs_human: noul(0.74) })).blockForHuman).toBe(false);
+	});
+});
+
+describe("confidence-less answers (current-main Answer.confidence is optional)", () => {
+	test("mapSeat fails open on a confidence-less seat answer instead of throwing", () => {
+		const decision = mapSeat(answers({ seat: choiceless("builder_flash") }));
+		expect(decision.seat).toBe(FAIL_OPEN_SEAT);
+		expect(decision.jevSeatConfidence).toBe(0);
+		expect(decision.reason).toContain("fail open");
+		expect(decision.reason).toContain("builder_flash");
+		expect(decision.reason).toContain("0.00");
+	});
+
+	test("a non-finite seat confidence is untrusted, not an exception", () => {
+		const decision = mapSeat(
+			answers({
+				seat: { type: "choice", choice: "planner_glm", probabilities: {}, confidence: Number.NaN },
+			}),
+		);
+		expect(decision.seat).toBe(FAIL_OPEN_SEAT);
+		expect(decision.jevSeatConfidence).toBe(0);
+		expect(decision.reason).toContain("fail open");
+	});
+
+	test("a confidence-less security-review seat stays policy-consistent (frontier)", () => {
+		const decision = mapSeat(
+			answers({
+				seat: choiceless("verifier_gemini"),
+				job_kind: choice("review", 0.95),
+				review_depth: choice("security", 0.9),
+			}),
+		);
+		expect(decision.seat).toBe("frontier");
+		expect(decision.jevSeatConfidence).toBe(0);
+		expect(decision.reason).toContain("uncertain");
+	});
+
+	test("pickSeat keeps its never-throws contract on confidence-less answers", async () => {
+		const provider = new FakeProvider(answers({ seat: choiceless("verifier_gemini") }));
+		const pick = await pickSeat({ id: "confidenceless", state: {} }, { provider });
+		expect(pick.code_seat).toBe(FAIL_OPEN_SEAT);
+		expect(pick.error).toBeNull();
+		expect(pick.jev_seat_confidence).toBe(0);
+		expect(pick.answers).not.toBeNull();
 	});
 });
 
