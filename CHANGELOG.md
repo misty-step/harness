@@ -1,3 +1,10 @@
+## [0.1.23](https://github.com/misty-step/harness/compare/v0.1.22...v0.1.23) (2026-09-20)
+
+
+### Bug Fixes
+
+* **hooks:** scan only commits absent from all remotes in pre-push ([#20](https://github.com/misty-step/harness/issues/20)) ([b7a0168](https://github.com/misty-step/harness/commit/b7a0168d775626cacd7ed459cb5d9e678e31c1c3))
+
 ## [0.1.22](https://github.com/misty-step/harness/compare/v0.1.21...v0.1.22) (2026-09-20)
 
 
