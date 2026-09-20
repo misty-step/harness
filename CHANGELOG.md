@@ -1,3 +1,10 @@
+## [0.1.22](https://github.com/misty-step/harness/compare/v0.1.21...v0.1.22) (2026-09-20)
+
+
+### Features
+
+* **system-one:** evidence packets + provenance checks (US-005, evidence-1) ([#12](https://github.com/misty-step/harness/issues/12)) ([32b0201](https://github.com/misty-step/harness/commit/32b020122124af8d8e063642c96793a1d9fb708a))
+
 ## [0.1.21](https://github.com/misty-step/harness/compare/v0.1.20...v0.1.21) (2026-09-20)
 
 
