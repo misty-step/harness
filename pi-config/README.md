@@ -77,7 +77,7 @@ presentation; "behavioral" changes agent capability, model input, or data flow.
 **`global/AGENTS.md` — behavioral.** Deploys `~/.pi/agent/AGENTS.md`, the file
 pi concatenates into every session in every repository (ADR-012). The file is
 composed at install time: pi's title and intro, then `agent-config`'s shared
-sections — pokayoke, communication and verification, host resources, and user stories —
+sections — pokayoke, communication and verification, host resources, user stories, session close, and design routing —
 spliced at the marker line (ADR-021). The shared sections carry the conventions
 every session inherits; the intro is pi's own. `./install` overwrites the
 deployed copy, and the file tells agents not to hand-edit it.
@@ -176,10 +176,10 @@ sees OpenRouter models on the mirror's schedule.
 
 **Shared primitives — `agent-config`.** Skill packages, guidance sections, and
 the `pass-env` launcher live once in the base and deploy through its single
-contract (ADR-021). pi selects all 16 portable skills (the homebrew `pokayoke`,
+contract (ADR-021). pi selects all 17 portable skills (the homebrew `pokayoke`,
 `user-stories`, `capture`, `foundation`, `agent-ergonomics`,
 `verification-infrastructure`, `decide`, `authenticated-commands`,
-`session-close`, `system-one`, and `visual-state-review`, plus the
+`session-close`, `system-one`, `design-studio`, and `visual-state-review`, plus the
 vendored `frontend-design`, `show-me`, `wrangler`, `herdr`, and
 `using-exe-dev`), the shared guidance sections, and `pass-env`. `web-search`'s key injection is
 the launcher's first pi consumer (ADR-010).

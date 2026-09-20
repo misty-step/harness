@@ -1,0 +1,40 @@
+{
+  "run": {
+    "name": "<task or scenario name>",
+    "date": "<ISO date>",
+    "loop": "divergence → critique → recombine → refine → QA",
+    "scenario": "<what the worked example is about; note if non-production>"
+  },
+  "items": [
+    {
+      "id": "<artifact id>",
+      "path": "<absolute path>",
+      "kind": "generated-concept-image | browser-screenshot | interaction-test-output | diagram | spec",
+      "source": "generated | real",
+      "generator": {
+        "provider": "<provider as returned>",
+        "model": "<model id as confirmed by API>",
+        "prompt": "<exact prompt>",
+        "settings": { "aspect_ratio": "", "resolution": "" },
+        "latency_s": null,
+        "cost": { "amount_usd": null, "basis": "estimate | actual | unknown", "note": "" }
+      },
+      "capture": {
+        "viewport": "<WxH or n/a>",
+        "state": "<named UI state or n/a>",
+        "command": "<exact command or tool call used>"
+      },
+      "sha256": "<file hash>",
+      "bytes": null,
+      "critique": "<short critique or finding, especially for generated images>",
+      "limitations": "<what this artifact does NOT prove>"
+    }
+  ],
+  "totals": {
+    "generated_images": null,
+    "browser_screenshots": null,
+    "estimated_image_cost_usd": null,
+    "actual_cost_usd": null,
+    "note": "Actual charges may not be returned by the provider API; label estimates."
+  }
+}
