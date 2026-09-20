@@ -172,3 +172,53 @@ Criteria:
 No-gos: not a pixel-diff CI product; not a replacement for journey tests.
 
 Evidence: `agent-config/skills/visual-state-review/scripts/gallery.test.ts`
+
+## Capability: Design exploration
+
+## US-011 Explore divergent designs before committing UI
+
+Statement: When a task has real UI/UX surface, I want divergent design
+directions explored and synthesized into one defensible recommendation before
+production UI code is written, so I can commit to a direction on evidence
+instead of the first plausible mockup.
+
+Criteria:
+1. WHEN a task has real design surface (a new surface, a reimagining, a flow
+   change, or focused component or motion work), THE SYSTEM SHALL run the
+   `skill://design-studio` loop before production UI code is written.
+2. WHEN a concept set is produced, THE SYSTEM SHALL name every concept with a
+   surface archetype and a one-sentence divergence claim and SHALL never
+   present two concepts that are the same structure with different paint. WHEN
+   the set holds three or more concepts, THE SYSTEM SHALL span conservative,
+   evolutionary, and radical possibilities.
+3. WHEN concepts are critiqued, THE SYSTEM SHALL judge each against the primary
+   user job rather than taste alone, record what it optimizes, sacrifices, wins
+   for, and offers to keep, and recombine the strong pieces into one synthesized
+   direction before refinement.
+4. WHEN generated mockups are used, THE SYSTEM SHALL present them as visual
+   proposals for early IA, navigation and content-model, layout, typography,
+   hierarchy, component and content-hierarchy composition, and visual language
+   (including exact labels and copy when the evaluation target needs them), and
+   SHALL verify exact copy, behavior, and accessibility on rendered HTML/CSS
+   with named-state QA (`skill://visual-state-review`); generated images SHALL
+   never count as proof of UX, accessibility, or behavior.
+5. WHEN exploration closes, THE SYSTEM SHALL hand off a DESIGN.md-compatible
+   spec validated by the design-md CLI or the bundled structural fallback, and
+   SHALL keep rejected options with their reasons in the lineage.
+6. WHEN the bundled image adapter runs a batch, THE SYSTEM SHALL enforce the
+   exploratory cost cap against caller-supplied price evidence; IF the price is
+   unknown or non-finite, THEN THE SYSTEM SHALL fail closed before any spend.
+
+No-gos: not a replacement for user research or journey tests; no fabricated or
+numeric taste scores or model-vote winners; no further exploration round
+without new evidence or a named open decision; no committed screenshots or
+binary artifacts; no secrets or sensitive product data in prompts or artifacts.
+
+Evidence: `agent-config/skills/design-studio/SKILL.md`,
+`agent-config/skills/design-studio/references/loop.md`,
+`agent-config/skills/design-studio/references/rubric.md`,
+`agent-config/skills/design-studio/references/media-policy.md`,
+`agent-config/skills/design-studio/references/handoff.md`,
+`agent-config/skills/design-studio/scripts/check_design_md.test.ts`,
+`agent-config/skills/design-studio/scripts/imagine.test.ts`,
+`agent-config/guidance/design-routing.md`
