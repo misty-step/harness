@@ -1,3 +1,10 @@
+## [0.1.21](https://github.com/misty-step/harness/compare/v0.1.20...v0.1.21) (2026-09-20)
+
+
+### Features
+
+* **continuation-nudge:** wire the pi installer component (US-010) ([#18](https://github.com/misty-step/harness/issues/18)) ([d2005a9](https://github.com/misty-step/harness/commit/d2005a90ca6b1c8aae2e980dbe051931a91c0a30)), closes [#8](https://github.com/misty-step/harness/issues/8) [#15](https://github.com/misty-step/harness/issues/15)
+
 ## [0.1.20](https://github.com/misty-step/harness/compare/v0.1.19...v0.1.20) (2026-09-20)
 
 
