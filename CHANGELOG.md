@@ -1,3 +1,10 @@
+## [0.1.25](https://github.com/misty-step/harness/compare/v0.1.24...v0.1.25) (2026-09-20)
+
+
+### Features
+
+* **system-one:** shadow spawn-time seat router (decision 5) ([#10](https://github.com/misty-step/harness/issues/10)) ([0e24e80](https://github.com/misty-step/harness/commit/0e24e80d9ca55d6cf00da429daf23d0c94242101))
+
 ## [0.1.24](https://github.com/misty-step/harness/compare/v0.1.23...v0.1.24) (2026-09-20)
 
 
