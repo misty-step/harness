@@ -1,3 +1,10 @@
+## [0.1.19](https://github.com/misty-step/harness/compare/v0.1.18...v0.1.19) (2026-09-20)
+
+
+### Features
+
+* **agent-config:** add design-studio exploration skill and routing guidance ([#13](https://github.com/misty-step/harness/issues/13)) ([4a3975f](https://github.com/misty-step/harness/commit/4a3975f4c43565ffe53b17e980f35235304dd8c1))
+
 ## [0.1.18](https://github.com/misty-step/harness/compare/v0.1.17...v0.1.18) (2026-09-20)
 
 
