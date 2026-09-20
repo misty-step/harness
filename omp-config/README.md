@@ -36,7 +36,7 @@ prompt is: how can I pokayoke this so this kind of error never happens again?
 | `skills/` | Moved to `agent-config`: portable skill packages, clean-replaced when selected |
 | `../.githooks/pre-push` | Root scanners; wired by `../scripts/bootstrap`, not runtime deployment |
 | `extensions/loc/` | Session-resident LOC status and commands |
-| `extensions/continuation-nudge/` | Bounded Jev continuation nudge at settle (US-010; installer wiring deferred) |
+| `extensions/continuation-nudge/` | Bounded Jev continuation nudge at settle (US-010) |
 
 ### Divergence ledger
 
@@ -46,7 +46,7 @@ components predate this table and are documented in the sections below.
 
 | Component | Owner | Class | Installed by `./install` | Divergence |
 | --- | --- | --- | --- | --- |
-| `extensions/continuation-nudge/` | this repo | behavioral | no (deferred; PR #8 owns `install`) | Bounded Jev continuation nudge at agent settle: advisory, fail-open, max 2 per prompt, `JEV_NUDGE_MODE=off` disables. OMP settle is `agent_end` with `willContinue !== true` (OMP 18.2.6 has no `agent_settled`) and auth resolves through `modelRegistry.getApiKey`. Review trigger: OMP gains `agent_settled`/`getProviderAuth`, or nudges fire on completed work |
+| `extensions/continuation-nudge/` | this repo | behavioral | yes (shared modules materialized) | Bounded Jev continuation nudge at agent settle: advisory, fail-open, max 2 per prompt, `JEV_NUDGE_MODE=off` disables. OMP settle is `agent_end` with `willContinue !== true` (OMP 18.2.6 has no `agent_settled`) and auth resolves through `modelRegistry.getApiKey`. Review trigger: OMP gains `agent_settled`/`getProviderAuth`, or nudges fire on completed work |
 
 ## Install
 
@@ -197,10 +197,13 @@ is unreliable: print mode exits at the event), so the terminal event itself is
 the idle evidence and `hasPendingMessages()` still guards queued work. OMP's
 registry also lacks pi's `getProviderAuth`, so the key resolves through
 `modelRegistry.getApiKey("openrouter")` before the agent-dir `auth.json` and
-`OPENROUTER_API_KEY` fallbacks. **`omp-config/install` does not deploy this
-directory yet — wiring is deliberately deferred to PR #8, which owns
-`install`; the exact component spec (including materializing the real shared
-`continuation.ts` over the repo shim) is in the PR body and REPORT.**
+`OPENROUTER_API_KEY` fallbacks. **`omp-config/install` deploys this directory:
+the generic extension copy runs, then the installer materializes the real
+shared `continuation.ts` and `engine.ts` over the repo shims (the
+`diff-review/engine.ts` pattern), so the installed copy loads self-contained,
+and `scripts/verify-installers` asserts that installed load. `pi-config/install`
+does not deploy the pi sibling yet; that wiring stays deferred (see
+`pi-config/README.md`).**
 
 ## Grievance inbox
 

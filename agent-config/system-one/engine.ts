@@ -32,7 +32,8 @@ export type ChoiceAnswer = {
 	type: "choice";
 	choice: string;
 	probabilities: Record<string, number>;
-	confidence: number;
+	/** Provider confidence; `undefined` when the API omits it — never fabricate. */
+	confidence?: number;
 };
 
 export type ScoreAnswer = {
@@ -40,10 +41,20 @@ export type ScoreAnswer = {
 	score: number;
 	legend?: Record<string, string>;
 	probabilities: Record<string, number>;
-	confidence: number;
+	/** Provider confidence; `undefined` when the API omits it — never fabricate. */
+	confidence?: number;
 };
 
 export type Answer = NoulAnswer | ChoiceAnswer | ScoreAnswer;
+
+/**
+ * Preserve a provider confidence value exactly. A missing or non-finite value
+ * stays `undefined` so consumers can reject the answer instead of acting on a
+ * fabricated default that could clear a gate the provider never set.
+ */
+function normalizeConfidence(value: unknown): number | undefined {
+	return typeof value === "number" && Number.isFinite(value) ? value : undefined;
+}
 
 export type RuleFinding = {
 	rule: string;
@@ -409,8 +420,8 @@ export class TypeSafeJevProvider implements SystemOneProvider {
 				answers?: Record<
 					string,
 					| { type: "noul"; noul: number }
-					| { type: "choice"; choice: string; probabilities: Record<string, number>; confidence: number }
-					| { type: "score"; score: number; legend?: Record<string, string>; probabilities: Record<string, number>; confidence: number }
+					| { type: "choice"; choice: string; probabilities: Record<string, number>; confidence?: number }
+					| { type: "score"; score: number; legend?: Record<string, string>; probabilities: Record<string, number>; confidence?: number }
 				>;
 				usage?: { input_tokens: number; output_tokens: number };
 			};
@@ -431,7 +442,7 @@ export class TypeSafeJevProvider implements SystemOneProvider {
 							type: "choice",
 							choice: raw.choice,
 							probabilities: raw.probabilities ?? {},
-							confidence: raw.confidence ?? 0.85,
+							confidence: normalizeConfidence(raw.confidence),
 						};
 					} else if (raw.type === "score") {
 						results[key] = {
@@ -439,7 +450,7 @@ export class TypeSafeJevProvider implements SystemOneProvider {
 							score: raw.score,
 							legend: raw.legend,
 							probabilities: raw.probabilities ?? {},
-							confidence: raw.confidence ?? 0.85,
+							confidence: normalizeConfidence(raw.confidence),
 						};
 					}
 				}
@@ -501,8 +512,8 @@ export class OpenRouterJevProvider implements SystemOneProvider {
 				answers?: Record<
 					string,
 					| { type: "noul"; noul: number }
-					| { type: "choice"; choice: string; probabilities: Record<string, number>; confidence: number }
-					| { type: "score"; score: number; legend?: Record<string, string>; probabilities: Record<string, number>; confidence: number }
+					| { type: "choice"; choice: string; probabilities: Record<string, number>; confidence?: number }
+					| { type: "score"; score: number; legend?: Record<string, string>; probabilities: Record<string, number>; confidence?: number }
 				>;
 				usage?: { input_tokens: number; output_tokens: number };
 			};
@@ -523,7 +534,7 @@ export class OpenRouterJevProvider implements SystemOneProvider {
 							type: "choice",
 							choice: raw.choice,
 							probabilities: raw.probabilities ?? {},
-							confidence: raw.confidence ?? 0.85,
+							confidence: normalizeConfidence(raw.confidence),
 						};
 					} else if (raw.type === "score") {
 						results[key] = {
@@ -531,7 +542,7 @@ export class OpenRouterJevProvider implements SystemOneProvider {
 							score: raw.score,
 							legend: raw.legend,
 							probabilities: raw.probabilities ?? {},
-							confidence: raw.confidence ?? 0.85,
+							confidence: normalizeConfidence(raw.confidence),
 						};
 					}
 				}
@@ -1463,7 +1474,8 @@ export function parseRuleFindings(answers: Record<string, Answer>): {
 				}
 			}
 		} else if (ans.type === "choice") {
-			const conf = ans.confidence;
+			// Missing confidence is an unusable answer: it demotes, never gates.
+			const conf = ans.confidence ?? 0;
 			const isHighConfidence = conf >= 0.7;
 
 			if (key === "pokayoke_mechanism") {
@@ -1526,7 +1538,8 @@ export function parseRuleFindings(answers: Record<string, Answer>): {
 				}
 			}
 		} else if (ans.type === "score") {
-			const conf = ans.confidence;
+			// Missing confidence is an unusable answer: it demotes, never gates.
+			const conf = ans.confidence ?? 0;
 			const isHighConfidence = conf >= 0.7;
 
 			if (key === "accidental_churn" && ans.score >= 2) {

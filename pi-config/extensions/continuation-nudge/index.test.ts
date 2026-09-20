@@ -22,6 +22,7 @@ interface Harness {
 	commands: Map<string, { handler: CommandHandler }>;
 	messages: Array<{ message: Record<string, unknown>; options?: Record<string, unknown> }>;
 	entries: Array<{ customType: string; data: Record<string, unknown> }>;
+	ops: string[];
 	statuses: Map<string, string | undefined>;
 	notifications: string[];
 }
@@ -47,11 +48,13 @@ function makeHarness(entries: BranchEntry[] = [], options: {
 	providerAuth?: boolean;
 	isIdle?: boolean;
 	pending?: boolean;
+	appendFails?: boolean;
 } = {}): Harness {
 	const listeners = new Map<string, Listener>();
 	const commands = new Map<string, { handler: CommandHandler }>();
 	const messages: Harness["messages"] = [];
 	const recordedEntries: Harness["entries"] = [];
+	const ops: string[] = [];
 	const statuses = new Map<string, string | undefined>();
 	const notifications: string[] = [];
 
@@ -63,9 +66,12 @@ function makeHarness(entries: BranchEntry[] = [], options: {
 			commands.set(name, definition);
 		},
 		sendMessage: (message: Record<string, unknown>, opts?: Record<string, unknown>) => {
+			ops.push("sendMessage");
 			messages.push({ message, options: opts });
 		},
 		appendEntry: (customType: string, data: Record<string, unknown>) => {
+			ops.push("appendEntry");
+			if (options.appendFails) throw new Error("session append failed");
 			recordedEntries.push({ customType, data });
 		},
 	} as unknown as ExtensionAPI;
@@ -91,7 +97,7 @@ function makeHarness(entries: BranchEntry[] = [], options: {
 	} as unknown as ExtensionContext;
 
 	registerContinuationNudge(pi, options.deps);
-	return { pi, ctx, listeners, commands, messages, entries: recordedEntries, statuses, notifications };
+	return { pi, ctx, listeners, commands, messages, entries: recordedEntries, ops, statuses, notifications };
 }
 
 async function settle(harness: Harness): Promise<void> {
@@ -195,6 +201,33 @@ describe("nudge emission", () => {
 		const records = logRecords();
 		expect(records).toHaveLength(1);
 		expect(records[0]).toMatchObject({ decision: "nudge", reason: "nudge", attempt: 1, stub: true });
+	});
+
+	test("persists the marker before triggering the follow-up", async () => {
+		process.env.JEV_NUDGE_PROVIDER = "stub-nudge";
+		const harness = makeHarness([user("draft the memo"), assistant("I will draft it now.")]);
+		await settle(harness);
+		expect(harness.ops).toEqual(["appendEntry", "sendMessage"]);
+	});
+
+	test("skips the nudge when marker persistence fails, so nothing can re-enter unbounded", async () => {
+		let calls = 0;
+		const harness = makeHarness([user("request"), assistant("answer")], {
+			appendFails: true,
+			deps: fakeProvider(async () => {
+				calls += 1;
+				return NUDGE_ANSWER;
+			}),
+		});
+		for (let i = 0; i < 5; i += 1) await settle(harness);
+		expect(calls).toBe(5);
+		expect(harness.messages).toHaveLength(0);
+		expect(harness.entries).toHaveLength(0);
+		const records = logRecords();
+		expect(records).toHaveLength(5);
+		expect(
+			records.every((item) => item.decision === "no_nudge" && item.reason === "marker-persist-failed"),
+		).toBe(true);
 	});
 
 	test("covers a non-code premature stop (memo in chat, no edits, carried-forward work)", async () => {
@@ -330,6 +363,27 @@ describe("fail-open and redaction", () => {
 		expect(harness.messages).toHaveLength(0);
 		expect(harness.entries).toHaveLength(0);
 		expect(logRecords()[0]).toMatchObject({ decision: "no_nudge", reason: "provider-error" });
+	});
+
+	test("an answer without confidence ends like stock: missing-confidence, no nudge", async () => {
+		const originalFetch = globalThis.fetch;
+		globalThis.fetch = (async () =>
+			new Response(
+				JSON.stringify({
+					model: "typesafe/jev-1.13",
+					answers: { continuation: { type: "choice", choice: "nudge", probabilities: { nudge: 0.9 } } },
+				}),
+				{ status: 200, headers: { "content-type": "application/json" } },
+			)) as unknown as typeof fetch;
+		try {
+			const harness = makeHarness([user("request"), assistant("answer")]);
+			await settle(harness);
+			expect(harness.messages).toHaveLength(0);
+			expect(harness.entries).toHaveLength(0);
+			expect(logRecords()[0]).toMatchObject({ decision: "no_nudge", reason: "missing-confidence" });
+		} finally {
+			globalThis.fetch = originalFetch;
+		}
 	});
 
 	test("redacts secrets from the serialized state and stays under the cap", async () => {

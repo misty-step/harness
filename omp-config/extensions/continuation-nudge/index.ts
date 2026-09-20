@@ -350,6 +350,20 @@ export async function handleSettled(
 		return;
 	}
 
+	// Persist the marker BEFORE triggering the follow-up: the marker is the
+	// loop bound (the cap and the no-progress guard both read it), so a
+	// follow-up that fires without one would re-enter at attempt 1 forever.
+	// If persistence fails, skip the nudge — fail toward silence.
+	try {
+		pi.appendEntry(MARKER_TYPE, {
+			attempt: analysis.attempt,
+			ts: new Date().toISOString(),
+			version: CONTINUATION_VERSION,
+		});
+	} catch {
+		record(env, "no_nudge", "marker-persist-failed", analysis.attempt, latencyMs, resolved.source, resolved.stub);
+		return;
+	}
 	pi.sendMessage(
 		{
 			customType: MESSAGE_TYPE,
@@ -359,11 +373,6 @@ export async function handleSettled(
 		},
 		{ deliverAs: "followUp", triggerTurn: true },
 	);
-	pi.appendEntry(MARKER_TYPE, {
-		attempt: analysis.attempt,
-		ts: new Date().toISOString(),
-		version: CONTINUATION_VERSION,
-	});
 	if (ctx.hasUI) {
 		try {
 			ctx.ui.notify(`continuation: nudged (attempt ${analysis.attempt})`, "info");
