@@ -9,6 +9,13 @@
  *
  * `engine.ts` is imported for types only; this module adds no runtime engine
  * dependency and does not modify the engine.
+ *
+ * Offline boundary: the shared `HeuristicEngine` has no handling for the
+ * evidence question ids (`evidence-questions-1`), so offline evaluation
+ * answers every noul at its 0.05 default and returns `insufficient_evidence`
+ * for every packet. Heuristic coverage for this pack is owned by `engine.ts`;
+ * use the fixture stub or a live System One provider to exercise the semantic
+ * layer. The deterministic provenance checks run without any provider.
  */
 
 import { existsSync } from "node:fs";
@@ -289,18 +296,21 @@ export function questionsForKind(kind: "handoff" | "completion"): Record<string,
 	);
 }
 
-const TEST_CLAIM_PATTERN = /test|tests pass|verified|CI|green/i;
+// Word boundaries keep the patterns from matching substrings such as "latest"
+// ("test"), "decision" ("CI"), "bypass" ("pass"), or "greenfield" ("green").
+const TEST_CLAIM_PATTERN = /\btest(?:s|ed|ing)?\b|\bverified\b|\bCI\b|\bgreen\b/i;
 const SIDE_EFFECT_PATTERNS: Array<{ kind: EvidenceRef["kind"]; pattern: RegExp }> = [
-	{ kind: "merge", pattern: /merged|merge/i },
-	{ kind: "push", pattern: /pushed|push/i },
-	{ kind: "deploy", pattern: /deployed|deploy/i },
+	{ kind: "merge", pattern: /\bmerge(?:s|d|ing)?\b/i },
+	{ kind: "push", pattern: /\bpush(?:es|ed|ing)?\b/i },
+	{ kind: "deploy", pattern: /\bdeploy(?:s|ed|ing)?\b/i },
 ];
 const SIDE_EFFECT_SUGGESTIONS: Record<string, string> = {
 	merge: "gh pr view <n> --json state",
 	push: "git ls-remote origin <branch>",
 	deploy: "verify the deploy record in the target environment",
 };
-const SUCCESS_CLAIM_PATTERN = /pass|passed|passing|verified|verify|merged|pushed|deployed|green|success/i;
+const SUCCESS_CLAIM_PATTERN =
+	/\bpass(?:es|ed|ing)?\b|\bverif(?:y|ied)\b|\bmerge(?:s|d|ing)?\b|\bpush(?:es|ed|ing)?\b|\bdeploy(?:s|ed|ing)?\b|\bgreen\b|\bsuccess(?:ful(?:ly)?)?\b/i;
 const INSTRUCTION_PATTERNS: Array<{ label: string; pattern: RegExp }> = [
 	{ label: "ignore previous", pattern: /ignore (all )?previous/i },
 	{ label: "disregard", pattern: /disregard/i },
@@ -358,6 +368,18 @@ function defaultArtifactExists(path: string): boolean {
 }
 
 /**
+ * Claim sources for the deterministic checks: the explicit claims first, then
+ * the claimed-outcome summary. The summary is part of the claimed outcome, so
+ * a summary-only packet (`claims` omitted) must not skip the checks. Explicit
+ * claims stay first so messages keep quoting the structured claim when both
+ * match.
+ */
+function claimSources(packet: CompletionPacket): string[] {
+	const candidates = [...(packet.claimedOutcome.claims ?? []), packet.claimedOutcome.summary];
+	return candidates.filter((text) => typeof text === "string" && text.trim().length > 0);
+}
+
+/**
  * Deterministic provenance checks. No model is consulted; the filesystem is
  * only touched for declared artifacts when `artifactExists` is not injected.
  * Every finding is a review lead or warning — never a gate.
@@ -400,7 +422,9 @@ export function checkProvenance(
 			}
 		}
 
-		const claims = packet.claimedOutcome.claims ?? [];
+		// The claimed-outcome summary is part of the claimed outcome: a
+		// summary-only packet (claims omitted) must not skip these checks.
+		const claims = claimSources(packet);
 		const testClaim = claims.find((claim) => TEST_CLAIM_PATTERN.test(claim));
 		if (testClaim && idsOfKind("test").length === 0) {
 			findings.push({
@@ -519,12 +543,16 @@ function primaryRequirement(packet: EvidencePacket): string | undefined {
 
 function primaryClaim(packet: CompletionPacket): string | undefined {
 	const claims = packet.claimedOutcome.claims ?? [];
-	return (
-		claims.find(
-			(claim) =>
-				TEST_CLAIM_PATTERN.test(claim) || SIDE_EFFECT_PATTERNS.some(({ pattern }) => pattern.test(claim)),
-		) ?? claims[0]
+	const matched = claims.find(
+		(claim) =>
+			TEST_CLAIM_PATTERN.test(claim) || SIDE_EFFECT_PATTERNS.some(({ pattern }) => pattern.test(claim)),
 	);
+	if (matched !== undefined) return matched;
+	if (claims.length > 0) return claims[0];
+	// Summary-only packets have no explicit claims; quote the summary instead
+	// of rendering "(no claims supplied)" for an outcome that was supplied.
+	const summary = packet.claimedOutcome.summary;
+	return typeof summary === "string" && summary.trim().length > 0 ? summary : undefined;
 }
 
 function choiceCriteriaText(questionId: string, choice: string): string {
@@ -668,7 +696,8 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
  * Deterministic provenance checks always run. Without a usable provider the
  * verdict is deterministic-only with `sufficient: false`; provider errors and
  * timeouts never throw. Evidence judged insufficient never becomes a
- * reassuring pass.
+ * reassuring pass: a deterministic `insufficient_context` finding forces
+ * `sufficient: false` even when a lenient provider answers sufficiency.
  */
 export async function evaluateEvidencePacket(
 	packet: EvidencePacket,
@@ -720,11 +749,15 @@ export async function evaluateEvidencePacket(
 
 	const semantic = semanticEvaluation(packet, answers);
 	const findings = dedupeFindings([...deterministic, ...semantic.findings]);
+	// Deterministic absence of context outranks any provider answer: a lenient
+	// provider must not turn an empty packet into a reassuring sufficiency.
+	const sufficient =
+		semantic.sufficient && !deterministic.some((finding) => finding.id === "insufficient_context");
 	return {
 		...base,
 		findings,
-		sufficient: semantic.sufficient,
-		summary: `System One provider ${provider.name} evaluated the ${kind} packet: evidence ${semantic.sufficient ? "sufficient" : "insufficient"}, ${findings.length} finding(s).`,
+		sufficient,
+		summary: `System One provider ${provider.name} evaluated the ${kind} packet: evidence ${sufficient ? "sufficient" : "insufficient"}, ${findings.length} finding(s).`,
 		raw: semantic.raw,
 	};
 }

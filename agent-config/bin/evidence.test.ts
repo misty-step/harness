@@ -9,12 +9,14 @@ import {
 	QUESTION_PACK_VERSION,
 	buildCompletionPacket,
 	buildHandoffPacket,
+	checkProvenance,
 	evaluateEvidenceFixture,
 	evaluateEvidencePacket,
 	renderEvidenceAdvice,
 	type EvidenceFixture,
 	type ProvenanceFinding,
 } from "../system-one/evidence.ts";
+import type { Answer } from "../system-one/engine.ts";
 
 const fixtureRoot = new URL("../system-one/fixtures/evidence/", import.meta.url);
 const cli = join(import.meta.dir, "../system-one/evidence.ts");
@@ -34,6 +36,8 @@ const fixtureNames = [
 	"dedup-repeats",
 	"provider-outage",
 	"insufficient-context",
+	"summary-only",
+	"no-sufficiency-answer",
 ];
 
 async function loadFixture(name: string): Promise<EvidenceFixture> {
@@ -65,11 +69,53 @@ describe("evidence packets", () => {
 
 	test("completion-unsupported reports missing test evidence and an unsupported side effect", async () => {
 		const verdict = await evaluateEvidenceFixture(await loadFixture("completion-unsupported"));
-		expect(ids(verdict.deterministic)).toEqual(["missing_test_evidence", "unsupported_side_effect"]);
+		// One merge lead per merge-asserting text: the explicit claim and the
+		// claimed-outcome summary both run through the side-effect check.
+		expect(ids(verdict.deterministic)).toEqual([
+			"missing_test_evidence",
+			"unsupported_side_effect",
+			"unsupported_side_effect",
+		]);
+		const sideEffects = verdict.deterministic.filter(
+			(finding) => finding.id === "unsupported_side_effect",
+		);
+		expect(sideEffects[0].message).toContain("The pull request is merged");
+		expect(sideEffects[1].message).toContain("merged the change");
 		expect(verdict.sufficient).toBe(false);
 		expect(ids(verdict.findings)).toContain("completion::claim_unsupported");
 		expect(ids(verdict.findings)).toContain("completion::missing_evidence");
 		expect(ids(verdict.findings)).toContain("insufficient_evidence");
+	});
+
+	test("a summary-only completion packet cannot skip the claim checks", async () => {
+		// Fixture shape: claims omitted; the summary asserts a test result, a
+		// merge, and success while a tool ref reports failure. All three
+		// deterministic checks must run on the summary text.
+		const verdict = await evaluateEvidenceFixture(await loadFixture("summary-only"));
+		expect(ids(verdict.deterministic)).toEqual([
+			"missing_test_evidence",
+			"unsupported_side_effect",
+			"contradictory_evidence",
+		]);
+		expect(verdict.deterministic[0].message).toContain("Fixed the flaky test and merged PR #42");
+		expect(verdict.deterministic[2].refs).toEqual(["tool-1"]);
+		// Semantic messages quote the summary instead of "(no claims supplied)".
+		const unsupported = verdict.findings.find(
+			(finding) => finding.id === "completion::claim_unsupported",
+		);
+		expect(unsupported?.message).toContain("Fixed the flaky test and merged PR #42");
+	});
+
+	test("the builder's claims-omitted shape is checked after build", async () => {
+		// Review repro: buildCompletionPacket with claims omitted yields
+		// claims: [] and checkProvenance must still flag the summary's claims.
+		const built = buildCompletionPacket({
+			taskId: "T-309",
+			requirements: ["Fix the flaky test"],
+			claimedOutcome: { summary: "Fixed the flaky test and merged PR #42; tests pass." },
+		});
+		expect(built.claimedOutcome.claims).toEqual([]);
+		expect(ids(checkProvenance(built))).toEqual(["missing_test_evidence", "unsupported_side_effect"]);
 	});
 
 	test("completion-clean stays quiet and sufficient", async () => {
@@ -202,6 +248,45 @@ describe("evidence packets", () => {
 		expect(ids(verdict.deterministic)).toEqual(["insufficient_context"]);
 		expect(verdict.sufficient).toBe(false);
 		expect(ids(verdict.findings)).toContain("insufficient_evidence");
+	});
+
+	test("a lenient provider cannot mark a deterministically empty packet sufficient", async () => {
+		// Review regression: the provider answers sufficiency 0.9 while the
+		// deterministic layer reports insufficient_context. Sufficiency must
+		// stay false; an empty packet must never read as a reassuring pass.
+		const fixture = await loadFixture("insufficient-context");
+		const verdict = await evaluateEvidencePacket(fixture.packet, {
+			provider: {
+				// The provider name union is closed; the leniency lives in the
+				// 0.9 answers this stub returns for every question.
+				name: "heuristic",
+				async evaluate(_state, questions) {
+					const answers: Record<string, Answer> = {};
+					for (const [id, question] of Object.entries(questions)) {
+						answers[id] =
+							question.type === "noul"
+								? { type: "noul", probability: 0.9, confidence: 0.9 }
+								: {
+										type: "choice",
+										choice: "none_of_these",
+										probabilities: { none_of_these: 0.9 },
+										confidence: 0.9,
+									};
+					}
+					return answers;
+				},
+			},
+		});
+		expect(ids(verdict.deterministic)).toEqual(["insufficient_context"]);
+		expect(verdict.sufficient).toBe(false);
+		expect(verdict.summary).toContain("evidence insufficient");
+	});
+
+	test("a provider with no sufficiency answer still reads insufficient", async () => {
+		const verdict = await evaluateEvidenceFixture(await loadFixture("no-sufficiency-answer"));
+		expect(ids(verdict.findings)).toEqual(["insufficient_evidence"]);
+		expect(verdict.sufficient).toBe(false);
+		expect(verdict.findings[0].message).toContain("no sufficiency answer");
 	});
 
 	test("builders enforce deterministic caps with explicit truncation markers", () => {
