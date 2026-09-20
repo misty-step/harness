@@ -1,0 +1,9 @@
+diff --git a/src/math.ts b/src/math.ts
+index 1111111..2222222 100644
+--- a/src/math.ts
++++ b/src/math.ts
+@@ -1,4 +1,5 @@
+ export function add(a: number, b: number): number {
++	// Document the addition contract without changing behavior.
+ 	return a + b;
+ }
