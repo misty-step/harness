@@ -1022,6 +1022,8 @@ export function generateStructuralMap(diffText: string): string {
  * - Security rules fail closed (probability alone can block to prevent active leakage).
  * - Taste, Strategy, Pokayoke, and Verification rules require high probability (> threshold)
  *   AND confidence >= 0.70 to trigger a hard block.
+ * - Exception: `fails_open` (pokayoke) never hard-blocks at any confidence; it warns at
+ *   probability > 0.75. Semantic leads inform; they never gate.
  * - Sub-threshold confidence (speculative or ambiguous classifications) is demoted to a warning
  *   so interactive turns are never halted on uncertain subjective models.
  */
