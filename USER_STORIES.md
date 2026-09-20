@@ -187,18 +187,21 @@ Criteria:
    change, or focused component or motion work), THE SYSTEM SHALL run the
    `skill://design-studio` loop before production UI code is written.
 2. WHEN a concept set is produced, THE SYSTEM SHALL name every concept with a
-   surface archetype and a one-sentence divergence claim, SHALL span
-   conservative, evolutionary, and radical possibilities, and SHALL never
-   present two concepts that are the same structure with different paint.
+   surface archetype and a one-sentence divergence claim and SHALL never
+   present two concepts that are the same structure with different paint. WHEN
+   the set holds three or more concepts, THE SYSTEM SHALL span conservative,
+   evolutionary, and radical possibilities.
 3. WHEN concepts are critiqued, THE SYSTEM SHALL judge each against the primary
    user job rather than taste alone, record what it optimizes, sacrifices, wins
    for, and offers to keep, and recombine the strong pieces into one synthesized
    direction before refinement.
-4. WHEN generated mockups are used, THE SYSTEM SHALL present them as proposals
-   for layout, typography, and hierarchy only, and SHALL verify exact copy,
-   behavior, and accessibility on rendered HTML/CSS with named-state QA
-   (`skill://visual-state-review`); generated images SHALL never count as proof
-   of UX, accessibility, or behavior.
+4. WHEN generated mockups are used, THE SYSTEM SHALL present them as visual
+   proposals for early IA, navigation and content-model, layout, typography,
+   hierarchy, component and content-hierarchy composition, and visual language
+   (including exact labels and copy when the evaluation target needs them), and
+   SHALL verify exact copy, behavior, and accessibility on rendered HTML/CSS
+   with named-state QA (`skill://visual-state-review`); generated images SHALL
+   never count as proof of UX, accessibility, or behavior.
 5. WHEN exploration closes, THE SYSTEM SHALL hand off a DESIGN.md-compatible
    spec validated by the design-md CLI or the bundled structural fallback, and
    SHALL keep rejected options with their reasons in the lineage.
