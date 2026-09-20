@@ -221,6 +221,18 @@ install_extensions() {
   if [ -d "$agent_dir/extensions/diff-review" ] && [ -f "$base_dir/system-one/engine.ts" ]; then
     install -m 600 "$base_dir/system-one/engine.ts" "$agent_dir/extensions/diff-review/engine.ts"
   fi
+  # continuation-nudge deploys through the generic copy above, but its repo
+  # shims re-export the shared modules by a path that only resolves in the
+  # monorepo checkout. Materialize both shared modules over the shims (the
+  # diff-review/engine.ts pattern) so the installed copy loads self-contained.
+  # Fail closed: a deployed directory with unresolvable shims is worse than a
+  # loud install failure.
+  if [ -d "$agent_dir/extensions/continuation-nudge" ]; then
+    require_nonempty "$base_dir/system-one/continuation.ts"
+    require_nonempty "$base_dir/system-one/engine.ts"
+    install -m 600 "$base_dir/system-one/continuation.ts" "$agent_dir/extensions/continuation-nudge/continuation.ts"
+    install -m 600 "$base_dir/system-one/engine.ts" "$agent_dir/extensions/continuation-nudge/engine.ts"
+  fi
   # LOC status hooks are a per-checkout convenience; the monorepo root owns
   # hook installation, so this installer documents the recipe instead of
   # writing hooks into whatever repository contains it.

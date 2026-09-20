@@ -121,6 +121,37 @@ live credential storage on disk; no uncredentialed blocking of interactive turns
 no silent truncation of multi-file diffs.
 Evidence: `omp-config/bin/omp-diff-review.test.ts`, `omp-config/extensions/diff-review/diff-review.test.ts`, `pi-config/extensions/diff-review/diff-review.test.ts`
 
+## US-010 Bounded continuation nudge
+
+Statement: When an agent settles with unfinished actionable work inside the
+user's existing request, I want one bounded advisory continuation nudge from
+Jev, so the agent can advance carried-forward work without looping, without
+stalling on permission or external events, and without the classifier ever
+becoming authority.
+
+Criteria:
+1. WHEN the agent settles with unfinished, actionable work in the user's
+   existing request and Jev returns `nudge` with sufficient confidence, THE
+   SYSTEM SHALL inject exactly one bounded advisory continuation message and a
+   marker, triggering a single follow-up turn.
+2. WHEN the request is complete, a direction is undecided, or progress needs
+   permission, information, or an external event, THE SYSTEM SHALL not nudge.
+3. WHEN the previous nudge in the same user-prompt span saw no new tool
+   result, THE SYSTEM SHALL not nudge again and SHALL not call Jev.
+4. WHEN Jev is unreachable, uncredentialed, or returns an unusable answer,
+   THE SYSTEM SHALL fail open and end the run like stock.
+5. WHEN nudges accumulate, THE SYSTEM SHALL bound consecutive nudges per user
+   prompt (default 2, `JEV_NUDGE_MAX`) and SHALL NOT trap the loop.
+6. WHEN `JEV_NUDGE_MODE=off`, THE SYSTEM SHALL behave like stock (no message,
+   no decision log).
+
+No-gos: no tool, permission, or merge gate; no authorization for new work; no
+credentials, whole transcripts, or file contents in classifier state; no
+unbounded loop.
+
+Evidence: `agent-config/system-one/continuation.test.ts`,
+`pi-config/extensions/continuation-nudge/`, `omp-config/extensions/continuation-nudge/`
+
 ## Capability: Visual verification
 
 ## US-006 Review named UI states

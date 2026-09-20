@@ -2,3 +2,13 @@
 # compared with Bun.CryptoHasher("sha256") before removal; not a credential.
 # Exact imported finding only; do not exclude the file, rule, or commit broadly.
 eb221816a409f9959c9b3d2ec51e5cb23df82856:install:generic-api-key:338
+
+# Synthetic redaction fixtures: a fake private-key block and fake Bearer
+# tokens exist only to assert that redactText masks them before state leaves
+# the machine. Exact imported findings only; no file, rule, or commit is
+# excluded broadly.
+ef17bebb6956f85f738c2b3fc01c707320d5164d:agent-config/system-one/continuation.test.ts:private-key:103
+ef17bebb6956f85f738c2b3fc01c707320d5164d:pi-config/extensions/continuation-nudge/decide.test.ts:curl-auth-header:182
+ef17bebb6956f85f738c2b3fc01c707320d5164d:omp-config/extensions/continuation-nudge/decide.test.ts:curl-auth-header:186
+ef17bebb6956f85f738c2b3fc01c707320d5164d:omp-config/extensions/continuation-nudge/index.test.ts:curl-auth-header:356
+ef17bebb6956f85f738c2b3fc01c707320d5164d:pi-config/extensions/continuation-nudge/index.test.ts:curl-auth-header:340
