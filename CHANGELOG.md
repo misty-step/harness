@@ -1,3 +1,10 @@
+## [0.1.24](https://github.com/misty-step/harness/compare/v0.1.23...v0.1.24) (2026-09-20)
+
+
+### Bug Fixes
+
+* **system-one:** pass multi-token diff ranges as separate git argv entries ([#21](https://github.com/misty-step/harness/issues/21)) ([678115f](https://github.com/misty-step/harness/commit/678115f7fab6a5f0075935f30e433e6d0146cbf0)), closes [#20](https://github.com/misty-step/harness/issues/20)
+
 ## [0.1.23](https://github.com/misty-step/harness/compare/v0.1.22...v0.1.23) (2026-09-20)
 
 
