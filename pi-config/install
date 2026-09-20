@@ -200,7 +200,7 @@ install_openrouter_live() {
 }
 
 validate_continuation_nudge() {
-  for file in index.ts decide.ts decide.test.ts; do
+  for file in index.ts decide.ts index.test.ts decide.test.ts; do
     require_nonempty "$repo_dir/extensions/continuation-nudge/$file"
   done
   # The repo ships monorepo-only shims for the shared modules; the installed
