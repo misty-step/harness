@@ -502,7 +502,10 @@ export function checkProvenance(
 
 	const requirements =
 		packet.kind === "handoff" ? packet.sourceTask.requirements : packet.requirements;
-	const claims = packet.kind === "completion" ? packet.claimedOutcome.claims : [];
+	// One claim contract for every check: explicit claims plus a non-empty
+	// summary. A summary-only packet supplies context, so it must not raise
+	// insufficient_context.
+	const claims = packet.kind === "completion" ? claimSources(packet) : [];
 	if ((requirements ?? []).length === 0 && (claims ?? []).length === 0) {
 		findings.push({
 			id: "insufficient_context",

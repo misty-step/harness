@@ -37,6 +37,7 @@ const fixtureNames = [
 	"provider-outage",
 	"insufficient-context",
 	"summary-only",
+	"summary-context",
 	"no-sufficiency-answer",
 ];
 
@@ -116,6 +117,17 @@ describe("evidence packets", () => {
 		});
 		expect(built.claimedOutcome.claims).toEqual([]);
 		expect(ids(checkProvenance(built))).toEqual(["missing_test_evidence", "unsupported_side_effect"]);
+	});
+
+	test("a summary-only packet with no requirements counts as supplied context", async () => {
+		// Review 5259752753: requirements omitted and claims omitted, but the
+		// summary states the outcome and refs support it. The context check must
+		// use the same claimSources contract as the other deterministic checks,
+		// so this shape reads clean and sufficient rather than insufficient.
+		const verdict = await evaluateEvidenceFixture(await loadFixture("summary-context"));
+		expect(ids(verdict.deterministic)).toEqual([]);
+		expect(verdict.findings).toEqual([]);
+		expect(verdict.sufficient).toBe(true);
 	});
 
 	test("completion-clean stays quiet and sufficient", async () => {
