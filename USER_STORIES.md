@@ -222,3 +222,32 @@ Evidence: `agent-config/skills/design-studio/SKILL.md`,
 `agent-config/skills/design-studio/scripts/check_design_md.test.ts`,
 `agent-config/skills/design-studio/scripts/imagine.test.ts`,
 `agent-config/guidance/design-routing.md`
+
+## Capability: Communication
+
+## US-012 Get decision-grade context before operator choices
+
+Statement: When an agent asks me to choose between named tickets, systems, or
+options, I want the same message to carry decision-grade context for every
+named thing and every option, so I can decide without asking what a name means.
+
+Criteria:
+1. WHEN an agent asks the operator to choose, THE SYSTEM SHALL explain every
+   named ticket, system, and option in plain language in the same message
+   before the choice; a bare id is not context.
+2. WHEN an agent asks the operator to choose, THE SYSTEM SHALL state why the
+   decision is needed now and what already happened, including rejected
+   attempts.
+3. WHEN the agent presents options, THE SYSTEM SHALL state what each option
+   changes, freezes, or costs and what happens if the operator picks wrong.
+4. WHEN an agent asks the operator to choose, THE SYSTEM SHALL include a
+   recommendation and the condition under which the agent would pick
+   otherwise.
+5. IF the operator cannot decide from the message alone without asking what a
+   name means, THEN THE SYSTEM SHALL treat that choice request as not
+   decision-grade and add the missing context before asking.
+
+No-gos: not a blanket requirement for exhaustive narration on every message;
+no bare ids; no deferral of calls that standing authority already covers.
+
+Evidence: `agent-config/guidance/communication-and-verification.md`
