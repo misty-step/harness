@@ -1159,24 +1159,41 @@ export async function evaluateDiff(
 
 /**
  * Fetch git diff from repository (including untracked files by default).
+ *
+ * `range` is either a single rev expression ("A..B") or multiple rev-list
+ * tokens (["SHA", "--not", "--remotes"]). A single expression goes to
+ * `git diff` unchanged. A token array is a rev-list spec rendered as
+ * standard per-commit patches (`git log -p`): `git diff` over several remote
+ * tips emits a combined diff (--cc) the diff parsers cannot read, and joined
+ * into one token the set is not a revision at all (git exits 128, empty
+ * diff). Strings are never split here — only the caller knows the intended
+ * token boundaries.
  */
 export function getGitDiff(options: {
 	staged?: boolean;
 	commit?: string;
-	range?: string;
+	range?: string | string[];
 	path?: string;
 	includeUntracked?: boolean;
 	cwd?: string;
 } = {}): string {
-	const args = ["diff"];
+	const rangeTokens = Array.isArray(options.range)
+		? options.range.filter((token) => token.length > 0)
+		: options.range
+			? [options.range]
+			: undefined;
+	const hasRange = !!rangeTokens && rangeTokens.length > 0;
+	let args: string[];
 	if (options.staged) {
-		args.push("--cached");
+		args = ["diff", "--cached"];
 	} else if (options.commit) {
 		return spawnSync("git", ["show", options.commit], { encoding: "utf8", cwd: options.cwd }).stdout ?? "";
-	} else if (options.range) {
-		args.push(options.range);
+	} else if (hasRange && rangeTokens && Array.isArray(options.range)) {
+		args = ["log", "-p", ...rangeTokens];
+	} else if (hasRange && rangeTokens) {
+		args = ["diff", ...rangeTokens];
 	} else {
-		args.push("HEAD");
+		args = ["diff", "HEAD"];
 	}
 
 	if (options.path) {
@@ -1186,7 +1203,7 @@ export function getGitDiff(options: {
 	const res = spawnSync("git", args, { encoding: "utf8", cwd: options.cwd });
 	let diff = res.stdout ?? "";
 
-	if (options.includeUntracked !== false && !options.staged && !options.commit && !options.range) {
+	if (options.includeUntracked !== false && !options.staged && !options.commit && !hasRange) {
 		const untrackedArgs = ["ls-files", "--others", "--exclude-standard"];
 		if (options.path) {
 			untrackedArgs.push("--", options.path);

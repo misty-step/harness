@@ -99,7 +99,7 @@ if (import.meta.main) {
 Options:
   --staged               Review staged git changes
   --commit <hash>        Review a specific commit
-  --range <A..B>         Review a commit range
+  --range <A..B>         Review a commit range, e.g. A..B or "SHA --not --remotes"
   --path <file>          Limit review to a specific path
   --strict               Exit 1 if any blocks exist
   --fail-on-warnings     Exit 1 if any advisory warnings exist (pedantic mode)
@@ -112,7 +112,12 @@ Options:
 		}
 	}
 
-	const diffText = getGitDiff({ staged, commit, range, path });
+	// The pre-push hook quotes a multi-token scan range ("SHA --not --remotes")
+	// into one argv value. Whitespace marks rev-list tokens: split them out so
+	// the engine renders the commit set as per-commit patches. A single token
+	// ("A..B") stays a string and keeps its cumulative `git diff` behavior.
+	const rangeTokens = range && /\s/.test(range) ? range.trim().split(/\s+/) : range;
+	const diffText = getGitDiff({ staged, commit, range: rangeTokens, path });
 	const provider = resolveProvider(providerOverride);
 	const verdict = await evaluateDiff(diffText, { provider, batteryName });
 

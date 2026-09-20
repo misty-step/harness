@@ -411,3 +411,85 @@ diff --git a/src/two.ts b/src/two.ts
 		}
 	});
 });
+
+describe("Diff Review - getGitDiff Range Forms", () => {
+	const createRangeFixture = () => {
+		const { mkdtempSync, mkdirSync, writeFileSync } = require("node:fs");
+		const { tmpdir } = require("node:os");
+		const { join } = require("node:path");
+		const { spawnSync } = require("node:child_process");
+
+		const root = mkdtempSync(join(tmpdir(), "harness-diff-range-"));
+		const work = join(root, "work");
+		mkdirSync(work);
+		const origin = join(root, "origin.git");
+		const run = (argv: string[]) => spawnSync("git", argv, { cwd: work, encoding: "utf8" });
+		run(["init", "-q", "--bare", origin]);
+
+		run(["init", "-q", "-b", "main"]);
+		run(["config", "user.email", "test@example.com"]);
+		run(["config", "user.name", "Test User"]);
+		writeFileSync(join(work, "base.txt"), "base\n");
+		run(["add", "."]);
+		run(["commit", "-q", "-m", "base"]);
+		run(["remote", "add", "origin", origin]);
+		run(["push", "-q", "origin", "main"]);
+		// A second remote branch reproduces the production trap: several remote
+		// tips make `git diff <rev> --not --remotes` emit a combined diff.
+		run(["push", "-q", "origin", "main:refs/heads/side"]);
+
+		writeFileSync(join(work, "outgoing.txt"), "outgoing line 1\noutgoing line 2\n");
+		run(["add", "."]);
+		run(["commit", "-q", "-m", "outgoing"]);
+		const head = run(["rev-parse", "HEAD"]).stdout.trim();
+		run(["fetch", "-q", "origin"]);
+		const originMain = run(["rev-parse", "--verify", "origin/main"]);
+		if (originMain.status !== 0) {
+			throw new Error(`fixture setup failed — origin/main missing: ${originMain.stderr}`);
+		}
+		const base = originMain.stdout.trim();
+
+		return { root, work, base, head, run };
+	};
+
+	test("multi-token range yields standard per-commit patches, not a combined diff", () => {
+		const { rmSync } = require("node:fs");
+		const { root, work, head, run } = createRangeFixture();
+		try {
+			// Spread tokens are valid git argv (exit 0), but `git diff` over
+			// several remote tips renders a combined diff the parsers cannot read.
+			const combined = run(["diff", head, "--not", "--remotes"]);
+			expect(combined.status).toBe(0);
+			expect(combined.stdout.startsWith("diff --cc")).toBe(true);
+
+			// The engine renders token arrays as standard per-commit patches.
+			const logp = run(["log", "-p", head, "--not", "--remotes"]);
+			expect(logp.status).toBe(0);
+			const diff = getGitDiff({ cwd: work, range: [head, "--not", "--remotes"] });
+			expect(diff).toBe(logp.stdout);
+			expect(diff).toContain("diff --git a/outgoing.txt b/outgoing.txt");
+			expect(diff).toContain("+outgoing line 1");
+			expect(diff).not.toContain("--cc");
+			expect(diff).not.toContain("base.txt");
+
+			// Strings are never split: the joined form stays one bogus revision
+			// (git exit 128, empty diff) — the pre-fix defect stays detectable.
+			const joined = getGitDiff({ cwd: work, range: `${head} --not --remotes` });
+			expect(joined).toBe("");
+		} finally {
+			rmSync(root, { recursive: true, force: true });
+		}
+	});
+
+	test("single-token A..B range keeps working", () => {
+		const { rmSync } = require("node:fs");
+		const { root, work, base, head } = createRangeFixture();
+		try {
+			const diff = getGitDiff({ cwd: work, range: `${base}..${head}` });
+			expect(diff).toContain("outgoing.txt");
+			expect(diff).not.toContain("base.txt");
+		} finally {
+			rmSync(root, { recursive: true, force: true });
+		}
+	});
+});
