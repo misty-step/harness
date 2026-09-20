@@ -43,7 +43,7 @@ require_base() {
   }
 }
 
-components_all="config guidance pi-chrome loc web-search failover image-budget openrouter-live diff-review pass-env skills"
+components_all="config guidance pi-chrome loc web-search failover image-budget openrouter-live continuation-nudge diff-review pass-env skills"
 
 selected=${PI_CONFIG_COMPONENTS:-all}
 case "$selected" in
@@ -199,6 +199,30 @@ install_openrouter_live() {
   done
 }
 
+validate_continuation_nudge() {
+  for file in index.ts decide.ts index.test.ts decide.test.ts; do
+    require_nonempty "$repo_dir/extensions/continuation-nudge/$file"
+  done
+  # The repo ships monorepo-only shims for the shared modules; the installed
+  # package must carry the real files (same pattern as diff-review/engine.ts).
+  require_base
+  require_nonempty "$base_dir/system-one/continuation.ts"
+  require_nonempty "$base_dir/system-one/engine.ts"
+}
+
+install_continuation_nudge() {
+  # Pokayoke: clean-replace the owned package so obsolete files cannot survive.
+  # Materialize the real shared continuation.ts and engine.ts over the repo
+  # shims so the deployed package loads self-contained.
+  rm -rf "$agent_dir/extensions/continuation-nudge"
+  install -d -m 700 "$agent_dir/extensions/continuation-nudge"
+  for file in index.ts decide.ts index.test.ts decide.test.ts; do
+    install -m 600 "$repo_dir/extensions/continuation-nudge/$file" "$agent_dir/extensions/continuation-nudge/$file"
+  done
+  install -m 600 "$base_dir/system-one/continuation.ts" "$agent_dir/extensions/continuation-nudge/continuation.ts"
+  install -m 600 "$base_dir/system-one/engine.ts" "$agent_dir/extensions/continuation-nudge/engine.ts"
+}
+
 validate_diff_review() {
   for file in index.ts engine.ts diff-review.test.ts; do
     require_nonempty "$repo_dir/extensions/diff-review/$file"
@@ -222,6 +246,7 @@ if has web-search; then validate_web_search; fi
 if has failover; then validate_failover; fi
 if has image-budget; then validate_image_budget; fi
 if has openrouter-live; then validate_openrouter_live; fi
+if has continuation-nudge; then validate_continuation_nudge; fi
 if has diff-review; then validate_diff_review; fi
 
 if has config; then install_config; fi
@@ -232,4 +257,5 @@ if has web-search; then install_web_search; fi
 if has failover; then install_failover; fi
 if has image-budget; then install_image_budget; fi
 if has openrouter-live; then install_openrouter_live; fi
+if has continuation-nudge; then install_continuation_nudge; fi
 if has diff-review; then install_diff_review; fi

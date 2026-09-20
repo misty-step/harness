@@ -63,7 +63,7 @@ presentation; "behavioral" changes agent capability, model input, or data flow.
 | `extensions/failover/` | this repo | behavioral | yes | Fallback chain: run dies on a link after stock retry → session moves to the next, strictly forward (ADR-011/013) |
 | `extensions/image-budget/` | this repo | behavioral | yes | Inline-image ceiling: oldest images dropped over 15 MB per request; large images shrunk with ffmpeg at ingest (ADR-019) |
 | `extensions/openrouter-live/` | this repo | behavioral | yes | Live OpenRouter bridge: models the `pi.dev` mirror lacks are appended to `models.json`, additive-only, at session start (≥2 h) and `/models-live` (ADR-022) |
-| `extensions/continuation-nudge/` | this repo | behavioral | no (deferred; PR #8 owns `install`) | Bounded Jev continuation nudge at agent settle: advisory, fail-open, max 2 per prompt, `JEV_NUDGE_MODE=off` disables. Review trigger: pi gains a native anti-premature-stop or continuation control, or nudges fire on completed work |
+| `extensions/continuation-nudge/` | this repo | behavioral | yes (component `continuation-nudge`; shared modules materialized) | Bounded Jev continuation nudge at agent settle: advisory, fail-open, max 2 per prompt, `JEV_NUDGE_MODE=off` disables. Review trigger: pi gains a native anti-premature-stop or continuation control, or nudges fire on completed work |
 | `agent-config` (skills, guidance, `pass-env`) | external (sibling base) | behavioral | yes | Portable skill packages, shared guidance sections, and the `pass-env` launcher, clean-replaced from `agent-config` (ADR-021) |
 | `~/.bashrc` (`pi()` block) | this repo (marked block only) | behavioral | by hand | Launch hook: Exa key from pass (ADR-010); run-scoped scratch `TMPDIR` via `omp-scratch` when installed (ADR-015) |
 | `~/.config/omarchy/themed/pi.json.tpl` | this repo (hand-managed) | aesthetic | by hand | pi theme template override for every Omarchy theme: readable semantic ink, accent-derived thinking ramp, deeper surfaces (ADR-018) |
@@ -175,7 +175,7 @@ replaces same-id entries through pi's own merge, the overlay needs no cleanup
 once `pi.dev` catches up. Removing the directory restores stock behavior: pi
 sees OpenRouter models on the mirror's schedule.
 
-**`continuation-nudge/` — behavioral, installer wiring deferred.** Owns the
+**`continuation-nudge/` — behavioral, installed.** Owns the
 anti-premature-stop nudge (US-010). On `agent_settled` it asks one byte-frozen
 Choice question through the OpenRouter Decisions API (`typesafe/jev-1.13`;
 OpenRouter credentials only — no TypeSafe-direct fallback) and, only on a
@@ -190,11 +190,10 @@ redacted and capped, and the serialized state is bounded. Status and decision
 files live in the agent dir (`continuation-nudge-status.json`,
 `continuation-nudge.jsonl`, rotated); `/continuation` is read-only status.
 `JEV_NUDGE_MODE=off` restores stock pi. `decide.ts` is pure and bun-tested;
-`index.ts` is the harness edge. The deployed package must contain the real
-shared `continuation.ts` and `engine.ts`, exactly like `diff-review`.
-**`pi-config/install` does not deploy this directory yet — wiring is
-deliberately deferred to PR #8, which owns `install`; the exact component
-spec is in the PR body and REPORT.**
+`index.ts` is the harness edge. `pi-config/install` deploys this directory
+(component `continuation-nudge`) and materializes the real shared
+`continuation.ts` and `engine.ts` over the repo shims, exactly like
+`diff-review/engine.ts`, so the installed package loads self-contained.
 
 **Shared primitives — `agent-config`.** Skill packages, guidance sections, and
 the `pass-env` launcher live once in the base and deploy through its single
