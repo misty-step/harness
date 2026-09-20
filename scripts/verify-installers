@@ -68,14 +68,12 @@ for consumer in pi omp; do
   # imports inside the installed home. File presence does not prove loading;
   # the repo shims only resolve in the monorepo checkout, so the installer
   # must have materialized the shared modules over them.
-  if [ "$consumer" = "omp" ]; then
-    check "$consumer continuation-nudge installed load" \
-      env -i PATH="$PATH" HOME="$home" TMPDIR="$work" \
-      bun -e "const m = await import('$agent/extensions/continuation-nudge/index.ts'); if (typeof m.registerContinuationNudge !== 'function') throw new Error('missing registerContinuationNudge export');"
-    check "$consumer diff-review installed load" \
-      env -i PATH="$PATH" HOME="$home" TMPDIR="$work" \
-      bun -e "const m = await import('$agent/extensions/diff-review/index.ts'); if (typeof m.default !== 'function') throw new Error('missing diff-review register export');"
-  fi
+  check "$consumer continuation-nudge installed load" \
+    env -i PATH="$PATH" HOME="$home" TMPDIR="$work" \
+    bun -e "const m = await import('$agent/extensions/continuation-nudge/index.ts'); if (typeof m.registerContinuationNudge !== 'function') throw new Error('missing registerContinuationNudge export');"
+  check "$consumer diff-review installed load" \
+    env -i PATH="$PATH" HOME="$home" TMPDIR="$work" \
+    bun -e "const m = await import('$agent/extensions/diff-review/index.ts'); if (typeof m.default !== 'function') throw new Error('missing diff-review register export');"
 done
 if [ "$failures" -ne 0 ]; then
   printf 'FAIL: %s invariant(s); disposable clone removed on exit\n' "$failures" >&2
