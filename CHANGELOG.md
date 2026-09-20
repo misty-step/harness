@@ -1,3 +1,10 @@
+## [0.1.20](https://github.com/misty-step/harness/compare/v0.1.19...v0.1.20) (2026-09-20)
+
+
+### Features
+
+* **continuation-nudge:** bounded Jev continuation nudge for pi and OMP (US-010) ([#15](https://github.com/misty-step/harness/issues/15)) ([20691b7](https://github.com/misty-step/harness/commit/20691b734fa2241b85128a4b1f98777a29bdd284))
+
 ## [0.1.19](https://github.com/misty-step/harness/compare/v0.1.18...v0.1.19) (2026-09-20)
 
 
