@@ -10,17 +10,13 @@ command -v gitleaks >/dev/null 2>&1 || {
 zero=0000000000000000000000000000000000000000
 while read -r local_ref local_oid remote_ref remote_oid; do
   [ "$local_oid" = "$zero" ] && continue
-  if [ "$remote_oid" = "$zero" ]; then
-    log_opts="$local_oid --not --remotes"
-  else
-    # gitleaks can report success after Git rejects an unknown revision range.
-    # Refuse before scanning; fetch/reconcile the remote rather than scan nothing.
-    git cat-file -e "$remote_oid^{commit}" 2>/dev/null || {
-      printf 'Remote revision is missing locally; fetch and reconcile before pushing\n' >&2
-      exit 1
-    }
-    log_opts="$remote_oid..$local_oid"
-  fi
+  # Scan exactly the commits that no remote ref has ever contained — the same
+  # range for new and existing branches. A "$remote_oid..$local_oid" range
+  # re-scans already-public commits after a rebase or force-push: rebasing
+  # rewrites SHAs, so every commit between the old branch head and the new
+  # head looks outgoing. Gitleaks then blocks legitimate pushes on findings
+  # that are already on the remote (observed with redaction fixtures on main).
+  log_opts="$local_oid --not --remotes"
   gitleaks git . --log-opts="$log_opts" --redact --no-banner || {
     printf 'gitleaks found a potential secret in outgoing commits\n' >&2
     exit 1
