@@ -1,3 +1,10 @@
+## [0.1.18](https://github.com/misty-step/harness/compare/v0.1.17...v0.1.18) (2026-09-20)
+
+
+### Features
+
+* **system-one:** review-1 advisory diff-review contract + hook policy matrix (t_62351821) ([#14](https://github.com/misty-step/harness/issues/14)) ([cbd725d](https://github.com/misty-step/harness/commit/cbd725d2b11928f0e78fedf9b4fc0ad3fde94974))
+
 ## [0.1.17](https://github.com/misty-step/harness/compare/v0.1.16...v0.1.17) (2026-09-19)
 
 
