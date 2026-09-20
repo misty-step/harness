@@ -7,13 +7,15 @@ that can import the Hermes credential resolver for an AUTHORIZED profile:
 
     HERMES_HOME=<profile> <hermes-agent>/venv/bin/python imagine.py ...
 
-Never prints credentials. Writes <id>.png + <id>.provenance.json per job.
+Never prints credentials. Writes <id>.<ext> + <id>.provenance.json per job
+(ext = png | jpg | gif | webp, as detected from the payload).
 
 Budget: the cap (default $3.00; override with --budget-usd or
 DESIGN_STUDIO_BUDGET_USD) is ALWAYS enforced against caller-supplied price
 evidence (--price-per-image, or a per-job "price_usd"). If any job has no price
-evidence, the adapter fails closed (exit 3) instead of running unbounded;
---budget-usd 0 refuses any non-zero estimate.
+evidence, the adapter fails closed (exit 3) instead of running unbounded; the
+budget must be a finite number >= 0, and --budget-usd 0 refuses any non-zero
+estimate. The effective price is recorded per artifact as an estimate.
 
 Output safety: job ids must be safe file basenames (letters, digits, ".", "_",
 "-"; no path separators, no "..", non-empty). Invalid ids are refused before
@@ -39,6 +41,7 @@ import argparse
 import base64
 import hashlib
 import json
+import math
 import os
 import re
 import sys
@@ -83,6 +86,16 @@ def artifact_path(out_dir: str, job_id: str, suffix: str) -> str:
     return path
 
 
+def artifact_extension(fmt: str) -> str:
+    """File extension for a detected payload format."""
+    return "jpg" if fmt == "jpeg" else fmt
+
+
+def effective_price(job, price_per_image=None):
+    """The caller-supplied price evidence for one job (flag wins over job field)."""
+    return price_per_image if price_per_image is not None else job.get("price_usd")
+
+
 def validate_image_bytes(raw: bytes) -> str:
     """Return the detected image format, or raise when the payload is not an image."""
     if not raw or len(raw) < 12:
@@ -115,7 +128,7 @@ def estimate_batch_usd(jobs, price_per_image=None):
     total = 0.0
     missing = []
     for job in jobs:
-        price = price_per_image if price_per_image is not None else job.get("price_usd")
+        price = effective_price(job, price_per_image)
         if isinstance(price, (int, float)) and not isinstance(price, bool) and price >= 0:
             total += float(price)
         else:
@@ -157,7 +170,7 @@ def resolve_env():
     return creds, hermes_xai_user_agent
 
 
-def generate_one(session, creds, agent, job, out_dir):
+def generate_one(session, creds, agent, job, out_dir, price=None):
     import requests  # noqa: F401  (kept for parity with callers that inject a session)
     base = str(creds.get("base_url") or "https://api.x.ai/v1").rstrip("/")
     model = job.get("model") or os.environ.get("XAI_IMAGE_MODEL") or DEFAULT_MODEL
@@ -180,27 +193,33 @@ def generate_one(session, creds, agent, job, out_dir):
             item = (data.get("data") or [{}])[0]
             if item.get("b64_json"):
                 raw = base64.b64decode(item["b64_json"])
-                validate_image_bytes(raw)
             elif item.get("url"):
                 raw = fetch_image_bytes(session, item["url"], timeout=180)
             else:
                 last_error = "no image in response"
                 if attempt < MAX_RETRIES: continue
                 raise RuntimeError(last_error)
-            png = artifact_path(out_dir, job["id"], ".png")
-            with open(png, "wb") as fh:
+            fmt = validate_image_bytes(raw)
+            artifact = artifact_path(out_dir, job["id"], "." + artifact_extension(fmt))
+            with open(artifact, "wb") as fh:
                 fh.write(raw)
+            if isinstance(price, (int, float)) and not isinstance(price, bool) and math.isfinite(price):
+                cost = {"amount_usd": float(price), "basis": "estimate",
+                        "note": "caller-supplied price evidence; provider does not return per-image charges"}
+            else:
+                cost = {"amount_usd": None, "basis": "unknown",
+                        "note": "provider does not return per-image charges"}
             prov = {
                 "kind": "generated-concept-image", "id": job["id"], "provider": "xai",
                 "model": model, "prompt": job["prompt"], "aspect_ratio": aspect,
-                "resolution": resolution, "latency_s": latency, "bytes": len(raw),
-                "sha256": hashlib.sha256(raw).hexdigest(), "attempt": attempt,
-                "cost": {"amount_usd": None, "basis": "unknown",
-                         "note": "provider does not return per-image charges"},
+                "resolution": resolution, "format": fmt, "latency_s": latency,
+                "bytes": len(raw), "sha256": hashlib.sha256(raw).hexdigest(),
+                "attempt": attempt, "cost": cost,
             }
             with open(artifact_path(out_dir, job["id"], ".provenance.json"), "w") as fh:
                 json.dump(prov, fh, indent=1)
-            return {"id": job["id"], "ok": True, "path": png, "latency_s": latency, "bytes": len(raw)}
+            return {"id": job["id"], "ok": True, "path": artifact, "format": fmt,
+                    "latency_s": latency, "bytes": len(raw)}
         except Exception as exc:  # noqa: BLE001
             last_error = f"{type(exc).__name__}: {str(exc)[:200]}"
             if attempt < MAX_RETRIES:
@@ -242,6 +261,13 @@ def self_test() -> int:
             check(f"payload rejected {bad[:16]!r}", False)
         except ValueError:
             check(f"payload rejected {bad[:16]!r}", True)
+
+    check("extension jpeg -> jpg", artifact_extension("jpeg") == "jpg")
+    check("extension png stays png", artifact_extension("png") == "png")
+    check("extension webp stays webp", artifact_extension("webp") == "webp")
+    check("effective price from job field", effective_price({"price_usd": 0.07}, None) == 0.07)
+    check("effective price from flag", effective_price({}, 0.05) == 0.05)
+    check("effective price prefers flag", effective_price({"price_usd": 0.07}, 0.01) == 0.01)
 
     class Resp:
         def __init__(self, status=200, body=b"", headers=None):
@@ -349,8 +375,9 @@ def main() -> int:
                 return 2
         else:
             budget = DEFAULT_BUDGET_USD
-    if budget < 0:
-        print(json.dumps({"error": "invalid_budget", "hint": "budget must be >= 0"}))
+    if not math.isfinite(budget) or budget < 0:
+        print(json.dumps({"error": "invalid_budget",
+                          "hint": "budget must be a finite number >= 0"}))
         return 2
 
     estimate, missing_price = estimate_batch_usd(jobs, args.price_per_image)
@@ -377,7 +404,8 @@ def main() -> int:
     creds, agent = resolve_env()
     import requests
     session = requests.Session()
-    results = [generate_one(session, creds, agent, job, args.out) for job in jobs]
+    results = [generate_one(session, creds, agent, job, args.out,
+                            effective_price(job, args.price_per_image)) for job in jobs]
     summary = {"results": results, "ok": sum(1 for r in results if r["ok"]),
                "failed": sum(1 for r in results if not r["ok"])}
     print(json.dumps(summary, indent=1))

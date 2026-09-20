@@ -3,9 +3,9 @@
 
 Usage: python3 contact_sheet.py DIR [--out DIR/sheet.html] [--title "..."]
 
-Reads <id>.png + <id>.provenance.json pairs in DIR (non-recursive), writes a grid with
-image, id, model, prompt (truncated), latency. Generated images are mood evidence only —
-the sheet footer says so.
+Reads <id>.<png|jpg|jpeg|webp|gif> + <id>.provenance.json pairs in DIR
+(non-recursive), writes a grid with image, id, model, prompt (truncated),
+latency. Generated images are visual proposals only — the sheet footer says so.
 """
 from __future__ import annotations
 
@@ -32,13 +32,16 @@ def main() -> int:
         except Exception:  # noqa: BLE001
             continue
         img = prov.get("id", name.replace(".provenance.json", ""))
-        png = img + ".png"
-        if not os.path.exists(os.path.join(args.dir, png)):
+        for ext in ("png", "jpg", "jpeg", "webp", "gif"):
+            candidate = img + "." + ext
+            if os.path.exists(os.path.join(args.dir, candidate)):
+                break
+        else:
             continue
         prompt = (prov.get("prompt") or "")[:220]
         cards.append(f"""
   <figure>
-    <img src="{html.escape(png)}" alt="{html.escape(img)}">
+    <img src="{html.escape(candidate)}" alt="{html.escape(img)}">
     <figcaption>
       <strong>{html.escape(img)}</strong> · {html.escape(str(prov.get('model', '?')))}
       · {html.escape(str(prov.get('latency_s', '?')))}s
@@ -58,7 +61,7 @@ def main() -> int:
 </style>
 <h1 style="font-size:18px">{html.escape(args.title)}</h1>
 <div class="grid">{''.join(cards)}</div>
-<footer>Generated images are mood/composition evidence only — not UX, accessibility,
+<footer>Generated images are visual proposals — not UX, accessibility,
 or behavior proof. {len(cards)} artifacts.</footer>
 """
     with open(out, "w") as fh:

@@ -128,3 +128,29 @@ test("max-images remains a hard bound", () => {
 	expect(result.code).toBe(3);
 	expect(result.out).toContain("max_images_exceeded");
 });
+
+test("non-finite budgets are rejected (flag and environment)", () => {
+	const root = dir();
+	for (const value of ["nan", "inf", "-inf"]) {
+		const result = run(["--jobs", jobsFile(root, [{ id: "a", prompt: "x", price_usd: 0.05 }]),
+			"--out", join(root, "out"), `--budget-usd=${value}`, "--dry-run"]);
+		expect(result.code).toBe(2);
+		expect(result.out).toContain("invalid_budget");
+	}
+	const envResult = run(["--jobs", jobsFile(root, [{ id: "a", prompt: "x", price_usd: 0.05 }]),
+		"--out", join(root, "out"), "--dry-run"], { DESIGN_STUDIO_BUDGET_USD: "-inf" });
+	expect(envResult.code).toBe(2);
+	expect(envResult.out).toContain("invalid_budget");
+});
+
+test("non-finite price evidence fails closed or refuses", () => {
+	const root = dir();
+	const nanPrice = run(["--jobs", jobsFile(root, [{ id: "a", prompt: "x" }]),
+		"--out", join(root, "out"), "--price-per-image", "nan", "--dry-run"]);
+	expect(nanPrice.code).toBe(3);
+	expect(nanPrice.out).toContain("price_unknown");
+	const infPrice = run(["--jobs", jobsFile(root, [{ id: "a", prompt: "x" }]),
+		"--out", join(root, "out"), "--price-per-image", "inf", "--dry-run"]);
+	expect(infPrice.code).toBe(3);
+	expect(infPrice.out).toContain("budget_exceeded");
+});

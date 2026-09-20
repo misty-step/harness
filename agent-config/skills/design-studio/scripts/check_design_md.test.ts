@@ -114,3 +114,21 @@ components:
 	expect(result.code).toBe(1);
 	expect(result.err).toContain("{colors.ghost}");
 });
+
+test("scalar group values fail (no token definitions)", () => {
+	const result = run([write(dir(), spec({
+		frontmatter: `---
+version: alpha
+name: Fixture
+colors: red
+typography:
+  body:
+    fontFamily: system-ui
+components:
+  button:
+    backgroundColor: "{colors.primary}"
+---`,
+	}))]);
+	expect(result.code).toBe(1);
+	expect(result.err).toContain("no token definitions");
+});

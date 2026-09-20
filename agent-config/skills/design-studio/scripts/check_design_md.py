@@ -57,6 +57,9 @@ def check(text: str) -> list:
     for group in REQUIRED_GROUPS:
         if group not in top:
             problems.append(f"frontmatter missing required group: {group}")
+    for group in ("colors", "typography"):
+        if group in top and not any(path.startswith(group + ".") for path in paths):
+            problems.append(f"frontmatter group has no token definitions: {group}")
     for section in CANONICAL_SECTIONS:
         if not re.search(rf"^##\s+{section}\b", body, re.M):
             problems.append(f"body missing canonical section: ## {section}")
@@ -105,6 +108,7 @@ X
     cases = {
         "missing frontmatter": "# nope\n",
         "missing colors group": good.replace('colors:\n  primary: "#111111"\n', ""),
+        "scalar colors group": good.replace('colors:\n  primary: "#111111"\n', "colors: red\n"),
         "missing canonical section": good.replace("## Components", "## Nope"),
         "unresolved reference": good.replace("{colors.primary}", "{colors.ghost}"),
     }
