@@ -123,6 +123,13 @@ describe("scanContent", () => {
 		expect(findings.some((f) => f.rule === "dash")).toBe(true);
 	});
 
+	test("multi-line template literal copy is attributed per line", () => {
+		const ts = "const m = `Ask the operator\n  — the backend is down.`;";
+		const findings = scanContent("page.ts", ts);
+		expect(findings.some((f) => f.rule === "vocabulary" && f.line === 1)).toBe(true);
+		expect(findings.some((f) => f.rule === "dash" && f.line === 2)).toBe(true);
+	});
+
 	test("attribute values in code files scan as strings", () => {
 		const tsx = '<Img alt="Our backend dashboard" />';
 		const findings = scanContent("page.tsx", tsx);
