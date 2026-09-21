@@ -222,3 +222,32 @@ Evidence: `agent-config/skills/design-studio/SKILL.md`,
 `agent-config/skills/design-studio/scripts/check_design_md.test.ts`,
 `agent-config/skills/design-studio/scripts/imagine.test.ts`,
 `agent-config/guidance/design-routing.md`
+
+## Capability: Design-surface verification
+
+## US-013 Check player-surface copy before done
+
+Statement: When a design-surface change is about to be called done, I want the
+deterministic copy checks from the design-toolkit trial run over the changed
+player surfaces, so leaked engineering vocabulary, dash characters, and
+placeholder text are caught before acceptance instead of after.
+
+Criteria:
+1. WHEN a design-surface change is called done, THE SYSTEM SHALL run
+   `design-check` over the changed player-surface paths and SHALL route each
+   reported finding to the file and line that produced it.
+2. WHEN player copy sits on its own lines between tags, spans lines, or
+   surrounds an interpolation, THE SYSTEM SHALL scan it all the same.
+3. WHEN a finding is intentional, THE SYSTEM SHALL suppress it with a
+   `design-check: ignore` comment on that line rather than weakening the rule.
+4. WHEN a harness installer deploys shared guidance, THE SYSTEM SHALL deploy
+   the `design-check` launcher with it, so the guidance step resolves outside
+   this repository.
+
+No-gos: no gate on taste; no mandatory vendor install; no model calls or
+network from the check itself; API-route and other backend code stays out of
+the scoped surface list.
+
+Evidence: `agent-config/bin/design-check.test.ts`,
+`agent-config/guidance/design-routing.md`,
+`docs/decisions/002-design-toolkit-trial.md`

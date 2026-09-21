@@ -61,6 +61,22 @@ for consumer in pi omp; do
   check "$consumer composition" cmp -s "$expected" "$agent/AGENTS.md"
   check "$consumer launcher bytes" cmp -s "$work/source/agent-config/bin/pass-env.ts" "$home/.local/bin/pass-env"
   check "$consumer launcher executable" test -x "$home/.local/bin/pass-env"
+  check "$consumer design-check bytes" cmp -s "$work/source/agent-config/bin/design-check.ts" "$home/.local/bin/design-check"
+  check "$consumer design-check executable" test -x "$home/.local/bin/design-check"
+  # The deployed design-check must gate for real: exit 1 on player-copy findings.
+  printf '<p>Ask the operator — the backend is down.</p>\n' > "$home/dirty.html"
+  if env -i PATH="$PATH" HOME="$home" TMPDIR="$work" \
+    bun "$home/.local/bin/design-check" "$home/dirty.html" >"$work/design-check.log" 2>&1; then
+    printf 'FAIL %s design-check gate (exited 0 on findings)\n' "$consumer" >&2
+    failures=$((failures + 1))
+  elif grep -q '\[vocabulary\]' "$work/design-check.log" && grep -q '\[dash\]' "$work/design-check.log"; then
+    printf 'PASS %s design-check gate\n' "$consumer"
+  else
+    printf 'FAIL %s design-check gate (missing findings)\n' "$consumer" >&2
+    cat "$work/design-check.log" >&2
+    failures=$((failures + 1))
+  fi
+  rm -f "$home/dirty.html"
   check "$consumer foreign skill" cmp -s "$work/expected-skill" "$agent/skills/foreign/SKILL.md"
   check "$consumer auth" cmp -s "$work/expected-auth" "$agent/auth.json"
 
