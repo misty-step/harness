@@ -88,6 +88,7 @@ run_shared() {
   mode=${1-}
   set --
   if has pass-env; then set -- "$@" --bin pass-env.ts; fi
+  if has guidance; then set -- "$@" --bin design-check.ts; fi
   if has skills; then set -- "$@" --skill all; fi
   if has guidance; then
     set -- "$@" \

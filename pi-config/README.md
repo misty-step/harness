@@ -6,7 +6,7 @@ composer chrome, the LOC status extension, the Exa web-search tool, the
 image-budget extension, the model-fallback-chain extension, the OpenRouter
 live-model bridge, and
 the `pi()` key-injection wrapper block in `~/.bashrc`. Shared primitives — skill
-packages, global guidance, and the `pass-env` launcher — come from the sibling
+packages, global guidance, and the `pass-env` and `design-check` launchers — come from the sibling
 base `agent-config`. `./install`
 deploys the owned agent-directory components into `$PI_CODING_AGENT_DIR`
 (default `~/.pi/agent`); the wrapper block is applied to `~/.bashrc` by hand
@@ -64,7 +64,7 @@ presentation; "behavioral" changes agent capability, model input, or data flow.
 | `extensions/image-budget/` | this repo | behavioral | yes | Inline-image ceiling: oldest images dropped over 15 MB per request; large images shrunk with ffmpeg at ingest (ADR-019) |
 | `extensions/openrouter-live/` | this repo | behavioral | yes | Live OpenRouter bridge: models the `pi.dev` mirror lacks are appended to `models.json`, additive-only, at session start (≥2 h) and `/models-live` (ADR-022) |
 | `extensions/continuation-nudge/` | this repo | behavioral | yes (component `continuation-nudge`; shared modules materialized) | Bounded Jev continuation nudge at agent settle: advisory, fail-open, max 2 per prompt, `JEV_NUDGE_MODE=off` disables. Review trigger: pi gains a native anti-premature-stop or continuation control, or nudges fire on completed work |
-| `agent-config` (skills, guidance, `pass-env`) | external (sibling base) | behavioral | yes | Portable skill packages, shared guidance sections, and the `pass-env` launcher, clean-replaced from `agent-config` (ADR-021) |
+| `agent-config` (skills, guidance, `pass-env`, `design-check`) | external (sibling base) | behavioral | yes | Portable skill packages, shared guidance sections, and the `pass-env` and `design-check` launchers, clean-replaced from `agent-config` (ADR-021) |
 | `~/.bashrc` (`pi()` block) | this repo (marked block only) | behavioral | by hand | Launch hook: Exa key from pass (ADR-010); run-scoped scratch `TMPDIR` via `omp-scratch` when installed (ADR-015) |
 | `~/.config/omarchy/themed/pi.json.tpl` | this repo (hand-managed) | aesthetic | by hand | pi theme template override for every Omarchy theme: readable semantic ink, accent-derived thinking ramp, deeper surfaces (ADR-018) |
 | `extensions/agent-usage-telemetry.ts` | external (managed) | telemetry | no | Reports usage to an external endpoint |

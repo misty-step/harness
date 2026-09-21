@@ -4,7 +4,8 @@ Shared, harness-neutral agent primitives for the Misty Step harnesses. It is the
 base layer under `pi-config` and
 `omp-config`: portable skills, shared
 global guidance, and the `pass-env` secret launcher live here once, and each
-harness declares which primitives it selects.
+harness declares which primitives it selects. The `design-check` player-copy
+launcher deploys here on the same contract.
 
 A primitive belongs here only if it is harness-neutral and either duplicated
 across harnesses or consumed by more than one. Model routing, trackers, settings,
@@ -19,6 +20,7 @@ harness repo. When in doubt, leave it in the harness.
 | `skills/` | Portable skill packages, clean-replaced when selected |
 | `guidance/*.md` | Shared global-guidance sections, spliced at the harness marker |
 | `bin/pass-env.ts` | Standalone pass-backed environment launcher |
+| `bin/design-check.ts` | Standalone player-surface copy checker, installed as `~/.local/bin/design-check` |
 | `../.githooks/pre-push` | Workspace secret scanners, wired by root `scripts/bootstrap` |
 
 ## Install contract
@@ -58,8 +60,8 @@ Shared guidance sections may reference shared primitives and vehicles deployed a
 
 | Harness | Skills | Guidance | Launcher |
 | --- | --- | --- | --- |
-| `pi-config` | all | pokayoke, communication-and-verification, host-resources, user-stories, session-close, design-routing | `pass-env` |
-| `omp-config` | all | pokayoke, communication-and-verification, host-resources, user-stories, session-close, design-routing | `pass-env` |
+| `pi-config` | all | pokayoke, communication-and-verification, host-resources, user-stories, session-close, design-routing | `pass-env`, `design-check` |
+| `omp-config` | all | pokayoke, communication-and-verification, host-resources, user-stories, session-close, design-routing | `pass-env`, `design-check` |
 
 `omp-config`'s own guidance file adds Working together (including model roles),
 Execution environments (exe.dev vehicle), and Authority

@@ -43,9 +43,11 @@ advisory.
 
 Adoption recipe:
 
-- Product repos: wire `bun agent-config/bin/design-check.ts <surface paths>` into the
-  repo's checks; keep the brand artifact contract from the research report
-  (`brand/` assets plus `DESIGN.md`); pins and licenses recorded per repo.
+- Product repos: wire `design-check` (deployed by the harness installer to
+  `~/.local/bin/design-check`; `agent-config/bin/design-check.ts` when working inside
+  this repository) into the repo's checks over player-surface paths; keep the brand
+  artifact contract from the research report (`brand/` assets plus `DESIGN.md`);
+  pins and licenses recorded per repo.
 - Profiles: install Impeccable only through its supported Hermes mechanism
   (pinned revision), never as a blind global install; rollback is deleting the
   installed skill directory.
