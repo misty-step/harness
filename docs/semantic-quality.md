@@ -1,6 +1,7 @@
 # Semantic quality checks
 
-Status: This is a source candidate. It is not a live fleet rollout.
+Status: The shared engine is merged. Profile enablement and project adoption are
+separate, scoped actions. Existing sessions do not reload the adapter on their own.
 
 The shared engine evaluates test evidence and completion claims. It uses fixed Choice
 outcomes. It returns advisory records. It never changes the real index, worktree, or
@@ -190,3 +191,21 @@ children. Include exact behaviors, commands, environment, and acceptance criteri
 5. Re-run deterministic checks and confirm their exit remains unchanged.
 
 Rollback needs no provider write. It does not remove deterministic tests or evidence.
+
+## New project onboarding and rule admission
+
+New projects can pin this repository's merged revision, run `semantic-check` in
+staged, outgoing, and CI contexts, and load the `effective-verification` skill from
+`agent-config/candidates/effective-verification/SKILL.md`. An isolated child needs
+the skill's explicit verification mandate; availability alone is not adoption.
+Existing projects adopt during a scoped change, not a bulk instruction rewrite.
+Record the revision, actual invoked path, one meaningful finding, a valid exception,
+and unavailable behavior. Keep project gates authoritative.
+
+Admit a new semantic rule by versioning its question and composition. Name a real
+failure, closest valid counterexample, required evidence, and owner. First check
+whether deterministic code can prove the fact. Run labeled examples and held-out
+cases with the approved provider route. Record false positives, misses, abstentions,
+latency, and actual provider usage. Keep the rule advisory until an independent,
+task-specific promotion record justifies a narrow block and rollback. Uncertain
+findings feed grounded context to a strong agent; a probability is not permission.
