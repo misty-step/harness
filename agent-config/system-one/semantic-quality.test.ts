@@ -59,17 +59,25 @@ describe("deriveSemanticFindings", () => {
   test("reports source-only proof when a behavioral claim asserts source structure", () => {
     const assessment: CandidateAssessment = {
       candidateId: circularCandidate.id,
-      oracleOrigin: { outcome: "independent_logic", probability: 0.91 },
+      oracleOrigin: { outcome: "same_logic", probability: 0.91 },
       assertionTarget: { outcome: "source_structure", probability: 0.94 },
       limitedPurpose: { outcome: "no", probability: 0.96 },
     };
 
-    expect(deriveSemanticFindings([circularCandidate], [assessment])).toContainEqual(
+    const findings = deriveSemanticFindings([circularCandidate], [assessment]);
+    expect(findings).toContainEqual(
       expect.objectContaining({
         ruleId: "source_only_behavioral_proof",
         status: "finding",
         candidateId: circularCandidate.id,
         probability: 0.94,
+      }),
+    );
+    expect(findings).toContainEqual(
+      expect.objectContaining({
+        ruleId: "circular_oracle",
+        status: "no_finding",
+        candidateId: circularCandidate.id,
       }),
     );
   });

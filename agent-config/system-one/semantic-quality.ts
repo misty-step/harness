@@ -90,6 +90,19 @@ function circularOracleFinding(
       anchors: [candidate.test, candidate.target],
     };
   }
+  if (
+    assessment.assertionTarget?.outcome === "source_structure" ||
+    assessment.assertionTarget?.outcome === "private_mechanism"
+  ) {
+    return {
+      ruleId: "circular_oracle",
+      status: "no_finding",
+      candidateId: candidate.id,
+      probability: assessment.assertionTarget.probability,
+      reason: "The assertion inspects source or a private mechanism, so the runtime-oracle rule does not apply.",
+      anchors: [candidate.test, candidate.target],
+    };
+  }
   if (oracle.outcome === "same_logic") {
     return {
       ruleId: "circular_oracle",

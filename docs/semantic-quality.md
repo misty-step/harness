@@ -20,6 +20,7 @@ It never replaces deterministic checks.
 
 The three rules are `circular_oracle`, `source_only_behavioral_proof`, and
 `unsupported_completion`.
+Source inspections use the source-only rule. They do not also trigger the runtime-oracle rule.
 
 ## Provider and result contract
 

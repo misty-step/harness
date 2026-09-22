@@ -67,7 +67,7 @@ describe("semantic-check CLI", () => {
     expect(record.modelValidation).toBe("expected_version");
     expect(record.outcomes).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ ruleId: "circular_oracle", status: "finding" }),
+        expect.objectContaining({ ruleId: "circular_oracle", status: "no_finding" }),
         expect.objectContaining({ ruleId: "source_only_behavioral_proof", status: "finding" }),
       ]),
     );
@@ -147,7 +147,7 @@ describe("semantic-check CLI", () => {
     const result = spawnSync(shell, [], { encoding: "utf8" });
 
     expect(result.status).toBe(23);
-    expect(result.stdout).toContain("semantic-check: circular_oracle");
+    expect(result.stdout).toContain("semantic-check: source_only_behavioral_proof");
     expect(result.stdout).toContain("advisory only");
   });
 
