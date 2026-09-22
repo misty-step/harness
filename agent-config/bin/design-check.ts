@@ -10,12 +10,13 @@
  *   placeholder — no lorem ipsum / TODO / FIXME / TBD left in player-facing strings.
  *
  * Scope: .html .htm .md .markdown .txt .tsx .ts .jsx .js .mjs files. For code
- * files, string literals and JSX text are scanned — including JSX text that
- * spans lines, sits between tags on its own lines, or surrounds an {...}
- * interpolation — while identifiers, comments, and import/export module
- * specifiers do not trip the vocabulary list. Fenced code in Markdown and
- * <script>/<style> blocks in markup are skipped, and scanning resumes right
- * after a closing raw tag on the same line. Markup files scan text nodes plus
+ * files, string literals (including multi-line template literals) and JSX text
+ * are scanned — including JSX text that spans lines, sits between tags on its
+ * own lines, or surrounds an {...} interpolation — while identifiers, comments,
+ * and import/export module specifiers do not trip the vocabulary list. Fenced
+ * code in Markdown and <script>/<style> blocks in markup are skipped, and
+ * scanning resumes right after a closing raw tag on the same line. Markup
+ * files scan text nodes plus
  * the alt, placeholder, title, and aria-label attributes. Copy extraction is a
  * tolerant state machine, not a parser: malformed or unusual code degrades to
  * noisy findings, never to silent misses. Suppress one line with a
