@@ -1,0 +1,170 @@
+{
+  "schemaVersion": "semantic-quality-held-out/v1",
+  "description": "Public synthetic held-out cases. Expected labels are not sent to the provider.",
+  "cases": [
+    {
+      "id": "circular-normalizer",
+      "candidate": {
+        "id": "held-out:circular-normalizer",
+        "kind": "test_evidence",
+        "snapshot": "public-fixture-v1",
+        "test": {
+          "path": "src/normalize.test.ts",
+          "startLine": 10,
+          "endLine": 13,
+          "content": "const actual = normalize(input);\nexpect(actual).toEqual(normalize(input));"
+        },
+        "target": {
+          "path": "src/normalize.ts",
+          "startLine": 1,
+          "endLine": 3,
+          "content": "export function normalize(value: string) {\n  return value.trim().toLowerCase();\n}"
+        },
+        "contract": {
+          "path": "README.md",
+          "startLine": 1,
+          "endLine": 1,
+          "content": "normalize removes surrounding spaces and lowercases text."
+        },
+        "dependencyEvidence": []
+      },
+      "expected": {
+        "circular_oracle": "finding",
+        "source_only_behavioral_proof": "no_finding"
+      }
+    },
+    {
+      "id": "literal-normalizer",
+      "candidate": {
+        "id": "held-out:literal-normalizer",
+        "kind": "test_evidence",
+        "snapshot": "public-fixture-v1",
+        "test": {
+          "path": "src/normalize.test.ts",
+          "startLine": 20,
+          "endLine": 20,
+          "content": "expect(normalize(\"  Ada  \")) .toBe(\"ada\");"
+        },
+        "target": {
+          "path": "src/normalize.ts",
+          "startLine": 1,
+          "endLine": 3,
+          "content": "export function normalize(value: string) {\n  return value.trim().toLowerCase();\n}"
+        },
+        "contract": {
+          "path": "README.md",
+          "startLine": 1,
+          "endLine": 1,
+          "content": "normalize removes surrounding spaces and lowercases text."
+        },
+        "dependencyEvidence": []
+      },
+      "expected": {
+        "circular_oracle": "no_finding",
+        "source_only_behavioral_proof": "no_finding"
+      }
+    },
+    {
+      "id": "source-assertion-as-runtime-proof",
+      "candidate": {
+        "id": "held-out:source-assertion-as-runtime-proof",
+        "kind": "test_evidence",
+        "snapshot": "public-fixture-v1",
+        "test": {
+          "path": "src/parser.test.ts",
+          "startLine": 5,
+          "endLine": 7,
+          "content": "const source = readFileSync(\"src/parser.ts\", \"utf8\");\nexpect(source).toContain(\"return parsed.value\");"
+        },
+        "target": {
+          "path": "src/parser.ts",
+          "startLine": 1,
+          "endLine": 4,
+          "content": "export function parseValue(raw: string) {\n  const parsed = JSON.parse(raw);\n  return parsed.value;\n}"
+        },
+        "contract": {
+          "path": "README.md",
+          "startLine": 1,
+          "endLine": 1,
+          "content": "parseValue returns the value from valid JSON at runtime."
+        },
+        "dependencyEvidence": []
+      },
+      "expected": {
+        "circular_oracle": "no_finding",
+        "source_only_behavioral_proof": "finding"
+      }
+    },
+    {
+      "id": "declared-structural-contract",
+      "candidate": {
+        "id": "held-out:declared-structural-contract",
+        "kind": "test_evidence",
+        "snapshot": "public-fixture-v1",
+        "test": {
+          "path": "architecture/parser-exports.test.ts",
+          "startLine": 8,
+          "endLine": 10,
+          "content": "const source = readFileSync(\"src/parser.ts\", \"utf8\");\nexpect(source).toContain(\"export function parseValue\");"
+        },
+        "target": {
+          "path": "src/parser.ts",
+          "startLine": 1,
+          "endLine": 4,
+          "content": "export function parseValue(raw: string) {\n  const parsed = JSON.parse(raw);\n  return parsed.value;\n}"
+        },
+        "contract": {
+          "path": "ARCHITECTURE.md",
+          "startLine": 3,
+          "endLine": 3,
+          "content": "Public source-shape contract: src/parser.ts must export a named parseValue function."
+        },
+        "dependencyEvidence": []
+      },
+      "expected": {
+        "circular_oracle": "no_finding",
+        "source_only_behavioral_proof": "no_finding"
+      }
+    },
+    {
+      "id": "production-claim-with-local-receipt",
+      "candidate": {
+        "id": "held-out:production-claim-with-local-receipt",
+        "kind": "completion_claim",
+        "snapshot": "public-fixture-v1",
+        "claim": "The parser is deployed and healthy in production.",
+        "evidence": [
+          {
+            "path": "reports/local-test.txt",
+            "startLine": 1,
+            "endLine": 2,
+            "content": "bun test parser.test.ts\n1 pass, 0 fail; local fixture provider"
+          }
+        ]
+      },
+      "expected": {
+        "unsupported_completion": "finding"
+      }
+    },
+    {
+      "id": "focused-local-claim-with-matching-receipt",
+      "candidate": {
+        "id": "held-out:focused-local-claim-with-matching-receipt",
+        "kind": "completion_claim",
+        "snapshot": "public-fixture-v1",
+        "claim": "The focused local parser test passed.",
+        "evidence": [
+          {
+            "path": "reports/local-test.txt",
+            "startLine": 1,
+            "endLine": 3,
+            "content": "bun test parser.test.ts\nexit code: 0\n1 pass, 0 fail"
+          }
+        ]
+      },
+      "expected": {
+        "unsupported_completion": "no_finding"
+      }
+    }
+  ]
+}

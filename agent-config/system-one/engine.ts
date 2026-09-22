@@ -47,6 +47,25 @@ export type ScoreAnswer = {
 
 export type Answer = NoulAnswer | ChoiceAnswer | ScoreAnswer;
 
+export type ProviderEvaluation = {
+	answers: Record<string, Answer>;
+	requestedModel: string;
+	resolvedModel?: string;
+};
+
+export type SystemOneProviderFailureKind = "timeout" | "quota" | "transport" | "malformed_response";
+
+export class SystemOneProviderError extends Error {
+	constructor(
+		readonly kind: SystemOneProviderFailureKind,
+		message: string,
+		readonly status?: number,
+	) {
+		super(message);
+		this.name = "SystemOneProviderError";
+	}
+}
+
 /**
  * Preserve a provider confidence value exactly. A missing or non-finite value
  * stays `undefined` so consumers can reject the answer instead of acting on a
@@ -54,6 +73,83 @@ export type Answer = NoulAnswer | ChoiceAnswer | ScoreAnswer;
  */
 function normalizeConfidence(value: unknown): number | undefined {
 	return typeof value === "number" && Number.isFinite(value) ? value : undefined;
+}
+
+function providerHttpError(provider: string, status: number, body: string): SystemOneProviderError {
+	const quota = status === 402 || status === 429 || (status === 403 && /(?:quota|limit)/i.test(body));
+	return new SystemOneProviderError(
+		quota ? "quota" : "transport",
+		`${provider} error ${status}: ${body}`,
+		status,
+	);
+}
+
+function providerRequestError(provider: string, error: unknown): SystemOneProviderError {
+	if (error instanceof SystemOneProviderError) return error;
+	if (error instanceof Error && error.name === "AbortError") {
+		return new SystemOneProviderError("timeout", `${provider} request timed out`);
+	}
+	if (error instanceof SyntaxError) {
+		return new SystemOneProviderError("malformed_response", `${provider} returned malformed JSON`);
+	}
+	const message = error instanceof Error ? error.message : String(error);
+	return new SystemOneProviderError("transport", `${provider} request failed: ${message}`);
+}
+
+function recordOfNumbers(value: unknown): Record<string, number> | undefined {
+	if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
+	const entries = Object.entries(value);
+	if (entries.some(([, item]) => typeof item !== "number" || !Number.isFinite(item))) return undefined;
+	return Object.fromEntries(entries) as Record<string, number>;
+}
+
+function parseProviderAnswers(value: unknown): Record<string, Answer> {
+	if (!value || typeof value !== "object" || Array.isArray(value)) {
+		throw new SystemOneProviderError("malformed_response", "provider returned no typed answers");
+	}
+	const results: Record<string, Answer> = {};
+	for (const [key, candidate] of Object.entries(value)) {
+		if (!candidate || typeof candidate !== "object" || Array.isArray(candidate)) {
+			throw new SystemOneProviderError("malformed_response", `provider returned malformed answer: ${key}`);
+		}
+		const raw = candidate as Record<string, unknown>;
+		if (raw.type === "noul") {
+			if (typeof raw.noul !== "number" || !Number.isFinite(raw.noul)) {
+				throw new SystemOneProviderError("malformed_response", `provider returned malformed Noul answer: ${key}`);
+			}
+			results[key] = {
+				type: "noul",
+				probability: raw.noul,
+				confidence: Math.abs(raw.noul - 0.5) * 2,
+			};
+		} else if (raw.type === "choice") {
+			const probabilities = recordOfNumbers(raw.probabilities);
+			if (typeof raw.choice !== "string" || !probabilities) {
+				throw new SystemOneProviderError("malformed_response", `provider returned malformed Choice answer: ${key}`);
+			}
+			results[key] = {
+				type: "choice",
+				choice: raw.choice,
+				probabilities,
+				confidence: normalizeConfidence(raw.confidence),
+			};
+		} else if (raw.type === "score") {
+			const probabilities = recordOfNumbers(raw.probabilities);
+			if (typeof raw.score !== "number" || !Number.isFinite(raw.score) || !probabilities) {
+				throw new SystemOneProviderError("malformed_response", `provider returned malformed Score answer: ${key}`);
+			}
+			results[key] = {
+				type: "score",
+				score: raw.score,
+				legend: raw.legend as Record<string, string> | undefined,
+				probabilities,
+				confidence: normalizeConfidence(raw.confidence),
+			};
+		} else {
+			throw new SystemOneProviderError("malformed_response", `provider returned unknown answer type: ${key}`);
+		}
+	}
+	return results;
 }
 
 export type RuleFinding = {
@@ -70,7 +166,7 @@ export type ReviewVerdict = {
 	passed: boolean;
 	clean: boolean;
 	enabled: boolean;
-	provider: "typesafe" | "openrouter" | "heuristic" | "none";
+	provider: "typesafe" | "openrouter" | "heuristic" | "fixture" | "none";
 	latencyMs: number;
 	stats: {
 		linesAdded: number;
@@ -83,7 +179,16 @@ export type ReviewVerdict = {
 };
 
 export interface SystemOneProvider {
-	readonly name: "typesafe" | "openrouter" | "heuristic";
+	readonly name: "typesafe" | "openrouter" | "heuristic" | "fixture";
+	/** Requested model identifier, when the transport names one. */
+	readonly requestedModel?: string;
+	/** Exact response model identifiers observed during this provider instance. */
+	readonly resolvedModels?: ReadonlySet<string>;
+	evaluateWithMetadata?(
+		state: string,
+		questions: Record<string, Question>,
+		timeoutMs?: number,
+	): Promise<ProviderEvaluation>;
 	evaluate(
 		state: string,
 		questions: Record<string, Question>,
@@ -378,20 +483,24 @@ export const HARNESS_BATTERY = BATTERIES.all;
  */
 export class TypeSafeJevProvider implements SystemOneProvider {
 	readonly name = "typesafe" as const;
+	readonly requestedModel: string;
+	readonly resolvedModels = new Set<string>();
 
 	constructor(
 		private apiKey: string,
 		private endpoint = "https://api.typesafe.ai/v1/systemone",
-		private model = "jev-latest",
-	) {}
+		requestedModel = "jev-latest",
+	) {
+		this.requestedModel = requestedModel;
+	}
 
-	async evaluate(
+	async evaluateWithMetadata(
 		state: string,
 		questions: Record<string, Question>,
 		timeoutMs = 15000,
-	): Promise<Record<string, Answer>> {
+	): Promise<ProviderEvaluation> {
 		const payload = {
-			model: this.model,
+			model: this.requestedModel,
 			state,
 			questions,
 		};
@@ -412,7 +521,7 @@ export class TypeSafeJevProvider implements SystemOneProvider {
 
 			if (!res.ok) {
 				const errorText = await res.text();
-				throw new Error(`TypeSafe API error ${res.status}: ${errorText}`);
+				throw providerHttpError("TypeSafe API", res.status, errorText);
 			}
 
 			const data = (await res.json()) as {
@@ -425,41 +534,29 @@ export class TypeSafeJevProvider implements SystemOneProvider {
 				>;
 				usage?: { input_tokens: number; output_tokens: number };
 			};
-
-			const results: Record<string, Answer> = {};
-
-			if (data.answers) {
-				for (const [key, raw] of Object.entries(data.answers)) {
-					if (raw.type === "noul") {
-						const conf = Math.abs(raw.noul - 0.5) * 2;
-						results[key] = {
-							type: "noul",
-							probability: raw.noul,
-							confidence: conf,
-						};
-					} else if (raw.type === "choice") {
-						results[key] = {
-							type: "choice",
-							choice: raw.choice,
-							probabilities: raw.probabilities ?? {},
-							confidence: normalizeConfidence(raw.confidence),
-						};
-					} else if (raw.type === "score") {
-						results[key] = {
-							type: "score",
-							score: raw.score,
-							legend: raw.legend,
-							probabilities: raw.probabilities ?? {},
-							confidence: normalizeConfidence(raw.confidence),
-						};
-					}
-				}
+			if (!data || typeof data !== "object" || !data.answers || typeof data.answers !== "object") {
+				throw new SystemOneProviderError("malformed_response", "provider returned no typed answers");
+			}
+			if (typeof data.model === "string" && data.model.length > 0) {
+				this.resolvedModels.add(data.model);
 			}
 
-			return results;
+			const results = parseProviderAnswers(data.answers);
+
+			return { answers: results, requestedModel: this.requestedModel, resolvedModel: data.model };
+		} catch (error) {
+			throw providerRequestError("TypeSafe API", error);
 		} finally {
 			clearTimeout(timer);
 		}
+	}
+
+	async evaluate(
+		state: string,
+		questions: Record<string, Question>,
+		timeoutMs = 15000,
+	): Promise<Record<string, Answer>> {
+		return (await this.evaluateWithMetadata(state, questions, timeoutMs)).answers;
 	}
 }
 
@@ -468,20 +565,24 @@ export class TypeSafeJevProvider implements SystemOneProvider {
  */
 export class OpenRouterJevProvider implements SystemOneProvider {
 	readonly name = "openrouter" as const;
+	readonly requestedModel: string;
+	readonly resolvedModels = new Set<string>();
 
 	constructor(
 		private apiKey: string,
-		private model = "typesafe/jev-1.13",
+		requestedModel = "typesafe/jev-1.13",
 		private endpoint = "https://openrouter.ai/api/alpha/decisions",
-	) {}
+	) {
+		this.requestedModel = requestedModel;
+	}
 
-	async evaluate(
+	async evaluateWithMetadata(
 		state: string,
 		questions: Record<string, Question>,
 		timeoutMs = 15000,
-	): Promise<Record<string, Answer>> {
+	): Promise<ProviderEvaluation> {
 		const payload = {
-			model: this.model,
+			model: this.requestedModel,
 			state,
 			questions,
 		};
@@ -504,7 +605,7 @@ export class OpenRouterJevProvider implements SystemOneProvider {
 
 			if (!res.ok) {
 				const errorText = await res.text();
-				throw new Error(`OpenRouter Jev error ${res.status}: ${errorText}`);
+				throw providerHttpError("OpenRouter Jev", res.status, errorText);
 			}
 
 			const data = (await res.json()) as {
@@ -517,41 +618,29 @@ export class OpenRouterJevProvider implements SystemOneProvider {
 				>;
 				usage?: { input_tokens: number; output_tokens: number };
 			};
-
-			const results: Record<string, Answer> = {};
-
-			if (data.answers) {
-				for (const [key, raw] of Object.entries(data.answers)) {
-					if (raw.type === "noul") {
-						const conf = Math.abs(raw.noul - 0.5) * 2;
-						results[key] = {
-							type: "noul",
-							probability: raw.noul,
-							confidence: conf,
-						};
-					} else if (raw.type === "choice") {
-						results[key] = {
-							type: "choice",
-							choice: raw.choice,
-							probabilities: raw.probabilities ?? {},
-							confidence: normalizeConfidence(raw.confidence),
-						};
-					} else if (raw.type === "score") {
-						results[key] = {
-							type: "score",
-							score: raw.score,
-							legend: raw.legend,
-							probabilities: raw.probabilities ?? {},
-							confidence: normalizeConfidence(raw.confidence),
-						};
-					}
-				}
+			if (!data || typeof data !== "object" || !data.answers || typeof data.answers !== "object") {
+				throw new SystemOneProviderError("malformed_response", "provider returned no typed answers");
+			}
+			if (typeof data.model === "string" && data.model.length > 0) {
+				this.resolvedModels.add(data.model);
 			}
 
-			return results;
+			const results = parseProviderAnswers(data.answers);
+
+			return { answers: results, requestedModel: this.requestedModel, resolvedModel: data.model };
+		} catch (error) {
+			throw providerRequestError("OpenRouter Jev", error);
 		} finally {
 			clearTimeout(timer);
 		}
+	}
+
+	async evaluate(
+		state: string,
+		questions: Record<string, Question>,
+		timeoutMs = 15000,
+	): Promise<Record<string, Answer>> {
+		return (await this.evaluateWithMetadata(state, questions, timeoutMs)).answers;
 	}
 }
 

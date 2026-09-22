@@ -21,6 +21,10 @@ harness repo. When in doubt, leave it in the harness.
 | `guidance/*.md` | Shared global-guidance sections, spliced at the harness marker |
 | `bin/pass-env.ts` | Standalone pass-backed environment launcher |
 | `bin/design-check.ts` | Standalone player-surface copy checker, installed as `~/.local/bin/design-check` |
+| `bin/semantic-check.ts` | Source candidate for an advisory semantic-quality CLI |
+| `bin/semantic-held-out.ts` | Source-only held-out evaluator for the semantic-quality candidate |
+| `system-one/` | Shared typed judgments, immutable Git adapters, fixtures, and local cache |
+| `candidates/effective-verification/` | Child-mandate skill source, kept outside automatic skill deployment |
 | `../.githooks/pre-push` | Workspace secret scanners, wired by root `scripts/bootstrap` |
 
 ## Install contract
@@ -66,6 +70,17 @@ Shared guidance sections may reference shared primitives and vehicles deployed a
 `omp-config`'s own guidance file adds Working together (including model roles),
 Execution environments (exe.dev vehicle), and Authority
 and operations. `pi-config`'s file is title and intro only.
+
+## Semantic-quality source candidate
+
+The semantic-quality files are not selected by either installer. Candidate skills
+stay outside `skills/`, because both consumers currently select every directory there.
+They remain a
+source candidate until a separate rollout completes repository pilots and fresh-process
+Hermes verification. The engine uses fixed Choice questions through OpenRouter
+Decisions. Its findings remain advisory, and deterministic exits stay authoritative.
+
+See [the build, pilot, and rollback guide](../docs/semantic-quality.md).
 
 ## Fresh setup
 

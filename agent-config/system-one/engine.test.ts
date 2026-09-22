@@ -94,6 +94,70 @@ describe("provider confidence preservation", () => {
 	});
 });
 
+describe("provider failure classification", () => {
+	test("OpenRouter reports a JSON null body as a typed malformed response", async () => {
+		const original = globalThis.fetch;
+		globalThis.fetch = (async () => new Response("null", { status: 200 })) as unknown as typeof fetch;
+		try {
+			await expect(
+				new OpenRouterJevProvider("test-key").evaluate("state", { continuation: CHOICE_QUESTION }),
+			).rejects.toMatchObject({ name: "SystemOneProviderError", kind: "malformed_response" });
+		} finally {
+			globalThis.fetch = original;
+		}
+	});
+
+	test("OpenRouter reports a null answer entry as a typed malformed response", async () => {
+		const original = globalThis.fetch;
+		globalThis.fetch = (async () =>
+			new Response(
+				JSON.stringify({
+					model: "typesafe/jev-1.13-20260917",
+					answers: { continuation: null },
+				}),
+				{ status: 200 },
+			)) as unknown as typeof fetch;
+		try {
+			await expect(
+				new OpenRouterJevProvider("test-key").evaluate("state", { continuation: CHOICE_QUESTION }),
+			).rejects.toMatchObject({ name: "SystemOneProviderError", kind: "malformed_response" });
+		} finally {
+			globalThis.fetch = original;
+		}
+	});
+
+	test("OpenRouter reports an HTTP quota response as typed quota unavailability", async () => {
+		const original = globalThis.fetch;
+		globalThis.fetch = (async () =>
+			new Response(JSON.stringify({ error: { message: "daily key limit reached" } }), {
+				status: 429,
+			})) as unknown as typeof fetch;
+		try {
+			await expect(
+				new OpenRouterJevProvider("test-key").evaluate("state", { continuation: CHOICE_QUESTION }),
+			).rejects.toMatchObject({ name: "SystemOneProviderError", kind: "quota", status: 429 });
+		} finally {
+			globalThis.fetch = original;
+		}
+	});
+
+	test("OpenRouter reports an aborted request as typed timeout unavailability", async () => {
+		const original = globalThis.fetch;
+		globalThis.fetch = (async () => {
+			const error = new Error("aborted");
+			error.name = "AbortError";
+			throw error;
+		}) as unknown as typeof fetch;
+		try {
+			await expect(
+				new OpenRouterJevProvider("test-key").evaluate("state", { continuation: CHOICE_QUESTION }),
+			).rejects.toMatchObject({ name: "SystemOneProviderError", kind: "timeout" });
+		} finally {
+			globalThis.fetch = original;
+		}
+	});
+});
+
 describe("parseRuleFindings confidence policy", () => {
 	test("a choice answer with missing confidence demotes to a warning, never a block", () => {
 		const findings = parseRuleFindings({
