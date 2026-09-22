@@ -1033,6 +1033,8 @@ export function generateStructuralMap(diffText: string): string {
  * - Security rules fail closed (probability alone can block to prevent active leakage).
  * - Taste, Strategy, Pokayoke, and Verification rules require high probability (> threshold)
  *   AND confidence >= 0.70 to trigger a hard block.
+ * - Exception: `fails_open` (pokayoke) never hard-blocks at any confidence; it warns at
+ *   probability > 0.75. Semantic leads inform; they never gate.
  * - Sub-threshold confidence (speculative or ambiguous classifications) is demoted to a warning
  *   so interactive turns are never halted on uncertain subjective models.
  */
@@ -1364,27 +1366,21 @@ export function parseRuleFindings(answers: Record<string, Answer>): {
 					});
 				}
 			} else if (key === "fails_open" && p > 0.75) {
-				if (isHighConfidence) {
-					blocks.push({
-						rule: key,
-						category: "pokayoke",
-						severity: "block",
-						message: "Validation/guard fails open on invalid input instead of failing closed.",
-						evidence: `Probability: ${p.toFixed(2)}, Confidence: ${conf.toFixed(2)}`,
-						probability: p,
-						confidence: conf,
-					});
-				} else {
-					warnings.push({
-						rule: key,
-						category: "pokayoke",
-						severity: "warning",
-						message: "Advisory: verify guard/validation fails closed on malformed input.",
-						evidence: `Probability: ${p.toFixed(2)}, Confidence: ${conf.toFixed(2)}`,
-						probability: p,
-						confidence: conf,
-					});
-				}
+				// Advisory by policy: this question asks the model to infer guard
+				// semantics from diff text, and mandated advisory extensions fail
+				// open on API errors, timeouts, and malformed answers by design.
+				// Semantic leads inform; they never gate. Deterministic checks
+				// (secret scan, CI, review) remain the gates. Regression: US-010
+				// live false positive at probability 0.93 hard-blocked the gate.
+				warnings.push({
+					rule: key,
+					category: "pokayoke",
+					severity: "warning",
+					message: "Advisory: verify guard/validation fails closed on malformed input.",
+					evidence: `Probability: ${p.toFixed(2)}, Confidence: ${conf.toFixed(2)}`,
+					probability: p,
+					confidence: conf,
+				});
 			} else if (key === "tests_missing" && p > 0.85) {
 				warnings.push({
 					rule: key,
