@@ -104,16 +104,65 @@ describe("parseRuleFindings confidence policy", () => {
 		expect(findings.warnings[0].confidence).toBe(0);
 	});
 
-	test("a choice answer with high confidence still blocks", () => {
-		const findings = parseRuleFindings({
+	test("keeps all eight unvalidated non-security findings advisory at high confidence", () => {
+		const answers: Record<string, Answer> = {
+			needless_abstraction: { type: "noul", probability: 0.9, confidence: 0.8 },
+			incomplete_cutover: { type: "noul", probability: 0.86, confidence: 0.72 },
+			preserves_root_cause: { type: "noul", probability: 0.9, confidence: 0.8 },
+			fails_open: { type: "noul", probability: 0.9, confidence: 0.8 },
+			test_asserts_implementation: { type: "noul", probability: 0.9, confidence: 0.8 },
 			pokayoke_mechanism: {
 				type: "choice",
 				choice: "suppressed_symptom",
-				probabilities: { suppressed_symptom: 1 },
+				probabilities: { suppressed_symptom: 0.9 },
 				confidence: 0.9,
 			},
+			ousterhout_complexity: {
+				type: "choice",
+				choice: "complexity_spreading",
+				probabilities: { complexity_spreading: 0.9 },
+				confidence: 0.9,
+			},
+			torvalds_taste: { type: "score", score: 0.2, probabilities: { "0": 0.9 }, confidence: 0.9 },
+		};
+		const expected = new Map([
+			["needless_abstraction", { category: "taste", probability: 0.9, confidence: 0.8 }],
+			["incomplete_cutover", { category: "taste", probability: 0.86, confidence: 0.72 }],
+			["preserves_root_cause", { category: "pokayoke", probability: 0.9, confidence: 0.8 }],
+			["fails_open", { category: "pokayoke", probability: 0.9, confidence: 0.8 }],
+			["test_asserts_implementation", { category: "verification", probability: 0.9, confidence: 0.8 }],
+			["pokayoke_mechanism", { category: "pokayoke", probability: 1, confidence: 0.9 }],
+			["ousterhout_complexity", { category: "taste", probability: 0.9, confidence: 0.9 }],
+			["torvalds_taste", { category: "taste", probability: 0.9, confidence: 0.9 }],
+		]);
+
+		const findings = parseRuleFindings(answers);
+
+		expect(expected.size).toBe(8);
+		expect(findings.blocks).toHaveLength(0);
+		expect(findings.warnings.map((finding) => finding.rule)).toEqual([...expected.keys()]);
+		for (const finding of findings.warnings) {
+			expect(finding).toMatchObject({ rule: finding.rule, severity: "warning", ...expected.get(finding.rule) });
+			expect(finding.evidence.length).toBeGreaterThan(0);
+		}
+	});
+
+	test("keeps all four legacy security findings blocking", () => {
+		const findings = parseRuleFindings({
+			credential_leak: { type: "noul", probability: 0.76, confidence: 0.52 },
+			disk_secret_persistence: { type: "noul", probability: 0.81, confidence: 0.62 },
+			authority_escalation: { type: "noul", probability: 0.81, confidence: 0.62 },
+			prompt_injection_risk: { type: "noul", probability: 0.81, confidence: 0.62 },
 		});
-		expect(findings.blocks).toHaveLength(1);
+
+		expect(findings.blocks.map((finding) => finding.rule)).toEqual([
+			"credential_leak",
+			"disk_secret_persistence",
+			"authority_escalation",
+			"prompt_injection_risk",
+		]);
+		expect(findings.blocks.every((finding) => finding.severity === "block")).toBe(true);
+		expect(findings.warnings).toHaveLength(0);
 	});
 
 	test("a score answer with missing confidence demotes to a warning", () => {
