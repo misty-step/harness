@@ -25,7 +25,13 @@ describe("Foundation Standard v1", () => {
 		const standard = readFileSync(standardPath, "utf8");
 		expect(catalog.schema).toBe("foundation-standard/1");
 		expect(catalog.id).toBe("misty-step.foundation");
-		expect(catalog.version).toBe("1.0.0");
+		expect(catalog.version).toBe("1.0.1");
+		expect(catalog.dispositions).toEqual([
+			"satisfied",
+			"pending",
+			"not_applicable",
+			"exception",
+		]);
 		expect(catalog.obligations.map((item: { id: string }) => item.id)).toEqual(obligationIds);
 		for (const item of catalog.obligations) {
 			expect(item.applies_when.length).toBeGreaterThan(0);
@@ -33,6 +39,18 @@ describe("Foundation Standard v1", () => {
 			expect(item.exception_authority.length).toBeGreaterThan(0);
 			expect(standard).toContain(`### ${item.id}`);
 		}
+		expect(catalog.exception_policy.pending_requires).toEqual([
+			"reason",
+			"owner",
+			"next_action",
+		]);
+		expect(catalog.exception_policy.not_applicable_requires).toContain("approval_ref");
+		expect(catalog.exception_policy.exception_requires).toContain("approval_ref");
+		expect(catalog.exception_policy.approval_record_schema).toBe("foundation-approval/1");
+		expect(standard).toContain("single normative source for structured obligation fields");
+		expect(standard).not.toContain("**Applies when:**");
+		expect(standard).not.toContain("**Evidence:**");
+		expect(standard).not.toContain("**Exception authority:**");
 		expect(catalog.approved_defaults.map((item: { id: string }) => item.id)).toEqual([
 			"FND-DEF-SENTRY-001",
 			"FND-DEF-ACTIVITY-001",
@@ -49,6 +67,9 @@ describe("Foundation Standard v1", () => {
 		expect(skill).toContain("assessment and repair procedure");
 		expect(operating).toContain("foundation-standard-v1.md");
 		expect(operating).toContain("does not redefine its obligations");
+		expect(operating).toContain("local, edge-native, and persistent Linux");
+		expect(operating).toContain("a hybrid must remove more work than its boundary adds");
+		expect(operating).toContain("separately commissioned verification-infrastructure pass");
 		const ompReadme = readFileSync(join(root, "../../../omp-config/README.md"), "utf8");
 		expect(ompReadme).toContain("foundation-standard-v1.md");
 		expect(ompReadme).toContain("assessment and repair procedure");

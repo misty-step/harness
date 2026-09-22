@@ -1,13 +1,10 @@
 # Foundation Standard
 
 **Standard:** `misty-step.foundation`
-**Version:** `1.0.0`
+**Version:** `1.0.1`
 **Catalog:** [`foundation-standard-v1.json`](foundation-standard-v1.json)
 
-This is the canonical engineering standard. The adjacent JSON is its
-machine-readable catalog; this document gives the normative meaning. The Foundation
-skill is an assessment and repair procedure that reads this standard, not a second
-policy source.
+The adjacent JSON catalog is the **single normative source for structured obligation fields**: applicability, required evidence, exception authority, approved defaults, dispositions, and required decision fields. This document is the human-readable rationale and operating guidance keyed by those IDs; it does not restate a second normative copy. The Foundation skill is an assessment and repair procedure that reads the catalog and this guidance, not another policy source.
 
 ## Principles
 
@@ -21,34 +18,21 @@ policy source.
 3. **Use the smallest owned mechanism.** Prefer an executable check or missing
    affordance that closes a consequential failure path. Reuse an adequate signal,
    store, or platform; do not add telemetry merely to satisfy a tool count.
-4. **Exceptions have authority and bounds.** `not_applicable` means the predicate is
-   false. `exception` means it applies but is temporarily waived. Both name the
-   accountable approver, bounded reason, and substitute or residual risk; an
-   exception also expires. Reassess when capability, data scope, hosting, or release
-   path changes.
+4. **Unknown stays pending and non-pass.** `pending` means the applicability or proof is not yet assessed or complete; it can pass a clearly named structural lint but never an enforced compliance or release check. `not_applicable` means the predicate is false. `exception` means it applies but has a temporary approved waiver. The latter two reference a genuine separately reviewed owner decision; an inline name, committed allowlist, self-written record, or invented expiry grants no authority. Reassess when capability, data scope, hosting, or release path changes.
 
 ## Adoption record
 
-A repository adoption record pins this standard's ID, version, catalog digest,
-canonical source path, and exact source revision. It lists project capabilities and
-one disposition for every obligation:
+A repository adoption record pins this standard's ID, version, catalog digest, canonical source path, exact source revision, and source provenance. It lists actual project capabilities and one disposition for every obligation and approved default:
 
-- `satisfied`: cite retained evidence references. The checker verifies their shape
-  and local targets; the referenced command or runtime retrieval must still run.
-- `not_applicable`: state why the applicability predicate is false, who approved the
-  decision, and the substitute or explicit absence of a needed signal.
-- `exception`: state the applicable boundary, approver, substitute control, and an
-  expiry. Expired or malformed exceptions reject.
+- `satisfied`: cite a retained execution receipt for a code-owned allowlisted check. The receipt binds the exact candidate head and stable input bytes, command/check identity, run identity, exit status, freshness, and retained output digest. A manifest command string or `proof_level` label is never executed or trusted.
+- `pending`: name the missing assessment or proof, its owner, and the smallest next action. Structural lint may accept that honest shape; compliance remains `needs-evidence` and non-pass.
+- `not_applicable` and `exception`: reference a separately reviewed owner decision record. The validator checks separation, subject, disposition, review, and expiry consistency; repository review remains the actor-authentication trust boundary.
 
-Unknown, duplicated, or missing obligation IDs reject. A deterministic manifest
-pass proves catalog identity, disposition completeness, and evidence-reference
-integrity only. It never proves semantic adequacy or live runtime coverage.
+Unknown, duplicated, or missing obligation/default IDs reject. A structural result proves only source-anchor and record shape. A compliance pass additionally requires all applicable evidence receipts and genuine referenced decisions; it never implies unlisted runtime coverage.
 
 ## Verifiable obligations
 
 ### FND-CHG-001 — Executable change path
-
-**Applies when:** the repository is expected to be changed or released.
 
 A fresh authorized actor can exercise the core user outcome or consumer contract,
 distinguish success from plausible failure, and clean up in an isolated or explicitly
@@ -56,15 +40,7 @@ authorized environment. Repository procedures identify representative data,
 identities, external dependencies, and the exact command or supported interface.
 File presence, a successful unrelated tool call, or an old receipt is not proof.
 
-**Evidence:** an executed success path, at least one plausible failure path, exact
-candidate identity, command or interface, environment boundary, result, and cleanup.
-
-**Exception authority:** accountable project owner; security or data owner also
-approves when access or private data is involved.
-
 ### FND-CHG-002 — Consequential checks and recovery
-
-**Applies when:** a repeatable defect, unsafe transition, or release path exists.
 
 Checks, local development, CI, builds, and recovery are judged by consequential
 failures they catch or prevent. Prefer a pokayoke that makes the failure impossible
@@ -72,16 +48,7 @@ or rejects it in the path that matters over another warning. The named invalid c
 must reject and a valid case must pass; exercise rollback or recovery when failure
 would be consequential.
 
-**Evidence:** executable must-reject and must-stay-valid cases on the candidate,
-including raw command status and retained output.
-
-**Exception authority:** accountable project owner with a time-bounded substitute
-control and residual-risk statement.
-
 ### FND-TRN-001 — Safe transition and artifact identity
-
-**Applies when:** a host, deployment, database, identity, realtime, or job boundary
-changes.
 
 Separate a host move from changes to data, identity, realtime, and job contracts.
 Current deployment evidence, not a declaration or separate local implementation,
@@ -90,16 +57,7 @@ migration safety, authorization, private data, exposure, lifetime, rollback,
 recovery, and operator ownership. An assessment or preview is not permission to
 provision or publish.
 
-**Evidence:** exact artifact and target identities plus exercised transition and
-rollback/readback evidence for each changed boundary.
-
-**Exception authority:** accountable project owner and the owner of every changed
-persistence, identity, or hosting boundary.
-
 ### FND-OBS-001 — Structured diagnostics and errors
-
-**Applies when:** code operates asynchronously, serves users, depends on external
-systems, or must be diagnosed after execution.
 
 Emit structured, queryable events at explicit `debug`, `info`, `warn`, and `error`
 levels or stack-native equivalents. Cover material state transitions, dependency
@@ -114,18 +72,7 @@ error class, cause chain, stack, impact, retryability, and safe context. Publish
 source maps or debug symbols from the exact deployed artifact when compiled or
 minified stacks otherwise cannot identify source.
 
-**Evidence:** controlled debug/error paths, sanitized records retrieved from the
-intended sink, correlation and release attribution, and source resolution where
-applicable.
-
-**Exception authority:** accountable project owner. A local-only utility may use
-bounded local structured records when no remote operation exists; it does not thereby
-waive diagnostics needed for its own execution.
-
 ### FND-ACT-001 — Authoritative product activity
-
-**Applies when:** the project promises a user or operator journey whose completion
-cannot be inferred from uptime or absence of errors.
 
 Define a versioned first-party event schema for material journey transitions,
 including success, rejection or failure, abandonment, and recovery—not just clicks
@@ -138,16 +85,7 @@ Define identity scope, pseudonymization, consent or other approved basis, user c
 and deletion, and tenant isolation. Avoid durable user identifiers when aggregate or
 session-scoped evidence answers the question.
 
-**Evidence:** representative journey transitions retrieved from the authoritative
-store, with duplicate/retry behavior and success/failure/recovery semantics tested.
-
-**Exception authority:** accountable product owner with an explicit substitute for
-the promised-journey decision; private deployment alone is not a blanket waiver.
-
 ### FND-DAT-001 — Safe and bounded operational data
-
-**Applies when:** the project emits diagnostics, errors, traces, metrics, or product
-activity.
 
 Allowlist typed fields at the producer. Do not emit secrets, credentials,
 authorization values, cookies, raw headers or bodies, arbitrary user content,
@@ -160,15 +98,7 @@ or failed telemetry sink must not fail or stall the product path or trigger recu
 logging. Use bounded buffering, retry, or drop behavior, with an independently
 observable loss or backpressure signal.
 
-**Evidence:** typed schema/producer checks, synthetic secret and content canaries,
-access/retention/volume decisions, and a controlled sink outage showing product
-survival and visible loss behavior.
-
-**Exception authority:** security or privacy owner plus accountable project owner.
-
 ### FND-PRF-001 — Executed observability proof
-
-**Applies when:** `FND-OBS-001`, `FND-ACT-001`, or `FND-DAT-001` applies.
 
 Exercise representative success and every material failure journey. Assert event
 shape and level, correlations, authoritative outcomes, cause and release attribution,
@@ -181,28 +111,13 @@ Production-readiness evidence identifies the exact test, environment, release,
 sanitary query or record, and every unproved boundary. An installed SDK, logger
 import, valid schema, or a declared pass is not runtime proof.
 
-**Evidence:** raw executed positive/negative results and a fresh sanitized sink
-readback bound to the exact candidate/release.
-
-**Exception authority:** accountable project owner with the exact unproved runtime
-boundary and a time-bounded production-readiness condition.
-
 ### FND-USE-001 — Owned operational use
-
-**Applies when:** an emitted signal is claimed to support a material failure response
-or product decision.
 
 Give each material failure and product decision a documented query or dashboard,
 freshness and retention expectation, owner, and response. Alert only on actionable
 user or operating impact; define its condition, window, destination, recovery
 behavior, direct diagnostic query, and runbook. Verify a fresh sanitized signal and a
 controlled failure-and-recovery retrieval before treating configuration as coverage.
-
-**Evidence:** the exact query or dashboard, owner and expected action, plus controlled
-error/recovery and retrieval output.
-
-**Exception authority:** accountable operations or product owner with the decision
-explicitly removed or a named substitute query and response path.
 
 ## Approved tool defaults
 

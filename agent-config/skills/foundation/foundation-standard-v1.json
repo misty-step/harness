@@ -1,7 +1,7 @@
 {
   "schema": "foundation-standard/1",
   "id": "misty-step.foundation",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "principles": [
     {
       "id": "FND-P-APPLICABILITY",
@@ -17,11 +17,12 @@
     },
     {
       "id": "FND-P-AUTHORITY",
-      "statement": "Not-applicable decisions and temporary exceptions require named project authority, a bounded reason, and a substitute or residual-risk statement."
+      "statement": "Not-assessed work remains pending and non-pass. Not-applicable decisions and temporary exceptions require a separately reviewed owner decision, a bounded reason, and a substitute or residual-risk statement."
     }
   ],
   "dispositions": [
     "satisfied",
+    "pending",
     "not_applicable",
     "exception"
   ],
@@ -129,17 +130,24 @@
     }
   ],
   "exception_policy": {
+    "pending_requires": [
+      "reason",
+      "owner",
+      "next_action"
+    ],
     "not_applicable_requires": [
       "reason",
-      "approved_by",
+      "approval_ref",
       "substitute"
     ],
     "exception_requires": [
       "reason",
-      "approved_by",
+      "approval_ref",
       "substitute",
       "expires"
     ],
-    "review_trigger": "Reassess when project capability, data scope, hosting, or release path changes."
+    "approval_record_schema": "foundation-approval/1",
+    "review_trigger": "Reassess when project capability, data scope, hosting, or release path changes.",
+    "trust_boundary": "Approval records must be separately reviewed owner decisions. Their actor identity is trusted through repository review and protection; a committed name or allowlist is not authentication or permission by itself."
   }
 }
