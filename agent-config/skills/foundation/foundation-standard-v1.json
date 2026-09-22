@@ -1,0 +1,145 @@
+{
+  "schema": "foundation-standard/1",
+  "id": "misty-step.foundation",
+  "version": "1.0.0",
+  "principles": [
+    {
+      "id": "FND-P-APPLICABILITY",
+      "statement": "Apply obligations from actual project capabilities and transitions; record every disposition explicitly."
+    },
+    {
+      "id": "FND-P-EVIDENCE",
+      "statement": "Separate presence, syntax, semantic adequacy, and exercised runtime evidence; no layer implies a later one."
+    },
+    {
+      "id": "FND-P-MINIMALITY",
+      "statement": "Prefer the smallest owned mechanism that closes a consequential failure path; reuse adequate signals and platforms."
+    },
+    {
+      "id": "FND-P-AUTHORITY",
+      "statement": "Not-applicable decisions and temporary exceptions require named project authority, a bounded reason, and a substitute or residual-risk statement."
+    }
+  ],
+  "dispositions": [
+    "satisfied",
+    "not_applicable",
+    "exception"
+  ],
+  "obligations": [
+    {
+      "id": "FND-CHG-001",
+      "title": "Executable change path",
+      "applies_when": "The repository is expected to be changed or released.",
+      "required_evidence": [
+        "A fresh authorized actor exercises the core user outcome or consumer contract.",
+        "The evidence distinguishes success from plausible failure and records cleanup or isolation boundaries."
+      ],
+      "exception_authority": "Accountable project owner; security or data owner also approves when access or private data is involved."
+    },
+    {
+      "id": "FND-CHG-002",
+      "title": "Consequential checks and recovery",
+      "applies_when": "A repeatable defect, unsafe transition, or release path exists.",
+      "required_evidence": [
+        "Executable negative controls reject the named failure class.",
+        "The same path accepts a valid case, and the recovery or rollback procedure is exercised where consequential."
+      ],
+      "exception_authority": "Accountable project owner with a time-bounded substitute control and residual-risk statement."
+    },
+    {
+      "id": "FND-TRN-001",
+      "title": "Safe transition and artifact identity",
+      "applies_when": "A host, deployment, database, identity, realtime, or job boundary changes.",
+      "required_evidence": [
+        "The exact candidate artifact and target environment are identified.",
+        "Migration, authorization, exposure, lifetime, rollback, and operator ownership are addressed without treating a proposal as deployment proof."
+      ],
+      "exception_authority": "Accountable project owner and owner of every changed persistence, identity, or hosting boundary."
+    },
+    {
+      "id": "FND-OBS-001",
+      "title": "Structured diagnostics and errors",
+      "applies_when": "Code operates asynchronously, serves users, depends on external systems, or must be diagnosed after execution.",
+      "required_evidence": [
+        "Structured queryable debug, info, warn, and error records cover material transitions, dependency boundaries, retries, and failures.",
+        "Records carry stable event and operation names, time, component, environment, release or build, outcome, and safe correlation as applicable.",
+        "Handled and unhandled errors preserve bounded class, cause chain, stack, impact, retryability, and safe context; exact-artifact source maps or debug symbols resolve compiled or minified stacks where applicable."
+      ],
+      "exception_authority": "Accountable project owner; a local-only utility may use bounded local structured records when no remote operation exists."
+    },
+    {
+      "id": "FND-ACT-001",
+      "title": "Authoritative product activity",
+      "applies_when": "The project promises a user or operator journey whose completion cannot be inferred from uptime or error absence.",
+      "required_evidence": [
+        "A versioned first-party schema covers material success, rejection or failure, abandonment, and recovery transitions.",
+        "Each event has one semantic owner, identity and deduplication rule, source and occurrence time, schema version, environment, release, outcome, and safe correlation.",
+        "Accepted and completed states use server or durable receipt authority where available; client-only observations are labeled."
+      ],
+      "exception_authority": "Accountable product owner with an explicit substitute for the promised-journey decision; no blanket waiver from private deployment alone."
+    },
+    {
+      "id": "FND-DAT-001",
+      "title": "Safe and bounded operational data",
+      "applies_when": "The project emits diagnostics, errors, traces, metrics, or product activity.",
+      "required_evidence": [
+        "Producer-side typed allowlists exclude secrets, credentials, authorization values, cookies, raw headers or bodies, arbitrary user content, prompts, messages, and stack locals by default.",
+        "Identity scope, pseudonymization, consent or approved basis, user choice, deletion, tenant isolation, retention, access, region, cardinality, volume, cost, and sampling have owners and bounds.",
+        "A slow or failed sink cannot fail or stall the product path or recurse; bounded buffer, retry, or drop behavior exposes loss or backpressure independently."
+      ],
+      "exception_authority": "Security or privacy owner plus accountable project owner; any narrow content capture states purpose, access boundary, approval, and deletion policy."
+    },
+    {
+      "id": "FND-PRF-001",
+      "title": "Executed observability proof",
+      "applies_when": "FND-OBS-001, FND-ACT-001, or FND-DAT-001 applies.",
+      "required_evidence": [
+        "Representative success and every material failure journey assert shape, level, correlation, authority, cause, release attribution, and single emission or deduplication.",
+        "Negative canaries prove secrets and content do not leave the producer; controlled failures prove useful error capture, source resolution where applicable, and product survival during sink outage.",
+        "A fresh sanitized record is retrieved from the intended sink; SDK presence or schema syntax alone is not runtime coverage."
+      ],
+      "exception_authority": "Accountable project owner with the exact unproved runtime boundary and a time-bounded production-readiness condition."
+    },
+    {
+      "id": "FND-USE-001",
+      "title": "Owned operational use",
+      "applies_when": "An emitted signal is claimed to support a material failure response or product decision.",
+      "required_evidence": [
+        "Each material failure and product decision has a documented query or dashboard, freshness and retention expectation, owner, and response.",
+        "Alerts are actionable and define condition, window, destination, recovery behavior, direct diagnostic query, and runbook.",
+        "A controlled failure-and-recovery retrieval is exercised before coverage is claimed."
+      ],
+      "exception_authority": "Accountable operations or product owner with the decision explicitly removed or a named substitute query and response path."
+    }
+  ],
+  "approved_defaults": [
+    {
+      "id": "FND-DEF-SENTRY-001",
+      "tool": "Sentry",
+      "applies_when": "A Misty Step user-facing application or operated service needs remote error capture and has no approved equivalent.",
+      "default": "Use Sentry for error capture, environment and release association, and source-map or debug-symbol processing.",
+      "override_authority": "Accountable project owner may name an existing equivalent that satisfies the same applicable obligations; record the choice in the adoption manifest."
+    },
+    {
+      "id": "FND-DEF-ACTIVITY-001",
+      "tool": "Existing first-party project store",
+      "applies_when": "A product journey needs activity evidence and the project already owns a suitable durable store.",
+      "default": "Use a minimal versioned first-party event table in the existing store, including D1 or Convex where those are already the project store, before adding another analytics platform.",
+      "override_authority": "Accountable product owner may approve another owned platform with equivalent authority, privacy, deletion, retrieval, and deduplication behavior."
+    }
+  ],
+  "exception_policy": {
+    "not_applicable_requires": [
+      "reason",
+      "approved_by",
+      "substitute"
+    ],
+    "exception_requires": [
+      "reason",
+      "approved_by",
+      "substitute",
+      "expires"
+    ],
+    "review_trigger": "Reassess when project capability, data scope, hosting, or release path changes."
+  }
+}
