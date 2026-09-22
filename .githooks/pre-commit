@@ -30,4 +30,10 @@ if command -v bun >/dev/null 2>&1 && [ -f agent-config/bin/review-check.ts ]; th
   timeout 20 bun agent-config/bin/review-check.ts --staged --base "$base" --live || \
     printf 'jev review-check: advisory context only — never blocks; deterministic scanners above remain blocking\n'
 fi
+# Shared test-evidence advice reads the same immutable index snapshot. A provider
+# outage is unavailable, never a passing verdict or a reason to waive scanners.
+if command -v bun >/dev/null 2>&1 && [ -f agent-config/bin/semantic-check.ts ]; then
+  bun agent-config/bin/semantic-check.ts --repo "$PWD" --staged || \
+    printf 'semantic-check: advisory unavailable; deterministic scanners remain blocking\n'
+fi
 exit 0

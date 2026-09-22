@@ -8,6 +8,9 @@ command -v gitleaks >/dev/null 2>&1 || {
   exit 1
 }
 zero=0000000000000000000000000000000000000000
+updates_file=$(mktemp)
+trap 'rm -f "$updates_file"' 0 HUP INT TERM
+tee "$updates_file" >/dev/null
 while read -r local_ref local_oid remote_ref remote_oid; do
   [ "$local_oid" = "$zero" ] && continue
   # Scan exactly the commits that no remote ref has ever contained — the same
@@ -32,7 +35,13 @@ while read -r local_ref local_oid remote_ref remote_oid; do
         printf 'jev diff-review: advisory context only — never blocks (deterministic scanners above remain blocking)\n'
     fi
   fi
-done
+done < "$updates_file"
+# Use the exact buffered ref updates. Never guess the pushed head or replace
+# the gitleaks/trufflehog gate with a model result.
+if command -v bun >/dev/null 2>&1 && [ -f agent-config/bin/semantic-check.ts ]; then
+  bun agent-config/bin/semantic-check.ts --repo "$PWD" --outgoing < "$updates_file" || \
+    printf 'semantic-check: advisory unavailable; deterministic scanners remain blocking\n'
+fi
 command -v trufflehog >/dev/null 2>&1 || {
   printf 'trufflehog is required for pre-push secret scanning\n' >&2
   exit 1
