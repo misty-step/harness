@@ -1289,10 +1289,10 @@ export function parseRuleFindings(answers: Record<string, Answer>): {
 				});
 			} else if (key === "needless_abstraction" && p > 0.85) {
 				if (isHighConfidence) {
-					blocks.push({
+					warnings.push({
 						rule: key,
 						category: "taste",
-						severity: "block",
+						severity: "warning",
 						message: "Needless abstraction or single-caller wrapper violating simplicity guidance.",
 						evidence: `Probability: ${p.toFixed(2)}, Confidence: ${conf.toFixed(2)}`,
 						probability: p,
@@ -1321,10 +1321,10 @@ export function parseRuleFindings(answers: Record<string, Answer>): {
 				});
 			} else if (key === "incomplete_cutover" && p > 0.8) {
 				if (isHighConfidence) {
-					blocks.push({
+					warnings.push({
 						rule: key,
 						category: "taste",
-						severity: "block",
+						severity: "warning",
 						message: "Incomplete cutover: introduced new path while leaving deprecated aliases/shims.",
 						evidence: `Probability: ${p.toFixed(2)}, Confidence: ${conf.toFixed(2)}`,
 						probability: p,
@@ -1343,10 +1343,10 @@ export function parseRuleFindings(answers: Record<string, Answer>): {
 				}
 			} else if (key === "preserves_root_cause" && p > 0.8) {
 				if (isHighConfidence) {
-					blocks.push({
+					warnings.push({
 						rule: key,
 						category: "pokayoke",
-						severity: "block",
+						severity: "warning",
 						message: "Fix suppresses symptom or silences error rather than eliminating root cause.",
 						evidence: `Probability: ${p.toFixed(2)}, Confidence: ${conf.toFixed(2)}`,
 						probability: p,
@@ -1365,10 +1365,10 @@ export function parseRuleFindings(answers: Record<string, Answer>): {
 				}
 			} else if (key === "fails_open" && p > 0.75) {
 				if (isHighConfidence) {
-					blocks.push({
+					warnings.push({
 						rule: key,
 						category: "pokayoke",
-						severity: "block",
+						severity: "warning",
 						message: "Validation/guard fails open on invalid input instead of failing closed.",
 						evidence: `Probability: ${p.toFixed(2)}, Confidence: ${conf.toFixed(2)}`,
 						probability: p,
@@ -1447,10 +1447,10 @@ export function parseRuleFindings(answers: Record<string, Answer>): {
 				});
 			} else if (key === "test_asserts_implementation" && p > 0.8) {
 				if (isHighConfidence) {
-					blocks.push({
+					warnings.push({
 						rule: key,
 						category: "verification",
-						severity: "block",
+						severity: "warning",
 						message: "Test asserts internal implementation (mocks, wiring) instead of observable postconditions.",
 						evidence: `Probability: ${p.toFixed(2)}, Confidence: ${conf.toFixed(2)}`,
 						probability: p,
@@ -1469,10 +1469,10 @@ export function parseRuleFindings(answers: Record<string, Answer>): {
 				}
 			} else if (key === "is_test_padding" && p > 0.85) {
 				if (isHighConfidence) {
-					blocks.push({
+					warnings.push({
 						rule: key,
 						category: "verification",
-						severity: "block",
+						severity: "warning",
 						message: "Test padding detected (tautology or bare not-throw). Delete padding.",
 						evidence: `Probability: ${p.toFixed(2)}, Confidence: ${conf.toFixed(2)}`,
 						probability: p,
@@ -1498,10 +1498,10 @@ export function parseRuleFindings(answers: Record<string, Answer>): {
 			if (key === "pokayoke_mechanism") {
 				if (ans.choice === "suppressed_symptom") {
 					if (isHighConfidence) {
-						blocks.push({
+						warnings.push({
 							rule: key,
 							category: "pokayoke",
-							severity: "block",
+							severity: "warning",
 							message: "Pokayoke violation: bug fix silences error instead of structural prevention.",
 							evidence: `Choice: ${ans.choice}, Confidence: ${conf.toFixed(2)}`,
 							probability: 1.0,
@@ -1532,10 +1532,10 @@ export function parseRuleFindings(answers: Record<string, Answer>): {
 			} else if (key === "ousterhout_complexity") {
 				if (ans.choice === "complexity_spreading") {
 					if (isHighConfidence) {
-						blocks.push({
+						warnings.push({
 							rule: key,
 							category: "taste",
-							severity: "block",
+							severity: "warning",
 							message: "Ousterhout complexity spreading: introduces shallow wrappers or leaked internals.",
 							evidence: `Choice: ${ans.choice}, Confidence: ${conf.toFixed(2)}`,
 							probability: 0.9,
@@ -1571,10 +1571,10 @@ export function parseRuleFindings(answers: Record<string, Answer>): {
 				});
 			} else if (key === "torvalds_taste" && ans.score < 1.0) {
 				if (isHighConfidence) {
-					blocks.push({
+					warnings.push({
 						rule: key,
 						category: "taste",
-						severity: "block",
+						severity: "warning",
 						message: "Linus Torvalds taste violation: diff identified as clever hack or papered-over bug.",
 						evidence: `Score: ${ans.score.toFixed(2)}, Confidence: ${conf.toFixed(2)}`,
 						probability: 0.9,
