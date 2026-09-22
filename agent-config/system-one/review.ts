@@ -470,6 +470,9 @@ const AWS_KEY = /AKIA[0-9A-Z]{16}/g;
 const GITHUB_TOKEN = /github_pat_[A-Za-z0-9_]{20,}|gh[pors]_[A-Za-z0-9]{20,}/g;
 const OPENAI_TOKEN = /sk-[A-Za-z0-9_-]{20,}/g;
 const SLACK_TOKEN = /xox[baprs]-[A-Za-z0-9-]{10,}/g;
+const AUTHORIZATION_BEARER =
+	/(\bAuthorization\s*[:=]\s*(?:["']?)Bearer\s+)[A-Za-z0-9._~+\/-]{12,}={0,2}/gi;
+const JWT_TOKEN = /\beyJ[A-Za-z0-9_-]{7,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\b/g;
 const SECRET_ASSIGNMENT =
 	/((?:["']?)[A-Za-z0-9_.-]*(?:secret|token|password|passwd|api[_-]?key)[A-Za-z0-9_.-]*(?:["']?)\s*[:=]\s*)(?:"([^"\n]{12,})"|'([^'\n]{12,})'|([A-Za-z0-9_\-./+=]{12,}))/gi;
 
@@ -527,6 +530,14 @@ function redactDetailed(text: string): RedactionResult {
 			replacements++;
 			return REDACTED;
 		})
+		.replace(AUTHORIZATION_BEARER, (_match, prefix: string) => {
+			replacements++;
+			return `${prefix}${REDACTED}`;
+		})
+		.replace(JWT_TOKEN, () => {
+			replacements++;
+			return REDACTED;
+		})
 		.replace(SECRET_ASSIGNMENT, (match, prefix: string) => {
 			replacements++;
 			return `${prefix}${REDACTED}`;
@@ -551,8 +562,8 @@ const CREDENTIAL_PATH_PATTERNS: RegExp[] = [
 	/\.p12$/i,
 	/(^|\/)id_rsa[^/]*$/i,
 	/(^|\/)id_ed25519[^/]*$/i,
-	/(^|\/)credentials[^/]*$/i,
-	/(^|\/)secrets[^/]*$/i,
+	/(^|\/)credentials[^/]*(?:\/|$)/i,
+	/(^|\/)secrets[^/]*(?:\/|$)/i,
 	/(^|\/)\.npmrc$/i,
 	/(^|\/)\.netrc$/i,
 	/(^|\/)kubeconfig[^/]*$/i,

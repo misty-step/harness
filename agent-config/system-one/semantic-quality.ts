@@ -1,12 +1,20 @@
-import type { Answer, Question, SystemOneProvider } from "./engine.ts";
+import {
+  SystemOneProviderError,
+  type Answer,
+  type Question,
+  type SystemOneProvider,
+} from "./engine.ts";
+import { isCredentialPath, redactText } from "./review.ts";
 
 export const SEMANTIC_QUALITY_SCHEMA_VERSION = "semantic-quality/v1" as const;
+export const SEMANTIC_QUESTION_PACK_VERSION = "semantic-quality-questions/v1" as const;
 
 export type EvidenceAnchor = {
   path: string;
   startLine: number;
   endLine: number;
   content: string;
+  truncated?: boolean;
 };
 
 export type TestEvidenceCandidate = {
@@ -82,14 +90,23 @@ function circularOracleFinding(
       anchors: [candidate.test, candidate.target],
     };
   }
-  if (oracle.outcome !== "same_logic") return undefined;
+  if (oracle.outcome === "same_logic") {
+    return {
+      ruleId: "circular_oracle",
+      status: "finding",
+      candidateId: candidate.id,
+      probability: oracle.probability,
+      reason: "The expected result derives from the same logic under test.",
+      anchors: [candidate.test, candidate.target],
+    };
+  }
   return {
     ruleId: "circular_oracle",
-    status: "finding",
+    status: "no_finding",
     candidateId: candidate.id,
     probability: oracle.probability,
-    reason: "The expected result derives from the same logic under test.",
-    anchors: [candidate.test, candidate.target],
+    reason: "The expected result comes from an independent oracle or a fixed fixture.",
+    anchors: [candidate.test, ...candidate.dependencyEvidence],
   };
 }
 
@@ -162,7 +179,14 @@ function unsupportedCompletionFinding(
       anchors: candidate.evidence,
     };
   }
-  return undefined;
+  return {
+    ruleId: "unsupported_completion",
+    status: "no_finding",
+    candidateId: candidate.id,
+    probability: support.probability,
+    reason: "The anchored receipts directly support the completion claim.",
+    anchors: candidate.evidence,
+  };
 }
 
 export function deriveSemanticFindings(
@@ -218,12 +242,19 @@ const SUPPORT_CRITERIA = {
 export type SemanticEvaluationResult = {
   schemaVersion: typeof SEMANTIC_QUALITY_SCHEMA_VERSION;
   provider: SystemOneProvider["name"];
-  model: string;
+  requestedModel: string;
+  resolvedModels: string[];
+  modelReceipts: Array<{
+    candidateIds: string[];
+    requestedModel: string;
+    resolvedModel?: string;
+  }>;
   assessments: CandidateAssessment[];
   unavailable: Array<{ candidateId: string; reason: string }>;
 };
 
 export type SemanticEvaluationOptions = {
+  maxCandidates?: number;
   maxBatchCandidates?: number;
   maxConcurrency?: number;
   timeoutMs?: number;
@@ -266,7 +297,9 @@ function buildBatch(candidates: SemanticCandidate[]): EvaluationBatch {
   });
   return {
     candidates,
-    state: JSON.stringify({ candidates }),
+    state: JSON.stringify({ candidates }, (_key, value) =>
+      typeof value === "string" ? redactText(value) : value,
+    ),
     questions,
   };
 }
@@ -276,13 +309,22 @@ function choiceOutcome<T extends string>(
   allowed: readonly T[],
 ): ChoiceOutcome<T> | undefined {
   if (!answer || answer.type !== "choice" || !allowed.includes(answer.choice as T)) return undefined;
-  const selectedProbability = answer.probabilities[answer.choice];
-  if (typeof selectedProbability !== "number" || !Number.isFinite(selectedProbability)) return undefined;
+  const isProbability = (value: unknown): value is number =>
+    typeof value === "number" && Number.isFinite(value) && value >= 0 && value <= 1;
+  const selectedProbability = answer.probabilities?.[answer.choice];
+  if (!isProbability(selectedProbability)) return undefined;
+  const probabilities = Object.fromEntries(
+    allowed.flatMap((outcome) => {
+      const probability = answer.probabilities[outcome];
+      return isProbability(probability) ? [[outcome, probability] as const] : [];
+    }),
+  );
+  const confidence = isProbability(answer.confidence) ? answer.confidence : undefined;
   return {
     outcome: answer.choice as T,
     probability: selectedProbability,
-    probabilities: answer.probabilities,
-    confidence: answer.confidence,
+    probabilities,
+    ...(confidence === undefined ? {} : { confidence }),
   };
 }
 
@@ -308,7 +350,7 @@ function mapBatchAnswers(
         Object.keys(PURPOSE_CRITERIA) as Array<keyof typeof PURPOSE_CRITERIA>,
       );
       if (!oracleOrigin || !assertionTarget || !limitedPurpose) {
-        unavailable.push({ candidateId: candidate.id, reason: "malformed_or_missing_answer" });
+        unavailable.push({ candidateId: candidate.id, reason: "provider_malformed_answer" });
         return;
       }
       assessments.push({ candidateId: candidate.id, oracleOrigin, assertionTarget, limitedPurpose });
@@ -319,7 +361,7 @@ function mapBatchAnswers(
       Object.keys(SUPPORT_CRITERIA) as Array<keyof typeof SUPPORT_CRITERIA>,
     );
     if (!completionSupport) {
-      unavailable.push({ candidateId: candidate.id, reason: "malformed_or_missing_answer" });
+      unavailable.push({ candidateId: candidate.id, reason: "provider_malformed_answer" });
       return;
     }
     assessments.push({ candidateId: candidate.id, completionSupport });
@@ -337,15 +379,41 @@ function chunks<T>(values: T[], size: number): T[][] {
   return result;
 }
 
+function candidateContainsCredentialPath(candidate: SemanticCandidate): boolean {
+  if (candidate.kind === "completion_claim") {
+    return candidate.evidence.some((receipt) => isCredentialPath(receipt.path));
+  }
+  return [candidate.test, candidate.target, candidate.contract, ...candidate.dependencyEvidence]
+    .filter((anchor): anchor is EvidenceAnchor => Boolean(anchor))
+    .some((anchor) => isCredentialPath(anchor.path));
+}
+
+function providerFailureReason(error: unknown): string {
+  if (!(error instanceof SystemOneProviderError)) return "provider_unavailable";
+  if (error.kind === "timeout") return "provider_timeout";
+  if (error.kind === "quota") return "provider_quota";
+  if (error.kind === "malformed_response") return "provider_malformed_response";
+  return "provider_unavailable";
+}
+
 export async function evaluateSemanticCandidates(
   candidates: SemanticCandidate[],
   provider: SystemOneProvider,
   options: SemanticEvaluationOptions = {},
 ): Promise<SemanticEvaluationResult> {
-  const batchSize = positiveInteger(options.maxBatchCandidates, 4);
-  const concurrency = positiveInteger(options.maxConcurrency, 2);
-  const batches = chunks(candidates, batchSize).map(buildBatch);
-  const results: Array<ReturnType<typeof mapBatchAnswers> | undefined> = new Array(batches.length);
+  const candidateLimit = Math.min(positiveInteger(options.maxCandidates, 32), 256);
+  const batchSize = Math.min(positiveInteger(options.maxBatchCandidates, 4), 16);
+  const concurrency = Math.min(positiveInteger(options.maxConcurrency, 2), 8);
+  const boundedCandidates = candidates.slice(0, candidateLimit);
+  const skippedCandidates = candidates.slice(candidateLimit);
+  const credentialExcluded = boundedCandidates.filter(candidateContainsCredentialPath);
+  const eligibleCandidates = boundedCandidates.filter((candidate) => !candidateContainsCredentialPath(candidate));
+  const batches = chunks(eligibleCandidates, batchSize).map(buildBatch);
+  const results: Array<(
+    ReturnType<typeof mapBatchAnswers> & {
+      modelReceipt?: SemanticEvaluationResult["modelReceipts"][number];
+    }
+  ) | undefined> = new Array(batches.length);
   let nextBatch = 0;
 
   const workers = Array.from({ length: Math.min(concurrency, batches.length) }, async () => {
@@ -353,14 +421,37 @@ export async function evaluateSemanticCandidates(
       const batchIndex = nextBatch++;
       const batch = batches[batchIndex]!;
       try {
-        const answers = await provider.evaluate(batch.state, batch.questions, options.timeoutMs ?? 15_000);
-        results[batchIndex] = mapBatchAnswers(batch.candidates, answers);
-      } catch {
+        let evaluated;
+        if (provider.evaluateWithMetadata) {
+          evaluated = await provider.evaluateWithMetadata(
+            batch.state,
+            batch.questions,
+            options.timeoutMs ?? 15_000,
+          );
+        } else {
+          const answers = await provider.evaluate(batch.state, batch.questions, options.timeoutMs ?? 15_000);
+          const observed = [...(provider.resolvedModels ?? [])];
+          evaluated = {
+            answers,
+            requestedModel: provider.requestedModel ?? options.model ?? "typesafe/jev-1.13",
+            resolvedModel: observed.length === 1 ? observed[0] : undefined,
+          };
+        }
+        results[batchIndex] = {
+          ...mapBatchAnswers(batch.candidates, evaluated.answers),
+          modelReceipt: {
+            candidateIds: batch.candidates.map((candidate) => candidate.id),
+            requestedModel: evaluated.requestedModel,
+            ...(evaluated.resolvedModel ? { resolvedModel: evaluated.resolvedModel } : {}),
+          },
+        };
+      } catch (error) {
+        const reason = providerFailureReason(error);
         results[batchIndex] = {
           assessments: [],
           unavailable: batch.candidates.map((candidate) => ({
             candidateId: candidate.id,
-            reason: "provider_unavailable",
+            reason,
           })),
         };
       }
@@ -371,8 +462,20 @@ export async function evaluateSemanticCandidates(
   return {
     schemaVersion: SEMANTIC_QUALITY_SCHEMA_VERSION,
     provider: provider.name,
-    model: options.model ?? "typesafe/jev-1.13",
+    requestedModel: provider.requestedModel ?? options.model ?? "typesafe/jev-1.13",
+    resolvedModels: [...(provider.resolvedModels ?? [])].sort(),
+    modelReceipts: results.flatMap((result) => result?.modelReceipt ? [result.modelReceipt] : []),
     assessments: results.flatMap((result) => result?.assessments ?? []),
-    unavailable: results.flatMap((result) => result?.unavailable ?? []),
+    unavailable: [
+      ...results.flatMap((result) => result?.unavailable ?? []),
+      ...credentialExcluded.map((candidate) => ({
+        candidateId: candidate.id,
+        reason: "credential_path_excluded",
+      })),
+      ...skippedCandidates.map((candidate) => ({
+        candidateId: candidate.id,
+        reason: "candidate_limit_exceeded",
+      })),
+    ],
   };
 }

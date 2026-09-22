@@ -12,6 +12,8 @@
 !/bin/**
 !/system-one/
 !/system-one/**
+!/candidates/
+!/candidates/**
 !/.githooks/
 !/.githooks/**
 !/.github/
