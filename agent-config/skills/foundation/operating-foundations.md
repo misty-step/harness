@@ -1,46 +1,27 @@
 # Operating foundations
 
-Use the concerns that bear on this project's direction or transition. A private
-utility and a live multi-user product need different foundations; absence alone
-does not justify a new platform or work item.
+The canonical authority is the versioned
+[Foundation Standard v1](foundation-standard-v1.md). This file is a compatibility
+pointer for existing links; it does not redefine its obligations.
 
-## Ability to change
+During a Foundation assessment, map the project's real change, transition, runtime,
+data, and user-journey capabilities to the standard. Keep these distinctions clear:
 
-Can a fresh agent exercise the core user outcome or consumer contract, distinguish
-success from plausible failure, and clean up in an authorized environment? Inspect
-repository-owned procedures, commands, representative data, isolated identities,
-and external-service dependencies where they affect that answer. A skill file,
-successful tool invocation, or historical receipt does not establish capability.
-Missing or unreliable verification is a development constraint; recommend the
-smallest repair. Creating it requires a separately commissioned
-`verification-infrastructure` pass.
+- `pending` means applicability or proof is not yet settled. It may pass structural
+  lint but remains non-pass for compliance and release.
+- `not_applicable` means an obligation's predicate is false; `exception` means it
+  applies but has a temporary waiver. Both reference a genuine separately reviewed
+  owner decision; an inline name or committed allowlist grants no authority.
+- Presence, syntax, semantic adequacy, and exercised runtime coverage are separate
+  evidence layers. Never promote an SDK, config file, schema, or declared pass into
+  proof of live behavior.
 
-Judge checks, local development, CI, builds, and recovery by consequential failures
-they catch or prevent, not tool count. Prefer a pokayoke — a check or missing
-affordance that makes a failure class impossible — over instructions that warn
-about it. Assess reproducibility or a retained preview only where the development
-workflow needs it. Documentation and backlog should preserve intent and ownership
-without competing sources of truth.
+## Retained operating preferences
 
-## Hosting and transition
+When hosting choices matter, compare local, edge-native, and persistent Linux execution; a hybrid must remove more work than its boundary adds. This is a design preference, not another compliance obligation.
 
-Separate changing hosts from changing database, identity, real-time, or job
-contracts. Compare local, edge-native, and persistent Linux execution when those
-choices matter; a hybrid must remove more work than its boundary adds. Current
-deployment evidence—not old hosting declarations or a separate local
-implementation—establishes whether a cutover is complete.
+Treat missing or unreliable verification as a development constraint and recommend the smallest repair. Creating verification infrastructure requires a separately commissioned verification-infrastructure pass; do not hide that scope inside the implementation being assessed.
 
-Account for migration safety, artifact identity, recovery, and operator ownership.
-A proposed remote workspace or preview must respect its account, authorization,
-private data, exposure, and lifetime boundaries; an assessment is not permission
-to provision or publish it.
-
-## Ability to serve users
-
-Can operators diagnose failures and recover, and can they tell whether promised
-journeys actually happen? Uptime and error reporting do not prove product success.
-For a session game, relevant evidence might be rooms forming, play starting, and
-sessions completing. Prefer existing records or first-party events to another
-platform. Keep player content and durable identifiers out of payloads unless the
-product requires them. A private or local-only tool may need no product telemetry.
-Recommend only the observation needed for a real product or operating decision.
+Recommend the smallest repair that closes the consequential gap. Implementation,
+service provisioning, recurring execution, and publication remain separately
+authorized actions.

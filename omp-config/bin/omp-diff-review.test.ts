@@ -96,7 +96,7 @@ describe("Diff Review - Rule Battery Violations", () => {
 		expect(verdict.blocks.some((b) => b.rule === "authority_escalation")).toBe(true);
 	});
 
-	test("blocks needless abstraction class with single-caller delegation", async () => {
+	test("warns on needless abstraction class with single-caller delegation", async () => {
 		const sprawlDiff = `diff --git a/src/service.ts b/src/service.ts
 --- a/src/service.ts
 +++ b/src/service.ts
@@ -108,11 +108,13 @@ describe("Diff Review - Rule Battery Violations", () => {
 +}
 `;
 		const verdict = await evaluateDiff(sprawlDiff, { provider: engine });
-		expect(verdict.passed).toBe(false);
-		expect(verdict.blocks.some((b) => b.rule === "needless_abstraction")).toBe(true);
+		expect(verdict.passed).toBe(true);
+		expect(verdict.clean).toBe(false);
+		expect(verdict.blocks).toHaveLength(0);
+		expect(verdict.warnings.some((warning) => warning.rule === "needless_abstraction")).toBe(true);
 	});
 
-	test("blocks pokayoke violation when fix silences error instead of structural fix", async () => {
+	test("warns on pokayoke violation when fix silences error instead of structural fix", async () => {
 		const badFixDiff = `diff --git a/src/reader.ts b/src/reader.ts
 --- a/src/reader.ts
 +++ b/src/reader.ts
@@ -124,11 +126,14 @@ describe("Diff Review - Rule Battery Violations", () => {
 +}
 `;
 		const verdict = await evaluateDiff(badFixDiff, { provider: engine });
-		expect(verdict.passed).toBe(false);
-		expect(verdict.blocks.some((b) => b.rule === "pokayoke_mechanism" || b.rule === "preserves_root_cause")).toBe(true);
+		expect(verdict.passed).toBe(true);
+		expect(verdict.clean).toBe(false);
+		expect(verdict.blocks).toHaveLength(0);
+		expect(verdict.warnings.some((warning) => warning.rule === "pokayoke_mechanism")).toBe(true);
+		expect(verdict.warnings.some((warning) => warning.rule === "preserves_root_cause")).toBe(true);
 	});
 
-	test("blocks test padding tautologies", async () => {
+	test("warns on test padding tautologies", async () => {
 		const paddingDiff = `diff --git a/test/sanity.test.ts b/test/sanity.test.ts
 --- a/test/sanity.test.ts
 +++ b/test/sanity.test.ts
@@ -139,8 +144,10 @@ describe("Diff Review - Rule Battery Violations", () => {
 +});
 `;
 		const verdict = await evaluateDiff(paddingDiff, { provider: engine });
-		expect(verdict.passed).toBe(false);
-		expect(verdict.blocks.some((b) => b.rule === "is_test_padding")).toBe(true);
+		expect(verdict.passed).toBe(true);
+		expect(verdict.clean).toBe(false);
+		expect(verdict.blocks).toHaveLength(0);
+		expect(verdict.warnings.some((warning) => warning.rule === "is_test_padding")).toBe(true);
 	});
 		test("warns on Hickey complecting, erasure, and small_app strategy findings", async () => {
 			const strategyDiff = `diff --git a/src/core.ts b/src/core.ts

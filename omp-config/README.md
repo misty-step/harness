@@ -518,14 +518,16 @@ authenticated scripts, pass entries, `.env.pass`, and migrated project execution
 OMP automatically discovers it when installed together with `pass-env` by the
 `secrets` component (or `all`), without a global AGENTS secret policy.
 
-`foundation` is a first-principles investigation and design proposal, not an
-implementation pass or an infrastructure checklist. It distinguishes an ideal
-destination from a practical transition; preserving a sound system is a valid
-conclusion. Its [operating reference](../agent-config/skills/foundation/operating-foundations.md)
-is conditional context when verification, hosting, deployment, or operation
-could change the recommendation. Invoke `/skill:foundation` with context or
-constraints the repository cannot supply; select the model separately. Backlog
-changes and implementation remain separately authorized work.
+`foundation` is a first-principles assessment and repair procedure, not an
+implementation pass or a second policy source. It reads the canonical
+[Foundation Standard v1](../agent-config/skills/foundation/foundation-standard-v1.md),
+maps only obligations applicable to the project's capabilities, and distinguishes
+an ideal destination from a practical transition; preserving a sound system is a
+valid conclusion. The [operating pointer](../agent-config/skills/foundation/operating-foundations.md)
+keeps older links valid without redefining the standard. Invoke
+`/skill:foundation` with context or constraints the repository cannot supply;
+select the model separately. Backlog changes and implementation remain separately
+authorized work.
 
 Use `/skill:agent-ergonomics [optional scope or focus]` to consider the project
 from the agent driver's seat: accurate understanding and effective control at
