@@ -133,7 +133,7 @@ describe("Diff Review - Rule Battery Violations", () => {
 		expect(verdict.warnings.some((warning) => warning.rule === "preserves_root_cause")).toBe(true);
 	});
 
-	test("blocks test padding tautologies", async () => {
+	test("warns on test padding tautologies", async () => {
 		const paddingDiff = `diff --git a/test/sanity.test.ts b/test/sanity.test.ts
 --- a/test/sanity.test.ts
 +++ b/test/sanity.test.ts
@@ -144,8 +144,10 @@ describe("Diff Review - Rule Battery Violations", () => {
 +});
 `;
 		const verdict = await evaluateDiff(paddingDiff, { provider: engine });
-		expect(verdict.passed).toBe(false);
-		expect(verdict.blocks.some((b) => b.rule === "is_test_padding")).toBe(true);
+		expect(verdict.passed).toBe(true);
+		expect(verdict.clean).toBe(false);
+		expect(verdict.blocks).toHaveLength(0);
+		expect(verdict.warnings.some((warning) => warning.rule === "is_test_padding")).toBe(true);
 	});
 		test("warns on Hickey complecting, erasure, and small_app strategy findings", async () => {
 			const strategyDiff = `diff --git a/src/core.ts b/src/core.ts

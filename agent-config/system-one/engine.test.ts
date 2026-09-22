@@ -147,6 +147,22 @@ describe("parseRuleFindings confidence policy", () => {
 		}
 	});
 
+	test("keeps high-confidence test padding visible without blocking", () => {
+		const findings = parseRuleFindings({
+			is_test_padding: { type: "noul", probability: 0.9, confidence: 0.8 },
+		});
+		expect(findings.blocks).toHaveLength(0);
+		expect(findings.warnings).toEqual([{
+			rule: "is_test_padding",
+			category: "verification",
+			severity: "warning",
+			message: "Test padding detected (tautology or bare not-throw). Delete padding.",
+			evidence: "Probability: 0.90, Confidence: 0.80",
+			probability: 0.9,
+			confidence: 0.8,
+		}]);
+	});
+
 	test("keeps all four legacy security findings blocking", () => {
 		const findings = parseRuleFindings({
 			credential_leak: { type: "noul", probability: 0.76, confidence: 0.52 },

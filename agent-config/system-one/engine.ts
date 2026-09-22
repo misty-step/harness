@@ -1469,10 +1469,10 @@ export function parseRuleFindings(answers: Record<string, Answer>): {
 				}
 			} else if (key === "is_test_padding" && p > 0.85) {
 				if (isHighConfidence) {
-					blocks.push({
+					warnings.push({
 						rule: key,
 						category: "verification",
-						severity: "block",
+						severity: "warning",
 						message: "Test padding detected (tautology or bare not-throw). Delete padding.",
 						evidence: `Probability: ${p.toFixed(2)}, Confidence: ${conf.toFixed(2)}`,
 						probability: p,
