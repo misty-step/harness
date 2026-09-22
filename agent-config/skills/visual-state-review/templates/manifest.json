@@ -1,0 +1,32 @@
+{
+  "title": "App · Visual state review",
+  "summary": "",
+  "notes": "Screenshots verify appearance. They do not prove backend operations occurred.",
+  "capturedAt": "",
+  "states": [
+    {
+      "id": "01-home-dark",
+      "file": "01-home-dark.png",
+      "group": "home",
+      "size": "1280x720",
+      "scroll": "top",
+      "theme": "dark",
+      "kind": "live",
+      "status": "captured"
+    },
+    {
+      "id": "02-empty",
+      "file": "02-empty.png",
+      "group": "empty",
+      "size": "1280x720",
+      "scroll": "top",
+      "theme": "dark",
+      "kind": "live",
+      "status": "skipped",
+      "reason": "replace with a real empty state or keep skipped with a reason"
+    }
+  ],
+  "coverage": [],
+  "limitations": [],
+  "findings": []
+}

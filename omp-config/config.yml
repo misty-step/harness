@@ -1,0 +1,122 @@
+modelRoles:
+  default: openrouter/z-ai/glm-5.3:high
+  slow: openai-codex/gpt-6-astra:high
+  extreme: openai-codex/gpt-6-astra:max
+  plan: openrouter/z-ai/glm-5.3:high
+  advisor: openrouter/z-ai/glm-5.3:high
+  task: openrouter/deepseek/deepseek-v4.1-flash:max
+  reviewer: google-antigravity/gemini-3.8-flash:high
+  security-reviewer: openai-codex/gpt-6-astra:max
+  vision: google-antigravity/gemini-3.8-flash:high
+  smol: openrouter/z-ai/glm-5.3-flash:max
+  tiny: openrouter/z-ai/glm-5.3-flash:max
+  commit: openrouter/z-ai/glm-5.3-flash:max
+cycleOrder: [smol, default, extreme]
+symbolPreset: nerd
+theme:
+  dark: tokyonight
+  light: everforest-light
+statusLine:
+  preset: custom
+  separator: none
+  transparent: true
+  sessionAccent: true
+  compactThinkingLevel: true
+  showHookStatus: false
+  leftSegments:
+    - status
+    - model
+    - git
+    - mode
+    - subagents
+  rightSegments:
+    - session_name
+    - context_pct
+    - cost
+  segmentOptions:
+    git:
+      showBranch: true
+      showStaged: true
+      showUnstaged: true
+      showUntracked: true
+tui:
+  tight: false
+  hyperlinks: auto
+  renderMermaid: true
+  scrollbackRebuild: true
+  titleState: true
+display:
+  shimmer: classic
+  smoothStreaming: true
+  showTokenUsage: true
+  cacheMissMarker: true
+browser:
+  relay: true
+  headless: true
+  cmux: false
+setupVersion: 2
+composer:
+  shape: pi
+skills:
+  enableAgentsUser: true
+github:
+  enabled: true
+secrets:
+  enabled: true
+tools:
+  approvalMode: yolo
+advisor:
+  enabled: true
+  syncBacklog: "off"
+providers:
+  tinyModel: lfm2-350m
+  webSearchOrder:
+    - exa
+retry:
+  fallbackChains:
+    default:
+      - openrouter/z-ai/glm-5.3-flash:max
+      - openrouter/deepseek/deepseek-v4.1-flash:max
+      - xai-oauth/grok-4.6:xhigh
+      - openrouter/meta/muse-spark-1.3-contributor:max
+      - openai-codex/gpt-6-astra:low
+    vision:
+      - openrouter/z-ai/glm-5.3-flash:max
+      - openrouter/deepseek/deepseek-v4.1-flash:max
+      - xai-oauth/grok-4.6:xhigh
+      - openrouter/meta/muse-spark-1.3-contributor:max
+      - openai-codex/gpt-6-astra:low
+    smol:
+      - openrouter/z-ai/glm-5.3-flash:max
+      - openrouter/deepseek/deepseek-v4.1-flash:max
+      - xai-oauth/grok-4.6:xhigh
+      - openrouter/meta/muse-spark-1.3-contributor:max
+      - openai-codex/gpt-6-astra:low
+    tiny:
+      - openrouter/z-ai/glm-5.3-flash:max
+      - openrouter/deepseek/deepseek-v4.1-flash:max
+      - xai-oauth/grok-4.6:xhigh
+      - openrouter/meta/muse-spark-1.3-contributor:max
+      - openai-codex/gpt-6-astra:low
+    commit:
+      - openrouter/z-ai/glm-5.3-flash:max
+      - openrouter/deepseek/deepseek-v4.1-flash:max
+      - xai-oauth/grok-4.6:xhigh
+      - openrouter/meta/muse-spark-1.3-contributor:max
+      - openai-codex/gpt-6-astra:low
+task:
+  maxRecursionDepth: 3
+  showResolvedModelBadge: true
+  enableLsp: true
+  isolation:
+    enabled: false
+    apply: true
+    merge: patch
+  agentModelOverrides:
+    task: "@task"
+    scout: "@smol"
+    sonic: "@smol"
+    reviewer: "@reviewer"
+    security-reviewer: "@security-reviewer"
+isolation:
+  backend: auto

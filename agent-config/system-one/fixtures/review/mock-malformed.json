@@ -1,0 +1,8 @@
+{
+	"answers": {
+		"sec::secret_material": { "type": "noul" },
+		"sec::injection_build": { "probability": 0.9, "confidence": 0.9 },
+		"ops::blast_radius": { "type": "score", "score": "high", "confidence": 0.9 },
+		"tests::missing_regression": { "type": "noul", "probability": 0.8, "confidence": 0.2 }
+	}
+}

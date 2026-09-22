@@ -1,0 +1,40 @@
+/*
+!/.gitignore
+!/README.md
+!/AGENTS.md
+!/install
+!/config.yml
+!/mcp.json
+!/workspace-mcp.json
+!/models.yml
+!/global/
+!/global/**
+!/.agents/
+/.agents/*
+!/.agents/skills/
+/.agents/skills/*
+!/.agents/skills/writing-for-agents/
+!/.agents/skills/writing-for-agents/**
+!/agents/
+!/agents/**
+!/themes/
+!/themes/**
+!/.githooks/
+!/.githooks/**
+!/extensions/
+!/extensions/**
+!/bin/
+!/bin/**
+
+# Telemetry tooling (repo-local, not deployed)
+!references/
+!references/**
+
+# Publish this approved incident record; keep other postmortems local by default.
+!/postmortems/
+/postmortems/*
+!/postmortems/2026-09-09-workstation-memory-exhaustion.md
+!/postmortems/TEMPLATE.md
+
+# Python bytecode caches (bin/ is whitelisted above; keep caches out anyway)
+__pycache__/

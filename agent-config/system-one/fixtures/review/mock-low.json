@@ -1,0 +1,19 @@
+{
+	"answers": {
+		"sec::secret_material": { "type": "noul", "probability": 0.1, "confidence": 0.9 },
+		"sec::injection_build": { "type": "noul", "probability": 0.1, "confidence": 0.9 },
+		"sec::authz_boundary": { "type": "noul", "probability": 0.1, "confidence": 0.9 },
+		"sec::untrusted_exec": { "type": "noul", "probability": 0.1, "confidence": 0.9 },
+		"corr::semantic_defect": { "type": "noul", "probability": 0.1, "confidence": 0.9 },
+		"corr::concurrency": { "type": "noul", "probability": 0.1, "confidence": 0.9 },
+		"corr::error_failopen": { "type": "noul", "probability": 0.1, "confidence": 0.9 },
+		"tests::deleted_weakened": { "type": "noul", "probability": 0.1, "confidence": 0.9 },
+		"tests::missing_regression": { "type": "noul", "probability": 0.1, "confidence": 0.9 },
+		"api::breaking_change": { "type": "noul", "probability": 0.1, "confidence": 0.9 },
+		"data::destructive": { "type": "noul", "probability": 0.1, "confidence": 0.9 },
+		"deps::supply_chain": { "type": "noul", "probability": 0.1, "confidence": 0.9 },
+		"ops::observability": { "type": "noul", "probability": 0.1, "confidence": 0.9 },
+		"ops::blast_radius": { "type": "score", "score": 2, "probabilities": {}, "confidence": 0.9 },
+		"intent::description_mismatch": { "type": "noul", "probability": 0.1, "confidence": 0.9 }
+	}
+}

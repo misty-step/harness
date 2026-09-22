@@ -1,0 +1,20 @@
+{
+  "theme": "omarchy-system",
+  "defaultProvider": "openrouter",
+  "defaultModel": "deepseek/deepseek-v4.1-flash",
+  "modelThinkingLevels": {
+    "openrouter/deepseek/deepseek-v4.1-flash": "xhigh",
+    "openrouter/inception/mercury-2.5": "high"
+  },
+  "retry": {
+    "enabled": true,
+    "maxRetries": 3,
+    "baseDelayMs": 2000
+  },
+  "editorPaddingX": 2,
+  "outputPad": 1,
+  "fullscreenScrollbar": "always",
+  "markdown": {
+    "codeBlockIndent": "  "
+  }
+}

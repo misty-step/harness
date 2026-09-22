@@ -1,0 +1,39 @@
+{
+	"_note": "Synthetic regression fixture for evidence-packet replay. Not an observed run.",
+	"name": "stale-revision",
+	"packet": {
+		"packetVersion": "evidence-1",
+		"kind": "completion",
+		"taskId": "T-300",
+		"requirements": ["Add the evidence packet builders"],
+		"exclusions": [],
+		"claimedOutcome": {
+			"summary": "Committed the new module.",
+			"claims": ["Suite green at the claimed revision"]
+		},
+		"revision": { "claimed": "abc1234", "actual": "def5678" },
+		"artifacts": [],
+		"refs": [
+			{
+				"id": "revision-1",
+				"kind": "revision",
+				"summary": "revision observed at review time",
+				"source": "git rev-parse HEAD",
+				"status": "ok"
+			},
+			{
+				"id": "test-1",
+				"kind": "test",
+				"summary": "bun test bin/ passed",
+				"source": "agent-config/bin/evidence.test.ts",
+				"status": "ok"
+			}
+		]
+	},
+	"stubAnswers": {
+		"completion::claim_unsupported": { "noul": 0.1 },
+		"completion::evidence_sufficient": { "noul": 0.8 },
+		"completion::missing_evidence": { "choice": "none_of_these" },
+		"completion::acceptance_weakened": { "noul": 0.05 }
+	}
+}

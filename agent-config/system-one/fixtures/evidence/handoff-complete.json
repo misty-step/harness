@@ -1,0 +1,32 @@
+{
+	"_note": "Synthetic regression fixture for evidence-packet replay. Not an observed run.",
+	"name": "handoff-complete",
+	"packet": {
+		"packetVersion": "evidence-1",
+		"kind": "handoff",
+		"sourceTask": {
+			"id": "T-201",
+			"requirements": ["Ship the evidence packet builders", "Keep the change to new files only"],
+			"exclusions": ["Do not modify scripts/verify"]
+		},
+		"delegation": {
+			"assignee": "agent-3",
+			"title": "Ship evidence builders",
+			"body": "Ship the evidence packet builders as new files only; do not modify scripts/verify."
+		},
+		"refs": [
+			{
+				"id": "brief-1",
+				"kind": "artifact",
+				"summary": "delegated brief text",
+				"source": "handoff:agent-3",
+				"status": "ok"
+			}
+		]
+	},
+	"stubAnswers": {
+		"handoff::requirement_dropped": { "noul": 0.03 },
+		"handoff::evidence_sufficient": { "noul": 0.94 },
+		"handoff::dropped_kind": { "choice": "none_of_these" }
+	}
+}

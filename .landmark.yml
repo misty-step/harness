@@ -1,0 +1,17 @@
+product:
+  name: harness
+  description: Misty Step agent configuration. Shared primitives and thin pi and OMP adapters in one versioned workspace.
+audience: general
+voice: clear, specific, user-facing
+changelog:
+  source: auto
+artifacts:
+  markdown: docs/releases/{version}.md
+  json: docs/releases/releases.json
+release:
+  profile: full
+model:
+  policy: balanced
+budget:
+  max_input_tokens: 12000
+  max_output_tokens: 1200

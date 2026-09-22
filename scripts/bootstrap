@@ -1,0 +1,14 @@
+#!/bin/sh
+# Repository setup only: never deploy runtime configuration.
+set -eu
+root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+for tool in git gitleaks trufflehog; do
+  command -v "$tool" >/dev/null 2>&1 || { echo "$tool is required" >&2; exit 1; }
+done
+[ "$(git -C "$root" rev-parse --show-toplevel)" = "$root" ] || {
+  echo 'Run bootstrap from a complete harness checkout' >&2; exit 1;
+}
+old=$(git -C "$root" config --local --get core.hooksPath || :)
+case "$old" in ''|.githooks) ;; *) echo "Preserving foreign core.hooksPath: $old" >&2; exit 1 ;; esac
+git -C "$root" config --local core.hooksPath .githooks
+printf 'Configured root pre-push scanners; no runtime deployment.\n'

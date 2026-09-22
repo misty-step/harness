@@ -1,0 +1,288 @@
+{
+  "job_kind": {
+    "type": "choice",
+    "instructions": {
+      "question": "What kind of factory spawn is this work?",
+      "inspect": "`work` and `dispatch`",
+      "focus": "If `dispatch.slot` is set, prefer that slot. Otherwise infer from the work."
+    },
+    "criteria": {
+      "implement": {
+        "what": "Write or change code/config to satisfy a ticket or fix a PR.",
+        "not_for": "Judging an existing diff, walking a running app, or prose-only.",
+        "examples": [
+          "Fix the vitest 5 bump",
+          "Stop Next from dirtying AGENTS.md"
+        ]
+      },
+      "review": {
+        "what": "Judge an existing pull request or diff. Do not implement.",
+        "not_for": "Opening the PR or walking the UI.",
+        "examples": [
+          "Review the guest-session auth fix"
+        ]
+      },
+      "qa_walk": {
+        "what": "Exercise a running candidate as a human in the browser and as an agent via CLI/API.",
+        "not_for": "Reading the diff only, or docs-only contracts.",
+        "examples": [
+          "Walk the new Dashboard in dark and light"
+        ]
+      },
+      "infra": {
+        "what": "Hosting, DNS, TLS, cutover, machines, secrets, deploy identity.",
+        "not_for": "App feature code that happens to mention production.",
+        "examples": [
+          "Cut Scry off exe.dev onto Cloudflare"
+        ]
+      },
+      "docs": {
+        "what": "Prose, USER_STORIES, guidance, eval notes. No runtime behavior change.",
+        "not_for": "Code that happens to include a README.",
+        "examples": [
+          "One guidance bullet about decision-grade context"
+        ]
+      },
+      "none_of_these": {
+        "what": "None of the slots fit, or the work should not be spawned."
+      }
+    }
+  },
+  "difficulty": {
+    "type": "score",
+    "instructions": {
+      "question": "How hard is this spawn for a competent factory agent?",
+      "inspect": "`work`",
+      "focus": "Judge implementation/review difficulty, not political stakes."
+    },
+    "criteria": [
+      {
+        "what": "Localized or mechanical. One recipe, few files, a known pairing.",
+        "signals": [
+          "Dep bump with a documented trap",
+          "One guidance bullet",
+          "Test isolation scrub"
+        ]
+      },
+      {
+        "what": "Standard feature or bug with a written contract.",
+        "signals": [
+          "UI next-action chrome",
+          "QA harness cleanliness",
+          "Eval case without audio"
+        ]
+      },
+      {
+        "what": "Architecture, auth, new subsystem, or production identity/cutover.",
+        "signals": [
+          "Guest session ownership",
+          "Cloudflare Access JWT adapter",
+          "Dashboard IA rewrite"
+        ]
+      }
+    ]
+  },
+  "stakes": {
+    "type": "score",
+    "instructions": {
+      "question": "What is hurt if this spawn is wrong?",
+      "inspect": "`work`",
+      "focus": "Consequences, not difficulty."
+    },
+    "criteria": [
+      {
+        "what": "Low. Copy, docs, eval notes, cosmetic chrome.",
+        "signals": [
+          "Guidance bullet",
+          "Phrase-confusion eval"
+        ]
+      },
+      {
+        "what": "Product correctness. Users see wrong UI or a broken loop.",
+        "signals": [
+          "Reveal next actions",
+          "Dashboard floor",
+          "Vitest types in CI"
+        ]
+      },
+      {
+        "what": "Auth, secrets, money, production DNS/TLS, data isolation.",
+        "signals": [
+          "Guest token reuse",
+          "Cloudflare Access",
+          "Retired production runtime"
+        ]
+      }
+    ]
+  },
+  "review_depth": {
+    "type": "choice",
+    "instructions": {
+      "question": "How thoroughly should a review or walk of this work be?",
+      "inspect": "`work` and `dispatch`",
+      "focus": "Even implement spawns may later need a review depth. Pick the depth this artifact deserves."
+    },
+    "criteria": {
+      "skip": {
+        "what": "No review. Docs or already-merged noise.",
+        "not_for": "Any open PR that can land."
+      },
+      "skim": {
+        "what": "Changelog and lockfile. Check a known pairing trap. Do not deep-read.",
+        "examples": [
+          "Dependabot vitest bump \u2014 confirm coverage-v8 comes along"
+        ]
+      },
+      "standard": {
+        "what": "Read the diff. Run the named tests. Comment a verdict.",
+        "examples": [
+          "QA dirt contract with new tests"
+        ]
+      },
+      "thorough": {
+        "what": "Every named visual state, contracts, and the live candidate.",
+        "examples": [
+          "Dashboard dark/light + project desk"
+        ]
+      },
+      "security": {
+        "what": "Auth, session, identity headers, secrets, production cutover.",
+        "examples": [
+          "Guest session reuse",
+          "Access JWT at the edge"
+        ]
+      },
+      "none_of_these": {
+        "what": "Does not need a depth label."
+      }
+    }
+  },
+  "walk_type": {
+    "type": "choice",
+    "instructions": {
+      "question": "If this is walked before merge, which walk type?",
+      "inspect": "`work`",
+      "focus": "Factory fail-closed default is ui_browser when unsure."
+    },
+    "criteria": {
+      "ui_browser": {
+        "what": "A human-visible screen changed. Browser walk required.",
+        "examples": [
+          "Dashboard",
+          "Reveal chrome",
+          "Room auth UI"
+        ]
+      },
+      "cli_or_api": {
+        "what": "CLI, API, harness, tests, no user screen.",
+        "examples": [
+          "qa:agent dirt check",
+          "vitest config isolation"
+        ]
+      },
+      "migration_or_data": {
+        "what": "Schema, data, or irreversible store change."
+      },
+      "docs_only": {
+        "what": "USER_STORIES or guidance. Verify cited paths exist.",
+        "examples": [
+          "decision-grade context bullet"
+        ]
+      },
+      "none_of_these": {
+        "what": "No walk."
+      }
+    }
+  },
+  "reasoning_effort": {
+    "type": "choice",
+    "instructions": {
+      "question": "What reasoning effort should the spawned agent use?",
+      "inspect": "`work` and `fleet.seats`",
+      "focus": "Low for mechanical. Max for tool-loop implement. High for review. Do not pick a provider-only level like xhigh unless the work is executive/architecture."
+    },
+    "criteria": {
+      "low": {
+        "what": "Mechanical edit, docs, lockfile, eval JSON."
+      },
+      "high": {
+        "what": "Standard review or feature. Default for Gemini review."
+      },
+      "max": {
+        "what": "Implementation tool loops. DeepSeek builder default."
+      },
+      "none_of_these": {
+        "what": "Effort should stay at the lane pin."
+      }
+    }
+  },
+  "needs_vision": {
+    "type": "noul",
+    "instructions": {
+      "question": "Does this spawn need to look at screenshots or a rendered UI?",
+      "inspect": "`work`"
+    },
+    "criteria": {
+      "true": {
+        "what": "Visual QA, contrast, layout, dark/light brand, browser states."
+      },
+      "false": {
+        "what": "Diff, tests, DNS, lockfile, prose."
+      }
+    }
+  },
+  "needs_human": {
+    "type": "noul",
+    "instructions": {
+      "question": "Must a human decide before an agent spawns or lands this?",
+      "inspect": "`work`",
+      "focus": "Operator-owned exceptions, MX, expired estate exceptions, missing audio takes, paywalled source. Not 'this is hard'."
+    },
+    "criteria": {
+      "true": {
+        "what": "An irreversible or operator-owned choice the agent cannot infer.",
+        "examples": [
+          "Estate expired exceptions",
+          "Record a wav the operator must speak",
+          "Touch MX"
+        ]
+      },
+      "false": {
+        "what": "The factory may spawn. Hard is not human."
+      }
+    }
+  },
+  "seat": {
+    "type": "choice",
+    "instructions": {
+      "question": "Which named fleet seat should run this spawn?",
+      "inspect": "`work`, `dispatch`, and `fleet.seats`",
+      "focus": "Pick the cheapest seat that can complete the job well. Do not pick frontier for deps or docs. Do not pick fast_cerebras for intake, docs, or roam. Prefer verifier_gemini for review and walks that need eyes. Prefer builder_flash for ordinary implementation. Prefer planner_glm for infra design and architecture without vision. Prefer frontier only for high-stakes architecture or security when cheaper seats would likely fail."
+    },
+    "criteria": {
+      "builder_flash": {
+        "what": "DeepSeek V4.1 Flash. Cheap implementer with tools and vision.",
+        "not_for": "Security review, DNS cutover judgment, executive chat."
+      },
+      "planner_glm": {
+        "what": "GLM-5.3. Planning, infra design, multi-constraint. No vision.",
+        "not_for": "Screenshot walks, cheap bumps."
+      },
+      "verifier_gemini": {
+        "what": "Gemini 3.8 Flash. Review, QA, vision.",
+        "not_for": "Long implementation."
+      },
+      "frontier": {
+        "what": "Grok 4.6 xhigh (Astra only if Codex is healthy; never auto-fallback).",
+        "not_for": "Factory grind, deps, docs, roam."
+      },
+      "fast_cerebras": {
+        "what": "Cerebras Qwen 3.8 27B. Fast Pi coding when Flash stalls.",
+        "not_for": "Intake, docs, roam, unattended cheap cards."
+      },
+      "none_of_these": {
+        "what": "Do not spawn, or no seat fits."
+      }
+    }
+  }
+}

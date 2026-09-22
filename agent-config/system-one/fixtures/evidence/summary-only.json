@@ -1,0 +1,32 @@
+{
+	"_note": "Synthetic regression fixture for evidence-packet replay. Not an observed run.",
+	"name": "summary-only",
+	"packet": {
+		"packetVersion": "evidence-1",
+		"kind": "completion",
+		"taskId": "T-309",
+		"requirements": ["Fix the flaky test"],
+		"exclusions": [],
+		"claimedOutcome": {
+			"summary": "Fixed the flaky test and merged PR #42; tests pass.",
+			"claims": []
+		},
+		"revision": { "claimed": "abc1234", "actual": "abc1234" },
+		"artifacts": [],
+		"refs": [
+			{
+				"id": "tool-1",
+				"kind": "tool",
+				"summary": "rerun command exited non-zero",
+				"source": "terminal:run",
+				"status": "failed"
+			}
+		]
+	},
+	"stubAnswers": {
+		"completion::claim_unsupported": { "noul": 0.93 },
+		"completion::evidence_sufficient": { "noul": 0.25 },
+		"completion::missing_evidence": { "choice": "none_of_these" },
+		"completion::acceptance_weakened": { "noul": 0.05 }
+	}
+}

@@ -1,0 +1,4 @@
+advisors:
+  - name: Steward
+    enabled: true
+    tools: [read, grep, glob]
