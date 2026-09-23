@@ -390,9 +390,6 @@ describe("evaluateSemanticCandidates", () => {
     });
     expect(JSON.stringify(result)).not.toContain("SOURCE_ECHO_DO_NOT_CACHE");
   });
-  test("pilot: circular expected value from target logic", () => {
-    expect(deriveSemanticFindings([], [])).toEqual(deriveSemanticFindings([], []));
-  });
   test("pilot: independent empty-result contract", () => {
     expect(deriveSemanticFindings([], [])).toEqual([]);
   });
