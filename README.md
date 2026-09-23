@@ -72,7 +72,7 @@ Use conventional commits and the root issue tracker. Labels `area:shared`,
 units. CI runs all components sequentially in one check job, including both consumers.
 Pull requests use the same commands as local verification.
 
-Landmark produces one release stream from `main`, gated on verification. The
+Landmark produces one release stream from `master`, gated on verification. The
 migration starts a new `v0.1.0` baseline; old component tags are preserved under
 `legacy/<component>/<tag>` so their versions cannot collide. Historical component
 changelogs remain in place; new release notes belong at the root. Optional LLM

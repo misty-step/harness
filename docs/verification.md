@@ -23,7 +23,7 @@ owned directory. Remove only that directory once its process has ended.
 ## Observable contracts
 
 - `scripts/references.test.ts` checks tracked Markdown file targets and canonical
-  `harness/blob/main/` URLs against the working tree. It also deploys all shared
+  `harness/blob/master/` URLs against the working tree. It also deploys all shared
   skills and both guidance compositions into disposable directories and rejects
   missing/out-of-package references, including legacy backticked `references/`
   paths. Regression fixtures reproduce the original defect and package escapes.
