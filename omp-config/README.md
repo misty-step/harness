@@ -664,15 +664,18 @@ the selected model in an existing session.
 | --- | --- |
 | Fresh `omp`, `@default` | `openai-codex/gpt-6-sol:high` |
 | Ordinary `task` workers, `@task` | `openai-codex/gpt-6-sol:high` |
-| `@smol`, `@tiny`, `@commit`; bundled `scout` and `sonic` | `openai-codex/gpt-6-luna:high` |
+| `@smol`, `@commit`; bundled `scout` and `sonic` | `openai-codex/gpt-6-luna:high` |
+| `@tiny` | local LFM2.5-350m first, then configured `openai-codex/gpt-6-luna:high` |
 | `@plan`, `@advisor` | `openai-codex/gpt-6-sol:high` |
 | `@slow` (explicit thorough pass) | `openai-codex/gpt-6-astra:high` |
 | `@extreme` (rare unconstrained reasoning) | `openai-codex/gpt-6-astra:max` |
 | `security-reviewer` | `openai-codex/gpt-6-astra:max` |
 | `reviewer`, `@vision` | `anthropic/claude-opus-5-5:high` |
 
-Sol high is the daily planner and builder; Luna high serves the cheap tier.
-Opus high reviews and inspects images. Astra remains explicit: `@slow` for a
+Sol high is the daily planner and builder; Luna high serves the cloud cheap
+tier. OMP prepends its on-device LFM2.5-350m to the effective `tiny` role
+before the configured Luna option. Opus high reviews and inspects images.
+Astra remains explicit: `@slow` for a
 thorough pass, `@extreme` and `security-reviewer` for unconstrained reasoning
 and security review. Two of four Codex logins and one of three Anthropic logins
 currently authenticate in OMP; do not count the disabled/missing logins as
@@ -705,10 +708,11 @@ Explicit `scout`/`sonic` overrides use `@smol`; its `:high` suffix takes
 precedence over their bundled `medium` thinking defaults. New task/eval
 dispatches reload persisted routing settings, but changing Main's model alone
 does not remap workers. Ordinary workers use Sol; Opus serves `vision` and
-`reviewer`; Luna serves `smol`, `tiny`, `commit`, and `scout`/`sonic` through
-`@smol`. Git commit, rebase, push, and similar mechanical ship steps use
-bundled `sonic` (`@smol`). Omitting `agent` selects `@task`/Sol. Choose agents
-for their roles, not as differently priced implementation workers.
+`reviewer`; Luna serves `smol`, `commit`, and `scout`/`sonic` through `@smol`.
+`tiny` may select the on-device model before Luna. Git commit, rebase, push,
+and similar mechanical ship steps use bundled `sonic` (`@smol`). Omitting
+`agent` selects `@task`/Sol. Choose agents for their roles, not as differently
+priced implementation workers.
 
 The five explicit retry chains are `default`, `vision`, `smol`, `tiny`, and
 `commit`. Sol's default chain tries Luna, then xAI's Grok 4.7, then Opus 5.5,

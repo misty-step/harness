@@ -262,9 +262,11 @@ so routine work uses the accounts I already have without making login failure
 look like additional capacity.
 
 Criteria:
-1. WHEN a fresh OMP session or bundled worker selects a daily, mechanical,
-   review, or deep role, THE SYSTEM SHALL resolve its configured model to the
-   corresponding authenticated Codex or Anthropic subscription route.
+1. WHEN a fresh OMP session or bundled worker selects a daily, `smol`,
+   `commit`, review, or deep role, THE SYSTEM SHALL resolve its configured
+   model to the corresponding authenticated Codex or Anthropic subscription
+   route; WHERE `tiny` selects an on-device model, THE SYSTEM SHALL retain
+   Luna as its configured cloud option before paid API routes.
 2. IF a selected provider fails, THEN THE SYSTEM SHALL offer an image-capable
    subscription route from another provider before a paid OpenRouter route;
    WHERE the primary is Sol, THE SYSTEM MAY first try Luna on Codex.

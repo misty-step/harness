@@ -18,8 +18,9 @@ scope. Make the smallest coherent change that achieves the outcome, preserves
 existing functionality, and avoids unrelated churn.
 
 Daily roles use working subscriptions first: GPT-6 Sol handles default,
-planning, advice, and task work; GPT-6 Luna handles cheap mechanical work
-(`smol`, `tiny`, `commit`); Claude Opus 5.5 handles review and vision.
+planning, advice, and task work; GPT-6 Luna handles `smol` and `commit`;
+`tiny` may use OMP's local model before Luna. Claude Opus 5.5 handles review
+and vision.
 Astra remains strategic, reserved for `@slow`, `@extreme`, and
 `security-reviewer`. Cerebras is retired (operator 2026-09-18: too expensive).
 Mechanical VCS and install-only deploys use `@smol`. Model selections
