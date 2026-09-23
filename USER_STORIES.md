@@ -279,3 +279,30 @@ without Pi-native subscription authentication.
 Evidence: `omp-config/config.yml`, `omp-config/global/AGENTS.md`,
 `omp-config/README.md`, `./scripts/verify omp`, fresh OMP role-selection
 and provider smoke checks.
+
+## Capability: Protected releases
+
+## US-015 Publish verified harness releases
+
+Statement: When a harness change merits a release, I want its generated
+changelog reviewed by the required CI gate before publication, so release
+automation cannot bypass protection on the default branch.
+
+Criteria:
+1. WHEN a verified `master` change warrants a release, THE SYSTEM SHALL stage
+   the generated changelog in a pull request instead of pushing directly to
+   protected `master`.
+2. WHEN that pull request passes the required `verify` check, THE SYSTEM SHALL
+   merge it through branch protection before publishing its version tag and
+   GitHub Release.
+3. IF the release candidate has not landed or its tag points to a different
+   commit, THEN THE SYSTEM SHALL refuse publication.
+4. WHEN the release workflow is retried, THE SYSTEM SHALL preserve an already
+   published version without duplicating its changelog or moving its tag.
+
+No-gos: no default-branch rule bypass and no unverified release commit.
+
+Evidence: `.github/workflows/landmark-release.yml`,
+`../landmark/crates/landmark/src/protected_release.rs`, the protected release
+workflow run and published tag.
+

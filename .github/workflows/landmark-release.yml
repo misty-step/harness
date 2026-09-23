@@ -11,7 +11,7 @@ permissions:
 jobs:
   verify:
     uses: ./.github/workflows/ci.yml
-  release:
+  publish-landed-release:
     needs: verify
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -24,11 +24,67 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
-      - name: Run Landmark
-        uses: misty-step/landmark@d3b07452500e6cdf3ddead1c11ba5584287a80c9
+      - name: Publish only a landed, verified changelog
+        uses: misty-step/landmark@0be932f9fd775f826427eb5ada2f24efb9a393d8 # v0.28.9
         with:
-          mode: full
+          mode: publish-protected
           github-token: ${{ github.token }}
-          node-version: '24'
+          target-sha: ${{ github.sha }}
           synthesis: 'false'
-          healthcheck: 'false'
+  prepare-release-pr:
+    needs: [verify, publish-landed-release]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Prepare candidate changelog
+        id: prepare
+        uses: misty-step/landmark@0be932f9fd775f826427eb5ada2f24efb9a393d8 # v0.28.9
+        with:
+          mode: prepare-protected
+          release-branch: landmark/release
+          github-token: ${{ github.token }}
+          synthesis: 'false'
+      - name: Bootstrap release branch
+        if: steps.prepare.outputs.released == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if ! gh api "repos/${GITHUB_REPOSITORY}/git/ref/heads/landmark/release" --silent; then
+            gh api -X POST "repos/${GITHUB_REPOSITORY}/git/refs" \
+              -f ref=refs/heads/landmark/release -f sha="${GITHUB_SHA}" --silent
+          fi
+      - name: Mint release-bot token
+        if: steps.prepare.outputs.released == 'true'
+        id: bot-token
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ secrets.RELEASE_BOT_APP_ID }}
+          private-key: ${{ secrets.RELEASE_BOT_PRIVATE_KEY }}
+      - name: Open or update verified release pull request
+        if: steps.prepare.outputs.released == 'true'
+        id: release-pr
+        uses: peter-evans/create-pull-request@22a9089034f40e5a961c8808d113e2c98fb63676 # v7
+        with:
+          token: ${{ steps.bot-token.outputs.token }}
+          branch: ${{ steps.prepare.outputs.release-branch }}
+          base: master
+          add-paths: CHANGELOG.md
+          delete-branch: false
+          title: ${{ steps.prepare.outputs.pull-request-title }}
+          commit-message: ${{ steps.prepare.outputs.commit-message }}
+          body: |
+            Automated changelog for `${{ steps.prepare.outputs.release-tag }}` (US-015).
+            Required `verify` must pass before GitHub auto-merges this PR.
+      - name: Merge only after required verification
+        if: steps.release-pr.outputs.pull-request-number != ''
+        env:
+          GH_TOKEN: ${{ steps.bot-token.outputs.token }}
+          PR_NUMBER: ${{ steps.release-pr.outputs.pull-request-number }}
+        run: gh pr merge "$PR_NUMBER" --auto --squash --repo "$GITHUB_REPOSITORY"
