@@ -37,6 +37,7 @@ prompt is: how can I pokayoke this so this kind of error never happens again?
 | `skills/` | Moved to `agent-config`: portable skill packages, clean-replaced when selected |
 | `../.githooks/pre-push` | Root scanners; wired by `../scripts/bootstrap`, not runtime deployment |
 | `extensions/loc/` | Session-resident LOC status and commands |
+| `extensions/credentials/` | Lists pass entry names in every system prompt; names matching entries after an auth failure or a claim that a credential is missing (MIS-161) |
 
 ## Install
 
