@@ -58,6 +58,14 @@ privacy boundaries. Enable Linear's connector only under
 `~/development/misty-step` and `~/development/moomooskycow`, never globally or in
 R90. Parlor's skill remains Parlor-owned and repository-imported.
 
+Linear access is available; never conclude otherwise without trying. Use the
+Linear MCP tools when mounted. Otherwise use the GraphQL API with the workstation
+key (team `MIS` = Misty Step), never printing the value:
+`pass-env run -e LINEAR_API_KEY=workstation/LINEAR_API_KEY -- sh -c 'curl -s
+https://api.linear.app/graphql -H "Authorization: $LINEAR_API_KEY" -H
+"Content-Type: application/json" -d @query.json'`. Verify with
+`{ viewer { name } teams { nodes { key } } }`.
+
 Branches follow `phaedrus/mis-<number>-<slug>`; commits name the issue key
 (`type(scope): summary (MIS-xx)`). PRs use `Refs`/`Relates to` for partial work and
 `Fixes` only when merge satisfies the issue. Update one top-level
