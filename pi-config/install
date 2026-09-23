@@ -95,6 +95,7 @@ run_shared() {
       --guidance pokayoke \
       --guidance communication-and-verification \
       --guidance host-resources \
+      --guidance credentials \
       --guidance user-stories \
       --guidance session-close \
       --guidance design-routing \

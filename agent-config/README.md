@@ -38,7 +38,7 @@ all fail closed.
 ./install --check --agent-dir DIR \
   --skill all \
   --bin pass-env.ts \
-  --guidance pokayoke --guidance communication-and-verification --guidance host-resources \
+  --guidance pokayoke --guidance communication-and-verification --guidance host-resources --guidance credentials \
   --guidance user-stories --guidance session-close --guidance design-routing \
   --guidance-source ../pi-config/global/AGENTS.md
 ```
