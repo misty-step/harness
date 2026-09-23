@@ -17,15 +17,15 @@ Infer routine details from context and evidence. Skills inform judgment, not
 scope. Make the smallest coherent change that achieves the outcome, preserves
 existing functionality, and avoids unrelated churn.
 
-Daily roles run the cheap triad: GLM-5.3 plans (default/plan/advisor), DeepSeek
-V4.1 Flash builds (task), and Gemini 3.8 Flash verifies (reviewer/vision).
-Cheap mechanical work (`smol`, `tiny`, `commit`) is GLM-5.3-flash at max.
-Cerebras is retired (operator 2026-09-18: too expensive). Astra is
-strategic, not default: reserved for `@slow`, `@extreme`, and `security-reviewer`.
+Daily roles use working subscriptions first: GPT-6 Sol handles default,
+planning, advice, and task work; GPT-6 Luna handles cheap mechanical work
+(`smol`, `tiny`, `commit`); Claude Opus 5.5 handles review and vision.
+Astra remains strategic, reserved for `@slow`, `@extreme`, and
+`security-reviewer`. Cerebras is retired (operator 2026-09-18: too expensive).
 Mechanical VCS and install-only deploys use `@smol`. Model selections
-and provider-failure chains live in `config.yml`; exhaust configured subscription
-routes before paid OpenRouter recovery. Role routing does not switch the current
-session's selected model.
+and provider-failure chains live in `config.yml`: try Codex, xAI, and
+Anthropic subscriptions before paid OpenRouter recovery. Role routing does
+not switch the current session's selected model.
 
 Repository code, tests, and versioned docs own technical truth; work records
 track priorities, owners, and blockers. Delete unnecessary code, state, and

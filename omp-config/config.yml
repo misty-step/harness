@@ -1,16 +1,16 @@
 modelRoles:
-  default: openrouter/z-ai/glm-5.3:high
+  default: openai-codex/gpt-6-sol:high
   slow: openai-codex/gpt-6-astra:high
   extreme: openai-codex/gpt-6-astra:max
-  plan: openrouter/z-ai/glm-5.3:high
-  advisor: openrouter/z-ai/glm-5.3:high
-  task: openrouter/deepseek/deepseek-v4.1-flash:max
-  reviewer: google-antigravity/gemini-3.8-flash:high
+  plan: openai-codex/gpt-6-sol:high
+  advisor: openai-codex/gpt-6-sol:high
+  task: openai-codex/gpt-6-sol:high
+  reviewer: anthropic/claude-opus-5-5:high
   security-reviewer: openai-codex/gpt-6-astra:max
-  vision: google-antigravity/gemini-3.8-flash:high
-  smol: openrouter/z-ai/glm-5.3-flash:max
-  tiny: openrouter/z-ai/glm-5.3-flash:max
-  commit: openrouter/z-ai/glm-5.3-flash:max
+  vision: anthropic/claude-opus-5-5:high
+  smol: openai-codex/gpt-6-luna:high
+  tiny: openai-codex/gpt-6-luna:high
+  commit: openai-codex/gpt-6-luna:high
 cycleOrder: [smol, default, extreme]
 symbolPreset: nerd
 theme:
@@ -75,35 +75,26 @@ providers:
 retry:
   fallbackChains:
     default:
-      - openrouter/z-ai/glm-5.3-flash:max
+      - openai-codex/gpt-6-luna:high
+      - xai-oauth/grok-4.7:xhigh
+      - anthropic/claude-opus-5-5:high
       - openrouter/deepseek/deepseek-v4.1-flash:max
-      - xai-oauth/grok-4.6:xhigh
-      - openrouter/meta/muse-spark-1.3-contributor:max
-      - openai-codex/gpt-6-astra:low
     vision:
-      - openrouter/z-ai/glm-5.3-flash:max
+      - xai-oauth/grok-4.7:xhigh
+      - openai-codex/gpt-6-luna:high
       - openrouter/deepseek/deepseek-v4.1-flash:max
-      - xai-oauth/grok-4.6:xhigh
-      - openrouter/meta/muse-spark-1.3-contributor:max
-      - openai-codex/gpt-6-astra:low
     smol:
-      - openrouter/z-ai/glm-5.3-flash:max
+      - xai-oauth/grok-4.7:xhigh
+      - anthropic/claude-opus-5-5:high
       - openrouter/deepseek/deepseek-v4.1-flash:max
-      - xai-oauth/grok-4.6:xhigh
-      - openrouter/meta/muse-spark-1.3-contributor:max
-      - openai-codex/gpt-6-astra:low
     tiny:
-      - openrouter/z-ai/glm-5.3-flash:max
+      - xai-oauth/grok-4.7:xhigh
+      - anthropic/claude-opus-5-5:high
       - openrouter/deepseek/deepseek-v4.1-flash:max
-      - xai-oauth/grok-4.6:xhigh
-      - openrouter/meta/muse-spark-1.3-contributor:max
-      - openai-codex/gpt-6-astra:low
     commit:
-      - openrouter/z-ai/glm-5.3-flash:max
+      - xai-oauth/grok-4.7:xhigh
+      - anthropic/claude-opus-5-5:high
       - openrouter/deepseek/deepseek-v4.1-flash:max
-      - xai-oauth/grok-4.6:xhigh
-      - openrouter/meta/muse-spark-1.3-contributor:max
-      - openai-codex/gpt-6-astra:low
 task:
   maxRecursionDepth: 3
   showResolvedModelBadge: true
