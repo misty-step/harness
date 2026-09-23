@@ -251,3 +251,29 @@ the scoped surface list.
 Evidence: `agent-config/bin/design-check.test.ts`,
 `agent-config/guidance/design-routing.md`,
 `docs/decisions/002-design-toolkit-trial.md`
+
+## Capability: Model routing
+
+## US-014 Use subscriptions before paid model recovery
+
+Statement: When I start or delegate work in OMP, I want working subscription
+models selected for everyday roles and provider recovery before paid API routes,
+so routine work uses the accounts I already have without making login failure
+look like additional capacity.
+
+Criteria:
+1. WHEN a fresh OMP session or bundled worker selects a daily, mechanical,
+   review, or deep role, THE SYSTEM SHALL resolve its configured model to the
+   corresponding authenticated Codex or Anthropic subscription route.
+2. IF a selected provider fails, THEN THE SYSTEM SHALL offer an image-capable
+   subscription route from another provider before a paid OpenRouter route;
+   WHERE the primary is Sol, THE SYSTEM MAY first try Luna on Codex.
+3. WHEN configuration is deployed, THE SYSTEM SHALL preserve OAuth stores and
+   the model already selected in existing sessions.
+
+No-gos: no copying OAuth credentials between harnesses; no Pi default change
+without Pi-native subscription authentication.
+
+Evidence: `omp-config/config.yml`, `omp-config/global/AGENTS.md`,
+`omp-config/README.md`, `./scripts/verify omp`, fresh OMP role-selection
+and provider smoke checks.

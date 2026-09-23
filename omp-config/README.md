@@ -652,45 +652,43 @@ do not maintain another skill copy in omp-config or install it globally.
 
 ## Interactive and recurring work
 
-### Model routing
+### Model routing (US-014)
 
-Daily work runs on the cheap triad: GLM-5.3 plans and strategizes, DeepSeek V4.1
-Flash builds, and Gemini 3.8 Flash verifies. Frontier models (Astra, Opus) are
-strategic and occasional, never the default. The native roles and retry fallback
-chains live in `config.yml`; this is a default-and-role policy, not a prompt
-classifier or automatic mid-session switch.
+Daily OMP roles now use available subscriptions before paid API routes. GPT-6
+Sol plans and builds; Luna handles mechanical work; Claude Opus 5.5 reviews and
+inspects images. Astra remains an explicit deep/security choice. The native roles
+and provider-failure chains live in `config.yml`; changing them does not switch
+the selected model in an existing session.
 
 | Entry point or role | Primary selection |
 | --- | --- |
-| Fresh `omp`, `@default` | `openrouter/z-ai/glm-5.3:high` |
-| Ordinary `task` workers, `@task` | `openrouter/deepseek/deepseek-v4.1-flash:max` |
-| `@smol`, `@tiny`, `@commit`; bundled `scout` and `sonic` | `openrouter/z-ai/glm-5.3-flash:max` |
-| `@plan`, `@advisor` | `openrouter/z-ai/glm-5.3:high` |
+| Fresh `omp`, `@default` | `openai-codex/gpt-6-sol:high` |
+| Ordinary `task` workers, `@task` | `openai-codex/gpt-6-sol:high` |
+| `@smol`, `@tiny`, `@commit`; bundled `scout` and `sonic` | `openai-codex/gpt-6-luna:high` |
+| `@plan`, `@advisor` | `openai-codex/gpt-6-sol:high` |
 | `@slow` (explicit thorough pass) | `openai-codex/gpt-6-astra:high` |
 | `@extreme` (rare unconstrained reasoning) | `openai-codex/gpt-6-astra:max` |
 | `security-reviewer` | `openai-codex/gpt-6-astra:max` |
-| `reviewer`, `@vision` | `google-antigravity/gemini-3.8-flash:high` |
+| `reviewer`, `@vision` | `anthropic/claude-opus-5-5:high` |
 
-GLM-5.3 high is the default planner and strategist. DeepSeek V4.1 Flash max is
-the builder for dispatched `task` workers. Gemini 3.8 Flash high verifies and
-inspects; the catalog offers no `max` thinking level for it, so high is the
-ceiling. Astra is strategic and rare: `@slow` is an explicit thorough pass, and
-`@extreme` plus `security-reviewer` are reserved for unconstrained reasoning
-and security review. When a frontier model reviews, give it the repository
-itself; do not substitute a cheap model's summary. The cheap tier (`smol`,
-`tiny`, `commit`) runs on the smallest model that works. A configured role does
-not create an agent. Native OMP bundles `task`, `scout`, `sonic`, `reviewer`,
-and `security-reviewer`, not `designer`. Main uses the session model.
+Sol high is the daily planner and builder; Luna high serves the cheap tier.
+Opus high reviews and inspects images. Astra remains explicit: `@slow` for a
+thorough pass, `@extreme` and `security-reviewer` for unconstrained reasoning
+and security review. Two of four Codex logins and one of three Anthropic logins
+currently authenticate in OMP; do not count the disabled/missing logins as
+capacity. A configured role does not create an agent. Native OMP bundles
+`task`, `scout`, `sonic`, `reviewer`, and `security-reviewer`, not `designer`.
+Main uses the session model.
 
 For a new session:
 
 ```sh
-omp                         # ordinary work: GLM-5.3 high
+omp                         # ordinary work: Sol high
 omp --model @slow           # explicit thorough pass: Astra high
 omp --slow                  # shorthand for @slow: Astra high
 omp --model @extreme        # rare unconstrained reasoning: Astra max
-omp --model @smol           # explicitly choose the cheap model
-omp --model @vision         # visual inspection: Gemini 3.8 Flash high
+omp --model @smol           # explicitly choose Luna high
+omp --model @vision         # visual inspection: Opus 5.5 high
 ```
 
 An already-open or resumed session retains its selected model; installing a
@@ -703,39 +701,33 @@ project config, and one-run `--config` overlays can override the global default.
 
 Task dispatch selects an **agent**, not a per-item model. Native precedence is
 `task.agentModelOverrides` → agent frontmatter → parent/default fallback.
-Explicit `scout`/`sonic` overrides use `@smol`; its `:max` suffix takes precedence
-over their bundled `medium` thinking defaults. New task/eval dispatches reload
-persisted routing settings, but changing Main's model alone does not remap
-workers. Ordinary workers use DeepSeek V4.1 Flash; Gemini Flash serves `vision`
-and `reviewer`; the cheap tier serves `smol`, `tiny`, `commit`, and
-`scout`/`sonic` through `@smol`. Git commit, rebase, push, and similar
-mechanical ship steps must use bundled `sonic` (`@smol`). Omitting `agent`
-selects `@task`/DeepSeek. Choose agents for their roles, not as differently
-priced implementation workers. Do not add delegation just to save tokens.
+Explicit `scout`/`sonic` overrides use `@smol`; its `:high` suffix takes
+precedence over their bundled `medium` thinking defaults. New task/eval
+dispatches reload persisted routing settings, but changing Main's model alone
+does not remap workers. Ordinary workers use Sol; Opus serves `vision` and
+`reviewer`; Luna serves `smol`, `tiny`, `commit`, and `scout`/`sonic` through
+`@smol`. Git commit, rebase, push, and similar mechanical ship steps use
+bundled `sonic` (`@smol`). Omitting `agent` selects `@task`/Sol. Choose agents
+for their roles, not as differently priced implementation workers.
 
 The five explicit retry chains are `default`, `vision`, `smol`, `tiny`, and
-`commit`. Each leads with the cheap triad (GLM 5.3 Flash max, DeepSeek V4.1
-Flash max, then Grok xhigh), followed by Muse Spark 1.3 Contributor max, and
-ends with exactly one frontier link, Astra low on Codex. No chain leads with
-Opus max or Astra. They remain explicit because native fallback inheritance
-uses `default`, not `smol`. Gemini, Grok, Muse, and DeepSeek use
-catalog-maximum reasoning effort: Flash high, Grok xhigh, Muse max, and
-DeepSeek max.
+`commit`. Sol's default chain tries Luna, then xAI's Grok 4.7, then Opus 5.5,
+and finally paid OpenRouter DeepSeek V4.1 Flash. Opus's vision chain tries
+Grok, Luna, then DeepSeek; Luna's mechanical chains try Grok, Opus, then
+DeepSeek. Each link accepts images. These chains remain explicit because native
+fallback inheritance uses `default`, not `smol`.
 
-Fallbacks recover provider failures, with guardrails and usage limits being common
-causes, rather than difficult prompts, and still require available credentials.
-Cheap links lead so recovery stays cheap; the xAI subscription follows, and the
-single frontier link covers the case where every cheap route is unavailable.
-Opus max stays out of the automatic chains; it remains reachable by explicit
-selection.
-
-Muse Spark 1.3 Contributor is the preferred cheap OpenRouter hop, but it can
-stop serving. It uses the same 1.3 checkpoint at $0.10/$0.20 per million
-input/output tokens; the training-data trade is accepted. Astra low is the
-final recovery link. Fugu stays out of automatic fallback chains.
+Fallbacks recover provider failures, not hard prompts; they require working
+credentials. One Codex failure may still be recoverable on Luna, but a Codex
+provider outage proceeds to xAI. Opus adds a third subscription provider
+before the paid OpenRouter recovery link. If a subscription is exhausted or
+its login expires, the chain can still reach a paid route. Existing sessions
+keep their selected model and Pi's separate OpenRouter default is unchanged:
+Pi has no Codex or Anthropic OAuth configuration. Do not copy OMP OAuth tokens
+into Pi; authorize that harness separately before moving its default.
 Exa search, approval mode, and the local title-model setting are unchanged.
 
-Use `omp models find openrouter/z-ai/glm-5.3 --json` to inspect the
+Use `omp models find openai-codex/gpt-6-sol --json` to inspect the
 exact catalog entry and supported thinking levels. After routing changes, deploy
 the changed owned components and inspect the effective settings:
 
