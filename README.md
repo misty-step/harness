@@ -72,11 +72,15 @@ Use conventional commits and the root issue tracker. Labels `area:shared`,
 units. CI runs all components sequentially in one check job, including both consumers.
 Pull requests use the same commands as local verification.
 
-Landmark produces one release stream from `master`, gated on verification. The
-migration starts a new `v0.1.0` baseline; old component tags are preserved under
-`legacy/<component>/<tag>` so their versions cannot collide. Historical component
-changelogs remain in place; new release notes belong at the root. Optional LLM
-synthesis is disabled so release publishing requires no model credential.
+Landmark prepares one release stream from `master`: a generated root
+`CHANGELOG.md` change enters a release pull request, the required `verify`
+check gates its automatic merge, and only the landed commit is tagged and
+published. `RELEASE_BOT_APP_ID` and `RELEASE_BOT_PRIVATE_KEY` must be available
+as Actions secrets so bot-created pull requests trigger CI. The migration
+started at `v0.1.0`; old component tags remain under
+`legacy/<component>/<tag>` so their versions cannot collide. Historical
+component changelogs remain in place; new release notes belong at the root.
+Optional LLM synthesis is disabled, so publishing requires no model credential.
 
 ## Migration and related tools
 
