@@ -118,6 +118,19 @@ and missing bases as explicit abstentions. It does not guess a branch base.
 Do not call the provider from Oxlint callbacks. A later Oxlint adapter may only display
 valid cached findings.
 
+## Trusted CI
+
+`.github/workflows/semantic-advisory.yml` runs the pinned checker on same-repository
+pull requests. It uses `pull_request_target`, so GitHub reads the workflow from the
+default branch. The job never checks out, installs, or runs pull request content.
+It fetches the exact head and base commits into a bare repository as data.
+Only the checker step receives `OPENROUTER_API_KEY`. The job token has no permissions.
+Fork pull requests skip the job. An `unavailable` result fails this non-required job.
+It is not a clean result. Required checks stay in their own workflows.
+Adopt it in another public repository by copying the file unchanged.
+The job fetches anonymously, so a private repository needs a reviewed token change first.
+Never give a provider key to a job that runs pull request code.
+
 ## Hermes source adapter
 
 The candidate plugin registers the supported `pre_verify` hook. It invokes the same

@@ -1,0 +1,131 @@
+name: Semantic advisory
+
+# Advisory review of changed test evidence with a real provider judgment.
+# GitHub runs pull_request_target workflows from the default branch, so a pull
+# request cannot change this file for its own run. This job never checks out,
+# installs, builds, or runs pull request content. It fetches the exact candidate
+# commits as Git objects only. The provider key reaches only the pinned checker
+# step. The result is advisory and never replaces a required check.
+on:
+  pull_request_target:
+
+permissions: {}
+
+concurrency:
+  group: semantic-advisory-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  semantic-advisory:
+    # Fork pull requests can trigger this event. They never reach a runner.
+    if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    defaults:
+      run:
+        shell: bash
+    env:
+      CHECKER_REPOSITORY: https://github.com/misty-step/harness.git
+      CHECKER_SHA: 4d0ce988f95df995983ade823498bd858ec52064
+      BUN_URL: https://github.com/oven-sh/bun/releases/download/bun-v1.4.2/bun-linux-x64-baseline.zip
+      BUN_SHA256: c678040f14fe0440eb839d37cbd0ce4c051a32da72806ac97de6a6aab6bf728f
+      CANDIDATE_REPOSITORY: ${{ github.server_url }}/${{ github.repository }}.git
+      PR_NUMBER: ${{ github.event.pull_request.number }}
+      HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+      BASE_SHA: ${{ github.event.pull_request.base.sha }}
+      # Ignore global and system Git configuration. No configured filter,
+      # textconv, or external diff program can run on candidate objects.
+      GIT_CONFIG_GLOBAL: /dev/null
+      GIT_CONFIG_NOSYSTEM: "1"
+      GIT_TERMINAL_PROMPT: "0"
+    steps:
+      - name: Fetch pinned checker and runtime
+        run: |
+          root="$RUNNER_TEMP/semantic"
+          mkdir -p "$root/checker" "$root/runtime" "$root/work"
+          git init --quiet --initial-branch=checker "$root/checker"
+          git -C "$root/checker" fetch --quiet --no-tags --depth=1 "$CHECKER_REPOSITORY" "$CHECKER_SHA"
+          git -C "$root/checker" checkout --quiet --detach "$CHECKER_SHA"
+          test "$(git -C "$root/checker" rev-parse HEAD)" = "$CHECKER_SHA"
+          curl --fail --silent --show-error --location --proto '=https' --tlsv1.2 \
+            --retry 3 --output "$root/runtime/bun.zip" "$BUN_URL"
+          printf '%s  %s\n' "$BUN_SHA256" "$root/runtime/bun.zip" | sha256sum --check --strict
+          unzip -q "$root/runtime/bun.zip" -d "$root/runtime"
+          echo "checker $CHECKER_SHA; bun $("$root/runtime/bun-linux-x64-baseline/bun" --revision)"
+      - name: Fetch exact candidate commits as data
+        run: |
+          root="$RUNNER_TEMP/semantic"
+          if ! [[ "$PR_NUMBER" =~ ^[1-9][0-9]*$ && "$HEAD_SHA" =~ ^[0-9a-f]{40}$ && "$BASE_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error title=Semantic advisory::The event did not supply an exact pull request head and base."
+            exit 1
+          fi
+          # Objects only: the candidate tree is never written to the filesystem.
+          git init --quiet --bare --initial-branch=candidate "$root/candidate.git"
+          git -C "$root/candidate.git" fetch --quiet --no-tags "$CANDIDATE_REPOSITORY" "$BASE_SHA" "$HEAD_SHA"
+          git -C "$root/candidate.git" cat-file -e "$HEAD_SHA^{commit}"
+          git -C "$root/candidate.git" cat-file -e "$BASE_SHA^{commit}"
+          if merge_base=$(git -C "$root/candidate.git" merge-base "$BASE_SHA" "$HEAD_SHA"); then
+            printf '%s\n' "$merge_base" >"$root/merge-base"
+            echo "candidate head $HEAD_SHA; base $BASE_SHA; merge base $merge_base"
+          fi
+      - name: Assess changed test evidence (advisory)
+        env:
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+        run: |
+          root="$RUNNER_TEMP/semantic"
+          if [ ! -s "$root/merge-base" ]; then
+            echo "::warning title=Semantic advisory (not a gate)::abstained: no merge base, so no semantic judgment was made."
+            exit 0
+          fi
+          merge_base=$(cat "$root/merge-base")
+          record="$root/record.json"
+          # Start in an empty trusted directory so the runtime reads no project files.
+          cd "$root/work"
+          # Candidate text in the record must not become a workflow command.
+          token=$(od -An -N16 -tx1 /dev/urandom | tr -d ' \n')
+          echo "::stop-commands::$token"
+          set +e
+          printf 'refs/pull/%s/head %s refs/pull/%s/head %s\n' "$PR_NUMBER" "$HEAD_SHA" "$PR_NUMBER" "$merge_base" |
+            "$root/runtime/bun-linux-x64-baseline/bun" --no-env-file --no-install \
+              "$root/checker/agent-config/bin/semantic-check.ts" \
+              --repo "$root/candidate.git" --outgoing --json --no-cache >"$record"
+          checker_exit=$?
+          set -e
+          cat "$record"
+          echo "::$token::"
+          if [ "$checker_exit" -ne 0 ]; then
+            echo "::error title=Semantic advisory::The pinned checker failed with exit $checker_exit. No judgment was made."
+            exit 1
+          fi
+          if ! jq -e --arg head "$HEAD_SHA" --arg base "$merge_base" '
+            .advisory == true and (.snapshots | length) == 1 and
+            .snapshots[0].kind == "outgoing_ref" and
+            .snapshots[0].tree == $head and .snapshots[0].base == $base
+          ' "$record" >/dev/null; then
+            echo "::error title=Semantic advisory::The record is not bound to the exact head and merge base."
+            exit 1
+          fi
+          status=$(jq -r '.status' "$record")
+          count=$(jq -r '.candidateCount' "$record")
+          findings=$(jq -r '[.outcomes[] | select(.status == "finding")] | length' "$record")
+          summary="for ${HEAD_SHA:0:12} against merge base ${merge_base:0:12}"
+          case "$status" in
+            finding)
+              echo "::warning title=Semantic advisory (not a gate)::finding $summary: $findings finding(s) across $count changed-test candidate(s). Review the anchors in the record. Required checks remain authoritative."
+              ;;
+            assessed)
+              echo "::notice title=Semantic advisory (not a gate)::assessed $summary: no finding across $count candidate(s). This is not proof of correctness."
+              ;;
+            abstained)
+              echo "::notice title=Semantic advisory (not a gate)::abstained $summary. The record lists each abstention scope and reason."
+              ;;
+            unavailable)
+              # Unavailable is not clean. Fail this non-required job visibly.
+              echo "::error title=Semantic advisory (not a gate)::unavailable $summary: no semantic judgment was made. Required checks remain authoritative."
+              exit 1
+              ;;
+            *)
+              echo "::error title=Semantic advisory::The checker returned an unknown status."
+              exit 1
+              ;;
+          esac

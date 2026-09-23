@@ -33,17 +33,3 @@ jobs:
           else
             echo "Semantic review gate skipped in uncredentialed CI run."
           fi
-      - name: Advisory test-evidence check on exact CI snapshot
-        if: ${{ always() && github.event_name == 'pull_request' }}
-        env:
-          OPENROUTER_API_KEY: '' # Never expose a credential to PR-controlled code.
-          TYPESAFE_API_KEY: ''
-        run: |
-          if ! base=$(git merge-base HEAD "origin/$GITHUB_BASE_REF"); then
-            echo "semantic-check: comparison base unavailable; deterministic gate result is unchanged"
-            exit 0
-          fi
-          head=$(git rev-parse HEAD)
-          printf 'refs/heads/ci %s refs/heads/base %s\n' "$head" "$base" |
-            bun agent-config/bin/semantic-check.ts --repo "$PWD" --outgoing --json --no-cache ||
-            echo "semantic-check: advisory unavailable; deterministic gate result is unchanged"
