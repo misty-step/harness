@@ -1,3 +1,9 @@
+# [0.1.27](https://github.com/misty-step/harness/compare/v0.1.26...v0.1.27) (2026-09-23)
+<!-- landmark:protected-release previous=v0.1.26 source=c87b4794ee59fa1e849b2839cbd456084cbde8022267d5def8e6a2f76b7a78cb -->
+
+### Features
+
+* **omp:** enable copy-on-write task isolation for parallel writers (#39) ([52c36c0](https://github.com/misty-step/harness/commit/52c36c0c3ca4adc154c4a152ce23f11f6af801d8))
 # [0.1.26](https://github.com/misty-step/harness/compare/v0.1.25...v0.1.26) (2026-09-23)
 <!-- landmark:protected-release previous=v0.1.25 source=8fab38e62ca2a4d87036c9ecece5bfd95dfedc77626f9123578503cf9700ad6a -->
 
