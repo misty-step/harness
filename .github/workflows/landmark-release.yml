@@ -12,6 +12,7 @@ jobs:
   verify:
     uses: ./.github/workflows/ci.yml
   publish-landed-release:
+    if: github.ref == 'refs/heads/master'
     needs: verify
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -32,6 +33,7 @@ jobs:
           target-sha: ${{ github.sha }}
           synthesis: 'false'
   prepare-release-pr:
+    if: github.ref == 'refs/heads/master'
     needs: [verify, publish-landed-release]
     runs-on: ubuntu-latest
     timeout-minutes: 15
