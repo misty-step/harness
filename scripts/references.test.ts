@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { dirname, relative, resolve, sep } from "node:path";
 
 const root = resolve(import.meta.dir, "..");
-const canonical = "https://github.com/misty-step/harness/blob/main/";
+const canonical = "https://github.com/misty-step/harness/blob/master/";
 const scratch: string[] = [];
 afterEach(() => { for (const dir of scratch.splice(0)) rmSync(dir, { recursive: true, force: true }); });
 
@@ -16,7 +16,7 @@ function markdown(dir: string): string[] {
 }
 
 // Focused contract for this repository's Markdown conventions, not a general
-// Markdown parser or network crawler. Canonical main links resolve in this tree.
+// Markdown parser or network crawler. Canonical master links resolve in this tree.
 function errors(file: string, boundary = root, portable = false): string[] {
 	const result: string[] = [];
 	const text = readFileSync(file, "utf8").replace(/^\s*(`{3,}|~{3,})[^\n]*\n[\s\S]*?^\s*\1\s*$/gm, "");
@@ -81,6 +81,6 @@ test("guard rejects the original missing backtick reference, broken links, and p
 		expect(errors(file, pkg, true)).toHaveLength(1);
 	}
 	writeFileSync(resolve(pkg, "guide.md"), "# Guide\n");
-	writeFileSync(file, "[local](guide.md)\n[canonical](https://github.com/misty-step/harness/blob/main/omp-config/references/dev-exec.md)\n[web](https://example.org/docs)\n");
+	writeFileSync(file, "[local](guide.md)\n[canonical](https://github.com/misty-step/harness/blob/master/omp-config/references/dev-exec.md)\n[web](https://example.org/docs)\n");
 	expect(errors(file, pkg, true)).toEqual([]);
 });
