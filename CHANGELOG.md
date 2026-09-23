@@ -1,3 +1,19 @@
+# [0.1.26](https://github.com/misty-step/harness/compare/v0.1.25...v0.1.26) (2026-09-23)
+<!-- landmark:protected-release previous=v0.1.25 source=8fab38e62ca2a4d87036c9ecece5bfd95dfedc77626f9123578503cf9700ad6a -->
+
+### Features
+
+* add semantic quality engine core ([a171da0](https://github.com/misty-step/harness/commit/a171da09ee7742f4022e1581789462c05a2e75b8))
+* **foundation:** publish versioned engineering standard (#24) ([b2802e1](https://github.com/misty-step/harness/commit/b2802e12e3927a0e80473ba161585b9b25700905))
+* complete semantic quality candidate ([9da1624](https://github.com/misty-step/harness/commit/9da1624148a34f3e4be8c42f75acaddf0713430c))
+* **jev:** invoke shared advisory checks in hooks and CI ([66810d4](https://github.com/misty-step/harness/commit/66810d4280d300fbbf44d39c824ec2725a999960))
+* **omp:** route daily work through subscriptions ([557e142](https://github.com/misty-step/harness/commit/557e14230903a84cf44bd737277343609c416e3b))
+
+### Bug Fixes
+
+* **system-one:** route uncalibrated non-security Jev findings to warnings (#26) ([7ff0bc7](https://github.com/misty-step/harness/commit/7ff0bc7430602b92a5fe15cf3ba8cb9015534dae))
+* avoid duplicate source-oracle findings ([8f97821](https://github.com/misty-step/harness/commit/8f97821874a03f36a8c2cdf8ecf45d2219f4097f))
+* **release:** verify generated changelog before publishing (#36) ([1f57739](https://github.com/misty-step/harness/commit/1f5773923aff3b1271e271541bc1145b4c54569c))
 ## [0.1.25](https://github.com/misty-step/harness/compare/v0.1.24...v0.1.25) (2026-09-20)
 
 
