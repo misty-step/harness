@@ -150,7 +150,7 @@ credentials, whole transcripts, or file contents in classifier state; no
 unbounded loop.
 
 Evidence: `agent-config/system-one/continuation.test.ts`,
-`pi-config/extensions/continuation-nudge/`, `omp-config/extensions/continuation-nudge/`
+`pi-config/extensions/continuation-nudge/` (pi only; OMP retired).
 
 ## Capability: Visual verification
 

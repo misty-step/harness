@@ -34,6 +34,10 @@ for consumer in pi omp; do
   printf '{"synthetic":"auth sentinel"}\n' > "$work/expected-auth"
   cp "$work/expected-skill" "$agent/skills/foreign/SKILL.md"
   cp "$work/expected-auth" "$agent/auth.json"
+  if [ "$consumer" = omp ]; then
+    mkdir -p "$agent/extensions/continuation-nudge"
+    printf 'retired extension\n' > "$agent/extensions/continuation-nudge/index.ts"
+  fi
   if env -i PATH="$PATH" HOME="$home" TMPDIR="$work" \
     PI_CODING_AGENT_DIR="$agent" OMP_DEVELOPMENT_ROOT="$home/development" \
     OMP_TODOIST_OWNER="$home/missing-todoist" \
@@ -80,13 +84,15 @@ for consumer in pi omp; do
   check "$consumer foreign skill" cmp -s "$work/expected-skill" "$agent/skills/foreign/SKILL.md"
   check "$consumer auth" cmp -s "$work/expected-auth" "$agent/auth.json"
 
-  # Installed-load assertion: a deployed extension package must resolve its
-  # imports inside the installed home. File presence does not prove loading;
-  # the repo shims only resolve in the monorepo checkout, so the installer
-  # must have materialized the shared modules over them.
-  check "$consumer continuation-nudge installed load" \
-    env -i PATH="$PATH" HOME="$home" TMPDIR="$work" \
-    bun -e "const m = await import('$agent/extensions/continuation-nudge/index.ts'); if (typeof m.registerContinuationNudge !== 'function') throw new Error('missing registerContinuationNudge export');"
+  # Installed-load assertions must resolve shared modules inside the
+  # installed home. OMP instead retires its previously deployed nudge.
+  if [ "$consumer" = pi ]; then
+    check "pi continuation-nudge installed load" \
+      env -i PATH="$PATH" HOME="$home" TMPDIR="$work" \
+      bun -e "const m = await import('$agent/extensions/continuation-nudge/index.ts'); if (typeof m.registerContinuationNudge !== 'function') throw new Error('missing registerContinuationNudge export');"
+  else
+    check "omp continuation-nudge retired" test ! -e "$agent/extensions/continuation-nudge"
+  fi
   check "$consumer diff-review installed load" \
     env -i PATH="$PATH" HOME="$home" TMPDIR="$work" \
     bun -e "const m = await import('$agent/extensions/diff-review/index.ts'); if (typeof m.default !== 'function') throw new Error('missing diff-review register export');"
