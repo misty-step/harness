@@ -99,8 +99,12 @@ task:
   maxRecursionDepth: 3
   showResolvedModelBadge: true
   enableLsp: true
+  # Opt-in per task item (`isolated: true`). Workspaces are copy-on-write under
+  # ~/.omp/wt (btrfs/reflink on this host) and removed when the child yields;
+  # no git worktree is registered. 0e0083c disabled this when `auto` produced
+  # real worktrees that /tmp aging reaped; re-probed on omp 18.2.11.
   isolation:
-    enabled: false
+    enabled: true
     apply: true
     merge: patch
   agentModelOverrides:

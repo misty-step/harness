@@ -48,6 +48,13 @@ native desktop, GPU, offline, and data-constrained work local.
 Before provisioning or recurring work, resolve account, capabilities, spend,
 and lifetime. Local execution follows the shared Host resources rule.
 
+Parallel work: subagents that write overlapping files, or experiments you may
+discard, run as `task` items with `isolated: true`; their changes return as a
+patch applied to the canonical checkout. Disjoint-file delegates share the
+working tree. Isolated agents cannot be revived, so give them complete tasks.
+Review a PR from `pr://<N>/diff`; `pr_checkout` only to run its code. Parallel
+sessions that need their own services or long runtimes go to exe.dev.
+
 ## Authority and operations
 
 Linear is the durable tracker for personal, Misty Step, and other non-R90 work;
