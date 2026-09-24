@@ -30,6 +30,26 @@ credentials and isolated destinations; no provider tokens or model calls are nee
 Keep the component directories as siblings. `AGENT_CONFIG_DIR` is an advanced
 base-source override, not required for a normal clone.
 
+## Workspace hygiene (US-016)
+
+Keep one canonical checkout per repository. Before making another worktree,
+inspect registered checkouts rather than cloning the same repository again:
+
+```sh
+bun scripts/workspace-inventory.ts ~/development
+git worktree list --porcelain   # from the affected repository
+```
+
+The inventory is read-only and reports Git-visible dirty and prunable states;
+`clean` does not mean merged, published, inactive, or free of ignored build
+outputs. For a finished task, verify its branch and any untracked/evidence files,
+then use `git worktree remove <path>` without `--force`; retain uncertain work.
+Run `git worktree prune --dry-run` to inspect missing registrations before
+pruning them. Never delete another agent's active worktree or a standing VM on
+the basis of age. Session-created worktrees and VMs require create-time leases
+and a successful `skill://session-close` check; an empty lease store says
+nothing about older or unleased resources.
+
 ## Verify
 
 ```sh

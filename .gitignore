@@ -1,5 +1,6 @@
 # Runtime state, caches, credentials and machine-local agent imports are not source.
 .omp/
+/.worktrees/
 .pi/
 node_modules/
 __pycache__/

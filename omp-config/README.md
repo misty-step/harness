@@ -39,6 +39,12 @@ prompt is: how can I pokayoke this so this kind of error never happens again?
 | `extensions/loc/` | Session-resident LOC status and commands |
 | `extensions/credentials/` | Lists pass entry names in every system prompt; names matching entries after an auth failure or a claim that a credential is missing (MIS-161) |
 
+`config.yml` selects the Omarchy-generated `omarchy-system` theme for both
+terminal background modes. Omarchy's `sync-omp-theme` provisions
+`~/.omp/agent/themes/omarchy-system.json` on this workstation; the installer
+preserves that generated file but does not generate or ship it. On a host
+without that integration, select an installed theme before deploying config.
+
 ## Install
 
 This is a component of [harness](../README.md), not a standalone checkout.
@@ -621,17 +627,17 @@ the selected model in an existing session.
 
 | Entry point or role | Primary selection |
 | --- | --- |
-| Fresh `omp`, `@default` | `openai-codex/gpt-6-sol:high` |
-| Ordinary `task` workers, `@task` | `openai-codex/gpt-6-sol:high` |
-| `@smol`, `@commit`; bundled `scout` and `sonic` | `openai-codex/gpt-6-luna:high` |
-| `@tiny` | local LFM2.5-350m first, then configured `openai-codex/gpt-6-luna:high` |
-| `@plan`, `@advisor` | `openai-codex/gpt-6-sol:high` |
+| Fresh `omp`, `@default` | `openai-codex/gpt-6-sol:xhigh` |
+| Ordinary `task` workers, `@task` | `openai-codex/gpt-6-sol:xhigh` |
+| `@smol`, `@commit`; bundled `scout` and `sonic` | `openai-codex/gpt-6-luna:max` |
+| `@tiny` | local LFM2.5-350m first, then configured `openai-codex/gpt-6-luna:max` |
+| `@plan`, `@advisor` | `openai-codex/gpt-6-sol:xhigh` |
 | `@slow` (explicit thorough pass) | `openai-codex/gpt-6-astra:high` |
 | `@extreme` (rare unconstrained reasoning) | `openai-codex/gpt-6-astra:max` |
 | `security-reviewer` | `openai-codex/gpt-6-astra:max` |
 | `reviewer`, `@vision` | `anthropic/claude-opus-5-5:high` |
 
-Sol high is the daily planner and builder; Luna high serves the cloud cheap
+Sol xhigh is the daily planner and builder; Luna max serves the cloud cheap
 tier. OMP prepends its on-device LFM2.5-350m to the effective `tiny` role
 before the configured Luna option. Opus high reviews and inspects images.
 Astra remains explicit: `@slow` for a
@@ -645,11 +651,11 @@ Main uses the session model.
 For a new session:
 
 ```sh
-omp                         # ordinary work: Sol high
+omp                         # ordinary work: Sol xhigh
 omp --model @slow           # explicit thorough pass: Astra high
 omp --slow                  # shorthand for @slow: Astra high
 omp --model @extreme        # rare unconstrained reasoning: Astra max
-omp --model @smol           # explicitly choose Luna high
+omp --model @smol           # explicitly choose Luna max
 omp --model @vision         # visual inspection: Opus 5.5 high
 ```
 
@@ -663,7 +669,7 @@ project config, and one-run `--config` overlays can override the global default.
 
 Task dispatch selects an **agent**, not a per-item model. Native precedence is
 `task.agentModelOverrides` → agent frontmatter → parent/default fallback.
-Explicit `scout`/`sonic` overrides use `@smol`; its `:high` suffix takes
+Explicit `scout`/`sonic` overrides use `@smol`; its `:max` suffix takes
 precedence over their bundled `medium` thinking defaults. New task/eval
 dispatches reload persisted routing settings, but changing Main's model alone
 does not remap workers. Ordinary workers use Sol; Opus serves `vision` and

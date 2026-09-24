@@ -100,7 +100,7 @@ function check(dir: string, json: boolean): number {
 		return 1;
 	}
 	if (json) console.log(JSON.stringify({ ok: leases.length === 0, leases }, null, 2));
-	else if (!leases.length) console.log("session-close: clean");
+	else if (!leases.length) console.log("session-close: no recorded leases (other workspaces not checked)");
 	else {
 		console.log("session-close: open leases");
 		for (const lease of leases) console.log(`  ${lease.kind}: ${lease.target}`);
