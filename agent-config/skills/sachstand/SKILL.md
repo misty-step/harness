@@ -80,6 +80,8 @@ line and mark which holds the changes.
 
 ## Style
 
+- Speak to the reader directly: "you", and their first name from
+  `git config --global user.name`. Never write "the operator" or "the user".
 - Bad news first. Absolute dates, not "yesterday".
 - Fragments are fine. No filler, praise, or restating the request.
 - Explain each ticket, system, and name in plain words the first time it appears.
@@ -94,10 +96,10 @@ Skip this section if the argument includes `quiet`.
 After you gather evidence and before your final answer, write a spoken script
 for the ear, not the eye. Keep it under 150 words, about one minute:
 
-- Open with the project and the task in one sentence, so the listener knows
-  which session is speaking. Then the verdict. Then give each decision with your
-  recommendation. End with what happens next. Mention done work only as a
-  count or one phrase.
+- Open by greeting the reader by first name. Then name the project and the task
+  in one sentence, so the listener knows which session is speaking. Then the
+  verdict. Then give each decision with your recommendation. End with what
+  happens next. Mention done work only as a count or one phrase.
 - Use plain sentences. No markdown, bullets, paths, hashes, URLs, or IDs. Say a
   ticket as its plain meaning, not its key.
 - Round numbers. Spell out abbreviations the listener might not know.
@@ -114,9 +116,11 @@ pass-env run -e GEMINI_API_KEY=workstation/GEMINI_API_KEY -- \
 EOF
 ```
 
-Playback starts detached, and the audio is saved under `~/.cache/tts-play/`. End
-the written brief with one line: the audio path, length, and cost. If the
-command fails, still deliver the written brief, and state the error in that line.
+Playback starts detached, and a private, uniquely named audio file is saved
+under `~/.cache/tts-play/`. End the written brief with one line: the audio path,
+length, and estimated cost if usage was reported; otherwise say cost unavailable.
+If the command fails, still deliver the written brief, and state the error in
+that line.
 
 Done when the operator can read the brief in sixty seconds and make every listed
 decision without asking what something means.

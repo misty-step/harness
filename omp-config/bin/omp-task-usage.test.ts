@@ -18,7 +18,8 @@ function assistant(minute: number, dollars: number, extra = {}) {
 }
 function transcript(dir: string, name: string, minute: number, events: object[]) {
 	const file = resolve(dir, name); mkdirSync(resolve(file, ".."), { recursive: true });
-	writeFileSync(file, [{ type: "session", id: name, timestamp: time(minute) }, ...events].map(e => JSON.stringify(e)).join("\n") + "\n");
+	const records = events.map((entry, i) => "type" in entry && entry.type === "message" && !("id" in entry) ? { ...entry, id: `${name}:${i}` } : entry);
+	writeFileSync(file, [{ type: "session", id: name, timestamp: time(minute) }, ...records].map(e => JSON.stringify(e)).join("\n") + "\n");
 	return file;
 }
 function run(f: { dir: string; sessions: string }, tasks: object[]) {
@@ -93,6 +94,43 @@ test("US-018 double counting, corrupt records, and escaped files fail without pa
 	const corrupt = run(f, [task("a", "bad.jsonl")]);
 	expect(corrupt.exitCode).toBe(1); expect(corrupt.stdout.toString()).toBe("");
 	expect(corrupt.stderr.toString()).not.toContain("not printable");
+});
+
+test("US-018 malformed native records cannot hide beside a billed successful response", () => {
+	const f = fixture();
+	const malformed = [
+		{ type: "message", timestamp: time(2), message: null, content: "private malformed payload" },
+		{ type: "message", timestamp: time(2), message: { role: null } },
+		{ ...assistant(2, 2), id: null },
+		{ ...assistant(2, 2), timestamp: null },
+		{ type: "model_usage", ...assistant(2, 2).message, timestamp: null },
+		{ type: "message", timestamp: time(12), message: null },
+	];
+	for (const record of malformed) {
+		transcript(f.sessions, "malformed.jsonl", 0, [assistant(1, 1), record]);
+		const result = run(f, [task("a", "malformed.jsonl", "success", { until: time(10) })]);
+		expect(result.exitCode).toBe(1);
+		expect(result.stdout.toString()).toBe("");
+		expect(result.stderr.toString()).not.toContain("private malformed payload");
+	}
+	for (const header of [{ type: "session", id: null, timestamp: time(0) }, { type: "session", id: "malformed", timestamp: null }]) {
+		const file = resolve(f.sessions, "malformed.jsonl");
+		writeFileSync(file, [header, { ...assistant(1, 1), id: "billed" }].map(e => JSON.stringify(e)).join("\n") + "\n");
+		const result = run(f, [task("a", "malformed.jsonl", "success")]);
+		expect(result.exitCode).toBe(1);
+		expect(result.stdout.toString()).toBe("");
+	}
+});
+
+test("US-018 native custom message roles do not invalidate a billed task", () => {
+	const f = fixture();
+	transcript(f.sessions, "custom.jsonl", 0, [
+		assistant(1, 1),
+		{ type: "message", timestamp: time(2), message: { role: "notification", content: "local app notice" } },
+	]);
+	const result = run(f, [task("a", "custom.jsonl", "success")]);
+	expect(result.exitCode).toBe(0);
+	expect(JSON.parse(result.stdout.toString()).recordedCostPerCompletedTask).toBeCloseTo(1);
 });
 
 test("US-018 reports tool incidence and error flags without leaking transcript bodies", () => {

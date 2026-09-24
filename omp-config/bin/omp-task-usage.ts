@@ -34,6 +34,25 @@ function instant(value: unknown): number {
 	if (typeof value !== "string" || !/^\d{4}-\d\d-\d\dT.*(?:Z|[+-]\d\d:\d\d)$/.test(value) || !Number.isFinite(Date.parse(value))) throw new Error("expected an ISO timestamp with timezone");
 	return Date.parse(value);
 }
+function event(value: unknown, index: number): Event {
+	if (value === null || typeof value !== "object" || Array.isArray(value)) throw new Error(`invalid transcript record ${index}`);
+	const record = value as Record<string, unknown>;
+	if (typeof record.type !== "string" || !record.type) throw new Error(`invalid transcript record ${index}: missing type`);
+	if (record.type === "session" || record.type === "message") {
+		if (typeof record.id !== "string" || !record.id.trim()) throw new Error(`invalid ${record.type} record ${index}: missing id`);
+	}
+	if (record.type === "session" || record.type === "message" || record.type === "model_usage") {
+		try { instant(record.timestamp); } catch { throw new Error(`invalid ${record.type} record ${index}: timestamp`); }
+	}
+	if (record.type === "message") {
+		// Native AgentMessage is extensible; custom app roles are not billing events.
+		const message = record.message;
+		if (message === null || typeof message !== "object" || Array.isArray(message) ||
+			typeof (message as Record<string, unknown>).role !== "string" || !(message as Message).role!.trim())
+			throw new Error(`invalid message record ${index}: message role`);
+	}
+	return record as Event;
+}
 function window(span: Span): Window {
 	const from = span.from === undefined ? -Infinity : instant(span.from);
 	const until = span.until === undefined ? Infinity : instant(span.until);
@@ -130,7 +149,9 @@ function main() {
 		function consume(path: string, source: string, w: Window) {
 			const file = scoped(path), bytes = readFileSync(file);
 			const entries: Event[] = bytes.toString("utf8").split("\n").filter(line => line.trim()).map((line, i) => {
-				try { return JSON.parse(line); } catch { throw new Error(`malformed session JSON at record ${i + 1}`); }
+				let value: unknown;
+				try { value = JSON.parse(line); } catch { throw new Error(`malformed session JSON at record ${i + 1}`); }
+				return event(value, i + 1);
 			});
 			const header = entries.find(e => e.type === "session");
 			if (!header) throw new Error("transcript has no session header");

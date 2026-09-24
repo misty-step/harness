@@ -4,8 +4,8 @@
 
 ## Configured routes
 
-- **OMP roles:** `openai-codex/gpt-6-sol` is default/plan/advisor/task; `openai-codex/gpt-6-astra` is slow/extreme/security-reviewer; `openai-codex/gpt-6-luna` is smol/tiny/commit. `anthropic/claude-opus-5-5` is reviewer/vision.
-- **OMP fallbacks:** default: GPT-6 Luna → `xai-oauth/grok-4.7` → Claude Opus 5.5 → `openrouter/deepseek/deepseek-v4.1-flash`; vision: Grok 4.7 → Luna → DeepSeek V4.1 Flash; smol/tiny/commit: Grok 4.7 → Claude Opus 5.5 → DeepSeek V4.1 Flash. (All thinking levels are in `omp-config/config.yml`.)
+- **OMP roles:** `openai-codex/gpt-6-sol` is default/plan/task; `openai-codex/gpt-6-astra` is slow/extreme/security-reviewer; `openai-codex/gpt-6-luna` is advisor/smol/tiny/commit. `anthropic/claude-opus-5-5` is reviewer/vision.
+- **OMP fallbacks:** advisor: Grok 4.7 xhigh → Google Antigravity Gemini 3.8 Flash high → OpenRouter DeepSeek V4.1 Flash max (primary Luna max); default: GPT-6 Luna → `xai-oauth/grok-4.7` → Claude Opus 5.5 → `openrouter/deepseek/deepseek-v4.1-flash`; vision: Grok 4.7 → Luna → DeepSeek V4.1 Flash; smol/tiny/commit: Grok 4.7 → Claude Opus 5.5 → DeepSeek V4.1 Flash. (All thinking levels are in `omp-config/config.yml`.)
 - **Pi:** default `openrouter/deepseek/deepseek-v4.1-flash`; `pi-config/extensions/failover/index.ts` chains it to `openrouter/inception/mercury-2.5`. The extension switches once after stock recovery and tells the user to resend; it does not automatically replay a failed turn. `settings.json` sets retries to 3.
 - `omp-config/models.yml` only configures local Ollama discovery. Cloud pricing/model definitions are external runtime catalogs. Pi's OpenRouter model store entries use `openai-completions` at `https://openrouter.ai/api/v1`; their catalog compatibility flags say `supportsDeveloperRole: false` and `sendSessionAffinityHeaders: true`.
 
@@ -55,7 +55,7 @@ Sources for OpenAI: [API pricing](https://developers.openai.com/api/docs/pricing
 1. **Keep configuration and billing authority distinct.** `omp-config/config.yml` owns OMP roles/fallback chains; `omp-config/models.yml` is only local Ollama. Pi's `settings.json` owns default model/thinking settings; `extensions/failover/index.ts` owns its chain; `extensions/openrouter-live/` owns additive catalog discovery, not live billing. Do not edit provider prices into config or treat model catalog costs as actual task spend.
 2. **Safe, semantics-preserving runtime opportunity:** where the provider/API supports it, retain a stable leading instruction/tool prefix and append dynamic task content; use a stable session identifier for xAI/OpenRouter where supported. For Anthropic caching, only use documented `cache_control` on the Messages adapter and observe TTL/minimum. For Responses reasoning, preserve all prior output items. This belongs in the actual request-generation clients, not these route/config files.
 3. **Measure actual spend before ranking changes:** per completed task, retain provider/model/upstream endpoint and usage categories (uncached input, cache reads, writes, output/reasoning, reported USD). For OpenRouter record selected upstream and response cost/cache usage. For OpenAI Codex and xAI OAuth subscriptions use account-plan/overage billing or usage limits, not invented per-token costs. No invoices or provider usage ledgers were read here, so realized subscription spend is **unavailable**.
-4. **Keep model, routing, effort, history reduction, and delegation changes proposal-only/off by default** until the parent's paired task-quality evaluation shows no measurable quality loss. This investigation recommends no such change.
+4. **Keep further model, routing, effort, history reduction, and delegation changes proposal-only/off by default** until paired task-quality evaluation supports promotion. The operator subsequently approved the advisor-specific chain above; this pricing investigation does not establish its quality parity.
 
 ## Exact-model evidence gaps
 
