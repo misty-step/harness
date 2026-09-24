@@ -197,12 +197,13 @@ files live in the agent dir (`continuation-nudge-status.json`,
 
 **Shared primitives — `agent-config`.** Skill packages, guidance sections, and
 the `pass-env` launcher live once in the base and deploy through its single
-contract (ADR-021). pi selects all 19 portable skills (the homebrew `pokayoke`,
+contract (ADR-021). pi selects all 21 portable skills (the homebrew `pokayoke`,
 `user-stories`, `capture`, `foundation`, `agent-ergonomics`,
-`verification-infrastructure`, `test-audit`, `decide`, `sachstand`, `authenticated-commands`,
-`session-close`, `system-one`, `design-studio`, and `visual-state-review`, plus the
-vendored `frontend-design`, `show-me`, `wrangler`, `herdr`, and
-`using-exe-dev`), the shared guidance sections, and `pass-env`. `web-search`'s key injection is
+`verification-infrastructure`, `test-audit`, `story-qa`, `check-cadence`,
+`decide`, `sachstand`, `authenticated-commands`, `session-close`,
+`system-one`, `design-studio`, and `visual-state-review`, plus the vendored
+`frontend-design`, `show-me`, `wrangler`, `herdr`, and `using-exe-dev`), the
+shared guidance sections, and `pass-env`. `web-search`'s key injection is
 the launcher's first pi consumer (ADR-010).
 
 **The Linear CLI is a separate repo.** The client moved to
