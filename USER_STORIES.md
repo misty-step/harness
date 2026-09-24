@@ -432,20 +432,17 @@ Evidence: `omp-config/extensions/credentials/credentials.test.ts`,
 ## US-020 Receive an executive status brief
 
 Statement: When I ask for sachstand, I want a concise, evidence-based status
-brief identifying its session and decisions, with optional speech, so I can
-orient across concurrent work without changing that work.
+brief identifying its session and decisions, so I can orient across
+concurrent work without changing that work.
 
 Criteria:
 1. WHEN invoked, THE SYSTEM SHALL identify the project, task and repository
    context and distinguish verified outcomes from open work and inferences.
 2. WHEN a decision is needed, THE SYSTEM SHALL state options, consequences,
    recommendation and missing information without taking that decision.
-3. WHERE `quiet` is requested, THE SYSTEM SHALL skip speech; OTHERWISE it
-   SHALL attempt speech and report the audio path, duration and estimated cost,
-   or report the speech error while retaining the written brief.
+3. THE SYSTEM SHALL deliver the brief as text only and SHALL NOT play audio
+   until a shared speaker owner exists.
 
 No-gos: no unrequested project mutations or decisions during a status brief.
 
-Evidence: `agent-config/skills/sachstand/SKILL.md`,
-`agent-config/skills/sachstand/scripts/speak.ts`; native online synthesis smoke
-produced a two-second WAV with `--no-play` on 2026-09-24.
+Evidence: `agent-config/skills/sachstand/SKILL.md`.

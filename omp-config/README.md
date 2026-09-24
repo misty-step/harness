@@ -544,15 +544,14 @@ reversibility, blast radius, effort, operational cost, and primary risk. It
 states a clear technical recommendation with an explicit decision boundary, and
 ends with the exact next action to take upon approval.
 
-Use `/skill:sachstand [optional scope: session, repo, initiative, or portfolio] [quiet]`
+Use `/skill:sachstand [optional scope: session, repo, initiative, or portfolio]`
 for a sixty-second orientation. It is read-only. It opens by naming the project,
 the task, and the repository, branch, and worktree, so briefs from parallel
 sessions are distinguishable. Then it gives a verdict, verified outcomes, open and
 blocked work, critical context, each needed decision with its missing
 information, and what happens next without input. A decision that needs
-deeper analysis is handed to `/skill:decide`. Unless `quiet` is given, it also
-speaks a one-minute version with Gemini 3.8 Flash-Lite TTS (about $0.01) through
-`pass-env` and `GEMINI_API_KEY`, and saves the audio under `~/.cache/tts-play/`.
+deeper analysis is handed to `/skill:decide`. The brief is
+written only; it plays no audio until one shared speaker owner exists.
 
 Use `/skill:user-stories [optional repository, capability, or story id]` to
 keep a repository's root `USER_STORIES.md` honest: draft stories from observed
