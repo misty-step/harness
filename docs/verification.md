@@ -23,13 +23,14 @@ owned directory. Remove only that directory once its process has ended.
 ## Observable contracts
 
 - `scripts/references.test.ts` checks tracked Markdown file targets and canonical
-  `harness/blob/master/` URLs against the working tree. It also deploys all shared
-  skills and both guidance compositions into disposable directories and rejects
-  missing/out-of-package references, including legacy backticked `references/`
+  `harness/blob/master/` URLs against the working tree. It also runs both
+  consumers' installers in disposable homes against working files, checks the
+  installed `test-audit` entry and guidance route (US-021), and rejects missing
+  or out-of-package skill references, including legacy backticked `references/`
   paths. Regression fixtures reproduce the original defect and package escapes.
-  This is a CI guard, not an installer preflight or general Markdown/network
-  crawler: external web availability, anchors, `skill://` discovery, and arbitrary
-  prose/code paths need semantic review.
+  This is a CI guard, not a live installer preflight or general Markdown/network
+  crawler: external web availability, anchors, native `skill://` discovery, and
+  arbitrary prose/code paths need semantic review.
 - `scripts/workspace-inventory.test.ts` creates real local Git repositories and
   worktrees to check external paths, nested repositories, dirty and prunable
   states, and non-destructive failure reporting while continuing past unreadable
@@ -61,7 +62,7 @@ For changed native behavior use the fresh-session procedures in component README
 Never pipe verification through tail without preserving its exit status. Do not
 substitute a successful tool invocation or file presence for a postcondition.
 
-## Selecting evidence (US-001)
+## Selecting evidence (US-001, US-021)
 
 Before changing uncertain behavior, identify plausible failures and choose checks
 that distinguish the intended outcome from them. Prefer real consumer journeys
@@ -70,6 +71,14 @@ that a journey cannot cover reliably or safely. Do not retain tests that merely
 mirror implementation. For end-to-end evidence, record the exact revision,
 repeatable setup and command, observed postconditions, and redacted output or
 captures where relevant; passing one path does not prove another.
+
+When writing, changing, or auditing tests, follow the shared
+[`test-audit` skill](../agent-config/skills/test-audit/SKILL.md). Its authoring
+gate and focused-audit evidence prevent duplicate or circular coverage; the
+[campaign workflow](../agent-config/skills/test-audit/CAMPAIGN.md) applies only
+to an explicitly commissioned subsystem. `./scripts/verify` tests working
+source but clones committed HEAD for installer checks. Before commit, exercise
+changed skill packaging and guidance composition in disposable destinations.
 
 ## Git hook setup
 

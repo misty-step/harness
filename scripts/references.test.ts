@@ -57,17 +57,32 @@ test("tracked Markdown links resolve in the repository", () => {
 	expect(files.stdout.toString().split("\0").filter(Boolean).flatMap((file) => errors(resolve(root, file)))).toEqual([]);
 });
 
-test.each(["pi", "omp"])("%s shared deployment has self-contained skill and guidance references", (consumer) => {
+test.each(["pi", "omp"])("US-021: %s installs test-audit and self-contained references", (consumer) => {
 	const dir = temp();
-	const result = Bun.spawnSync([resolve(root, "agent-config/install"), "--agent-dir", dir, "--skill", "all",
-		"--guidance", "pokayoke", "--guidance", "communication-and-verification", "--guidance", "host-resources", "--guidance", "credentials", "--guidance", "user-stories", "--guidance", "session-close", "--guidance", "design-routing",
-		"--guidance-source", resolve(root, `${consumer}-config/global/AGENTS.md`)], { env: { ...process.env, TMPDIR: dir } });
+	const home = resolve(dir, "home");
+	const agent = resolve(home, "agent");
+	mkdirSync(resolve(home, "development"), { recursive: true });
+	const result = Bun.spawnSync([resolve(root, `${consumer}-config/install`)], {
+		cwd: root,
+		env: {
+			PATH: process.env.PATH ?? "",
+			HOME: home,
+			TMPDIR: dir,
+			PI_CODING_AGENT_DIR: agent,
+			OMP_DEVELOPMENT_ROOT: resolve(home, "development"),
+			OMP_TODOIST_OWNER: resolve(home, "missing-todoist"),
+		},
+	});
 	expect(result.exitCode).toBe(0);
-	const failures = readdirSync(resolve(dir, "skills")).flatMap((name) => {
-		const pkg = resolve(dir, "skills", name);
+	const audit = resolve(agent, "skills/test-audit");
+	expect(readFileSync(resolve(audit, "SKILL.md"), "utf8")).toMatch(/^---\r?\nname: test-audit\r?\n/m);
+	expect(existsSync(resolve(audit, "CAMPAIGN.md"))).toBe(true);
+	expect(readFileSync(resolve(agent, "AGENTS.md"), "utf8")).toContain("skill://test-audit");
+	const failures = readdirSync(resolve(agent, "skills")).flatMap((name) => {
+		const pkg = resolve(agent, "skills", name);
 		return markdown(pkg).flatMap((file) => errors(file, pkg, true));
 	});
-	failures.push(...errors(resolve(dir, "AGENTS.md"), dir, true));
+	failures.push(...errors(resolve(agent, "AGENTS.md"), agent, true));
 	expect(failures).toEqual([]);
 });
 

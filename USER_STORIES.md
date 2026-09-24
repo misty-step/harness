@@ -24,6 +24,34 @@ No-gos: no network testing or unapproved remote calls during local verification.
 
 Evidence: `./scripts/verify all`
 
+## US-021 Keep test coverage meaningful
+
+Statement: When agents write or prune tests for either harness, I want each
+contract defended at its useful owner boundary, so refactoring does not produce
+redundant tests or lose independent regression coverage.
+
+Criteria:
+1. WHEN Pi or OMP selects shared skills, THE SYSTEM SHALL provide the same
+   `test-audit` authoring, focused-audit, and optional campaign instructions.
+2. WHEN an agent writes or changes a test, THE SYSTEM SHALL direct it to name
+   the independent contract, plausible failure, existing owner, and any
+   test-only production seam before adding coverage.
+3. WHEN an agent proposes deleting or consolidating a test, THE SYSTEM SHALL
+   require evidence of what it detects, remaining proof or lack of contract,
+   relevant history, and a focused validation path before editing.
+4. IF a whole-subsystem campaign is commissioned, THEN THE SYSTEM SHALL require
+   a baseline, per-declaration ledger, keeper plan, and preservation review;
+   OTHERWISE it SHALL keep the audit within the requested scope.
+
+No-gos: no automatic portfolio sweep, model gate, or OpenClaw-specific runner
+commands in a portable skill.
+
+Evidence: `scripts/references.test.ts`,
+`agent-config/skills/test-audit/SKILL.md`,
+`agent-config/skills/test-audit/CAMPAIGN.md`,
+`agent-config/guidance/communication-and-verification.md`,
+`./scripts/verify all`; working-tree disposable installer smoke for both consumers.
+
 ## Capability: Deployment
 
 ## US-002 Deploy shared primitives

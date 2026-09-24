@@ -18,6 +18,7 @@ harness repo. When in doubt, leave it in the harness.
 | --- | --- |
 | `install` | The single deploy contract: skills, guidance, and launchers |
 | `skills/` | Portable skill packages, clean-replaced when selected |
+| `skills/test-audit/` | Shared authoring gate and focused test audit; subsystem campaign is opt-in (US-021) |
 | `guidance/*.md` | Shared global-guidance sections, spliced at the harness marker |
 | `bin/pass-env.ts` | Standalone pass-backed environment launcher |
 | `bin/design-check.ts` | Standalone player-surface copy checker, installed as `~/.local/bin/design-check` |
@@ -70,6 +71,12 @@ Shared guidance sections may reference shared primitives and vehicles deployed a
 `omp-config`'s own guidance file adds Working together (including model roles),
 Execution environments (exe.dev vehicle), and Authority
 and operations. `pi-config`'s file is title and intro only.
+
+`test-audit` owns test authoring, consolidation, and pruning decisions for both
+harnesses. The shared guidance routes test changes there; its optional campaign
+does not authorize an unrequested sweep. `verification-infrastructure` instead
+creates repository-owned runnable verification. The `effective-verification`
+candidate below judges test and execution evidence; it is not deployed.
 
 ## Semantic-quality source candidate
 

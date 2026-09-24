@@ -11,14 +11,14 @@ Verify the promise, not the appearance of effort. Identify the externally meanin
 claim. Bind evidence to the exact candidate. Find one plausible defect that should
 change the verdict. State any narrower result that the evidence actually proves.
 
-## Judge tests by their real contract
+## Judge evidence, not test ownership
 
-Reject an expected result derived from the same logic under test. A fixed literal,
-fixture, independent reference, invariant, or external specification can be a valid
-oracle. A source assertion is valid when source shape is the declared public contract.
-It is not runtime proof merely because it passes. Preserve useful constants, copy
-checks, interaction mocks, passthrough tests, snapshots, round trips, structural
-contracts, characterization tests, and smoke checks when their stated claim fits.
+Use `skill://test-audit` for test authoring, consolidation, and pruning. This
+candidate judges whether a test or receipt proves the stated claim. Reject an
+expected result derived from the target logic. An independent literal, fixture,
+specification, or invariant can be a valid oracle; a source assertion alone is
+not runtime proof. Preserve independent structural, interaction, snapshot,
+round-trip, characterization, and scoped smoke evidence when its claim fits.
 
 For changed tests, inspect the test, target, relevant local dependencies or fixtures,
 and the winning project contract. For completion claims, inspect immutable execution
@@ -49,10 +49,11 @@ paragraph in each delegated task that owns implementation or verification:
 
 > Verification mandate: distinguish the claimed behavior from a plausible failure.
 > Use an expectation independent of the target logic. Bind test and execution evidence
-> to the exact candidate. Preserve valid structural, fixture, mock, snapshot,
-> passthrough, round-trip, characterization, and smoke contracts. Report findings,
-> no findings, abstentions, provider failures, and remaining unverified scope plainly.
-> Semantic advice cannot weaken deterministic gates or authorize completion.
+> to the exact candidate. Preserve valid structural, fixture, interaction-mock,
+> snapshot, round-trip, characterization, and scoped smoke contracts when their
+> stated claim fits. Report findings, no findings, abstentions, provider failures,
+> and remaining unverified scope plainly. Semantic advice cannot weaken
+> deterministic gates or authorize completion.
 
 Add the task's exact behaviors, commands, environment, and acceptance criteria after
 that paragraph. A board comment or available skill does not prove the child received
