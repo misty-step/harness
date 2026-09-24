@@ -1,3 +1,9 @@
+# [0.1.30](https://github.com/misty-step/harness/compare/v0.1.29...v0.1.30) (2026-09-24)
+<!-- landmark:protected-release previous=v0.1.29 source=03bd5fbe7a714fd499368ffe5ab51545f52492321ca50e2d14820d7088196175 -->
+
+### Bug Fixes
+
+* **sachstand:** declare speech auth and guard retention opt-out (MIS-161) ([3f0538c](https://github.com/misty-step/harness/commit/3f0538c81c3e8c7c714e6b2bb5e516004ed360b3))
 # [0.1.29](https://github.com/misty-step/harness/compare/v0.1.28...v0.1.29) (2026-09-24)
 <!-- landmark:protected-release previous=v0.1.28 source=6556fdf6bd887a1bce3674f832f48d7aba42345264531c79ea437dac81b851f4 -->
 
