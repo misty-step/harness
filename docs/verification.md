@@ -82,14 +82,16 @@ source but clones committed HEAD for installer checks. Before commit, exercise
 changed skill packaging and guidance composition in disposable destinations.
 
 The shared [`story-qa` skill](../agent-config/skills/story-qa/SKILL.md)
-describes product-owned curated story walks on the real user surface, selected
-for the change and rotated on regular runs. The
-[`check-cadence` skill](../agent-config/skills/check-cadence/SKILL.md)
+requires agents to adversarially review their own work and, for user-facing
+changes, manually walk affected request and story criteria through the actual
+end-user surface before calling the work done. Docs-only and internal changes
+get proportionate owner-path checks; recurring runs rotate broader curated
+walks. The [`check-cadence` skill](../agent-config/skills/check-cadence/SKILL.md)
 tiers repository checks by measured cost and delayed-detection risk: PR feedback
 should take minutes; expensive matrices belong to owned nightly or weekly
-runs with notification and on-demand execution. These are recommendations
-for consuming products, not an automatic scheduler or a change to this
-repository's CI. Keep required security and installer gates intact.
+runs with notification and on-demand execution. This guidance does not install
+a scheduler or change this repository's CI. Keep required security and
+installer gates intact.
 
 ## Git hook setup
 

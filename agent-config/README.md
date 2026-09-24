@@ -75,11 +75,13 @@ Execution environments (exe.dev vehicle), and Authority
 and operations. `pi-config`'s file is title and intro only.
 
 `test-audit` owns test authoring, consolidation, and pruning decisions for both
-harnesses; it avoids repeated verification of the same contract. `story-qa`
-guides agent walks through curated product stories on the user surface.
-`check-cadence` guides fast PR checks and owned nightly/weekly coverage. The
-shared guidance routes all three; it does not schedule a run. Their scope is
-distinct from `verification-infrastructure`, which creates repository-owned
+harnesses; it avoids repeated verification of the same contract. Shared
+guidance requires adversarial self-review of every change and invokes
+`story-qa` for affected user-facing story walks before done. Docs-only and
+internal changes get proportionate owner-path checks, not artificial browser
+walks. `check-cadence` guides fast PR checks and owned nightly/weekly coverage.
+The shared guidance routes all three; it does not schedule a run. Their scope
+is distinct from `verification-infrastructure`, which creates repository-owned
 runnable verification. The `effective-verification` candidate below judges
 test and execution evidence; it is not deployed.
 
