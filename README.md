@@ -63,6 +63,16 @@ nothing about older or unleased resources.
 See [verification and local resource limits](docs/verification.md). The root owns
 CI, hooks, and releases; component directories retain their focused tests.
 
+## Token-cost evidence (US-018, US-019)
+
+[Token efficiency report](docs/token-efficiency.md): scoped whole-task accounting,
+the measured baseline, provider/cache provenance, instruction audit, and the
+off-by-default credential-context experiment. Run the analyzer with an explicit
+task manifest; a session stop is not proof of task completion. The credential
+experiment remains off by default. Separately, the operator-approved advisor
+route uses Luna max, then Grok 4.7 xhigh, Gemini 3.8 Flash high, and DeepSeek
+V4.1 Flash max; other model roles remain unchanged.
+
 ## Deploy (explicit live writes)
 
 Run only for the harness you intend to change:

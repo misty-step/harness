@@ -351,3 +351,73 @@ non-Omarchy hosts provision this local theme.
 Evidence: `omp-config/config.yml`, `omp-config/install`,
 `omp config get theme.dark`, `omp config get theme.light`,
 `~/.omp/agent/themes/omarchy-system.json`.
+
+## Capability: Task cost evidence
+
+## US-018 Measure whole-task token cost
+
+Statement: When I compare harness changes, I want scoped, price-weighted usage
+for complete task trees, so cheaper requests cannot conceal more turns, failed
+tasks, or expensive background agents.
+
+Criteria:
+1. WHEN analyzing an explicit task manifest, THE SYSTEM SHALL include recorded
+   parent, worker, advisor, and auxiliary model usage, keeping uncached input,
+   output, cache reads, and cache writes separate.
+2. WHEN all task outcomes and prices are known and at least one task succeeds,
+   THE SYSTEM SHALL divide total cohort cost, including failed tasks, by the
+   number of successful tasks; OTHERWISE it SHALL report the metric unavailable.
+3. IF a manifest double-counts events, escapes its session directory, or reads
+   malformed records, THEN THE SYSTEM SHALL fail without a partial report.
+4. THE SYSTEM SHALL emit aggregate metadata rather than transcript text,
+   commands, tool arguments, or credentials.
+
+No-gos: no inferred success from an agent's final message; no catalog estimate
+presented as an invoice; no automatic scan outside the selected session directory.
+
+Evidence: `omp-config/bin/omp-task-usage.test.ts`,
+`omp-config/bin/omp-task-usage.ts`
+
+## US-019 Compare on-demand credential context
+
+Statement: When I evaluate prompt overhead, I want an opt-in credential
+discovery pointer instead of the full pass inventory, so I can measure cost
+without removing authentication recovery or changing normal sessions.
+
+Criteria:
+1. WHERE `OMP_CREDENTIAL_CONTEXT=on-demand` is set before extension loading,
+   THE SYSTEM SHALL inject a stable discovery pointer without listing pass
+   entries in the startup prompt.
+2. WHEN an authentication failure or unavailable-credential claim occurs,
+   THE SYSTEM SHALL retain targeted credential reminders in either mode, with
+   at most one claim follow-up per matching entry and one for unmatched claims.
+3. WHEN the experiment is not selected, THE SYSTEM SHALL retain the full
+   inventory behavior; a later environment change SHALL NOT change the mode
+   of an already loaded extension.
+
+No-gos: no credential values in prompts, no weaker lookup-order guidance,
+no default promotion without task-level quality and cost evidence.
+
+Evidence: `omp-config/extensions/credentials/credentials.test.ts`,
+`docs/token-efficiency.md`
+
+## US-020 Receive an executive status brief
+
+Statement: When I ask for sachstand, I want a concise, evidence-based status
+brief identifying its session and decisions, with optional speech, so I can
+orient across concurrent work without changing that work.
+
+Criteria:
+1. WHEN invoked, THE SYSTEM SHALL identify the project, task and repository
+   context and distinguish verified outcomes from open work and inferences.
+2. WHEN a decision is needed, THE SYSTEM SHALL state options, consequences,
+   recommendation and missing information without taking that decision.
+3. WHERE `quiet` is requested, THE SYSTEM SHALL skip speech; OTHERWISE it
+   SHALL attempt speech and report the audio path, duration and estimated cost,
+   or report the speech error while retaining the written brief.
+
+No-gos: no unrequested project mutations or decisions during a status brief.
+
+Evidence: `agent-config/skills/sachstand/SKILL.md`,
+`agent-config/skills/sachstand/scripts/speak.ts`; native online synthesis smoke
+produced a two-second WAV with `--no-play` on 2026-09-24.

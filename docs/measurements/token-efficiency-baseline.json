@@ -1,0 +1,1189 @@
+{
+  "version": 1,
+  "costBasis": "recorded runtime catalog USD, not an invoice",
+  "cohort": {
+    "tasks": 5,
+    "success": 0,
+    "failure": 0,
+    "unknown": 5
+  },
+  "recordedCostPerCompletedTask": null,
+  "total": {
+    "requests": 3889,
+    "missingUsage": 0,
+    "missingPrices": 0,
+    "failedRequests": 66,
+    "cacheHitRequests": 3677,
+    "tokens": {
+      "input": 17794764,
+      "output": 1054761,
+      "cacheRead": 603258136,
+      "cacheWrite": 541106
+    },
+    "recordedCost": {
+      "input": 22.65365659080524,
+      "output": 8.42977341678572,
+      "cacheRead": 121.62774871540914,
+      "cacheWrite": 4.605162
+    },
+    "recordedCostTotal": 157.3163407230001,
+    "cacheHitRequestRate": 0.9454872717922345,
+    "cachedInputTokenFraction": 0.9705018551932433
+  },
+  "tasks": [
+    {
+      "id": "archived-session-1",
+      "outcome": "unknown",
+      "parentTurns": 168,
+      "userMessages": 6,
+      "files": 2,
+      "requests": 275,
+      "missingUsage": 0,
+      "missingPrices": 0,
+      "failedRequests": 8,
+      "cacheHitRequests": 242,
+      "tokens": {
+        "input": 3742378,
+        "output": 81539,
+        "cacheRead": 24249878,
+        "cacheWrite": 138157
+      },
+      "recordedCost": {
+        "input": 3.5736602499999996,
+        "output": 0.5825955000000002,
+        "cacheRead": 4.65911105,
+        "cacheWrite": 1.3815700000000002
+      },
+      "recordedCostTotal": 10.1969368,
+      "cacheHitRequestRate": 0.88,
+      "cachedInputTokenFraction": 0.8620519720062411
+    },
+    {
+      "id": "archived-session-2",
+      "outcome": "unknown",
+      "parentTurns": 396,
+      "userMessages": 15,
+      "files": 2,
+      "requests": 773,
+      "missingUsage": 0,
+      "missingPrices": 0,
+      "failedRequests": 0,
+      "cacheHitRequests": 743,
+      "tokens": {
+        "input": 7910923,
+        "output": 310404,
+        "cacheRead": 151976591,
+        "cacheWrite": 0
+      },
+      "recordedCost": {
+        "input": 7.367057840805006,
+        "output": 1.1359659167858178,
+        "cacheRead": 16.947855625409176,
+        "cacheWrite": 0
+      },
+      "recordedCostTotal": 25.450879383,
+      "cacheHitRequestRate": 0.9611901681759379,
+      "cachedInputTokenFraction": 0.9505219463228379
+    },
+    {
+      "id": "archived-session-3",
+      "outcome": "unknown",
+      "parentTurns": 486,
+      "userMessages": 4,
+      "files": 13,
+      "requests": 2169,
+      "missingUsage": 0,
+      "missingPrices": 0,
+      "failedRequests": 58,
+      "cacheHitRequests": 2031,
+      "tokens": {
+        "input": 5310734,
+        "output": 496727,
+        "cacheRead": 325900288,
+        "cacheWrite": 0
+      },
+      "recordedCost": {
+        "input": 10.09556209999998,
+        "output": 3.7083300000000157,
+        "cacheRead": 79.79450623999998,
+        "cacheWrite": 0
+      },
+      "recordedCostTotal": 93.59839833999997,
+      "cacheHitRequestRate": 0.9363762102351314,
+      "cachedInputTokenFraction": 0.9839657087257199
+    },
+    {
+      "id": "archived-session-4",
+      "outcome": "unknown",
+      "parentTurns": 63,
+      "userMessages": 3,
+      "files": 2,
+      "requests": 201,
+      "missingUsage": 0,
+      "missingPrices": 0,
+      "failedRequests": 0,
+      "cacheHitRequests": 193,
+      "tokens": {
+        "input": 348958,
+        "output": 15612,
+        "cacheRead": 11080704,
+        "cacheWrite": 0
+      },
+      "recordedCost": {
+        "input": 0.6529543999999996,
+        "output": 0.14202199999999993,
+        "cacheRead": 2.2161408000000007,
+        "cacheWrite": 0
+      },
+      "recordedCostTotal": 3.0111172,
+      "cacheHitRequestRate": 0.9601990049751243,
+      "cachedInputTokenFraction": 0.9694690884122382
+    },
+    {
+      "id": "archived-session-5",
+      "outcome": "unknown",
+      "parentTurns": 212,
+      "userMessages": 6,
+      "files": 2,
+      "requests": 471,
+      "missingUsage": 0,
+      "missingPrices": 0,
+      "failedRequests": 0,
+      "cacheHitRequests": 468,
+      "tokens": {
+        "input": 481771,
+        "output": 150479,
+        "cacheRead": 90050675,
+        "cacheWrite": 402949
+      },
+      "recordedCost": {
+        "input": 0.9644219999999998,
+        "output": 2.8608599999999846,
+        "cacheRead": 18.010135000000016,
+        "cacheWrite": 3.2235919999999996
+      },
+      "recordedCostTotal": 25.059009,
+      "cacheHitRequestRate": 0.9936305732484076,
+      "cachedInputTokenFraction": 0.9902708950678666
+    }
+  ],
+  "sources": {
+    "advisor": {
+      "requests": 2190,
+      "missingUsage": 0,
+      "missingPrices": 0,
+      "failedRequests": 51,
+      "cacheHitRequests": 2110,
+      "tokens": {
+        "input": 5558707,
+        "output": 237810,
+        "cacheRead": 335510872,
+        "cacheWrite": 138157
+      },
+      "recordedCost": {
+        "input": 9.315185090804995,
+        "output": 1.6865296667858198,
+        "cacheRead": 77.00175450040913,
+        "cacheWrite": 1.3815700000000002
+      },
+      "recordedCostTotal": 89.38503925799995,
+      "cacheHitRequestRate": 0.9634703196347032,
+      "cachedInputTokenFraction": 0.9833038252098716
+    },
+    "parent": {
+      "requests": 1325,
+      "missingUsage": 0,
+      "missingPrices": 0,
+      "failedRequests": 0,
+      "cacheHitRequests": 1281,
+      "tokens": {
+        "input": 9949397,
+        "output": 550572,
+        "cacheRead": 244682176,
+        "cacheWrite": 402949
+      },
+      "recordedCost": {
+        "input": 9.336018999999878,
+        "output": 5.122383750000001,
+        "cacheRead": 33.821913574999996,
+        "cacheWrite": 3.2235919999999996
+      },
+      "recordedCostTotal": 51.50390832499987,
+      "cacheHitRequestRate": 0.9667924528301887,
+      "cachedInputTokenFraction": 0.95940806005863
+    },
+    "parent:auxiliary": {
+      "requests": 28,
+      "missingUsage": 0,
+      "missingPrices": 0,
+      "failedRequests": 4,
+      "cacheHitRequests": 0,
+      "tokens": {
+        "input": 106625,
+        "output": 6252,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "recordedCost": {
+        "input": 0.0106625,
+        "output": 0.0031259999999999994,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "recordedCostTotal": 0.013788499999999999,
+      "cacheHitRequestRate": 0,
+      "cachedInputTokenFraction": 0
+    },
+    "worker": {
+      "requests": 304,
+      "missingUsage": 0,
+      "missingPrices": 0,
+      "failedRequests": 9,
+      "cacheHitRequests": 286,
+      "tokens": {
+        "input": 1950666,
+        "output": 246084,
+        "cacheRead": 23065088,
+        "cacheWrite": 0
+      },
+      "recordedCost": {
+        "input": 3.9688531000000022,
+        "output": 1.6107124999999998,
+        "cacheRead": 10.804080639999993,
+        "cacheWrite": 0
+      },
+      "recordedCostTotal": 16.383646239999997,
+      "cacheHitRequestRate": 0.9407894736842105,
+      "cachedInputTokenFraction": 0.9220224983024697
+    },
+    "worker:auxiliary": {
+      "requests": 42,
+      "missingUsage": 0,
+      "missingPrices": 0,
+      "failedRequests": 2,
+      "cacheHitRequests": 0,
+      "tokens": {
+        "input": 229369,
+        "output": 14043,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "recordedCost": {
+        "input": 0.022936899999999996,
+        "output": 0.007021500000000003,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "recordedCostTotal": 0.0299584,
+      "cacheHitRequestRate": 0,
+      "cachedInputTokenFraction": 0
+    }
+  },
+  "models": {
+    "anthropic/claude-opus-5": {
+      "requests": 16,
+      "missingUsage": 0,
+      "missingPrices": 0,
+      "failedRequests": 4,
+      "cacheHitRequests": 12,
+      "tokens": {
+        "input": 36,
+        "output": 11052,
+        "cacheRead": 1424856,
+        "cacheWrite": 138157
+      },
+      "recordedCost": {
+        "input": 0.00018,
+        "output": 0.27630000000000005,
+        "cacheRead": 0.712428,
+        "cacheWrite": 1.3815700000000002
+      },
+      "recordedCostTotal": 2.3704780000000003,
+      "cacheHitRequestRate": 0.75,
+      "cachedInputTokenFraction": 0.9115875446003292
+    },
+    "anthropic/claude-opus-5-5": {
+      "requests": 212,
+      "missingUsage": 0,
+      "missingPrices": 0,
+      "failedRequests": 0,
+      "cacheHitRequests": 211,
+      "tokens": {
+        "input": 440,
+        "output": 135607,
+        "cacheRead": 56718835,
+        "cacheWrite": 402949
+      },
+      "recordedCost": {
+        "input": 0.001759999999999996,
+        "output": 2.7121399999999993,
+        "cacheRead": 11.343767,
+        "cacheWrite": 3.2235919999999996
+      },
+      "recordedCostTotal": 17.281259,
+      "cacheHitRequestRate": 0.9952830188679245,
+      "cachedInputTokenFraction": 0.9929381426045316
+    },
+    "google-antigravity/gemini-3.8-flash": {
+      "requests": 564,
+      "missingUsage": 0,
+      "missingPrices": 0,
+      "failedRequests": 0,
+      "cacheHitRequests": 527,
+      "tokens": {
+        "input": 8450924,
+        "output": 278305,
+        "cacheRead": 120916173,
+        "cacheWrite": 0
+      },
+      "recordedCost": {
+        "input": 6.338193000000005,
+        "output": 1.0436437499999998,
+        "cacheRead": 9.068712975000006,
+        "cacheWrite": 0
+      },
+      "recordedCostTotal": 16.45054972500001,
+      "cacheHitRequestRate": 0.9343971631205674,
+      "cachedInputTokenFraction": 0.934674857858177
+    },
+    "openai-codex/gpt-5.6-luna": {
+      "requests": 4,
+      "missingUsage": 0,
+      "missingPrices": 0,
+      "failedRequests": 4,
+      "cacheHitRequests": 0,
+      "tokens": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "recordedCost": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "recordedCostTotal": 0,
+      "cacheHitRequestRate": 0,
+      "cachedInputTokenFraction": null
+    },
+    "openai-codex/gpt-6-luna": {
+      "requests": 85,
+      "missingUsage": 0,
+      "missingPrices": 0,
+      "failedRequests": 0,
+      "cacheHitRequests": 20,
+      "tokens": {
+        "input": 473945,
+        "output": 33884,
+        "cacheRead": 589824,
+        "cacheWrite": 0
+      },
+      "recordedCost": {
+        "input": 0.04739449999999999,
+        "output": 0.016941999999999995,
+        "cacheRead": 0.00589824,
+        "cacheWrite": 0
+      },
+      "recordedCostTotal": 0.07023473999999999,
+      "cacheHitRequestRate": 0.23529411764705882,
+      "cachedInputTokenFraction": 0.5544662422010793
+    },
+    "openai-codex/gpt-6-sol": {
+      "requests": 1996,
+      "missingUsage": 0,
+      "missingPrices": 0,
+      "failedRequests": 1,
+      "cacheHitRequests": 1985,
+      "tokens": {
+        "input": 3148651,
+        "output": 225176,
+        "cacheRead": 325224064,
+        "cacheWrite": 0
+      },
+      "recordedCost": {
+        "input": 6.297302000000013,
+        "output": 2.251759999999982,
+        "cacheRead": 65.04481280000006,
+        "cacheWrite": 0
+      },
+      "recordedCostTotal": 73.59387480000005,
+      "cacheHitRequestRate": 0.9944889779559118,
+      "cachedInputTokenFraction": 0.9904113501025809
+    },
+    "openrouter/deepseek/deepseek-v4.1-flash": {
+      "requests": 19,
+      "missingUsage": 0,
+      "missingPrices": 0,
+      "failedRequests": 19,
+      "cacheHitRequests": 0,
+      "tokens": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "recordedCost": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "recordedCostTotal": 0,
+      "cacheHitRequestRate": 0,
+      "cachedInputTokenFraction": null
+    },
+    "openrouter/z-ai/glm-5.3": {
+      "requests": 394,
+      "missingUsage": 0,
+      "missingPrices": 0,
+      "failedRequests": 17,
+      "cacheHitRequests": 365,
+      "tokens": {
+        "input": 2588962,
+        "output": 83933,
+        "cacheRead": 48627072,
+        "cacheWrite": 0
+      },
+      "recordedCost": {
+        "input": 3.3755870908050025,
+        "output": 0.2866996667858184,
+        "cacheRead": 9.196641700409181,
+        "cacheWrite": 0
+      },
+      "recordedCostTotal": 12.858928458000001,
+      "cacheHitRequestRate": 0.9263959390862944,
+      "cachedInputTokenFraction": 0.9494501663287712
+    },
+    "openrouter/z-ai/glm-5.3-flash": {
+      "requests": 19,
+      "missingUsage": 0,
+      "missingPrices": 0,
+      "failedRequests": 19,
+      "cacheHitRequests": 0,
+      "tokens": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "recordedCost": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "recordedCostTotal": 0,
+      "cacheHitRequestRate": 0,
+      "cachedInputTokenFraction": null
+    },
+    "xai-oauth/grok-4.6": {
+      "requests": 580,
+      "missingUsage": 0,
+      "missingPrices": 0,
+      "failedRequests": 2,
+      "cacheHitRequests": 557,
+      "tokens": {
+        "input": 3131806,
+        "output": 286804,
+        "cacheRead": 49757312,
+        "cacheWrite": 0
+      },
+      "recordedCost": {
+        "input": 6.593240000000001,
+        "output": 1.842287999999998,
+        "cacheRead": 26.255487999999993,
+        "cacheWrite": 0
+      },
+      "recordedCostTotal": 34.69101599999999,
+      "cacheHitRequestRate": 0.9603448275862069,
+      "cachedInputTokenFraction": 0.9407854371857742
+    }
+  },
+  "tools": {
+    "advise": {
+      "results": 116,
+      "errors": 0,
+      "unclassifiedErrors": 0,
+      "tasksUsing": 5,
+      "taskUseRate": 1,
+      "flaggedErrorRate": 0
+    },
+    "ask": {
+      "results": 10,
+      "errors": 0,
+      "unclassifiedErrors": 0,
+      "tasksUsing": 1,
+      "taskUseRate": 0.2,
+      "flaggedErrorRate": 0
+    },
+    "bash": {
+      "results": 731,
+      "errors": 68,
+      "unclassifiedErrors": 68,
+      "tasksUsing": 5,
+      "taskUseRate": 1,
+      "flaggedErrorRate": 0.09302325581395349
+    },
+    "edit": {
+      "results": 152,
+      "errors": 7,
+      "unclassifiedErrors": 7,
+      "tasksUsing": 5,
+      "taskUseRate": 1,
+      "flaggedErrorRate": 0.046052631578947366
+    },
+    "eval": {
+      "results": 104,
+      "errors": 5,
+      "unclassifiedErrors": 5,
+      "tasksUsing": 3,
+      "taskUseRate": 0.6,
+      "flaggedErrorRate": 0.04807692307692308
+    },
+    "find": {
+      "results": 16,
+      "errors": 0,
+      "unclassifiedErrors": 0,
+      "tasksUsing": 2,
+      "taskUseRate": 0.4,
+      "flaggedErrorRate": 0
+    },
+    "glob": {
+      "results": 86,
+      "errors": 6,
+      "unclassifiedErrors": 6,
+      "tasksUsing": 4,
+      "taskUseRate": 0.8,
+      "flaggedErrorRate": 0.06976744186046512
+    },
+    "grep": {
+      "results": 214,
+      "errors": 4,
+      "unclassifiedErrors": 4,
+      "tasksUsing": 5,
+      "taskUseRate": 1,
+      "flaggedErrorRate": 0.018691588785046728
+    },
+    "hub": {
+      "results": 50,
+      "errors": 0,
+      "unclassifiedErrors": 0,
+      "tasksUsing": 3,
+      "taskUseRate": 0.6,
+      "flaggedErrorRate": 0
+    },
+    "read": {
+      "results": 2010,
+      "errors": 34,
+      "unclassifiedErrors": 34,
+      "tasksUsing": 5,
+      "taskUseRate": 1,
+      "flaggedErrorRate": 0.01691542288557214
+    },
+    "task": {
+      "results": 4,
+      "errors": 0,
+      "unclassifiedErrors": 0,
+      "tasksUsing": 1,
+      "taskUseRate": 0.2,
+      "flaggedErrorRate": 0
+    },
+    "todo": {
+      "results": 28,
+      "errors": 1,
+      "unclassifiedErrors": 1,
+      "tasksUsing": 3,
+      "taskUseRate": 0.6,
+      "flaggedErrorRate": 0.03571428571428571
+    },
+    "web_search": {
+      "results": 11,
+      "errors": 0,
+      "unclassifiedErrors": 0,
+      "tasksUsing": 2,
+      "taskUseRate": 0.4,
+      "flaggedErrorRate": 0
+    },
+    "write": {
+      "results": 93,
+      "errors": 3,
+      "unclassifiedErrors": 3,
+      "tasksUsing": 5,
+      "taskUseRate": 1,
+      "flaggedErrorRate": 0.03225806451612903
+    },
+    "yield": {
+      "results": 15,
+      "errors": 3,
+      "unclassifiedErrors": 3,
+      "tasksUsing": 1,
+      "taskUseRate": 0.2,
+      "flaggedErrorRate": 0.2
+    }
+  },
+  "toolsByModel": {
+    "anthropic/claude-opus-5-5:bash": {
+      "results": 39,
+      "errors": 2,
+      "unclassifiedErrors": 2,
+      "tasksUsing": 1,
+      "taskUseRate": 0.2,
+      "flaggedErrorRate": 0.05128205128205128
+    },
+    "anthropic/claude-opus-5-5:edit": {
+      "results": 33,
+      "errors": 1,
+      "unclassifiedErrors": 1,
+      "tasksUsing": 1,
+      "taskUseRate": 0.2,
+      "flaggedErrorRate": 0.030303030303030304
+    },
+    "anthropic/claude-opus-5-5:eval": {
+      "results": 57,
+      "errors": 2,
+      "unclassifiedErrors": 2,
+      "tasksUsing": 1,
+      "taskUseRate": 0.2,
+      "flaggedErrorRate": 0.03508771929824561
+    },
+    "anthropic/claude-opus-5-5:glob": {
+      "results": 2,
+      "errors": 0,
+      "unclassifiedErrors": 0,
+      "tasksUsing": 1,
+      "taskUseRate": 0.2,
+      "flaggedErrorRate": 0
+    },
+    "anthropic/claude-opus-5-5:grep": {
+      "results": 25,
+      "errors": 0,
+      "unclassifiedErrors": 0,
+      "tasksUsing": 1,
+      "taskUseRate": 0.2,
+      "flaggedErrorRate": 0
+    },
+    "anthropic/claude-opus-5-5:read": {
+      "results": 86,
+      "errors": 0,
+      "unclassifiedErrors": 0,
+      "tasksUsing": 1,
+      "taskUseRate": 0.2,
+      "flaggedErrorRate": 0
+    },
+    "anthropic/claude-opus-5-5:todo": {
+      "results": 7,
+      "errors": 0,
+      "unclassifiedErrors": 0,
+      "tasksUsing": 1,
+      "taskUseRate": 0.2,
+      "flaggedErrorRate": 0
+    },
+    "anthropic/claude-opus-5-5:write": {
+      "results": 5,
+      "errors": 0,
+      "unclassifiedErrors": 0,
+      "tasksUsing": 1,
+      "taskUseRate": 0.2,
+      "flaggedErrorRate": 0
+    },
+    "anthropic/claude-opus-5:advise": {
+      "results": 2,
+      "errors": 0,
+      "unclassifiedErrors": 0,
+      "tasksUsing": 1,
+      "taskUseRate": 0.2,
+      "flaggedErrorRate": 0
+    },
+    "anthropic/claude-opus-5:glob": {
+      "results": 2,
+      "errors": 0,
+      "unclassifiedErrors": 0,
+      "tasksUsing": 1,
+      "taskUseRate": 0.2,
+      "flaggedErrorRate": 0
+    },
+    "anthropic/claude-opus-5:grep": {
+      "results": 3,
+      "errors": 0,
+      "unclassifiedErrors": 0,
+      "tasksUsing": 1,
+      "taskUseRate": 0.2,
+      "flaggedErrorRate": 0
+    },
+    "anthropic/claude-opus-5:read": {
+      "results": 3,
+      "errors": 0,
+      "unclassifiedErrors": 0,
+      "tasksUsing": 1,
+      "taskUseRate": 0.2,
+      "flaggedErrorRate": 0
+    },
+    "google-antigravity/gemini-3.8-flash:bash": {
+      "results": 257,
+      "errors": 22,
+      "unclassifiedErrors": 22,
+      "tasksUsing": 2,
+      "taskUseRate": 0.4,
+      "flaggedErrorRate": 0.08560311284046693
+    },
+    "google-antigravity/gemini-3.8-flash:edit": {
+      "results": 59,
+      "errors": 3,
+      "unclassifiedErrors": 3,
+      "tasksUsing": 2,
+      "taskUseRate": 0.4,
+      "flaggedErrorRate": 0.05084745762711865
+    },
+    "google-antigravity/gemini-3.8-flash:glob": {
+      "results": 13,
+      "errors": 1,
+      "unclassifiedErrors": 1,
+      "tasksUsing": 1,
+      "taskUseRate": 0.2,
+      "flaggedErrorRate": 0.07692307692307693
+    },
+    "google-antigravity/gemini-3.8-flash:grep": {
+      "results": 22,
+      "errors": 1,
+      "unclassifiedErrors": 1,
+      "tasksUsing": 2,
+      "taskUseRate": 0.4,
+      "flaggedErrorRate": 0.045454545454545456
+    },
+    "google-antigravity/gemini-3.8-flash:hub": {
+      "results": 2,
+      "errors": 0,
+      "unclassifiedErrors": 0,
+      "tasksUsing": 1,
+      "taskUseRate": 0.2,
+      "flaggedErrorRate": 0
+    },
+    "google-antigravity/gemini-3.8-flash:read": {
+      "results": 170,
+      "errors": 1,
+      "unclassifiedErrors": 1,
+      "tasksUsing": 2,
+      "taskUseRate": 0.4,
+      "flaggedErrorRate": 0.0058823529411764705
+    },
+    "google-antigravity/gemini-3.8-flash:todo": {
+      "results": 9,
+      "errors": 0,
+      "unclassifiedErrors": 0,
+      "tasksUsing": 1,
+      "taskUseRate": 0.2,
+      "flaggedErrorRate": 0
+    },
+    "google-antigravity/gemini-3.8-flash:web_search": {
+      "results": 7,
+      "errors": 0,
+      "unclassifiedErrors": 0,
+      "tasksUsing": 1,
+      "taskUseRate": 0.2,
+      "flaggedErrorRate": 0
+    },
+    "google-antigravity/gemini-3.8-flash:write": {
+      "results": 28,
+      "errors": 0,
+      "unclassifiedErrors": 0,
+      "tasksUsing": 2,
+      "taskUseRate": 0.4,
+      "flaggedErrorRate": 0
+    },
+    "openai-codex/gpt-6-luna:find": {
+      "results": 5,
+      "errors": 0,
+      "unclassifiedErrors": 0,
+      "tasksUsing": 1,
+      "taskUseRate": 0.2,
+      "flaggedErrorRate": 0
+    },
+    "openai-codex/gpt-6-luna:glob": {
+      "results": 3,
+      "errors": 0,
+      "unclassifiedErrors": 0,
+      "tasksUsing": 1,
+      "taskUseRate": 0.2,
+      "flaggedErrorRate": 0
+    },
+    "openai-codex/gpt-6-luna:grep": {
+      "results": 7,
+      "errors": 1,
+      "unclassifiedErrors": 1,
+      "tasksUsing": 1,
+      "taskUseRate": 0.2,
+      "flaggedErrorRate": 0.14285714285714285
+    },
+    "openai-codex/gpt-6-luna:read": {
+      "results": 43,
+      "errors": 1,
+      "unclassifiedErrors": 1,
+      "tasksUsing": 1,
+      "taskUseRate": 0.2,
+      "flaggedErrorRate": 0.023255813953488372
+    },
+    "openai-codex/gpt-6-luna:yield": {
+      "results": 2,
+      "errors": 0,
+      "unclassifiedErrors": 0,
+      "tasksUsing": 1,
+      "taskUseRate": 0.2,
+      "flaggedErrorRate": 0
+    },
+    "openai-codex/gpt-6-sol:advise": {
+      "results": 17,
+      "errors": 0,
+      "unclassifiedErrors": 0,
+      "tasksUsing": 3,
+      "taskUseRate": 0.6,
+      "flaggedErrorRate": 0
+    },
+    "openai-codex/gpt-6-sol:ask": {
+      "results": 10,
+      "errors": 0,
+      "unclassifiedErrors": 0,
+      "tasksUsing": 1,
+      "taskUseRate": 0.2,
+      "flaggedErrorRate": 0
+    },
+    "openai-codex/gpt-6-sol:bash": {
+      "results": 305,
+      "errors": 35,
+      "unclassifiedErrors": 35,
+      "tasksUsing": 2,
+      "taskUseRate": 0.4,
+      "flaggedErrorRate": 0.11475409836065574
+    },
+    "openai-codex/gpt-6-sol:edit": {
+      "results": 57,
+      "errors": 2,
+      "unclassifiedErrors": 2,
+      "tasksUsing": 2,
+      "taskUseRate": 0.4,
+      "flaggedErrorRate": 0.03508771929824561
+    },
+    "openai-codex/gpt-6-sol:eval": {
+      "results": 45,
+      "errors": 3,
+      "unclassifiedErrors": 3,
+      "tasksUsing": 2,
+      "taskUseRate": 0.4,
+      "flaggedErrorRate": 0.06666666666666667
+    },
+    "openai-codex/gpt-6-sol:find": {
+      "results": 10,
+      "errors": 0,
+      "unclassifiedErrors": 0,
+      "tasksUsing": 2,
+      "taskUseRate": 0.4,
+      "flaggedErrorRate": 0
+    },
+    "openai-codex/gpt-6-sol:glob": {
+      "results": 34,
+      "errors": 3,
+      "unclassifiedErrors": 3,
+      "tasksUsing": 1,
+      "taskUseRate": 0.2,
+      "flaggedErrorRate": 0.08823529411764706
+    },
+    "openai-codex/gpt-6-sol:grep": {
+      "results": 71,
+      "errors": 0,
+      "unclassifiedErrors": 0,
+      "tasksUsing": 3,
+      "taskUseRate": 0.6,
+      "flaggedErrorRate": 0
+    },
+    "openai-codex/gpt-6-sol:hub": {
+      "results": 46,
+      "errors": 0,
+      "unclassifiedErrors": 0,
+      "tasksUsing": 2,
+      "taskUseRate": 0.4,
+      "flaggedErrorRate": 0
+    },
+    "openai-codex/gpt-6-sol:read": {
+      "results": 1316,
+      "errors": 6,
+      "unclassifiedErrors": 6,
+      "tasksUsing": 3,
+      "taskUseRate": 0.6,
+      "flaggedErrorRate": 0.004559270516717325
+    },
+    "openai-codex/gpt-6-sol:task": {
+      "results": 4,
+      "errors": 0,
+      "unclassifiedErrors": 0,
+      "tasksUsing": 1,
+      "taskUseRate": 0.2,
+      "flaggedErrorRate": 0
+    },
+    "openai-codex/gpt-6-sol:todo": {
+      "results": 12,
+      "errors": 1,
+      "unclassifiedErrors": 1,
+      "tasksUsing": 1,
+      "taskUseRate": 0.2,
+      "flaggedErrorRate": 0.08333333333333333
+    },
+    "openai-codex/gpt-6-sol:web_search": {
+      "results": 4,
+      "errors": 0,
+      "unclassifiedErrors": 0,
+      "tasksUsing": 1,
+      "taskUseRate": 0.2,
+      "flaggedErrorRate": 0
+    },
+    "openai-codex/gpt-6-sol:write": {
+      "results": 46,
+      "errors": 1,
+      "unclassifiedErrors": 1,
+      "tasksUsing": 2,
+      "taskUseRate": 0.4,
+      "flaggedErrorRate": 0.021739130434782608
+    },
+    "openai-codex/gpt-6-sol:yield": {
+      "results": 1,
+      "errors": 0,
+      "unclassifiedErrors": 0,
+      "tasksUsing": 1,
+      "taskUseRate": 0.2,
+      "flaggedErrorRate": 0
+    },
+    "openrouter/z-ai/glm-5.3:advise": {
+      "results": 45,
+      "errors": 0,
+      "unclassifiedErrors": 0,
+      "tasksUsing": 1,
+      "taskUseRate": 0.2,
+      "flaggedErrorRate": 0
+    },
+    "openrouter/z-ai/glm-5.3:glob": {
+      "results": 4,
+      "errors": 0,
+      "unclassifiedErrors": 0,
+      "tasksUsing": 1,
+      "taskUseRate": 0.2,
+      "flaggedErrorRate": 0
+    },
+    "openrouter/z-ai/glm-5.3:grep": {
+      "results": 7,
+      "errors": 0,
+      "unclassifiedErrors": 0,
+      "tasksUsing": 1,
+      "taskUseRate": 0.2,
+      "flaggedErrorRate": 0
+    },
+    "openrouter/z-ai/glm-5.3:read": {
+      "results": 17,
+      "errors": 1,
+      "unclassifiedErrors": 1,
+      "tasksUsing": 1,
+      "taskUseRate": 0.2,
+      "flaggedErrorRate": 0.058823529411764705
+    },
+    "xai-oauth/grok-4.6:advise": {
+      "results": 52,
+      "errors": 0,
+      "unclassifiedErrors": 0,
+      "tasksUsing": 2,
+      "taskUseRate": 0.4,
+      "flaggedErrorRate": 0
+    },
+    "xai-oauth/grok-4.6:bash": {
+      "results": 130,
+      "errors": 9,
+      "unclassifiedErrors": 9,
+      "tasksUsing": 1,
+      "taskUseRate": 0.2,
+      "flaggedErrorRate": 0.06923076923076923
+    },
+    "xai-oauth/grok-4.6:edit": {
+      "results": 3,
+      "errors": 1,
+      "unclassifiedErrors": 1,
+      "tasksUsing": 1,
+      "taskUseRate": 0.2,
+      "flaggedErrorRate": 0.3333333333333333
+    },
+    "xai-oauth/grok-4.6:eval": {
+      "results": 2,
+      "errors": 0,
+      "unclassifiedErrors": 0,
+      "tasksUsing": 1,
+      "taskUseRate": 0.2,
+      "flaggedErrorRate": 0
+    },
+    "xai-oauth/grok-4.6:find": {
+      "results": 1,
+      "errors": 0,
+      "unclassifiedErrors": 0,
+      "tasksUsing": 1,
+      "taskUseRate": 0.2,
+      "flaggedErrorRate": 0
+    },
+    "xai-oauth/grok-4.6:glob": {
+      "results": 28,
+      "errors": 2,
+      "unclassifiedErrors": 2,
+      "tasksUsing": 2,
+      "taskUseRate": 0.4,
+      "flaggedErrorRate": 0.07142857142857142
+    },
+    "xai-oauth/grok-4.6:grep": {
+      "results": 79,
+      "errors": 2,
+      "unclassifiedErrors": 2,
+      "tasksUsing": 2,
+      "taskUseRate": 0.4,
+      "flaggedErrorRate": 0.02531645569620253
+    },
+    "xai-oauth/grok-4.6:hub": {
+      "results": 2,
+      "errors": 0,
+      "unclassifiedErrors": 0,
+      "tasksUsing": 1,
+      "taskUseRate": 0.2,
+      "flaggedErrorRate": 0
+    },
+    "xai-oauth/grok-4.6:read": {
+      "results": 375,
+      "errors": 25,
+      "unclassifiedErrors": 25,
+      "tasksUsing": 2,
+      "taskUseRate": 0.4,
+      "flaggedErrorRate": 0.06666666666666667
+    },
+    "xai-oauth/grok-4.6:write": {
+      "results": 14,
+      "errors": 2,
+      "unclassifiedErrors": 2,
+      "tasksUsing": 1,
+      "taskUseRate": 0.2,
+      "flaggedErrorRate": 0.14285714285714285
+    },
+    "xai-oauth/grok-4.6:yield": {
+      "results": 12,
+      "errors": 3,
+      "unclassifiedErrors": 3,
+      "tasksUsing": 1,
+      "taskUseRate": 0.2,
+      "flaggedErrorRate": 0.25
+    }
+  },
+  "files": [
+    {
+      "file": "2026-09-17T15-26-00-873Z_01a0aff9-86a9-753d-b2db-30a3c3de44be.jsonl",
+      "sha256": "560fe2af35f618c5e445585ecff8c06678b95fd71ad3bea74a4e90458ae481ec",
+      "bytes": 1261345
+    },
+    {
+      "file": "2026-09-17T15-26-00-873Z_01a0aff9-86a9-753d-b2db-30a3c3de44be/__advisor.steward.jsonl",
+      "sha256": "739c5574685e02086221990388ccfbb98a0a78853c1e41feb7d5b69eb766e373",
+      "bytes": 1574742
+    },
+    {
+      "file": "2026-09-18T03-39-33-373Z_01a0b299-1a7d-7567-9afa-c81d9688154b.jsonl",
+      "sha256": "7dae9f9c69454f5196c4a2d61860bcc98f434ff1a5a94b2202aeec47935166b8",
+      "bytes": 2990586
+    },
+    {
+      "file": "2026-09-18T03-39-33-373Z_01a0b299-1a7d-7567-9afa-c81d9688154b/__advisor.steward.jsonl",
+      "sha256": "c86697bffdd05d37241379b388579b2735538eae358817e9d0ded750d852787b",
+      "bytes": 2824485
+    },
+    {
+      "file": "2026-09-23T17-05-32-833Z_01a0cf3a-cea1-708e-8886-1fcb46f87b66.jsonl",
+      "sha256": "c8ef9a83f81cf42033e293163914820cb839c36bfd229602e3363f6f65f20b43",
+      "bytes": 6187125
+    },
+    {
+      "file": "2026-09-23T17-05-32-833Z_01a0cf3a-cea1-708e-8886-1fcb46f87b66/__advisor.steward.jsonl",
+      "sha256": "84bddc7aa326f70b0cb8988e8960bdc9a334ad6377cdb973eae1b10a37864685",
+      "bytes": 10149016
+    },
+    {
+      "file": "2026-09-23T17-05-32-833Z_01a0cf3a-cea1-708e-8886-1fcb46f87b66/HarnessDesign.jsonl",
+      "sha256": "a61656a954659e19dcd751a5241a8db13cf2e6b974e32092b43f82eea6b26a83",
+      "bytes": 505548
+    },
+    {
+      "file": "2026-09-23T17-05-32-833Z_01a0cf3a-cea1-708e-8886-1fcb46f87b66/LandmarkDesign.jsonl",
+      "sha256": "c329e16bad6ee7bd77853b2835251dd57d7c436f03665fb1015c568a81912b70",
+      "bytes": 518535
+    },
+    {
+      "file": "2026-09-23T17-05-32-833Z_01a0cf3a-cea1-708e-8886-1fcb46f87b66/MistyActiveMigration.jsonl",
+      "sha256": "8c348ce98ff76bbb04a440451667c886559f71c252dcd64adfb36b513f078ff8",
+      "bytes": 830641
+    },
+    {
+      "file": "2026-09-23T17-05-32-833Z_01a0cf3a-cea1-708e-8886-1fcb46f87b66/MistyArchiveMigration.jsonl",
+      "sha256": "0a04a24496179906571b6fa9f05c6af081281d713a93b5fdbb98567cdd0c6046",
+      "bytes": 504747
+    },
+    {
+      "file": "2026-09-23T17-05-32-833Z_01a0cf3a-cea1-708e-8886-1fcb46f87b66/MistyBranchAudit.jsonl",
+      "sha256": "e847f5ac33bb2a4810dc419c547e2641e029c1692193dc7b8c9ffeedfe84af39",
+      "bytes": 1885666
+    },
+    {
+      "file": "2026-09-23T17-05-32-833Z_01a0cf3a-cea1-708e-8886-1fcb46f87b66/MooBranchAudit.jsonl",
+      "sha256": "7bfcc9ff975bf85cb6a81ad1909764c187b87ef52ce0bd2159221e0796a88318",
+      "bytes": 1345865
+    },
+    {
+      "file": "2026-09-23T17-05-32-833Z_01a0cf3a-cea1-708e-8886-1fcb46f87b66/MooOhMyPiMigration.jsonl",
+      "sha256": "d75ebb38aca3e16ff216c661fa69edf8af93cfd82267005c3a0d8861c7485203",
+      "bytes": 588615
+    },
+    {
+      "file": "2026-09-23T17-05-32-833Z_01a0cf3a-cea1-708e-8886-1fcb46f87b66/MooPrivateArchiveMigration.jsonl",
+      "sha256": "750072f6032859dc3b47ea407dc8149ad65f552b5364ec181c4e19b82d7d2669",
+      "bytes": 394946
+    },
+    {
+      "file": "2026-09-23T17-05-32-833Z_01a0cf3a-cea1-708e-8886-1fcb46f87b66/MooPublicMigration.jsonl",
+      "sha256": "28611e7ee1a272d0a04f2803459c173659d8dda83ec4d8b590f83ac055787c0f",
+      "bytes": 314909
+    },
+    {
+      "file": "2026-09-23T17-05-32-833Z_01a0cf3a-cea1-708e-8886-1fcb46f87b66/PrivateBranchAudit.jsonl",
+      "sha256": "e090e2b8ab1ba33d4ddbc0358784fa10db5da284fa24e29223d2d3ff50256ab9",
+      "bytes": 1497129
+    },
+    {
+      "file": "2026-09-23T17-05-32-833Z_01a0cf3a-cea1-708e-8886-1fcb46f87b66/ProtectedReleaseCode.jsonl",
+      "sha256": "a807e8c00e5a207d5892cc61e45a5293b51616ce882737b20216c405a227b406",
+      "bytes": 1330833
+    },
+    {
+      "file": "2026-09-23T18-13-52-573Z_01a0cf79-5d3d-700b-9cf2-4b827213d712.jsonl",
+      "sha256": "b64bf81c6c79326962d3b065ba851d47a10c31c6aff9c597a4585390ecd4b736",
+      "bytes": 806097
+    },
+    {
+      "file": "2026-09-23T18-13-52-573Z_01a0cf79-5d3d-700b-9cf2-4b827213d712/__advisor.steward.jsonl",
+      "sha256": "efec3e3d480d244bed2fc6cf9a37e428cecffe532bce58dc768fb6c3d0e5a44c",
+      "bytes": 982914
+    },
+    {
+      "file": "2026-09-23T18-32-55-905Z_01a0cf8a-cf61-7566-84fb-51445113377a.jsonl",
+      "sha256": "0e398cca5b1db35f7885dec246eeefb1777c3fc85f06e5bc33d0e88f1fd0d95c",
+      "bytes": 3082844
+    },
+    {
+      "file": "2026-09-23T18-32-55-905Z_01a0cf8a-cf61-7566-84fb-51445113377a/__advisor.steward.jsonl",
+      "sha256": "d0245316b3145a3733a060ce8433d6d302efcbd617622b8850837d0fe9fc2dea",
+      "bytes": 2107395
+    }
+  ],
+  "limitations": [
+    "Task boundaries and outcome evidence are supplied by the manifest, not inferred from stopReason.",
+    "Only recorded calls are measurable; transport retries or missing child logs may be absent.",
+    "Tool rates use completed toolResult events; isError=false can still contain provider failures or command failures.",
+    "Prompt/source billing attribution, invoices, task quality, and cache TTL misses are not present in these archives."
+  ]
+}
