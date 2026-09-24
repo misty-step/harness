@@ -53,6 +53,16 @@ For changed native behavior use the fresh-session procedures in component README
 Never pipe verification through tail without preserving its exit status. Do not
 substitute a successful tool invocation or file presence for a postcondition.
 
+## Selecting evidence (US-001)
+
+Before changing uncertain behavior, identify plausible failures and choose checks
+that distinguish the intended outcome from them. Prefer real consumer journeys
+for complex changes; keep focused isolated tests for contracts and failure paths
+that a journey cannot cover reliably or safely. Do not retain tests that merely
+mirror implementation. For end-to-end evidence, record the exact revision,
+repeatable setup and command, observed postconditions, and redacted output or
+captures where relevant; passing one path does not prove another.
+
 ## Git hook setup
 
 `./scripts/bootstrap` checks scanner availability and selects `.githooks` as the
