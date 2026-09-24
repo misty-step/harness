@@ -500,6 +500,12 @@ to act. Read-only requests remain read-only. These skills are owned by
 `agent-config` and deployed through its contract; this repo no longer carries a
 `skills/` directory.
 
+The automatically routed `test-audit` skill (US-021) gates new tests and
+supports focused pruning; its whole-subsystem campaign requires commissioned
+scope. It is distinct from `verification-infrastructure`, which creates
+runnable verification capability, and the not-yet-deployed
+`effective-verification` candidate, which judges evidence and completion claims.
+
 `authenticated-commands` is a portable homebrew skill for API tokens,
 authenticated scripts, pass entries, `.env.pass`, and migrated project execution.
 OMP automatically discovers it when installed together with `pass-env` by the

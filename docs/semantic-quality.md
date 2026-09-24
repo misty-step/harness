@@ -19,6 +19,10 @@ It never replaces deterministic checks.
 - `agent-config/guidance/effective-verification.md` is the short shared guidance candidate.
 - `hermes-config/candidates/plugins/semantic-quality/` is the source-only Hermes adapter candidate.
 
+`test-audit` owns test authoring, consolidation, and pruning. This unselected
+candidate judges whether test or execution evidence supports a claim; its
+advisory model never becomes a second test policy.
+
 The three rules are `circular_oracle`, `source_only_behavioral_proof`, and
 `unsupported_completion`.
 Source inspections use the source-only rule. They do not also trigger the runtime-oracle rule.
