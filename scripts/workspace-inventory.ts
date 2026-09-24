@@ -12,12 +12,17 @@ if (!root || process.argv.length !== 3 || !statSync(root, { throwIfNoEntry: fals
 
 const skipped: Record<string, true> = { ".git": true, ".jj": true, node_modules: true, target: true, ".next": true, ".venv": true, dist: true, build: true };
 const repos: string[] = [];
+let errors = 0;
 function discover(dir: string): void {
-	const entries = readdirSync(dir, { withFileTypes: true });
-	if (entries.some((entry) => entry.name === ".git" && (entry.isDirectory() || entry.isFile()))) {
-		repos.push(dir);
+	let entries;
+	try {
+		entries = readdirSync(dir, { withFileTypes: true });
+	} catch (error) {
+		errors++;
+		console.error(`  inventory failed to read ${dir}: ${error instanceof Error ? error.message : String(error)}`);
 		return;
 	}
+	if (entries.some((entry) => entry.name === ".git" && (entry.isDirectory() || entry.isFile()))) repos.push(dir);
 	for (const entry of entries) {
 		if (entry.isDirectory() && !Object.hasOwn(skipped, entry.name) && (!entry.name.startsWith(".") || entry.name === ".worktrees")) {
 			discover(join(dir, entry.name));
@@ -56,7 +61,7 @@ const seen = new Set<string>();
 let linked = 0;
 let dirty = 0;
 let prunable = 0;
-let errors = 0;
+
 for (const repo of repos) {
 	try {
 		const commonDir = git(repo, "rev-parse", "--path-format=absolute", "--git-common-dir").trim();
@@ -68,7 +73,7 @@ for (const repo of repos) {
 			let state: string;
 			if (tree.prunable) {
 				prunable++;
-				state = "missing (Git says prunable)";
+				state = "prunable (Git registration)";
 			} else {
 				try {
 					state = git(tree.path, "status", "--porcelain=v1", "--untracked-files=normal").trim() ? "dirty" : "clean";

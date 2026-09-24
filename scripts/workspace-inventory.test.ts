@@ -1,5 +1,5 @@
 import { afterEach, expect, test } from "bun:test";
-import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 
@@ -47,8 +47,37 @@ test("US-016 includes linked worktrees outside the development directory and dis
 	rmSync(external, { recursive: true });
 	result = inventory(development);
 	expect(result.code).toBe(0);
-	expect(result.out).toContain(`missing (Git says prunable)\t(detached)\t${external}`);
+	expect(result.out).toContain(`prunable (Git registration)\t(detached)\t${external}`);
 	expect(result.out).toContain("1 repositories; 1 linked worktrees; 0 dirty; 1 prunable; 0 errors");
+});
+
+test("US-016 discovers an independently registered repository inside another checkout", () => {
+	const { development, repo } = fixture();
+	git(repo, "init", "--quiet", "-b", "master");
+	const nested = join(repo, "nested");
+	mkdirSync(nested);
+	git(nested, "init", "--quiet", "-b", "master");
+	const result = inventory(development);
+	expect(result.code).toBe(0);
+	expect(result.out).toContain(`clean\tmaster\t${nested}`);
+	expect(result.out).toContain("2 repositories; 0 linked worktrees;");
+});
+
+test("US-016 reports unreadable child directories and continues with accessible repositories", () => {
+	const { development, repo } = fixture();
+	git(repo, "init", "--quiet", "-b", "master");
+	const unreadable = join(development, "unreadable");
+	mkdirSync(unreadable);
+	chmodSync(unreadable, 0o000);
+	try {
+		const result = inventory(development);
+		expect(result.code).toBe(1);
+		expect(result.err).toContain(`inventory failed to read ${unreadable}:`);
+		expect(result.out).toContain(`clean\tmaster\t${repo}`);
+		expect(result.out).toContain("1 repositories; 0 linked worktrees; 0 dirty; 0 prunable; 1 errors");
+	} finally {
+		chmodSync(unreadable, 0o700);
+	}
 });
 
 test("US-016 reports a broken repository without deleting it", () => {

@@ -31,8 +31,9 @@ owned directory. Remove only that directory once its process has ended.
   crawler: external web availability, anchors, `skill://` discovery, and arbitrary
   prose/code paths need semantic review.
 - `scripts/workspace-inventory.test.ts` creates real local Git repositories and
-  worktrees to check external paths, dirty and prunable states, and non-destructive
-  failure reporting; it does not inspect or clean the host's worktrees.
+  worktrees to check external paths, nested repositories, dirty and prunable
+  states, and non-destructive failure reporting while continuing past unreadable
+  directories; it does not inspect or clean the host's worktrees.
 - Existing shared, pi and OMP suites exercise component logic.
 - `scripts/verify-installers` clones committed HEAD and runs both actual installers
   with a sanitized environment, synthetic HOME, agent directories and development
