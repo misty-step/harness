@@ -1,3 +1,9 @@
+# [0.1.31](https://github.com/misty-step/harness/compare/v0.1.30...v0.1.31) (2026-09-24)
+<!-- landmark:protected-release previous=v0.1.30 source=c16f9f03b31caa0822377b1f4e70ef9490a050ae154397a0028c6859da35f5e4 -->
+
+### Features
+
+* **shared:** add test-audit skill for both harnesses (MIS-166) ([3b94e77](https://github.com/misty-step/harness/commit/3b94e7739006efe326eef7cdbaa5911cac44a03c))
 # [0.1.30](https://github.com/misty-step/harness/compare/v0.1.29...v0.1.30) (2026-09-24)
 <!-- landmark:protected-release previous=v0.1.29 source=03bd5fbe7a714fd499368ffe5ab51545f52492321ca50e2d14820d7088196175 -->
 
