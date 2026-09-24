@@ -63,6 +63,14 @@ nothing about older or unleased resources.
 See [verification and local resource limits](docs/verification.md). The root owns
 CI, hooks, and releases; component directories retain their focused tests.
 
+## Token-cost evidence (US-018, US-019)
+
+[Token efficiency report](docs/token-efficiency.md): scoped whole-task accounting,
+the measured baseline, provider/cache provenance, instruction audit, and the
+off-by-default credential-context experiment. Run the analyzer with an explicit
+task manifest; a session stop is not proof of task completion. Normal prompts,
+models and routing remain unchanged unless an experiment is selected.
+
 ## Deploy (explicit live writes)
 
 Run only for the harness you intend to change:

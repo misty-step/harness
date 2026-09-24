@@ -1,0 +1,189 @@
+{
+  "scope": "saved session_init pre-provider prompts; not final wire payloads",
+  "runtime": "omp 18.3.0 tokenizer",
+  "requests": [
+    {
+      "agent": "ProtectedReleaseCode",
+      "model": "openai-codex/gpt-6-sol:high",
+      "system_bytes": 46436,
+      "system_tokens": {
+        "o200k_base": 11043,
+        "claude-v5": 17912
+      },
+      "tool_names": 84,
+      "first_api_input": 26004
+    },
+    {
+      "agent": "HarnessDesign",
+      "model": "openai-codex/gpt-6-luna:high",
+      "system_bytes": 31340,
+      "system_tokens": {
+        "o200k_base": 7316,
+        "claude-v5": 11937
+      },
+      "tool_names": 74,
+      "first_api_input": 10597
+    },
+    {
+      "agent": "MistyBranchAudit",
+      "model": "openrouter/z-ai/glm-5.3-flash:max",
+      "system_bytes": 31673,
+      "system_tokens": {
+        "o200k_base": 7386,
+        "claude-v5": 12035
+      },
+      "tool_names": 74,
+      "first_api_input": 11929
+    }
+  ],
+  "workerPromptSections": [
+    {
+      "section": "role-engineering",
+      "lines": [
+        1,
+        15
+      ],
+      "bytes": 1057,
+      "tokens": {
+        "o200k_base": 259,
+        "claude-v5": 457
+      }
+    },
+    {
+      "section": "skills-rules",
+      "lines": [
+        16,
+        32
+      ],
+      "bytes": 2838,
+      "tokens": {
+        "o200k_base": 613,
+        "claude-v5": 1057
+      }
+    },
+    {
+      "section": "uri-tools-computer",
+      "lines": [
+        33,
+        67
+      ],
+      "bytes": 1932,
+      "tokens": {
+        "o200k_base": 531,
+        "claude-v5": 844
+      }
+    },
+    {
+      "section": "inline-device-schemas",
+      "lines": [
+        68,
+        288
+      ],
+      "bytes": 8869,
+      "tokens": {
+        "o200k_base": 2393,
+        "claude-v5": 3706
+      }
+    },
+    {
+      "section": "integration-descriptions",
+      "lines": [
+        289,
+        359
+      ],
+      "bytes": 10738,
+      "tokens": {
+        "o200k_base": 2417,
+        "claude-v5": 3797
+      }
+    },
+    {
+      "section": "upstream-policy",
+      "lines": [
+        360,
+        500
+      ],
+      "bytes": 10369,
+      "tokens": {
+        "o200k_base": 2231,
+        "claude-v5": 3837
+      }
+    },
+    {
+      "section": "worker-setup",
+      "lines": [
+        502,
+        558
+      ],
+      "bytes": 5599,
+      "tokens": {
+        "o200k_base": 1181,
+        "claude-v5": 1944
+      }
+    },
+    {
+      "section": "environment",
+      "lines": [
+        560,
+        576
+      ],
+      "bytes": 682,
+      "tokens": {
+        "o200k_base": 196,
+        "claude-v5": 321
+      }
+    },
+    {
+      "section": "duplicate-integration-routes",
+      "lines": [
+        578,
+        645
+      ],
+      "bytes": 4002,
+      "tokens": {
+        "o200k_base": 1158,
+        "claude-v5": 1842
+      }
+    },
+    {
+      "section": "integration-instructions",
+      "lines": [
+        647,
+        652
+      ],
+      "bytes": 346,
+      "tokens": {
+        "o200k_base": 64,
+        "claude-v5": 98
+      }
+    }
+  ],
+  "credentialInventory": {
+    "bytes": 3791,
+    "lines": 99,
+    "tokens": {
+      "o200k_base": 1124,
+      "claude-v5": 2354
+    }
+  },
+  "credentialPointer": {
+    "bytes": 392,
+    "lines": 6,
+    "tokens": { "o200k_base": 74, "claude-v5": 126 }
+  },
+  "nativePreDispatchCapture": {
+    "runtime": "omp 18.3.0",
+    "provider": "openai",
+    "model": "gpt-6-sol",
+    "syntheticCredentialEntries": 1,
+    "inferenceRequestsSent": 0,
+    "toolSchemas": 11,
+    "toolSchemaTokens": { "o200k_base": 4323, "claude-v5": 7040 },
+    "fullInputTokens": { "o200k_base": 2876, "claude-v5": 4811 },
+    "onDemandInputTokens": { "o200k_base": 2808, "claude-v5": 4710 },
+    "toolSchemasUnchanged": true,
+    "encryptedReasoningRequested": true,
+    "captureBoundary": "before_provider_request; synchronous exit before dispatch"
+  },
+  "sourceRevision": "4a2eb5888dcae5dabd96226eecef429e38da2a64"
+}

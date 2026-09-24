@@ -35,6 +35,14 @@ owned directory. Remove only that directory once its process has ended.
   states, and non-destructive failure reporting while continuing past unreadable
   directories; it does not inspect or clean the host's worktrees.
 - Existing shared, pi and OMP suites exercise component logic.
+- `omp-config/bin/omp-task-usage.test.ts` checks price-weighted whole-tree cost,
+  failed-task inclusion, unknown/unpriced evidence, split-task worker ownership,
+  scope escape, malformed archives and content-free reporting (US-018).
+- `omp-config/extensions/credentials/credentials.test.ts` checks stable opt-in
+  credential context and recovery deduplication with a synthetic names-only store
+  (US-019). The [token-efficiency procedure](token-efficiency.md) records the
+  native pre-dispatch smoke and the separate task-quality promotion gates; unit
+  assertions are not evidence of model quality or production cache savings.
 - `scripts/verify-installers` clones committed HEAD and runs both actual installers
   with a sanitized environment, synthetic HOME, agent directories and development
   root. It prints individual PASS/FAIL results and exits nonzero on any failure.

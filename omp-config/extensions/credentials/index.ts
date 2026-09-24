@@ -6,7 +6,7 @@ import { execFileSync } from "node:child_process";
  * without looking in the pass store. Three structural checks, names only
  * (nothing is ever decrypted):
  *
- * 1. Every agent start: the system prompt lists every pass entry name.
+ * 1. Every agent start: the system prompt lists pass entry names (or an opt-in discovery pointer).
  * 2. Every bash result that looks like an auth failure: the entries matching
  *    the command or output are appended to the result.
  * 3. Every assistant message that claims a credential is missing: a follow-up
@@ -15,6 +15,14 @@ import { execFileSync } from "node:child_process";
 
 const MARKER = "## Credential inventory (pass)";
 const REMINDER_TYPE = "credentials/reminder";
+const ON_DEMAND_SECTION = [
+	MARKER,
+	"",
+	"Credential names are discoverable with `pass-env list [prefix]` (names only; no decryption).",
+	"Check native tool auth first, then the pass inventory and the project's `.env.pass`.",
+	"`skill://authenticated-commands` describes lookup and selective binding; the standing",
+	"credential guidance covers the remaining sources before concluding a credential is unavailable.",
+].join("\n");
 
 /** Tokens in entry names that say nothing about which service an entry is for. */
 const GENERIC = new Set([
@@ -100,11 +108,14 @@ export default function registerCredentialsExtension(pi: ExtensionAPI): void {
 	const entries = () => (inventory ??= loadInventory());
 	const reminded = new Set<string>();
 	let remindedWithoutMatch = false;
+	// Pin the experiment for this extension instance; do not rewrite a live prefix mid-session.
+	const onDemand = process.env.OMP_CREDENTIAL_CONTEXT === "on-demand";
 
 	pi.on("before_agent_start", (event) => {
-		const names = entries();
-		if (names.length === 0 || event.systemPrompt.includes(MARKER)) return;
-		return { systemPrompt: `${event.systemPrompt}\n\n${inventorySection(names)}` };
+		if (event.systemPrompt.includes(MARKER)) return;
+		const names = onDemand ? [] : entries();
+		if (!onDemand && names.length === 0) return;
+		return { systemPrompt: `${event.systemPrompt}\n\n${onDemand ? ON_DEMAND_SECTION : inventorySection(names)}` };
 	});
 
 	pi.on("tool_result", (event) => {

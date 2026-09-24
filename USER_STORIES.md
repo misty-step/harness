@@ -377,3 +377,26 @@ presented as an invoice; no automatic scan outside the selected session director
 
 Evidence: `omp-config/bin/omp-task-usage.test.ts`,
 `omp-config/bin/omp-task-usage.ts`
+
+## US-019 Compare on-demand credential context
+
+Statement: When I evaluate prompt overhead, I want an opt-in credential
+discovery pointer instead of the full pass inventory, so I can measure cost
+without removing authentication recovery or changing normal sessions.
+
+Criteria:
+1. WHERE `OMP_CREDENTIAL_CONTEXT=on-demand` is set before extension loading,
+   THE SYSTEM SHALL inject a stable discovery pointer without listing pass
+   entries in the startup prompt.
+2. WHEN an authentication failure or unavailable-credential claim occurs,
+   THE SYSTEM SHALL retain targeted credential reminders in either mode, with
+   at most one claim follow-up per matching entry and one for unmatched claims.
+3. WHEN the experiment is not selected, THE SYSTEM SHALL retain the full
+   inventory behavior; a later environment change SHALL NOT change the mode
+   of an already loaded extension.
+
+No-gos: no credential values in prompts, no weaker lookup-order guidance,
+no default promotion without task-level quality and cost evidence.
+
+Evidence: `omp-config/extensions/credentials/credentials.test.ts`,
+`docs/token-efficiency.md`

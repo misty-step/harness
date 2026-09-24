@@ -1,0 +1,50 @@
+{
+  "version": 1,
+  "tasks": [
+    {
+      "id": "archived-session-1",
+      "outcome": "unknown",
+      "sessions": [
+        {
+          "file": "2026-09-17T15-26-00-873Z_01a0aff9-86a9-753d-b2db-30a3c3de44be.jsonl"
+        }
+      ]
+    },
+    {
+      "id": "archived-session-2",
+      "outcome": "unknown",
+      "sessions": [
+        {
+          "file": "2026-09-18T03-39-33-373Z_01a0b299-1a7d-7567-9afa-c81d9688154b.jsonl"
+        }
+      ]
+    },
+    {
+      "id": "archived-session-3",
+      "outcome": "unknown",
+      "sessions": [
+        {
+          "file": "2026-09-23T17-05-32-833Z_01a0cf3a-cea1-708e-8886-1fcb46f87b66.jsonl"
+        }
+      ]
+    },
+    {
+      "id": "archived-session-4",
+      "outcome": "unknown",
+      "sessions": [
+        {
+          "file": "2026-09-23T18-13-52-573Z_01a0cf79-5d3d-700b-9cf2-4b827213d712.jsonl"
+        }
+      ]
+    },
+    {
+      "id": "archived-session-5",
+      "outcome": "unknown",
+      "sessions": [
+        {
+          "file": "2026-09-23T18-32-55-905Z_01a0cf8a-cf61-7566-84fb-51445113377a.jsonl"
+        }
+      ]
+    }
+  ]
+}
