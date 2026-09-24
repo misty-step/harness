@@ -479,13 +479,15 @@ font licenses. The external `frontend-design` and `show-me` packages stay verbat
 
 ## Skills and agents
 
-Ten homebrew skills are explicitly invoked:
+Twelve homebrew skills are explicitly invoked:
 
 | Command | Outcome |
 | --- | --- |
 | `/skill:foundation` | Recommend a coherent project direction and practical transition without changing the project |
 | `/skill:agent-ergonomics` | Synthesize grounded findings into prioritized improvements in the project's existing backlog and roadmap |
 | `/skill:verification-infrastructure` | Create or repair repository-owned runnable verification and its discoverable skill, preserving existing interfaces |
+| `/skill:story-qa` | Walk a curated set of root user stories through the real product surface and report outcomes and gaps |
+| `/skill:check-cadence` | Tier checks into fast PR feedback and owned nightly/weekly runs without dropping meaningful gates |
 | `/skill:capture` | Save durable findings to project notes, or the required tracker, without duplicating or claiming work |
 | `/skill:pokayoke` | Make a class of error impossible (shape, type, ownership, missing affordance, or a failing-closed check) instead of warning about it |
 | `/skill:decide` | Synthesize current context, tradeoffs, and candidate paths into an executive decision brief |
@@ -502,9 +504,12 @@ to act. Read-only requests remain read-only. These skills are owned by
 
 The automatically routed `test-audit` skill (US-021) gates new tests and
 supports focused pruning; its whole-subsystem campaign requires commissioned
-scope. It is distinct from `verification-infrastructure`, which creates
-runnable verification capability, and the not-yet-deployed
-`effective-verification` candidate, which judges evidence and completion claims.
+scope. `story-qa` (US-022) guides actual agent interaction with the user
+surface, and `check-cadence` (US-023) guides risk-based PR and scheduled check
+selection. Neither automatically installs a product scheduler. These are
+distinct from `verification-infrastructure`, which creates runnable
+verification capability, and the not-yet-deployed `effective-verification`
+candidate, which judges evidence and completion claims.
 
 `authenticated-commands` is a portable homebrew skill for API tokens,
 authenticated scripts, pass entries, `.env.pass`, and migrated project execution.

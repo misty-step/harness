@@ -25,9 +25,10 @@ owned directory. Remove only that directory once its process has ended.
 - `scripts/references.test.ts` checks tracked Markdown file targets and canonical
   `harness/blob/master/` URLs against the working tree. It also runs both
   consumers' installers in disposable homes against working files, checks the
-  installed `test-audit` entry and guidance route (US-021), and rejects missing
-  or out-of-package skill references, including legacy backticked `references/`
-  paths. Regression fixtures reproduce the original defect and package escapes.
+  installed `test-audit`, `story-qa`, and `check-cadence` entries and guidance
+  routes (US-021–US-023), and rejects missing or out-of-package skill references,
+  including legacy backticked `references/` paths. Regression fixtures reproduce
+  the original defect and package escapes.
   This is a CI guard, not a live installer preflight or general Markdown/network
   crawler: external web availability, anchors, native `skill://` discovery, and
   arbitrary prose/code paths need semantic review.
@@ -79,6 +80,18 @@ gate and focused-audit evidence prevent duplicate or circular coverage; the
 to an explicitly commissioned subsystem. `./scripts/verify` tests working
 source but clones committed HEAD for installer checks. Before commit, exercise
 changed skill packaging and guidance composition in disposable destinations.
+
+The shared [`story-qa` skill](../agent-config/skills/story-qa/SKILL.md)
+requires agents to adversarially review their own work and, for user-facing
+changes, manually walk affected request and story criteria through the actual
+end-user surface before calling the work done. Docs-only and internal changes
+get proportionate owner-path checks; recurring runs rotate broader curated
+walks. The [`check-cadence` skill](../agent-config/skills/check-cadence/SKILL.md)
+tiers repository checks by measured cost and delayed-detection risk: PR feedback
+should take minutes; expensive matrices belong to owned nightly or weekly
+runs with notification and on-demand execution. This guidance does not install
+a scheduler or change this repository's CI. Keep required security and
+installer gates intact.
 
 ## Git hook setup
 

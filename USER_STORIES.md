@@ -52,6 +52,62 @@ Evidence: `scripts/references.test.ts`,
 `agent-config/guidance/communication-and-verification.md`,
 `./scripts/verify all`; working-tree disposable installer smoke for both consumers.
 
+## US-022 Review work and walk product stories as an agent
+
+Statement: When I assess a change or recurring product health, I want agents
+to challenge their own work and walk affected user stories through the user's
+real interface before calling user-facing work done, so I can see what actually
+works rather than trusting automated tests alone.
+
+Criteria:
+1. WHEN Pi or OMP installs shared skills, THE SYSTEM SHALL provide an
+   agent-invocable `story-qa` and route user-facing change review to it by
+   default from composed guidance.
+2. WHEN an agent prepares to call work done, THE SYSTEM SHALL direct it to
+   adversarially review the entire change and verify the relevant path,
+   proportionately for documentation-only and internal work.
+3. WHEN selecting a QA walk, THE SYSTEM SHALL tie each affected journey to a
+   root story ID or request criterion, user actions, observable postconditions,
+   and owned cleanup.
+4. WHEN a user-facing walk runs, THE SYSTEM SHALL report the candidate revision,
+   actual end-user interface, observed outcomes, and unverified or blocked
+   criteria rather than treating an automated pass as the walk.
+5. WHILE reviewing recurring product health, THE SYSTEM SHALL guide rotation
+   through a curated story list without requiring every story on every PR.
+
+No-gos: no Playwright-only proof, invented browser walk for internal work,
+universal receipt format, or scheduler created by installing a skill.
+
+Evidence: `scripts/references.test.ts`,
+`agent-config/skills/story-qa/SKILL.md`,
+`agent-config/guidance/communication-and-verification.md`;
+disposable Pi and OMP installer smoke.
+
+## US-023 Keep verification cadence useful
+
+Statement: When I plan repository checks, I want fast, risk-relevant pull
+request feedback and owned slower runs on a regular cadence, so a green PR
+means something without rerunning an expensive full suite each time.
+
+Criteria:
+1. WHEN Pi or OMP installs shared skills, THE SYSTEM SHALL provide
+   `check-cadence` and route CI tiering decisions to it from composed guidance.
+2. WHEN proposing a check moved off PR, THE SYSTEM SHALL require its independent
+   contract, delayed-detection risk, scheduled trigger, owner, and failure
+   response; IF those are missing, THEN THE SYSTEM SHALL leave the gate intact.
+3. WHILE choosing PR checks, THE SYSTEM SHALL prioritize bounded meaningful
+   contracts and required security gates over duplicated or slow full suites.
+4. WHEN claiming improved cadence, THE SYSTEM SHALL distinguish measured PR
+   feedback from proposed or observed nightly/weekly coverage.
+
+No-gos: no implicit deletion of required gates, unapproved recurring spend, or
+CI change to Habitat or Tach in this harness PR.
+
+Evidence: `scripts/references.test.ts`,
+`agent-config/skills/check-cadence/SKILL.md`,
+`agent-config/guidance/communication-and-verification.md`;
+disposable Pi and OMP installer smoke.
+
 ## Capability: Deployment
 
 ## US-002 Deploy shared primitives
