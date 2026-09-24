@@ -3,7 +3,7 @@
 Observed 2026-09-24. Stories: **US-018**, **US-019**. Related credential policy:
 [MIS-161](https://linear.app/misty-step/issue/MIS-161/make-credential-availability-unmissable-in-global-agent-guidance).
 Baseline source: `4a2eb5888dcae5dabd96226eecef429e38da2a64`; native capture: OMP
-18.3.0. No live deployment or model/routing/effort change is part of this work.
+18.3.0. The original audit made no live deployment or model/routing/effort change.
 
 ## Result and decision
 
@@ -30,6 +30,15 @@ Changes:
   pointer for the full startup inventory. Normal sessions retain the inventory.
 - **Proposal only:** advisor scheduling, model mix/routing/effort, delegation,
   broad prompt edits, compaction changes and upstream request-layout work.
+
+Subsequent operator-approved change (US-014, 2026-09-24): advisor routing now uses
+Luna max → Grok 4.7 xhigh → Gemini 3.8 Flash high (Google Antigravity) →
+DeepSeek V4.1 Flash max (OpenRouter). References below to unchanged routing
+describe the original audit, not this later decision. Native OMP 18.3.0 loaded
+the role-specific chain and an online `--model @advisor` source-config smoke
+returned `ADVISOR_OK` from `openai-codex/gpt-6-luna`. This proves primary
+selection, not forced failover or task-quality parity. Advisor scheduling and
+the off-by-default credential experiment remain unchanged.
 
 ## Harness map and ownership
 

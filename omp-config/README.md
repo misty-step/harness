@@ -479,7 +479,7 @@ font licenses. The external `frontend-design` and `show-me` packages stay verbat
 
 ## Skills and agents
 
-Nine homebrew skills are explicitly invoked:
+Ten homebrew skills are explicitly invoked:
 
 | Command | Outcome |
 | --- | --- |
@@ -489,6 +489,7 @@ Nine homebrew skills are explicitly invoked:
 | `/skill:capture` | Save durable findings to project notes, or the required tracker, without duplicating or claiming work |
 | `/skill:pokayoke` | Make a class of error impossible (shape, type, ownership, missing affordance, or a failing-closed check) instead of warning about it |
 | `/skill:decide` | Synthesize current context, tradeoffs, and candidate paths into an executive decision brief |
+| `/skill:sachstand` | Orient the operator as chief executive: status verdict, verified progress, critical context, and the decisions that need them |
 | `/skill:user-stories` | Draft, extend, or reconcile a repository's root user stories |
 | `/skill:visual-state-review` | Capture every named UI state as screenshots, organise them, and look before claiming frontend work verified |
 | `/skill:design-studio` | Run the divergent-concepts → critique → recombine → handoff loop for real UI/UX design work before production code |
@@ -536,6 +537,16 @@ invariants, viable candidate paths, and a structured tradeoff matrix across
 reversibility, blast radius, effort, operational cost, and primary risk. It
 states a clear technical recommendation with an explicit decision boundary, and
 ends with the exact next action to take upon approval.
+
+Use `/skill:sachstand [optional scope: session, repo, initiative, or portfolio] [quiet]`
+for a sixty-second orientation. It is read-only. It opens by naming the project,
+the task, and the repository, branch, and worktree, so briefs from parallel
+sessions are distinguishable. Then it gives a verdict, verified outcomes, open and
+blocked work, critical context, each needed decision with its missing
+information, and what happens next without input. A decision that needs
+deeper analysis is handed to `/skill:decide`. Unless `quiet` is given, it also
+speaks a one-minute version with Gemini 3.8 Flash-Lite TTS (about $0.01) through
+`pass-env` and `GEMINI_API_KEY`, and saves the audio under `~/.cache/tts-play/`.
 
 Use `/skill:user-stories [optional repository, capability, or story id]` to
 keep a repository's root `USER_STORIES.md` honest: draft stories from observed
@@ -652,7 +663,8 @@ the selected model in an existing session.
 | Ordinary `task` workers, `@task` | `openai-codex/gpt-6-sol:xhigh` |
 | `@smol`, `@commit`; bundled `scout` and `sonic` | `openai-codex/gpt-6-luna:max` |
 | `@tiny` | local LFM2.5-350m first, then configured `openai-codex/gpt-6-luna:max` |
-| `@plan`, `@advisor` | `openai-codex/gpt-6-sol:xhigh` |
+| `@plan` | `openai-codex/gpt-6-sol:xhigh` |
+| `@advisor` | `openai-codex/gpt-6-luna:max` |
 | `@slow` (explicit thorough pass) | `openai-codex/gpt-6-astra:high` |
 | `@extreme` (rare unconstrained reasoning) | `openai-codex/gpt-6-astra:max` |
 | `security-reviewer` | `openai-codex/gpt-6-astra:max` |
@@ -700,8 +712,12 @@ and similar mechanical ship steps use bundled `sonic` (`@smol`). Omitting
 `agent` selects `@task`/Sol. Choose agents for their roles, not as differently
 priced implementation workers.
 
-The five explicit retry chains are `default`, `vision`, `smol`, `tiny`, and
-`commit`. Sol's default chain tries Luna, then xAI's Grok 4.7, then Opus 5.5,
+The six explicit retry chains are `default`, `advisor`, `vision`, `smol`, `tiny`,
+and `commit`. Advisor uses Luna max, then Grok 4.7 xhigh, Gemini 3.8 Flash high
+on Google Antigravity, and finally paid OpenRouter DeepSeek V4.1 Flash max.
+This US-014 routing change lowers advisor capacity by operator choice; task
+quality and whole-task cost effects remain unmeasured.
+Sol's default chain tries Luna, then xAI's Grok 4.7, then Opus 5.5,
 and finally paid OpenRouter DeepSeek V4.1 Flash. Opus's vision chain tries
 Grok, Luna, then DeepSeek; Luna's mechanical chains try Grok, Opus, then
 DeepSeek. Each link accepts images. These chains remain explicit because native
