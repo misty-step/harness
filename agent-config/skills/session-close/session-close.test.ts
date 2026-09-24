@@ -26,10 +26,10 @@ afterEach(() => {
 	for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true });
 });
 
-test("US-004 empty lease dir is clean", () => {
+test("US-004 empty lease store exits zero", () => {
 	const result = run(dir(), ["check"]);
 	expect(result.code).toBe(0);
-	expect(result.out).toContain("session-close: clean");
+	expect(result.out).toContain("no recorded leases (other workspaces not checked)");
 });
 
 test("US-004 add then check fails until drop", () => {

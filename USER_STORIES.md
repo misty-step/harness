@@ -272,6 +272,9 @@ Criteria:
    WHERE the primary is Sol, THE SYSTEM MAY first try Luna on Codex.
 3. WHEN configuration is deployed, THE SYSTEM SHALL preserve OAuth stores and
    the model already selected in existing sessions.
+4. WHEN a configured role or provider-failure link selects Luna, THE SYSTEM
+   SHALL request max reasoning; WHEN one selects Sol, THE SYSTEM SHALL request
+   xhigh reasoning.
 
 No-gos: no copying OAuth credentials between harnesses; no Pi default change
 without Pi-native subscription authentication.
@@ -306,3 +309,45 @@ Evidence: `.github/workflows/landmark-release.yml`,
 `../landmark/crates/landmark/src/protected_release.rs`, the protected release
 workflow run and published tag.
 
+## Capability: Workspace hygiene
+
+## US-016 Inspect local checkout residue
+
+Statement: When development checkouts accumulate, I want to see registered
+worktrees and their Git-visible changes in one read-only inventory, so I can
+decide what to retain without guessing from directory names or age.
+
+Criteria:
+1. WHEN inspecting a development directory, THE SYSTEM SHALL enumerate
+   repositories and their registered linked worktrees, including paths outside
+   that directory.
+2. WHEN a registered worktree has changes or Git marks it prunable, THE SYSTEM
+   SHALL distinguish that state from a Git-clean worktree.
+3. WHEN inventory cannot inspect a repository or worktree, THE SYSTEM SHALL
+   report the failure and exit nonzero without deleting any files, refs, or VMs.
+
+No-gos: no automatic deletion, no inference that a clean branch is merged or
+inactive, and no claim that Git status accounts for ignored build outputs.
+
+Evidence: `scripts/workspace-inventory.ts`,
+`bun scripts/workspace-inventory.ts ~/development`
+
+## Capability: Desktop theme alignment
+
+## US-017 Follow the local desktop theme in OMP
+
+Statement: When I change the desktop theme, I want OMP's terminal colors to
+follow the locally generated palette, so the two interfaces stay legible together.
+
+Criteria:
+1. WHEN the Omarchy theme integration has generated `omarchy-system.json`,
+   THE SYSTEM SHALL select it for both dark and light terminal backgrounds.
+2. WHEN the harness installs OMP configuration, THE SYSTEM SHALL preserve the
+   generated theme file rather than overwriting it with a static repository copy.
+
+No-gos: no generated palette committed to the repository or requirement that
+non-Omarchy hosts provision this local theme.
+
+Evidence: `omp-config/config.yml`, `omp-config/install`,
+`omp config get theme.dark`, `omp config get theme.light`,
+`~/.omp/agent/themes/omarchy-system.json`.
