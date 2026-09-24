@@ -1,3 +1,10 @@
+# [0.1.28](https://github.com/misty-step/harness/compare/v0.1.27...v0.1.28) (2026-09-24)
+<!-- landmark:protected-release previous=v0.1.27 source=0de7fdc117c5a74b977b4efcecfd3f8d4dfc1ce199fa51f405f54cd08c6b8f1e -->
+
+### Features
+
+* **omp:** credential awareness hook (MIS-161) (#41) ([772c88b](https://github.com/misty-step/harness/commit/772c88bdafb0b748c093caa3fe76016a03b68800))
+* **harness:** inventory worktrees and align OMP theme (#43) ([3f182d4](https://github.com/misty-step/harness/commit/3f182d425ac751c56fd1423298b096499c1894be))
 # [0.1.27](https://github.com/misty-step/harness/compare/v0.1.26...v0.1.27) (2026-09-23)
 <!-- landmark:protected-release previous=v0.1.26 source=c87b4794ee59fa1e849b2839cbd456084cbde8022267d5def8e6a2f76b7a78cb -->
 
