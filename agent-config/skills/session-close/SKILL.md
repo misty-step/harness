@@ -30,9 +30,12 @@ bun path/to/session-close.ts add --kind exe.dev --target vm.exe.xyz
 bun path/to/session-close.ts
 ```
 
-For each printed lease: destroy the resource (`git worktree remove --force`,
-`ssh exe.dev rm <vm>`) or keep it as standing ownership with an explicit
-operator decision, then:
+For each printed lease: inspect its branch, Git-visible changes, and ignored
+or other evidence files before removal. Remove a confirmed finished worktree
+with `git worktree remove <path>` without `--force`, or remove the VM with
+`ssh exe.dev rm <vm>`. Retain uncertain or externally owned resources.
+Keeping a resource as standing ownership requires an explicit operator decision.
+After removal or that decision, drop its lease:
 
 ```sh
 bun path/to/session-close.ts drop --target /absolute/path-or-vm

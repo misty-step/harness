@@ -40,10 +40,13 @@ prompt is: how can I pokayoke this so this kind of error never happens again?
 | `extensions/credentials/` | Lists pass entry names in every system prompt; names matching entries after an auth failure or a claim that a credential is missing (MIS-161) |
 
 `config.yml` selects the Omarchy-generated `omarchy-system` theme for both
-terminal background modes. Omarchy's `sync-omp-theme` provisions
-`~/.omp/agent/themes/omarchy-system.json` on this workstation; the installer
-preserves that generated file but does not generate or ship it. On a host
-without that integration, select an installed theme before deploying config.
+terminal background modes. On this workstation,
+`~/.config/omarchy/hooks/theme-set.d/20-sync-omp-theme` invokes the host-owned
+`~/.config/omarchy/bin/sync-omp-theme` after a theme change; it generates
+`~/.omp/agent/themes/omarchy-system.json` from the current Omarchy palette.
+The installer preserves that generated file but does not generate or ship it.
+On a host without this hook and generator, select an installed theme before
+deploying config.
 
 ## Install
 
