@@ -99,6 +99,7 @@ export default function registerCredentialsExtension(pi: ExtensionAPI): void {
 	let inventory: string[] | null = null;
 	const entries = () => (inventory ??= loadInventory());
 	const reminded = new Set<string>();
+	let remindedWithoutMatch = false;
 
 	pi.on("before_agent_start", (event) => {
 		const names = entries();
@@ -122,13 +123,17 @@ export default function registerCredentialsExtension(pi: ExtensionAPI): void {
 		if (message.role !== "assistant") return;
 		const text = textOf(message.content);
 		if (!claimsUnavailable(text)) return;
-		const matches = matchEntries(text, entries()).filter((entry) => !reminded.has(entry));
-		const key = matches.length > 0 ? matches.join(",") : "general";
-		if (reminded.has(key)) return;
-		reminded.add(key);
-		for (const entry of matches) reminded.add(entry);
+		const matches = matchEntries(text, entries());
+		const pending = matches.filter((entry) => !reminded.has(entry));
+		if (matches.length > 0) {
+			if (pending.length === 0) return;
+		} else {
+			if (remindedWithoutMatch) return;
+			remindedWithoutMatch = true;
+		}
+		for (const entry of pending) reminded.add(entry);
 		pi.sendMessage(
-			{ customType: REMINDER_TYPE, content: reminder(matches, "claim"), display: true },
+			{ customType: REMINDER_TYPE, content: reminder(pending, "claim"), display: true },
 			{ deliverAs: "followUp", triggerTurn: true },
 		);
 	});
