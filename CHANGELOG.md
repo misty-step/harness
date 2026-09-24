@@ -1,3 +1,16 @@
+# [0.1.29](https://github.com/misty-step/harness/compare/v0.1.28...v0.1.29) (2026-09-24)
+<!-- landmark:protected-release previous=v0.1.28 source=6556fdf6bd887a1bce3674f832f48d7aba42345264531c79ea437dac81b851f4 -->
+
+### Features
+
+* **omp:** account for whole-task token cost (MIS-161) ([f703953](https://github.com/misty-step/harness/commit/f703953f8cba0242a0705012562545c1d306dd22))
+* **omp:** gate on-demand credential context (MIS-161) ([b21d77b](https://github.com/misty-step/harness/commit/b21d77b6625632e03452e17a49b0050df04da5a1))
+* **harness:** lower advisor cost and add executive status briefs (MIS-161) ([f56f879](https://github.com/misty-step/harness/commit/f56f8792893724e6e88ee8b3b996172100d1f2ff))
+
+### Bug Fixes
+
+* **omp:** deduplicate credential recovery turns (MIS-161) ([5db51aa](https://github.com/misty-step/harness/commit/5db51aa484e791b4f832db29e162bde0a259cf16))
+* **harness:** guard task accounting and private speech output (MIS-161) ([aeaa659](https://github.com/misty-step/harness/commit/aeaa6596970754875596bc3abc212b01d37c063c))
 # [0.1.28](https://github.com/misty-step/harness/compare/v0.1.27...v0.1.28) (2026-09-24)
 <!-- landmark:protected-release previous=v0.1.27 source=0de7fdc117c5a74b977b4efcecfd3f8d4dfc1ce199fa51f405f54cd08c6b8f1e -->
 
