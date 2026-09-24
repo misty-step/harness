@@ -116,6 +116,11 @@ pass-env run -e GEMINI_API_KEY=workstation/GEMINI_API_KEY -- \
 EOF
 ```
 
+From the harness repository, `pass-env run -f .env.pass -- bun
+agent-config/skills/sachstand/scripts/speak.ts` uses its committed Gemini
+reference. The request disables provider-side interaction storage; the speech
+regression rejects any request that permits the API's default retention.
+
 Playback starts detached, and a private, uniquely named audio file is saved
 under `~/.cache/tts-play/`. End the written brief with one line: the audio path,
 length, and estimated cost if usage was reported; otherwise say cost unavailable.

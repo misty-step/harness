@@ -9,5 +9,6 @@ __pycache__/
 .env.*
 !.env.example
 !.env.pass.example
+!/.env.pass
 .landmark/
 coverage/

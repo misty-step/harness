@@ -10,10 +10,15 @@ writeFileSync(preload, `
 const wav = Buffer.alloc(44);
 wav.writeUInt32LE(48000, 28);
 Date.now = () => Number(process.env.TEST_TIME);
-globalThis.fetch = async () => Response.json({
-  steps: [{ content: [{ type: "audio", data: wav.toString("base64") }] }],
-  usage: JSON.parse(process.env.TEST_USAGE!),
-});
+globalThis.fetch = async (_url, init) => {
+  if (JSON.parse(init.body).store !== false) {
+    throw new Error("Speech requests must disable provider-side storage");
+  }
+  return Response.json({
+    steps: [{ content: [{ type: "audio", data: wav.toString("base64") }] }],
+    usage: JSON.parse(process.env.TEST_USAGE!),
+  });
+};
 `);
 
 function speak(usage: unknown, date = "2026-12-31T23:59:59Z") {
