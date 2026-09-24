@@ -351,3 +351,29 @@ non-Omarchy hosts provision this local theme.
 Evidence: `omp-config/config.yml`, `omp-config/install`,
 `omp config get theme.dark`, `omp config get theme.light`,
 `~/.omp/agent/themes/omarchy-system.json`.
+
+## Capability: Task cost evidence
+
+## US-018 Measure whole-task token cost
+
+Statement: When I compare harness changes, I want scoped, price-weighted usage
+for complete task trees, so cheaper requests cannot conceal more turns, failed
+tasks, or expensive background agents.
+
+Criteria:
+1. WHEN analyzing an explicit task manifest, THE SYSTEM SHALL include recorded
+   parent, worker, advisor, and auxiliary model usage, keeping uncached input,
+   output, cache reads, and cache writes separate.
+2. WHEN all task outcomes and prices are known and at least one task succeeds,
+   THE SYSTEM SHALL divide total cohort cost, including failed tasks, by the
+   number of successful tasks; OTHERWISE it SHALL report the metric unavailable.
+3. IF a manifest double-counts events, escapes its session directory, or reads
+   malformed records, THEN THE SYSTEM SHALL fail without a partial report.
+4. THE SYSTEM SHALL emit aggregate metadata rather than transcript text,
+   commands, tool arguments, or credentials.
+
+No-gos: no inferred success from an agent's final message; no catalog estimate
+presented as an invoice; no automatic scan outside the selected session directory.
+
+Evidence: `omp-config/bin/omp-task-usage.test.ts`,
+`omp-config/bin/omp-task-usage.ts`
