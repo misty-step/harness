@@ -97,10 +97,13 @@ does not own auth stores, sessions, foreign packages, or generated desktop theme
 
 ## Contributing and releases
 
-Use conventional commits and the root issue tracker. Labels `area:shared`,
-`area:pi`, `area:omp`, and `area:workspace` identify ownership, not separate release
-units. CI runs all components sequentially in one check job, including both consumers.
-Pull requests use the same commands as local verification.
+Use conventional commits. Branches, commits, and pull requests do not require
+an issue; link a relevant existing issue when one exists, but never create one
+merely to satisfy naming. Cite user stories for behavioral changes. Labels
+`area:shared`, `area:pi`, `area:omp`, and `area:workspace` identify ownership,
+not separate release units. CI runs all components sequentially in one check
+job, including both consumers. Pull requests use the same commands as local
+verification.
 
 Landmark prepares one release stream from `master`: a generated root
 `CHANGELOG.md` change enters a release pull request, the required `verify`

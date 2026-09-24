@@ -62,7 +62,8 @@ sessions that need their own services or long runtimes go to exe.dev.
 Linear is the durable tracker for personal, Misty Step, and other non-R90 work;
 R90 stays on Habitat. Operator requests remain authority: tickets are not a
 prerequisite, and tracker adoption grants no bulk migration or automatic backlog
-creation. Resolve workspace, team, project, and existing issue before writing.
+creation. Before writing to Linear, resolve workspace, team, project, and
+existing issue.
 Link code-adjacent design knowledge from work records. Public teams are not
 privacy boundaries. Enable Linear's connector only under
 `~/development/misty-step` and `~/development/moomooskycow`, never globally or in
@@ -76,10 +77,12 @@ https://api.linear.app/graphql -H "Authorization: $LINEAR_API_KEY" -H
 "Content-Type: application/json" -d @query.json'`. Verify with
 `{ viewer { name } teams { nodes { key } } }`.
 
-Branches follow `phaedrus/mis-<number>-<slug>`; commits name the issue key
-(`type(scope): summary (MIS-xx)`). PRs use `Refs`/`Relates to` for partial work and
-`Fixes` only when merge satisfies the issue. Update one top-level
-`### Agent Execution Scratchpad` comment instead of repeating status.
+When a relevant issue exists, use its key in the branch
+(`phaedrus/mis-<number>-<slug>`) and commit (`type(scope): summary (MIS-xx)`).
+Without one, use a descriptive branch and conventional commit. Linked PRs use
+`Refs`/`Relates to` for partial work and `Fixes` only when merge satisfies the
+issue. Update one top-level `### Agent Execution Scratchpad` comment instead
+of repeating status.
 
 Agent names and workload identities grant no extra host authority.
 A failed `sudo -n` does not rule out administration: use `pkexec` when the
