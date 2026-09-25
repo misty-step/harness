@@ -1,3 +1,9 @@
+# [0.1.39](https://github.com/misty-step/harness/compare/v0.1.38...v0.1.39) (2026-09-25)
+<!-- landmark:protected-release previous=v0.1.38 source=9ff14f7721c221507e68f9817b38c282eb74dae647ba916683930d76720bb4f9 -->
+
+### Bug Fixes
+
+* **agent-config:** fail closed on foreign audio sandbox state and route local Python loads ([8e3712f](https://github.com/misty-step/harness/commit/8e3712fdeebc5ecd84abc02b494a9b064bda45b6))
 # [0.1.38](https://github.com/misty-step/harness/compare/v0.1.37...v0.1.38) (2026-09-25)
 <!-- landmark:protected-release previous=v0.1.37 source=3059cd9f2e8509eaff55c399ef88ed012ed0f6f9415730fd406e6be45fa1d5a9 -->
 
