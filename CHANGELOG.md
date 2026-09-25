@@ -1,3 +1,15 @@
+# [0.1.32](https://github.com/misty-step/harness/compare/v0.1.31...v0.1.32) (2026-09-25)
+<!-- landmark:protected-release previous=v0.1.31 source=f160131e45f0bb887ddb0aeb9e4a8cc8b119c642b6c2ace8526196d51725f285 -->
+
+### Features
+
+* **omp:** default to Opus 5.5 by operator model ranking (US-014) (MIS-150) ([39ed088](https://github.com/misty-step/harness/commit/39ed088f620024e6e799dcc10866746cd1a1246d))
+* **agent-config:** enforce foundations and add owned exe.dev workspaces (US-003, US-004, US-024, US-025) (MIS-150) ([b45bfdf](https://github.com/misty-step/harness/commit/b45bfdf088b350384fcfc15a0cd6d2c877f8fe3f))
+
+### Bug Fixes
+
+* **ws:** name the project VM after the repository, not the worktree directory (US-025) (MIS-150) ([5779f34](https://github.com/misty-step/harness/commit/5779f3426bd73bb1b03846222bdb405e8ec8fce0))
+* **ws:** quote the VM comment for the exe.dev lobby parser (US-025) (MIS-150) ([e812336](https://github.com/misty-step/harness/commit/e812336addf4cbb800589f6c31e34dac2eacb2ae))
 # [0.1.31](https://github.com/misty-step/harness/compare/v0.1.30...v0.1.31) (2026-09-24)
 <!-- landmark:protected-release previous=v0.1.30 source=c16f9f03b31caa0822377b1f4e70ef9490a050ae154397a0028c6859da35f5e4 -->
 
