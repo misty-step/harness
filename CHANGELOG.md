@@ -1,3 +1,15 @@
+# [0.1.49](https://github.com/misty-step/harness/compare/v0.1.48...v0.1.49) (2026-09-25)
+<!-- landmark:protected-release previous=v0.1.48 source=d9669102ef953a159374457f9a9f7a2c8f5977a019263c7f5255d6241caeb3e6 -->
+
+### Features
+
+* **agent-config:** hold every application to continuous deployment, loud alerting and incident response (ADR-005, US-040, MIS-150) ([4de8e17](https://github.com/misty-step/harness/commit/4de8e17e7b541f75142d84ba9557a60e4f869dde))
+
+### Bug Fixes
+
+* **agent-config:** close ship-trigger loopholes and require review to leave ADR-005 (ADR-005, US-040, MIS-150) ([9f1622f](https://github.com/misty-step/harness/commit/9f1622fba9a7cd89121bd5bce0c88b9942f5bec0))
+* **agent-config:** accept only ship conditions and upstream gates that keep every green push shipping (ADR-005, US-040, MIS-150) ([2faccb8](https://github.com/misty-step/harness/commit/2faccb8009ab890bc05c0a845f228d9d56bf0546))
+* **agent-config:** hold the jobs a ship job needs to the same gate rules (ADR-005, US-040, MIS-150) ([678bf98](https://github.com/misty-step/harness/commit/678bf986db61de80d4f9df6ec46cbca7fde395a2))
 # [0.1.48](https://github.com/misty-step/harness/compare/v0.1.47...v0.1.48) (2026-09-25)
 <!-- landmark:protected-release previous=v0.1.47 source=4197fbc3464a2b7e8c6d426a69ed62af927e79708f24777c426b3e11f1827181 -->
 
