@@ -1,3 +1,9 @@
+# [0.1.40](https://github.com/misty-step/harness/compare/v0.1.39...v0.1.40) (2026-09-25)
+<!-- landmark:protected-release previous=v0.1.39 source=0468ff327aa0ebd03dfd3352d60a1dda244bda6a7ae32f59fb4ce8d9e75e1745 -->
+
+### Bug Fixes
+
+* **omp-config:** resolve local:// loads the way OMP does in the audio sandbox ([09ce5c9](https://github.com/misty-step/harness/commit/09ce5c9f897424a37c58d98df0ff0d3c32632afa))
 # [0.1.39](https://github.com/misty-step/harness/compare/v0.1.38...v0.1.39) (2026-09-25)
 <!-- landmark:protected-release previous=v0.1.38 source=9ff14f7721c221507e68f9817b38c282eb74dae647ba916683930d76720bb4f9 -->
 
