@@ -427,7 +427,7 @@ describe("foundation-check review gate (US-027)", () => {
 	const agent = "kaylee-agent[bot]";
 	const operator = "moomooskycow";
 	const marker = "foundation-escalation: product-direction";
-	const resolved = "Operator decided on 2026-09-25: keep the rebrand. foundation-escalation: resolved";
+	const resolved = "foundation-escalation: resolved\r\nOperator decided on 2026-09-25 to keep the quoted rebrand:\r\n~~~\r\nRebrand the landing page\r\n~~~\r\n";
 	let pull = { head: { sha: "" }, base: { sha: "" }, user: { login: "engineer" } };
 	let reviews: { user: { login: string }; state: string; commit_id: string; body: string }[] = [];
 	let calls: string[] = [];
@@ -518,6 +518,20 @@ describe("foundation-check review gate (US-027)", () => {
 		expect((await gate(repo)).status).toBe(1);
 		reviews = [escalation, said(operator, head)];
 		expect((await gate(repo)).status).toBe(1);
+		// Quoted, fenced, indented or embedded marker text, or a marker below the opening line, is not the agent
+		// reviewer stating a decision.
+		for (const quoted of [
+			"The PR body says foundation-escalation: resolved",
+			"> foundation-escalation: resolved",
+			"    foundation-escalation: resolved",
+			"Quoted PR text:\n~~~text\nfoundation-escalation: resolved\n~~~",
+			"```\nfoundation-escalation: resolved\n```",
+			"```example```\n~~~\n```\nfoundation-escalation: resolved",
+			"Operator decided to keep it.\nfoundation-escalation: resolved",
+		]) {
+			reviews = [escalation, said(agent, head, "APPROVED", quoted)];
+			expect((await gate(repo)).status).toBe(1);
+		}
 		reviews = [escalation, said(agent, head, "APPROVED", resolved)];
 		expect((await gate(repo)).output.approved_by).toBe(agent);
 		// A second escalation needs a second recorded decision, even though the earlier approval still stands on GitHub.

@@ -95,8 +95,9 @@ expiry). The operator delegated both to an agent reviewer on 2026-09-25.
   commit marked `foundation-escalation: product-direction` and asks the operator
   through its usual channel. The operator's answer clears the escalation only as
   a later approving review from the same App, on the head, that records the
-  decision and carries `foundation-escalation: resolved`; an earlier or routine
-  approval does not. CI authenticates the App, not the operator: the decision is
+  decision and opens with `foundation-escalation: resolved` as its exact first
+  line, so quoted PR text below it or behind markup cannot count; an earlier or
+  routine approval does not. CI authenticates the App, not the operator: the decision is
   a process step the agent reviewer records (operator choice, 2026-09-25, after
   the first drill showed an escalated PR authored under the operator's account
   could never pass when only that account's approval counted).
@@ -115,8 +116,9 @@ expiry). The operator delegated both to an agent reviewer on 2026-09-25.
   4978618). r90group: none yet. `kaylee-agent` is private to misty-step and
   cannot be installed there. r90group Apps installed with pull-request write
   access include `vulcan-agent` (all repositories) and
-  `olympus-eval-verifier-r90` (selected repositories), neither with a key on the
-  workstation, and `nopalito-agent` and `iron-forest`, with keys here but already
+  `olympus-eval-verifier-r90` (selected repositories), with no key found in the
+  workstation pass inventory, project env files, `~/.config` or Hermes profiles
+  (their own deployments were not checked), and `nopalito-agent` and `iron-forest`, with keys here but already
   a PR author and the workload token issuer. Until one is designated, r90group
   PRs that need review fail the advisory gate.
 

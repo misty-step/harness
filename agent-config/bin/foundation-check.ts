@@ -651,7 +651,12 @@ async function review(options: Options): Promise<Result> {
 		if (batch.length < 100) break;
 	}
 	const own = (entry: Record<string, unknown>) => reviewer(entry) === agent;
+	// A marker that holds a PR back counts anywhere in the review. One that clears it must be the review's exact
+	// first line: quoted PR text (a description, a diff line, a blockquote, a fenced or indented block) always
+	// sits below the reviewer's own opening, or behind markup on that line, so it cannot grant approval by
+	// accident, and no Markdown parsing is needed to tell the two apart.
 	const says = (entry: Record<string, unknown>, marker: string) => typeof entry.body === "string" && entry.body.includes(marker);
+	const states = (entry: Record<string, unknown>, marker: string) => typeof entry.body === "string" && entry.body.split("\n")[0].trimEnd() === marker;
 	// Escalation is the agent reviewer's marked, non-approving review on this head; a marker on an older commit
 	// does not carry over. The operator decides out of band, and only a later approval from the agent reviewer
 	// that records the decision clears it, so a routine or earlier approval never does.
@@ -667,8 +672,8 @@ async function review(options: Options): Promise<Result> {
 	});
 	const approved = decision?.entry.state === "APPROVED" && decision.entry.commit_id === head;
 	const errors: string[] = [];
-	if (escalation >= 0 && !(approved && decision!.index > escalation && says(decision!.entry, resolutionMarker))) {
-		errors.push(`escalated to the operator on head ${head.slice(0, 12)}; needs a later approving review from ${agent} that records the operator's decision with "${resolutionMarker}"`);
+	if (escalation >= 0 && !(approved && decision!.index > escalation && states(decision!.entry, resolutionMarker))) {
+		errors.push(`escalated to the operator on head ${head.slice(0, 12)}; needs a later approving review from ${agent} that records the operator's decision and opens with "${resolutionMarker}" as its exact first line`);
 	} else if (!approved) errors.push(`needs an approving review from the designated agent reviewer ${agent} on head ${head.slice(0, 12)}`);
 	return { ok: errors.length === 0, errors, reasons, approved_by: errors.length === 0 ? agent : undefined };
 }
