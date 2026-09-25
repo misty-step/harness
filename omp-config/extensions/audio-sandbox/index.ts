@@ -12,12 +12,23 @@
  * its own code runs (streams are routed when created, never moved after linking).
  * The revision adds one line, so Python tracebacks count one line more.
  */
+import { realpathSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve, sep } from "node:path";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { AGENT_AUDIO_ENV, sandboxAgentAudio, shellExports } from "./env.ts";
 
 const PYTHON_ROUTING = `__import__("os").environ.update(${JSON.stringify(AGENT_AUDIO_ENV)})`;
+
+/** The canonical path, following symlinks; a path that does not exist yet stays lexical. */
+function canonical(path: string): string {
+	try {
+		return realpathSync(path);
+	} catch (error) {
+		if (error instanceof Error && "code" in error && error.code === "ENOENT") return path;
+		throw error;
+	}
+}
 
 /**
  * A Python eval cell that applies the audio contract before its own code.
@@ -32,8 +43,8 @@ export function routePythonCell(code: string, localRoot?: string | null): string
 	const localLoad = lines.length === 1 ? /^%load\s+(["']?)local:\/\/(.+?)\1\s*$/.exec(lines[0].trim()) : null;
 	if (localLoad) {
 		if (!localRoot) throw new Error("audio sandbox: cannot resolve local:// for this %load; load the file by path");
-		const root = resolve(localRoot);
-		const target = resolve(root, decodeURIComponent(localLoad[2]));
+		const root = canonical(resolve(localRoot));
+		const target = canonical(resolve(root, decodeURIComponent(localLoad[2])));
 		if (!target.startsWith(`${root}${sep}`)) throw new Error("audio sandbox: local:// path escapes the session root");
 		return `${PYTHON_ROUTING}\n%load ${JSON.stringify(target)}`;
 	}

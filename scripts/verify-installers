@@ -130,6 +130,35 @@ for consumer in pi omp; do
       expectEqual(Object.fromEntries(Object.keys(AGENT_AUDIO_ENV).map(name => [name, process.env[name]])), { ...AGENT_AUDIO_ENV }, "extension env");
     '
   check "$consumer audio-sandbox left live PipeWire alone" grep -q 'PipeWire is not reachable' "$work/$consumer.log"
+  if [ "$consumer" = pi ]; then
+    # US-026: pi-config owns shellCommandPrefix. Its own prefix redeploys
+    # unchanged; a foreign one stops the install in preflight, before any write.
+    cp "$agent/settings.json" "$work/pi-settings-owned"
+    if env -i PATH="$PATH" HOME="$home" TMPDIR="$work" PI_CODING_AGENT_DIR="$agent" PI_CONFIG_COMPONENTS=audio-sandbox \
+      "$work/source/pi-config/install" >"$work/pi-prefix.log" 2>&1 && cmp -s "$work/pi-settings-owned" "$agent/settings.json"; then
+      printf 'PASS pi audio prefix redeploys unchanged\n'
+    else
+      printf 'FAIL pi audio prefix redeploys unchanged\n' >&2
+      cat "$work/pi-prefix.log" >&2
+      failures=$((failures + 1))
+    fi
+    jq '.shellCommandPrefix = "shopt -s expand_aliases"' "$work/pi-settings-owned" > "$agent/settings.json"
+    cp "$agent/settings.json" "$work/pi-settings-foreign"
+    rm -rf "$agent/extensions/audio-sandbox"
+    if env -i PATH="$PATH" HOME="$home" TMPDIR="$work" PI_CODING_AGENT_DIR="$agent" PI_CONFIG_COMPONENTS=audio-sandbox \
+      "$work/source/pi-config/install" >"$work/pi-prefix.log" 2>&1; then
+      printf 'FAIL pi audio prefix refuses a foreign prefix (install succeeded)\n' >&2
+      failures=$((failures + 1))
+    elif grep -q 'foreign shellCommandPrefix' "$work/pi-prefix.log" \
+      && cmp -s "$work/pi-settings-foreign" "$agent/settings.json" \
+      && [ ! -e "$agent/extensions/audio-sandbox" ]; then
+      printf 'PASS pi audio prefix refuses a foreign prefix before any write\n'
+    else
+      printf 'FAIL pi audio prefix refuses a foreign prefix before any write\n' >&2
+      cat "$work/pi-prefix.log" >&2
+      failures=$((failures + 1))
+    fi
+  fi
 
   # Installed-load assertions must resolve shared modules inside the
   # installed home. OMP instead retires its previously deployed nudge.

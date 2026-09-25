@@ -1,6 +1,12 @@
-import { expect, test } from "bun:test";
+import { afterAll, expect, test } from "bun:test";
+import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { homedir } from "node:os";
+import { join } from "node:path";
 import { AGENT_AUDIO_ENV } from "./env.ts";
 import { routePythonCell } from "./index.ts";
+
+const scratch = mkdtempSync(join(process.env.TMPDIR || join(homedir(), ".cache", "tmp"), "omp-audio-test-"));
+afterAll(() => rmSync(scratch, { recursive: true, force: true }));
 
 // OMP's Python runner gets an allowlisted environment; model it with PATH and HOME only.
 const runnerEnv = { PATH: process.env.PATH, HOME: process.env.HOME };
@@ -44,6 +50,13 @@ test("US-026 a standalone local:// load is routed and loaded from its backing fi
 	expect(routed[1]).toBe('%load "/sessions/s1/local/my notes/setup.py"');
 	expect(() => routePythonCell("%load local://../../etc/rc.py", "/sessions/s1/local")).toThrow("escapes");
 	expect(() => routePythonCell("%load local://setup.py", null)).toThrow("cannot resolve local://");
+	const local = join(scratch, "local");
+	mkdirSync(local, { recursive: true });
+	writeFileSync(join(local, "inside.py"), "print('in')\n");
+	writeFileSync(join(scratch, "outside.py"), "print('out')\n");
+	symlinkSync(join(scratch, "outside.py"), join(local, "link.py"));
+	expect(routePythonCell("%load local://inside.py", local).split("\n")[1]).toBe(`%load ${JSON.stringify(join(local, "inside.py"))}`);
+	expect(() => routePythonCell("%load local://link.py", local)).toThrow("escapes");
 });
 
 test("US-026 a %%bash cell exports the contract to its shell body", () => {
