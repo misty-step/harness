@@ -50,7 +50,7 @@ at the checkout, never with the checkout as Bun's working directory: Bun loads a
 | Full compliance in one PR is large, and blocking every PR until the repository is compliant stalls work | Ratchet mode (US-027). `foundation-check baseline --owner NAME --write` records the current gaps as a bootstrap baseline, with or without an existing `foundation.json`: missing documents (`doc:`), story format (`stories:format`), map gaps (`map:`), the verify skill (`skill:verify`), and one `walk:US-nnn` per live story. Each entry has an owner and an expiry at most 30 days out. `check` passes only if (1) every current gap has an unexpired entry, (2) no entry has expired or outlived its gap: an expired entry fails until its gap is fixed and the entry removed, and (3) with `--base`, the baseline only shrinks versus the base branch. A new entry or a later expiry fails unless the PR adds a `foundation/extensions/` record (reason, gap, expiry) that the designated agent reviewer approves (see Review authority). A story the PR edits must be mapped, and a change's receipt accepts `unwalked` only for mapped, unaffected stories with an unexpired walk entry (an unmapped story's impact is unknown, so it is walked), so coverage grows where work happens. An empty baseline means mode `enforced`, and a bootstrap repository cannot stay in bootstrap past its latest expiry without an approved extension. |
 | No `USER_STORIES.md` | An agent drafts stories in `user-stories` init mode. The designated agent reviewer, not the operator, approves the PR that first adds them (see Review authority). |
 | The review gate only judges PRs once it is on the base branch (`pull_request_target` runs the base copy) | The adoption PR adds `foundation-review.yml` and nothing that needs review: no first stories and no extension record. First stories and extensions follow in later PRs, once the gate is on the default branch; on misty-step it becomes a required check with the others. |
-| No feature map | `feature-map draft` gives the starting map. On Scry: area precision 0.75, recall 0.87, identical across two runs, 286 questions in 26 calls, 6.8 s. An agent completes the prose, and the deterministic check gates. |
+| No feature map | `feature-map draft` gives the starting map. The change that first creates it (no `features/README.md` at the merge base) marks stories affected only through changed source and edited stories, since adding the map changes no behaviour; so the adoption PR can map every story while unwalked ones stay under their `walk:` entries. On Scry: area precision 0.75, recall 0.87, identical across two runs, 286 questions in 26 calls, 6.8 s. An agent completes the prose, and the deterministic check gates. |
 | No walk runner | Baseline stories stay `unwalked` until the repository's runner exists; it is written in the first PR that touches a story. Scry's `qa/walk` is the template. |
 | New checker rules could break master | Repositories pin a harness revision. Stricter rules land only through an explicit pin-bump PR, as Scry #194 did for exact criteria. |
 | Jev is unavailable in CI | Jev never sits on the required path. |
@@ -74,10 +74,12 @@ Two steps need an approval the PR author cannot give: a repository's first
 user stories, and any baseline extension (a new baseline entry or a later
 expiry). The operator delegated both to an agent reviewer on 2026-09-25.
 
-- **Who approves.** Each organisation has one designated agent reviewer, a
-  GitHub App identity, written into `foundation-check` itself at the revision a
-  repository's CI pins; neither the repository nor a flag can name another. The
-  PR author never counts, whoever it is.
+- **Who approves.** Each organisation has one designated reviewer, written into
+  `foundation-check` itself at the revision a repository's CI pins; neither the
+  repository nor a flag can name another. Where it is a GitHub App (misty-step),
+  the PR author never counts, whoever it is. Where the organisation has no
+  reviewer App (r90group), the decision is recorded instead; see Designated
+  reviewers.
 - **What counts.** An approving GitHub review on the PR's head commit from that
   App, read by CI through the GitHub API. Text in the repository grants no
   authority, per the Foundation Standard. The App is the only identity CI
@@ -112,15 +114,22 @@ expiry). The operator delegated both to an agent reviewer on 2026-09-25.
   reviewer, which merges, re-runs the gate before merging. It reads the PR's base,
   head, author and reviews through the GitHub API, decides from the PR's own
   revisions whether review is needed, and passes at once when it is not.
-- **Designated reviewers (2026-09-25).** misty-step: `kaylee-agent[bot]` (App
-  4978618). r90group: none yet. `kaylee-agent` is private to misty-step and
-  cannot be installed there. r90group Apps installed with pull-request write
-  access include `vulcan-agent` (all repositories) and
-  `olympus-eval-verifier-r90` (selected repositories), with no key found in the
-  workstation pass inventory, project env files, `~/.config` or Hermes profiles
-  (their own deployments were not checked), and `nopalito-agent` and `iron-forest`, with keys here but already
-  a PR author and the workload token issuer. Until one is designated, r90group
-  PRs that need review fail the advisory gate.
+- **Designated reviewers (2026-09-25).**
+  - misty-step: `kaylee-agent[bot]` (App 4978618), as above.
+  - r90group: no reviewer App (operator decision, 2026-09-25). Agents act as the
+    operator's user `moomooskycow` there, so the agent reviewer records its
+    decision as a review or comment from that user whose exact first line is
+    `foundation-review: approved <head sha>`. An escalation is such an entry
+    whose first line is `foundation-escalation: product-direction`; only a later
+    entry whose first line is `foundation-escalation: resolved <head sha>`
+    clears it, and Kaylee records the operator's decision that way. Every marker
+    must be a first line because the shared account writes much other text, and
+    a decision names its head because a comment is not tied to a commit. The
+    record shows what was decided, not who decided it: CI cannot tell the author
+    from the reviewer there, which is why r90group's checks stay advisory.
+  - `kaylee-agent` could not serve r90group: it is private to misty-step, and its
+    organization-level permissions would apply to all of r90group whatever
+    repositories were selected.
 
 ## Enforcement by plan
 

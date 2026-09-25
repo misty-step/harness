@@ -277,8 +277,12 @@ function affected(repo: string, base: string, report: Issue[]): string[] {
 	const mapping = features(repo, tracked(repo), head, report);
 	const changed = changedFiles(repo, base);
 	const ids = editedStories(repo, base, head);
+	// The change that first creates the map (no index at the merge base) adds metadata, not behaviour, so its
+	// feature files mark no story; changed source and edited stories still do. Once the map exists, editing a
+	// feature file affects its stories.
+	const mapExisted = fileAt(repo, git(repo, "merge-base", base, "HEAD").trim(), "features/README.md") !== undefined;
 	for (const feature of mapping) {
-		if (changed.includes(feature.file) || changed.some((file) => feature.sources.some((glob) => globRegex(glob).test(file)))) {
+		if ((mapExisted && changed.includes(feature.file)) || changed.some((file) => feature.sources.some((glob) => globRegex(glob).test(file)))) {
 			for (const id of feature.stories) if (live.has(id)) ids.add(id);
 		}
 	}
@@ -592,14 +596,20 @@ function receipt(options: Options): Result {
 	return { ok: errors.length === 0, errors };
 }
 /**
- * Designated agent reviewer per organisation (ADR-003 Review authority). It lives in this pinned checker, so
- * neither the repository under review nor a command-line flag can change who may approve. It is the only
- * identity the gate trusts: agent sessions also act under the operator's GitHub account, so an approval from
- * that account proves nothing about who gave it.
+ * Designated reviewer per organisation (ADR-003 Review authority). It lives in this pinned checker, so neither
+ * the repository under review nor a command-line flag can change who may approve.
+ * - `app`: a GitHub App, the only identity the gate trusts. Agent sessions also act under the operator's GitHub
+ *   account, so an approval from that account proves nothing about who gave it.
+ * - `recorded`: the organisation has no reviewer App (operator decision for r90group, 2026-09-25). Agents act as
+ *   the operator's user there, so the agent reviewer records its decision as a review or comment from that user.
+ *   The record shows what was decided, not who decided it; that organisation's checks stay advisory.
  */
-const reviewerRegistry: Record<string, string> = {
-	"misty-step": "kaylee-agent[bot]",
+type Reviewer = { app: string } | { recorded: string };
+const reviewerRegistry: Record<string, Reviewer> = {
+	"misty-step": { app: "kaylee-agent[bot]" },
+	"r90group": { recorded: "moomooskycow" },
 };
+const approvalMarker = "foundation-review: approved";
 const escalationMarker = "foundation-escalation: product-direction";
 const resolutionMarker = "foundation-escalation: resolved";
 /** Why a PR needs the designated reviewer, judged on its own base and head: first user stories or an added extension record. */
@@ -640,23 +650,46 @@ async function review(options: Options): Promise<Result> {
 	}
 	const reasons = reviewTriggers(options.repo, base, head);
 	if (reasons.length === 0) return { ok: true, errors: [], reasons };
-	const agent = reviewerRegistry[org];
-	if (!agent) throw new Error(`no designated reviewer for ${org}`);
-	if (agent === author) return { ok: false, errors: [`the designated agent reviewer ${agent} authored this PR, so it cannot approve it`], reasons };
-	const reviews: Record<string, unknown>[] = [];
-	for (let page = 1; ; page++) {
-		const batch = await github(`/repos/${org}/${name}/pulls/${options.pr}/reviews?per_page=100&page=${page}`, token);
-		if (!Array.isArray(batch)) throw new Error("GitHub API: reviews is not a list");
-		reviews.push(...batch.filter(record));
-		if (batch.length < 100) break;
+	const designated = reviewerRegistry[org];
+	if (!designated) throw new Error(`no designated reviewer for ${org}`);
+	const list = async (path: string) => {
+		const items: Record<string, unknown>[] = [];
+		for (let page = 1; ; page++) {
+			const batch = await github(`/repos/${org}/${name}/${path}?per_page=100&page=${page}`, token);
+			if (!Array.isArray(batch)) throw new Error(`GitHub API: ${path} is not a list`);
+			items.push(...batch.filter(record));
+			if (batch.length < 100) break;
+		}
+		return items;
+	};
+	const firstLine = (entry: Record<string, unknown>) => (typeof entry.body === "string" ? entry.body.split("\n")[0].trimEnd() : "");
+	if ("recorded" in designated) {
+		// Every marker must be an entry's exact first line: the shared account writes a great deal of other text,
+		// and a decision names the head it covers, because an issue comment is not tied to a commit.
+		const login = designated.recorded;
+		const stamped = (entry: Record<string, unknown>, field: string) => ({ at: typeof entry[field] === "string" ? entry[field] as string : "", entry });
+		const entries = [...(await list(`pulls/${options.pr}/reviews`)).map((entry) => stamped(entry, "submitted_at")), ...(await list(`issues/${options.pr}/comments`)).map((entry) => stamped(entry, "created_at"))]
+			.filter(({ entry }) => reviewer(entry) === login)
+			.sort((a, b) => (a.at < b.at ? -1 : a.at > b.at ? 1 : 0));
+		let escalation = -1;
+		entries.forEach(({ entry }, index) => { if (firstLine(entry) === escalationMarker) escalation = index; });
+		const marker = escalation >= 0 ? resolutionMarker : approvalMarker;
+		const decided = entries.some(({ entry }, index) => index > escalation && firstLine(entry) === `${marker} ${head}`);
+		const errors = decided ? [] : [escalation >= 0
+			? `escalated to the operator; needs a later review or comment from ${login} whose first line is "${marker} ${head}"`
+			: `needs a review or comment from ${login} recording the agent reviewer's decision, with first line "${marker} ${head}"`];
+		return { ok: decided, errors, reasons, approved_by: decided ? `${login} (recorded decision)` : undefined };
 	}
+	const agent = designated.app;
+	if (agent === author) return { ok: false, errors: [`the designated agent reviewer ${agent} authored this PR, so it cannot approve it`], reasons };
+	const reviews = await list(`pulls/${options.pr}/reviews`);
 	const own = (entry: Record<string, unknown>) => reviewer(entry) === agent;
 	// A marker that holds a PR back counts anywhere in the review. One that clears it must be the review's exact
 	// first line: quoted PR text (a description, a diff line, a blockquote, a fenced or indented block) always
 	// sits below the reviewer's own opening, or behind markup on that line, so it cannot grant approval by
 	// accident, and no Markdown parsing is needed to tell the two apart.
 	const says = (entry: Record<string, unknown>, marker: string) => typeof entry.body === "string" && entry.body.includes(marker);
-	const states = (entry: Record<string, unknown>, marker: string) => typeof entry.body === "string" && entry.body.split("\n")[0].trimEnd() === marker;
+	const states = (entry: Record<string, unknown>, marker: string) => firstLine(entry) === marker;
 	// Escalation is the agent reviewer's marked, non-approving review on this head; a marker on an older commit
 	// does not carry over. The operator decides out of band, and only a later approval from the agent reviewer
 	// that records the decision clears it, so a routine or earlier approval never does.

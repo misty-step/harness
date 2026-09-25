@@ -55,7 +55,8 @@ VM presence. Agent sessions and model credentials stay local.
 `foundation-check check --repo DIR` validates `foundation.json` against the
 Foundation Standard catalog, the first-class documents, `check-stories.sh`,
 the `features/` map, and a verify skill with Launch/Doctor/Drive/Evidence/Cleanup
-sections. `affected --base REV` prints the live stories a diff touches;
+sections. `affected --base REV` prints the live stories a diff touches (the
+change that first creates `features/README.md` counts only source and story edits);
 `receipt PATH --base REV` validates a same-job story-walk receipt against HEAD,
 its tree, the affected stories, and artifact digests. Repository CI pins this
 file from a harness revision; the deployed launcher resolves the catalog and
@@ -81,7 +82,9 @@ requires every live story and flags walk entries whose story now passes.
 author and reviews, and passes at once unless the PR gives `USER_STORIES.md`
 its first stories or adds a `foundation/extensions/` record. Then it needs an
 approving review on the PR head from the organisation's agent reviewer, written
-into the checker (misty-step: `kaylee-agent[bot]`). After that reviewer's
+into the checker (misty-step: `kaylee-agent[bot]`). r90group has no reviewer App:
+there the decision is a review or comment from `moomooskycow` whose first line is
+`foundation-review: approved <head sha>` (ADR-003, Designated reviewers). After that reviewer's
 `foundation-escalation: product-direction` review on the head, only its later
 approval recording the operator's decision and opening with
 `foundation-escalation: resolved` as its exact first line counts; approvals from the operator's shared account never do. Copy

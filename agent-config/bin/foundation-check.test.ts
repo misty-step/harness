@@ -182,6 +182,27 @@ describe("foundation-check (US-024)", () => {
 		expect(cli(repo, "affected", "--base", featureBase).output.stories).toEqual(["US-001"]);
 	});
 
+	test("the change that first creates the map marks stories only through changed source or edited stories", () => {
+		const repo = fixture("first-map");
+		put(repo, "USER_STORIES.md", `# Stories\n\n${liveStory}\n${otherStory}\n${retiredStory}\n${headingRetiredStory}`);
+		exec(repo, ["rm", "-q", "features/README.md", "features/journey.md"]);
+		commit(repo, "no map yet");
+		const base = exec(repo, ["rev-parse", "HEAD"]);
+		put(repo, "features/README.md", "# Index\n\n[Journey](journey.md)\n[Other](other.md)\n");
+		put(repo, "features/journey.md", feature);
+		put(repo, "features/other.md", feature.replace("# Journey", "# Other").replace("Stories: US-001", "Stories: US-004").replace("Source: src/**", "Source: lib/**"));
+		commit(repo, "first map");
+		expect(cli(repo, "affected", "--base", base).output.stories).toEqual([]);
+		put(repo, "src/nested/journey.ts", "export const result = 3;\n");
+		commit(repo, "source in the same change");
+		expect(cli(repo, "affected", "--base", base).output.stories).toEqual(["US-001"]);
+		// Once the map exists, editing a feature file affects its stories again.
+		const mapped = exec(repo, ["rev-parse", "HEAD"]);
+		put(repo, "features/other.md", `${readFileSync(join(repo, "features/other.md"), "utf8")}\nMore detail.\n`);
+		commit(repo, "edit feature");
+		expect(cli(repo, "affected", "--base", mapped).output.stories).toEqual(["US-004"]);
+	});
+
 	test("receipt binds head, tree, affected status, criteria and retained evidence", () => {
 		const repo = fixture("receipts");
 		const base = exec(repo, ["rev-parse", "HEAD"]);
@@ -429,7 +450,8 @@ describe("foundation-check review gate (US-027)", () => {
 	const marker = "foundation-escalation: product-direction";
 	const resolved = "foundation-escalation: resolved\r\nOperator decided on 2026-09-25 to keep the quoted rebrand:\r\n~~~\r\nRebrand the landing page\r\n~~~\r\n";
 	let pull = { head: { sha: "" }, base: { sha: "" }, user: { login: "engineer" } };
-	let reviews: { user: { login: string }; state: string; commit_id: string; body: string }[] = [];
+	let reviews: { user: { login: string }; state: string; commit_id: string; body: string; submitted_at?: string }[] = [];
+	let comments: { user: { login: string }; body: string; created_at: string }[] = [];
 	let calls: string[] = [];
 	const server = Bun.serve({
 		port: 0,
@@ -439,6 +461,7 @@ describe("foundation-check review gate (US-027)", () => {
 			if (request.headers.get("authorization") !== "Bearer test-token") return new Response("unauthorized", { status: 401 });
 			if (url.pathname.endsWith("/pulls/7")) return Response.json(pull);
 			if (url.pathname.endsWith("/pulls/7/reviews")) return Response.json(url.searchParams.get("page") === "1" ? reviews : []);
+			if (url.pathname.endsWith("/issues/7/comments")) return Response.json(url.searchParams.get("page") === "1" ? comments : []);
 			return new Response("missing", { status: 404 });
 		},
 	});
@@ -540,8 +563,36 @@ describe("foundation-check review gate (US-027)", () => {
 		// A marker on an older commit does not carry over; the head still needs the agent reviewer's approval.
 		reviews = [said(agent, base, "COMMENTED", marker), said(agent, head)];
 		expect((await gate(repo)).status).toBe(0);
-		const foreign = await gate(repo, "r90group/habitat");
+		const foreign = await gate(repo, "elsewhere/demo");
 		expect(foreign.status).toBe(1);
-		expect(foreign.output.errors[0]).toContain("no designated reviewer for r90group");
+		expect(foreign.output.errors[0]).toContain("no designated reviewer for elsewhere");
+	});
+
+	test("r90group has no reviewer App: a decision recorded under the operator's account counts, and must name the head", async () => {
+		const repo = fixture("gate-recorded");
+		const base = exec(repo, ["rev-parse", "HEAD"]);
+		put(repo, "foundation/extensions/design.json", JSON.stringify({ schema: "foundation-baseline-extension/1", reason: "Rebrand", entries: [{ gap: "doc:DESIGN.md", expires: day(20) }] }));
+		commit(repo, "extension record");
+		const head = exec(repo, ["rev-parse", "HEAD"]);
+		// Agents act as the operator's user in r90group, so the author and the recorder are the same account.
+		opened(base, head, operator);
+		const note = (body: string, created_at: string, login = operator) => ({ user: { login }, body, created_at });
+		const approval = `foundation-review: approved ${head}\nDecision recorded for the agent reviewer.`;
+		const recorded = (reviewList: typeof reviews, commentList: typeof comments) => { reviews = reviewList; comments = commentList; return gate(repo, "r90group/habitat"); };
+		expect((await recorded([], [])).output.errors[0]).toContain(`first line "foundation-review: approved ${head}"`);
+		expect((await recorded([], [note(approval, "2026-09-25T10:00:00Z")])).output.approved_by).toBe(`${operator} (recorded decision)`);
+		expect((await recorded([{ ...said(operator, head, "COMMENTED", approval), submitted_at: "2026-09-25T10:00:00Z" }], [])).status).toBe(0);
+		// Another head, another account, or a quoted marker records nothing.
+		expect((await recorded([], [note(`foundation-review: approved ${base}`, "2026-09-25T10:00:00Z")])).status).toBe(1);
+		expect((await recorded([], [note(approval, "2026-09-25T10:00:00Z", "engineer")])).status).toBe(1);
+		expect((await recorded([], [note(`> ${approval}`, "2026-09-25T10:00:00Z")])).status).toBe(1);
+		// An escalation, in either a review or a comment, holds the PR until a later recorded resolution for this head.
+		const escalation = note(`${marker}\nNeeds Phaedrus.`, "2026-09-25T11:00:00Z");
+		const resolution = (at: string) => note(`foundation-escalation: resolved ${head}\nPhaedrus decided to keep it.`, at);
+		expect((await recorded([], [note(approval, "2026-09-25T10:00:00Z"), escalation])).output.errors[0]).toContain("escalated to the operator");
+		expect((await recorded([{ ...said(operator, head, "COMMENTED", marker), submitted_at: "2026-09-25T11:00:00Z" }], [note(approval, "2026-09-25T12:00:00Z")])).status).toBe(1);
+		expect((await recorded([], [resolution("2026-09-25T09:00:00Z"), escalation])).status).toBe(1);
+		expect((await recorded([], [escalation, resolution("2026-09-25T12:00:00Z")])).status).toBe(0);
+		comments = [];
 	});
 });

@@ -122,7 +122,9 @@ Criteria:
    or the verify-skill sections are missing, THEN THE SYSTEM SHALL fail the
    repository check with the deficient item named.
 3. WHEN a base revision is supplied, THE SYSTEM SHALL identify live stories
-   affected by source files, feature files, and edited story sections.
+   affected by source files, feature files, and edited story sections; a feature
+   file SHALL count only once the map's index existed at the merge base, because
+   the change that first creates the map adds no behaviour.
 4. IF a walk receipt omits or fails an affected story, reports a set of
    criterion numbers that differs from that story's numbered criteria at HEAD
    (missing, duplicated, or extra), cites an unlisted or tampered artifact, or
@@ -658,7 +660,11 @@ Criteria:
    the operator's decision and opening with `foundation-escalation: resolved` as
    its exact first line SHALL count. The
    PR author's approval, and any approval from the operator's shared GitHub
-   account, SHALL never count.
+   account, SHALL never count. WHERE the organisation has no reviewer App
+   (r90group), THE SYSTEM SHALL instead accept a review or comment from the
+   designated account whose exact first line is `foundation-review: approved`
+   and the head SHA, and after an entry whose first line is the escalation
+   marker, only a later `foundation-escalation: resolved` line naming the head.
 
 No-gos: no automatic waivers, no baseline for adoption-record errors, no
 baseline entry more than 30 days out.
