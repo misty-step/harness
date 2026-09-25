@@ -105,7 +105,10 @@ error reports from real installs.
     branch, the repository fork guard, and the `workflow_run` conclusion, head
     branch and event tests. Anything else (a promotion branch, a commit-message
     opt-in, a repository toggle, `always()`) fails closed, and a gate job with
-    `continue-on-error` does not count.
+    `continue-on-error` does not count. An all-green aggregator job with `if: always()`
+    (a merge gate that fails unless every upstream succeeded) blocks correctly
+    but cannot be verified from the file, so the ship job needs the checking
+    jobs themselves; a repository using such an aggregator lists them.
   - FND-ALR-001: `operations.alert` names the file that initialises error
     capture (it must reference the provider), a scheduled health workflow or a
     named external monitor, and the alert destination.
