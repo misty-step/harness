@@ -60,6 +60,21 @@ its tree, the affected stories, and artifact digests. Repository CI pins this
 file from a harness revision; the deployed launcher resolves the catalog and
 story checker from the installed skills (`$PI_CODING_AGENT_DIR` first).
 
+Ratchet mode (US-027, ADR-003) lets a repository adopt with gaps. On a
+repository with or without `foundation.json`, `baseline --owner NAME --write`
+records every current gap (`doc:`, `stories:format`, `map:`, `skill:verify`, and
+`walk:US-nnn` per live story) as a bootstrap baseline with an owner and an
+expiry at most 30 days out; `check` then passes only while each gap stays
+baselined, and fails an expired entry or one whose gap is fixed. In PR CI,
+`check --base REV` lets the baseline only shrink: a new entry or a later expiry
+needs an added `foundation/extensions/*.json` record
+(`foundation-baseline-extension/1`: reason plus gap and expiry per entry),
+approved by the designated agent reviewer, and a story the PR edits cannot stay
+unmapped. Against a change, `receipt` accepts `unwalked` only for a mapped,
+unaffected story with an unexpired `walk:` entry: an unmapped story's impact is
+unknown, so it must be walked. The nightly full walk uses `receipt --all`, which
+requires every live story and flags walk entries whose story now passes.
+
 ## Agent audio sandbox (US-026)
 
 Agent sessions play into a silent PipeWire sink, `agent-sandbox`, never the
