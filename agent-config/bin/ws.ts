@@ -161,7 +161,8 @@ async function down(): Promise<void> {
 		if (!existsSync(local) || digest(readFileSync(local)) !== manifest[path]) fail(`local evidence ${path} missing or changed; run ws pull --task ${task}`);
 	}
 	await browser(true);
-	vmShell(`cd ${quote(base + "/repo")} && git worktree remove --force ${quote(`../tasks/${task}`)} && rm -rf -- ${quote(evidenceDir)}`);
+	// The removal runs after cd into the repository, so anchor the evidence path at $HOME.
+	vmShell(`cd ${quote(base + "/repo")} && git worktree remove --force ${quote(`../tasks/${task}`)} && rm -rf -- "$HOME"/${quote(evidenceDir)}`);
 	console.log(lease(["drop", "--target", remoteTarget()]));
 	console.log(`down ${task} (VM retained)`);
 }
