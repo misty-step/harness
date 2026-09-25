@@ -12,6 +12,9 @@
  * Usage (OPENROUTER_API_KEY only for the Jev panel):
  *   pass-env run -f .env.pass -- bun pi-config/extensions/s1s2/eval/judge.ts \
  *     --manifest m.json --out dir --arms omp,s1s2 --price-model deepseek/deepseek-v4.1-flash
+ * `--judges opus,jev` limits a pass to those judges, so each judge can run as its own
+ * process; verdicts are cached per task and judge, and a final pass without the option
+ * aggregates all of them.
  */
 import { spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -32,6 +35,7 @@ for (let i = 2; i < process.argv.length; i += 2) args.set(process.argv[i].replac
 const out = resolve(args.get("out") ?? "");
 const tasks = (JSON.parse(readFileSync(resolve(args.get("manifest") ?? ""), "utf8")) as { tasks: Task[] }).tasks;
 const ARMS = (args.get("arms") ?? "omp,s1s2,pi").split(",");
+const selected = args.get("judges")?.split(",").filter(Boolean);
 const LABELS = ["A", "B", "C", "D"].slice(0, ARMS.length);
 let state = (Number(args.get("seed") ?? 26) ^ 0x9e3779b9) >>> 0;
 const random = () => {
@@ -86,7 +90,7 @@ for (const task of tasks) {
 	const reference = spawnSync("git", ["diff", task.base, task.merge], { cwd: join(out, "src"), encoding: "utf8", maxBuffer: 64 * 1024 * 1024 }).stdout;
 	const diffs = Object.fromEntries(ARMS.map((arm) => [arm, normalize(readFileSync(join(out, "runs", task.id, arm, "final.diff"), "utf8"))]));
 
-	for (const judge of JUDGES) {
+	for (const judge of JUDGES.filter((entry) => !selected || selected.includes(entry.id))) {
 		const cache = join(judgeDir, `${task.id}.${judge.id}.json`);
 		const cached = existsSync(cache) ? JSON.parse(readFileSync(cache, "utf8")) : null;
 		if (cached?.valid) {
@@ -139,7 +143,7 @@ for (const task of tasks) {
 
 	const jevCache = join(judgeDir, `${task.id}.jev.json`);
 	if (existsSync(jevCache)) judgements.push(JSON.parse(readFileSync(jevCache, "utf8")));
-	else if (jev) {
+	else if (jev && (!selected || selected.includes("jev"))) {
 		const order = shuffle(ARMS);
 		const bestCriteria: Record<string, string> = Object.fromEntries(LABELS.map((label) => [label, `Candidate ${label}`]));
 		bestCriteria.none_acceptable = "None of the candidates accomplishes the task";

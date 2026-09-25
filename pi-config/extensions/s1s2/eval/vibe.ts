@@ -117,14 +117,20 @@ const MODEL_PATHS = new Set(["/api/v1/chat/completions", "/api/v1/responses"]);
 const JEV_PATH = "/api/alpha/decisions";
 /** OpenRouter refusals issued before a request is routed to a provider; every other failure keeps its worst case. */
 const PRE_GENERATION = new Set([400, 401, 402, 403, 404, 413, 422, 429]);
-type Endpoint = { tag?: string; max_completion_tokens?: number | null; context_length?: number; pricing?: Record<string, unknown> };
+type Rates = Record<string, unknown>;
+type Endpoint = { tag?: string; max_completion_tokens?: number | null; context_length?: number; pricing?: Rates & { overrides?: Rates[] } };
 
-/** Worst-case USD of a call carrying `bytes`: every byte an uncached input token, plus the full completion ceiling. */
+/**
+ * Worst-case USD of a call carrying `bytes`: every byte an uncached input token, plus the full
+ * completion ceiling, at the dearest of the endpoint's base and time-window prices (DeepSeek
+ * doubles its rates in some UTC windows).
+ */
 async function worstCase(model: string, tag?: string): Promise<(bytes: number) => number> {
 	const response = await fetch(`${openrouterBase}/api/v1/models/${model}/endpoints`, { signal: AbortSignal.timeout(30_000) });
 	const all = ((await response.json()) as { data?: { endpoints?: Endpoint[] } }).data?.endpoints ?? [];
 	const matched = all.filter((endpoint) => !tag || endpoint.tag === tag || endpoint.tag?.startsWith(`${tag}/`));
-	const price = (key: string) => Math.max(0, ...matched.map((endpoint) => Number(endpoint.pricing?.[key] ?? 0) || 0));
+	const rates = matched.flatMap((endpoint) => [endpoint.pricing ?? {}, ...(endpoint.pricing?.overrides ?? [])]);
+	const price = (key: string) => Math.max(0, ...rates.map((rate) => Number(rate[key] ?? 0) || 0));
 	const ceiling = Math.max(0, ...matched.map((endpoint) => endpoint.max_completion_tokens ?? endpoint.context_length ?? 0));
 	const input = price("prompt");
 	const output = Math.max(price("completion"), price("internal_reasoning"));
@@ -133,8 +139,25 @@ async function worstCase(model: string, tag?: string): Promise<(bytes: number) =
 }
 const worst = { model: await worstCase(modelId, upstream), jev: await worstCase(JEV_MODEL) };
 
-type Call = { ts: string; run: string | null; path: string; worstUsd: number; status?: number; id?: string; costUsd?: number; provider?: string };
+type Call = { seq: string; ts: string; run: string | null; path: string; worstUsd: number; status?: number; id?: string; costUsd?: number; provider?: string };
 const ledger = { settledUsd: 0, pendingUsd: 0, calls: [] as Call[] };
+const journal = join(out, "boundary.jsonl");
+// A resumed evaluation inherits every earlier call: settled costs, and the worst case of any call
+// that was admitted but never settled (for example, in flight when the runner stopped).
+if (existsSync(journal)) {
+	const bySeq = new Map<string, Partial<Call>>();
+	for (const line of readFileSync(journal, "utf8").split("\n").filter(Boolean)) {
+		const entry = JSON.parse(line) as Partial<Call>;
+		const key = entry.seq ?? `legacy-${bySeq.size}`;
+		bySeq.set(key, { ...bySeq.get(key), ...entry });
+	}
+	for (const entry of bySeq.values()) {
+		if (typeof entry.costUsd === "number") ledger.settledUsd += entry.costUsd;
+		else ledger.pendingUsd += entry.worstUsd ?? 0;
+	}
+}
+const runnerId = `${process.pid}-${Date.now()}`;
+let callCount = 0;
 const settling: Promise<void>[] = [];
 let currentRun: string | null = null;
 let hardStop: string | null = null;
@@ -160,29 +183,36 @@ async function generationCost(id: string): Promise<{ cost?: number; provider?: s
 	return {};
 }
 
-/** Read the ledger's copy of a response to its end, then settle the call from OpenRouter's own figure. */
+/**
+ * Read the ledger's copy of a response to its end, then settle the call from OpenRouter's own
+ * figure: the `usage.cost` it appends to every response (the last chunk of a stream), or else
+ * a lookup of the generation. Looking every call up let reservations pile up while OpenRouter's
+ * generation records lagged, and the cap stopped the first control run at $0.24 spent.
+ */
 async function account(call: Call, stream: ReadableStream<Uint8Array> | null): Promise<void> {
 	let head = "";
+	let tail = "";
 	if (stream) {
 		const decoder = new TextDecoder();
-		for await (const chunk of stream) if (head.length < 65_536) head += decoder.decode(chunk, { stream: true });
+		for await (const chunk of stream) {
+			const text = decoder.decode(chunk, { stream: true });
+			if (head.length < 65_536) head += text;
+			tail = (tail + text).slice(-16_384);
+		}
 	}
 	call.id = /"id"\s*:\s*"(gen-[^"]+)"/.exec(head)?.[1];
-	if (call.id) {
+	call.provider = /"provider"\s*:\s*"([^"]+)"/.exec(head)?.[1];
+	// Content is JSON-escaped inside the response, so only OpenRouter's own usage field matches.
+	const inline = Number([...tail.matchAll(/"cost"\s*:\s*([0-9.eE+-]+)/g)].at(-1)?.[1] ?? Number.NaN);
+	if (Number.isFinite(inline)) {
+		settle(call, inline, call.provider);
+	} else if (call.id) {
 		const found = await generationCost(call.id);
 		settle(call, found.cost, found.provider);
-	} else if (call.path === JEV_PATH) {
-		let cost: unknown;
-		try {
-			cost = (JSON.parse(head) as { usage?: { cost?: unknown } }).usage?.cost;
-		} catch {
-			// unparseable: stays unsettled
-		}
-		settle(call, typeof cost === "number" ? cost : undefined);
 	} else if (call.status !== undefined && PRE_GENERATION.has(call.status)) {
 		settle(call, 0); // OpenRouter refused it before routing: no generation, no charge
 	}
-	appendFileSync(join(out, "boundary.jsonl"), `${JSON.stringify(call)}\n`);
+	appendFileSync(journal, `${JSON.stringify(call)}\n`);
 }
 
 const boundaryServer = Bun.serve({
@@ -205,9 +235,10 @@ const boundaryServer = Bun.serve({
 				hardStop = `spend cap: $${(ledger.settledUsd + ledger.pendingUsd).toFixed(4)} committed, and the next call could cost $${worstUsd.toFixed(4)}; the cap is $${spendLimit}`;
 				return new Response(hardStop, { status: 402 });
 			}
-			call = { ts: new Date().toISOString(), run: currentRun, path: pathname, worstUsd };
+			call = { seq: `${runnerId}.${++callCount}`, ts: new Date().toISOString(), run: currentRun, path: pathname, worstUsd };
 			ledger.pendingUsd += worstUsd;
 			ledger.calls.push(call);
+			appendFileSync(journal, `${JSON.stringify(call)}\n`); // admitted; the settled record follows
 		} else if (!(request.method === "GET" && pathname === "/api/v1/models")) {
 			return new Response("outside the evaluation boundary", { status: 403 });
 		}
@@ -572,7 +603,9 @@ outer: for (const task of tasks) {
 				calls: calls.length,
 				settledUsd: calls.reduce((sum, entry) => sum + (entry.costUsd ?? 0), 0),
 				unsettled: calls.filter((entry) => entry.costUsd === undefined).length,
-				providers: calls.reduce<Record<string, number>>((counts, entry) => ((counts[entry.provider ?? "unknown"] = (counts[entry.provider ?? "unknown"] ?? 0) + 1), counts), {}),
+				modelUpstreams: calls
+					.filter((entry) => MODEL_PATHS.has(entry.path))
+					.reduce<Record<string, number>>((counts, entry) => ((counts[entry.provider ?? "unknown"] = (counts[entry.provider ?? "unknown"] ?? 0) + 1), counts), {}),
 			},
 			spendCap: hardStop,
 			deliverable: { files: deliverable.files, added: deliverable.added, deleted: deliverable.deleted },
