@@ -78,9 +78,11 @@ expiry). The operator delegated both to an agent reviewer on 2026-09-25.
   GitHub App identity, written into `foundation-check` itself at the revision a
   repository's CI pins; neither the repository nor a flag can name another. The
   PR author never counts, whoever it is.
-- **What counts.** An approving GitHub review on the PR's head commit, read by
-  CI through the GitHub API. Text in the repository grants no authority, per
-  the Foundation Standard.
+- **What counts.** An approving GitHub review on the PR's head commit from that
+  App, read by CI through the GitHub API. Text in the repository grants no
+  authority, per the Foundation Standard. The App is the only identity CI
+  trusts: agent sessions also act under the operator's GitHub account, so an
+  approval from that account cannot show who gave it, and it never counts.
 - **First stories.** The PR in which `USER_STORIES.md` gains its first stories
   needs that approval; a placeholder file with no stories counts as none. Later
   changes to a story's intent stay with the operator.
@@ -89,11 +91,15 @@ expiry). The operator delegated both to an agent reviewer on 2026-09-25.
 - **Escalation.** The agent reviewer approves on its own authority, then merges
   the PR through its existing process (Kaylee's factory merges as
   `app/kaylee-agent` on misty-step), unless the change is a real change in
-  product direction. Then it does not approve: it
-  leaves a review on the head commit marked `foundation-escalation:
-  product-direction`, and from then on only the operator's approval counts for
-  that PR. The operator's approval counts only when given after that
-  escalation, because agent sessions also act under the operator's GitHub account.
+  product direction. Then it does not approve: it leaves a review on the head
+  commit marked `foundation-escalation: product-direction` and asks the operator
+  through its usual channel. The operator's answer clears the escalation only as
+  a later approving review from the same App, on the head, that records the
+  decision and carries `foundation-escalation: resolved`; an earlier or routine
+  approval does not. CI authenticates the App, not the operator: the decision is
+  a process step the agent reviewer records (operator choice, 2026-09-25, after
+  the first drill showed an escalated PR authored under the operator's account
+  could never pass when only that account's approval counted).
 - **Gate.** `foundation-check review --pr N` runs as the `foundation-review`
   workflow (template: `agent-config/skills/foundation/foundation-review.yml`)
   on `pull_request_target`, so the base branch's copy of the gate judges every PR
@@ -107,10 +113,12 @@ expiry). The operator delegated both to an agent reviewer on 2026-09-25.
   revisions whether review is needed, and passes at once when it is not.
 - **Designated reviewers (2026-09-25).** misty-step: `kaylee-agent[bot]` (App
   4978618). r90group: none yet. `kaylee-agent` is private to misty-step and
-  cannot be installed there; the r90group Apps with keys on the workstation are
-  Nopalito's worker (`nopalito-agent`) and the workload token issuer
-  (`iron-forest`); `vulcan-agent` has no key here. Until one is designated,
-  r90group PRs that need review fail the advisory gate.
+  cannot be installed there. r90group Apps installed with pull-request write
+  access include `vulcan-agent` (all repositories) and
+  `olympus-eval-verifier-r90` (selected repositories), neither with a key on the
+  workstation, and `nopalito-agent` and `iron-forest`, with keys here but already
+  a PR author and the workload token issuer. Until one is designated, r90group
+  PRs that need review fail the advisory gate.
 
 ## Enforcement by plan
 

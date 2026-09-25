@@ -653,9 +653,11 @@ Criteria:
 5. WHEN a pull request gives `USER_STORIES.md` its first stories or adds a
    baseline extension record, `foundation-check review` SHALL pass only with an
    approving review on the PR head from the organisation's designated agent
-   reviewer, named by the pinned harness and not the repository, or, after that
-   reviewer's escalation review on the head, from the operator; the PR author's
-   approval SHALL never count.
+   reviewer, named by the pinned harness and not the repository. AFTER that
+   reviewer's escalation review on the head, only its later approval recording
+   the operator's decision (`foundation-escalation: resolved`) SHALL count. The
+   PR author's approval, and any approval from the operator's shared GitHub
+   account, SHALL never count.
 
 No-gos: no automatic waivers, no baseline for adoption-record errors, no
 baseline entry more than 30 days out.

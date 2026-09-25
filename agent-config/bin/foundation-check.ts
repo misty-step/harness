@@ -592,13 +592,16 @@ function receipt(options: Options): Result {
 	return { ok: errors.length === 0, errors };
 }
 /**
- * Designated reviewers per organisation (ADR-003 Review authority). They live in this pinned checker, so
- * neither the repository under review nor a command-line flag can change who may approve.
+ * Designated agent reviewer per organisation (ADR-003 Review authority). It lives in this pinned checker, so
+ * neither the repository under review nor a command-line flag can change who may approve. It is the only
+ * identity the gate trusts: agent sessions also act under the operator's GitHub account, so an approval from
+ * that account proves nothing about who gave it.
  */
-const reviewerRegistry: Record<string, { agent: string; operator: string }> = {
-	"misty-step": { agent: "kaylee-agent[bot]", operator: "moomooskycow" },
+const reviewerRegistry: Record<string, string> = {
+	"misty-step": "kaylee-agent[bot]",
 };
 const escalationMarker = "foundation-escalation: product-direction";
+const resolutionMarker = "foundation-escalation: resolved";
 /** Why a PR needs the designated reviewer, judged on its own base and head: first user stories or an added extension record. */
 function reviewTriggers(repo: string, base: string, head: string): string[] {
 	const mergeBase = git(repo, "merge-base", base, head).trim();
@@ -637,8 +640,9 @@ async function review(options: Options): Promise<Result> {
 	}
 	const reasons = reviewTriggers(options.repo, base, head);
 	if (reasons.length === 0) return { ok: true, errors: [], reasons };
-	const people = reviewerRegistry[org];
-	if (!people) throw new Error(`no designated reviewer for ${org}`);
+	const agent = reviewerRegistry[org];
+	if (!agent) throw new Error(`no designated reviewer for ${org}`);
+	if (agent === author) return { ok: false, errors: [`the designated agent reviewer ${agent} authored this PR, so it cannot approve it`], reasons };
 	const reviews: Record<string, unknown>[] = [];
 	for (let page = 1; ; page++) {
 		const batch = await github(`/repos/${org}/${name}/pulls/${options.pr}/reviews?per_page=100&page=${page}`, token);
@@ -646,28 +650,27 @@ async function review(options: Options): Promise<Result> {
 		reviews.push(...batch.filter(record));
 		if (batch.length < 100) break;
 	}
-	// Escalation is the agent reviewer's own marked, non-approving review on this head. From then on only an
-	// operator approval submitted after it counts; a marker on an older commit does not carry over.
+	const own = (entry: Record<string, unknown>) => reviewer(entry) === agent;
+	const says = (entry: Record<string, unknown>, marker: string) => typeof entry.body === "string" && entry.body.includes(marker);
+	// Escalation is the agent reviewer's marked, non-approving review on this head; a marker on an older commit
+	// does not carry over. The operator decides out of band, and only a later approval from the agent reviewer
+	// that records the decision clears it, so a routine or earlier approval never does.
 	let escalation = -1;
 	reviews.forEach((entry, index) => {
-		if (reviewer(entry) === people.agent && entry.commit_id === head && (entry.state === "COMMENTED" || entry.state === "CHANGES_REQUESTED") &&
-			typeof entry.body === "string" && entry.body.includes(escalationMarker)) escalation = index;
+		if (own(entry) && entry.commit_id === head && (entry.state === "COMMENTED" || entry.state === "CHANGES_REQUESTED") && says(entry, escalationMarker)) escalation = index;
 	});
-	const escalated = escalation >= 0;
-	const approver = escalated ? people.operator : people.agent;
-	const role = escalated ? "operator, after the agent reviewer's escalation," : "designated agent reviewer";
 	// Reviews arrive in submission order. As on GitHub, each reviewer's latest approval, change request or
 	// dismissal stands; comments do not change it.
 	let decision: { entry: Record<string, unknown>; index: number } | undefined;
 	reviews.forEach((entry, index) => {
-		if (reviewer(entry) === approver && (entry.state === "APPROVED" || entry.state === "CHANGES_REQUESTED" || entry.state === "DISMISSED")) decision = { entry, index };
+		if (own(entry) && (entry.state === "APPROVED" || entry.state === "CHANGES_REQUESTED" || entry.state === "DISMISSED")) decision = { entry, index };
 	});
+	const approved = decision?.entry.state === "APPROVED" && decision.entry.commit_id === head;
 	const errors: string[] = [];
-	if (approver === author) errors.push(`the ${role} ${approver} authored this PR, so it cannot approve it${escalated ? "" : "; the agent reviewer may escalate to the operator"}`);
-	else if (decision?.entry.state !== "APPROVED" || decision.entry.commit_id !== head || decision.index < escalation) {
-		errors.push(`needs an approving review from the ${role} ${approver} on head ${head.slice(0, 12)}`);
-	}
-	return { ok: errors.length === 0, errors, reasons, approved_by: errors.length === 0 ? approver : undefined };
+	if (escalation >= 0 && !(approved && decision!.index > escalation && says(decision!.entry, resolutionMarker))) {
+		errors.push(`escalated to the operator on head ${head.slice(0, 12)}; needs a later approving review from ${agent} that records the operator's decision with "${resolutionMarker}"`);
+	} else if (!approved) errors.push(`needs an approving review from the designated agent reviewer ${agent} on head ${head.slice(0, 12)}`);
+	return { ok: errors.length === 0, errors, reasons, approved_by: errors.length === 0 ? agent : undefined };
 }
 function print(result: Result, json: boolean, command: Command): void {
 	if (json) { console.log(JSON.stringify(result)); return; }
