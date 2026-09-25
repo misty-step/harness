@@ -126,6 +126,12 @@ for (const url of ["https://github.com", "https://raw.githubusercontent.com"]) {
 	if (agentReaches(url)) fail(`agent user ${agentUser} can reach ${url}; the egress lock is not real`);
 }
 if (!agentReaches(`${openrouterBase}/api/v1/models`)) fail(`agent user ${agentUser} cannot reach ${openrouterBase} under the egress lock`);
+// exe.dev integrations share the gateway address the proxy needs, so the lock cannot block a
+// GitHub integration attached to this VM; refuse to start if one serves the task repository.
+const viaIntegration = manifest.repo.replace(/^https:\/\/github\.com\//, "https://github.int.exe.xyz/");
+if (viaIntegration !== manifest.repo && spawnSync("sudo", ["-n", "-u", agentUser, "-H", "git", "ls-remote", viaIntegration], { cwd: "/", stdio: "ignore", timeout: 30_000 }).status === 0) {
+	fail(`agent user ${agentUser} can fetch ${manifest.repo} through an exe.dev GitHub integration; detach it from this VM`);
+}
 
 function git(cwd: string, ...argv: string[]): string {
 	const result = spawnSync("git", argv, { cwd, encoding: "utf8", maxBuffer: 256 * 1024 * 1024 });
