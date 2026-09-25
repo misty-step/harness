@@ -240,10 +240,10 @@ limit, and after each task when the projected total exceeds it.
     something the statement does not specify, such as a private helper's
     signature or exact output bytes, are either relaxed to the behavior or
     named in the statement. The smoke task's only hidden-test failure was
-    exactly this: byte equality with `git log -p`. The pilot's h2 failed in
-    both arms on two more: a guidance-section name and JSON whitespace. A
-    hidden assertion that fails in every arm is reviewed against the statement
-    before scoring.
+    exactly this: byte equality with `git log -p`. The pilot's h2 added two
+    more: a guidance-section name the statement never gave, which both arms
+    missed, and JSON spacing, which one arm missed. A hidden assertion that
+    fails in every arm is reviewed against the statement before scoring.
   - Tasks without automatable tests are judged only and reported separately.
 - **Exclusions.** Tasks that need secrets, live services, a GUI or browser, or a
   build longer than 15 minutes on the evaluation VM.
