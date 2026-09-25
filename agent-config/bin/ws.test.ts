@@ -21,7 +21,10 @@ host="$1"; shift
 if [ "$host" = exe.dev ]; then
   case "$1" in
     ls) if [ -f "$WS_FAKE_ROOT/vm-created" ]; then printf '{"vms":[{"vm_name":"%s-ws"}]}\\n' "$WS_PROJECT"; else printf '{"vms":[]}\\n'; fi ;;
-    new) touch "$WS_FAKE_ROOT/vm-created"; mkdir -p "$WS_FAKE_ROOT/vm"; printf '{"vm_name":"%s-ws"}\\n' "$WS_PROJECT" ;;
+    new)
+      # Like the real lobby: ssh joins argv, then tokens split on spaces outside double quotes; positionals are rejected.
+      printf '%s' "$*" | bun -e 'const line = await Bun.stdin.text(); const tokens = line.match(/(?:[^\\s"]+|"[^"]*")+/g) ?? []; if (tokens.slice(1).some((t) => !t.startsWith("--"))) { console.log(JSON.stringify({ error: "\\"new\\" command has no subcommands and does not take positional arguments" })); process.exit(1); }' || exit 1
+      touch "$WS_FAKE_ROOT/vm-created"; mkdir -p "$WS_FAKE_ROOT/vm"; printf '{"vm_name":"%s-ws"}\\n' "$WS_PROJECT" ;;
     tag) : ;;
     *) exit 41 ;;
   esac

@@ -240,7 +240,8 @@ try {
 	let code = 0;
 	if (action === "help" || action === "--help") console.log("Usage: ws init | up --task T | sync --task T | run --task T [--env NAME]... -- cmd | pull --task T [paths] | browser --task T [--stop] | attach --task T | status | down --task T");
 	else if (action === "init") {
-		if (!listed()) lobby(["new", `--name=${vmName}`, "--tag=ws", "--comment=Owned project workspace under operator standing approval (2026-09-25)", "--json"]);
+		// ssh joins argv into one lobby command line; the lobby splits on spaces outside double quotes.
+		if (!listed()) lobby(["new", `--name=${vmName}`, "--tag=ws", '--comment="Owned project workspace; operator standing approval 2026-09-25"', "--json"]);
 		ready();
 		vmShell(`mkdir -p ${quote(base)}; if [ ! -d ${quote(base + "/repo/.git")} ]; then git init ${quote(base + "/repo")}; fi`);
 		// Bootstrap uses a pushed snapshot; no mutation of the canonical index or HEAD.
