@@ -1,3 +1,14 @@
+# [0.1.46](https://github.com/misty-step/harness/compare/v0.1.45...v0.1.46) (2026-09-25)
+<!-- landmark:protected-release previous=v0.1.45 source=967e6106ba20962002e1985e019f3c6b0d93d3b7fda81dfe4a7499d6037040e3 -->
+
+### Features
+
+* **harness:** bill OpenRouter by working directory (US-028) ([e902b76](https://github.com/misty-step/harness/commit/e902b76ab6c25d63621b0cd844fd385f7f95695f))
+
+### Bug Fixes
+
+* **pi:** initialize missing auth file safely (US-028) ([b4f60a9](https://github.com/misty-step/harness/commit/b4f60a94c346cafb14e827e909f0256fd6cd379f))
+* **shared:** bound OpenRouter lookup and reject Git errors (US-028) ([b2bb65f](https://github.com/misty-step/harness/commit/b2bb65f3b624663e3ce47292334cd3d6e8a9010c))
 # [0.1.45](https://github.com/misty-step/harness/compare/v0.1.44...v0.1.45) (2026-09-25)
 <!-- landmark:protected-release previous=v0.1.44 source=3846eed66aac530e693a16e3b9c9697df5a3fed1abe6f492b652308d810e8c6a -->
 
