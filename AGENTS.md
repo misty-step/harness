@@ -48,6 +48,7 @@ alone isolates HOME, scope, or launcher writes.
 - Use conventional commits. Root Landmark automation owns the single release
   stream. Do not bypass secret scanners.
 
-Cross-component decisions live in `docs/decisions/`; component decisions stay
-with their component. [ADR-001](docs/decisions/001-monorepo.md) supersedes only
-ADR-021's separate-repository topology, not its ownership boundary.
+Cross-component decisions live in `docs/adr/`; component decisions stay with
+their component, in its own `docs/adr/` (`pi-config/docs/adr/`).
+[ADR-001](docs/adr/001-monorepo.md) supersedes only pi-config ADR-021's
+separate-repository topology, not its ownership boundary.

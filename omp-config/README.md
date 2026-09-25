@@ -484,11 +484,11 @@ inviting collaborators. No paid plan or GitHub integration is enabled here.
 
 ## Review explanations and ASCII assets
 
-Maintained engineering and visual preferences live in `global/AGENTS.md`. Vision
-documents are optional context, not a mandatory first read or a higher authority
-than current requests. The unchanged `show-me` skill provides diagrams and
-code-shape explanations; choose evidence for the actual change rather than
-requiring a fixed artifact packet.
+Maintained engineering and visual preferences live in `global/AGENTS.md`.
+`VISION.md` is retired (harness ADR-004): a repository's purpose and non-goals
+live in its README, and authorized direction in Linear. The unchanged `show-me`
+skill provides diagrams and code-shape explanations; choose evidence for the
+actual change rather than requiring a fixed artifact packet.
 
 ASCII support is currently **aesthetic guidance and browser-based asset authoring**,
 not a dedicated conversion tool, skill, or automatic asset pipeline.
@@ -565,7 +565,7 @@ Repeated use should converge, not accumulate instructions or speculative work.
 Use `/skill:pokayoke [optional error class or incident]` after a defect,
 incident, or near-miss. The outcome is a mechanism that makes that class of
 error impossible—not a warning, comment, or extra instruction layer. A reminder
-is not pokayoke. `postmortems/TEMPLATE.md` requires the same close.
+is not pokayoke. The postmortem template in `skill://pokayoke` requires the same close.
 
 Use `/skill:decide [optional fork, question, or decision topic]` to request a
 dense, high-context executive brief in ASD-STE100 style when facing a technical

@@ -18,10 +18,10 @@ check can fail on it; anything else is decoration.
 
 ## File design
 
-One file, `USER_STORIES.md`, at the root, named like `AGENTS.md`. Split into
-`USER_STORIES/<capability>.md` only past roughly four hundred lines; ids keep
-their format and the check script scans both layouts. The skeleton lives in
-[template.md](template.md). Per story:
+One file, `USER_STORIES.md`, at the root, named like `AGENTS.md`. Do not split
+it: `foundation-check`, affected-story detection and walk receipts read only
+the root file, and the check script rejects a `USER_STORIES/` directory
+(harness ADR-004). The skeleton lives in [template.md](template.md). Per story:
 
 - `## US-007` plus the capability sentence, e.g. "See a project's change
   trend". Group stories under `## Capability: <name>` headings.
@@ -42,8 +42,9 @@ The work record carries life; the file carries intent and proof.
 2. Stories evolve by split, supersede (`Superseded by US-007`), or retire
    (`Retired: 2026-09-17 — reason`). Never a silent rewrite; wording
    clarification inside unchanged intent is fine.
-3. Only the operator changes intent. Agents draft in a PR; a
-   `USER_STORIES.md` diff merges under human approval.
+3. Only the operator changes intent. Agents draft in a PR. The PR that gives
+   a repository its first stories merges on the designated agent reviewer's
+   approval (harness ADR-003); later changes of intent need the operator's approval.
 4. Downstream cites the id as literal text: PR descriptions, test names
    (`TestTrendMissingCoverageUS007`), design notes, ADRs, receipts.
 5. Unprovable criteria are a defect. If no check can fail a criterion,
@@ -54,7 +55,8 @@ The work record carries life; the file carries intent and proof.
 
 - **init** — no story file yet: read the README and the code, then draft
   capabilities and stories for a PR. Describe only observed or stated
-  behavior; label uncertainty. The operator edits and merges.
+  behavior; label uncertainty. The designated agent reviewer approves it,
+  escalating to the operator only a real change in product direction.
 - **extend** — a feature or fix changes behavior: mint the next id (highest
   existing + 1), write the story in the same PR as the work, and cite the id
   in the PR description and tests. Intent changes become a split or
