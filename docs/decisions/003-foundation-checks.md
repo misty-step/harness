@@ -73,8 +73,8 @@ expiry). The operator delegated both to an agent reviewer on 2026-09-25.
 
 - **Who approves.** Each organisation has one designated agent reviewer, a
   GitHub App identity, recorded in the harness at the revision a repository's
-  CI pins; a repository cannot name its own reviewer. The operator's approval
-  also counts. The PR author never counts, whoever it is.
+  CI pins; a repository cannot name its own reviewer. The PR author never
+  counts, whoever it is.
 - **What counts.** An approving GitHub review on the PR's head commit, read by
   CI through the GitHub API. Text in the repository grants no authority, per
   the Foundation Standard.
@@ -83,8 +83,11 @@ expiry). The operator delegated both to an agent reviewer on 2026-09-25.
 - **Baseline extensions.** The PR adds a decision record naming each extended
   entry, its new expiry, and the reason; the same approval makes it valid.
 - **Escalation.** The agent reviewer approves on its own authority unless the
-  change is a real change in product direction. Then it does not approve and
-  asks the operator, whose approval is the only one that counts for that PR.
+  change is a real change in product direction. Then it does not approve: it
+  leaves a review on the head commit marked `foundation-escalation:
+  product-direction`, and from then on only the operator's approval counts for
+  that PR. The operator's approval counts only after that escalation, because
+  agent sessions also act under the operator's GitHub account.
 
 ## Enforcement by plan
 
