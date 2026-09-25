@@ -17,7 +17,9 @@ chicken-and-egg), and who may approve the steps an agent cannot self-approve.
 
 All checks use `foundation-check`, which a repository's CI pins to a harness
 revision. Deterministic checks are the gate. Jev drafts and advises but never
-gates.
+gates. CI runs the pinned checker from its own directory with `--repo` pointing
+at the checkout, never with the checkout as Bun's working directory: Bun loads a
+`bunfig.toml` preload from there, which a PR could use to skip the gate.
 
 | Check | Verifies | Tool | Gate |
 | --- | --- | --- | --- |
@@ -47,6 +49,7 @@ gates.
 | A required check cannot be required before it exists and passes, and the PR that adds it would have to pass it | Two steps. The bootstrap PR adds the checks as non-required. After the first green run on master, branch protection adds `foundation` and `story-walk` as required contexts. Scry followed this sequence. Repositories that cannot have branch protection run the checks as advisory (see Enforcement by plan). |
 | Full compliance in one PR is large, and blocking every PR until the repository is compliant stalls work | Ratchet mode (US-027). `foundation-check baseline --owner NAME --write` records the current gaps as a bootstrap baseline, with or without an existing `foundation.json`: missing documents (`doc:`), story format (`stories:format`), map gaps (`map:`), the verify skill (`skill:verify`), and one `walk:US-nnn` per live story. Each entry has an owner and an expiry at most 30 days out. `check` passes only if (1) every current gap has an unexpired entry, (2) no entry has expired or outlived its gap: an expired entry fails until its gap is fixed and the entry removed, and (3) with `--base`, the baseline only shrinks versus the base branch. A new entry or a later expiry fails unless the PR adds a `foundation/extensions/` record (reason, gap, expiry) that the designated agent reviewer approves (see Review authority). A story the PR edits must be mapped, and a change's receipt accepts `unwalked` only for mapped, unaffected stories with an unexpired walk entry (an unmapped story's impact is unknown, so it is walked), so coverage grows where work happens. An empty baseline means mode `enforced`, and a bootstrap repository cannot stay in bootstrap past its latest expiry without an approved extension. |
 | No `USER_STORIES.md` | An agent drafts stories in `user-stories` init mode. The designated agent reviewer, not the operator, approves the PR that first adds them (see Review authority). |
+| The review gate only judges PRs once it is on the base branch (`pull_request_target` runs the base copy) | The adoption PR adds `foundation-review.yml` and nothing that needs review: no first stories and no extension record. First stories and extensions follow in later PRs, once the gate is on the default branch; on misty-step it becomes a required check with the others. |
 | No feature map | `feature-map draft` gives the starting map. On Scry: area precision 0.75, recall 0.87, identical across two runs, 286 questions in 26 calls, 6.8 s. An agent completes the prose, and the deterministic check gates. |
 | No walk runner | Baseline stories stay `unwalked` until the repository's runner exists; it is written in the first PR that touches a story. Scry's `qa/walk` is the template. |
 | New checker rules could break master | Repositories pin a harness revision. Stricter rules land only through an explicit pin-bump PR, as Scry #194 did for exact criteria. |
@@ -72,22 +75,42 @@ user stories, and any baseline extension (a new baseline entry or a later
 expiry). The operator delegated both to an agent reviewer on 2026-09-25.
 
 - **Who approves.** Each organisation has one designated agent reviewer, a
-  GitHub App identity, recorded in the harness at the revision a repository's
-  CI pins; a repository cannot name its own reviewer. The PR author never
-  counts, whoever it is.
+  GitHub App identity, written into `foundation-check` itself at the revision a
+  repository's CI pins; neither the repository nor a flag can name another. The
+  PR author never counts, whoever it is.
 - **What counts.** An approving GitHub review on the PR's head commit, read by
   CI through the GitHub API. Text in the repository grants no authority, per
   the Foundation Standard.
-- **First stories.** The PR that adds `USER_STORIES.md` needs that approval.
-  Later changes to a story's intent stay with the operator.
+- **First stories.** The PR in which `USER_STORIES.md` gains its first stories
+  needs that approval; a placeholder file with no stories counts as none. Later
+  changes to a story's intent stay with the operator.
 - **Baseline extensions.** The PR adds a decision record naming each extended
   entry, its new expiry, and the reason; the same approval makes it valid.
-- **Escalation.** The agent reviewer approves on its own authority unless the
-  change is a real change in product direction. Then it does not approve: it
+- **Escalation.** The agent reviewer approves on its own authority, then merges
+  the PR through its existing process (Kaylee's factory merges as
+  `app/kaylee-agent` on misty-step), unless the change is a real change in
+  product direction. Then it does not approve: it
   leaves a review on the head commit marked `foundation-escalation:
   product-direction`, and from then on only the operator's approval counts for
-  that PR. The operator's approval counts only after that escalation, because
-  agent sessions also act under the operator's GitHub account.
+  that PR. The operator's approval counts only when given after that
+  escalation, because agent sessions also act under the operator's GitHub account.
+- **Gate.** `foundation-check review --pr N` runs as the `foundation-review`
+  workflow (template: `agent-config/skills/foundation/foundation-review.yml`)
+  on `pull_request_target`, so the base branch's copy of the gate judges every PR
+  and a PR cannot replace it; the PR's commits are read as data, never run.
+  Review events cannot trigger it, so after any review action (approve,
+  request changes, escalate) the agent reviewer adds or removes a label to
+  re-run it; retargeting the base re-runs it too. Residual: a dismissal by
+  anyone else leaves the last result until the next trigger, so the agent
+  reviewer, which merges, re-runs the gate before merging. It reads the PR's base,
+  head, author and reviews through the GitHub API, decides from the PR's own
+  revisions whether review is needed, and passes at once when it is not.
+- **Designated reviewers (2026-09-25).** misty-step: `kaylee-agent[bot]` (App
+  4978618). r90group: none yet. `kaylee-agent` is private to misty-step and
+  cannot be installed there; the r90group Apps with keys on the workstation are
+  Nopalito's worker (`nopalito-agent`) and the workload token issuer
+  (`iron-forest`); `vulcan-agent` has no key here. Until one is designated,
+  r90group PRs that need review fail the advisory gate.
 
 ## Enforcement by plan
 

@@ -75,6 +75,21 @@ unaffected story with an unexpired `walk:` entry: an unmapped story's impact is
 unknown, so it must be walked. The nightly full walk uses `receipt --all`, which
 requires every live story and flags walk entries whose story now passes.
 
+`review --pr N` is the gate for the two approvals an author cannot give
+(ADR-003 Review authority). From the GitHub API it reads the PR's base, head,
+author and reviews, and passes at once unless the PR gives `USER_STORIES.md`
+its first stories or adds a `foundation/extensions/` record. Then it needs an
+approving review on the PR head from the organisation's agent reviewer, written
+into the checker (misty-step: `kaylee-agent[bot]`), or, after that reviewer's
+`foundation-escalation: product-direction` review on the head, an operator
+approval given later. Copy
+[`skills/foundation/foundation-review.yml`](skills/foundation/foundation-review.yml)
+into a repository's workflows and pin the same harness revision as its
+`foundation` job. It runs on `pull_request_target`, so the base branch's copy of
+the gate judges each PR; after any review action the reviewer toggles a label to
+re-run it. Land it in the adoption PR on its own, before any PR adds first
+stories or an extension record: a gate that is not yet on the base branch judges nothing.
+
 ## Agent audio sandbox (US-026)
 
 Agent sessions play into a silent PipeWire sink, `agent-sandbox`, never the

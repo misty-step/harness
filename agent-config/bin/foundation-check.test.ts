@@ -422,3 +422,103 @@ describe("foundation-check ratchet (US-027)", () => {
 		expect(errors).toContain("baseline map:features/journey.md:heading:gotchas: the gap is fixed; remove the entry");
 	});
 });
+
+describe("foundation-check review gate (US-027)", () => {
+	const agent = "kaylee-agent[bot]";
+	const operator = "moomooskycow";
+	const marker = "foundation-escalation: product-direction";
+	let pull = { head: { sha: "" }, base: { sha: "" }, user: { login: "engineer" } };
+	let reviews: { user: { login: string }; state: string; commit_id: string; body: string }[] = [];
+	let calls: string[] = [];
+	const server = Bun.serve({
+		port: 0,
+		fetch(request) {
+			const url = new URL(request.url);
+			calls.push(url.pathname);
+			if (request.headers.get("authorization") !== "Bearer test-token") return new Response("unauthorized", { status: 401 });
+			if (url.pathname.endsWith("/pulls/7")) return Response.json(pull);
+			if (url.pathname.endsWith("/pulls/7/reviews")) return Response.json(url.searchParams.get("page") === "1" ? reviews : []);
+			return new Response("missing", { status: 404 });
+		},
+	});
+	afterAll(() => server.stop(true));
+	const said = (login: string, commit: string, state = "APPROVED", body = "") => ({ user: { login }, state, commit_id: commit, body });
+	const opened = (base: string, head: string, author = "engineer") => { pull = { head: { sha: head }, base: { sha: base }, user: { login: author } }; };
+	async function gate(repo: string, slug = "misty-step/demo") {
+		const child = Bun.spawn(["bun", script, "review", "--pr", "7", "--github-repo", slug, "--repo", repo, "--json"], {
+			cwd: repo, env: { ...process.env, GITHUB_TOKEN: "test-token", GITHUB_API_URL: server.url.origin }, stdout: "pipe", stderr: "pipe",
+		});
+		const [stdout] = await Promise.all([new Response(child.stdout).text(), child.exited]);
+		return { status: child.exitCode, output: JSON.parse(stdout) as { ok: boolean; errors: string[]; reasons?: string[]; approved_by?: string } };
+	}
+
+	test("a PR without first stories or an extension record needs no review and reads no reviews", async () => {
+		const repo = fixture("gate-quiet");
+		const base = exec(repo, ["rev-parse", "HEAD"]);
+		put(repo, "src/nested/journey.ts", "export const result = 2;\n");
+		commit(repo, "source");
+		opened(base, exec(repo, ["rev-parse", "HEAD"]));
+		calls = [];
+		const result = await gate(repo);
+		expect(result.status).toBe(0);
+		expect(result.output.reasons).toEqual([]);
+		expect(calls.some((path) => path.endsWith("/reviews"))).toBe(false);
+	});
+
+	test("first stories need the agent reviewer's current approval, never the author's or the operator's alone", async () => {
+		const repo = fixture("gate-stories");
+		put(repo, "USER_STORIES.md", "# Stories\n");
+		commit(repo, "placeholder without stories");
+		const base = exec(repo, ["rev-parse", "HEAD"]);
+		put(repo, "USER_STORIES.md", `# Stories\n\n${liveStory}`);
+		commit(repo, "first stories");
+		const head = exec(repo, ["rev-parse", "HEAD"]);
+		opened(base, head);
+		reviews = [];
+		const missing = await gate(repo);
+		expect(missing.status).toBe(1);
+		expect(missing.output.reasons).toEqual(["first user stories: USER_STORIES.md gains its first stories"]);
+		expect(missing.output.errors[0]).toContain(`needs an approving review from the designated agent reviewer ${agent}`);
+		// The PR's own revisions decide, not the checkout: a checkout parked on the base still needs the approval.
+		exec(repo, ["checkout", "-q", base]);
+		expect((await gate(repo)).status).toBe(1);
+		reviews = [said(agent, base)];
+		expect((await gate(repo)).status).toBe(1);
+		reviews = [said(operator, head)];
+		expect((await gate(repo)).status).toBe(1);
+		reviews = [said(agent, head)];
+		const approved = await gate(repo);
+		expect(approved.status).toBe(0);
+		expect(approved.output.approved_by).toBe(agent);
+		reviews = [said(agent, head), said(agent, head, "CHANGES_REQUESTED")];
+		expect((await gate(repo)).status).toBe(1);
+		opened(base, head, agent);
+		reviews = [said(agent, head)];
+		expect((await gate(repo)).output.errors[0]).toContain("authored this PR, so it cannot approve it");
+		opened(base, "0".repeat(40));
+		expect((await gate(repo)).output.errors[0]).toContain("the checkout lacks commit 000000000000");
+	});
+
+	test("an escalation on the head hands approval to the operator only for approvals given after it", async () => {
+		const repo = fixture("gate-extension");
+		const base = exec(repo, ["rev-parse", "HEAD"]);
+		put(repo, "foundation/extensions/design.json", JSON.stringify({ schema: "foundation-baseline-extension/1", reason: "Rebrand", entries: [{ gap: "doc:DESIGN.md", expires: day(20) }] }));
+		commit(repo, "extension record");
+		const head = exec(repo, ["rev-parse", "HEAD"]);
+		opened(base, head);
+		const escalation = said(agent, head, "COMMENTED", marker);
+		reviews = [escalation, said(agent, head)];
+		const escalated = await gate(repo);
+		expect(escalated.output.reasons).toEqual(["baseline extension: foundation/extensions/design.json"]);
+		expect(escalated.output.errors[0]).toContain(`operator, after the agent reviewer's escalation, ${operator}`);
+		reviews = [escalation, said(operator, head)];
+		expect((await gate(repo)).output.approved_by).toBe(operator);
+		reviews = [said(operator, head), escalation];
+		expect((await gate(repo)).status).toBe(1);
+		reviews = [said(agent, base, "COMMENTED", marker), said(operator, head)];
+		expect((await gate(repo)).status).toBe(1);
+		const foreign = await gate(repo, "r90group/habitat");
+		expect(foreign.status).toBe(1);
+		expect(foreign.output.errors[0]).toContain("no designated reviewer for r90group");
+	});
+});
