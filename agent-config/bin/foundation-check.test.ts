@@ -96,7 +96,8 @@ function fixture(name: string) {
 	return repo;
 }
 function cli(repo: string, ...args: string[]) {
-	const result = spawnSync("bun", [script, ...args, "--repo", repo, "--catalog", catalog, "--stories-checker", checker, "--json"], { cwd: repo, encoding: "utf8" });
+	// A CI event file names the harness's own default branch, not the fixture's.
+	const result = spawnSync("bun", [script, ...args, "--repo", repo, "--catalog", catalog, "--stories-checker", checker, "--json"], { cwd: repo, encoding: "utf8", env: { ...process.env, GITHUB_EVENT_PATH: "" } });
 	return { status: result.status, output: JSON.parse(result.stdout) as { ok: boolean; errors: string[]; needs_evidence?: string[]; stories?: string[]; baselined?: string[]; gaps?: string[]; wrote?: string } };
 }
 function commit(repo: string, message = "change") {
@@ -501,6 +502,9 @@ describe("foundation-check operational obligations (ADR-005, US-040)", () => {
 
 	test("a satisfied claim must hold up: a gated ship job, named alerting, and postmortems that link their class fix", () => {
 		const repo = fixture("ops-satisfied");
+		// The checker confirms the declared branch is the default one; a clone knows it through origin/HEAD.
+		exec(repo, ["update-ref", "refs/remotes/origin/main", "HEAD"]);
+		exec(repo, ["symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/main"]);
 		const deploy = (on: string, job: string) => put(repo, ".github/workflows/deploy.yml", `name: deploy\non:\n${on}\njobs:\n  test:\n    runs-on: ubuntu-latest\n    steps: [{ run: "true" }]\n  deploy:\n    runs-on: ubuntu-latest\n${job}    steps: [{ run: "true" }]\n`);
 		deploy("  push:\n    branches: [main]", "    needs: [test]\n");
 		put(repo, "src/instrument.ts", "import * as Sentry from \"@sentry/node\";\nSentry.init({ release: process.env.RELEASE });\n");
@@ -518,12 +522,22 @@ describe("foundation-check operational obligations (ADR-005, US-040)", () => {
 			};
 		});
 		expect(cli(repo, "check").output.errors).toEqual([]);
-		deploy("  workflow_dispatch:", "    needs: [test]\n");
-		expect(errors(repo)).toContain("FND-REL-001: satisfied, but .github/workflows/deploy.yml does not run on pushes to main");
-		deploy("  push:\n    branches: [main]", "");
-		expect(errors(repo)).toContain("FND-REL-001: satisfied, but job deploy ships without waiting on the gate");
-		deploy("  workflow_run:\n    workflows: [ci]\n    types: [completed]\n    branches: [main]", "    if: github.event.workflow_run.conclusion == 'success'\n");
+		const refused = (on: string, job: string, reason: string) => { deploy(on, job); expect(errors(repo)).toContain(`FND-REL-001: satisfied, but ${reason}`); };
+		refused("  workflow_dispatch:", "    needs: [test]\n", ".github/workflows/deploy.yml does not run on every push to main");
+		refused("  push:\n    branches-ignore: [main]", "    needs: [test]\n", ".github/workflows/deploy.yml does not run on every push to main");
+		refused("  push:\n    branches: [main]\n    paths: [src/**]", "    needs: [test]\n", ".github/workflows/deploy.yml does not run on every push to main");
+		refused("  push:\n    tags-ignore: [v*]", "    needs: [test]\n", ".github/workflows/deploy.yml does not run on every push to main");
+		refused("  push:\n    branches: ['**', '!main']", "    needs: [test]\n", ".github/workflows/deploy.yml does not run on every push to main");
+		refused("  push:\n    branches: [main]", "", "job deploy ships without waiting on the gate");
+		refused("  push:\n    branches: [main]", "    needs: [test]\n    if: always()\n", "job deploy has if: always()");
+		refused("  push:\n  workflow_dispatch:", "    needs: [test]\n    if: github.event_name == 'workflow_dispatch'\n", "job deploy has if: github.event_name == 'workflow_dispatch'");
+		// Globs, a string branch filter, and a workflow_run without a branch filter all fire on main.
+		for (const on of ["  push:\n    branches: ['**']", "  push:\n    branches: main"]) { deploy(on, "    needs: [test]\n"); expect(cli(repo, "check").output.errors).toEqual([]); }
+		deploy("  workflow_run:\n    workflows: [ci]\n    types: [completed]", "    if: github.event.workflow_run.conclusion == 'success'\n");
 		expect(cli(repo, "check").output.errors).toEqual([]);
+		edit(repo, (adoption) => { adoption.operations.ship.branch = "release"; });
+		expect(errors(repo)).toContain("FND-REL-001: satisfied, but operations.ship.branch is release, but the default branch is main");
+		edit(repo, (adoption) => { adoption.operations.ship.branch = "main"; });
 		put(repo, "src/instrument.ts", "console.error('no remote capture');\n");
 		expect(errors(repo)).toContain("FND-ALR-001: satisfied, but src/instrument.ts does not reference sentry");
 		put(repo, "src/instrument.ts", "import * as Sentry from \"@sentry/node\";\n");
@@ -551,6 +565,8 @@ describe("foundation-check operational obligations (ADR-005, US-040)", () => {
 		expect(repinned.standard.revision).toBe(revision);
 		expect(repinned.standard.source).toContain(revision);
 		for (const id of ops) expect(repinned.dispositions[id].status).toBe("pending");
+		// A re-pin keeps the walk entries a record has; it never re-baselines stories.
+		expect(repinned.baseline).toBeUndefined();
 		expect(repinned.dispositions["FND-CHG-001"]).toEqual(adoption().dispositions["FND-CHG-001"]);
 		expect(cli(repo, "check").status).toBe(0);
 	});
@@ -587,6 +603,25 @@ describe("foundation-check review gate (US-027)", () => {
 		const [stdout] = await Promise.all([new Response(child.stdout).text(), child.exited]);
 		return { status: child.exitCode, output: JSON.parse(stdout) as { ok: boolean; errors: string[]; reasons?: string[]; approved_by?: string } };
 	}
+
+	test("declaring that the repository is no longer an application needs the designated reviewer", async () => {
+		const repo = fixture("gate-surfaces");
+		const setSurfaces = (surfaces: string[]) => {
+			const adoption = JSON.parse(readFileSync(join(repo, "foundation.json"), "utf8"));
+			adoption.surfaces = surfaces;
+			put(repo, "foundation.json", `${JSON.stringify(adoption, null, 2)}\n`);
+		};
+		setSurfaces(["ui", "deployed"]);
+		commit(repo, "an application");
+		const base = exec(repo, ["rev-parse", "HEAD"]);
+		setSurfaces(["library"]);
+		commit(repo, "claims to be a library");
+		opened(base, exec(repo, ["rev-parse", "HEAD"]));
+		reviews = [];
+		const result = await gate(repo);
+		expect(result.status).toBe(1);
+		expect(result.output.reasons).toEqual(["surfaces: foundation.json stops declaring an application (ADR-005)"]);
+	});
 
 	test("a PR without first stories or an extension record needs no review and reads no reviews", async () => {
 		const repo = fixture("gate-quiet");

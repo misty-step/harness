@@ -387,22 +387,59 @@ function workflowAt(repo: string, path: unknown): { on: Record<string, unknown>;
 	const on = typeof raw === "string" ? { [raw]: null } : Array.isArray(raw) ? Object.fromEntries(raw.map((name) => [String(name), null])) : record(raw) ? raw : {};
 	return { on, jobs: record(doc.jobs) ? doc.jobs : {} };
 }
-const branchesOf = (trigger: unknown): unknown[] | undefined => (record(trigger) && Array.isArray(trigger.branches) ? trigger.branches : undefined);
+/** GitHub's branch filter semantics: `*` stays within a path segment, `**` crosses them, and a later `!pattern` excludes. */
+function branchMatches(patterns: unknown, branch: string): boolean {
+	const list = typeof patterns === "string" ? [patterns] : Array.isArray(patterns) ? patterns.map(String) : [];
+	const glob = (pattern: string) => new RegExp(`^${pattern.replace(/[.+^${}()|\\]/g, "\\$&").replace(/\*\*/g, "\u0000").replace(/\*/g, "[^/]*").replace(/\?/g, ".").replace(/\u0000/g, ".*")}$`);
+	let included = false;
+	for (const pattern of list) {
+		if (pattern.startsWith("!")) { if (glob(pattern.slice(1)).test(branch)) included = false; }
+		else if (glob(pattern).test(branch)) included = true;
+	}
+	return included;
+}
+/** Whether a push or workflow_run trigger fires for every push to `branch`: branch filters honoured, no path or tag-only filters. */
+function firesOn(trigger: unknown, branch: string): boolean {
+	if (trigger === null || trigger === undefined) return true;
+	if (!record(trigger)) return false;
+	// A path filter skips some green pushes, and a tag filter without a branch filter means tags only.
+	if (["paths", "paths-ignore"].some((key) => key in trigger)) return false;
+	const branches = "branches" in trigger, ignored = "branches-ignore" in trigger;
+	if (!branches && !ignored && ("tags" in trigger || "tags-ignore" in trigger)) return false;
+	if (branches && !branchMatches(trigger.branches, branch)) return false;
+	if (ignored && branchMatches(trigger["branches-ignore"], branch)) return false;
+	return true;
+}
+/** The repository's default branch, from the CI event or the clone's origin/HEAD; undefined when neither says. */
+function defaultBranch(repo: string): string | undefined {
+	const event = process.env.GITHUB_EVENT_PATH ? jsonOrUndefined(existsSync(process.env.GITHUB_EVENT_PATH) ? readFileSync(process.env.GITHUB_EVENT_PATH, "utf8") : undefined) : undefined;
+	if (record(event) && record(event.repository) && text(event.repository.default_branch)) return event.repository.default_branch;
+	const head = spawnSync("git", ["symbolic-ref", "--short", "refs/remotes/origin/HEAD"], { cwd: repo, encoding: "utf8" });
+	return head.status === 0 && head.stdout.trim().startsWith("origin/") ? head.stdout.trim().slice("origin/".length) : undefined;
+}
 /** FND-REL-001: a green default branch ships through a job that waits on the gate. A platform deploy proves itself in the receipt. */
 function shipProblems(repo: string, ship: unknown): string[] {
 	if (!record(ship) || !text(ship.branch)) return ["operations.ship must name the default branch and a workflow and job, or a platform"];
+	const branch = defaultBranch(repo);
+	if (branch === undefined) return ["cannot confirm the default branch (no GITHUB_EVENT_PATH repository and no origin/HEAD)"];
+	if (ship.branch !== branch) return [`operations.ship.branch is ${ship.branch}, but the default branch is ${branch}`];
 	if (text(ship.platform)) return [];
 	const workflow = workflowAt(repo, ship.workflow);
 	if (typeof workflow === "string") return [workflow];
 	const job = text(ship.job) ? workflow.jobs[ship.job] : undefined;
 	if (!record(job)) return [`${String(ship.workflow)} has no job ${String(ship.job)}`];
 	const problems: string[] = [];
-	const push = workflow.on.push;
-	const onPush = "push" in workflow.on && (branchesOf(push) === undefined ? !(record(push) && push.tags !== undefined) : branchesOf(push)!.includes(ship.branch));
-	const onRun = record(workflow.on.workflow_run) && (branchesOf(workflow.on.workflow_run) ?? []).includes(ship.branch);
-	if (!onPush && !onRun) problems.push(`${String(ship.workflow)} does not run on pushes to ${ship.branch}`);
+	const onPush = "push" in workflow.on && firesOn(workflow.on.push, branch);
+	const onRun = "workflow_run" in workflow.on && firesOn(workflow.on.workflow_run, branch);
+	if (!onPush && !onRun) problems.push(`${String(ship.workflow)} does not run on every push to ${branch}`);
+	const condition = job.if === undefined ? "" : String(job.if);
+	// A condition that can run the job after a failed gate, never runs it, or limits it to another event is not shipping on green.
+	if (/\b(?:always|failure|cancelled)\s*\(/.test(condition) || /^\s*(?:\$\{\{\s*)?false\s*(?:\}\})?\s*$/.test(condition) ||
+		(/event_name/.test(condition) && !/['"](?:push|workflow_run)['"]/.test(condition)) || /!=\s*['"](?:push|workflow_run)['"]/.test(condition)) {
+		problems.push(`job ${ship.job} has if: ${condition}, which does not ship every green push`);
+	}
 	const needs = Array.isArray(job.needs) ? job.needs.length > 0 : text(job.needs);
-	const afterGreenRun = onRun && /workflow_run\.conclusion\s*==\s*['"]success['"]/.test(String(job.if ?? ""));
+	const afterGreenRun = onRun && /workflow_run\.conclusion\s*==\s*['"]success['"]/.test(condition);
 	if (!needs && !afterGreenRun) problems.push(`job ${ship.job} ships without waiting on the gate: give it needs, or run it from workflow_run only when the conclusion is success`);
 	return problems;
 }
@@ -613,8 +650,11 @@ function baseline(options: Options): Result {
 	adoption.dispositions = dispositions;
 	const issues = [...contentIssues(options.repo, checkerPath), ...operationsIssues(options.repo, adoption)];
 	const live = [...liveIds(workingStories(options.repo))];
-	const gaps = [...new Set([...issues.map((issue) => issue.gap).filter(text), ...(options.walkGaps ? live.map((id) => `walk:${id}`) : [])])].sort();
 	const prior = new Map((Array.isArray(adoption.baseline) ? adoption.baseline : []).filter(record).map((entry) => [entry.gap, entry]));
+	// A new record baselines a walk for every live story; an existing one keeps the walk entries it has, so a
+	// re-pin never re-baselines stories that already walk.
+	const walks = !options.walkGaps ? [] : existing === undefined ? live.map((id) => `walk:${id}`) : live.map((id) => `walk:${id}`).filter((gap) => prior.has(gap));
+	const gaps = [...new Set([...issues.map((issue) => issue.gap).filter(text), ...walks])].sort();
 	const entries: Entry[] = gaps.map((gap) => {
 		const kept = prior.get(gap);
 		return kept && text(kept.owner) && isDate(kept.expires) ? { gap, owner: kept.owner, expires: kept.expires } : { gap, owner, expires };
@@ -731,7 +771,7 @@ const reviewerRegistry: Record<string, Reviewer> = {
 const approvalMarker = "foundation-review: approved";
 const escalationMarker = "foundation-escalation: product-direction";
 const resolutionMarker = "foundation-escalation: resolved";
-/** Why a PR needs the designated reviewer, judged on its own base and head: first user stories or an added extension record. */
+/** Why a PR needs the designated reviewer, judged on its own base and head: first user stories, an added extension record, or opting out of ADR-005. */
 function reviewTriggers(repo: string, base: string, head: string): string[] {
 	const mergeBase = git(repo, "merge-base", base, head).trim();
 	const reasons: string[] = [];
@@ -740,6 +780,9 @@ function reviewTriggers(repo: string, base: string, head: string): string[] {
 	if (before.length === 0 && after.length > 0) reasons.push("first user stories: USER_STORIES.md gains its first stories");
 	const added = git(repo, "diff", "--name-only", "--no-renames", "--diff-filter=A", "-z", mergeBase, head).split("\0").filter(Boolean);
 	for (const path of added.filter((f) => extensionPath.test(f))) reasons.push(`baseline extension: ${path}`);
+	// Declaring surfaces that make the repository a non-application drops every ADR-005 obligation, so it needs the same authority.
+	const adoptionAt = (rev: string) => jsonOrUndefined(fileAt(repo, rev, "foundation.json"));
+	if (isApplication(adoptionAt(mergeBase)) && !isApplication(adoptionAt(head))) reasons.push("surfaces: foundation.json stops declaring an application (ADR-005)");
 	return reasons;
 }
 async function github(path: string, token: string): Promise<unknown> {

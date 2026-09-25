@@ -65,8 +65,11 @@ An application is a repository whose `surfaces` (ADR-004's vocabulary) include
 `ui`, `cli`, `api` or `deployed`: it changes a live system or ships something
 people run. Libraries, content vaults and fixtures are not applications. A
 record without `surfaces` is treated as an application, so opting out takes an
-explicit, reviewable declaration. This change adds `surfaces` to the adoption
-record now; ADR-004 stage 1 adds the document checks keyed off it.
+explicit, reviewable declaration: a change that makes an application's record
+declare a non-application is a third trigger for the designated reviewer
+(ADR-003 Review authority), like a baseline extension. This change adds
+`surfaces` to the adoption record now; ADR-004 stage 1 adds the document checks
+keyed off it.
 
 For a released artifact without a live service (a CLI, a desktop app, an
 extension), "ships" means an automatic release and "health" means crash and
@@ -85,11 +88,17 @@ error reports from real installs.
   out, and an extension needs the designated reviewer (ADR-003).
 - **Satisfied must hold up.** The checker verifies the repository's side of each
   claim; runtime practice lives in the receipt:
-  - FND-REL-001: `operations.ship` names the default branch and either a
-    platform (a git integration, proved in the receipt) or a workflow that runs
-    on pushes to that branch, or on its successful `workflow_run`, with a named
-    job that waits on the gate (`needs`, or the `workflow_run` success
-    condition).
+  - FND-REL-001: `operations.ship` names the default branch, which the checker
+    confirms from the CI event or the clone's `origin/HEAD` (unknown fails), and
+    either a platform (a git integration, proved in the receipt) or a workflow
+    that fires on every push to that branch, or on its successful
+    `workflow_run`. Branch filters follow GitHub's globs and `!` exclusions; a
+    `paths` or `paths-ignore` filter, `branches-ignore` covering the branch, or
+    a tag-only trigger does not count. The named job must wait on the gate
+    (`needs`, or the `workflow_run` success condition), and its `if:` must not
+    run it after a failed gate (`always()`, `failure()`, `cancelled()`), never
+    run it (`false`), or confine it to another event such as
+    `workflow_dispatch`.
   - FND-ALR-001: `operations.alert` names the file that initialises error
     capture (it must reference the provider), a scheduled health workflow or a
     named external monitor, and the alert destination.
@@ -125,7 +134,9 @@ error reports from real installs.
 
 `foundation-check baseline --revision SHA` on an existing record re-pins the
 standard and adds every obligation the catalog gained as `pending`, so a pin
-bump records the three new gaps in one command. Because the baseline grows, the
+bump records the three new gaps in one command. It keeps the walk entries the
+record already has and adds none, so a re-pin never re-baselines stories that
+walk. Because the baseline grows, the
 pin-bump PR carries an extension record for the designated reviewer.
 
 ## Consequences

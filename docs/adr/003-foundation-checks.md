@@ -71,9 +71,10 @@ at the checkout, never with the checkout as Bun's working directory: Bun loads a
 
 ## Review authority
 
-Two steps need an approval the PR author cannot give: a repository's first
-user stories, and any baseline extension (a new baseline entry or a later
-expiry). The operator delegated both to an agent reviewer on 2026-09-25.
+Three steps need an approval the PR author cannot give: a repository's first
+user stories, any baseline extension (a new baseline entry or a later expiry),
+and declaring that an application's record is not an application, which drops
+its ADR-005 obligations. The operator delegated both to an agent reviewer on 2026-09-25.
 
 - **Who approves.** Each organisation has one designated reviewer, written into
   `foundation-check` itself at the revision a repository's CI pins; neither the

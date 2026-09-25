@@ -717,9 +717,12 @@ Criteria:
 2. IF one of the three is dispositioned `exception`, or `not_applicable` for an
    application, THEN `check` SHALL fail.
 3. WHEN FND-REL-001 is `satisfied`, `check` SHALL fail unless
-   `operations.ship` names the default branch and either a platform or a
-   workflow that runs on pushes to that branch (or on its successful
-   `workflow_run`) with a named ship job that waits on the gate.
+   `operations.ship` names the repository's confirmed default branch and either
+   a platform or a workflow that fires on every push to that branch (or on its
+   successful `workflow_run`), honouring branch globs and exclusions and
+   rejecting path and tag-only filters, with a named ship job that waits on the
+   gate and whose `if:` neither runs it after a failed gate nor confines it to
+   another event.
 4. WHEN FND-ALR-001 is `satisfied`, `check` SHALL fail unless
    `operations.alert` names an error-capture file that references its
    provider, a scheduled health workflow or a named external monitor, and an
@@ -730,7 +733,11 @@ Criteria:
    sections, with a closed one linking the change that closed its class.
 6. WHEN `baseline --revision SHA` runs on an existing record, THE SYSTEM SHALL
    re-pin its standard to that revision and add every obligation the catalog
-   gained as `pending`, leaving existing dispositions unchanged.
+   gained as `pending`, leaving existing dispositions and walk entries
+   unchanged and adding no new walk entry.
+7. WHEN a pull request changes `foundation.json` from an application to a
+   non-application, `foundation-check review` SHALL require the designated
+   reviewer, as for a baseline extension.
 
 No-gos: no exception path for the three; no lint claiming runtime practice (a
 receipt carries the controlled-failure and shipping evidence); no heuristic
