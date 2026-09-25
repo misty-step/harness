@@ -134,7 +134,7 @@ install_openrouter_auth() {
   if [ -f "$target" ]; then
     jq '.openrouter = {type:"api_key",key:"!openrouter-key --personal workstation/OPENROUTER_API_KEY_MIRRODIN_PI"}' "$target" > "$temp"
   else
-    printf '{}\\n' | jq '.openrouter = {type:"api_key",key:"!openrouter-key --personal workstation/OPENROUTER_API_KEY_MIRRODIN_PI"}' > "$temp"
+    printf '{}\n' | jq '.openrouter = {type:"api_key",key:"!openrouter-key --personal workstation/OPENROUTER_API_KEY_MIRRODIN_PI"}' > "$temp"
   fi
   chmod 600 "$temp"
   mv -- "$temp" "$target"
