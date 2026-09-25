@@ -38,10 +38,13 @@ jobs:
           printf '%s  %s\n' "$BUN_SHA256" "$root/runtime/bun.zip" | sha256sum --check --strict
           unzip -q "$root/runtime/bun.zip" -d "$root/runtime"
       - name: Require the designated reviewer where a PR needs one
+        # Run Bun from the trusted checker directory: Bun loads bunfig.toml (including preload scripts)
+        # from its working directory, so it must never start inside the checkout under review.
+        working-directory: ${{ runner.temp }}/foundation
         env:
           GITHUB_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
           "$RUNNER_TEMP/foundation/runtime/bun-linux-x64-baseline/bun" \
             --no-env-file --no-install "$RUNNER_TEMP/foundation/checker/agent-config/bin/foundation-check.ts" \
-            review --repo . --pr "$PR_NUMBER"
+            review --repo "$GITHUB_WORKSPACE" --pr "$PR_NUMBER"
