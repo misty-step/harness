@@ -740,8 +740,11 @@ Astra (high, max), Sol max, then Grok. The `vision` chain lists only Opus, so
 the vision role never degrades to another model. A spawned `designer` child
 under a forced Anthropic outage (2026-09-25, Sol parent) failed closed after its
 retry budget ("Connection error") instead of switching models, so delegated
-visual work stays on Opus. A main session doing visual work follows `default`
-and would move to Sol during an outage. Luna's mechanical chains try Opus
+visual work stays on Opus. Under the same outage, a Sol main session's
+`read red.png?q=…` image question returned `Connection error` instead of
+switching models, so image questions through the `vision` role also fail
+closed. A main session's own model follows `default` and would move to Sol, so
+guidance routes visual judgment through `?q=` or `designer`. Luna's mechanical chains try Opus
 medium, then Grok. Advisor uses Luna max, then Gemini 3.8 Flash high on Google
 Antigravity, then Grok 4.7 xhigh. Every other chain ends with paid DeepSeek, and
 each link accepts images. Task quality and whole-task cost effects of this
