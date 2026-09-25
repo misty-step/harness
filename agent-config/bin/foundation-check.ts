@@ -516,15 +516,21 @@ function receipt(options: Options): Result {
 	const adoption = jsonOrUndefined(fileAt(options.repo, "HEAD", "foundation.json"));
 	const storiesAtHead = git(options.repo, "show", "HEAD:USER_STORIES.md");
 	const live = liveIds(parseStories(storiesAtHead));
+	// Stories the map does not place in any feature: a change's impact on them cannot be computed.
+	const unmapped = new Set<string>();
 	if (options.base) {
 		const base = git(options.repo, "rev-parse", `${options.base}^{commit}`).trim();
 		if (value.base !== base) errors.push("receipt: base differs from requested base");
 		const report: Issue[] = [];
 		expected = affected(options.repo, options.base, report);
+		for (const issue of report) {
+			const story = issue.gap?.match(/^map:(US-\d{3})$/)?.[1];
+			if (story) unmapped.add(story);
+		}
 		errors.push(...uncovered(report, adoption, live));
 	} else if (value.base !== null && !/^[0-9a-f]{40}$/.test(String(value.base))) errors.push("receipt: base must be a commit or null");
 	// A valid bootstrap baseline may excuse a story from being walked, but only when the story is provably
-	// unaffected: with --base, or in a full walk (base null) that no change is judged against.
+	// unaffected: judged against --base with the story mapped, or in a full walk (base null) that judges no change.
 	const now = today();
 	const baseline = readBaseline(adoption, live, [], now);
 	const excused = covering(baseline, live, now);
@@ -552,6 +558,7 @@ function receipt(options: Options): Result {
 		if (story.status === "unwalked") {
 			if (!excused.has(`walk:${id}`)) errors.push(`receipt: ${id} is unwalked`);
 			else if (!provable) errors.push(`receipt: ${id} is unwalked; a change receipt needs --base to prove it unaffected`);
+			else if (unmapped.has(id)) errors.push(`receipt: ${id} is unwalked but unmapped, so this change's effect on it is unknown; map or walk it`);
 			else if (expected.includes(id)) errors.push(`receipt: ${id} is affected by this change and must be walked`);
 			continue;
 		}

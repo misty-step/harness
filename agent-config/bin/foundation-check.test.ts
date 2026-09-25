@@ -367,7 +367,7 @@ describe("foundation-check ratchet (US-027)", () => {
 		expect(inspect("--all").output.errors).toContain("receipt: US-004 is unwalked");
 	});
 
-	test("a baselined map gap on an unaffected story does not block affected or a change receipt", () => {
+	test("a baselined map gap does not block affected, but a change receipt cannot excuse an unmapped story", () => {
 		const repo = fixture("baselined-map");
 		put(repo, "USER_STORIES.md", `# Stories\n\n${liveStory}\n${otherStory}\n${retiredStory}\n${headingRetiredStory}`);
 		bootstrap(repo, [{ gap: "map:US-004", owner: "team", expires: day(10) }, { gap: "walk:US-004", owner: "team", expires: day(10) }]);
@@ -380,9 +380,14 @@ describe("foundation-check ratchet (US-027)", () => {
 		expect(touched.output.stories).toEqual(["US-001"]);
 		const walked = receipt(repo, base);
 		put(repo, "walk/walk-receipt.json", JSON.stringify({ ...walked, stories: [...walked.stories, { id: "US-004", status: "unwalked" }] }));
-		expect(cli(repo, "receipt", "walk/walk-receipt.json", "--base", base).status).toBe(0);
-		// Without --base nothing proves US-004 unaffected, so a change receipt cannot claim the exemption.
+		// No feature places US-004, so nothing shows this change leaves it unaffected: it must be mapped or walked.
+		expect(cli(repo, "receipt", "walk/walk-receipt.json", "--base", base).output.errors).toEqual([
+			"receipt: US-004 is unwalked but unmapped, so this change's effect on it is unknown; map or walk it",
+		]);
 		expect(cli(repo, "receipt", "walk/walk-receipt.json").output.errors).toContain("receipt: US-004 is unwalked; a change receipt needs --base to prove it unaffected");
+		// A full walk judges no change, so its walk entry still covers the story until it expires.
+		put(repo, "walk/walk-receipt.json", JSON.stringify({ ...walked, base: null, stories: [...walked.stories, { id: "US-004", status: "unwalked" }] }));
+		expect(cli(repo, "receipt", "walk/walk-receipt.json", "--all").status).toBe(0);
 	});
 
 	test("a malformed or far-future walk entry excuses nothing", () => {

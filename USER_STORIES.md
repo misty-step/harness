@@ -644,10 +644,12 @@ Criteria:
    a later expiry unless an added `foundation/extensions/` record names that
    gap and expiry, and SHALL fail a story edited in the change that stays
    unmapped; a first adoption MAY create its baseline.
-4. WHEN validating a walk receipt, THE SYSTEM SHALL accept `unwalked` only for a
-   story with an unexpired baseline walk entry that the change does not affect,
-   and with `--all` SHALL require every live story and fail a walk entry whose
-   story now passes.
+4. WHEN validating a walk receipt against a change, THE SYSTEM SHALL accept
+   `unwalked` only for a mapped story with an unexpired baseline walk entry that
+   the change does not affect; an unmapped story's impact is unknown, so it SHALL
+   be walked. WITH `--all` (a full walk that judges no change), THE SYSTEM SHALL
+   require every live story, accept `unwalked` under an unexpired walk entry, and
+   fail a walk entry whose story now passes.
 
 No-gos: no automatic waivers, no baseline for adoption-record errors, no
 baseline entry more than 30 days out.

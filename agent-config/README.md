@@ -70,8 +70,9 @@ baselined, and fails an expired entry or one whose gap is fixed. In PR CI,
 needs an added `foundation/extensions/*.json` record
 (`foundation-baseline-extension/1`: reason plus gap and expiry per entry),
 approved by the designated agent reviewer, and a story the PR edits cannot stay
-unmapped. `receipt` accepts `unwalked` only for an unaffected story with an
-unexpired `walk:` entry; the nightly full walk uses `receipt --all`, which also
+unmapped. Against a change, `receipt` accepts `unwalked` only for a mapped,
+unaffected story with an unexpired `walk:` entry: an unmapped story's impact is
+unknown, so it must be walked. The nightly full walk uses `receipt --all`, which
 requires every live story and flags walk entries whose story now passes.
 
 ## Agent audio sandbox (US-026)
