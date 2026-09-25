@@ -1,7 +1,7 @@
 import { afterAll, describe, expect, test } from "bun:test";
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 
@@ -95,7 +95,7 @@ function fixture(name: string) {
 }
 function cli(repo: string, ...args: string[]) {
 	const result = spawnSync("bun", [script, ...args, "--repo", repo, "--catalog", catalog, "--stories-checker", checker, "--json"], { cwd: repo, encoding: "utf8" });
-	return { status: result.status, output: JSON.parse(result.stdout) as { ok: boolean; errors: string[]; needs_evidence?: string[]; stories?: string[] } };
+	return { status: result.status, output: JSON.parse(result.stdout) as { ok: boolean; errors: string[]; needs_evidence?: string[]; stories?: string[]; baselined?: string[]; gaps?: string[]; wrote?: string } };
 }
 function commit(repo: string, message = "change") {
 	exec(repo, ["add", "."]);
@@ -215,5 +215,155 @@ describe("foundation-check (US-024)", () => {
 		expect(inspect().output.errors.join(" ")).toContain("US-009 is not a story at HEAD");
 		save({ ...valid, artifacts: [] });
 		expect(inspect().output.errors.join(" ")).toContain("not listed in artifacts");
+	});
+});
+
+const day = (offset: number) => new Date(Date.now() + offset * 86_400_000).toISOString().slice(0, 10);
+const otherStory = `## US-004 Review the other journey
+
+Statement: When I review, I want the other journey, so I can compare.
+
+Criteria:
+1. WHEN reviewing, THE SYSTEM SHALL show the other journey.
+`;
+function bootstrap(repo: string, baseline: unknown[], mode = "bootstrap") {
+	put(repo, "foundation.json", `${JSON.stringify({ ...adoption(), mode, baseline }, null, 2)}\n`);
+}
+
+describe("foundation-check ratchet (US-027)", () => {
+	test("check lists the gaps instead of crashing when foundation.json is missing", () => {
+		const repo = fixture("no-adoption");
+		rmSync(join(repo, "foundation.json"));
+		rmSync(join(repo, "DESIGN.md"));
+		const result = cli(repo, "check");
+		expect(result.status).toBe(1);
+		expect(result.output.errors.join("\n")).toContain("foundation.json: missing");
+		expect(result.output.errors).toContain("[doc:DESIGN.md] FND-DOC-001: missing DESIGN.md");
+	});
+
+	test("baseline adopts a never-set-up repository; check passes only while its gaps stay baselined", () => {
+		const repo = fixture("bootstrap");
+		exec(repo, ["rm", "-q", "foundation.json", "DESIGN.md", "features/README.md", "features/journey.md"]);
+		commit(repo, "strip");
+		const revision = "1".repeat(40);
+		const dry = cli(repo, "baseline", "--owner", "team", "--revision", revision);
+		expect(dry.status).toBe(0);
+		expect(dry.output.gaps).toEqual(["doc:DESIGN.md", "map:US-001", "map:index", "walk:US-001"].map((gap) => `${gap} (owner team, expires ${day(30)})`));
+		expect(existsSync(join(repo, "foundation.json"))).toBe(false);
+		expect(cli(repo, "baseline", "--owner", "team", "--revision", revision, "--write").output.wrote).toBe(join(repo, "foundation.json"));
+		const adopted = cli(repo, "check");
+		expect(adopted.status).toBe(0);
+		expect(adopted.output.baselined).toHaveLength(3);
+		put(repo, "DESIGN.md", "# Design\n");
+		expect(cli(repo, "check").output.errors).toContain("baseline doc:DESIGN.md: the gap is fixed; remove the entry");
+		expect(cli(repo, "baseline", "--owner", "other", "--write").status).toBe(0);
+		const shrunk = JSON.parse(readFileSync(join(repo, "foundation.json"), "utf8"));
+		expect(shrunk.baseline.map((entry: { gap: string; owner: string }) => `${entry.gap}:${entry.owner}`)).toEqual(["map:US-001:team", "map:index:team", "walk:US-001:team"]);
+		expect(cli(repo, "check").status).toBe(0);
+	});
+
+	test("baseline entries must be well formed, current, at most 30 days out, and only in bootstrap mode", () => {
+		const repo = fixture("ratchet-rules");
+		rmSync(join(repo, "DESIGN.md"));
+		const errors = () => cli(repo, "check").output.errors.join("\n");
+		bootstrap(repo, [{ gap: "doc:DESIGN.md", owner: "team", expires: day(10) }]);
+		expect(cli(repo, "check").status).toBe(0);
+		bootstrap(repo, [{ gap: "doc:DESIGN.md", owner: "team", expires: day(-1) }]);
+		expect(errors()).toContain(`baseline doc:DESIGN.md: expired ${day(-1)}`);
+		expect(errors()).toContain("[doc:DESIGN.md] FND-DOC-001: missing DESIGN.md");
+		bootstrap(repo, [{ gap: "doc:DESIGN.md", owner: "team", expires: day(31) }]);
+		expect(errors()).toContain("more than 30 days out");
+		bootstrap(repo, [{ gap: "doc:DESIGN.md", owner: "team", expires: day(5) }, { gap: "foundation.json", owner: "team", expires: day(5) }]);
+		expect(errors()).toContain('invalid baseline gap "foundation.json"');
+		bootstrap(repo, [{ gap: "doc:DESIGN.md", owner: "team", expires: day(5) }], "enforced");
+		expect(errors()).toContain("an enforced adoption cannot carry a baseline");
+		bootstrap(repo, []);
+		expect(errors()).toContain("bootstrap mode needs a baseline");
+		bootstrap(repo, [{ gap: "doc:DESIGN.md", owner: "team", expires: day(5) }, { gap: "walk:US-002", owner: "team", expires: day(5) }]);
+		expect(errors()).toContain("baseline walk:US-002: US-002 is not a live story");
+	});
+
+	test("against a base, the baseline only shrinks unless an extension record names the change", () => {
+		const repo = fixture("ratchet-base");
+		exec(repo, ["rm", "-q", "DESIGN.md"]);
+		bootstrap(repo, [{ gap: "doc:DESIGN.md", owner: "team", expires: day(10) }]);
+		commit(repo, "bootstrap");
+		const base = exec(repo, ["rev-parse", "HEAD"]);
+		const fromBase = (name: string) => exec(repo, ["checkout", "-q", "-B", name, base]);
+		const against = () => cli(repo, "check", "--base", base);
+		fromBase("shrink");
+		put(repo, "DESIGN.md", "# Design\n");
+		put(repo, "foundation.json", `${JSON.stringify(adoption(), null, 2)}\n`);
+		commit(repo, "fix design");
+		expect(against().status).toBe(0);
+		fromBase("later");
+		bootstrap(repo, [{ gap: "doc:DESIGN.md", owner: "team", expires: day(20) }]);
+		commit(repo, "extend");
+		expect(against().output.errors.join("\n")).toContain(`baseline doc:DESIGN.md: expiry moved from ${day(10)} to ${day(20)}`);
+		put(repo, "foundation/extensions/design.json", JSON.stringify({ schema: "foundation-baseline-extension/1", reason: "Design review waits on the rebrand", entries: [{ gap: "doc:DESIGN.md", expires: day(20) }] }));
+		commit(repo, "record");
+		expect(against().status).toBe(0);
+		fromBase("new-entry");
+		exec(repo, ["rm", "-q", "docs/adr/001.md"]);
+		bootstrap(repo, [{ gap: "doc:DESIGN.md", owner: "team", expires: day(10) }, { gap: "doc:adr", owner: "team", expires: day(10) }]);
+		put(repo, "foundation/extensions/stale.json", JSON.stringify({ schema: "foundation-baseline-extension/1", reason: "Unrelated", entries: [{ gap: "skill:verify", expires: day(10) }] }));
+		commit(repo, "regress");
+		const regressed = against().output.errors.join("\n");
+		expect(regressed).toContain("baseline doc:adr: new entry");
+		expect(regressed).toContain("skill:verify");
+		expect(regressed).toContain("is not an extension in this change");
+	});
+
+	test("a first adoption may create its baseline, but a story edited against a base must be mapped", () => {
+		const repo = fixture("ratchet-first");
+		exec(repo, ["rm", "-q", "foundation.json", "features/journey.md"]);
+		commit(repo, "before adoption");
+		const base = exec(repo, ["rev-parse", "HEAD"]);
+		bootstrap(repo, [{ gap: "map:US-001", owner: "team", expires: day(10) }]);
+		commit(repo, "adopt");
+		expect(cli(repo, "check", "--base", base).status).toBe(0);
+		const adopted = exec(repo, ["rev-parse", "HEAD"]);
+		put(repo, "USER_STORIES.md", `# Stories\n\n${liveStory.replace("show the result", "display the result")}\n${retiredStory}\n${headingRetiredStory}`);
+		commit(repo, "edit story");
+		expect(cli(repo, "check", "--base", adopted).output.errors).toContain("US-001: edited in this change, so it must be mapped; remove baseline map:US-001");
+	});
+
+	test("receipts accept unwalked only for baselined, unaffected stories; --all requires every live story", () => {
+		const repo = fixture("receipt-baseline");
+		put(repo, "USER_STORIES.md", `# Stories\n\n${liveStory}\n${otherStory}\n${retiredStory}\n${headingRetiredStory}`);
+		put(repo, "features/README.md", "# Index\n\n[Journey](journey.md)\n[Other](other.md)\n");
+		put(repo, "features/other.md", feature.replace("US-001", "US-004").replace("src/**", "other/**"));
+		put(repo, "other/review.ts", "export const other = 1;\n");
+		bootstrap(repo, [{ gap: "walk:US-004", owner: "team", expires: day(10) }]);
+		commit(repo, "second story");
+		const base = exec(repo, ["rev-parse", "HEAD"]);
+		put(repo, "src/nested/journey.ts", "export const result = 2;\n");
+		commit(repo, "source");
+		const walked = receipt(repo, base);
+		const unwalked = { id: "US-004", status: "unwalked" };
+		const save = (value: object) => put(repo, "walk/walk-receipt.json", JSON.stringify(value));
+		const inspect = (...args: string[]) => cli(repo, "receipt", "walk/walk-receipt.json", ...args);
+		save({ ...walked, stories: [...walked.stories, unwalked] });
+		expect(inspect("--base", base).status).toBe(0);
+		save({ ...walked, stories: [{ id: "US-001", status: "unwalked" }, unwalked] });
+		expect(inspect("--base", base).output.errors).toContain("receipt: US-001 is unwalked");
+		bootstrap(repo, [{ gap: "walk:US-001", owner: "team", expires: day(10) }, { gap: "walk:US-004", owner: "team", expires: day(10) }]);
+		commit(repo, "baseline US-001");
+		save({ ...receipt(repo, base), stories: [{ id: "US-001", status: "unwalked" }, unwalked] });
+		expect(inspect("--base", base).output.errors).toContain("receipt: US-001 is affected by this change and must be walked");
+		bootstrap(repo, [{ gap: "walk:US-004", owner: "team", expires: day(10) }]);
+		commit(repo, "full walk");
+		const full = { ...receipt(repo, base), base: null };
+		save(full);
+		expect(inspect("--all").output.errors).toContain("receipt: US-004 is missing from a full walk");
+		save({ ...full, stories: [...full.stories, unwalked] });
+		expect(inspect("--all").status).toBe(0);
+		const passedOther = { id: "US-004", status: "pass", criteria: [{ n: 1, status: "pass", evidence: ["screens/US-001-1.png"] }] };
+		save({ ...full, stories: [...full.stories, passedOther] });
+		expect(inspect("--all").output.errors).toContain("receipt: US-004 passed; remove baseline walk:US-004");
+		bootstrap(repo, [{ gap: "walk:US-004", owner: "team", expires: day(-1) }]);
+		commit(repo, "expired");
+		save({ ...receipt(repo, base), base: null, stories: [...full.stories, unwalked] });
+		expect(inspect("--all").output.errors).toContain("receipt: US-004 is unwalked");
 	});
 });

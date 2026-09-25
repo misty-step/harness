@@ -19,7 +19,10 @@ data, and user-journey capabilities to the standard. Keep these distinctions cle
 The standalone `foundation-check` launcher checks repository adoption,
 documents, feature mapping, and story-walk receipts. A Foundation assessment
 may read its result but remains read-only; the launcher, not this skill or
-pointer, is the validator.
+pointer, is the validator. A repository adopting with gaps starts from
+`foundation-check baseline --owner NAME`: a bootstrap baseline that expires
+within 30 days and can only shrink (ADR-003, US-027). Extending it takes an
+approved `foundation/extensions/` record, never a quiet edit.
 
 ## Retained operating preferences
 

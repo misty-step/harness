@@ -621,3 +621,36 @@ Evidence: `agent-config/audio-sandbox/audio-sandbox.test.ts`,
 `scripts/verify-installers`, the live routing proof in
 `agent-config/audio-sandbox/install.ts host`, and a fresh engineer-session smoke
 recorded in the pull request.
+
+## Capability: Incremental foundation adoption
+
+## US-027 Adopt foundations incrementally without stalling work
+
+Statement: When a repository adopts the Foundation Standard with existing gaps,
+I want those gaps recorded as an expiring baseline that can only shrink, so work
+continues while compliance grows and no gap is silently waived.
+
+Criteria:
+1. WHEN a repository has no `foundation.json`, `foundation-check check` SHALL
+   list every document, story, map, and verify-skill gap instead of failing to
+   run, and `foundation-check baseline --write` SHALL create a bootstrap
+   adoption record whose baseline names exactly those gaps plus one walk entry
+   per live story.
+2. WHILE a repository is in bootstrap mode, `check` SHALL pass only if every
+   current gap has an unexpired baseline entry with an owner and an expiry at
+   most 30 days out, and SHALL fail an expired entry, an entry whose gap is
+   fixed, or a baseline carried in enforced mode.
+3. WHEN a base revision is supplied, `check` SHALL fail a new baseline entry or
+   a later expiry unless an added `foundation/extensions/` record names that
+   gap and expiry, and SHALL fail a story edited in the change that stays
+   unmapped; a first adoption MAY create its baseline.
+4. WHEN validating a walk receipt, THE SYSTEM SHALL accept `unwalked` only for a
+   story with an unexpired baseline walk entry that the change does not affect,
+   and with `--all` SHALL require every live story and fail a walk entry whose
+   story now passes.
+
+No-gos: no automatic waivers, no baseline for adoption-record errors, no
+baseline entry more than 30 days out.
+
+Evidence: `agent-config/bin/foundation-check.test.ts` (US-027 block);
+`docs/decisions/003-foundation-checks.md`.
