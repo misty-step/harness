@@ -1,3 +1,11 @@
+# [0.1.45](https://github.com/misty-step/harness/compare/v0.1.44...v0.1.45) (2026-09-25)
+<!-- landmark:protected-release previous=v0.1.44 source=3846eed66aac530e693a16e3b9c9697df5a3fed1abe6f492b652308d810e8c6a -->
+
+### Bug Fixes
+
+* **agent-config:** clear an escalation only on a standalone resolution line (US-027, MIS-150) ([1970d1e](https://github.com/misty-step/harness/commit/1970d1e62c592dfe55777fecc14eb2a8da549dc8))
+* **agent-config:** count the resolution marker only as the review's unfenced last line (US-027, MIS-150) ([5879b6d](https://github.com/misty-step/harness/commit/5879b6db54423eefa7bf009fadb02fc795d09bbc))
+* **agent-config:** count the resolution marker only as the review's exact first line (US-027, MIS-150) ([1d62123](https://github.com/misty-step/harness/commit/1d621239c724edb9348a3914ba8a53ac2881baea))
 # [0.1.44](https://github.com/misty-step/harness/compare/v0.1.43...v0.1.44) (2026-09-25)
 <!-- landmark:protected-release previous=v0.1.43 source=432e2f1c48a824078da036842570a0176a489a8f6b271384b010864b1faffc63 -->
 
