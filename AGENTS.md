@@ -37,8 +37,9 @@ alone isolates HOME, scope, or launcher writes.
 ## Verify and ship
 
 - `./scripts/bootstrap` wires the root pre-push scanners; it does not deploy.
-- `./scripts/verify [shared|pi|omp|workspace|all]` is the canonical check entry
-  point; see [verification](docs/verification.md) for bounds and postconditions.
+- `./scripts/check [shared|pi|omp|workspace|all]` is the fixed gate entry point
+  (ADR-004). It runs `./scripts/verify`, the canonical checks, and CI invokes
+  it; see [verification](docs/verification.md) for bounds and postconditions.
 - Shared changes require both consumers' affected checks. Prose needs consistency
   review; composed-guidance changes need composition inspection, not a model run.
 - Keep scratch in run-scoped `~/.cache/tmp`; cap runner and test concurrency.

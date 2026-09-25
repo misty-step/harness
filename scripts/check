@@ -1,0 +1,3 @@
+#!/bin/sh
+# Fixed gate entry point (ADR-004). The canonical checks live in scripts/verify.
+exec "$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)/verify" "$@"

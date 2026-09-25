@@ -46,8 +46,8 @@ this repo neither owns nor deploys it (ADR-020, amended).
 ## Conventions
 
 - Keep the divergence ledger in `README.md` honest. When you add, remove, or
-  reclassify an extension or setting, update the ledger and add or amend an ADR.
-  A change absent from the ledger is not finished.
+  reclassify an extension or setting, update the ledger and add or amend an ADR
+  in `docs/adr/`. A change absent from the ledger is not finished.
 - Prefer small, single-purpose extensions over one large one. `pi-chrome.ts`
   owns the rails; `loc/` owns codebase metrics.
 - Keep the composer's bottom border empty. Identity is right-aligned on the top
