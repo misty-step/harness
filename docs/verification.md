@@ -43,9 +43,10 @@ owned directory. Remove only that directory once its process has ended.
   snapshots, command input, leases, and evidence-gated teardown (US-025).
   These checks do not provision a live VM or prove live CDP/browser readiness.
 - `agent-config/bin/openrouter-key.test.ts` builds real Git checkouts and a
-  linked worktree to exercise R90 versus personal selection, invalid-token
-  failure with a usable personal key present, and `--which` without decryption
-  (US-028). No real pass entry is read by the unit test.
+  linked worktree to exercise R90 versus personal selection, damaged Git
+  metadata, invalid-token failure with a usable personal key present, bounded
+  stalled pass lookup, and `--which` without decryption (US-028). No real pass
+  entry is read by the unit test.
 - `omp-config/bin/omp-task-usage.test.ts` checks price-weighted whole-tree cost,
   failed-task inclusion, unknown/unpriced evidence, split-task worker ownership,
   scope escape, malformed archives and content-free reporting (US-018).

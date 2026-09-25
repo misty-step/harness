@@ -99,14 +99,16 @@ OpenRouter auth (US-028): `models.yml` resolves `openrouter-key --personal
 workstation/OPENROUTER_OMP_HARNESS_API_KEY` on first use. The shared launcher
 chooses `workstation/OPENROUTER_R90_HARNESS_API_KEY` when the process directory
 or its Git common directory is under `~/development/r90group` (linked
-worktrees included). On lookup failure it emits a fixed invalid token rather
-than exiting without a key: OMP omits failing command keys and would otherwise
-fall through to a stored personal credential or `OPENROUTER_API_KEY`. This
-deliberately keeps existing `agent.db` credentials untouched, while a broken
-R90 entry receives an OpenRouter 401 instead of personal billing. Explicit
-runtime `--api-key` overrides remain higher priority and are outside this
-policy. `OMP_INSTALL_COMPONENTS=config ./install` deploys both the override and
-the launcher. Restart OMP after installation; see root verification guide for
+worktrees included). A failed pass lookup, damaged Git metadata or timeout
+emits a fixed invalid token rather than exiting without a key: OMP omits
+failing command keys and would otherwise fall through to a stored personal
+credential or `OPENROUTER_API_KEY`. The launcher caps Git discovery at 1.5 s
+and pass lookup at 5 s, inside OMP's 10 s command deadline. This deliberately
+keeps existing `agent.db` credentials untouched, while a broken R90 entry
+receives an OpenRouter 401 instead of personal billing. Explicit runtime
+`--api-key` overrides remain higher priority and are outside this policy.
+`OMP_INSTALL_COMPONENTS=config ./install` deploys both the override and the
+launcher. Restart OMP after installation; see root verification guide for
 real-path billing checks.
 
 Configuration preservation is semantic, not preservation of YAML comments or

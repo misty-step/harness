@@ -10,8 +10,10 @@ choose `workstation/OPENROUTER_R90_HARNESS_API_KEY`, while other directories use
 Pi's existing `workstation/OPENROUTER_API_KEY_MIRRODIN_PI`.
 
 Pi caches command credentials per process. On a missing or malformed pass entry,
-the launcher returns a fixed invalid token rather than failing the command:
-otherwise an ambient `OPENROUTER_API_KEY` could silently bill personal. No
-credential value is versioned. Start a new session when changing account class;
-revisit this decision if Pi gains native per-project auth or changes command
-credential precedence.
+damaged Git metadata, or a timed-out lookup, the launcher returns a fixed
+invalid token rather than failing the command: otherwise an ambient
+`OPENROUTER_API_KEY` could silently bill personal. Its Git and pass deadlines
+(1.5 s and 5 s) are below Pi's 10 s command timeout. No credential value is
+versioned. Start a new session when changing account class; revisit this
+decision if Pi gains native per-project auth or changes command credential
+precedence.

@@ -38,11 +38,13 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 writeFileSync(process.env.TEST_PASS_USED, "yes");
 if (process.argv[2] !== "show" || process.argv[3] !== "--" || process.env.PASSWORD_STORE_GPG_OPTS !== "--batch --pinentry-mode error") process.exit(2);
+// Integration: OS subprocess deadlines cannot be advanced with fake JS timers.
+if (process.env.TEST_PASS_DELAY_MS) await Bun.sleep(Number(process.env.TEST_PASS_DELAY_MS));
 try { process.stdout.write(readFileSync(join(process.env.TEST_PASS_STORE, process.argv[4]))); }
 catch { process.exit(1); }
 `, { mode: 0o700 });
   const used = join(home, "pass-used");
-  const env = { ...process.env, HOME: home, PATH: `${bin}:${process.env.PATH}`, TEST_PASS_STORE: store, TEST_PASS_USED: used };
+  const env: NodeJS.ProcessEnv = { ...process.env, HOME: home, PATH: `${bin}:${process.env.PATH}`, TEST_PASS_STORE: store, TEST_PASS_USED: used };
   const invoke = (cwd: string, which = false) => {
     const result = spawnSync(process.execPath, [launcher, "--personal", personalEntry, ...(which ? ["--which"] : [])], {
       cwd, env, encoding: "utf8", timeout: 10_000,
@@ -50,7 +52,7 @@ catch { process.exit(1); }
     if (result.error) throw result.error;
     return result;
   };
-  return { home, r90, personal, linked, store, used, invoke };
+  return { home, r90, personal, linked, store, used, env, invoke };
 }
 
 afterEach(() => {
@@ -83,6 +85,24 @@ test("missing and non-OpenRouter R90 keys produce an invalid auth token, never t
     expect(result.stdout).not.toContain("personal-synthetic");
   }
 });
+
+test("damaged linked-worktree Git metadata cannot redirect billing to personal", () => {
+  const f = fixture();
+  writeFileSync(join(f.linked, ".git"), "gitdir: /missing-worktree-metadata");
+  const result = f.invoke(f.linked);
+  expect(result.status).toBe(0);
+  expect(result.stdout).toBe("sk-or-v1-invalid-openrouter-key");
+  expect(existsSync(f.used)).toBe(false);
+});
+
+test("slow R90 pass lookup returns invalid auth before Pi's command timeout", () => {
+  const f = fixture();
+  f.env.TEST_PASS_DELAY_MS = "6000";
+  const result = f.invoke(f.linked);
+  expect(result.status).toBe(0);
+  expect(result.stdout).toBe("sk-or-v1-invalid-openrouter-key");
+  expect(result.stdout).not.toContain("personal-synthetic");
+}, 9_000);
 
 test("--which reveals only the chosen entry name and never invokes pass", () => {
   const f = fixture();

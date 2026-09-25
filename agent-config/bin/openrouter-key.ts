@@ -2,9 +2,9 @@
 // openrouter-key: owned standalone launcher (misty-step/harness).
 // An invalid token, rather than a failed command, prevents either harness from
 // falling back to a stored or environment-supplied personal credential.
-import { realpathSync } from "node:fs";
+import { lstatSync, realpathSync } from "node:fs";
 import { homedir } from "node:os";
-import { join, sep } from "node:path";
+import { dirname, join, sep } from "node:path";
 
 const R90_ENTRY = "workstation/OPENROUTER_R90_HARNESS_API_KEY";
 const INVALID_KEY = "sk-or-v1-invalid-openrouter-key";
@@ -29,9 +29,26 @@ function selectEntry(cwd: string, personal: string): string | undefined {
   if (under(dir, root)) return R90_ENTRY;
   try {
     const git = Bun.spawnSync(["git", "-C", cwd, "rev-parse", "--path-format=absolute", "--git-common-dir"], {
+      timeout: 1_500,
+      killSignal: "SIGKILL",
+      maxBuffer: 16_384,
       stderr: "ignore",
     });
-    if (git.exitCode !== 0) return personal; // Outside a Git repository.
+    if (git.exitCode !== 0) {
+      // Git errors (unsafe ownership, damaged worktree, timeout) are not proof
+      // of a personal directory. Only a non-repository with no .git ancestor
+      // and no explicit Git directory can safely select the personal entry.
+      if (git.exitCode !== 128 || process.env.GIT_DIR || process.env.GIT_WORK_TREE || process.env.GIT_COMMON_DIR) return undefined;
+      for (let ancestor = dir; ; ancestor = dirname(ancestor)) {
+        try {
+          lstatSync(join(ancestor, ".git"));
+          return undefined;
+        } catch (error) {
+          if ((error as NodeJS.ErrnoException).code !== "ENOENT") return undefined;
+        }
+        if (dirname(ancestor) === ancestor) return personal;
+      }
+    }
     const common = real(git.stdout.toString().trim());
     if (!common) return undefined;
     return under(common, root) ? R90_ENTRY : personal;
@@ -57,6 +74,9 @@ if (entry) {
       env: { ...process.env, PASSWORD_STORE_GPG_OPTS: "--batch --pinentry-mode error" },
       stdin: "ignore",
       stderr: "ignore",
+      timeout: 5_000,
+      killSignal: "SIGKILL",
+      maxBuffer: 16_384,
     });
     const key = shown.stdout.toString().trim();
     if (shown.exitCode === 0 && /^sk-or-[A-Za-z0-9_-]+$/.test(key)) {
