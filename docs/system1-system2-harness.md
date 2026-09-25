@@ -189,24 +189,25 @@ These are registered before the main run.
 
 ### Same model, same settings, same route
 
-**M@T** is Claude Opus 5.5 at medium thinking, the operator's stated daily
-preference, served as `anthropic/claude-opus-5.5` through OpenRouter. This is
-the only route both harnesses can share:
+**M@T** is GPT-6 Luna at max reasoning on the ChatGPT/Codex subscription. This
+was the operator's decision on 2026-09-25: models under test run on his
+subscriptions, and OpenRouter pays only for Jev. He offered Sol at xhigh as the
+alternative; Luna max was chosen because it draws less of the shared weekly
+quota. Every arm authenticates as one ChatGPT account (`phaedrus@r90.dev`),
+through eval-only native logins on the evaluation VM: Pi uses its device-code
+flow and OMP its browser flow through a temporary SSH tunnel. No host OAuth
+store is copied (US-014).
 
-- Pi has no Anthropic login.
-- US-014 forbids copying OAuth credentials between harnesses.
-- exe.dev's managed LLM credit has $4.95 left.
-
-Before the main run, a **wire-parity preflight** captures the first provider
-request in each arm through `before_provider_request`. The model id, reasoning
-parameters, and prompt-caching markers must be identical. Pi already sends
-Anthropic `cache_control` on OpenRouter `anthropic/*` routes. A mismatch is
-fixed in configuration, never waved through.
+A **wire-parity** record from every run captures the first provider request
+through `before_provider_request` (`eval/parity.ts`). The harnesses already
+send the same model, reasoning effort (`max`), and storage settings. They
+differed only in text verbosity: Pi always sends `low`, while OMP omits it. The
+shim therefore pins verbosity to `medium` in every arm.
 
 There is no provider fallback in any arm. A provider failure is an
 infrastructure failure: the run repeats, at most twice, and never switches
-models. The key is a dedicated evaluation key with a hard limit, held off the VMs
-by an exe.dev `http-proxy` integration.
+models. A quota guard stops the run before the next task once the account's
+weekly usage reaches 95%.
 
 ### Tasks
 
@@ -264,7 +265,7 @@ by an exe.dev `http-proxy` integration.
 | Metric | Definition and source |
 |---|---|
 | Tokens | Uncached input, output including reasoning, cache read, and cache write. Split by source: System 2 main, OMP advisor and subagents, and Jev. Sources are session JSONL plus sidecars and the System 1 decision log. `omp-task-usage` (US-018) will be extended for Pi `usage` entries and Jev records. |
-| Cost | Provider-billed USD, reconciled against the key's usage. Failed runs count. Cost per successful task follows US-018. |
+| Cost | Subscription runs cost weekly quota, so this records the account's usage change and prices each arm's tokens at the model's public catalog rate for comparison. Jev is billed in USD as reported by the provider. Failed runs count, and cost per successful task follows US-018. |
 | Wall-clock | Runner launch to exit. Also recorded: System 2 turns, tool calls, and System 1 seconds on the critical path. |
 | Quality: objective | Hidden tests pass (primary), the existing suite passes, and the build and lint pass. |
 | Quality: judged | Blind LLM panel plus a Jev panel (below). |
@@ -322,49 +323,37 @@ by an exe.dev `http-proxy` integration.
 - **Registration.** The analysis plan is committed before the main run.
   Exclusions and reruns are logged.
 
-### Budget and schedule
+### Spend and schedule
 
-- **Evidence so far.** The medium-sized smoke task cost $0.25–0.28 of Opus per
-  System 1 / System 2 run and took 90–97 s ([smoke](measurements/s1s2-smoke-2026-09-25.md)).
-- **Assumptions.** These are for the pilot to re-measure.
-  - A Pi-family run costs about $0.15 (small), $0.30 (medium), or $1.50
-    (large).
-  - An OMP run costs about 2.5× as much, because of its heavier fixed prompt
-    and its pinned advisor on every turn.
-- **Model spend.** About **$250**:
-  - 48 tasks × 3 arms: about $140.
-  - 16 replicates: about $45.
-  - Pilot: about $20.
-  - Judges: about $30.
-  - Jev: under $1.
-- **Limit.** A hard key limit of $600, which covers large tasks running
-  several times over estimate.
-- **Compute.** About 210 runs, typically a few minutes each plus dependency
-  installs. That is roughly 6–8 hours at 4-way concurrency on the current plan.
-  Tasks with heavy Rust builds may need a temporary Large tier (+$40/month).
-- **Bandwidth.** 170 of 200 GB of transfer is already used this cycle; the
-  counter resets on October 10. Transfer for the evaluation is estimated at a
-  few GB.
+- **Models under test.** GPT-6 Luna max runs on the ChatGPT/Codex subscription,
+  so it costs weekly quota, not dollars. The quota guard protects the
+  account's last 5%.
+- **Dollars.** Only Jev is billed, through the harness's existing OpenRouter
+  key (`.env.pass`). Expect cents. There is no dedicated or capped evaluation
+  key.
+- **Judges.** Opus, Gemini, and Grok run through OMP on their subscriptions.
+- **Compute.** One leased exe.dev VM (2 vCPU, 8 GB) within the Medium plan's
+  pooled allowance, running one job at a time. The first smoke task took
+  90–97 s per run. Bandwidth stood at 170 of 214 GB this cycle with no overage,
+  and the counter resets on October 10.
 
-### Decisions needed before the evaluation harness is built
+### Decisions (operator, 2026-09-25)
 
-1. **Route and budget.**
-   - *Recommended.* A dedicated OpenRouter key with a $600 limit, held in an
-     exe.dev integration.
-   - *Alternative.* Pass the key to each run on stdin: it avoids an account
-     change but keeps the key in VM memory.
-2. **Arm C.**
-   - *Recommended.* Include it. Without it, a win or loss cannot be attributed
-     to System 1.
-3. **OMP advisor.**
-   - *Recommended.* Keep it on M@T; it is OMP's own design.
-   - *Alternative.* Turn it off. That is cheaper but tests less than OMP.
-4. **M@T.**
-   - *Recommended.* Opus 5.5 at medium.
-   - *Alternative.* A higher level, which multiplies the budget.
-5. **N.**
-   - *Recommended.* 48 tasks plus 16 replicates, confirmed by the pilot's
-     variance.
+1. **Pilot first.** Run the 6-task pilot in all three arms before any larger
+   evaluation. Its report must say what a full evaluation would teach that
+   the pilot cannot.
+2. **Subscriptions only for the models under test.** OpenRouter pays only for
+   Jev.
+3. **Keep arm C.** Plain Pi is what isolates System 1's effect.
+4. **One model and one setting in every arm.** OMP's advisor and subagents are
+   pinned to it too.
+
+The pilot's six tasks come from merged harness pull requests: h37 and h57
+(small), h21 and h26 (medium), and h2 and h43 (large). Each passed three checks:
+
+- the regression suite passed at the base commit
+- the hidden tests failed there
+- the hidden tests passed at the merge commit
 
 ## Threats to validity
 
