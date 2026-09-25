@@ -38,11 +38,11 @@ test("US-026 revision keeps future imports first and is idempotent", () => {
 
 test("US-026 a standalone local:// load is routed and loaded from its backing file", () => {
 	if (!python) throw new Error("python3 is required");
-	const routed = routePythonCell('%load "local://my notes/setup.py"', "/sessions/s1").split("\n");
+	const routed = routePythonCell('%load "local://my notes/setup.py"', "/sessions/s1/local").split("\n");
 	expect(routed).toHaveLength(2);
 	expect(routingKeys(run([python, "-c", `${routed[0]}\n${childEnvCell}`]))).toEqual({ ...AGENT_AUDIO_ENV });
 	expect(routed[1]).toBe('%load "/sessions/s1/local/my notes/setup.py"');
-	expect(() => routePythonCell("%load local://../../etc/rc.py", "/sessions/s1")).toThrow("escapes");
+	expect(() => routePythonCell("%load local://../../etc/rc.py", "/sessions/s1/local")).toThrow("escapes");
 	expect(() => routePythonCell("%load local://setup.py", null)).toThrow("cannot resolve local://");
 });
 
