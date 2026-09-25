@@ -1,3 +1,9 @@
+# [0.1.34](https://github.com/misty-step/harness/compare/v0.1.33...v0.1.34) (2026-09-25)
+<!-- landmark:protected-release previous=v0.1.33 source=f51b57ea1eebc292d8f5dd7bd51706837507427d4c5be1e430e19bccfba027b2 -->
+
+### Bug Fixes
+
+* **foundation,ws:** require every story criterion in receipts; refuse untagged VMs (US-024, US-025) (MIS-150) ([ea50f38](https://github.com/misty-step/harness/commit/ea50f384796d30eba7ee91b0fb9a8544467f0ab7))
 # [0.1.33](https://github.com/misty-step/harness/compare/v0.1.32...v0.1.33) (2026-09-25)
 <!-- landmark:protected-release previous=v0.1.32 source=940cb6475b3e1a02b15d742b58a4bb8dbe208389ce7ffd0f04b3091f9602d9cb -->
 
