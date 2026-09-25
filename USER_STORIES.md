@@ -123,8 +123,8 @@ Criteria:
    repository check with the deficient item named.
 3. WHEN a base revision is supplied, THE SYSTEM SHALL identify live stories
    affected by source files, feature files, and edited story sections; a feature
-   file SHALL count only once the map's index existed at the merge base, because
-   the change that first creates the map adds no behaviour.
+   file the change adds SHALL count only if the map's index existed at the merge
+   base, because the change that first creates the map adds no behaviour.
 4. IF a walk receipt omits or fails an affected story, reports a set of
    criterion numbers that differs from that story's numbered criteria at HEAD
    (missing, duplicated, or extra), cites an unlisted or tampered artifact, or

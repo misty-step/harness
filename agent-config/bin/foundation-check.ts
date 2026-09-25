@@ -277,12 +277,14 @@ function affected(repo: string, base: string, report: Issue[]): string[] {
 	const mapping = features(repo, tracked(repo), head, report);
 	const changed = changedFiles(repo, base);
 	const ids = editedStories(repo, base, head);
-	// The change that first creates the map (no index at the merge base) adds metadata, not behaviour, so its
-	// feature files mark no story; changed source and edited stories still do. Once the map exists, editing a
-	// feature file affects its stories.
-	const mapExisted = fileAt(repo, git(repo, "merge-base", base, "HEAD").trim(), "features/README.md") !== undefined;
+	// The change that first creates the map (no index at the merge base) adds metadata, not behaviour, so the
+	// feature files it adds mark no story; changed source and edited stories still do. Editing a feature file that
+	// already existed at the merge base always affects its stories, index or not.
+	const mergeBase = git(repo, "merge-base", base, "HEAD").trim();
+	const mapExisted = fileAt(repo, mergeBase, "features/README.md") !== undefined;
 	for (const feature of mapping) {
-		if ((mapExisted && changed.includes(feature.file)) || changed.some((file) => feature.sources.some((glob) => globRegex(glob).test(file)))) {
+		const featureChanged = changed.includes(feature.file) && (mapExisted || fileAt(repo, mergeBase, feature.file) !== undefined);
+		if (featureChanged || changed.some((file) => feature.sources.some((glob) => globRegex(glob).test(file)))) {
 			for (const id of feature.stories) if (live.has(id)) ids.add(id);
 		}
 	}
@@ -671,13 +673,14 @@ async function review(options: Options): Promise<Result> {
 		// that account runs the check) has no submission time and is not a decision.
 		const stamped = (entry: Record<string, unknown>, field: string) => ({ at: typeof entry[field] === "string" ? entry[field] as string : "", entry });
 		const entries = [...(await list(`pulls/${options.pr}/reviews`)).map((entry) => stamped(entry, "submitted_at")), ...(await list(`issues/${options.pr}/comments`)).map((entry) => stamped(entry, "created_at"))]
-			.filter(({ at, entry }) => at !== "" && entry.state !== "PENDING" && reviewer(entry) === login)
-			.sort((a, b) => (a.at < b.at ? -1 : a.at > b.at ? 1 : 0));
-		let escalation = -1;
-		entries.forEach(({ entry }, index) => { if (firstLine(entry) === escalationMarker) escalation = index; });
-		const marker = escalation >= 0 ? resolutionMarker : approvalMarker;
-		const decided = entries.some(({ entry }, index) => index > escalation && firstLine(entry) === `${marker} ${head}`);
-		const errors = decided ? [] : [escalation >= 0
+			.filter(({ at, entry }) => at !== "" && entry.state !== "PENDING" && reviewer(entry) === login);
+		// Reviews and comments come from two endpoints, so order comes from their timestamps alone, and a decision
+		// must be strictly later than the last escalation: a tie stays escalated.
+		const escalatedAt = entries.reduce((latest, { at, entry }) => (firstLine(entry) === escalationMarker && at > latest ? at : latest), "");
+		const escalated = escalatedAt !== "";
+		const marker = escalated ? resolutionMarker : approvalMarker;
+		const decided = entries.some(({ at, entry }) => at > escalatedAt && firstLine(entry) === `${marker} ${head}`);
+		const errors = decided ? [] : [escalated
 			? `escalated to the operator; needs a later review or comment from ${login} whose first line is "${marker} ${head}"`
 			: `needs a review or comment from ${login} recording the agent reviewer's decision, with first line "${marker} ${head}"`];
 		return { ok: decided, errors, reasons, approved_by: decided ? `${login} (recorded decision)` : undefined };

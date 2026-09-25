@@ -55,8 +55,9 @@ VM presence. Agent sessions and model credentials stay local.
 `foundation-check check --repo DIR` validates `foundation.json` against the
 Foundation Standard catalog, the first-class documents, `check-stories.sh`,
 the `features/` map, and a verify skill with Launch/Doctor/Drive/Evidence/Cleanup
-sections. `affected --base REV` prints the live stories a diff touches (the
-change that first creates `features/README.md` counts only source and story edits);
+sections. `affected --base REV` prints the live stories a diff touches (feature
+files added by the change that first creates `features/README.md` do not count;
+source, story edits and pre-existing feature files do);
 `receipt PATH --base REV` validates a same-job story-walk receipt against HEAD,
 its tree, the affected stories, and artifact digests. Repository CI pins this
 file from a harness revision; the deployed launcher resolves the catalog and

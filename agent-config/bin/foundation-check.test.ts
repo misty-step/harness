@@ -201,6 +201,16 @@ describe("foundation-check (US-024)", () => {
 		put(repo, "features/other.md", `${readFileSync(join(repo, "features/other.md"), "utf8")}\nMore detail.\n`);
 		commit(repo, "edit feature");
 		expect(cli(repo, "affected", "--base", mapped).output.stories).toEqual(["US-004"]);
+		// A feature file that existed before the index still counts when edited, even while the index is being added.
+		const partial = fixture("first-map-partial");
+		exec(partial, ["rm", "-q", "features/README.md"]);
+		commit(partial, "index missing, feature present");
+		const partialBase = exec(partial, ["rev-parse", "HEAD"]);
+		put(partial, "features/README.md", "# Index\n\n[Journey](journey.md)\n");
+		put(partial, "features/journey.md", feature.replace("Source: src/**", "Source: lib/**"));
+		put(partial, "src/nested/journey.ts", "export const result = 4;\n");
+		commit(partial, "restore index and move the source glob away from the changed file");
+		expect(cli(partial, "affected", "--base", partialBase).output.stories).toEqual(["US-001"]);
 	});
 
 	test("receipt binds head, tree, affected status, criteria and retained evidence", () => {
@@ -595,6 +605,9 @@ describe("foundation-check review gate (US-027)", () => {
 		expect((await recorded([{ ...said(operator, head, "COMMENTED", marker), submitted_at: "2026-09-25T11:00:00Z" }], [note(approval, "2026-09-25T12:00:00Z")])).status).toBe(1);
 		expect((await recorded([], [resolution("2026-09-25T09:00:00Z"), escalation])).status).toBe(1);
 		expect((await recorded([], [escalation, resolution("2026-09-25T12:00:00Z")])).status).toBe(0);
+		// Reviews and comments are ordered only by time, so a resolution in the same second as an escalation review
+		// does not clear it.
+		expect((await recorded([{ ...said(operator, head, "COMMENTED", marker), submitted_at: "2026-09-25T11:00:00Z" }], [resolution("2026-09-25T11:00:00Z")])).status).toBe(1);
 		comments = [];
 	});
 });
