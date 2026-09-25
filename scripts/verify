@@ -28,7 +28,7 @@ for script in scripts/bootstrap scripts/verify scripts/verify-installers .githoo
 done
 bun test --max-concurrency=1 scripts/references.test.ts scripts/workspace-inventory.test.ts
 case "$selection" in all|shared) (cd agent-config && bun test --max-concurrency=1 bin/ skills/ system-one/ audio-sandbox/);; esac
-case "$selection" in all|pi) (cd pi-config && bun test --max-concurrency=1 extensions/);; esac
+case "$selection" in all|pi) (cd pi-config && bun test --max-concurrency=1 bin/ extensions/);; esac
 case "$selection" in all|omp) (cd omp-config && bun test --max-concurrency=1 bin/ extensions/);; esac
 ./scripts/verify-installers
 printf 'Verification complete: %s\n' "$selection"

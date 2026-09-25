@@ -5,14 +5,7 @@ import { join } from "node:path";
 import { parseEnv } from "node:util";
 import { operatorPlaybackEnv } from "../skills/sachstand/scripts/operator-audio.ts";
 import { AGENT_AUDIO_ENV, AGENT_AUDIO_SINK, sandboxAgentAudio, shellExports } from "./env.ts";
-import {
-	linkedSinks,
-	mergeClaudeSettings,
-	mergeDotenv,
-	mergeShellPrefix,
-	type PwObject,
-	routingFailure,
-} from "./install.ts";
+import { linkedSinks, mergeClaudeSettings, mergeDotenv, type PwObject, routingFailure } from "./install.ts";
 
 const scratch = mkdtempSync(join(process.env.TMPDIR || join(homedir(), ".cache", "tmp"), "audio-sandbox-test-"));
 afterAll(() => rmSync(scratch, { recursive: true, force: true }));
@@ -39,15 +32,6 @@ test("US-026 the dotenv block parses to the exact contract, stays single, and re
 	expect(() => mergeDotenv("export PIPEWIRE_NODE=alsa_output.hw\n")).toThrow("foreign definition of PIPEWIRE_NODE");
 	const unterminated = once.replace("# end agent-config audio-sandbox\n", "OPENROUTER_API_BASE=https://kept.test\n");
 	expect(() => mergeDotenv(unterminated)).toThrow("no end marker");
-});
-
-test("US-026 the Pi shellCommandPrefix is owned: replaced when ours, refused when foreign", () => {
-	const stale = JSON.stringify({ defaultModel: "x", shellCommandPrefix: "export AGENT_AUDIO_SANDBOX='PULSE_SINK' PULSE_SINK='old'" });
-	expect(JSON.parse(mergeShellPrefix(stale))).toEqual({ defaultModel: "x", shellCommandPrefix: shellExports() });
-	expect(JSON.parse(mergeShellPrefix(undefined))).toEqual({ shellCommandPrefix: shellExports() });
-	expect(() => mergeShellPrefix(JSON.stringify({ shellCommandPrefix: "shopt -s expand_aliases" }))).toThrow("foreign shellCommandPrefix");
-	const composed = `${shellExports()}; source ~/.pi/aliases`;
-	expect(() => mergeShellPrefix(JSON.stringify({ shellCommandPrefix: composed }))).toThrow("foreign shellCommandPrefix");
 });
 
 test("US-026 the Pi shell prefix exports the exact contract to a POSIX shell", () => {
