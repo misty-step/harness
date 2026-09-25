@@ -1,3 +1,9 @@
+# [0.1.41](https://github.com/misty-step/harness/compare/v0.1.40...v0.1.41) (2026-09-25)
+<!-- landmark:protected-release previous=v0.1.40 source=19973695a5d8cc254b3ebcc655288573178fec2b179951e4963656bd694452af -->
+
+### Bug Fixes
+
+* **omp-config:** route a local:// load cell that ends with a newline ([b1ba3c2](https://github.com/misty-step/harness/commit/b1ba3c2b4afa68513380b1bda4a27d93c81c2b21))
 # [0.1.40](https://github.com/misty-step/harness/compare/v0.1.39...v0.1.40) (2026-09-25)
 <!-- landmark:protected-release previous=v0.1.39 source=0468ff327aa0ebd03dfd3352d60a1dda244bda6a7ae32f59fb4ce8d9e75e1745 -->
 
