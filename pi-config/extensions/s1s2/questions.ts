@@ -245,8 +245,11 @@ export function pickNote(answers: Record<string, Answer>, triggered: boolean): N
 
 export const DONE = {
 	maxContinuations: 2,
-	/** Probability of "unfinished" needed to nudge. A false nudge costs one System 2 turn. */
-	unfinishedMin: 0.7,
+	/**
+	 * Probability of "unfinished" needed to nudge. A false nudge costs one System 2 turn; a probe on
+	 * 2026-09-25 scored a correct one-word answer at 0.63 and a stopped-midway message at 1.0.
+	 */
+	unfinishedMin: 0.8,
 	/** Probability of the chosen check needed to run it. A wrong check costs wall-clock, never correctness. */
 	checkMin: 0.5,
 	checkTimeoutMs: 300_000,
@@ -275,10 +278,10 @@ export function doneQuestions(checks: readonly CheckCandidate[]): Record<string,
 	const questions: Record<string, Question> = {
 		completion: {
 			type: "choice",
-			instructions: "Given `task` and the agent's `final_message`, what state is the work in?",
+			instructions: "The agent was asked to do the task in `task`, and `final_message` is its last message. What state is the work in?",
 			criteria: {
-				complete: "The final message reports the requested work as done.",
-				unfinished: "Work the agent could still do on its own remains, for example it stopped midway or only described next steps.",
+				complete: "The final message gives what the task asked for, or reports the requested work as done, even if it is very short.",
+				unfinished: "The agent stopped partway: the final message lists remaining steps it could still do itself, says it will continue, or ends mid-work.",
 				blocked: "The agent cannot proceed without information, permission, or an external event that it names.",
 			},
 		},
