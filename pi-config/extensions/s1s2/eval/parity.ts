@@ -11,6 +11,9 @@
  *                      (`max_output_tokens` for Responses, `max_completion_tokens`
  *                      for chat completions). On OpenRouter, Pi sends 384000 and
  *                      OMP sends none.
+ *   PARITY_UPSTREAM    One OpenRouter upstream provider (slug), fallbacks off. In
+ *                      the pilot, OMP's Responses requests and Pi's chat
+ *                      completions reached different upstreams at different prices.
  * Harness-owned transport choices (which API a harness uses for a provider, tool
  * schemas) are recorded, not normalized.
  */
@@ -31,6 +34,8 @@ export default function parity(pi: { on: (event: string, handler: (event: { payl
 			payload.max_completion_tokens = maxOutput;
 			delete payload.max_tokens;
 		}
+		const upstream = process.env.PARITY_UPSTREAM;
+		if (upstream) payload.provider = { ...(payload.provider as object | undefined), order: [upstream], allow_fallbacks: false };
 		const out = process.env.PARITY_OUT;
 		if (!recorded && out) {
 			recorded = true;

@@ -16,10 +16,17 @@
  * back, deletes it from the agent's home, and grades the copy with the pull
  * request's own tests ("hidden tests").
  *
+ * Egress: the runner locks the agent user's network (an iptables owner match) to
+ * loopback, DNS, the model proxy, and any `--agent-egress` hosts. It re-applies the
+ * lock at every start and refuses to run while the agent can reach GitHub or cannot
+ * reach the model and Jev routes. In the pilot, both arms of one task fetched its
+ * merged fix from GitHub.
+ *
  * Usage (on the evaluation VM):
  *   bun eval/vibe.ts --manifest m.json --hidden dir --out dir --agent-user evalagent \
  *     --code-root /opt/s1s2-src --arms omp,s1s2 --model openrouter/deepseek/deepseek-v4.1-flash \
- *     --thinking high --max-output 384000 --openrouter-base https://proxy --spend-limit 20
+ *     --thinking high --max-output 384000 --upstream deepseek \
+ *     --openrouter-base https://proxy --spend-limit 20
  */
 import { spawn, spawnSync } from "node:child_process";
 import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
@@ -59,6 +66,10 @@ const PROXY_PLACEHOLDER = "injected-by-exe-proxy";
 const jevKey = openrouterBase ? PROXY_PLACEHOLDER : (process.env.S1S2_JEV_KEY || process.env.OPENROUTER_API_KEY || "").trim();
 if (arms.includes("s1s2") && !jevKey) fail("S1S2_JEV_KEY, OPENROUTER_API_KEY, or --openrouter-base is required for the s1s2 arm (Jev)");
 if (spendLimit > 0 && !openrouterBase) fail("--spend-limit needs --openrouter-base to read the key's usage");
+// One OpenRouter upstream for every arm, fallbacks off (PARITY_UPSTREAM in parity.ts).
+const upstream = args.get("upstream") ?? "";
+if (upstream && provider !== "openrouter") fail("--upstream pins an OpenRouter upstream provider; the model is not on OpenRouter");
+const agentEgress = (args.get("agent-egress") ?? "").split(",").filter(Boolean);
 
 const runner = userInfo().username;
 const agentHome = `/home/${agentUser}`;
@@ -85,6 +96,44 @@ for (const forbidden of ["settings.json", "AGENTS.md", "extensions", "skills", "
 }
 mkdirSync(join(out, "runs"), { recursive: true });
 if (agentCan("-r", out)) fail(`agent user ${agentUser} can read ${out}; isolation is not real`);
+
+function ipv4(host: string): string[] {
+	const lines = spawnSync("getent", ["ahostsv4", host], { encoding: "utf8" }).stdout.split("\n");
+	const ips = [...new Set(lines.map((line) => line.split(/\s+/)[0]).filter(Boolean))];
+	return ips.length > 0 ? ips : fail(`cannot resolve ${host}`);
+}
+
+/** Idempotently limit the agent user's egress; see "Egress" above. */
+function lockAgentEgress(): void {
+	const uid = spawnSync("id", ["-u", agentUser], { encoding: "utf8" }).stdout.trim() || fail(`no user ${agentUser}`);
+	const hosts = [...(openrouterBase ? [new URL(openrouterBase).hostname] : []), ...agentEgress];
+	const allow = hosts.flatMap(ipv4).map((ip) => ["-d", `${ip}/32`, "-j", "ACCEPT"]);
+	const dns = ["udp", "tcp"].map((proto) => ["-p", proto, "--dport", "53", "-j", "ACCEPT"]);
+	const reject = [["-p", "tcp", "-j", "REJECT", "--reject-with", "tcp-reset"], ["-j", "REJECT"]];
+	const loopback = ["-o", "lo", "-j", "ACCEPT"];
+	const tables: [string, string[][]][] = [
+		["iptables", [loopback, ...dns, ...allow, ...reject]],
+		["ip6tables", [loopback, ...reject]],
+	];
+	for (const [tool, rules] of tables) {
+		spawnSync("sudo", ["-n", tool, "-N", "S1S2-AGENT"], { cwd: "/", stdio: "ignore" }); // exists after the first start
+		sudo([tool, "-F", "S1S2-AGENT"]);
+		for (const rule of rules) sudo([tool, "-A", "S1S2-AGENT", ...rule]);
+		const match = ["-m", "owner", "--uid-owner", uid, "-j", "S1S2-AGENT"];
+		if (spawnSync("sudo", ["-n", tool, "-C", "OUTPUT", ...match], { cwd: "/", stdio: "ignore" }).status !== 0) sudo([tool, "-I", "OUTPUT", "1", ...match]);
+	}
+}
+
+const agentReaches = (url: string) =>
+	spawnSync("sudo", ["-n", "-u", agentUser, "curl", "-sS", "-m", "10", "-o", "/dev/null", url], { cwd: "/", stdio: "ignore" }).status === 0;
+lockAgentEgress();
+for (const url of ["https://github.com", "https://raw.githubusercontent.com"]) {
+	if (agentReaches(url)) fail(`agent user ${agentUser} can reach ${url}; the egress lock is not real`);
+}
+const routes = openrouterBase ? [`${openrouterBase}/api/v1/models`] : agentEgress.map((host) => `https://${host}/`);
+if (arms.includes("s1s2") && !openrouterBase) routes.push("https://openrouter.ai/api/v1/models");
+if (routes.length === 0) fail("the egress lock leaves no model route: pass --openrouter-base or --agent-egress");
+for (const url of routes) if (!agentReaches(url)) fail(`agent user ${agentUser} cannot reach ${url} under the egress lock`);
 
 function git(cwd: string, ...argv: string[]): string {
 	const result = spawnSync("git", argv, { cwd, encoding: "utf8", maxBuffer: 256 * 1024 * 1024 });
@@ -317,6 +366,7 @@ outer: for (const task of tasks) {
 			PARITY_OUT: join(work, "parity.jsonl"),
 			...(verbosity ? { PARITY_VERBOSITY: verbosity } : {}),
 			...(maxOutput ? { PARITY_MAX_OUTPUT: maxOutput } : {}),
+			...(upstream ? { PARITY_UPSTREAM: upstream } : {}),
 			// The proxy injects the real key; the harnesses only need a non-empty credential to call it.
 			...(openrouterBase ? { OPENROUTER_API_KEY: PROXY_PLACEHOLDER } : {}),
 		};
@@ -397,6 +447,6 @@ const quotaEnd = quotaUsed();
 const spendEnd = await keySpend();
 writeFileSync(
 	join(out, "vibe.json"),
-	`${JSON.stringify({ version: 1, model: `${provider}/${modelId}`, thinking, seed, arms, agentUser, quotaEmail, quotaStart, quotaEnd, spendStart, spendEnd, stopped, results }, null, 2)}\n`,
+	`${JSON.stringify({ version: 1, model: `${provider}/${modelId}`, thinking, upstream, seed, arms, agentUser, agentEgress, quotaEmail, quotaStart, quotaEnd, spendStart, spendEnd, stopped, results }, null, 2)}\n`,
 );
 console.log(stopped ?? "complete");
