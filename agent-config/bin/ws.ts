@@ -48,7 +48,11 @@ function listed(): boolean {
 		!response.vms.every((vm: unknown) => vm && typeof vm === "object" && "vm_name" in vm && typeof vm.vm_name === "string")) {
 		fail("invalid VM listing; inspect ssh exe.dev ls --json");
 	}
-	return response.vms.some((vm: { vm_name: string }) => vm.vm_name === vmName);
+	const match = response.vms.find((vm: { vm_name: string }) => vm.vm_name === vmName) as { vm_name: string; tags?: unknown } | undefined;
+	if (!match) return false;
+	// Never adopt a VM by name alone: only a VM created by ws init carries the ws tag.
+	if (!Array.isArray(match.tags) || !match.tags.includes("ws")) fail(`${vmName} exists without the ws tag; it is not a ws workspace, so ws will not adopt it (inspect ssh exe.dev ls --json)`);
+	return true;
 }
 const repo = git(process.cwd(), ["rev-parse", "--show-toplevel"]);
 // Linked worktrees share one project VM: name it after the repository, not the worktree directory.

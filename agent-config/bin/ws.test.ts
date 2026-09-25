@@ -1,5 +1,5 @@
 import { afterEach, expect, test } from "bun:test";
-import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 
@@ -20,11 +20,12 @@ fi
 host="$1"; shift
 if [ "$host" = exe.dev ]; then
   case "$1" in
-    ls) if [ -f "$WS_FAKE_ROOT/vm-created" ]; then printf '{"vms":[{"vm_name":"%s-ws"}]}\\n' "$WS_PROJECT"; else printf '{"vms":[]}\\n'; fi ;;
+    ls) if [ -f "$WS_FAKE_ROOT/vm-created" ]; then printf '{"vms":[{"vm_name":"%s-ws","tags":%s}]}\\n' "$WS_PROJECT" "$(cat "$WS_FAKE_ROOT/vm-created")"; else printf '{"vms":[]}\\n'; fi ;;
     new)
       # Like the real lobby: ssh joins argv, then tokens split on spaces outside double quotes; positionals are rejected.
       printf '%s' "$*" | bun -e 'const line = await Bun.stdin.text(); const tokens = line.match(/(?:[^\\s"]+|"[^"]*")+/g) ?? []; if (tokens.slice(1).some((t) => !t.startsWith("--"))) { console.log(JSON.stringify({ error: "\\"new\\" command has no subcommands and does not take positional arguments" })); process.exit(1); }' || exit 1
-      touch "$WS_FAKE_ROOT/vm-created"; mkdir -p "$WS_FAKE_ROOT/vm"; printf '{"vm_name":"%s-ws"}\\n' "$WS_PROJECT" ;;
+      case " $* " in *" --tag=ws "*) printf '["ws"]' > "$WS_FAKE_ROOT/vm-created" ;; *) printf '[]' > "$WS_FAKE_ROOT/vm-created" ;; esac
+      mkdir -p "$WS_FAKE_ROOT/vm"; printf '{"vm_name":"%s-ws"}\\n' "$WS_PROJECT" ;;
     tag) : ;;
     *) exit 41 ;;
   esac
@@ -117,6 +118,15 @@ test("US-025 a linked worktree targets its repository's project VM, not its dire
 	sh(repo, ["git", "worktree", "add", "-q", "-b", "feature", linked]);
 	const status = Bun.spawnSync(["bun", ws, "status"], { cwd: linked, env: { ...process.env, HOME: join(root, "home"), PATH: `${join(root, "bin")}:${process.env.PATH}`, WS_FAKE_ROOT: root, WS_PROJECT: "sample" }, stdout: "pipe", stderr: "pipe" });
 	expect(status.stdout.toString()).toContain("sample-ws.exe.xyz: ready");
+});
+
+test("US-025 init refuses to adopt a same-named VM that ws did not create", () => {
+	const { root, run } = fixture();
+	writeFileSync(join(root, "vm-created"), "[]");
+	const init = run(["init"]);
+	expect(init.code).not.toBe(0);
+	expect(init.err).toContain("without the ws tag");
+	expect(existsSync(join(root, "vm/ws"))).toBe(false);
 });
 
 test("US-025 env and command stdin reach only the command, exit propagates, and down gates evidence digests", () => {

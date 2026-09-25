@@ -44,6 +44,7 @@ Statement: When I need a result, I want to follow the journey, so I can finish.
 
 Criteria:
 1. WHEN starting, THE SYSTEM SHALL show the result.
+2. IF the result is missing, THEN THE SYSTEM SHALL say so.
 `;
 const retiredStory = `## US-002 Earlier journey
 
@@ -106,7 +107,7 @@ function receipt(repo: string, base: string) {
 		schema: "foundation-walk-receipt/1", check: "journey-walk", run: "local-1",
 		head: exec(repo, ["rev-parse", "HEAD"]), tree: exec(repo, ["rev-parse", "HEAD^{tree}"]), base,
 		started_at: "2026-09-25T10:00:00Z", finished_at: "2026-09-25T10:01:00Z", exit: 0,
-		stories: [{ id: "US-001", status: "pass", criteria: [{ n: 1, status: "pass", evidence: ["screens/US-001-1.png"] }] }],
+		stories: [{ id: "US-001", status: "pass", criteria: [{ n: 1, status: "pass", evidence: ["screens/US-001-1.png"] }, { n: 2, status: "pass", evidence: ["screens/US-001-1.png"] }] }],
 		artifacts: [{ path: "screens/US-001-1.png", sha256: hash("observed frame") }],
 	};
 }
@@ -203,6 +204,15 @@ describe("foundation-check (US-024)", () => {
 		expect(inspect().output.errors.join(" ")).toContain("unpassed or invalid criterion");
 		save({ ...valid, artifacts: [{ ...valid.artifacts[0], sha256: "0".repeat(64) }] });
 		expect(inspect().output.errors.join(" ")).toContain("digest mismatch");
+		const [first, second] = valid.stories[0].criteria;
+		save({ ...valid, stories: [{ ...valid.stories[0], criteria: [first] }] });
+		expect(inspect().output.errors.join(" ")).toContain("US-001 criteria 1 do not match story criteria 1, 2");
+		save({ ...valid, stories: [{ ...valid.stories[0], criteria: [first, first] }] });
+		expect(inspect().output.errors.join(" ")).toContain("US-001 criteria 1, 1 do not match story criteria 1, 2");
+		save({ ...valid, stories: [{ ...valid.stories[0], criteria: [first, second, { ...second, n: 3 }] }] });
+		expect(inspect().output.errors.join(" ")).toContain("do not match story criteria 1, 2");
+		save({ ...valid, stories: [...valid.stories, { ...valid.stories[0], id: "US-009" }] });
+		expect(inspect().output.errors.join(" ")).toContain("US-009 is not a story at HEAD");
 		save({ ...valid, artifacts: [] });
 		expect(inspect().output.errors.join(" ")).toContain("not listed in artifacts");
 	});
