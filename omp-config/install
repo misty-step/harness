@@ -76,6 +76,8 @@ validate_config() {
   bun "$repo_dir/bin/omp-merge-config.ts" --source "$repo_dir/models.yml" --dest "$agent_dir/models.yml" --check
   require_base
   run_shared --check --bin openrouter-key.ts
+  require_nonempty "$repo_dir/secrets.yml"
+  bun "$repo_dir/bin/omp-secrets-policy.ts" --source "$repo_dir/secrets.yml" --dest "$agent_dir/secrets.yml" --check
 }
 
 install_config() {
@@ -83,6 +85,7 @@ install_config() {
   bun "$repo_dir/bin/omp-merge-config.ts" --source "$repo_dir/config.yml" --dest "$agent_dir/config.yml"
   bun "$repo_dir/bin/omp-merge-config.ts" --source "$repo_dir/models.yml" --dest "$agent_dir/models.yml"
   run_shared --bin openrouter-key.ts
+  bun "$repo_dir/bin/omp-secrets-policy.ts" --source "$repo_dir/secrets.yml" --dest "$agent_dir/secrets.yml"
 }
 
 validate_mcp() {

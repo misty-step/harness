@@ -427,6 +427,29 @@ It does not call a provider or replace foreign runtime telemetry.
 See the [baseline, prompt diff, scope and promotion procedure](../docs/token-efficiency.md).
 No live deployment or task-quality parity is implied by the offline checks.
 
+## Secret masking
+
+`secrets.enabled: true` turns on OMP's masking of provider-bound text. OMP only
+masks values it already knows: its own environment, `secrets.yml` entries, and
+built-in token shapes. So a broad search that prints an env file can still send
+a database password or an unrecognised token to the provider. `secrets.yml` here
+adds two regex entries (US-039):
+
+- the value of an env-style assignment whose upper-case name contains KEY,
+  TOKEN, SECRET, PASSWORD, PASS, AUTH, CREDENTIAL or PRIVATE;
+- the password in a `scheme://user:password@host` URL.
+
+Masking happens whichever tool printed the text and whatever its ignore flags.
+It is reversible: a placeholder in a tool argument is restored before the tool
+runs.
+
+The `config` component validates the policy (regex entries only, each compiles)
+and installs it to the agent directory's `secrets.yml`. It fails closed rather
+than replace a `secrets.yml` without the managed first line. Keep machine-local
+plain entries in a project `.omp/secrets.yml`. Not covered: values shorter than
+eight characters, lower-case keys (`password: …`), and credentials in other
+shapes.
+
 ## Linear
 
 Use the [official Linear MCP server](https://linear.app/docs/mcp) for access and
