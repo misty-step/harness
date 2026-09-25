@@ -366,4 +366,54 @@ describe("foundation-check ratchet (US-027)", () => {
 		save({ ...receipt(repo, base), base: null, stories: [...full.stories, unwalked] });
 		expect(inspect("--all").output.errors).toContain("receipt: US-004 is unwalked");
 	});
+
+	test("a baselined map gap on an unaffected story does not block affected or a change receipt", () => {
+		const repo = fixture("baselined-map");
+		put(repo, "USER_STORIES.md", `# Stories\n\n${liveStory}\n${otherStory}\n${retiredStory}\n${headingRetiredStory}`);
+		bootstrap(repo, [{ gap: "map:US-004", owner: "team", expires: day(10) }, { gap: "walk:US-004", owner: "team", expires: day(10) }]);
+		commit(repo, "unmapped second story");
+		const base = exec(repo, ["rev-parse", "HEAD"]);
+		put(repo, "src/nested/journey.ts", "export const result = 2;\n");
+		commit(repo, "source");
+		const touched = cli(repo, "affected", "--base", base);
+		expect(touched.status).toBe(0);
+		expect(touched.output.stories).toEqual(["US-001"]);
+		const walked = receipt(repo, base);
+		put(repo, "walk/walk-receipt.json", JSON.stringify({ ...walked, stories: [...walked.stories, { id: "US-004", status: "unwalked" }] }));
+		expect(cli(repo, "receipt", "walk/walk-receipt.json", "--base", base).status).toBe(0);
+		// Without --base nothing proves US-004 unaffected, so a change receipt cannot claim the exemption.
+		expect(cli(repo, "receipt", "walk/walk-receipt.json").output.errors).toContain("receipt: US-004 is unwalked; a change receipt needs --base to prove it unaffected");
+	});
+
+	test("a malformed or far-future walk entry excuses nothing", () => {
+		const repo = fixture("bad-walk-entry");
+		put(repo, "USER_STORIES.md", `# Stories\n\n${liveStory}\n${otherStory}\n${retiredStory}\n${headingRetiredStory}`);
+		put(repo, "features/journey.md", feature.replace("Stories: US-001", "Stories: US-001, US-004"));
+		bootstrap(repo, [{ gap: "walk:US-004", expires: "9999-12-31" }]);
+		commit(repo, "bad entry");
+		const full = { ...receipt(repo, exec(repo, ["rev-parse", "HEAD"])), base: null };
+		put(repo, "walk/walk-receipt.json", JSON.stringify({ ...full, stories: [...full.stories, { id: "US-004", status: "unwalked" }] }));
+		expect(cli(repo, "receipt", "walk/walk-receipt.json", "--all").output.errors).toContain("receipt: US-004 is unwalked");
+		bootstrap(repo, [{ gap: "walk:US-004", owner: "team", expires: day(45) }]);
+		commit(repo, "far entry");
+		put(repo, "walk/walk-receipt.json", JSON.stringify({ ...full, head: exec(repo, ["rev-parse", "HEAD"]), tree: exec(repo, ["rev-parse", "HEAD^{tree}"]), stories: [...full.stories, { id: "US-004", status: "unwalked" }] }));
+		expect(cli(repo, "receipt", "walk/walk-receipt.json", "--all").output.errors).toContain("receipt: US-004 is unwalked");
+	});
+
+	test("a first baseline records map gaps before stories exist, and one feature defect cannot cover another", () => {
+		const repo = fixture("map-keys");
+		exec(repo, ["rm", "-q", "foundation.json", "USER_STORIES.md", "features/README.md", "features/journey.md"]);
+		commit(repo, "bare");
+		const gaps = cli(repo, "baseline", "--owner", "team", "--revision", "1".repeat(40)).output.gaps?.map((gap) => gap.split(" ")[0]);
+		expect(gaps).toContain("map:index");
+		expect(gaps).toContain("doc:USER_STORIES.md");
+		const mapped = fixture("feature-keys");
+		put(mapped, "features/journey.md", feature.replace("## Gotchas\n", ""));
+		bootstrap(mapped, [{ gap: "map:features/journey.md:heading:gotchas", owner: "team", expires: day(10) }]);
+		expect(cli(mapped, "check").status).toBe(0);
+		put(mapped, "features/journey.md", feature.replace("Source: src/**\n", ""));
+		const errors = cli(mapped, "check").output.errors;
+		expect(errors).toContain("[map:features/journey.md:source-line] features/journey.md: missing Source: line");
+		expect(errors).toContain("baseline map:features/journey.md:heading:gotchas: the gap is fixed; remove the entry");
+	});
 });

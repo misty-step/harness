@@ -42,7 +42,18 @@ type Entry = { gap: string; owner: string; expires: string };
 type Baseline = { mode: "bootstrap" | "enforced"; entries: Entry[] };
 
 const storyHeader = /^## (US-\d{3})(?:\s|$)/;
-const gapPattern = /^(?:doc:(?:README\.md|DESIGN\.md|USER_STORIES\.md|adr|postmortems)|stories:format|map:(?:index|features\/[^/]+\.md|US-\d{3})|skill:verify|walk:US-\d{3})$/;
+const featureHeadings: Record<string, string> = {
+	"Sub-features": "sub-features",
+	"How to get to it (user POV)": "how-to-get-to-it",
+	"Driving it": "driving-it",
+	Gotchas: "gotchas",
+};
+// Each independent defect has its own key, so a baselined defect cannot cover a new one in the same file.
+const gapPattern = new RegExp(
+	"^(?:doc:(?:README\\.md|DESIGN\\.md|USER_STORIES\\.md|adr|postmortems)|stories:format|skill:verify|walk:US-\\d{3}" +
+	"|map:(?:index|US-\\d{3}|features/[^/:]+\\.md:(?:unlinked|stories-line|source-line|story:US-\\d{3}|source:[^\\s,]+" +
+	`|heading:(?:${Object.values(featureHeadings).join("|")}))))$`,
+);
 const extensionPath = /^foundation\/extensions\/[^/]+\.json$/;
 const maxBaselineDays = 30;
 const dayMs = 86_400_000;
@@ -181,24 +192,24 @@ function features(repo: string, files: string[], stories: Story[], issues: Issue
 	const mapped = new Set<string>();
 	const result: Feature[] = [];
 	for (const file of featureFiles) {
-		const gap = `map:${file}`;
+		const gap = (defect: string) => `map:${file}:${defect}`;
 		const body = readFileSync(join(repo, file), "utf8");
-		if (!links.has(file.slice("features/".length)) && !links.has(file)) issues.push({ gap, message: `${file}: not linked from features/README.md` });
+		if (!links.has(file.slice("features/".length)) && !links.has(file)) issues.push({ gap: gap("unlinked"), message: `${file}: not linked from features/README.md` });
 		const storyLine = body.match(/^Stories:\s*(.*)$/m)?.[1];
 		const sourceLine = body.match(/^Source:\s*(.*)$/m)?.[1];
-		if (!text(storyLine)) issues.push({ gap, message: `${file}: missing Stories: line` });
-		if (!text(sourceLine)) issues.push({ gap, message: `${file}: missing Source: line` });
+		if (!text(storyLine)) issues.push({ gap: gap("stories-line"), message: `${file}: missing Stories: line` });
+		if (!text(sourceLine)) issues.push({ gap: gap("source-line"), message: `${file}: missing Source: line` });
 		const ids = storyLine?.split(",").map((s) => s.trim()).filter(Boolean) ?? [];
 		const sources = sourceLine?.split(",").map((s) => s.trim()).filter(Boolean) ?? [];
 		for (const id of ids) {
-			if (!live.has(id)) issues.push({ gap, message: `${file}: ${id} is not a live story` });
+			if (!live.has(id)) issues.push({ gap: gap(`story:${id}`), message: `${file}: ${id} is not a live story` });
 			else mapped.add(id);
 		}
 		for (const source of sources) {
-			if (!files.some((f) => globRegex(source).test(f))) issues.push({ gap, message: `${file}: Source: ${source} matches no tracked files` });
+			if (!files.some((f) => globRegex(source).test(f))) issues.push({ gap: gap(`source:${source}`), message: `${file}: Source: ${source} matches no tracked files` });
 		}
-		for (const heading of ["Sub-features", "How to get to it (user POV)", "Driving it", "Gotchas"]) {
-			if (!body.split("\n").some((line) => line.startsWith(`## ${heading}`))) issues.push({ gap, message: `${file}: missing ## ${heading}` });
+		for (const [heading, slug] of Object.entries(featureHeadings)) {
+			if (!body.split("\n").some((line) => line.startsWith(`## ${heading}`))) issues.push({ gap: gap(`heading:${slug}`), message: `${file}: missing ## ${heading}` });
 		}
 		result.push({ file, stories: ids, sources });
 	}
@@ -309,8 +320,9 @@ function contentIssues(repo: string, checkerPath: string): Issue[] {
 		if (checker.error || checker.status !== 0) {
 			issues.push({ gap: "stories:format", message: `check-stories.sh: ${checker.error?.message || (checker.stderr || checker.stdout).trim()}` });
 		}
-		features(repo, tracked(repo), workingStories(repo), issues);
 	}
+	// The map is checked even before stories exist, so a first baseline records every map gap.
+	features(repo, tracked(repo), workingStories(repo), issues);
 	const skillFiles = tracked(repo).filter((f) => /^(?:\.agents\/skills|skills)\/[^/]+\/SKILL\.md$/.test(f));
 	if (!skillFiles.some((f) => {
 		const body = readFileSync(join(repo, f), "utf8");
@@ -349,6 +361,21 @@ function readBaseline(adoption: unknown, live: Set<string>, errors: string[], no
 		if (story && !live.has(story)) errors.push(`baseline ${entry.gap}: ${story} is not a live story`);
 	}
 	return { mode: mode === "bootstrap" ? "bootstrap" : "enforced", entries };
+}
+/** Entries that may excuse a gap now: bootstrap mode, well formed, unexpired, within the horizon, live walk stories. */
+function covering(baseline: Baseline, live: Set<string>, now: string): Map<string, Entry> {
+	if (baseline.mode !== "bootstrap") return new Map();
+	const horizon = addDays(now, maxBaselineDays);
+	return new Map(baseline.entries.filter((entry) => {
+		const story = entry.gap.match(/^walk:(US-\d{3})$/)?.[1];
+		return entry.expires >= now && entry.expires <= horizon && (!story || live.has(story));
+	}).map((entry) => [entry.gap, entry]));
+}
+/** Map diagnostics a valid baseline does not cover; affected-story selection still uses the whole map. */
+function uncovered(report: Issue[], adoption: unknown, live: Set<string>): string[] {
+	const now = today();
+	const excused = covering(readBaseline(adoption, live, [], now), live, now);
+	return report.filter((issue) => !issue.gap || !excused.has(issue.gap)).map(describe);
 }
 /** Gap and expiry of each entry in the extension records a change adds. */
 function extensionRecords(repo: string, base: string, errors: string[]): Map<string, string> {
@@ -405,11 +432,12 @@ function check(options: Options): Result {
 	else validateAdoption(adoption, catalog, catalogBytes, errors, needs_evidence);
 	const issues = contentIssues(options.repo, checkerPath);
 	const now = today();
-	const baseline = readBaseline(adoption, liveIds(workingStories(options.repo)), errors, now);
-	const covering = new Map(baseline.mode === "bootstrap" ? baseline.entries.filter((entry) => entry.expires >= now).map((entry) => [entry.gap, entry]) : []);
+	const live = liveIds(workingStories(options.repo));
+	const baseline = readBaseline(adoption, live, errors, now);
+	const excused = covering(baseline, live, now);
 	const baselined: string[] = [];
 	for (const issue of issues) {
-		const entry = issue.gap ? covering.get(issue.gap) : undefined;
+		const entry = issue.gap ? excused.get(issue.gap) : undefined;
 		if (entry) baselined.push(`${describe(issue)} (owner ${entry.owner}, expires ${entry.expires})`);
 		else errors.push(describe(issue));
 	}
@@ -485,23 +513,22 @@ function receipt(options: Options): Result {
 	if (value.tree !== git(options.repo, "rev-parse", "HEAD^{tree}").trim()) errors.push("receipt: tree differs from HEAD tree");
 	if (value.exit !== 0) errors.push("receipt: exit must be 0");
 	let expected: string[] = [];
+	const adoption = jsonOrUndefined(fileAt(options.repo, "HEAD", "foundation.json"));
+	const storiesAtHead = git(options.repo, "show", "HEAD:USER_STORIES.md");
+	const live = liveIds(parseStories(storiesAtHead));
 	if (options.base) {
 		const base = git(options.repo, "rev-parse", `${options.base}^{commit}`).trim();
 		if (value.base !== base) errors.push("receipt: base differs from requested base");
 		const report: Issue[] = [];
 		expected = affected(options.repo, options.base, report);
-		errors.push(...report.map(describe));
+		errors.push(...uncovered(report, adoption, live));
 	} else if (value.base !== null && !/^[0-9a-f]{40}$/.test(String(value.base))) errors.push("receipt: base must be a commit or null");
-	// A bootstrap baseline may excuse an unaffected story from being walked, until its entry expires.
+	// A valid bootstrap baseline may excuse a story from being walked, but only when the story is provably
+	// unaffected: with --base, or in a full walk (base null) that no change is judged against.
 	const now = today();
-	const adoption = jsonOrUndefined(fileAt(options.repo, "HEAD", "foundation.json"));
-	const walkEntries = new Map<string, string>();
-	if (record(adoption) && adoption.mode === "bootstrap" && Array.isArray(adoption.baseline)) {
-		for (const entry of adoption.baseline) {
-			const id = record(entry) && typeof entry.gap === "string" ? entry.gap.match(/^walk:(US-\d{3})$/)?.[1] : undefined;
-			if (id && record(entry) && isDate(entry.expires)) walkEntries.set(id, entry.expires);
-		}
-	}
+	const baseline = readBaseline(adoption, live, [], now);
+	const excused = covering(baseline, live, now);
+	const provable = options.base !== undefined || value.base === null;
 	const artifacts = new Set<string>();
 	if (!Array.isArray(value.artifacts)) errors.push("receipt: artifacts must be an array");
 	else for (const artifact of value.artifacts) {
@@ -513,7 +540,6 @@ function receipt(options: Options): Result {
 		if (!existsSync(file) || !statSync(file).isFile() || sha256(readFileSync(file)) !== artifact.sha256) errors.push(`receipt: artifact ${name} missing or digest mismatch`);
 	}
 	const reported = new Set<string>();
-	const storiesAtHead = git(options.repo, "show", "HEAD:USER_STORIES.md");
 	// Bind criteria to the candidate: each story must report exactly its numbered criteria at HEAD.
 	const criteriaAtHead = storyCriteria(storiesAtHead);
 	if (!Array.isArray(value.stories)) errors.push("receipt: stories must be an array");
@@ -524,13 +550,13 @@ function receipt(options: Options): Result {
 		reported.add(id);
 		if (!criteriaAtHead.has(id)) { errors.push(`receipt: ${id} is not a story at HEAD`); continue; }
 		if (story.status === "unwalked") {
-			const expires = walkEntries.get(id);
-			if (expires === undefined || expires < now) errors.push(`receipt: ${id} is unwalked`);
+			if (!excused.has(`walk:${id}`)) errors.push(`receipt: ${id} is unwalked`);
+			else if (!provable) errors.push(`receipt: ${id} is unwalked; a change receipt needs --base to prove it unaffected`);
 			else if (expected.includes(id)) errors.push(`receipt: ${id} is affected by this change and must be walked`);
 			continue;
 		}
 		if (story.status !== "pass") errors.push(`receipt: ${id} is ${story.status}`);
-		else if (options.all && walkEntries.has(id)) errors.push(`receipt: ${id} passed; remove baseline walk:${id}`);
+		else if (options.all && baseline.entries.some((entry) => entry.gap === `walk:${id}`)) errors.push(`receipt: ${id} passed; remove baseline walk:${id}`);
 		if (!Array.isArray(story.criteria) || story.criteria.length === 0) errors.push(`receipt: ${id} needs criteria`);
 		else {
 			for (const criterion of story.criteria) {
@@ -544,7 +570,7 @@ function receipt(options: Options): Result {
 	}
 	for (const id of expected) if (!reported.has(id)) errors.push(`receipt: affected ${id} is missing`);
 	if (options.all) {
-		for (const id of liveIds(parseStories(storiesAtHead))) if (!reported.has(id)) errors.push(`receipt: ${id} is missing from a full walk`);
+		for (const id of live) if (!reported.has(id)) errors.push(`receipt: ${id} is missing from a full walk`);
 	}
 	return { ok: errors.length === 0, errors };
 }
@@ -576,7 +602,10 @@ try {
 		else if (options.command === "affected") {
 			const report: Issue[] = [];
 			const stories = affected(options.repo, options.base!, report);
-			result = { ok: report.length === 0, errors: report.map(describe), stories };
+			const adoptionPath = join(options.repo, "foundation.json");
+			const adoption = existsSync(adoptionPath) ? readJson(adoptionPath) : undefined;
+			const errors = uncovered(report, adoption, liveIds(workingStories(options.repo)));
+			result = { ok: errors.length === 0, errors, stories };
 		} else result = receipt(options);
 	} catch (error) { result = { ok: false, errors: [error instanceof Error ? error.message : String(error)] }; }
 	print(result, options.json, options.command);
