@@ -16,11 +16,12 @@
  * back, deletes it from the agent's home, and grades the copy with the pull
  * request's own tests ("hidden tests").
  *
- * Egress: the runner locks the agent user's network (an iptables owner match) to
- * loopback, DNS, the model proxy, and any `--agent-egress` hosts. It re-applies the
- * lock at every start and refuses to run while the agent can reach GitHub or cannot
- * reach the model and Jev routes. In the pilot, both arms of one task fetched its
- * merged fix from GitHub.
+ * Egress: every model call, Jev included, goes through a credential-injecting proxy
+ * (`--openrouter-base`, an exe.dev http-proxy integration), so no key is on the VM.
+ * The runner locks the agent user's network (an iptables owner match) to loopback,
+ * DNS, and that proxy, re-applies the lock at every start, and refuses to run while
+ * the agent can reach GitHub or cannot reach the proxy. In the pilot, both arms of
+ * one task fetched its merged fix from GitHub.
  *
  * Usage (on the evaluation VM):
  *   bun eval/vibe.ts --manifest m.json --hidden dir --out dir --agent-user evalagent \
@@ -51,25 +52,18 @@ const only = args.get("only")?.split(",").filter(Boolean);
 const arms = (args.get("arms") ?? "omp,s1s2,pi").split(",") as Arm[];
 const seed = Number(args.get("seed") ?? 26);
 const timeoutMs = Number(args.get("timeout-min") ?? 25) * 60_000;
-const modelSpec = args.get("model") ?? "openai-codex/gpt-6-luna";
+const modelSpec = need("model");
 const provider = modelSpec.slice(0, modelSpec.indexOf("/"));
 const modelId = modelSpec.slice(modelSpec.indexOf("/") + 1);
+if (provider !== "openrouter") fail("--model must be openrouter/<id>: the egress lock admits only the OpenRouter proxy");
+const openrouterBase = need("openrouter-base").replace(/\/$/, "");
 const thinking = args.get("thinking") ?? "max";
 const verbosity = args.get("verbosity") ?? "";
 const maxOutput = args.get("max-output") ?? "";
-const quotaEmail = args.get("quota-email") ?? "";
-const quotaMax = Number(args.get("quota-max") ?? 0.95);
-// A credential-injecting proxy (exe.dev http-proxy integration) keeps the OpenRouter key off the VM.
-const openrouterBase = (args.get("openrouter-base") ?? "").replace(/\/$/, "");
 const spendLimit = Number(args.get("spend-limit") ?? 0);
 const PROXY_PLACEHOLDER = "injected-by-exe-proxy";
-const jevKey = openrouterBase ? PROXY_PLACEHOLDER : (process.env.S1S2_JEV_KEY || process.env.OPENROUTER_API_KEY || "").trim();
-if (arms.includes("s1s2") && !jevKey) fail("S1S2_JEV_KEY, OPENROUTER_API_KEY, or --openrouter-base is required for the s1s2 arm (Jev)");
-if (spendLimit > 0 && !openrouterBase) fail("--spend-limit needs --openrouter-base to read the key's usage");
 // One OpenRouter upstream for every arm, fallbacks off (PARITY_UPSTREAM in parity.ts).
 const upstream = args.get("upstream") ?? "";
-if (upstream && provider !== "openrouter") fail("--upstream pins an OpenRouter upstream provider; the model is not on OpenRouter");
-const agentEgress = (args.get("agent-egress") ?? "").split(",").filter(Boolean);
 
 const runner = userInfo().username;
 const agentHome = `/home/${agentUser}`;
@@ -103,22 +97,23 @@ function ipv4(host: string): string[] {
 	return ips.length > 0 ? ips : fail(`cannot resolve ${host}`);
 }
 
-/** Idempotently limit the agent user's egress; see "Egress" above. */
+/**
+ * Limit the agent user's egress; see "Egress" above. One `iptables-restore` transaction
+ * per table replaces the whole chain, so it is never empty or partial, even while
+ * another runner's agent is mid-run, and a failed replacement keeps the previous rules.
+ */
 function lockAgentEgress(): void {
 	const uid = spawnSync("id", ["-u", agentUser], { encoding: "utf8" }).stdout.trim() || fail(`no user ${agentUser}`);
-	const hosts = [...(openrouterBase ? [new URL(openrouterBase).hostname] : []), ...agentEgress];
-	const allow = hosts.flatMap(ipv4).map((ip) => ["-d", `${ip}/32`, "-j", "ACCEPT"]);
-	const dns = ["udp", "tcp"].map((proto) => ["-p", proto, "--dport", "53", "-j", "ACCEPT"]);
-	const reject = [["-p", "tcp", "-j", "REJECT", "--reject-with", "tcp-reset"], ["-j", "REJECT"]];
-	const loopback = ["-o", "lo", "-j", "ACCEPT"];
-	const tables: [string, string[][]][] = [
-		["iptables", [loopback, ...dns, ...allow, ...reject]],
-		["ip6tables", [loopback, ...reject]],
+	const allow = ipv4(new URL(openrouterBase).hostname).map((ip) => `-d ${ip}/32 -j ACCEPT`);
+	const reject = ["-p tcp -j REJECT --reject-with tcp-reset", "-j REJECT"];
+	const tables: [string, string[]][] = [
+		["iptables", ["-o lo -j ACCEPT", "-p udp --dport 53 -j ACCEPT", "-p tcp --dport 53 -j ACCEPT", ...allow, ...reject]],
+		["ip6tables", ["-o lo -j ACCEPT", ...reject]],
 	];
 	for (const [tool, rules] of tables) {
-		spawnSync("sudo", ["-n", tool, "-N", "S1S2-AGENT"], { cwd: "/", stdio: "ignore" }); // exists after the first start
-		sudo([tool, "-F", "S1S2-AGENT"]);
-		for (const rule of rules) sudo([tool, "-A", "S1S2-AGENT", ...rule]);
+		const input = `*filter\n:S1S2-AGENT - [0:0]\n${rules.map((rule) => `-A S1S2-AGENT ${rule}\n`).join("")}COMMIT\n`;
+		const restore = spawnSync("sudo", ["-n", `${tool}-restore`, "--noflush"], { cwd: "/", input, encoding: "utf8" });
+		if (restore.status !== 0) fail(`${tool}-restore failed: ${restore.stderr}`);
 		const match = ["-m", "owner", "--uid-owner", uid, "-j", "S1S2-AGENT"];
 		if (spawnSync("sudo", ["-n", tool, "-C", "OUTPUT", ...match], { cwd: "/", stdio: "ignore" }).status !== 0) sudo([tool, "-I", "OUTPUT", "1", ...match]);
 	}
@@ -130,10 +125,7 @@ lockAgentEgress();
 for (const url of ["https://github.com", "https://raw.githubusercontent.com"]) {
 	if (agentReaches(url)) fail(`agent user ${agentUser} can reach ${url}; the egress lock is not real`);
 }
-const routes = openrouterBase ? [`${openrouterBase}/api/v1/models`] : agentEgress.map((host) => `https://${host}/`);
-if (arms.includes("s1s2") && !openrouterBase) routes.push("https://openrouter.ai/api/v1/models");
-if (routes.length === 0) fail("the egress lock leaves no model route: pass --openrouter-base or --agent-egress");
-for (const url of routes) if (!agentReaches(url)) fail(`agent user ${agentUser} cannot reach ${url} under the egress lock`);
+if (!agentReaches(`${openrouterBase}/api/v1/models`)) fail(`agent user ${agentUser} cannot reach ${openrouterBase} under the egress lock`);
 
 function git(cwd: string, ...argv: string[]): string {
 	const result = spawnSync("git", argv, { cwd, encoding: "utf8", maxBuffer: 256 * 1024 * 1024 });
@@ -185,21 +177,8 @@ function shuffled<T>(items: readonly T[]): T[] {
 	return copy;
 }
 
-function quotaUsed(): number | null {
-	if (!quotaEmail) return null;
-	const result = spawnSync("omp", ["usage", "--json", "-p", provider], { encoding: "utf8", cwd: out, timeout: 60_000 });
-	try {
-		const reports = (JSON.parse(result.stdout) as { reports: { metadata?: { email?: string }; limits: { label: string; amount: { usedFraction: number } }[] }[] }).reports;
-		const report = reports.find((entry) => entry.metadata?.email === quotaEmail);
-		return report?.limits.find((limit) => limit.label === "7 days")?.amount.usedFraction ?? null;
-	} catch {
-		return null;
-	}
-}
-
 /** USD the OpenRouter key has spent so far, read through the proxy; null when unreadable. */
 async function keySpend(): Promise<number | null> {
-	if (!openrouterBase) return null;
 	try {
 		const response = await fetch(`${openrouterBase}/api/v1/key`, { signal: AbortSignal.timeout(30_000) });
 		const usage = ((await response.json()) as { data?: { usage?: unknown } }).data?.usage;
@@ -313,7 +292,6 @@ const wrapper =
 	"You are working in a Git repository (the current directory). Complete the task below without asking questions. " +
 	"Leave your changes in the working tree; do not commit, push, or open pull requests. When you finish, reply with a short summary of what you changed and how you verified it.\n\nTask:\n";
 
-const quotaStart = quotaUsed();
 const spendStart = await keySpend();
 if (spendLimit > 0 && spendStart === null) fail("cannot read the key's spend through the proxy");
 const results: Record<string, unknown>[] = [];
@@ -324,11 +302,6 @@ outer: for (const task of tasks) {
 	const branch = `vibe-base-${task.id}`;
 	git(src, "branch", "-f", branch, task.base);
 	for (const arm of shuffled(arms)) {
-		const used = quotaUsed();
-		if (used !== null && used >= quotaMax) {
-			stopped = `quota guard: ${quotaEmail} 7-day usage ${used} >= ${quotaMax}`;
-			break outer;
-		}
 		const spent = spendLimit > 0 ? ((await keySpend()) ?? Number.POSITIVE_INFINITY) - (spendStart ?? 0) : 0;
 		if (spendLimit > 0 && spent >= spendLimit) {
 			stopped = `spend guard: $${spent.toFixed(4)} spent >= $${spendLimit}`;
@@ -368,7 +341,7 @@ outer: for (const task of tasks) {
 			...(maxOutput ? { PARITY_MAX_OUTPUT: maxOutput } : {}),
 			...(upstream ? { PARITY_UPSTREAM: upstream } : {}),
 			// The proxy injects the real key; the harnesses only need a non-empty credential to call it.
-			...(openrouterBase ? { OPENROUTER_API_KEY: PROXY_PLACEHOLDER } : {}),
+			OPENROUTER_API_KEY: PROXY_PLACEHOLDER,
 		};
 		const prompt = wrapper + task.statement;
 		const sessions = join(work, "sessions");
@@ -382,10 +355,10 @@ outer: for (const task of tasks) {
 			env.PI_CODING_AGENT_DIR = piAgentDir;
 			const extensions = arm === "s1s2" ? ["-e", s1s2Extension, "-e", parityExtension] : ["-e", parityExtension];
 			if (arm === "s1s2") {
-				// System 1 reads and then deletes this variable, so agent tool subprocesses never inherit it.
-				env.S1S2_JEV_KEY = jevKey;
+				// The proxy injects the real key; System 1 needs only a non-empty credential and the proxy endpoint.
+				env.S1S2_JEV_KEY = PROXY_PLACEHOLDER;
 				env.S1S2_RUN_DIR = join(work, "s1");
-				if (openrouterBase) env.S1S2_JEV_ENDPOINT = `${openrouterBase}/api/alpha/decisions`;
+				env.S1S2_JEV_ENDPOINT = `${openrouterBase}/api/alpha/decisions`;
 			}
 			argv = ["--mode", "json", "--no-extensions", ...extensions, "--no-skills", "--no-prompt-templates", "--provider", provider, "--model", modelId, "--thinking", thinking, "--session-dir", sessions, "-p", prompt];
 		}
@@ -443,10 +416,9 @@ outer: for (const task of tasks) {
 	}
 }
 
-const quotaEnd = quotaUsed();
 const spendEnd = await keySpend();
 writeFileSync(
 	join(out, "vibe.json"),
-	`${JSON.stringify({ version: 1, model: `${provider}/${modelId}`, thinking, upstream, seed, arms, agentUser, agentEgress, quotaEmail, quotaStart, quotaEnd, spendStart, spendEnd, stopped, results }, null, 2)}\n`,
+	`${JSON.stringify({ version: 1, model: `${provider}/${modelId}`, thinking, upstream, seed, arms, agentUser, spendStart, spendEnd, stopped, results }, null, 2)}\n`,
 );
 console.log(stopped ?? "complete");
