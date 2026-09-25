@@ -108,6 +108,35 @@ Evidence: `scripts/references.test.ts`,
 `agent-config/guidance/communication-and-verification.md`;
 disposable Pi and OMP installer smoke.
 
+## US-024 Enforce repository foundations with required checks
+
+Statement: When I change a project, I want its foundations checked against
+its declared standard and affected user journeys, so an incomplete map or
+unwalked behavior cannot be mistaken for release evidence.
+
+Criteria:
+1. WHEN a repository adopts the Foundation Standard, THE SYSTEM SHALL validate
+   every catalog obligation and approved default against the pinned catalog
+   digest and report pending items as needs-evidence, not compliance passes.
+2. IF required project documents, mapped live stories, tracked source globs,
+   or the verify-skill sections are missing, THEN THE SYSTEM SHALL fail the
+   repository check with the deficient item named.
+3. WHEN a base revision is supplied, THE SYSTEM SHALL identify live stories
+   affected by source files, feature files, and edited story sections.
+4. IF a walk receipt omits or fails an affected story or criterion, cites an
+   unlisted or tampered artifact, or names a different head or tree, THEN THE
+   SYSTEM SHALL reject it.
+5. WHEN a receipt binds the candidate head and tree, passes every affected
+   story and criterion, and matches all cited artifact digests, THE SYSTEM
+   SHALL accept it.
+
+No-gos: no deployment, automatic waivers, or replacing an actual story walk
+with a syntactic receipt check.
+
+Evidence: `agent-config/bin/foundation-check.test.ts`,
+`agent-config/skills/foundation/foundation-standard.test.ts`;
+`bun agent-config/bin/foundation-check.ts --help`.
+
 ## Capability: Deployment
 
 ## US-002 Deploy shared primitives
@@ -132,38 +161,69 @@ Evidence: `./scripts/verify-installers`
 
 ## US-003 Offload heavy execution to exe.dev
 
-Statement: When an agent needs to run heavy test suites, coverage, browser
-verification, or long-running tasks, I want work offloaded to an exe.dev
-persistent VM, so workstation desktop RAM and responsiveness are preserved.
+Statement: When an agent needs to run heavy suites, browser verification, or
+long-running services, I want execution in my project's owned exe.dev workspace,
+so desktop responsiveness is preserved without case-by-case VM approval.
 
 Criteria:
-1. WHEN an agent identifies a heavy or long-running workload, THE SYSTEM SHALL
-   require offloading to an approved exe.dev VM using `skill://using-exe-dev`.
-2. WHERE local execution is bounded with explicit concurrency caps, THE SYSTEM
-   SHALL permit execution under run-scoped `~/.cache/tmp` scratch.
-3. IF an uncontained or unbounded execution is attempted locally, THEN THE
-   SYSTEM SHALL reject running on `/tmp` and require explicit concurrency limits.
+1. WHEN heavy or long-running execution is needed, THE SYSTEM SHALL direct it
+   to the project's `<project>-ws` workspace through `ws`.
+2. WHERE checks are bounded with explicit low concurrency caps, THE SYSTEM
+   SHALL permit local execution with run-scoped `~/.cache/tmp` scratch.
+3. IF execution requires an additional VM beyond the one project-owned VM
+   covered by the 2026-09-25 standing approval within the $40 exe.dev plan,
+   THEN THE SYSTEM SHALL require separate operator approval.
+4. WHILE stage A is in effect, THE SYSTEM SHALL keep agent sessions and model
+   credentials on the desktop.
 
-No-gos: no automatic VM creation without authorized account and spend limits.
+No-gos: no automatic additional VM or model-credential transfer.
 
-Evidence: `agent-config/guidance/host-resources.md`
+Evidence: `agent-config/guidance/host-resources.md`,
+`omp-config/global/AGENTS.md`
+
+## US-025 Work in an owned exe.dev project workspace
+
+Statement: When I need to execute and collect evidence away from my local
+checkout, I want a repeatable project workspace, so my source and proof stay
+attached to the task without moving my agent credentials.
+
+Criteria:
+1. WHEN `ws up --task T` runs, THE SYSTEM SHALL push a snapshot including
+   non-ignored untracked files and create a remote task worktree without changing
+   the local index or HEAD.
+2. WHEN the local working tree matches committed HEAD, THE SYSTEM SHALL check
+   out that exact commit on the VM so story-walk receipts bind the same HEAD.
+3. WHEN `ws run --task T --env NAME -- cmd` runs, THE SYSTEM SHALL execute in
+   the remote worktree with login PATH and forward named values only over stdin.
+4. WHEN remote evidence is generated, THE SYSTEM SHALL copy requested files
+   locally with SHA-256 digests via `ws pull --task T`.
+5. IF any remote evidence is unpulled or changed, THEN THE SYSTEM SHALL refuse
+   `ws down --task T` without removing the worktree.
+6. WHEN a task worktree is brought up or down, THE SYSTEM SHALL add or drop its
+   owner-scoped lease while preserving the standing VM.
+
+No-gos: no transfer of model credentials or automatic removal of project VMs.
+
+Evidence: `agent-config/bin/ws.test.ts`
 
 ## Capability: Session close
 
 ## US-004 Close session-owned host resources
 
-Statement: When I finish a session that created git worktrees or exe.dev VMs, I
-want a single check that fails until those creates are leased and then dropped,
-so leftover machines and trees cannot be treated as done.
+Statement: When I finish a session that created worktrees or non-standing VMs,
+I want a check scoped to my own live leases, so unrelated sessions can continue
+and stale resources receive deliberate review.
 
 Criteria:
-1. WHEN a worktree or exe.dev VM is created in-session, THE SYSTEM SHALL record
-   a lease via `session-close.ts add` in the same turn.
-2. WHEN any lease remains, `session-close.ts` SHALL exit nonzero.
-3. IF the lease directory is empty of valid leases, THEN `session-close.ts`
-   SHALL exit 0.
-4. IF a lease file is corrupt, THEN `session-close.ts` SHALL exit nonzero
-   without treating the store as clean.
+1. WHEN a local worktree or non-standing exe.dev VM is created in-session,
+   THE SYSTEM SHALL record an owner-scoped lease in the same turn.
+2. WHEN the caller owns live leases, `session-close.ts check` SHALL exit 2;
+   WHEN only foreign leases remain, THE SYSTEM SHALL exit 0 and print them.
+3. WHEN an expired, orphaned, or legacy ownerless lease exists,
+   `session-close.ts review` SHALL list it and exit 3 without deleting it.
+4. IF a lease file is corrupt, THEN `session-close.ts` SHALL exit 1 without
+   treating the store as clean.
+5. WHEN a lease is dropped by target, THE SYSTEM SHALL print its recorded owner.
 
 No-gos: no destruction of unleased or standing VMs; no global scan of other
 sessions' worktrees; no network in the unit check.

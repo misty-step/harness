@@ -60,10 +60,10 @@ arguments (including `--check`); use `../scripts/verify omp` for isolated checks
 
 Preflight validates every selected input, then writes. Unset selection means
 `all`: owned config overlay, guidance, MCP, scopes, agents, skills, themes,
-extensions, `omp-grievances`, `pass-env`, and `design-check`. It does not delete
-foreign skills or agents, and it does not import live secrets into this
-checkout. Skills, shared guidance sections, `pass-env`, and `design-check` deploy from the
-sibling `agent-config` checkout
+extensions, `omp-grievances`, `pass-env`, `design-check`, `foundation-check`,
+and `ws`. It does not delete foreign skills or agents, and it does not import
+live secrets into this checkout. Skills, shared guidance sections, and those
+shared launchers deploy from the sibling `agent-config` checkout
 (default `$repo_dir/../agent-config`; override with `AGENT_CONFIG_DIR`); the
 installer fails closed when it is missing.
 

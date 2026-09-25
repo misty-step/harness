@@ -46,11 +46,11 @@ requires single-authority ownership and a verified backup/restore path.
 ## Execution environments
 
 Follow the shared Host resources exe.dev mandate: offload heavy and long-running
-execution to approved persistent workspaces (`skill://using-exe-dev`); keep
-native desktop, GPU, offline, and data-constrained work local.
-
-Before provisioning or recurring work, resolve account, capabilities, spend,
-and lifetime. Local execution follows the shared Host resources rule.
+execution to each project's owned workspace with `ws` (`skill://using-exe-dev`);
+keep native desktop, GPU, offline, and data-constrained work local. Standing
+operator approval (2026-09-25) covers one `<project>-ws` VM per project within
+the current $40 exe.dev plan. Other VMs need approval. Agent sessions and
+model credentials remain local pending a separate operator decision.
 
 Parallel work: subagents that write overlapping files, or experiments you may
 discard, run as `task` items with `isolated: true`; their changes return as a

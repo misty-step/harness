@@ -16,6 +16,11 @@ data, and user-journey capabilities to the standard. Keep these distinctions cle
   evidence layers. Never promote an SDK, config file, schema, or declared pass into
   proof of live behavior.
 
+The standalone `foundation-check` launcher checks repository adoption,
+documents, feature mapping, and story-walk receipts. A Foundation assessment
+may read its result but remains read-only; the launcher, not this skill or
+pointer, is the validator.
+
 ## Retained operating preferences
 
 When hosting choices matter, compare local, edge-native, and persistent Linux execution; a hybrid must remove more work than its boundary adds. This is a design preference, not another compliance obligation.

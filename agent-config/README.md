@@ -23,12 +23,40 @@ harness repo. When in doubt, leave it in the harness.
 | `skills/check-cadence/` | Risk-based PR/nightly/weekly check selection without losing owned gates (US-023) |
 | `guidance/*.md` | Shared global-guidance sections, spliced at the harness marker |
 | `bin/pass-env.ts` | Standalone pass-backed environment launcher |
+| `bin/ws.ts` | Owned exe.dev project workspace launcher: snapshot, task worktrees, remote commands, evidence, browser tunnel (US-025) |
+| `bin/foundation-check.ts` | Repository foundation validator: adoption record, documents, feature map, verify skill, affected stories, walk receipts (US-024) |
 | `bin/design-check.ts` | Standalone player-surface copy checker, installed as `~/.local/bin/design-check` |
 | `bin/semantic-check.ts` | Source candidate for an advisory semantic-quality CLI |
 | `bin/semantic-held-out.ts` | Source-only held-out evaluator for the semantic-quality candidate |
 | `system-one/` | Shared typed judgments, immutable Git adapters, fixtures, and local cache |
 | `candidates/effective-verification/` | Child-mandate skill source, kept outside automatic skill deployment |
 | `../.githooks/pre-push` | Workspace secret scanners, wired by root `scripts/bootstrap` |
+
+## Workspace CLI (US-025)
+
+From the checkout of record: `ws init` creates or reuses the standing
+`<project>-ws` VM and runs `.exe/setup.sh` when its digest changes. `ws up --task T`
+pushes a snapshot (including non-ignored untracked files) and leases a detached
+task worktree; `ws sync --task T` refreshes it. Run commands with
+`ws run --task T -- cmd`; to forward a named secret only over stdin use
+`pass-env run -e NAME=entry -- ws run --task T --env NAME -- cmd`.
+`ws browser --task T` prints a `cdp_url`; `ws browser --task T --stop` stops
+the owned tunnel and Chromium. `ws pull --task T [paths]` saves evidence and
+SHA-256 digests to `~/.cache/tmp/ws/<project>/<task>/`; `ws down --task T`
+refuses unpulled or changed evidence, then removes the worktree and lease,
+not the VM. `ws attach --task T` opens a remote shell; `ws status` checks
+VM presence. Agent sessions and model credentials stay local.
+
+## Foundation check (US-024)
+
+`foundation-check check --repo DIR` validates `foundation.json` against the
+Foundation Standard catalog, the first-class documents, `check-stories.sh`,
+the `features/` map, and a verify skill with Launch/Doctor/Drive/Evidence/Cleanup
+sections. `affected --base REV` prints the live stories a diff touches;
+`receipt PATH --base REV` validates a same-job story-walk receipt against HEAD,
+its tree, the affected stories, and artifact digests. Repository CI pins this
+file from a harness revision; the deployed launcher resolves the catalog and
+story checker from the installed skills (`$PI_CODING_AGENT_DIR` first).
 
 ## Install contract
 
@@ -67,8 +95,8 @@ Shared guidance sections may reference shared primitives and vehicles deployed a
 
 | Harness | Skills | Guidance | Launcher |
 | --- | --- | --- | --- |
-| `pi-config` | all | pokayoke, communication-and-verification, host-resources, user-stories, session-close, design-routing | `pass-env`, `design-check` |
-| `omp-config` | all | pokayoke, communication-and-verification, host-resources, user-stories, session-close, design-routing | `pass-env`, `design-check` |
+| `pi-config` | all | pokayoke, communication-and-verification, host-resources, user-stories, session-close, design-routing | `pass-env`, `design-check`, `foundation-check`, `ws` |
+| `omp-config` | all | pokayoke, communication-and-verification, host-resources, user-stories, session-close, design-routing | `pass-env`, `design-check`, `foundation-check`, `ws` |
 
 `omp-config`'s own guidance file adds Working together (including model roles),
 Execution environments (exe.dev vehicle), and Authority
