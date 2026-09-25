@@ -1,0 +1,1436 @@
+{
+  "version": 1,
+  "recorded": "2026-09-25",
+  "model": "openrouter/deepseek/deepseek-v4.1-flash",
+  "thinking": "high",
+  "maxOutputTokens": 384000,
+  "upstream": "deepseek",
+  "arms": [
+    "pi",
+    "s1s2"
+  ],
+  "replicates": 2,
+  "seed": 26,
+  "runnerRevisions": {
+    "firstPass": "fea8212",
+    "resumed": "e9222ce"
+  },
+  "judges": [
+    "anthropic/claude-opus-5-5 high",
+    "google-antigravity/gemini-3.1-pro high",
+    "xai-oauth/grok-4.7 high",
+    "typesafe/jev-1.13 panel"
+  ],
+  "runs": [
+    {
+      "task": "h2-r1",
+      "arm": "pi",
+      "size": "L",
+      "exit": 0,
+      "wallSec": 346,
+      "parentTurns": 65,
+      "tokens": {
+        "input": 64577,
+        "output": 56450,
+        "cacheRead": 4433024,
+        "cacheWrite": 0
+      },
+      "billedUsd": 0.0569,
+      "modelUpstreams": {
+        "DeepSeek": 65
+      },
+      "hiddenPass": false,
+      "regressPass": true,
+      "hiddenTests": [
+        {
+          "pass": 4,
+          "fail": 1
+        },
+        {
+          "pass": 4,
+          "fail": 0
+        }
+      ],
+      "deliverable": {
+        "files": 12,
+        "added": 526,
+        "deleted": 12
+      },
+      "judgeMean": 3.6667,
+      "judgeFirstPlaces": 0,
+      "jevSuccess": 3.15,
+      "jevBest": false,
+      "system1": null,
+      "parity": {
+        "api": "chat_completions",
+        "model": "deepseek/deepseek-v4.1-flash",
+        "reasoning": {
+          "effort": "high"
+        },
+        "store": false,
+        "provider": {
+          "order": [
+            "deepseek"
+          ],
+          "allow_fallbacks": false
+        },
+        "max_completion_tokens": 384000
+      }
+    },
+    {
+      "task": "h2-r1",
+      "arm": "s1s2",
+      "size": "L",
+      "exit": 0,
+      "wallSec": 558,
+      "parentTurns": 53,
+      "tokens": {
+        "input": 90347,
+        "output": 58623,
+        "cacheRead": 4587008,
+        "cacheWrite": 0
+      },
+      "billedUsd": 0.0645,
+      "modelUpstreams": {
+        "DeepSeek": 53
+      },
+      "hiddenPass": true,
+      "regressPass": true,
+      "hiddenTests": [
+        {
+          "pass": 5,
+          "fail": 0
+        },
+        {
+          "pass": 4,
+          "fail": 0
+        }
+      ],
+      "deliverable": {
+        "files": 11,
+        "added": 301,
+        "deleted": 8
+      },
+      "judgeMean": 4.5,
+      "judgeFirstPlaces": 3,
+      "jevSuccess": 3.73,
+      "jevBest": true,
+      "system1": {
+        "calls": 15,
+        "failedCalls": 0,
+        "costUsd": 0.002,
+        "latencyMs": 3680,
+        "actions": {
+          "none": 3,
+          "unchanged": 2,
+          "elided": 5,
+          "note_narrow_search": 3,
+          "check_failed": 1,
+          "verified": 1
+        }
+      },
+      "parity": {
+        "api": "chat_completions",
+        "model": "deepseek/deepseek-v4.1-flash",
+        "reasoning": {
+          "effort": "high"
+        },
+        "store": false,
+        "provider": {
+          "order": [
+            "deepseek"
+          ],
+          "allow_fallbacks": false
+        },
+        "max_completion_tokens": 384000
+      }
+    },
+    {
+      "task": "h2-r2",
+      "arm": "pi",
+      "size": "L",
+      "exit": 0,
+      "wallSec": 303,
+      "parentTurns": 50,
+      "tokens": {
+        "input": 54842,
+        "output": 58923,
+        "cacheRead": 3127424,
+        "cacheWrite": 0
+      },
+      "billedUsd": 0.053,
+      "modelUpstreams": {
+        "DeepSeek": 50
+      },
+      "hiddenPass": false,
+      "regressPass": true,
+      "hiddenTests": [
+        {
+          "pass": 4,
+          "fail": 1
+        },
+        {
+          "pass": 4,
+          "fail": 0
+        }
+      ],
+      "deliverable": {
+        "files": 13,
+        "added": 485,
+        "deleted": 11
+      },
+      "judgeMean": 4.25,
+      "judgeFirstPlaces": 2,
+      "jevSuccess": 3.29,
+      "jevBest": false,
+      "system1": null,
+      "parity": {
+        "api": "chat_completions",
+        "model": "deepseek/deepseek-v4.1-flash",
+        "reasoning": {
+          "effort": "high"
+        },
+        "store": false,
+        "provider": {
+          "order": [
+            "deepseek"
+          ],
+          "allow_fallbacks": false
+        },
+        "max_completion_tokens": 384000
+      }
+    },
+    {
+      "task": "h2-r2",
+      "arm": "s1s2",
+      "size": "L",
+      "exit": 0,
+      "wallSec": 264,
+      "parentTurns": 57,
+      "tokens": {
+        "input": 53861,
+        "output": 42827,
+        "cacheRead": 3237888,
+        "cacheWrite": 0
+      },
+      "billedUsd": 0.0447,
+      "modelUpstreams": {
+        "DeepSeek": 57
+      },
+      "hiddenPass": true,
+      "regressPass": true,
+      "hiddenTests": [
+        {
+          "pass": 5,
+          "fail": 0
+        },
+        {
+          "pass": 4,
+          "fail": 0
+        }
+      ],
+      "deliverable": {
+        "files": 12,
+        "added": 454,
+        "deleted": 9
+      },
+      "judgeMean": 3.75,
+      "judgeFirstPlaces": 1,
+      "jevSuccess": 3.3,
+      "jevBest": true,
+      "system1": {
+        "calls": 13,
+        "failedCalls": 0,
+        "costUsd": 0.0012,
+        "latencyMs": 2941,
+        "actions": {
+          "none": 8,
+          "elided": 1,
+          "note_narrow_search": 1,
+          "unchanged": 1,
+          "check_failed": 1,
+          "verified": 1
+        }
+      },
+      "parity": {
+        "api": "chat_completions",
+        "model": "deepseek/deepseek-v4.1-flash",
+        "reasoning": {
+          "effort": "high"
+        },
+        "store": false,
+        "provider": {
+          "order": [
+            "deepseek"
+          ],
+          "allow_fallbacks": false
+        },
+        "max_completion_tokens": 384000
+      }
+    },
+    {
+      "task": "h21-r1",
+      "arm": "pi",
+      "size": "M",
+      "exit": 0,
+      "wallSec": 203,
+      "parentTurns": 46,
+      "tokens": {
+        "input": 40582,
+        "output": 35549,
+        "cacheRead": 1815168,
+        "cacheWrite": 0
+      },
+      "billedUsd": 0.0329,
+      "modelUpstreams": {
+        "DeepSeek": 46
+      },
+      "hiddenPass": true,
+      "regressPass": true,
+      "hiddenTests": [
+        {
+          "pass": 25,
+          "fail": 0
+        }
+      ],
+      "deliverable": {
+        "files": 4,
+        "added": 213,
+        "deleted": 6
+      },
+      "judgeMean": 4.4167,
+      "judgeFirstPlaces": 1,
+      "jevSuccess": 4.140000000000001,
+      "jevBest": false,
+      "system1": null,
+      "parity": {
+        "api": "chat_completions",
+        "model": "deepseek/deepseek-v4.1-flash",
+        "reasoning": {
+          "effort": "high"
+        },
+        "store": false,
+        "provider": {
+          "order": [
+            "deepseek"
+          ],
+          "allow_fallbacks": false
+        },
+        "max_completion_tokens": 384000
+      }
+    },
+    {
+      "task": "h21-r1",
+      "arm": "s1s2",
+      "size": "M",
+      "exit": 0,
+      "wallSec": 141,
+      "parentTurns": 33,
+      "tokens": {
+        "input": 33212,
+        "output": 25253,
+        "cacheRead": 1066624,
+        "cacheWrite": 0
+      },
+      "billedUsd": 0.0244,
+      "modelUpstreams": {
+        "DeepSeek": 33
+      },
+      "hiddenPass": true,
+      "regressPass": true,
+      "hiddenTests": [
+        {
+          "pass": 25,
+          "fail": 0
+        }
+      ],
+      "deliverable": {
+        "files": 4,
+        "added": 189,
+        "deleted": 5
+      },
+      "judgeMean": 4.8333,
+      "judgeFirstPlaces": 2,
+      "jevSuccess": 3.96,
+      "jevBest": true,
+      "system1": {
+        "calls": 9,
+        "failedCalls": 0,
+        "costUsd": 0.0011,
+        "latencyMs": 1968,
+        "actions": {
+          "briefed": 1,
+          "none": 4,
+          "note_narrow_search": 1,
+          "unchanged": 2,
+          "verified": 1
+        }
+      },
+      "parity": {
+        "api": "chat_completions",
+        "model": "deepseek/deepseek-v4.1-flash",
+        "reasoning": {
+          "effort": "high"
+        },
+        "store": false,
+        "provider": {
+          "order": [
+            "deepseek"
+          ],
+          "allow_fallbacks": false
+        },
+        "max_completion_tokens": 384000
+      }
+    },
+    {
+      "task": "h21-r2",
+      "arm": "pi",
+      "size": "M",
+      "exit": 0,
+      "wallSec": 203,
+      "parentTurns": 46,
+      "tokens": {
+        "input": 47780,
+        "output": 37943,
+        "cacheRead": 2142976,
+        "cacheWrite": 0
+      },
+      "billedUsd": 0.0364,
+      "modelUpstreams": {
+        "DeepSeek": 46
+      },
+      "hiddenPass": true,
+      "regressPass": true,
+      "hiddenTests": [
+        {
+          "pass": 25,
+          "fail": 0
+        }
+      ],
+      "deliverable": {
+        "files": 4,
+        "added": 202,
+        "deleted": 7
+      },
+      "judgeMean": 4.8333,
+      "judgeFirstPlaces": 3,
+      "jevSuccess": 3.93,
+      "jevBest": true,
+      "system1": null,
+      "parity": {
+        "api": "chat_completions",
+        "model": "deepseek/deepseek-v4.1-flash",
+        "reasoning": {
+          "effort": "high"
+        },
+        "store": false,
+        "provider": {
+          "order": [
+            "deepseek"
+          ],
+          "allow_fallbacks": false
+        },
+        "max_completion_tokens": 384000
+      }
+    },
+    {
+      "task": "h21-r2",
+      "arm": "s1s2",
+      "size": "M",
+      "exit": 0,
+      "wallSec": 116,
+      "parentTurns": 26,
+      "tokens": {
+        "input": 23790,
+        "output": 22191,
+        "cacheRead": 624384,
+        "cacheWrite": 0
+      },
+      "billedUsd": 0.0193,
+      "modelUpstreams": {
+        "DeepSeek": 26
+      },
+      "hiddenPass": true,
+      "regressPass": true,
+      "hiddenTests": [
+        {
+          "pass": 25,
+          "fail": 0
+        }
+      ],
+      "deliverable": {
+        "files": 3,
+        "added": 131,
+        "deleted": 3
+      },
+      "judgeMean": 4,
+      "judgeFirstPlaces": 0,
+      "jevSuccess": 3.78,
+      "jevBest": false,
+      "system1": {
+        "calls": 6,
+        "failedCalls": 0,
+        "costUsd": 0.0006,
+        "latencyMs": 1417,
+        "actions": {
+          "briefed": 1,
+          "none": 3,
+          "note_narrow_search": 1,
+          "verified": 1
+        }
+      },
+      "parity": {
+        "api": "chat_completions",
+        "model": "deepseek/deepseek-v4.1-flash",
+        "reasoning": {
+          "effort": "high"
+        },
+        "store": false,
+        "provider": {
+          "order": [
+            "deepseek"
+          ],
+          "allow_fallbacks": false
+        },
+        "max_completion_tokens": 384000
+      }
+    },
+    {
+      "task": "h26-r1",
+      "arm": "pi",
+      "size": "M",
+      "exit": 0,
+      "wallSec": 186,
+      "parentTurns": 44,
+      "tokens": {
+        "input": 58772,
+        "output": 33683,
+        "cacheRead": 2470784,
+        "cacheWrite": 0
+      },
+      "billedUsd": 0.0364,
+      "modelUpstreams": {
+        "DeepSeek": 44
+      },
+      "hiddenPass": true,
+      "regressPass": true,
+      "hiddenTests": [
+        {
+          "pass": 9,
+          "fail": 0
+        },
+        {
+          "pass": 25,
+          "fail": 0
+        }
+      ],
+      "deliverable": {
+        "files": 5,
+        "added": 263,
+        "deleted": 38
+      },
+      "judgeMean": 4.1667,
+      "judgeFirstPlaces": 0,
+      "jevSuccess": 3.5,
+      "jevBest": false,
+      "system1": null,
+      "parity": {
+        "api": "chat_completions",
+        "model": "deepseek/deepseek-v4.1-flash",
+        "reasoning": {
+          "effort": "high"
+        },
+        "store": false,
+        "provider": {
+          "order": [
+            "deepseek"
+          ],
+          "allow_fallbacks": false
+        },
+        "max_completion_tokens": 384000
+      }
+    },
+    {
+      "task": "h26-r1",
+      "arm": "s1s2",
+      "size": "M",
+      "exit": 0,
+      "wallSec": 173,
+      "parentTurns": 42,
+      "tokens": {
+        "input": 49232,
+        "output": 29254,
+        "cacheRead": 1814528,
+        "cacheWrite": 0
+      },
+      "billedUsd": 0.031,
+      "modelUpstreams": {
+        "DeepSeek": 42
+      },
+      "hiddenPass": true,
+      "regressPass": true,
+      "hiddenTests": [
+        {
+          "pass": 9,
+          "fail": 0
+        },
+        {
+          "pass": 25,
+          "fail": 0
+        }
+      ],
+      "deliverable": {
+        "files": 5,
+        "added": 233,
+        "deleted": 34
+      },
+      "judgeMean": 4.5833,
+      "judgeFirstPlaces": 3,
+      "jevSuccess": 3.19,
+      "jevBest": true,
+      "system1": {
+        "calls": 8,
+        "failedCalls": 0,
+        "costUsd": 0.0007,
+        "latencyMs": 1788,
+        "actions": {
+          "briefed": 1,
+          "none": 5,
+          "note_narrow_search": 1,
+          "verified": 1
+        }
+      },
+      "parity": {
+        "api": "chat_completions",
+        "model": "deepseek/deepseek-v4.1-flash",
+        "reasoning": {
+          "effort": "high"
+        },
+        "store": false,
+        "provider": {
+          "order": [
+            "deepseek"
+          ],
+          "allow_fallbacks": false
+        },
+        "max_completion_tokens": 384000
+      }
+    },
+    {
+      "task": "h26-r2",
+      "arm": "pi",
+      "size": "M",
+      "exit": 0,
+      "wallSec": 123,
+      "parentTurns": 38,
+      "tokens": {
+        "input": 43224,
+        "output": 22283,
+        "cacheRead": 1349504,
+        "cacheWrite": 0
+      },
+      "billedUsd": 0.0239,
+      "modelUpstreams": {
+        "DeepSeek": 38
+      },
+      "hiddenPass": true,
+      "regressPass": true,
+      "hiddenTests": [
+        {
+          "pass": 9,
+          "fail": 0
+        },
+        {
+          "pass": 25,
+          "fail": 0
+        }
+      ],
+      "deliverable": {
+        "files": 3,
+        "added": 152,
+        "deleted": 29
+      },
+      "judgeMean": 4.5833,
+      "judgeFirstPlaces": 1,
+      "jevSuccess": 3.26,
+      "jevBest": true,
+      "system1": null,
+      "parity": {
+        "api": "chat_completions",
+        "model": "deepseek/deepseek-v4.1-flash",
+        "reasoning": {
+          "effort": "high"
+        },
+        "store": false,
+        "provider": {
+          "order": [
+            "deepseek"
+          ],
+          "allow_fallbacks": false
+        },
+        "max_completion_tokens": 384000
+      }
+    },
+    {
+      "task": "h26-r2",
+      "arm": "s1s2",
+      "size": "M",
+      "exit": 0,
+      "wallSec": 133,
+      "parentTurns": 35,
+      "tokens": {
+        "input": 41962,
+        "output": 23102,
+        "cacheRead": 1456256,
+        "cacheWrite": 0
+      },
+      "billedUsd": 0.0251,
+      "modelUpstreams": {
+        "DeepSeek": 35
+      },
+      "hiddenPass": true,
+      "regressPass": true,
+      "hiddenTests": [
+        {
+          "pass": 9,
+          "fail": 0
+        },
+        {
+          "pass": 25,
+          "fail": 0
+        }
+      ],
+      "deliverable": {
+        "files": 5,
+        "added": 166,
+        "deleted": 36
+      },
+      "judgeMean": 4.5,
+      "judgeFirstPlaces": 2,
+      "jevSuccess": 3.22,
+      "jevBest": false,
+      "system1": {
+        "calls": 7,
+        "failedCalls": 0,
+        "costUsd": 0.0006,
+        "latencyMs": 1624,
+        "actions": {
+          "briefed": 1,
+          "none": 4,
+          "note_narrow_search": 1,
+          "remind_unverified": 1
+        }
+      },
+      "parity": {
+        "api": "chat_completions",
+        "model": "deepseek/deepseek-v4.1-flash",
+        "reasoning": {
+          "effort": "high"
+        },
+        "store": false,
+        "provider": {
+          "order": [
+            "deepseek"
+          ],
+          "allow_fallbacks": false
+        },
+        "max_completion_tokens": 384000
+      }
+    },
+    {
+      "task": "h37-r1",
+      "arm": "pi",
+      "size": "S",
+      "exit": 0,
+      "wallSec": 166,
+      "parentTurns": 42,
+      "tokens": {
+        "input": 69909,
+        "output": 25564,
+        "cacheRead": 2405504,
+        "cacheWrite": 0
+      },
+      "billedUsd": 0.033,
+      "modelUpstreams": {
+        "DeepSeek": 42
+      },
+      "hiddenPass": true,
+      "regressPass": true,
+      "hiddenTests": [
+        {
+          "pass": 4,
+          "fail": 0
+        }
+      ],
+      "deliverable": {
+        "files": 8,
+        "added": 88,
+        "deleted": 7
+      },
+      "judgeMean": 4.75,
+      "judgeFirstPlaces": 3,
+      "jevSuccess": 4.54,
+      "jevBest": true,
+      "system1": null,
+      "parity": {
+        "api": "chat_completions",
+        "model": "deepseek/deepseek-v4.1-flash",
+        "reasoning": {
+          "effort": "high"
+        },
+        "store": false,
+        "provider": {
+          "order": [
+            "deepseek"
+          ],
+          "allow_fallbacks": false
+        },
+        "max_completion_tokens": 384000
+      }
+    },
+    {
+      "task": "h37-r1",
+      "arm": "s1s2",
+      "size": "S",
+      "exit": 0,
+      "wallSec": 114,
+      "parentTurns": 27,
+      "tokens": {
+        "input": 39446,
+        "output": 19604,
+        "cacheRead": 972416,
+        "cacheWrite": 0
+      },
+      "billedUsd": 0.0218,
+      "modelUpstreams": {
+        "DeepSeek": 27
+      },
+      "hiddenPass": true,
+      "regressPass": true,
+      "hiddenTests": [
+        {
+          "pass": 4,
+          "fail": 0
+        }
+      ],
+      "deliverable": {
+        "files": 7,
+        "added": 81,
+        "deleted": 8
+      },
+      "judgeMean": 4.0833,
+      "judgeFirstPlaces": 0,
+      "jevSuccess": 3.83,
+      "jevBest": false,
+      "system1": {
+        "calls": 9,
+        "failedCalls": 0,
+        "costUsd": 0.0012,
+        "latencyMs": 1896,
+        "actions": {
+          "briefed": 1,
+          "unchanged": 3,
+          "none": 3,
+          "note_narrow_search": 1,
+          "verified": 1
+        }
+      },
+      "parity": {
+        "api": "chat_completions",
+        "model": "deepseek/deepseek-v4.1-flash",
+        "reasoning": {
+          "effort": "high"
+        },
+        "store": false,
+        "provider": {
+          "order": [
+            "deepseek"
+          ],
+          "allow_fallbacks": false
+        },
+        "max_completion_tokens": 384000
+      }
+    },
+    {
+      "task": "h37-r2",
+      "arm": "pi",
+      "size": "S",
+      "exit": 0,
+      "wallSec": 158,
+      "parentTurns": 43,
+      "tokens": {
+        "input": 44216,
+        "output": 25469,
+        "cacheRead": 1665920,
+        "cacheWrite": 0
+      },
+      "billedUsd": 0.0269,
+      "modelUpstreams": {
+        "DeepSeek": 43
+      },
+      "hiddenPass": true,
+      "regressPass": true,
+      "hiddenTests": [
+        {
+          "pass": 4,
+          "fail": 0
+        }
+      ],
+      "deliverable": {
+        "files": 7,
+        "added": 80,
+        "deleted": 8
+      },
+      "judgeMean": 3.4167,
+      "judgeFirstPlaces": 0,
+      "jevSuccess": 4.4399999999999995,
+      "jevBest": true,
+      "system1": null,
+      "parity": {
+        "api": "chat_completions",
+        "model": "deepseek/deepseek-v4.1-flash",
+        "reasoning": {
+          "effort": "high"
+        },
+        "store": false,
+        "provider": {
+          "order": [
+            "deepseek"
+          ],
+          "allow_fallbacks": false
+        },
+        "max_completion_tokens": 384000
+      }
+    },
+    {
+      "task": "h37-r2",
+      "arm": "s1s2",
+      "size": "S",
+      "exit": 0,
+      "wallSec": 129,
+      "parentTurns": 36,
+      "tokens": {
+        "input": 41309,
+        "output": 20999,
+        "cacheRead": 1309824,
+        "cacheWrite": 0
+      },
+      "billedUsd": 0.0235,
+      "modelUpstreams": {
+        "DeepSeek": 36
+      },
+      "hiddenPass": true,
+      "regressPass": true,
+      "hiddenTests": [
+        {
+          "pass": 4,
+          "fail": 0
+        }
+      ],
+      "deliverable": {
+        "files": 7,
+        "added": 88,
+        "deleted": 4
+      },
+      "judgeMean": 4.1667,
+      "judgeFirstPlaces": 3,
+      "jevSuccess": 4.24,
+      "jevBest": false,
+      "system1": {
+        "calls": 8,
+        "failedCalls": 0,
+        "costUsd": 0.0008,
+        "latencyMs": 1901,
+        "actions": {
+          "briefed": 1,
+          "none": 4,
+          "note_narrow_search": 1,
+          "unchanged": 1,
+          "verified": 1
+        }
+      },
+      "parity": {
+        "api": "chat_completions",
+        "model": "deepseek/deepseek-v4.1-flash",
+        "reasoning": {
+          "effort": "high"
+        },
+        "store": false,
+        "provider": {
+          "order": [
+            "deepseek"
+          ],
+          "allow_fallbacks": false
+        },
+        "max_completion_tokens": 384000
+      }
+    },
+    {
+      "task": "h43-r1",
+      "arm": "pi",
+      "size": "L",
+      "exit": 0,
+      "wallSec": 367,
+      "parentTurns": 73,
+      "tokens": {
+        "input": 68097,
+        "output": 64787,
+        "cacheRead": 5484160,
+        "cacheWrite": 0
+      },
+      "billedUsd": 0.0655,
+      "modelUpstreams": {
+        "DeepSeek": 73
+      },
+      "hiddenPass": false,
+      "regressPass": true,
+      "hiddenTests": [
+        {
+          "pass": 5,
+          "fail": 0
+        },
+        {
+          "pass": 0,
+          "fail": 4
+        }
+      ],
+      "deliverable": {
+        "files": 13,
+        "added": 499,
+        "deleted": 28
+      },
+      "judgeMean": 3.75,
+      "judgeFirstPlaces": 2,
+      "jevSuccess": 2.5300000000000002,
+      "jevBest": false,
+      "system1": null,
+      "parity": {
+        "api": "chat_completions",
+        "model": "deepseek/deepseek-v4.1-flash",
+        "reasoning": {
+          "effort": "high"
+        },
+        "store": false,
+        "provider": {
+          "order": [
+            "deepseek"
+          ],
+          "allow_fallbacks": false
+        },
+        "max_completion_tokens": 384000
+      }
+    },
+    {
+      "task": "h43-r1",
+      "arm": "s1s2",
+      "size": "L",
+      "exit": 0,
+      "wallSec": 328,
+      "parentTurns": 64,
+      "tokens": {
+        "input": 59650,
+        "output": 57991,
+        "cacheRead": 4305792,
+        "cacheWrite": 0
+      },
+      "billedUsd": 0.0576,
+      "modelUpstreams": {
+        "DeepSeek": 64
+      },
+      "hiddenPass": false,
+      "regressPass": true,
+      "hiddenTests": [
+        {
+          "pass": 5,
+          "fail": 0
+        },
+        {
+          "pass": 0,
+          "fail": 4
+        }
+      ],
+      "deliverable": {
+        "files": 9,
+        "added": 427,
+        "deleted": 24
+      },
+      "judgeMean": 4.1667,
+      "judgeFirstPlaces": 1,
+      "jevSuccess": 3.45,
+      "jevBest": true,
+      "system1": {
+        "calls": 8,
+        "failedCalls": 0,
+        "costUsd": 0.001,
+        "latencyMs": 1815,
+        "actions": {
+          "briefed": 1,
+          "none": 1,
+          "note_narrow_search": 3,
+          "elided": 2,
+          "verified": 1
+        }
+      },
+      "parity": {
+        "api": "chat_completions",
+        "model": "deepseek/deepseek-v4.1-flash",
+        "reasoning": {
+          "effort": "high"
+        },
+        "store": false,
+        "provider": {
+          "order": [
+            "deepseek"
+          ],
+          "allow_fallbacks": false
+        },
+        "max_completion_tokens": 384000
+      }
+    },
+    {
+      "task": "h43-r2",
+      "arm": "pi",
+      "size": "L",
+      "exit": 0,
+      "wallSec": 450,
+      "parentTurns": 86,
+      "tokens": {
+        "input": 84323,
+        "output": 80182,
+        "cacheRead": 7184384,
+        "cacheWrite": 0
+      },
+      "billedUsd": 0.0823,
+      "modelUpstreams": {
+        "DeepSeek": 86
+      },
+      "hiddenPass": false,
+      "regressPass": true,
+      "hiddenTests": [
+        {
+          "pass": 5,
+          "fail": 0
+        },
+        {
+          "pass": 0,
+          "fail": 4
+        }
+      ],
+      "deliverable": {
+        "files": 9,
+        "added": 372,
+        "deleted": 23
+      },
+      "judgeMean": 3.8333,
+      "judgeFirstPlaces": 0,
+      "jevSuccess": 3.22,
+      "jevBest": true,
+      "system1": null,
+      "parity": {
+        "api": "chat_completions",
+        "model": "deepseek/deepseek-v4.1-flash",
+        "reasoning": {
+          "effort": "high"
+        },
+        "store": false,
+        "provider": {
+          "order": [
+            "deepseek"
+          ],
+          "allow_fallbacks": false
+        },
+        "max_completion_tokens": 384000
+      }
+    },
+    {
+      "task": "h43-r2",
+      "arm": "s1s2",
+      "size": "L",
+      "exit": 0,
+      "wallSec": 300,
+      "parentTurns": 78,
+      "tokens": {
+        "input": 54429,
+        "output": 46625,
+        "cacheRead": 4591616,
+        "cacheWrite": 0
+      },
+      "billedUsd": 0.0506,
+      "modelUpstreams": {
+        "DeepSeek": 78
+      },
+      "hiddenPass": false,
+      "regressPass": true,
+      "hiddenTests": [
+        {
+          "pass": 5,
+          "fail": 0
+        },
+        {
+          "pass": 0,
+          "fail": 4
+        }
+      ],
+      "deliverable": {
+        "files": 12,
+        "added": 414,
+        "deleted": 28
+      },
+      "judgeMean": 4.5833,
+      "judgeFirstPlaces": 3,
+      "jevSuccess": 2.33,
+      "jevBest": false,
+      "system1": {
+        "calls": 7,
+        "failedCalls": 0,
+        "costUsd": 0.0007,
+        "latencyMs": 1567,
+        "actions": {
+          "briefed": 1,
+          "none": 2,
+          "note_narrow_search": 3,
+          "verified": 1
+        }
+      },
+      "parity": {
+        "api": "chat_completions",
+        "model": "deepseek/deepseek-v4.1-flash",
+        "reasoning": {
+          "effort": "high"
+        },
+        "store": false,
+        "provider": {
+          "order": [
+            "deepseek"
+          ],
+          "allow_fallbacks": false
+        },
+        "max_completion_tokens": 384000
+      }
+    },
+    {
+      "task": "h57-r1",
+      "arm": "pi",
+      "size": "S",
+      "exit": 0,
+      "wallSec": 56,
+      "parentTurns": 12,
+      "tokens": {
+        "input": 24362,
+        "output": 8468,
+        "cacheRead": 186752,
+        "cacheWrite": 0
+      },
+      "billedUsd": 0.0093,
+      "modelUpstreams": {
+        "DeepSeek": 12
+      },
+      "hiddenPass": true,
+      "regressPass": true,
+      "hiddenTests": [
+        {
+          "pass": 6,
+          "fail": 0
+        }
+      ],
+      "deliverable": {
+        "files": 2,
+        "added": 5,
+        "deleted": 1
+      },
+      "judgeMean": 4.5,
+      "judgeFirstPlaces": 3,
+      "jevSuccess": 4.07,
+      "jevBest": false,
+      "system1": null,
+      "parity": {
+        "api": "chat_completions",
+        "model": "deepseek/deepseek-v4.1-flash",
+        "reasoning": {
+          "effort": "high"
+        },
+        "store": false,
+        "provider": {
+          "order": [
+            "deepseek"
+          ],
+          "allow_fallbacks": false
+        },
+        "max_completion_tokens": 384000
+      }
+    },
+    {
+      "task": "h57-r1",
+      "arm": "s1s2",
+      "size": "S",
+      "exit": 0,
+      "wallSec": 48,
+      "parentTurns": 11,
+      "tokens": {
+        "input": 15909,
+        "output": 5603,
+        "cacheRead": 154112,
+        "cacheWrite": 0
+      },
+      "billedUsd": 0.0066,
+      "modelUpstreams": {
+        "DeepSeek": 11
+      },
+      "hiddenPass": true,
+      "regressPass": true,
+      "hiddenTests": [
+        {
+          "pass": 6,
+          "fail": 0
+        }
+      ],
+      "deliverable": {
+        "files": 2,
+        "added": 9,
+        "deleted": 2
+      },
+      "judgeMean": 4.3333,
+      "judgeFirstPlaces": 0,
+      "jevSuccess": 4.609999999999999,
+      "jevBest": true,
+      "system1": {
+        "calls": 3,
+        "failedCalls": 0,
+        "costUsd": 0.0003,
+        "latencyMs": 656,
+        "actions": {
+          "briefed": 1,
+          "none": 1,
+          "verified": 1
+        }
+      },
+      "parity": {
+        "api": "chat_completions",
+        "model": "deepseek/deepseek-v4.1-flash",
+        "reasoning": {
+          "effort": "high"
+        },
+        "store": false,
+        "provider": {
+          "order": [
+            "deepseek"
+          ],
+          "allow_fallbacks": false
+        },
+        "max_completion_tokens": 384000
+      }
+    },
+    {
+      "task": "h57-r2",
+      "arm": "pi",
+      "size": "S",
+      "exit": 0,
+      "wallSec": 71,
+      "parentTurns": 17,
+      "tokens": {
+        "input": 19734,
+        "output": 10314,
+        "cacheRead": 308096,
+        "cacheWrite": 0
+      },
+      "billedUsd": 0.0101,
+      "modelUpstreams": {
+        "DeepSeek": 17
+      },
+      "hiddenPass": true,
+      "regressPass": true,
+      "hiddenTests": [
+        {
+          "pass": 6,
+          "fail": 0
+        }
+      ],
+      "deliverable": {
+        "files": 2,
+        "added": 23,
+        "deleted": 2
+      },
+      "judgeMean": 4.5833,
+      "judgeFirstPlaces": 2,
+      "jevSuccess": 4.5,
+      "jevBest": true,
+      "system1": null,
+      "parity": {
+        "api": "chat_completions",
+        "model": "deepseek/deepseek-v4.1-flash",
+        "reasoning": {
+          "effort": "high"
+        },
+        "store": false,
+        "provider": {
+          "order": [
+            "deepseek"
+          ],
+          "allow_fallbacks": false
+        },
+        "max_completion_tokens": 384000
+      }
+    },
+    {
+      "task": "h57-r2",
+      "arm": "s1s2",
+      "size": "S",
+      "exit": 0,
+      "wallSec": 48,
+      "parentTurns": 12,
+      "tokens": {
+        "input": 15942,
+        "output": 6180,
+        "cacheRead": 175744,
+        "cacheWrite": 0
+      },
+      "billedUsd": 0.007,
+      "modelUpstreams": {
+        "DeepSeek": 12
+      },
+      "hiddenPass": true,
+      "regressPass": true,
+      "hiddenTests": [
+        {
+          "pass": 6,
+          "fail": 0
+        }
+      ],
+      "deliverable": {
+        "files": 2,
+        "added": 4,
+        "deleted": 1
+      },
+      "judgeMean": 4.4167,
+      "judgeFirstPlaces": 1,
+      "jevSuccess": 3.11,
+      "jevBest": false,
+      "system1": {
+        "calls": 3,
+        "failedCalls": 0,
+        "costUsd": 0.0003,
+        "latencyMs": 733,
+        "actions": {
+          "briefed": 1,
+          "none": 1,
+          "verified": 1
+        }
+      },
+      "parity": {
+        "api": "chat_completions",
+        "model": "deepseek/deepseek-v4.1-flash",
+        "reasoning": {
+          "effort": "high"
+        },
+        "store": false,
+        "provider": {
+          "order": [
+            "deepseek"
+          ],
+          "allow_fallbacks": false
+        },
+        "max_completion_tokens": 384000
+      }
+    }
+  ]
+}

@@ -700,3 +700,81 @@ fallback from an R90 lookup error; no copying OMP's stored login into Pi.
 Evidence: `agent-config/bin/openrouter-key.test.ts`,
 `scripts/verify-installers`, and the real OMP/Pi calls and OpenRouter billing
 checks recorded in the PR.
+
+`docs/decisions/003-foundation-checks.md`.
+
+## Capability: System 1 / System 2 harness
+
+## US-029 Run coding tasks with a System 1 layer on raw Pi
+
+Statement: When I run a coding task on raw Pi with the System 1 layer, I want
+fast typed judgments to choose what the frontier model sees, run routine
+checks, and flag stalls, so the frontier model spends fewer, better-informed
+turns without losing control of the work.
+
+Criteria:
+1. WHEN a task prompt starts in a Git repository and Jev scores candidate
+   files, THE SYSTEM SHALL add at most one advisory briefing naming no more
+   than eight files above the relevance threshold, and SHALL add none when Jev
+   is unavailable.
+2. WHEN a bash result exceeds the triage bound, THE SYSTEM SHALL keep its head,
+   tail, and failure lines, SHALL save the complete output to a file named in
+   the replacement, and SHALL leave the result unchanged when Jev is unavailable.
+3. WHEN a run settles with Git-visible changes on which no check has passed,
+   THE SYSTEM SHALL run at most one Jev-selected check per settle, chosen only
+   from repository-declared commands that do not fix, write, deploy, publish,
+   migrate, or serve, and SHALL request at most two continuations per prompt.
+4. THE SYSTEM SHALL NOT block or rewrite a model tool call, SHALL NOT generate
+   text through Jev, and SHALL send at most three monitor notes per prompt.
+5. THE SYSTEM SHALL mask credential-shaped text in every state sent to Jev,
+   and SHALL record each System 1 call's battery, answers, latency,
+   provider-reported usage, and action, naming targets only by repository file
+   paths and repository-declared check commands, never by prompt, transcript,
+   or tool-output text; usage the provider omits SHALL stay absent, not zero.
+6. WHERE `S1S2_MODE=off` is set, THE SYSTEM SHALL register no System 1 behavior.
+
+No-gos: no second generative model; no deployment into the daily Pi profile;
+no tool veto or permission gate; no Jev-authored prose, code, or plans.
+
+Evidence: `pi-config/extensions/s1s2/`, `agent-config/system-one/engine.test.ts`
+(provider usage), `docs/system1-system2-harness.md`,
+`docs/measurements/s1s2-smoke-2026-09-25.md`.
+
+## US-030 Compare harnesses on the same real tasks
+
+Statement: When I weigh a harness design against OMP, I want the same real
+tasks run in every arm with the same model and settings and graded blind, so a
+difference in cost, time, or quality can be attributed to the harness rather
+than to the model, the task, or the grader.
+
+Criteria:
+1. WHEN a comparison runs, THE SYSTEM SHALL give every arm the same prompt,
+   model, reasoning effort, verbosity, output ceiling, and upstream provider,
+   and SHALL record each arm's first-request model settings as evidence.
+2. THE SYSTEM SHALL pin every generative role of an OMP arm, including its
+   advisor and subagents, to the model under test with provider fallback off.
+3. WHEN a run starts, THE SYSTEM SHALL use a fresh checkout whose history ends
+   at the task's base commit and has no remote, SHALL disable tools that reach
+   other systems identically in every arm, and SHALL limit the agent's network
+   to a model boundary that admits only the model under test and Jev, refusing
+   to start while the agent can reach the repository host, the exe.dev gateway,
+   an arbitrary address, or another listening service.
+4. WHEN a run ends, THE SYSTEM SHALL grade it with the pull request's own
+   withheld tests and report token usage by category, wall-clock, and turns.
+5. THE SYSTEM SHALL show judges only the task, the accepted change, and
+   label-shuffled diffs, never harness names, transcripts, timings, or test
+   results.
+6. THE SYSTEM SHALL admit a model or Jev call only while the settled cost of
+   earlier calls plus the worst case of every unsettled call stays within the
+   configured spend limit, and SHALL stop and record why when it refuses one.
+   WHERE a subscription model is under test, THE SYSTEM SHALL also stop before
+   the next run once the watched account's weekly usage reaches its ceiling.
+
+No-gos: no paid model route for the arms or judges beyond Jev, except the
+operator's 2026-09-25 rulings that run the pilot's and control run's model
+under test on OpenRouter; no OAuth copied between harnesses; no pushes from
+evaluated agents.
+
+Evidence: `pi-config/extensions/s1s2/eval/`,
+`docs/measurements/s1s2-vibe-2026-09-25.md`,
+`docs/measurements/s1s2-control-2026-09-25.md`.
