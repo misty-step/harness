@@ -166,8 +166,10 @@ long-running services, I want execution in my project's owned exe.dev workspace,
 so desktop responsiveness is preserved without case-by-case VM approval.
 
 Criteria:
-1. WHEN heavy or long-running execution is needed, THE SYSTEM SHALL direct it
-   to the project's `<project>-ws` workspace through `ws`.
+1. WHEN an agent starts heavy or long-running execution from the workstation,
+   THE SYSTEM SHALL direct it to the project's `<project>-ws` workspace through
+   `ws`; WHERE a CI job runs on a GitHub-hosted runner, THE SYSTEM SHALL treat
+   it as already off the workstation (operator decision 2026-09-25).
 2. WHERE checks are bounded with explicit low concurrency caps, THE SYSTEM
    SHALL permit local execution with run-scoped `~/.cache/tmp` scratch.
 3. IF execution requires an additional VM beyond the one project-owned VM
