@@ -28,7 +28,7 @@ prompt is: how can I pokayoke this so this kind of error never happens again?
 | `bin/design-check.ts` | Moved to `agent-config`: player-surface copy checker, installed as `~/.local/bin/design-check` |
 | `bin/tmp-health.py`, `references/dev-exec.md` | Opt-in workstation execution limits, pressure notifications, and rollback workflow |
 | `config.yml` | Model roles, fallbacks, theme/TUI, providers, task/LSP settings |
-| `models.yml` | Local Ollama discovery; cloud models come from omp's bundled catalog |
+| `models.yml` | Local Ollama discovery and command-resolved OpenRouter key; cloud models remain in omp's bundled catalog |
 | `mcp.json` | Global MCP inventory; Linear is deliberately absent |
 | `workspace-mcp.json`, `bin/omp-install-scopes.ts` | Linear directory scopes, native project-local imports, owned skill retirement |
 | `global/AGENTS.md` | OMP-specific guidance; `./install` composes it with shared sections from `agent-config` |
@@ -60,12 +60,12 @@ arguments (including `--check`); use `../scripts/verify omp` for isolated checks
 
 Preflight validates every selected input, then writes. Unset selection means
 `all`: owned config overlay, guidance, MCP, scopes, agents, skills, themes,
-extensions, `omp-grievances`, `pass-env`, `design-check`, `foundation-check`,
-and `ws`. It does not delete foreign skills or agents, and it does not import
-live secrets into this checkout. Skills, shared guidance sections, and those
-shared launchers deploy from the sibling `agent-config` checkout
-(default `$repo_dir/../agent-config`; override with `AGENT_CONFIG_DIR`); the
-installer fails closed when it is missing.
+extensions, `omp-grievances`, `pass-env`, `openrouter-key`, `design-check`,
+`foundation-check`, and `ws`. It does not delete foreign skills or agents and
+does not import live secrets into this checkout. Skills, shared guidance
+sections, and those shared launchers deploy from the sibling `agent-config`
+checkout (default `$repo_dir/../agent-config`; override with
+`AGENT_CONFIG_DIR`); the installer fails closed when it is missing.
 
 ```sh
 OMP_INSTALL_COMPONENTS=guidance ./install
@@ -94,6 +94,20 @@ stores. MCP deployment still uses the
 declared server inventory and preserves live `auth`/`oauth` metadata for those
 servers only. OMP's managed OAuth tokens remain in its auth storage, never in
 this repository.
+
+OpenRouter auth (US-028): `models.yml` resolves `openrouter-key --personal
+workstation/OPENROUTER_OMP_HARNESS_API_KEY` on first use. The shared launcher
+chooses `workstation/OPENROUTER_R90_HARNESS_API_KEY` when the process directory
+or its Git common directory is under `~/development/r90group` (linked
+worktrees included). On lookup failure it emits a fixed invalid token rather
+than exiting without a key: OMP omits failing command keys and would otherwise
+fall through to a stored personal credential or `OPENROUTER_API_KEY`. This
+deliberately keeps existing `agent.db` credentials untouched, while a broken
+R90 entry receives an OpenRouter 401 instead of personal billing. Explicit
+runtime `--api-key` overrides remain higher priority and are outside this
+policy. `OMP_INSTALL_COMPONENTS=config ./install` deploys both the override and
+the launcher. Restart OMP after installation; see root verification guide for
+real-path billing checks.
 
 Configuration preservation is semantic, not preservation of YAML comments or
 formatting. Package preflight checks syntax and local imports; native loading

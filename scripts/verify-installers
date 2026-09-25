@@ -31,7 +31,7 @@ for consumer in pi omp; do
   agent="$home/agent"
   mkdir -p "$agent/skills/foreign" "$home/development"
   printf 'foreign skill sentinel\n' > "$work/expected-skill"
-  printf '{"synthetic":"auth sentinel"}\n' > "$work/expected-auth"
+  printf '{"synthetic":"auth sentinel","anthropic":{"type":"api_key","key":"synthetic-foreign"},"openrouter":{"type":"api_key","key":"synthetic-old"}}\n' > "$work/expected-auth"
   cp "$work/expected-skill" "$agent/skills/foreign/SKILL.md"
   cp "$work/expected-auth" "$agent/auth.json"
   # Claude Code settings carry foreign keys the audio sandbox must preserve.
@@ -68,6 +68,8 @@ for consumer in pi omp; do
   check "$consumer composition" cmp -s "$expected" "$agent/AGENTS.md"
   check "$consumer launcher bytes" cmp -s "$work/source/agent-config/bin/pass-env.ts" "$home/.local/bin/pass-env"
   check "$consumer launcher executable" test -x "$home/.local/bin/pass-env"
+  check "$consumer OpenRouter launcher bytes" cmp -s "$work/source/agent-config/bin/openrouter-key.ts" "$home/.local/bin/openrouter-key"
+  check "$consumer OpenRouter launcher executable" test -x "$home/.local/bin/openrouter-key"
   check "$consumer design-check bytes" cmp -s "$work/source/agent-config/bin/design-check.ts" "$home/.local/bin/design-check"
   check "$consumer design-check executable" test -x "$home/.local/bin/design-check"
   # The deployed design-check must gate for real: exit 1 on player-copy findings.
@@ -104,7 +106,20 @@ for consumer in pi omp; do
   check "$consumer ws bytes" cmp -s "$work/source/agent-config/bin/ws.ts" "$home/.local/bin/ws"
   check "$consumer ws executable" test -x "$home/.local/bin/ws"
   check "$consumer foreign skill" cmp -s "$work/expected-skill" "$agent/skills/foreign/SKILL.md"
-  check "$consumer auth" cmp -s "$work/expected-auth" "$agent/auth.json"
+  if [ "$consumer" = pi ]; then
+    # US-028: Pi replaces only its OpenRouter mapping, retaining foreign auth.
+    check "pi OpenRouter auth mapping and foreign credential" \
+      jq -e '.synthetic == "auth sentinel" and .anthropic == {type:"api_key",key:"synthetic-foreign"} and .openrouter == {type:"api_key",key:"!openrouter-key --personal workstation/OPENROUTER_API_KEY_MIRRODIN_PI"}' "$agent/auth.json"
+    check "pi auth permissions" test "$(stat -c %a "$agent/auth.json")" = 600
+  else
+    check "omp auth untouched" cmp -s "$work/expected-auth" "$agent/auth.json"
+    check "omp OpenRouter auth override" \
+      env -i PATH="$PATH" HOME="$home" AGENT="$agent" bun -e '
+        const { readFileSync } = await import("node:fs");
+        const doc = Bun.YAML.parse(readFileSync(`${process.env.AGENT}/models.yml`, "utf8"));
+        if (doc.providers.openrouter.apiKey !== "!openrouter-key --personal workstation/OPENROUTER_OMP_HARNESS_API_KEY") throw new Error("wrong OpenRouter command");
+      '
+  fi
   # US-026: both routing layers, the silent-sink drop-in, and Claude Code env
   # deploy; the installed extension applies the contract self-contained; and
   # the isolated run (no XDG_RUNTIME_DIR) never reaches live PipeWire.

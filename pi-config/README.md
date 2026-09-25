@@ -5,8 +5,9 @@ source of truth for how pi iterates on raw upstream pi: settings, the custom
 composer chrome, the LOC status extension, the Exa web-search tool, the
 image-budget extension, the model-fallback-chain extension, the OpenRouter
 live-model bridge, and
-the `pi()` key-injection wrapper block in `~/.bashrc`. Shared primitives — skill
-packages, global guidance, and the `pass-env`, `design-check`, `foundation-check`, and `ws` launchers — come from the sibling
+the `pi()` key-injection wrapper block in `~/.bashrc`. Shared primitives —
+skill packages, global guidance, and the `pass-env`, `openrouter-key`,
+`design-check`, `foundation-check`, and `ws` launchers — come from the sibling
 base `agent-config`. `./install`
 deploys the owned agent-directory components into `$PI_CODING_AGENT_DIR`
 (default `~/.pi/agent`); the wrapper block is applied to `~/.bashrc` by hand
@@ -40,8 +41,9 @@ never assumes ownership of the rest:
   extension packages, and deploys shared primitives through `agent-config`.
 - Foreign live settings keys (runtime state such as `lastChangelogVersion`) are
   preserved by `bin/pi-merge-settings.ts`.
-- Files this repo does not declare — auth, sessions, telemetry, herdr
-  integration, Omarchy skills, generated themes — are never written.
+- Files this repo does not declare — credentials other than
+  `auth.json.openrouter`, sessions, telemetry, herdr integration, Omarchy
+  skills, generated themes — are never written.
 - One owned file lives outside the agent directory: the marked `pi()` wrapper
   block in `~/.bashrc`'s user section (the only sanctioned touch of the user's
   shell rc; snippet and mark in *The launch hook* below).
@@ -66,14 +68,15 @@ presentation; "behavioral" changes agent capability, model input, or data flow.
 | `extensions/openrouter-live/` | this repo | behavioral | yes | Live OpenRouter bridge: models the `pi.dev` mirror lacks are appended to `models.json`, additive-only, at session start (≥2 h) and `/models-live` (ADR-022) |
 | `extensions/continuation-nudge/` | this repo | behavioral | yes (component `continuation-nudge`; shared modules materialized) | Bounded Jev continuation nudge at agent settle: advisory, fail-open, max 2 per prompt, `JEV_NUDGE_MODE=off` disables. Review trigger: pi gains a native anti-premature-stop or continuation control, or nudges fire on completed work |
 | `extensions/audio-sandbox/` | this repo | behavioral | yes (component `audio-sandbox`; shared contract materialized) | Agent audio routed to the silent `agent-sandbox` sink (US-026): owned `shellCommandPrefix` for the bash tool plus `process.env` for every other child |
-| `agent-config` (skills, guidance, `pass-env`, `design-check`, `foundation-check`, `ws`) | external (sibling base) | behavioral | yes | Portable skill packages, shared guidance sections, and the `pass-env`, `design-check`, `foundation-check`, and `ws` launchers, clean-replaced from `agent-config` (ADR-021) |
+| `auth.json.openrouter` | this repo (only this entry) | behavioral | yes (component `openrouter-auth`) | Command key bills R90 for its checkout or linked worktrees and the existing Pi personal entry elsewhere; invalid token on failed lookup blocks fallback (US-028, ADR-023) |
+| `agent-config` (skills, guidance, `pass-env`, `openrouter-key`, `design-check`, `foundation-check`, `ws`) | external (sibling base) | behavioral | yes | Portable skills, guidance, and standalone launchers, clean-replaced from `agent-config` (ADR-021) |
 | `~/.bashrc` (`pi()` block) | this repo (marked block only) | behavioral | by hand | Launch hook: Exa key from pass (ADR-010); run-scoped scratch `TMPDIR` via `omp-scratch` when installed (ADR-015) |
 | `~/.config/omarchy/themed/pi.json.tpl` | this repo (hand-managed) | aesthetic | by hand | pi theme template override for every Omarchy theme: readable semantic ink, accent-derived thinking ramp, deeper surfaces (ADR-018) |
 | `extensions/agent-usage-telemetry.ts` | external (managed) | telemetry | no | Reports usage to an external endpoint |
 | `extensions/herdr-agent-state.ts` | herdr (managed) | integration | no | Reports pane agent state to herdr |
 | `skills/omarchy`, `skills/diagnose-crash` | Omarchy (symlinks) | skills | no | Omarchy-owned agent skills |
 | `themes/omarchy-system.json` | Omarchy (generated) | generated | no | Theme regenerated on every theme change |
-| `auth.json`, `models-store.json`, `sessions/`, `trust.json`, `usage-outbox/` | pi (runtime) | runtime | no | Credentials, sessions, state |
+| `auth.json` (except `openrouter`), `models-store.json`, `sessions/`, `trust.json`, `usage-outbox/` | pi (runtime) | runtime | no | Other credentials, sessions, state |
 
 ### Global guidance
 
@@ -209,15 +212,11 @@ Claude Code env, and live routing proof; the agent-config README documents
 listening, residuals, and revert.
 
 **Shared primitives — `agent-config`.** Skill packages, guidance sections, and
-the `pass-env` launcher live once in the base and deploy through its single
-contract (ADR-021). pi selects all 21 portable skills (the homebrew `pokayoke`,
-`user-stories`, `capture`, `foundation`, `agent-ergonomics`,
-`verification-infrastructure`, `test-audit`, `story-qa`, `check-cadence`,
-`decide`, `sachstand`, `authenticated-commands`, `session-close`,
-`system-one`, `design-studio`, and `visual-state-review`, plus the vendored
-`frontend-design`, `show-me`, `wrangler`, `herdr`, and `using-exe-dev`), the
-shared guidance sections, and `pass-env`. `web-search`'s key injection is
-the launcher's first pi consumer (ADR-010).
+the `pass-env` and `openrouter-key` launchers live once in the base and deploy
+through its single contract (ADR-021). pi selects the portable skills and
+shared guidance sections, plus `pass-env` and `openrouter-key`. `web-search`
+uses `pass-env` for its Exa key (ADR-010); `auth.json.openrouter` invokes
+`openrouter-key` when Pi first needs its credential (US-028).
 
 **The Linear CLI is a separate repo.** The client moved to
 [linear-cli](https://github.com/misty-step/linear-cli) (ADR-020, amended): a
@@ -736,6 +735,17 @@ is checked out anyway), and duplicating the deploy mechanism in each harness
 (the duplication this ADR removes). Revisit: if a harness must build without the
 sibling checkout, pin the base as a submodule.
 
+**ADR-023 — Resolve Pi's OpenRouter account by launch directory.**
+*Accepted · 2026-09-25.* Kaylee approved R90 billing for R90 work.
+`openrouter-auth` changes only `.openrouter` in the live `auth.json`,
+preserving other providers. It installs the same standalone launcher used by
+OMP: R90 checkouts and linked worktrees choose the R90 pass entry; other
+directories use Pi's existing personal pass entry. Pi caches command keys per
+process, so restart for another account class. A missing or malformed pass
+entry produces a fixed invalid token: exiting without a key could allow an
+environment credential to silently bill personal. Revisit if Pi acquires
+native per-project auth or changes command credential precedence.
+
 ## Research: how pi iterates on other harnesses
 
 Surveyed 2026-09-14 against pi's bundled docs/examples, the community
@@ -872,22 +882,36 @@ failover became sticky (then revisit the once-per-session latch).
 
 Unset `PI_CONFIG_COMPONENTS` means `all`. Select a subset with a space-separated
 list: `config`, `guidance`, `pi-chrome`, `loc`, `web-search`, `failover`,
-`image-budget`, `openrouter-live`, `pass-env`, `skills`.
+`image-budget`, `openrouter-live`, `continuation-nudge`, `diff-review`,
+`audio-sandbox`, `pass-env`, `skills`, `openrouter-auth`.
 
 `agent-config` must be checked out beside this repo (default
 `$repo_dir/../agent-config`; override with `AGENT_CONFIG_DIR`). `guidance`,
-`pass-env`, and `skills` deploy through it; the installer fails closed when it
-is missing.
+`pass-env`, `skills`, and `openrouter-auth` deploy shared launchers through it;
+the installer fails closed when it is missing.
 
 ```sh
 PI_CONFIG_COMPONENTS=config ./install
 PI_CONFIG_COMPONENTS="pi-chrome loc" ./install
+PI_CONFIG_COMPONENTS=openrouter-auth ./install  # only OpenRouter auth and the shared launcher
 ```
 
-Preflight validates bun, source presence, settings, and the whole `agent-config`
-selection before any write. The `loc`, `web-search`, `failover`, and
-`image-budget` packages and every shared skill package are clean-replaced so
-obsolete files cannot survive. Restart pi after deploying.
+Preflight validates bun, jq for `openrouter-auth`, source presence, settings,
+and the whole `agent-config` selection before any write. The `loc`,
+`web-search`, `failover`, and `image-budget` packages and every shared skill
+package are clean-replaced so obsolete files cannot survive.
+Restart pi after deploying.
+
+`openrouter-auth` requires jq and overlays only `auth.json.openrouter` (mode
+0600), preserving every other provider and rejecting malformed or symlinked
+auth files before any write. The command is
+`!openrouter-key --personal workstation/OPENROUTER_API_KEY_MIRRODIN_PI`.
+R90 checkouts (including Git linked worktrees) use
+`workstation/OPENROUTER_R90_HARNESS_API_KEY`; all other directories use the Pi
+personal entry. A missing/invalid entry emits a deliberately invalid token so
+Pi's ambient `OPENROUTER_API_KEY` cannot take over. Restart Pi on account
+changes; verify usage from fresh sessions rather than inferring from file
+presence.
 
 ## Verification
 

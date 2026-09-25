@@ -91,9 +91,10 @@ omp-config/install
   `install --check` is rejected rather than accidentally deploying. The base
   `agent-config/install --check` is an inert preflight with explicit arguments.
 
-Installers do not configure repository Git hooks; run bootstrap separately.
-Restart the relevant harness to load changed extensions/guidance. This repository
-does not own auth stores, sessions, foreign packages, or generated desktop themes.
+Restart the relevant harness to load changed extensions, guidance and OpenRouter
+credentials. Only Pi's `auth.json.openrouter` mapping is source-owned; other
+credentials, sessions, foreign packages, and generated desktop themes are not.
+See [US-028](USER_STORIES.md) for project-aware billing and failure behavior.
 
 ## Contributing and releases
 
