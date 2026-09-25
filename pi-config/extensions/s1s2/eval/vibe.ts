@@ -39,6 +39,7 @@ const provider = modelSpec.slice(0, modelSpec.indexOf("/"));
 const modelId = modelSpec.slice(modelSpec.indexOf("/") + 1);
 const thinking = args.get("thinking") ?? "max";
 const verbosity = args.get("verbosity") ?? "";
+const maxOutput = args.get("max-output") ?? "";
 const quotaEmail = args.get("quota-email") ?? "";
 const quotaMax = Number(args.get("quota-max") ?? 0.95);
 // A credential-injecting proxy (exe.dev http-proxy integration) keeps the OpenRouter key off the VM.
@@ -279,6 +280,7 @@ outer: for (const task of tasks) {
 			TMPDIR: join(runDir, "tmp"),
 			PARITY_OUT: join(runDir, "parity.jsonl"),
 			...(verbosity ? { PARITY_VERBOSITY: verbosity } : {}),
+			...(maxOutput ? { PARITY_MAX_OUTPUT: maxOutput } : {}),
 			// The proxy injects the real key; the harnesses only need a non-empty credential to call it.
 			...(openrouterBase ? { OPENROUTER_API_KEY: PROXY_PLACEHOLDER } : {}),
 		};

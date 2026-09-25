@@ -5,10 +5,14 @@
  * headers) to `PARITY_OUT` as evidence that every arm used the same model and
  * settings. Where the harnesses would otherwise differ in a model setting, the
  * runner names the setting to pin:
- *   PARITY_VERBOSITY  OpenAI Responses `text.verbosity`. Pi's Codex adapter always
- *                     sends "low" and OMP omits it, so Codex runs pin one value.
- * Harness-owned transport choices (which API a harness uses for a provider,
- * tool schemas, output-token ceilings) are recorded, not normalized.
+ *   PARITY_VERBOSITY   OpenAI Responses `text.verbosity`. Pi's Codex adapter always
+ *                      sends "low" and OMP omits it, so Codex runs pin one value.
+ *   PARITY_MAX_OUTPUT  One output-token ceiling in whichever field the request uses
+ *                      (`max_output_tokens` for Responses, `max_completion_tokens`
+ *                      for chat completions). On OpenRouter, Pi sends 384000 and
+ *                      OMP sends none.
+ * Harness-owned transport choices (which API a harness uses for a provider, tool
+ * schemas) are recorded, not normalized.
  */
 import { appendFileSync } from "node:fs";
 
@@ -21,6 +25,12 @@ export default function parity(pi: { on: (event: string, handler: (event: { payl
 		if (!payload || typeof payload !== "object" || !("model" in payload)) return;
 		const verbosity = process.env.PARITY_VERBOSITY;
 		if (verbosity && "input" in payload) payload.text = { ...(payload.text as object | undefined), verbosity };
+		const maxOutput = Number(process.env.PARITY_MAX_OUTPUT) || 0;
+		if (maxOutput > 0 && "input" in payload) payload.max_output_tokens = maxOutput;
+		if (maxOutput > 0 && "messages" in payload) {
+			payload.max_completion_tokens = maxOutput;
+			delete payload.max_tokens;
+		}
 		const out = process.env.PARITY_OUT;
 		if (!recorded && out) {
 			recorded = true;
