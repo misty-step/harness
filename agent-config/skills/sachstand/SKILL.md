@@ -121,7 +121,9 @@ agent-config/skills/sachstand/scripts/speak.ts` uses its committed Gemini
 reference. The request disables provider-side interaction storage; the speech
 regression rejects any request that permits the API's default retention.
 
-Playback starts detached, and a private, uniquely named audio file is saved
+Playback starts detached on the operator's default device: the brief is
+requested audio, so it leaves the agent audio sandbox (US-026). A private,
+uniquely named audio file is saved
 under `~/.cache/tts-play/`. End the written brief with one line: the audio path,
 length, and estimated cost if usage was reported; otherwise say cost unavailable.
 If the command fails, still deliver the written brief, and state the error in
