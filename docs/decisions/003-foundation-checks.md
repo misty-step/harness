@@ -1,16 +1,17 @@
 # ADR-003: Foundation checks, cadence, and bootstrap
 
-Proposed 2026-09-25 (MIS-150). Pilot repository: Scry. This record becomes
-accepted when the operator approves rollout beyond Scry and its change merges.
+Accepted 2026-09-25 (MIS-150): the operator approved all three decisions below,
+relayed by Kaylee, with two changes to who approves (see Review authority).
+Pilot repository: Scry.
 
 ## Context
 
 Skills do not enforce foundations. Transcripts showed prose mandates ignored:
 682 of 686 browser-automation calls ran locally after the exe.dev rule. Checks
 that fail do change behavior. The operator approved enforcement by required
-checks (2026-09-25). This record defines the checks, how they run cheaply, and
-how an existing repository gets from zero to compliant without stalling work:
-the chicken-and-egg.
+checks (2026-09-25). This record defines the checks, how they run cheaply, how
+an existing repository gets from zero to compliant without stalling work (the
+chicken-and-egg), and who may approve the steps an agent cannot self-approve.
 
 ## Checks
 
@@ -43,9 +44,9 @@ gates.
 
 | Problem | Resolution |
 | --- | --- |
-| A required check cannot be required before it exists and passes, and the PR that adds it would have to pass it | Two steps. The bootstrap PR adds the checks as non-required. After the first green run on master, branch protection adds `foundation` and `story-walk` as required contexts. Scry followed this sequence. |
-| Full compliance in one PR is large, and blocking every PR until the repository is compliant stalls work | Ratchet mode, **not built yet**: `foundation-check baseline` and `mode: bootstrap` are future work (decision 2). `foundation.json` carries `mode: bootstrap` and a baseline of the current gaps (missing documents, unmapped stories, unwalked stories), each with an owner and an expiry at most 30 days out. `check` passes only if (1) current gaps are a subset of the baseline, (2) no baseline entry has expired: an expired entry fails until its gap is fixed and the entry removed, and (3) with `--base`, the baseline only shrinks versus the base branch. Adding an entry or moving an expiry later fails unless the PR cites an operator-approved decision record, the same exception authority the Foundation Standard requires. Any story a PR touches must be mapped and walked, so coverage grows where work happens. An empty baseline flips the mode to `enforced`, and a bootstrap repository cannot stay in bootstrap past its latest expiry without an operator decision. |
-| No `USER_STORIES.md` | An agent drafts stories in `user-stories` init mode. The operator merges, because only the operator sets intent. This is the one step that needs operator time. |
+| A required check cannot be required before it exists and passes, and the PR that adds it would have to pass it | Two steps. The bootstrap PR adds the checks as non-required. After the first green run on master, branch protection adds `foundation` and `story-walk` as required contexts. Scry followed this sequence. Repositories that cannot have branch protection run the checks as advisory (see Enforcement by plan). |
+| Full compliance in one PR is large, and blocking every PR until the repository is compliant stalls work | Ratchet mode, **not built yet**: `foundation-check baseline` and `mode: bootstrap` are future work (decision 2). `foundation.json` carries `mode: bootstrap` and a baseline of the current gaps (missing documents, unmapped stories, unwalked stories), each with an owner and an expiry at most 30 days out. `check` passes only if (1) current gaps are a subset of the baseline, (2) no baseline entry has expired: an expired entry fails until its gap is fixed and the entry removed, and (3) with `--base`, the baseline only shrinks versus the base branch. Adding an entry or moving an expiry later fails unless the PR adds a baseline-extension decision record that the designated agent reviewer approves (see Review authority). Any story a PR touches must be mapped and walked, so coverage grows where work happens. An empty baseline flips the mode to `enforced`, and a bootstrap repository cannot stay in bootstrap past its latest expiry without an approved extension. |
+| No `USER_STORIES.md` | An agent drafts stories in `user-stories` init mode. The designated agent reviewer, not the operator, approves the PR that first adds them (see Review authority). |
 | No feature map | `feature-map draft` gives the starting map. On Scry: area precision 0.75, recall 0.87, identical across two runs, 286 questions in 26 calls, 6.8 s. An agent completes the prose, and the deterministic check gates. |
 | No walk runner | Baseline stories stay `unwalked` until the repository's runner exists; it is written in the first PR that touches a story. Scry's `qa/walk` is the template. |
 | New checker rules could break master | Repositories pin a harness revision. Stricter rules land only through an explicit pin-bump PR, as Scry #194 did for exact criteria. |
@@ -64,8 +65,39 @@ gates.
   - Misses include CLI wiring the reference counts (`cmd/scry/main.go` for US-004) and an offline eval runner Jev wrongly included.
 - **Unexercised:** ratchet mode (not built; Scry adopted in one PR) and map drift detection.
 
-## Decision requested
+## Review authority
 
-1. Approve the checks and cadence above as the standard for every foundation repository.
-2. Approve building ratchet mode (`foundation-check baseline` and `mode: bootstrap`) before the next repository. The candidates are the repositories whose stories already pass `check-stories`: cantrip, central, liminal, pantry, polymorph.
-3. Keep Jev for first drafts only. Revisit drift detection when a holdout repository shows area precision ≥ 0.9.
+Two steps need an approval the PR author cannot give: a repository's first
+user stories, and any baseline extension (a new baseline entry or a later
+expiry). The operator delegated both to an agent reviewer on 2026-09-25.
+
+- **Who approves.** Each organisation has one designated agent reviewer, a
+  GitHub App identity, recorded in the harness at the revision a repository's
+  CI pins; a repository cannot name its own reviewer. The operator's approval
+  also counts. The PR author never counts, whoever it is.
+- **What counts.** An approving GitHub review on the PR's head commit, read by
+  CI through the GitHub API. Text in the repository grants no authority, per
+  the Foundation Standard.
+- **First stories.** The PR that adds `USER_STORIES.md` needs that approval.
+  Later changes to a story's intent stay with the operator.
+- **Baseline extensions.** The PR adds a decision record naming each extended
+  entry, its new expiry, and the reason; the same approval makes it valid.
+- **Escalation.** The agent reviewer approves on its own authority unless the
+  change is a real change in product direction. Then it does not approve and
+  asks the operator, whose approval is the only one that counts for that PR.
+
+## Enforcement by plan
+
+- **misty-step:** `foundation` and `story-walk` become required checks after
+  the first green run on master, as on Scry.
+- **r90group:** stays on GitHub's free plan (operator decision 2026-09-25).
+  Private repositories there cannot have branch protection or rulesets, so the
+  same jobs run as advisory: they run on every PR, fail visibly, and the nightly
+  failure issue stays owned, but no check is required.
+
+## Decisions (2026-09-25)
+
+1. Approved: the checks and cadence above are the standard for every foundation repository.
+2. Approved: build ratchet mode (`foundation-check baseline` and `mode: bootstrap`) next. Wave one of the rollout census (Tach, Habitat, Nopalito in `r90group/infrastructure`, Linejam, Sploot) is the first proof.
+3. Approved: Jev drafts first maps only. Revisit drift detection when a holdout repository shows area precision ≥ 0.9.
+4. Operator changes: the designated agent reviewer, not the operator, approves first user stories and baseline extensions, escalating only a real change in product direction.
