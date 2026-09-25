@@ -1,3 +1,9 @@
+# [0.1.44](https://github.com/misty-step/harness/compare/v0.1.43...v0.1.44) (2026-09-25)
+<!-- landmark:protected-release previous=v0.1.43 source=432e2f1c48a824078da036842570a0176a489a8f6b271384b010864b1faffc63 -->
+
+### Bug Fixes
+
+* **agent-config:** clear a review escalation only through the agent reviewer's recorded decision (US-027, MIS-150) ([2443207](https://github.com/misty-step/harness/commit/24432070db325509ee89f34e7abf6a44e7928360))
 # [0.1.43](https://github.com/misty-step/harness/compare/v0.1.42...v0.1.43) (2026-09-25)
 <!-- landmark:protected-release previous=v0.1.42 source=7a5e0657b18f60f139dcb9b0f2b6dcdfb14f8b2c52a1d5cd7c02dedbbb214b17 -->
 
