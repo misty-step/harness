@@ -722,8 +722,9 @@ Criteria:
    successful `workflow_run`), honouring branch globs and exclusions and
    rejecting path and tag-only filters and a `workflow_run` whose upstream is
    not itself that push-triggered gate, with a named ship job that waits on the
-   gate and whose `if:` uses only guards that keep every green push to the
-   default branch.
+   gate, where the ship job and every job it needs exist, use only `if:` guards
+   that keep every green push to the default branch, and (for gate jobs) do not
+   continue on error.
 4. WHEN FND-ALR-001 is `satisfied`, `check` SHALL fail unless
    `operations.alert` names an error-capture file that references its
    provider, a scheduled health workflow or a named external monitor, and an

@@ -411,13 +411,47 @@ function firesOn(trigger: unknown, branch: string): boolean {
 	if (ignored && branchMatches(trigger["branches-ignore"], branch)) return false;
 	return true;
 }
+/** The GitHub event payload in CI, when there is one. */
+function ciEvent(): Record<string, unknown> | undefined {
+	const path = process.env.GITHUB_EVENT_PATH;
+	const event = path && existsSync(path) ? jsonOrUndefined(readFileSync(path, "utf8")) : undefined;
+	return record(event) ? event : undefined;
+}
 /** The repository's default branch, from the CI event or the clone's origin/HEAD; undefined when neither says. */
 function defaultBranch(repo: string): string | undefined {
-	const event = process.env.GITHUB_EVENT_PATH ? jsonOrUndefined(existsSync(process.env.GITHUB_EVENT_PATH) ? readFileSync(process.env.GITHUB_EVENT_PATH, "utf8") : undefined) : undefined;
-	if (record(event) && record(event.repository) && text(event.repository.default_branch)) return event.repository.default_branch;
+	const repository = ciEvent()?.repository;
+	if (record(repository) && text(repository.default_branch)) return repository.default_branch;
 	const head = spawnSync("git", ["symbolic-ref", "--short", "refs/remotes/origin/HEAD"], { cwd: repo, encoding: "utf8" });
 	return head.status === 0 && head.stdout.trim().startsWith("origin/") ? head.stdout.trim().slice("origin/".length) : undefined;
 }
+/**
+ * Terms a ship job, or a job it needs, may combine with `&&` and still run on every green push to the default
+ * branch. Anything else (a promotion branch, a commit-message opt-in, a repository toggle, always()) fails closed.
+ */
+function guardAllowed(branch: string): (term: string) => boolean {
+	const quoted = (value: string) => `['"]${value.replace(/[.*+?^${}()|[\]\\/]/g, "\\$&")}['"]`;
+	const repository = ciEvent()?.repository;
+	const fullName = process.env.GITHUB_REPOSITORY || (record(repository) && text(repository.full_name) ? repository.full_name : undefined);
+	const allowed = [
+		/^success\(\)$/,
+		new RegExp(`^github\\.event_name==${quoted("push")}$`),
+		new RegExp(`^github\\.event_name!=${quoted("pull_request")}$`),
+		new RegExp(`^github\\.ref==${quoted(`refs/heads/${branch}`)}$`),
+		new RegExp(`^github\\.ref_name==${quoted(branch)}$`),
+		/^github\.ref_name==github\.event\.repository\.default_branch$/,
+		/^github\.ref==format\(['"]refs\/heads\/\{0\}['"],github\.event\.repository\.default_branch\)$/,
+		new RegExp(`^github\\.event\\.workflow_run\\.conclusion==${quoted("success")}$`),
+		new RegExp(`^github\\.event\\.workflow_run\\.head_branch==${quoted(branch)}$`),
+		new RegExp(`^github\\.event\\.workflow_run\\.event==${quoted("push")}$`),
+		...(fullName ? [new RegExp(`^github\\.repository==${quoted(fullName)}$`)] : []),
+	];
+	return (term) => allowed.some((pattern) => pattern.test(term));
+}
+const guardTerms = (condition: unknown): string[] => {
+	const bare = condition === undefined ? "" : String(condition).replace(/^\s*\$\{\{([\s\S]*)\}\}\s*$/, "$1").replace(/\s+/g, "");
+	return bare === "" ? [] : bare.split("&&").map((term) => term.replace(/^\((.*)\)$/, "$1"));
+};
+const needsOf = (job: Record<string, unknown>): string[] => (typeof job.needs === "string" ? [job.needs] : Array.isArray(job.needs) ? job.needs.map(String) : []);
 /** FND-REL-001: a green default branch ships through a job that waits on the gate. A platform deploy proves itself in the receipt. */
 function shipProblems(repo: string, ship: unknown): string[] {
 	if (!record(ship) || !text(ship.branch)) return ["operations.ship must name the default branch and a workflow and job, or a platform"];
@@ -446,25 +480,23 @@ function shipProblems(repo: string, ship: unknown): string[] {
 		}
 	}
 	if (!onPush && !onRun && problems.length === 0) problems.push(`${String(ship.workflow)} does not run on every push to ${branch}`);
-	const condition = job.if === undefined ? "" : String(job.if);
-	// Only conditions known to keep "every green push to the default branch" pass; anything else (a promotion
-	// branch, a commit-message opt-in, a repository toggle, always()) fails closed.
-	const quoted = (value: string) => `['"]${value.replace(/[.*+?^${}()|[\]\\/]/g, "\\$&")}['"]`;
-	const allowed = [
-		/^success\(\)$/,
-		new RegExp(`^github\\.event_name==${quoted("push")}$`),
-		new RegExp(`^github\\.event_name!=${quoted("pull_request")}$`),
-		new RegExp(`^github\\.ref==${quoted(`refs/heads/${branch}`)}$`),
-		new RegExp(`^github\\.event\\.workflow_run\\.conclusion==${quoted("success")}$`),
-		new RegExp(`^github\\.event\\.workflow_run\\.head_branch==${quoted(branch)}$`),
-		new RegExp(`^github\\.event\\.workflow_run\\.event==${quoted("push")}$`),
-	];
-	const bare = condition.replace(/^\s*\$\{\{([\s\S]*)\}\}\s*$/, "$1").replace(/\s+/g, "");
-	const terms = bare === "" ? [] : bare.split("&&").map((term) => term.replace(/^\((.*)\)$/, "$1"));
-	if (terms.some((term) => !allowed.some((pattern) => pattern.test(term)))) problems.push(`job ${ship.job} has if: ${condition}, which does not ship every green push`);
-	const needs = Array.isArray(job.needs) ? job.needs.length > 0 : text(job.needs);
-	const afterGreenRun = onRun && terms.some((term) => allowed[4].test(term));
-	if (!needs && !afterGreenRun) problems.push(`job ${ship.job} ships without waiting on the gate: give it needs, or run it from workflow_run only when the conclusion is success`);
+	// The ship job and every job it needs, transitively, must exist, run on every green push, and block on failure:
+	// an opt-in or non-blocking gate one hop up is still not shipping on green.
+	const allowed = guardAllowed(branch);
+	const seen = new Set<string>();
+	const pending = [ship.job];
+	while (pending.length > 0) {
+		const name = pending.shift()!;
+		if (seen.has(name)) continue;
+		seen.add(name);
+		const current = workflow.jobs[name];
+		if (!record(current)) { problems.push(`job ${ship.job} needs ${name}, which does not exist`); continue; }
+		if (!guardTerms(current.if).every(allowed)) problems.push(`job ${name} has if: ${String(current.if)}, which does not ship every green push`);
+		if (name !== ship.job && current["continue-on-error"] !== undefined && current["continue-on-error"] !== false) problems.push(`job ${name} gates the ship job but has continue-on-error`);
+		pending.push(...needsOf(current));
+	}
+	const afterGreenRun = onRun && guardTerms(job.if).some((term) => /^github\.event\.workflow_run\.conclusion==['"]success['"]$/.test(term));
+	if (needsOf(job).length === 0 && !afterGreenRun) problems.push(`job ${ship.job} ships without waiting on the gate: give it needs, or run it from workflow_run only when the conclusion is success`);
 	return problems;
 }
 /** FND-ALR-001: remote error capture, an outside health check and a loud destination, each named and present. */

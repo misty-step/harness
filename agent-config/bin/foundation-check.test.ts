@@ -505,7 +505,7 @@ describe("foundation-check operational obligations (ADR-005, US-040)", () => {
 		// The checker confirms the declared branch is the default one; a clone knows it through origin/HEAD.
 		exec(repo, ["update-ref", "refs/remotes/origin/main", "HEAD"]);
 		exec(repo, ["symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/main"]);
-		const deploy = (on: string, job: string) => put(repo, ".github/workflows/deploy.yml", `name: deploy\non:\n${on}\njobs:\n  test:\n    runs-on: ubuntu-latest\n    steps: [{ run: "true" }]\n  deploy:\n    runs-on: ubuntu-latest\n${job}    steps: [{ run: "true" }]\n`);
+		const deploy = (on: string, job: string, gate = "") => put(repo, ".github/workflows/deploy.yml", `name: deploy\non:\n${on}\njobs:\n  test:\n    runs-on: ubuntu-latest\n${gate}    steps: [{ run: "true" }]\n  deploy:\n    runs-on: ubuntu-latest\n${job}    steps: [{ run: "true" }]\n`);
 		deploy("  push:\n    branches: [main]", "    needs: [test]\n");
 		put(repo, "src/instrument.ts", "import * as Sentry from \"@sentry/node\";\nSentry.init({ release: process.env.RELEASE });\n");
 		put(repo, ".github/workflows/health.yml", "name: health\non:\n  schedule:\n    - cron: \"*/5 * * * *\"\njobs:\n  probe:\n    runs-on: ubuntu-latest\n    steps: [{ run: \"curl -f https://example.test/health\" }]\n");
@@ -533,9 +533,15 @@ describe("foundation-check operational obligations (ADR-005, US-040)", () => {
 		refused("  push:\n  workflow_dispatch:", "    needs: [test]\n    if: github.event_name == 'workflow_dispatch'\n", "job deploy has if: github.event_name == 'workflow_dispatch'");
 		refused("  push:", "    needs: [test]\n    if: github.ref == 'refs/heads/production'\n", "job deploy has if: github.ref == 'refs/heads/production'");
 		refused("  push:\n    branches: [main]", "    needs: [test]\n    if: contains(github.event.head_commit.message, '[deploy]')\n", "job deploy has if: contains(github.event.head_commit.message, '[deploy]')");
+		// The jobs the ship job needs are part of the gate: an opt-in, a non-blocking or a missing one is not shipping on green.
+		deploy("  push:\n    branches: [main]", "    needs: [test]\n", "    if: contains(github.event.head_commit.message, '[deploy]')\n");
+		expect(errors(repo)).toContain("FND-REL-001: satisfied, but job test has if: contains(github.event.head_commit.message, '[deploy]')");
+		deploy("  push:\n    branches: [main]", "    needs: [test]\n", "    continue-on-error: true\n");
+		expect(errors(repo)).toContain("FND-REL-001: satisfied, but job test gates the ship job but has continue-on-error");
+		refused("  push:\n    branches: [main]", "    needs: [lint]\n", "job deploy needs lint, which does not exist");
 		// Globs, a string branch filter, and the usual push guards all ship every green push to main.
 		for (const [on, job] of [["  push:\n    branches: ['**']", ""], ["  push:\n    branches: main", ""], ["  push:\n  pull_request:", "    if: github.event_name != 'pull_request'\n"],
-			["  push:", "    if: ${{ github.ref == 'refs/heads/main' && github.event_name == 'push' }}\n"]]) {
+			["  push:", "    if: ${{ github.ref == 'refs/heads/main' && github.event_name == 'push' }}\n"], ["  push:", "    if: github.ref_name == github.event.repository.default_branch\n"]]) {
 			deploy(on, `    needs: [test]\n${job}`);
 			expect(cli(repo, "check").output.errors).toEqual([]);
 		}

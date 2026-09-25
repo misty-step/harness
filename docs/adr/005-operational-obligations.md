@@ -97,13 +97,15 @@ error reports from real installs.
     a tag-only trigger does not count, and a `workflow_run` must follow a
     workflow that itself fires on every push to the branch (a dispatch-only or
     scheduled upstream is a manual or periodic promotion). The named job must
-    wait on the gate (`needs`, or the `workflow_run` success condition), and its
-    `if:` may only combine, with `&&`, guards that keep every green push to the
-    default branch: `success()`, `github.event_name == 'push'`,
-    `github.event_name != 'pull_request'`, `github.ref ==
-    'refs/heads/<default>'`, and the `workflow_run` conclusion, head branch and
-    event tests. Anything else (a promotion branch, a commit-message opt-in, a
-    repository toggle, `always()`) fails closed.
+    wait on the gate (`needs`, or the `workflow_run` success condition). It and
+    every job it needs, transitively, must exist, and their `if:` may only
+    combine, with `&&`, guards that keep every green push to the default branch:
+    `success()`, `github.event_name == 'push'`, `github.event_name !=
+    'pull_request'`, a `github.ref`/`github.ref_name` test for the default
+    branch, the repository fork guard, and the `workflow_run` conclusion, head
+    branch and event tests. Anything else (a promotion branch, a commit-message
+    opt-in, a repository toggle, `always()`) fails closed, and a gate job with
+    `continue-on-error` does not count.
   - FND-ALR-001: `operations.alert` names the file that initialises error
     capture (it must reference the provider), a scheduled health workflow or a
     named external monitor, and the alert destination.
