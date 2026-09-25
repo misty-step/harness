@@ -93,12 +93,15 @@ listen, from their own terminal (an agent session's `!` command is sandboxed):
 plays agent audio live until Ctrl-C. The spoken sachstand brief is requested
 playback, so `speak.ts` drops the listed keys and uses the default device.
 
-Not covered: OMP eval kernels (OMP passes them an allowlisted environment
-without these keys); processes started outside the session environment
-(`env -i`, `systemd-run`, D-Bus activation, `hyprctl dispatch exec`); raw ALSA
-`hw:` devices while the card is idle; and IPC into operator apps that are
-already running (browser tabs, `playerctl`). Sessions started before a deploy
-keep their old environment until restarted.
+Open gap (blocked): OMP's Python eval runner receives an allowlisted
+environment without these keys, and neither an OMP setting nor a WirePlumber
+script (whose Lua sandbox cannot read `/proc`) routes it before linking. OMP's
+JavaScript eval inherits the extension layer. Deliberate bypass stays out of
+scope: processes started outside the session environment (`env -i`,
+`systemd-run`, D-Bus activation, `hyprctl dispatch exec`), raw ALSA `hw:`
+devices while the card is idle, and IPC into operator apps that are already
+running (browser tabs, `playerctl`). Sessions started before a deploy keep
+their old environment until restarted.
 
 Revert: remove the drop-in and run `pw-cli destroy agent-sandbox`; delete the
 owned block from `~/.omp/agent/.env`, `shellCommandPrefix` from

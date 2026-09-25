@@ -594,9 +594,9 @@ sound routed to a silent sink they can record and analyze, so overlapping agent
 audio never reaches my headphones and I decide when to listen.
 
 Criteria:
-1. WHEN a process started from an OMP, Pi, or Claude Code session's bash tool
-   plays audio without naming a device, THE SYSTEM SHALL link its stream only to
-   the `agent-sandbox` sink and to no hardware sink.
+1. WHEN any process an OMP, Pi, or Claude Code agent session spawns plays
+   audio without naming a device, THE SYSTEM SHALL link its stream only to the
+   `agent-sandbox` sink and to no hardware sink.
 2. WHEN such a process records without naming a device, THE SYSTEM SHALL capture
    the `agent-sandbox` monitor, so the agent can analyze what it played.
 3. IF the `agent-sandbox` sink is missing, THEN a sandboxed stream SHALL stay
@@ -614,10 +614,11 @@ Criteria:
 
 No-gos: no change to the default device, Kaylee's voice, or apps the operator
 launches; no PipeWire restart on install; no claim to stop deliberate bypass
-(scrubbed environments, raw ALSA devices, IPC into running operator apps) or
-OMP eval kernels, whose environment OMP filters.
+(scrubbed environments, raw ALSA devices, IPC into running operator apps).
 
 Evidence: `agent-config/audio-sandbox/audio-sandbox.test.ts`,
 `scripts/verify-installers`, the live routing proof in
 `agent-config/audio-sandbox/install.ts host`, and a fresh engineer-session smoke
-recorded in the pull request.
+recorded in the pull request. Open: criterion 1 fails for OMP Python eval,
+whose runner receives an allowlisted environment without the routing keys;
+closing it needs a supported pre-link OMP boundary (blocked, operator decision).
