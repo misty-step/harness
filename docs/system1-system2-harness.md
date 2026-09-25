@@ -344,9 +344,9 @@ limit, and after each task when the projected total exceeds it.
 
 ### Spend and schedule
 
-- **Pilot spend.** $0.77 billed for the scored runs, and $1.11 for all pilot
-  work on the evaluation key, including two discarded launches, probes, and a
-  lock check. The Jev judge panel cost $0.003.
+- **Pilot spend.** $0.77 billed for the scored runs, and $1.16 for all pilot
+  work on the evaluation key, including two discarded launches, probes, and
+  three check runs. The Jev judge panel cost $0.003.
 - **Full size, estimated.** At the pilot's billed rates, one task across three
   arms costs about $0.16 on Flash, so 48 tasks plus 16 replicates would cost
   roughly $10. The runner's spend guard stops at the configured limit.
