@@ -1,3 +1,9 @@
+# [0.1.37](https://github.com/misty-step/harness/compare/v0.1.36...v0.1.37) (2026-09-25)
+<!-- landmark:protected-release previous=v0.1.36 source=0adcb7909be7f712a74df296e122b79abd88012f9b8d0093546856aa286c8dae -->
+
+### Features
+
+* **routing:** apply the operator model policy to OMP and Pi (US-014) (MIS-150) ([e696990](https://github.com/misty-step/harness/commit/e6969905e2071b79f3601546491f13c045bd93ec))
 # [0.1.36](https://github.com/misty-step/harness/compare/v0.1.35...v0.1.36) (2026-09-25)
 <!-- landmark:protected-release previous=v0.1.35 source=4de33f2345b820bff99d19336502a39330635bee9cc85c667048b2b7e48390c5 -->
 
