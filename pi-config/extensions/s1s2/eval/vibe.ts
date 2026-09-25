@@ -123,7 +123,7 @@ function lockAgentEgress(): void {
 const agentReaches = (url: string) =>
 	spawnSync("sudo", ["-n", "-u", agentUser, "curl", "-sS", "-m", "10", "-o", "/dev/null", url], { cwd: "/", stdio: "ignore" }).status === 0;
 lockAgentEgress();
-for (const url of ["https://github.com", "https://raw.githubusercontent.com"]) {
+for (const url of new Set([new URL(manifest.repo).origin, "https://github.com", "https://raw.githubusercontent.com"])) {
 	if (agentReaches(url)) fail(`agent user ${agentUser} can reach ${url}; the egress lock is not real`);
 }
 if (!agentReaches(`${openrouterBase}/api/v1/models`)) fail(`agent user ${agentUser} cannot reach ${openrouterBase} under the egress lock`);
