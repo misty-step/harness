@@ -1,3 +1,14 @@
+# [0.1.42](https://github.com/misty-step/harness/compare/v0.1.41...v0.1.42) (2026-09-25)
+<!-- landmark:protected-release previous=v0.1.41 source=1f83307cf649a1ef5f1f7d0a1074e705a8213b100f8981bb8e2d88ba29dd09f7 -->
+
+### Features
+
+* **agent-config:** add foundation ratchet mode and bootstrap baseline (US-027, MIS-150) ([b427708](https://github.com/misty-step/harness/commit/b4277087fbf33b65f7011bec65b676fa1bcd349a))
+
+### Bug Fixes
+
+* **agent-config:** validate baseline exemptions everywhere and key each feature defect (US-027, MIS-150) ([16419d6](https://github.com/misty-step/harness/commit/16419d670e6bfc5b64d5ed2a882c65bd11c3d892))
+* **agent-config:** walk unmapped stories in change receipts (US-027, MIS-150) ([cee334e](https://github.com/misty-step/harness/commit/cee334e7767c135689a8520be6cc35bf436cb799))
 # [0.1.41](https://github.com/misty-step/harness/compare/v0.1.40...v0.1.41) (2026-09-25)
 <!-- landmark:protected-release previous=v0.1.40 source=19973695a5d8cc254b3ebcc655288573178fec2b179951e4963656bd694452af -->
 
