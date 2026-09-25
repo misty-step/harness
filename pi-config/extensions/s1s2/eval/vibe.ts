@@ -491,7 +491,6 @@ const spendStart = await keySpend();
 const committed = () => ledger.settledUsd + ledger.pendingUsd;
 const results: Record<string, unknown>[] = [];
 let stopped: string | null = null;
-let tasksDone = 0;
 
 outer: for (const task of tasks) {
 	const branch = `vibe-base-${task.id}`;
@@ -619,9 +618,10 @@ outer: for (const task of tasks) {
 			break outer;
 		}
 	}
-	tasksDone++;
-	if (spendLimit > 0 && tasksDone < tasks.length) {
-		const projected = (committed() / tasksDone) * tasks.length;
+	// Count every finished task, resumed ones included, since committed spend includes theirs.
+	const finished = tasks.filter((entry) => arms.every((arm) => existsSync(join(out, "runs", entry.id, arm, "run.json")))).length;
+	if (spendLimit > 0 && finished > 0 && finished < tasks.length) {
+		const projected = (committed() / finished) * tasks.length;
 		console.log(`${new Date().toISOString()} committed $${committed().toFixed(4)}, projected $${projected.toFixed(2)}`);
 		if (projected > spendLimit) {
 			stopped = `spend projection: $${projected.toFixed(2)} for ${tasks.length} tasks exceeds $${spendLimit}`;
