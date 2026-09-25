@@ -1,10 +1,10 @@
 # ADR-004: Core project documents
 
-Proposed 2026-09-25 as an amendment to ADR-003's Documents row (FND-DOC-001)
-and to the Foundation Standard catalog. It is not accepted and not enforced.
-Nothing here changes a repository until the operator accepts it and each
-repository takes an explicit pin-bump PR, with ratchet baselines absorbing the
-new gaps.
+Proposed 2026-09-25 as an amendment to ADR-003's Documents row (FND-DOC-001),
+to FND-WS-001's applicability, and to the Foundation Standard catalog. It is
+not accepted and not enforced. Nothing here changes a repository until the
+operator accepts it and each repository takes an explicit pin-bump PR, with
+ratchet baselines absorbing the new gaps.
 
 ## Question
 
@@ -66,10 +66,13 @@ praetor, pii-gate), and Powder is archived. Eight read-only audits then covered
    - Cantrip has three open tickets for the same class: MIS-65 (config
      template), MIS-77 (CLI reference) and MIS-79 (CI description).
 
-   A mechanical scan of root documents in 44 repositories found at most 30
-   dangling path references out of 1,348; a few are build outputs or code
-   symbols. Deleted files are the cheap class of drift; duplicated facts are
-   the expensive one.
+   A mechanical scan of root documents in 44 repositories flagged 30 of 1,348
+   path references. Manual classification: 13 citations (12 distinct paths in
+   Polymorph, Olympus, Chrondle and Steno) are stale, for example Olympus
+   AGENTS naming `scripts/sprite.sh` after #782 deleted it. The other 17 are
+   false positives: code symbols, build outputs, paths in consumer
+   repositories, and templates. Deleted files are the cheap class of drift;
+   duplicated facts are the expensive one.
 3. **One job, many names.**
    - The vocabulary or boundary document has six names, and 24/37 repositories have none.
    - Decision records collide:
@@ -89,8 +92,11 @@ praetor, pii-gate), and Powder is archived. Eight read-only audits then covered
      standard already says repository text grants no authority.
    - Runbooks mix procedure with chronology: Scry's is 892 lines and Tach's
      provisioning runbook is 1,485.
-   - Scry keeps 139 Markdown files. Its QA path uses about ten; the rest are
-     receipts, research, and history.
+   - Scry's README sends agents to `docs/design/concept-centered-study.md`,
+     which still endorses the rejected "Scrying glass" direction and Map
+     search. `docs/api/scry-v1.md` still describes the retired Rust `/v1`
+     contract. Scry's other retained QA, evidence and history files are
+     labelled as history and are not in conflict.
    - Workstation paths appear in Waymark, Tangle (`~/Development/r90`) and
      Liminal (`/home/exedev/shots`).
 6. **Setup is executable or it is missing.** Outside Scry, every sampled
@@ -107,12 +113,18 @@ praetor, pii-gate), and Powder is archived. Eight read-only audits then covered
      reads only the root file (`agent-config/bin/foundation-check.ts:177,275,318,527,609`).
    - The credentials guidance says every misty-step repository ends with an
      `.env.pass`; the standard does not require one.
-   - `check-stories.sh` only warns when evidence paths are missing, and
-     Polymorph's stories cite five evidence paths that do not exist at HEAD;
-     one test has moved to `src/media/`.
-   - MIS-11 (2026-09-07) made VISION optional context, but Scry's chain puts
-     VISION above USER_STORIES, against global guidance that USER_STORIES is
-     the root artifact.
+
+Two tensions rather than violations:
+
+- `check-stories.sh` deliberately only warns about missing evidence paths
+  until a repository has lived with stories for a few PRs. Polymorph is inside
+  that window: two PRs since 2026-09-18. Its stories cite five paths that no
+  longer exist at HEAD, and one of those tests now lives under `src/media/`.
+  The window has no end, so nothing ever turns that warning into a failure.
+- MIS-11 (2026-09-07) made VISION optional context everywhere, and Iron
+  Forest's operator asked to retire its VISION. Scry's VISION owns authorized
+  direction upstream of its stories, but no clause overrides accepted criteria.
+  The other VISION files are not drift by presence alone.
 
 What already works:
 
@@ -123,8 +135,9 @@ What already works:
 - Tangle's `okf.toml` is a machine-checked content contract.
 - Nopalito's `DEPLOY.md` stages, canaries, snapshots, switches and rolls back;
   Sanctum proves rollback per application.
-- `CLAUDE.md` is already a symlink to `AGENTS.md` in 24 of the 26 repositories
-  that have both, across the three development trees.
+- `CLAUDE.md` is already a symlink to `AGENTS.md` (Git mode `120000`) in 24
+  of the 26 repositories that have both, across the three development trees.
+  Chrondle's `GEMINI.md` is a regular file: 85 lines against AGENTS's 345.
 
 ## Decision (proposed)
 
@@ -133,8 +146,11 @@ What already works:
 - Setup, QA and shipping are owned by executables that CI runs. Documents name
   those executables and never restate their steps.
 - Facts that live in code or config are never written in prose. That covers
-  versions, commands, environment names, routes, enums and deployment
-  topology. Generate them into a marked block or link to their owner.
+  versions, commands, environment names, routes, enums and candidate deploy
+  targets. Generate them into a marked block or link to their owner. Which
+  target is live and what release is authorized come from release and
+  readback evidence (for example, Scry's runbook authority and Estate's
+  readback), never from config alone.
 - Status, history, receipts and grants of authority never live in a core
   document. They belong in the tracker or in CI artifacts.
 
@@ -164,7 +180,8 @@ to it.
   - invariants that code does not enforce;
   - what an agent may do without asking;
   - review priorities;
-  - a routing table to every owner in this ADR.
+  - a routing table to every owner in this ADR, including the repository's
+    native setup, gate, walk and release commands.
 - Never holds: product description, glossary, procedures, one-time
   permissions, workstation state, personas, scaffolder boilerplate, or model
   and vendor names.
@@ -184,7 +201,7 @@ to it.
   chronicles, or implementation identities.
 - Stale when:
   - `check-stories.sh` fails;
-  - an evidence path is missing (upgraded from a warning to a failure);
+  - an evidence path is missing (a failure once the repository's mode is `enforced`);
   - a live story has no current walk receipt (FND-WLK-001).
 - Replaces: the criteria half of `SPEC.md`.
 
@@ -225,15 +242,19 @@ to it.
   `docs/architecture/adr-*`. A declared monorepo may keep one `docs/adr/` per
   component, and each directory is its own number namespace.
 
-**Executable entry points.** These are fixed paths, so any agent in any repository runs the same three commands:
+**Executable owners.** Each repository keeps its own commands; ADR-003 leaves
+each gate unchanged, and `verification-infrastructure` forbids wrapping a
+working command to impose a common name. AGENTS.md's routing table names them,
+and a reference check proves each named command exists.
 
-- `.exe/setup.sh`: idempotent and credential-free bootstrap (FND-WS-001),
-  applying to every repository. "Arbitrary environment" means a fresh Ubuntu
-  LTS exe.dev VM and a GitHub-hosted Ubuntu runner.
-- `scripts/check`: the full deterministic gate, which CI runs. "check" is the
-  fleet's majority name: eight npm `check` scripts, four `scripts/check`, and
-  three `scripts/check.sh`. For npm repositories it is a two-line wrapper.
-- `qa/walk`: the story walk that emits receipts (FND-WLK-001).
+- Setup: `.exe/setup.sh`, the one fixed path, already defined by FND-WS-001.
+  This ADR amends FND-WS-001 to apply to every active repository, because the
+  host-resources mandate sends each project's heavy execution to its own
+  exe.dev workspace. "Arbitrary environment" means a fresh Ubuntu LTS exe.dev
+  VM and a GitHub-hosted Ubuntu runner.
+- Gate: the repository's native full check, whatever CI runs today (for
+  example `npm run ci` in Scry, `./scripts/verify` in the harness).
+- Walk: the repository's walk runner (FND-WLK-001).
 
 The verify skill keeps Launch, Doctor, Drive, Evidence and Cleanup; its Drive
 section names walk specs rather than restating them. Feature files
@@ -264,8 +285,9 @@ apply.
 | `ui` | `DESIGN.md`: interface design (visual system, interaction, copy) in `design-studio` format | The design lint fails or a referenced token file is missing |
 | `cli` | A command reference generated from the parser (`--help` or `describe --json`) into a README block | The re-render differs |
 | `library`, `api` | A machine contract (OpenAPI, JSON Schema or typed exports) and a generated reference; the compatibility policy goes in DOMAIN | The re-render differs; the contract check fails |
-| `deployed` (changes a live system outside the repository) | `docs/runbook.md` with Release, Rollback and Recover sections that name the deploy config as the topology owner; `docs/postmortems/` appears at the first incident, using the harness template | A command or config path does not resolve; the rollback drill fails (FND-CHG-002) |
-| `content` | A machine content schema such as `okf.toml`, plus a content lint in `scripts/check`; DOMAIN holds taxonomy, provenance, privacy and agent write rules | The lint fails |
+| `deployed` (changes a live system outside the repository) | `docs/runbook.md` with Release, Rollback and Recover sections; it names the deploy config for candidate targets and the release or readback evidence that shows what is live; `docs/postmortems/` appears at the first incident, using the harness template | A command or config path does not resolve; the rollback drill fails (FND-CHG-002) |
+| `content` | A machine content schema such as `okf.toml`, plus a content lint in the repository's gate; DOMAIN holds taxonomy, provenance, privacy and agent write rules | The lint fails |
+| `public` | A public face (see below) | The catalog description differs from the README lede, or the link fails |
 
 How the requested tiers map onto surfaces:
 
@@ -276,17 +298,57 @@ How the requested tiers map onto surfaces:
 - Content vault: `content`.
 - Infrastructure and config repositories, including the harness: `deployed`.
 
+`public` combines with any of these; see the next section for who it applies to.
+
+### Public face (`public`)
+
+The operator asked whether every project needs a marketing site. Evidence:
+
+- mistystep.io (the `misty-step` repository, Cloudflare Worker
+  `mistystep-site`) already lists public projects in a hand-kept
+  `content/work.ts`: name, one-line description, link and action.
+- Canary, Landmark and Linejam publish sites to GitHub Pages; Cantrip and
+  Vibe Machine keep a `site/`; Parlor serves `apps/site` at parlor.mistystep.io.
+- Parlor is a library and Landmark a CLI, and both have outside consumers. The
+  line is audience, not tier.
+
+- **Applies to:** products offered to people outside the operator's household
+  and organization. That covers public games and apps, public CLIs and tools,
+  and public libraries such as Parlor.
+- **Does not apply to:** private products (Scry, Pantry, Central), r90group's
+  private repositories, content vaults, or infrastructure and config
+  repositories. For these a public page would reveal private systems and need
+  upkeep for no audience.
+- **Minimum:** one public page that says:
+  - what it is and who it is for;
+  - the primary action (play, install, get started or view source);
+  - its lifecycle state and a link to source or docs;
+  - how data is handled, if the product collects any.
+
+  A web app's own landing page satisfies this; it needs no separate site.
+- **Generation:** the words come from the README lede and non-goals, which
+  already answer what it is and who it is for. DOMAIN is internal vocabulary
+  and boundaries, not public copy. The minimum can be a mistystep.io entry
+  rendered from each public README. Richer sites (docs, brand, screenshots)
+  are authored and follow DESIGN.md.
+- **Hosting:** the default is a page on mistystep.io, already on Cloudflare.
+  A project that warrants its own domain hosts it on Cloudflare, per the
+  infrastructure default. The existing GitHub Pages sites stay until there is
+  a reason to move them.
+- **Check:** generating `content/work.ts` from public READMEs crosses
+  repositories, so it is a follow-up candidate, not stage 1.
+
 ### Generated, never hand-edited
 
-A check regenerates or verifies each of these and fails on any difference:
+Nobody edits these by hand. Stage 1 checks the symlinks; checking the rest is
+a follow-up candidate.
 
 - `CLAUDE.md` and `GEMINI.md`: symlinks.
 - `CHANGELOG.md`: written by Landmark.
 - The `docs/adr/` and `features/` indexes.
-- README command and toolchain blocks, rendered from the entry points and pin files.
 - CLI and API references.
 
-The DOMAIN code map is checked as a set of directories; its prose is authored.
+The DOMAIN code map's prose is authored.
 
 ### Removed from FND-DOC-001
 
@@ -303,31 +365,42 @@ belongs in CI artifacts or the tracker. If it is kept in Git, it lives under
 
 ## Checks and gap keys for ratchet mode
 
-All checks are deterministic, run in milliseconds, and live in `foundation-check`.
+All checks are deterministic, take milliseconds, and live in `foundation-check`.
 New gap keys extend `gapPattern` (`agent-config/bin/foundation-check.ts:57-61`,
-ratchet mode as merged for US-027):
+ratchet mode as merged for US-027).
+
+**Stage 1 (this amendment).** Each check below answers a failure seen in the
+fleet evidence:
 
 - `doc:AGENTS.md`, `doc:DOMAIN.md`, `doc:DESIGN.md` (`ui`), `doc:runbook`
-  (`deployed`), `doc:content-schema` (`content`); existing `doc:README.md` and
-  `doc:USER_STORIES.md` stay.
-- `doc:aliases`: `CLAUDE.md` and `GEMINI.md` are symlinks to `AGENTS.md`.
-- `doc:agents-budget`: `AGENTS.md` is at most 150 lines.
-- `doc:refs`: relative links, backticked repository paths, and
-  `npm run`/`pnpm`/`bun run`/`just`/`make` targets in core documents and
-  skills resolve at HEAD.
-- `doc:adr`: this key changes meaning to location, unique numbers, status,
-  supersede targets, and index.
-- `doc:generated`: every marked block equals its re-render.
-- `doc:locality`: no user-specific paths (`/home/<user>/`, `/Users/<user>/`,
-  `~/Development/...` checkouts) in core documents or the repository's verify
-  skill; no spent or dated authority phrases in `AGENTS.md`. Skills a
-  repository ships as its product, such as the harness's, are out of scope.
-- `domain:codemap`: the code map equals the set of tracked, non-hidden
-  top-level directories.
-- `stories:format` (existing): `check-stories.sh` additionally fails on
-  missing evidence paths and on status words.
-- `entry:check`: `scripts/check` exists, is executable, and is invoked by CI.
-- `doc:postmortems` is removed, and the count rule leaves `doc:adr`.
+  (`deployed`), `doc:content-schema` (`content`); the existing `doc:README.md`
+  and `doc:USER_STORIES.md` stay.
+- `doc:aliases`: `CLAUDE.md` and `GEMINI.md`, when present, have Git mode
+  `120000` and point at `AGENTS.md`.
+- `doc:refs`: relative Markdown links in core documents resolve at HEAD, and
+  every command in the AGENTS routing table resolves to a script, package
+  script or target. Backticked paths are left out of stage 1, because 17 of
+  the 30 the scan flagged were false positives.
+- `doc:adr`: this key changes meaning, from "at least one ADR" to: records in
+  `docs/adr/` only, unique numbers, a status line, and resolving supersede
+  targets.
+- `stories:format` (existing): once a repository's adoption mode is
+  `enforced`, `check-stories.sh` fails on missing evidence paths. That gives
+  the migration window a defined end.
+- `doc:postmortems` is removed.
+
+**Follow-up candidates.** These are not validated, so this amendment does not
+adopt them:
+
+- generated-block diffs, and the generated ADR and feature indexes;
+- a user-path and dated-authority lint;
+- a DOMAIN code-map check;
+- a line budget for AGENTS.md;
+- a status-word lint for stories;
+- backticked-path resolution;
+- the `public` catalog check.
+
+The per-document "stale when" lists above show what these checks could detect.
 
 Not detectable by lint: prose that contradicts config, as in Habitat ADR-0008
 and Sploot's ARCHITECTURE. Ownership removes the prose copy instead. Jev
@@ -340,7 +413,8 @@ contradiction review stays advisory under ADR-003 decision 3.
    checker, `affected` and receipts all key on the root file.
 3. The credentials guidance adopts the conditional `.env.pass` rule.
 4. FND-DOC-001's text and catalog evidence adopt this ADR, including the
-   `surfaces` field and FND-WS-001 applying to every repository.
+   `surfaces` field. FND-WS-001's `applies_when` changes to every active
+   repository.
 5. The harness complies with its own standard:
    - Rename `docs/decisions/` to `docs/adr/`.
    - Extract the inline ADRs in `pi-config/README.md` and `omp-config/README.md`
@@ -355,8 +429,8 @@ contradiction review stays advisory under ADR-003 decision 3.
 - **Scry (pilot):**
   - Extract `DOMAIN.md` from `SPEC.md` and AGENTS.
   - Move `docs/architecture/adr-*` into history.
-  - Add a `scripts/check` wrapper and an `.env.pass` for release secrets.
-  - Drop the VISION-first chain.
+  - Name its native gate (`npm run ci`) and its walk runner in the AGENTS
+    routing table, and add an `.env.pass` for release secrets.
   - Fix the README link to the superseded concept study.
   - Remove release chronology from the runbook.
   - A follow-up decision settles the future of the `SPEC.md` S-ids.
@@ -386,8 +460,11 @@ contradiction review stays advisory under ADR-003 decision 3.
 1. Approve the core set and the surface matrix.
 2. Name the vocabulary document `DOMAIN.md` (recommended; used by Tach,
    Habitat and Olympus) or `ARCHITECTURE.md` (used by Canary, Sploot and Steno).
-3. Choose the gate entry point: fixed `scripts/check` (recommended) or a
-   declared `commands` field in `foundation.json`.
+3. Name the native commands in the AGENTS routing table (recommended: keeps
+   each gate as ADR-003 and `verification-infrastructure` require), or add a
+   fixed `scripts/check` wrapper (one path everywhere, at the cost of wrapper
+   files that rule forbids).
 4. Drop the "at least one ADR" and per-repository postmortem template requirements.
-5. Retire `VISION.md` fleet-wide, completing MIS-11.
-6. Enforce only through ratchet baselines and pin bumps, after acceptance.
+5. Retire `VISION.md` fleet-wide. MIS-11 made it optional and retired only Iron Forest's.
+6. Scope the public face by audience, as above, rather than to every project.
+7. Enforce only through ratchet baselines and pin bumps, after acceptance.
