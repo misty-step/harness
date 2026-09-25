@@ -582,6 +582,8 @@ describe("foundation-check review gate (US-027)", () => {
 		expect((await recorded([], [])).output.errors[0]).toContain(`first line "foundation-review: approved ${head}"`);
 		expect((await recorded([], [note(approval, "2026-09-25T10:00:00Z")])).output.approved_by).toBe(`${operator} (recorded decision)`);
 		expect((await recorded([{ ...said(operator, head, "COMMENTED", approval), submitted_at: "2026-09-25T10:00:00Z" }], [])).status).toBe(0);
+		// An unsubmitted draft review records nothing.
+		expect((await recorded([said(operator, head, "PENDING", approval)], [])).status).toBe(1);
 		// Another head, another account, or a quoted marker records nothing.
 		expect((await recorded([], [note(`foundation-review: approved ${base}`, "2026-09-25T10:00:00Z")])).status).toBe(1);
 		expect((await recorded([], [note(approval, "2026-09-25T10:00:00Z", "engineer")])).status).toBe(1);

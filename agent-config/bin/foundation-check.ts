@@ -667,9 +667,11 @@ async function review(options: Options): Promise<Result> {
 		// Every marker must be an entry's exact first line: the shared account writes a great deal of other text,
 		// and a decision names the head it covers, because an issue comment is not tied to a commit.
 		const login = designated.recorded;
+		// Only submitted entries record anything: a pending review (the account's own unsubmitted draft, visible when
+		// that account runs the check) has no submission time and is not a decision.
 		const stamped = (entry: Record<string, unknown>, field: string) => ({ at: typeof entry[field] === "string" ? entry[field] as string : "", entry });
 		const entries = [...(await list(`pulls/${options.pr}/reviews`)).map((entry) => stamped(entry, "submitted_at")), ...(await list(`issues/${options.pr}/comments`)).map((entry) => stamped(entry, "created_at"))]
-			.filter(({ entry }) => reviewer(entry) === login)
+			.filter(({ at, entry }) => at !== "" && entry.state !== "PENDING" && reviewer(entry) === login)
 			.sort((a, b) => (a.at < b.at ? -1 : a.at > b.at ? 1 : 0));
 		let escalation = -1;
 		entries.forEach(({ entry }, index) => { if (firstLine(entry) === escalationMarker) escalation = index; });
