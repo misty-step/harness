@@ -88,7 +88,12 @@ plan; that remains System 2's job.
    returns only typed probabilities.
 7. **Every decision is attributable.** Each Jev call is logged with its battery,
    answers, confidence, latency, token usage, and resulting action. The log
-   contains no state text and no credentials.
+   names targets only by repository file paths and repository-declared check
+   commands. It never contains prompt, transcript, or tool-output text, and
+   never credentials. Every state sent to Jev is credential-masked first. This
+   is a proposal for the operator's review. If the stricter rule is preferred,
+   targets can be logged as hashes and joined offline against the reference
+   diffs.
 
 ## Architecture on raw Pi
 
@@ -145,7 +150,7 @@ Package: [`pi-config/extensions/s1s2/`](../pi-config/extensions/s1s2/)
 | `questions.ts` | Every Jev question, with its thresholds beside it |
 | `sensors.ts` | Deterministic candidate, chunking, check-discovery, and fingerprint code |
 | `run.sh` | Headless single-task launcher |
-| `s1s2.test.ts` | US-029 contracts: fail-open, inert mode, triage and check safety, credential masking, and bounded authority |
+| `s1s2.test.ts` | US-029 contracts: fail-open, inert mode, triage and check safety, verification and edit detection, credential masking, and bounded authority |
 
 Jev calls go through the existing shared engine: `OpenRouterJevProvider`, pinned to
 `typesafe/jev-1.13`. Its credential comes from Pi's OpenRouter auth or from
@@ -220,8 +225,11 @@ by an exe.dev `http-proxy` integration.
   - The pull request's test changes are withheld and applied after the run as
     hidden tests.
   - The repository's existing suite must still pass.
-  - Tasks whose hidden tests bind to a private API that the statement does not
-    name are screened out.
+  - A curator screens every hidden assertion. Assertions that bind to
+    something the statement does not specify, such as a private helper's
+    signature or exact output bytes, are either relaxed to the behavior or
+    named in the statement. The smoke task's only hidden-test failure was
+    exactly this: byte equality with `git log -p`.
   - Tasks without automatable tests are judged only and reported separately.
 - **Exclusions.** Tasks that need secrets, live services, a GUI or browser, or a
   build longer than 15 minutes on the evaluation VM.
@@ -245,6 +253,11 @@ by an exe.dev `http-proxy` integration.
   the agent exits.
 - **Replicates.** Each task-arm runs once. A stratified subset of 16 tasks gets a
   second replicate to measure run-to-run noise.
+- **Runner mechanics.** These were learned from the smoke run. Every run writes
+  a completion marker (`run.json`), and orchestration waits on that marker,
+  never on process-name matching: a `pgrep -f` loop matched its own command
+  line and hung. The launcher reads the key from stdin and backgrounds only the
+  run, never a `read … && … &` chain, whose `read` gets `/dev/null`.
 
 ### Measurements
 

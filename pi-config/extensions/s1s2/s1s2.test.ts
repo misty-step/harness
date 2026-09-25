@@ -179,6 +179,24 @@ describe("US-029 deterministic safety", () => {
 		expect(await settlesAfter("cd src && bun test ./pricing.test.ts 2>&1")).toBe(true);
 	});
 
+	test("an edit made through bash counts as an edit for the monitor", async () => {
+		const cwd = repo();
+		stubJev({ note: "none", completion: "complete", check: "none_suitable" });
+		const handlers = load();
+		const ctx = context(cwd, "test-key");
+		await handlers.get("session_start")?.({ type: "session_start", reason: "startup" }, ctx);
+		await handlers.get("before_agent_start")?.(start("Fix `applyDiscount`."), ctx);
+		for (let turn = 1; turn <= 8; turn++) {
+			await handlers.get("turn_start")?.({ type: "turn_start", turnIndex: turn - 1, timestamp: 0 }, ctx);
+			if (turn === 7) writeFileSync(join(cwd, "src/pricing.ts"), "export const patched = true;\n");
+			const result = bash(`t${turn}`, turn === 7 ? "python3 patch.py" : "ls src", false);
+			await handlers.get("tool_result")?.(result, ctx);
+			await handlers.get("turn_end")?.({ type: "turn_end", turnIndex: turn - 1, toolResults: [result] }, ctx);
+		}
+		const log = readFileSync(join(dir, "run", "s1s2.jsonl"), "utf8").trim().split("\n").map((line) => JSON.parse(line));
+		expect(log.find((entry) => entry.battery === "monitor")?.facts.turnsSinceEdit).toBe(1);
+	});
+
 	test("every Jev state masks credential-shaped text", () => {
 		const secret = "sk-live_abcdefghijklmnopqrstuv";
 		const text = `use Bearer ${secret} and ${secret}`;
