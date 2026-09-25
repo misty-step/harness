@@ -12,8 +12,8 @@
   "replicates": 2,
   "seed": 26,
   "runnerRevisions": {
-    "firstPass": "a8be6a4",
-    "resumed": "efe4395"
+    "firstPass": "fea8212",
+    "resumed": "e9222ce"
   },
   "judges": [
     "anthropic/claude-opus-5-5 high",

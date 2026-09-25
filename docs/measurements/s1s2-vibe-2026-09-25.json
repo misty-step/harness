@@ -9,7 +9,7 @@
     "s1s2"
   ],
   "seed": 26,
-  "runnerRevision": "e8d3f17",
+  "runnerRevision": "bc7e493",
   "ompConfigRevision": "ed16998",
   "judges": [
     "anthropic/claude-opus-5-5 high",
