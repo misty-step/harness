@@ -106,7 +106,9 @@ expiry). The operator delegated both to an agent reviewer on 2026-09-25.
 - **Gate.** `foundation-check review --pr N` runs as the `foundation-review`
   workflow (template: `agent-config/skills/foundation/foundation-review.yml`)
   on `pull_request_target`, so the base branch's copy of the gate judges every PR
-  and a PR cannot replace it; the PR's commits are read as data, never run.
+  and a PR cannot replace it. The job checks out only the base branch and fetches
+  the PR's commits as git objects, so none of the PR's files are checked out or
+  run (a static-analysis rule flagged the earlier head checkout, 2026-09-25).
   Review events cannot trigger it, so after any review action (approve,
   request changes, escalate) the agent reviewer adds or removes a label to
   re-run it; retargeting the base re-runs it too. Residual: a dismissal by
