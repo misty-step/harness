@@ -82,8 +82,8 @@ its first stories or adds a `foundation/extensions/` record. Then it needs an
 approving review on the PR head from the organisation's agent reviewer, written
 into the checker (misty-step: `kaylee-agent[bot]`). After that reviewer's
 `foundation-escalation: product-direction` review on the head, only its later
-approval recording the operator's decision and ending with
-`foundation-escalation: resolved` as its last line, outside any code fence, counts; approvals from the operator's shared account never do. Copy
+approval recording the operator's decision and opening with
+`foundation-escalation: resolved` as its exact first line counts; approvals from the operator's shared account never do. Copy
 [`skills/foundation/foundation-review.yml`](skills/foundation/foundation-review.yml)
 into a repository's workflows and pin the same harness revision as its
 `foundation` job. It runs on `pull_request_target`, so the base branch's copy of
