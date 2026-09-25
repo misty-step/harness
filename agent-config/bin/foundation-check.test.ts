@@ -201,7 +201,7 @@ describe("foundation-check (US-024)", () => {
 		put(repo, "features/other.md", `${readFileSync(join(repo, "features/other.md"), "utf8")}\nMore detail.\n`);
 		commit(repo, "edit feature");
 		expect(cli(repo, "affected", "--base", mapped).output.stories).toEqual(["US-004"]);
-		// A feature file that existed before the index still counts when edited, even while the index is being added.
+		// Once any map file exists, even without the index, edited or renamed feature files count again.
 		const partial = fixture("first-map-partial");
 		exec(partial, ["rm", "-q", "features/README.md"]);
 		commit(partial, "index missing, feature present");
@@ -210,6 +210,11 @@ describe("foundation-check (US-024)", () => {
 		put(partial, "features/journey.md", feature.replace("Source: src/**", "Source: lib/**"));
 		put(partial, "src/nested/journey.ts", "export const result = 4;\n");
 		commit(partial, "restore index and move the source glob away from the changed file");
+		expect(cli(partial, "affected", "--base", partialBase).output.stories).toEqual(["US-001"]);
+		exec(partial, ["mv", "features/journey.md", "features/journeys.md"]);
+		put(partial, "features/README.md", "# Index\n\n[Journey](journeys.md)\n");
+		put(partial, "src/nested/journey.ts", "export const result = 5;\n");
+		commit(partial, "rename the feature too");
 		expect(cli(partial, "affected", "--base", partialBase).output.stories).toEqual(["US-001"]);
 	});
 

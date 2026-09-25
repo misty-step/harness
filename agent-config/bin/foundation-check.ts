@@ -277,13 +277,13 @@ function affected(repo: string, base: string, report: Issue[]): string[] {
 	const mapping = features(repo, tracked(repo), head, report);
 	const changed = changedFiles(repo, base);
 	const ids = editedStories(repo, base, head);
-	// The change that first creates the map (no index at the merge base) adds metadata, not behaviour, so the
-	// feature files it adds mark no story; changed source and edited stories still do. Editing a feature file that
-	// already existed at the merge base always affects its stories, index or not.
+	// The change that first creates the map (no `features/` files at all at the merge base) adds metadata, not
+	// behaviour, so its feature files mark no story; changed source and edited stories still do. Once any map
+	// file exists, every feature file a change touches, renames included, affects its stories.
 	const mergeBase = git(repo, "merge-base", base, "HEAD").trim();
-	const mapExisted = fileAt(repo, mergeBase, "features/README.md") !== undefined;
+	const mapExisted = git(repo, "ls-tree", "--name-only", mergeBase, "features/").trim() !== "";
 	for (const feature of mapping) {
-		const featureChanged = changed.includes(feature.file) && (mapExisted || fileAt(repo, mergeBase, feature.file) !== undefined);
+		const featureChanged = mapExisted && changed.includes(feature.file);
 		if (featureChanged || changed.some((file) => feature.sources.some((glob) => globRegex(glob).test(file)))) {
 			for (const id of feature.stories) if (live.has(id)) ids.add(id);
 		}
