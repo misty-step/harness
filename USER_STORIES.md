@@ -655,7 +655,8 @@ Criteria:
    approving review on the PR head from the organisation's designated agent
    reviewer, named by the pinned harness and not the repository. AFTER that
    reviewer's escalation review on the head, only its later approval recording
-   the operator's decision (`foundation-escalation: resolved`) SHALL count. The
+   the operator's decision, with `foundation-escalation: resolved` on a line of
+   its own, SHALL count. The
    PR author's approval, and any approval from the operator's shared GitHub
    account, SHALL never count.
 
