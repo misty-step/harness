@@ -42,7 +42,8 @@ Examples it rests on:
 - Canary, the in-house equivalent, is archived and its hostnames do not resolve.
   Applications still configured for it drop their errors while their health
   endpoints report capture as "configured".
-- Every Sentry alert workflow in both organizations notifies by email only.
+- Every Sentry alert workflow read notifies by email only: all 4 in r90 and
+  the first 100 of misty-step's (the rest were not paged).
 - Postmortems exist in a handful of repositories, mostly outside
   `docs/postmortems/`, and few link the change that closed the class.
 
