@@ -62,8 +62,9 @@ const verbosity = args.get("verbosity") ?? "";
 const maxOutput = args.get("max-output") ?? "";
 const spendLimit = Number(args.get("spend-limit") ?? 0);
 const PROXY_PLACEHOLDER = "injected-by-exe-proxy";
-// One OpenRouter upstream for every arm, fallbacks off (PARITY_UPSTREAM in parity.ts).
-const upstream = args.get("upstream") ?? "";
+// One OpenRouter upstream for every arm, fallbacks off (PARITY_UPSTREAM in parity.ts). Required:
+// unpinned, OpenRouter sent the pilot's arms to different upstreams at different prices.
+const upstream = need("upstream");
 
 const runner = userInfo().username;
 const agentHome = `/home/${agentUser}`;
@@ -345,7 +346,7 @@ outer: for (const task of tasks) {
 			PARITY_OUT: join(work, "parity.jsonl"),
 			...(verbosity ? { PARITY_VERBOSITY: verbosity } : {}),
 			...(maxOutput ? { PARITY_MAX_OUTPUT: maxOutput } : {}),
-			...(upstream ? { PARITY_UPSTREAM: upstream } : {}),
+			PARITY_UPSTREAM: upstream,
 			// The proxy injects the real key; the harnesses only need a non-empty credential to call it.
 			OPENROUTER_API_KEY: PROXY_PLACEHOLDER,
 		};
