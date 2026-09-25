@@ -308,15 +308,19 @@ function asAgentAsync(argv: string[]): Promise<{ status: number | null; stdout: 
 	});
 }
 const agentReaches = async (url: string) => (await asAgentAsync(["curl", "-sS", "-m", "10", "-o", "/dev/null", url])).status === 0;
+// A raw TCP connect, not an HTTP request: a listener that speaks another protocol still counts.
+const agentConnects = async (port: string) => (await asAgentAsync(["timeout", "10", "bash", "-c", `exec 3<>/dev/tcp/127.0.0.1/${port}`])).status === 0;
 lockAgentEgress();
 const gateway = ipv4(new URL(openrouterBase).hostname).map((ip) => `http://${ip}/`);
-const localServices = spawnSync("ss", ["-Hltn"], { encoding: "utf8" })
+for (const url of new Set([new URL(manifest.repo).origin, "https://github.com", "https://raw.githubusercontent.com", ...gateway, "https://1.1.1.1/"])) {
+	if (await agentReaches(url)) fail(`agent user ${agentUser} can reach ${url}; the egress lock is not real`);
+}
+const localPorts = spawnSync("ss", ["-Hltn"], { encoding: "utf8" })
 	.stdout.split("\n")
 	.map((line) => line.trim().split(/\s+/)[3]?.split(":").pop())
-	.filter((port): port is string => !!port && port !== new URL(boundary).port)
-	.map((port) => `http://127.0.0.1:${port}/`);
-for (const url of new Set([new URL(manifest.repo).origin, "https://github.com", "https://raw.githubusercontent.com", ...gateway, "https://1.1.1.1/", ...localServices])) {
-	if (await agentReaches(url)) fail(`agent user ${agentUser} can reach ${url}; the egress lock is not real`);
+	.filter((port): port is string => !!port && port !== new URL(boundary).port);
+for (const port of new Set(localPorts)) {
+	if (await agentConnects(port)) fail(`agent user ${agentUser} can connect to local port ${port}; the egress lock is not real`);
 }
 if (!(await agentReaches(`${boundary}/api/v1/models`))) fail(`agent user ${agentUser} cannot reach the model boundary at ${boundary}`);
 const foreign = await asAgentAsync(["curl", "-s", "-m", "10", "-o", "/dev/null", "-w", "%{http_code}", "-H", "content-type: application/json", "-d", '{"model":"openai/gpt-4o-mini","messages":[]}', `${boundary}/api/v1/chat/completions`]);
@@ -427,6 +431,9 @@ function finalDiff(tree: string, runDir: string): { diff: string; files: number;
 }
 
 type Usage = { input: number; output: number; cacheRead: number; cacheWrite: number };
+/** The value as a record of unknown fields, or undefined when it is not an object. */
+const asObject = (value: unknown): Record<string, unknown> | undefined => (value !== null && typeof value === "object" ? (value as Record<string, unknown>) : undefined);
+
 function sessionUsage(dir: string): { usage: Usage; modelCalls: number; parentTurns: number; models: string[] } {
 	const usage: Usage = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 };
 	const models = new Set<string>();
@@ -440,19 +447,21 @@ function sessionUsage(dir: string): { usage: Usage; modelCalls: number; parentTu
 				const parent = depth <= 1 && !name.startsWith("__");
 				for (const line of readFileSync(full, "utf8").split("\n")) {
 					if (!line.trim()) continue;
-					let entry: Record<string, any>;
+					let parsed: unknown;
 					try {
-						entry = JSON.parse(line);
+						parsed = JSON.parse(line);
 					} catch {
 						continue;
 					}
-					const message = entry.type === "message" ? entry.message : null;
-					const record = message?.role === "assistant" && message.usage ? message : entry.type === "model_usage" ? entry : null;
-					if (!record?.usage) continue;
+					const entry = asObject(parsed);
+					const message = entry?.type === "message" ? asObject(entry.message) : undefined;
+					const record = message?.role === "assistant" && asObject(message.usage) ? message : entry?.type === "model_usage" ? entry : undefined;
+					const fields = asObject(record?.usage);
+					if (!record || !fields) continue;
 					modelCalls++;
 					if (message && parent) parentTurns++;
-					if (record.model) models.add(`${record.provider ?? "?"}/${record.model}`);
-					for (const key of ["input", "output", "cacheRead", "cacheWrite"] as const) usage[key] += Number(record.usage[key]) || 0;
+					if (typeof record.model === "string") models.add(`${typeof record.provider === "string" ? record.provider : "?"}/${record.model}`);
+					for (const key of ["input", "output", "cacheRead", "cacheWrite"] as const) usage[key] += Number(fields[key]) || 0;
 				}
 			}
 		}
@@ -505,7 +514,12 @@ outer: for (const task of tasks) {
 			break outer;
 		}
 		const runDir = join(out, "runs", task.id, arm);
-		if (existsSync(join(runDir, "run.json"))) continue; // resumable
+		if (existsSync(join(runDir, "run.json"))) {
+			// Resumed: carry the earlier pass's record so this pass's summary covers every run.
+			const earlier: unknown = JSON.parse(readFileSync(join(runDir, "run.json"), "utf8"));
+			if (earlier && typeof earlier === "object") results.push(earlier as Record<string, unknown>);
+			continue;
+		}
 		rmSync(runDir, { recursive: true, force: true });
 		mkdirSync(join(runDir, "tmp"), { recursive: true });
 
