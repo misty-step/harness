@@ -1,3 +1,9 @@
+# [0.1.35](https://github.com/misty-step/harness/compare/v0.1.34...v0.1.35) (2026-09-25)
+<!-- landmark:protected-release previous=v0.1.34 source=cd28bac5e1ce9d623d42c5aaecf9cb2539b4ee99136bec0ef02fcc17225a13f8 -->
+
+### Features
+
+* **diff-review:** resolve the Jev key at runtime through pass-env (US-005) (MIS-150) ([4d66362](https://github.com/misty-step/harness/commit/4d66362b2ef063c84a1a93a0b1c91ed8725cca11))
 # [0.1.34](https://github.com/misty-step/harness/compare/v0.1.33...v0.1.34) (2026-09-25)
 <!-- landmark:protected-release previous=v0.1.33 source=f51b57ea1eebc292d8f5dd7bd51706837507427d4c5be1e430e19bccfba027b2 -->
 
