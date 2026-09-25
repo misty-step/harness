@@ -45,7 +45,7 @@ export function briefState(task: string, candidates: readonly Candidate[]) {
 	return {
 		task: redactText(task, BRIEF.taskChars),
 		candidates: candidates.map((candidate) => ({
-			path: candidate.path,
+			path: redactText(candidate.path, 300),
 			matched_terms: candidate.terms.map((term) => redactText(term, 80)),
 			sample_lines: candidate.hits.map((hit) => redactText(hit, 160)),
 		})),
@@ -271,10 +271,10 @@ export function doneState(
 	return {
 		task: redactText(task, 2000),
 		final_message: redactText(finalMessage, finalMessage.length).slice(-1500),
-		changed_files: changed.slice(0, 30),
-		diff_stat: stat,
+		changed_files: changed.slice(0, 30).map((file) => redactText(file, 300)),
+		diff_stat: redactText(stat, 2000),
 		check_passed_on_current_changes: checkPassed,
-		candidates: checks.map((check) => ({ command: check.command, why: check.why })),
+		candidates: checks.map((check) => ({ command: redactText(check.command, 400), why: redactText(check.why, 300) })),
 	};
 }
 

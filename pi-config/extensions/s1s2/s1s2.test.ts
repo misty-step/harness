@@ -201,14 +201,16 @@ describe("US-029 deterministic safety", () => {
 		const secret = "sk-live_abcdefghijklmnopqrstuv";
 		const text = `use Bearer ${secret} and ${secret}`;
 		const states = [
-			briefState(text, [{ path: "a.ts", terms: [secret], hits: [`L1: token = "${secret}"`], prior: 1 }]),
+			briefState(text, [{ path: `keys/${secret}.pem`, terms: [secret], hits: [`L1: token = "${secret}"`], prior: 1 }]),
 			triageState(text, `curl -H "Authorization: Bearer ${secret}"`, text, [{ id: "k0", start: 0, end: 1, text }]),
 			monitorState(text, 3, [{ turn: 1, summary: `bash: export KEY=${secret}`, ok: false }], {
 				repeatedFailures: 0,
 				errorStreak: 1,
 				turnsSinceEdit: 1,
 			}),
-			doneState(text, text, ["a.ts"], "", false, []),
+			doneState(text, text, [`config/${secret}.json`], ` config/${secret}.json | 2 +-`, false, [
+				{ command: `bun test ./tests/${secret}.test.ts`, why: `tests for config/${secret}.json` },
+			]),
 		];
 		for (const state of states) expect(JSON.stringify(state)).not.toContain("abcdefghijklmnop");
 	});

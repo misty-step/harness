@@ -324,16 +324,24 @@ by an exe.dev `http-proxy` integration.
 
 ### Budget and schedule
 
-- **Model spend.** About **$850**:
-  - Pilot: about $70.
-  - Main run: about 192 runs at an estimated $3–5 each. OMP's pinned advisor
-    roughly doubles the cost of its arm.
-  - Judges: about $50.
-  - Jev: under $5.
-- **Limit.** A hard key limit of $1,000.
-- **Compute.** About 210 runs at roughly 15 minutes each, which is about 13
-  hours at 4-way concurrency on the current plan. Tasks with heavy Rust builds
-  may need a temporary Large tier (+$40/month).
+- **Evidence so far.** The medium-sized smoke task cost $0.25–0.28 of Opus per
+  System 1 / System 2 run and took 90–97 s ([smoke](measurements/s1s2-smoke-2026-09-25.md)).
+- **Assumptions.** These are for the pilot to re-measure.
+  - A Pi-family run costs about $0.15 (small), $0.30 (medium), or $1.50
+    (large).
+  - An OMP run costs about 2.5× as much, because of its heavier fixed prompt
+    and its pinned advisor on every turn.
+- **Model spend.** About **$250**:
+  - 48 tasks × 3 arms: about $140.
+  - 16 replicates: about $45.
+  - Pilot: about $20.
+  - Judges: about $30.
+  - Jev: under $1.
+- **Limit.** A hard key limit of $600, which covers large tasks running
+  several times over estimate.
+- **Compute.** About 210 runs, typically a few minutes each plus dependency
+  installs. That is roughly 6–8 hours at 4-way concurrency on the current plan.
+  Tasks with heavy Rust builds may need a temporary Large tier (+$40/month).
 - **Bandwidth.** 170 of 200 GB of transfer is already used this cycle; the
   counter resets on October 10. Transfer for the evaluation is estimated at a
   few GB.
@@ -341,7 +349,7 @@ by an exe.dev `http-proxy` integration.
 ### Decisions needed before the evaluation harness is built
 
 1. **Route and budget.**
-   - *Recommended.* A dedicated OpenRouter key with a $1,000 limit, held in an
+   - *Recommended.* A dedicated OpenRouter key with a $600 limit, held in an
      exe.dev integration.
    - *Alternative.* Pass the key to each run on stdin: it avoids an account
      change but keeps the key in VM memory.
