@@ -728,7 +728,8 @@ Choose agents for their roles, not as differently priced implementation workers.
 The ten explicit retry chains are `default`, `advisor`, `plan`, `slow`,
 `extreme`, `security-reviewer`, `vision`, `smol`, `tiny`, and `commit`; roles
 without their own chain (`task`, `reviewer`) inherit `default`. Opus's default
-chain tries Sol xhigh, then Luna max, then Grok 4.7, and finally paid
+chain tries Sol xhigh, then Luna max, then Opus medium (so a session running a
+Codex model reaches Anthropic before xAI), then Grok 4.7, and finally paid
 OpenRouter DeepSeek V4.1 Flash. Plan, slow, and extreme try Astra (high, high,
 max) before Sol and Grok. Astra's security chain tries Opus high, Sol, then
 Grok. Opus's vision chain tries Sol, Luna, then Grok. Luna's mechanical chains
@@ -738,10 +739,13 @@ and each link accepts images. Task quality and whole-task cost effects of this
 ranking remain unmeasured.
 
 Fallbacks recover provider failures, not hard prompts; they require working
-credentials. An Anthropic outage proceeds to Codex; a Codex outage on a Luna
-or security-review role proceeds to Anthropic. Grok is the last subscription
-provider before the
-paid OpenRouter recovery link. If a subscription is exhausted or
+credentials. A session's model falls back through its session role's chain:
+a main session started with `--model @smol` follows `default`, not `smol`.
+Forced outages on 2026-09-25 (`PI_PROXY_<PROVIDER>` pointed at a dead local
+port, `retry.maxRetries: 1`) showed an Anthropic outage moving default Opus to
+Sol xhigh, and a Codex outage moving a Luna session through Sol to the next
+non-Codex link. Grok is the last subscription provider before the paid
+OpenRouter recovery link. If a subscription is exhausted or
 its login expires, the chain can still reach a paid route. Existing sessions
 keep their selected model and Pi's separate OpenRouter default is unchanged:
 Pi has no Codex or Anthropic OAuth configuration. Do not copy OMP OAuth tokens

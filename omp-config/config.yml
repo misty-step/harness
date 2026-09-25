@@ -81,6 +81,7 @@ retry:
     default:
       - openai-codex/gpt-6-sol:xhigh
       - openai-codex/gpt-6-luna:max
+      - anthropic/claude-opus-5-5:medium
       - xai-oauth/grok-4.7:xhigh
       - openrouter/deepseek/deepseek-v4.1-flash:max
     plan:
