@@ -200,7 +200,8 @@ files live in the agent dir (`continuation-nudge-status.json`,
 
 **`audio-sandbox/` — behavioral, installed.** Keeps agent audio out of the
 operator's ears (US-026). The component writes an owned `shellCommandPrefix`
-into `settings.json`, so pi's bash tool is routed to the silent
+into `settings.json` (a prefix it did not write fails the install instead of
+being replaced), so pi's bash tool is routed to the silent
 `agent-sandbox` sink from settings alone, before and independent of extension
 loading. The extension applies the same contract to `process.env`, which Node
 mirrors to every child pi spawns. The shared host step adds the sink drop-in,
