@@ -87,7 +87,8 @@ approval given later. Copy
 into a repository's workflows and pin the same harness revision as its
 `foundation` job. It runs on `pull_request_target`, so the base branch's copy of
 the gate judges each PR; after any review action the reviewer toggles a label to
-re-run it.
+re-run it. Land it in the adoption PR on its own, before any PR adds first
+stories or an extension record: a gate that is not yet on the base branch judges nothing.
 
 ## Agent audio sandbox (US-026)
 
