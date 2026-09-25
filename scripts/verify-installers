@@ -126,7 +126,7 @@ for consumer in pi omp; do
       if (process.env.CONSUMER === "omp") expectEqual(parseEnv(readFileSync(`${agent}/.env`, "utf8")), { ...AGENT_AUDIO_ENV }, "OMP .env");
       else expectEqual(JSON.parse(readFileSync(`${agent}/settings.json`, "utf8")).shellCommandPrefix, shellExports(), "Pi prefix");
       const extension = await import(`${agent}/extensions/audio-sandbox/index.ts`);
-      extension.default();
+      extension.default({ on() {} });
       expectEqual(Object.fromEntries(Object.keys(AGENT_AUDIO_ENV).map(name => [name, process.env[name]])), { ...AGENT_AUDIO_ENV }, "extension env");
     '
   check "$consumer audio-sandbox left live PipeWire alone" grep -q 'PipeWire is not reachable' "$work/$consumer.log"

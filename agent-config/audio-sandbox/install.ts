@@ -144,7 +144,13 @@ export function linkedSinks(objects: PwObject[], pid: number): string[] | undefi
 	return [...new Set(sinks)].sort();
 }
 
-/** Undefined when routing held; otherwise what went wrong. */
+/**
+ * Undefined when routing held; otherwise what went wrong. With a missing target,
+ * WirePlumber refuses the stream (measured: pw-play and paplay exit without a
+ * node), so an unobserved stream is the fail-closed outcome. The routed proof
+ * runs first with the same player and file, which rules out a player that
+ * cannot start.
+ */
 export function routingFailure(expect: "sandbox" | "unlinked", sinks: string[] | undefined): string | undefined {
 	if (expect === "unlinked") return sinks?.length ? `a stream aimed at a missing sink reached ${sinks.join(", ")}` : undefined;
 	if (!sinks?.length) return "a sandboxed stream never linked";

@@ -72,7 +72,7 @@ stays routed even when an extension fails to load:
 
 | Harness | Startup layer (no extension code) | Extension layer |
 | --- | --- | --- |
-| OMP | owned block in the agent `.env` | `extensions/audio-sandbox` sets `process.env` for browser, MCP, and LSP children |
+| OMP | owned block in the agent `.env` | `extensions/audio-sandbox` sets `process.env` (JavaScript eval, browser, MCP, and LSP children) and revises each Python eval cell to apply the contract first |
 | Pi | `shellCommandPrefix` in `settings.json` | `extensions/audio-sandbox` sets `process.env`, which Node mirrors to every child |
 | Claude Code | `env` in `~/.claude/settings.json` | none needed |
 
@@ -93,10 +93,13 @@ listen, from their own terminal (an agent session's `!` command is sandboxed):
 plays agent audio live until Ctrl-C. The spoken sachstand brief is requested
 playback, so `speak.ts` drops the listed keys and uses the default device.
 
-Open gap (blocked): OMP's Python eval runner receives an allowlisted
-environment without these keys, and neither an OMP setting nor a WirePlumber
-script (whose Lua sandbox cannot read `/proc`) routes it before linking. OMP's
-JavaScript eval inherits the extension layer. Deliberate bypass stays out of
+OMP's Python eval runner receives an allowlisted environment without these
+keys, so the OMP extension revises each Python cell through the `tool_call`
+hook: one leading line applies the contract before the cell runs (after any
+`from __future__` imports; `%%bash` cells get shell exports). Streams are
+routed at creation, never moved after linking, and tracebacks count one extra
+line. That path, like JavaScript eval and browser children, depends on the
+extension loading; the bash tool does not. Deliberate bypass stays out of
 scope: processes started outside the session environment (`env -i`,
 `systemd-run`, D-Bus activation, `hyprctl dispatch exec`), raw ALSA `hw:`
 devices while the card is idle, and IPC into operator apps that are already

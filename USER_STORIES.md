@@ -617,8 +617,7 @@ launches; no PipeWire restart on install; no claim to stop deliberate bypass
 (scrubbed environments, raw ALSA devices, IPC into running operator apps).
 
 Evidence: `agent-config/audio-sandbox/audio-sandbox.test.ts`,
+`omp-config/extensions/audio-sandbox/audio-sandbox.test.ts`,
 `scripts/verify-installers`, the live routing proof in
 `agent-config/audio-sandbox/install.ts host`, and a fresh engineer-session smoke
-recorded in the pull request. Open: criterion 1 fails for OMP Python eval,
-whose runner receives an allowlisted environment without the routing keys;
-closing it needs a supported pre-link OMP boundary (blocked, operator decision).
+recorded in the pull request.

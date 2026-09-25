@@ -103,8 +103,10 @@ must still be confirmed.
 writes an owned block into the agent `.env`, which OMP loads before any tool
 runs, so the bash tool is routed to the silent `agent-sandbox` sink without
 extension code. It clean-replaces `extensions/audio-sandbox`, materializing the
-shared contract over its repo shim, so browser, MCP, and LSP children inherit
-it too. It also runs the shared host step (sink drop-in, Claude Code env, live
+shared contract over its repo shim, so JavaScript eval, browser, MCP, and LSP
+children inherit it too, and each Python eval cell is revised through
+`tool_call` to apply the contract first (OMP's Python runner drops the keys
+from its environment). It also runs the shared host step (sink drop-in, Claude Code env, live
 routing proof); see the agent-config README for listening, residuals, and revert.
 New sessions pick it up; running sessions keep their environment.
 
