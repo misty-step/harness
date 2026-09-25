@@ -723,10 +723,10 @@ boundaries (brief, triage, monitor, done-gate) and fails open to stock pi. It is
 deliberately not installed: `./install` does not deploy it and the daily profile
 never loads it. Its `run.sh` starts pi with an empty agent directory, so the arm
 under test is raw pi plus System 1 and nothing else. It lives here because it is
-pi-specific, and it reaches the shared engine through the same shim as
-`continuation-nudge`. Alternatives rejected: a fourth top-level component (a
-topology change for an unproven experiment) and folding it into the daily
-profile before any measurement.
+pi-specific. Because it is never materialized, it imports the shared System One
+engine and redaction directly from `agent-config`, with no shim. Alternatives
+rejected: a fourth top-level component (a topology change for an unproven
+experiment) and folding it into the daily profile before any measurement.
 
 ## Research: how pi iterates on other harnesses
 
