@@ -293,7 +293,7 @@ export function doneQuestions(checks: readonly CheckCandidate[]): Record<string,
 	if (checks.length > 0) {
 		const criteria: Record<string, string> = {};
 		checks.forEach((check, i) => {
-			criteria[`c${i}`] = `Run \`${check.command}\` (${check.why}).`;
+			criteria[`c${i}`] = `Run \`${redactText(check.command, 400)}\` (${redactText(check.why, 300)}).`;
 		});
 		criteria.none_suitable = "None of these commands would exercise the files in `changed_files`.";
 		questions.check = {

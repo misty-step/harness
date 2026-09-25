@@ -25,6 +25,7 @@ import { execFile } from "node:child_process";
 import { appendFileSync, mkdirSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
+import { redactText } from "../../../agent-config/system-one/continuation.ts";
 import { OpenRouterJevProvider, SystemOneProviderError, type Answer, type ProviderUsage, type Question } from "../../../agent-config/system-one/engine.ts";
 import * as Q from "./questions.ts";
 import * as S from "./sensors.ts";
@@ -283,6 +284,11 @@ export default function s1s2(pi: ExtensionAPI): void {
 		const text = textOf(event.content);
 		const plan = S.planTriage(text);
 		if (!plan) return;
+		// Data boundary: output carrying credential-shaped text is never sent to Jev, even masked.
+		if (redactText(text, text.length) !== text) {
+			record({ battery: "triage", action: "unchanged", reason: "credential_shaped_output", lines: plan.lines.length });
+			return;
+		}
 		const batches = Q.triageBatches(plan.chunks);
 		if (!batches) {
 			record({ battery: "triage", action: "unchanged", reason: "too_large", lines: plan.lines.length });

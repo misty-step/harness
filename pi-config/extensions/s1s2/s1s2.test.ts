@@ -13,7 +13,7 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "nod
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import s1s2 from "./index.ts";
-import { briefState, doneState, monitorState, pickBriefFiles, pickCheck, pickNote, triageState } from "./questions.ts";
+import { briefState, doneQuestions, doneState, monitorState, pickBriefFiles, pickCheck, pickNote, triageState } from "./questions.ts";
 import { discoverChecks, planTriage, renderTriage, type Candidate } from "./sensors.ts";
 
 type Handler = (event: unknown, ctx: ExtensionContext) => unknown;
@@ -197,7 +197,7 @@ describe("US-029 deterministic safety", () => {
 		expect(log.find((entry) => entry.battery === "monitor")?.facts.turnsSinceEdit).toBe(1);
 	});
 
-	test("every Jev state masks credential-shaped text", () => {
+	test("every Jev state and question masks credential-shaped text", () => {
 		const secret = "sk-live_abcdefghijklmnopqrstuv";
 		const text = `use Bearer ${secret} and ${secret}`;
 		const states = [
@@ -211,6 +211,7 @@ describe("US-029 deterministic safety", () => {
 			doneState(text, text, [`config/${secret}.json`], ` config/${secret}.json | 2 +-`, false, [
 				{ command: `bun test ./tests/${secret}.test.ts`, why: `tests for config/${secret}.json` },
 			]),
+			doneQuestions([{ command: `bun test ./tests/${secret}.test.ts`, why: `tests for config/${secret}.json` }]),
 		];
 		for (const state of states) expect(JSON.stringify(state)).not.toContain("abcdefghijklmnop");
 	});
