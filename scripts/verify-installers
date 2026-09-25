@@ -119,6 +119,8 @@ for consumer in pi omp; do
         const doc = Bun.YAML.parse(readFileSync(`${process.env.AGENT}/models.yml`, "utf8"));
         if (doc.providers.openrouter.apiKey !== "!openrouter-key --personal workstation/OPENROUTER_OMP_HARNESS_API_KEY") throw new Error("wrong OpenRouter command");
       '
+    # OMP masks provider-bound text only with the policy the installer deployed (US-039).
+    check "omp secrets policy bytes" cmp -s "$work/source/omp-config/secrets.yml" "$agent/secrets.yml"
   fi
   # US-026: both routing layers, the silent-sink drop-in, and Claude Code env
   # deploy; the installed extension applies the contract self-contained; and
