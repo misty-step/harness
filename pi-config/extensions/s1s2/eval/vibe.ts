@@ -10,7 +10,7 @@
  * environment, and fresh history-truncated checkout at the task's base commit.
  * After each run the pull request's own tests ("hidden tests") are applied and run.
  *
- * Usage (from the repository root; OPENROUTER_API_KEY is only for Jev):
+ * Usage (from the repository root; the Jev key is only for the s1s2 arm's System 1):
  *   pass-env run -f .env.pass -- bun pi-config/extensions/s1s2/eval/vibe.ts \
  *     --manifest m.json --hidden dir --out dir [--only h21,h26] [--seed 26]
  */
@@ -43,8 +43,8 @@ const here = dirname(new URL(import.meta.url).pathname);
 const s1s2Extension = resolve(here, "..", "index.ts");
 const parityExtension = resolve(here, "parity.ts");
 const piAgentDir = args.get("pi-agent-dir") ?? join(homedir(), ".local/state/s1s2-eval/pi-agent");
-const jevKey = process.env.OPENROUTER_API_KEY ?? "";
-if (arms.includes("s1s2") && !jevKey) (console.error("OPENROUTER_API_KEY is required for the s1s2 arm (Jev)"), process.exit(2));
+const jevKey = (process.env.S1S2_JEV_KEY || process.env.OPENROUTER_API_KEY || "").trim();
+if (arms.includes("s1s2") && !jevKey) (console.error("S1S2_JEV_KEY or OPENROUTER_API_KEY is required for the s1s2 arm (Jev)"), process.exit(2));
 for (const forbidden of ["settings.json", "AGENTS.md", "extensions", "skills", "prompts"]) {
 	if (existsSync(join(piAgentDir, forbidden))) (console.error(`raw Pi agent dir must not contain ${forbidden}`), process.exit(2));
 }
@@ -65,8 +65,8 @@ mkdirSync(shims, { recursive: true });
 for (const tool of ["ssh", "scp", "sftp", "gh", "pass", "pass-env", "linear", "wrangler"]) {
 	writeFileSync(join(shims, tool), `#!/bin/sh\necho "${tool} is disabled in this evaluation" >&2\nexit 126\n`, { mode: 0o755 });
 }
-const nodeBin = dirname(spawnSync("sh", ["-c", "command -v node"], { encoding: "utf8" }).stdout.trim());
-const PATH = [shims, join(homedir(), ".local/bin"), nodeBin, "/usr/local/bin", "/usr/bin", "/bin"].join(":");
+const nodePath = spawnSync("sh", ["-c", "command -v node"], { encoding: "utf8" }).stdout.trim();
+const PATH = [shims, join(homedir(), ".local/bin"), join(homedir(), ".bun/bin"), ...(nodePath ? [dirname(nodePath)] : []), "/usr/local/bin", "/usr/bin", "/bin"].join(":");
 
 // OMP overlay: every generative role on the model under test; provider fallback off.
 const ompOverlay = join(out, "omp-pinned.yml");
@@ -263,7 +263,8 @@ outer: for (const task of tasks) {
 			env.PI_CODING_AGENT_DIR = piAgentDir;
 			const extensions = arm === "s1s2" ? ["-e", s1s2Extension, "-e", parityExtension] : ["-e", parityExtension];
 			if (arm === "s1s2") {
-				env.OPENROUTER_API_KEY = jevKey;
+				// System 1 reads and then deletes this variable, so agent tool subprocesses never inherit it.
+				env.S1S2_JEV_KEY = jevKey;
 				env.S1S2_RUN_DIR = join(runDir, "s1");
 			}
 			argv = ["--mode", "json", "--no-extensions", ...extensions, "--no-skills", "--no-prompt-templates", "--provider", provider, "--model", modelId, "--thinking", thinking, "--session-dir", sessions, "-p", prompt];
@@ -274,7 +275,7 @@ outer: for (const task of tasks) {
 		writeFileSync(join(runDir, "final.diff"), deliverable.diff);
 		const accounting = sessionUsage(sessions);
 		// Grade in the same environment the curator validated the hidden tests in: no shims, no keys.
-		const graded = grade(tree, task, { ...env, PATH: PATH.slice(shims.length + 1), OPENROUTER_API_KEY: "", PARITY_OUT: "" });
+		const graded = grade(tree, task, { ...env, PATH: PATH.slice(shims.length + 1), S1S2_JEV_KEY: "", PARITY_OUT: "" });
 		let s1: unknown = null;
 		try {
 			s1 = JSON.parse(readFileSync(join(runDir, "s1", "s1s2-summary.json"), "utf8"));

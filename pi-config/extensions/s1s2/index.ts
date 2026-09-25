@@ -130,15 +130,21 @@ export default function s1s2(pi: ExtensionAPI): void {
 
 	async function provider(ctx: ExtensionContext): Promise<OpenRouterJevProvider | null> {
 		if (jev !== undefined) return jev;
-		let key = "";
-		try {
-			const auth = await ctx.modelRegistry.getProviderAuth("openrouter");
-			const value = (auth as { auth?: { apiKey?: unknown } } | undefined)?.auth?.apiKey;
-			if (typeof value === "string") key = value.trim();
-		} catch {
-			// fall through to the environment
+		// A dedicated S1S2_JEV_KEY wins and is never needed by anything else.
+		let key = (process.env.S1S2_JEV_KEY ?? "").trim();
+		delete process.env.S1S2_JEV_KEY;
+		if (!key) {
+			try {
+				const auth = await ctx.modelRegistry.getProviderAuth("openrouter");
+				const value = (auth as { auth?: { apiKey?: unknown } } | undefined)?.auth?.apiKey;
+				if (typeof value === "string") key = value.trim();
+			} catch {
+				// fall through to the environment
+			}
 		}
 		key ||= (process.env.OPENROUTER_API_KEY ?? "").trim();
+		// System 1's credential must not reach tool subprocesses unless System 2 itself runs on OpenRouter.
+		if (ctx.model?.provider !== "openrouter") delete process.env.OPENROUTER_API_KEY;
 		jev = key ? new OpenRouterJevProvider(key, JEV_MODEL) : null;
 		return jev;
 	}

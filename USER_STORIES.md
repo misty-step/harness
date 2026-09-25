@@ -542,3 +542,33 @@ no tool veto or permission gate; no Jev-authored prose, code, or plans.
 Evidence: `pi-config/extensions/s1s2/`, `agent-config/system-one/engine.test.ts`
 (provider usage), `docs/system1-system2-harness.md`,
 `docs/measurements/s1s2-smoke-2026-09-25.md`.
+
+## US-030 Compare harnesses on the same real tasks
+
+Statement: When I weigh a harness design against OMP, I want the same real
+tasks run in every arm with the same model and settings and graded blind, so a
+difference in cost, time, or quality can be attributed to the harness rather
+than to the model, the task, or the grader.
+
+Criteria:
+1. WHEN a comparison runs, THE SYSTEM SHALL give every arm the same prompt,
+   model, reasoning effort, and verbosity, and SHALL record each arm's
+   first-request model settings as evidence.
+2. THE SYSTEM SHALL pin every generative role of an OMP arm, including its
+   advisor and subagents, to the model under test with provider fallback off.
+3. WHEN a run starts, THE SYSTEM SHALL use a fresh checkout whose history ends
+   at the task's base commit and has no remote, and SHALL disable tools that
+   reach other systems identically in every arm.
+4. WHEN a run ends, THE SYSTEM SHALL grade it with the pull request's own
+   withheld tests and report token usage by category, wall-clock, and turns.
+5. THE SYSTEM SHALL show judges only the task, the accepted change, and
+   label-shuffled diffs, never harness names, transcripts, timings, or test
+   results.
+6. IF the watched subscription account's weekly usage reaches the configured
+   ceiling, THEN THE SYSTEM SHALL stop before the next run and record why.
+
+No-gos: no paid model route for the arms or judges beyond Jev; no OAuth copied
+between harnesses; no pushes from evaluated agents.
+
+Evidence: `pi-config/extensions/s1s2/eval/`,
+`docs/measurements/s1s2-vibe-2026-09-25.md`.

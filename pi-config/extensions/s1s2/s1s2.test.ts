@@ -197,6 +197,22 @@ describe("US-029 deterministic safety", () => {
 		expect(log.find((entry) => entry.battery === "monitor")?.facts.turnsSinceEdit).toBe(1);
 	});
 
+	test("System 1's credential is removed from the environment tool subprocesses inherit", async () => {
+		const cwd = repo();
+		stubJev({ completion: "complete", check: "none_suitable" });
+		process.env.S1S2_JEV_KEY = "jev-test-key";
+		process.env.OPENROUTER_API_KEY = "openrouter-test-key";
+		const handlers = load();
+		const ctx = { ...context(cwd), model: { provider: "openai-codex", id: "gpt-6-luna" } } as unknown as ExtensionContext;
+		await handlers.get("session_start")?.({ type: "session_start", reason: "startup" }, ctx);
+		await handlers.get("before_agent_start")?.(start("Fix `applyDiscount`."), ctx);
+		expect(process.env.S1S2_JEV_KEY).toBeUndefined();
+		expect(process.env.OPENROUTER_API_KEY).toBeUndefined();
+		const log = readFileSync(join(dir, "run", "s1s2.jsonl"), "utf8");
+		expect(log).toContain('"battery":"brief"');
+		expect(log).not.toContain('"reason":"no_key"');
+	});
+
 	test("every Jev state and question masks credential-shaped text", () => {
 		const secret = "sk-live_abcdefghijklmnopqrstuv";
 		const text = `use Bearer ${secret} and ${secret}`;
