@@ -141,6 +141,23 @@ function features(repo: string, files: string[], stories: Story[], errors: strin
 function storyForLine(stories: Story[], line: number): string | undefined {
 	return stories.find((s) => s.start <= line && line <= s.end)?.id;
 }
+function storyCriteria(contents: string): Map<string, number[]> {
+	const criteria = new Map<string, number[]>();
+	let id: string | undefined;
+	let inCriteria = false;
+	for (const line of contents.split("\n")) {
+		const header = line.match(storyHeader)?.[1];
+		if (header) { id = header; inCriteria = false; criteria.set(id, []); continue; }
+		if (/^## /.test(line)) { id = undefined; continue; }
+		if (!id) continue;
+		if (/^Criteria:/.test(line)) { inCriteria = true; continue; }
+		if (/^[A-Z][A-Za-z-]*:/.test(line)) { inCriteria = false; continue; }
+		const n = inCriteria ? line.match(/^(\d+)\. /)?.[1] : undefined;
+		if (n) criteria.get(id)!.push(Number(n));
+	}
+	for (const list of criteria.values()) list.sort((a, b) => a - b);
+	return criteria;
+}
 function affected(repo: string, base: string, report: string[]): string[] {
 	const headText = readFileSync(join(repo, "USER_STORIES.md"), "utf8");
 	const head = parseStories(headText);
@@ -255,6 +272,8 @@ function receipt(options: Options): Result {
 		if (!existsSync(file) || !statSync(file).isFile() || sha256(readFileSync(file)) !== artifact.sha256) errors.push(`receipt: artifact ${name} missing or digest mismatch`);
 	};
 	const passed = new Set<string>();
+	// Bind criteria to the candidate: each story must report exactly its numbered criteria at HEAD.
+	const criteriaAtHead = storyCriteria(git(options.repo, "show", "HEAD:USER_STORIES.md"));
 	if (!Array.isArray(value.stories)) errors.push("receipt: stories must be an array");
 	else for (const story of value.stories) {
 		if (!record(story) || !/^US-\d{3}$/.test(String(story.id)) || !["pass", "fail", "unwalked"].includes(String(story.status))) { errors.push("receipt: invalid story entry"); continue; }
@@ -263,9 +282,15 @@ function receipt(options: Options): Result {
 		passed.add(id);
 		if (story.status !== "pass") errors.push(`receipt: ${id} is ${story.status}`);
 		if (!Array.isArray(story.criteria) || story.criteria.length === 0) errors.push(`receipt: ${id} needs criteria`);
-		else for (const criterion of story.criteria) {
-			if (!record(criterion) || !Number.isInteger(criterion.n) || criterion.status !== "pass" || !Array.isArray(criterion.evidence)) { errors.push(`receipt: ${id} has unpassed or invalid criterion`); continue; }
-			for (const evidence of criterion.evidence) if (!safePath(evidence) || !artifacts.has(evidence)) errors.push(`receipt: ${id} evidence ${String(evidence)} is not listed in artifacts`);
+		else {
+			for (const criterion of story.criteria) {
+				if (!record(criterion) || !Number.isInteger(criterion.n) || criterion.status !== "pass" || !Array.isArray(criterion.evidence)) { errors.push(`receipt: ${id} has unpassed or invalid criterion`); continue; }
+				for (const evidence of criterion.evidence) if (!safePath(evidence) || !artifacts.has(evidence)) errors.push(`receipt: ${id} evidence ${String(evidence)} is not listed in artifacts`);
+			}
+			const expectedCriteria = criteriaAtHead.get(id);
+			const reported = story.criteria.map((criterion: unknown) => (record(criterion) ? Number(criterion.n) : Number.NaN)).sort((a: number, b: number) => a - b);
+			if (!expectedCriteria) errors.push(`receipt: ${id} is not a story at HEAD`);
+			else if (reported.join(",") !== expectedCriteria.join(",")) errors.push(`receipt: ${id} criteria ${reported.join(", ")} do not match story criteria ${expectedCriteria.join(", ")}`);
 		}
 	}
 	for (const id of expected) if (!passed.has(id)) errors.push(`receipt: affected ${id} is missing`);

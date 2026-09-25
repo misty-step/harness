@@ -123,9 +123,10 @@ Criteria:
    repository check with the deficient item named.
 3. WHEN a base revision is supplied, THE SYSTEM SHALL identify live stories
    affected by source files, feature files, and edited story sections.
-4. IF a walk receipt omits or fails an affected story or criterion, cites an
-   unlisted or tampered artifact, or names a different head or tree, THEN THE
-   SYSTEM SHALL reject it.
+4. IF a walk receipt omits or fails an affected story, reports a set of
+   criterion numbers that differs from that story's numbered criteria at HEAD
+   (missing, duplicated, or extra), cites an unlisted or tampered artifact, or
+   names a different head or tree, THEN THE SYSTEM SHALL reject it.
 5. WHEN a receipt binds the candidate head and tree, passes every affected
    story and criterion, and matches all cited artifact digests, THE SYSTEM
    SHALL accept it.
@@ -203,6 +204,8 @@ Criteria:
    `ws down --task T` without removing the worktree.
 6. WHEN a task worktree is brought up or down, THE SYSTEM SHALL add or drop its
    owner-scoped lease while preserving the standing VM.
+7. IF a VM named `<project>-ws` exists without the `ws` tag, THEN `ws` SHALL
+   refuse to adopt or modify it.
 
 No-gos: no transfer of model credentials or automatic removal of project VMs.
 
