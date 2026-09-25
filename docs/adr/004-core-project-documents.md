@@ -446,6 +446,8 @@ Done in the accepting PR:
    - The one postmortem template moves into the `pokayoke` skill, so both
      harnesses deploy it.
    - ADR-003's Documents row points here.
+   - Follow-up PR: the harness's `scripts/check` wraps `./scripts/verify`, and
+     CI invokes it.
 
 Stage 1, the next pin bump, handed to the harness engineer:
 

@@ -73,5 +73,6 @@ the Foundation Standard tooling. It does not own:
   intro, watchdog, and its installer.
 - `pi-config/`: pi settings, extensions, chrome, guidance intro, its component
   decisions (`pi-config/docs/adr/`), and its installer.
-- `scripts/`: workspace bootstrap, the canonical `verify` entry point, the
-  isolated installer checks, and the workspace inventory.
+- `scripts/`: workspace bootstrap, the fixed `check` gate entry point and the
+  canonical `verify` checks it runs, the isolated installer checks, and the
+  workspace inventory.

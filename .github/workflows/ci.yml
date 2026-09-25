@@ -21,7 +21,7 @@ jobs:
         with:
           bun-version: '1.4.2'
       - name: Check workspace and all components sequentially
-        run: ./scripts/verify all
+        run: ./scripts/check all
       - name: System One semantic review gate
         env:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}

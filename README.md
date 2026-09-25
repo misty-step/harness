@@ -64,7 +64,9 @@ nothing about older or unleased resources.
 ./scripts/verify workspace   # shell syntax and both isolated installs
 ```
 
-See [verification and local resource limits](docs/verification.md). The root owns
+`./scripts/check` is the fixed gate entry point (ADR-004); it runs
+`./scripts/verify` with the same arguments, and CI invokes it. See
+[verification and local resource limits](docs/verification.md). The root owns
 CI, hooks, and releases; component directories retain their focused tests.
 
 ## Token-cost evidence (US-018, US-019)

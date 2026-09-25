@@ -1,6 +1,8 @@
 # Verification
 
-Canonical entry point: `./scripts/verify [all|shared|pi|omp|workspace]` from any cwd.
+Canonical checks: `./scripts/verify [all|shared|pi|omp|workspace]` from any cwd.
+`./scripts/check` is the fixed entry point (ADR-004): it runs the same command
+with the same arguments, and CI invokes it.
 Requires Git, Bun >=1.4.2, jq, a POSIX shell, and Python 3 for shared gallery checks. No bootstrap, provider credentials,
 or installed harness is needed. Unit suites read working files; the installer
 check deliberately clones committed HEAD. Commit installer changes before using
@@ -15,7 +17,7 @@ run-scoped under `~/.cache/tmp` and removed on ordinary exit. Run:
 ./scripts/verify all
 ```
 
-CI uses one job, the same command, and a 15-minute timeout. No browser, Electron,
+CI uses one job, `./scripts/check all`, and a 15-minute timeout. No browser, Electron,
 model, cloud resource, or installed harness is needed. All scratch is run-scoped
 under `~/.cache/tmp` and removed on ordinary exit; interrupted runs may leave an
 owned directory. Remove only that directory once its process has ended.
