@@ -1,7 +1,7 @@
 # Foundation Standard
 
 **Standard:** `misty-step.foundation`
-**Version:** `1.1.0`
+**Version:** `1.2.0`
 **Catalog:** [`foundation-standard-v1.json`](foundation-standard-v1.json)
 
 The adjacent JSON catalog is the **single normative source for structured obligation fields**: applicability, required evidence, exception authority, approved defaults, dispositions, and required decision fields. This document is the human-readable rationale and operating guidance keyed by those IDs; it does not restate a second normative copy. The Foundation skill is an assessment and repair procedure that reads the catalog and this guidance, not another policy source.
@@ -145,6 +145,31 @@ pass. The receipt attests the walk performed, not unspecified product coverage.
 An owned exe.dev project workspace needs a repeatable `.exe/setup.sh` that
 brings a fresh VM to the toolchain its checks need. It must be idempotent and
 credential-free; agent and model credentials stay on the desktop.
+
+### FND-REL-001 — Continuous deployment
+
+Green on the default branch ships. Every push that passes the gate deploys or
+publishes a release with no hand step, and the gate is strong enough to ship at
+5pm on a Friday: CI, automated tests of the core journeys, story walks and agentic
+QA, then a readback or smoke check of what shipped. Rollback is exercised, not
+described. A manual promotion, a dispatch-only workflow, or a deploy that does
+not wait on the gate is not continuous deployment (ADR-005).
+
+### FND-ALR-001 — Loud production alerting
+
+Production errors reach a remote store with release and environment (Sentry by
+default, or an approved equivalent that captures errors, checks health and raises
+incidents), health is checked from outside the application, and both alert a
+destination someone watches. An SDK behind an unset DSN, a monitor nobody reads,
+or an alert route marked "prepared" is not alerting; a controlled failure whose
+alert was seen and handled is the proof (ADR-005).
+
+### FND-INC-001 — Incident response closes the class
+
+An alert becomes an owned incident through the runbook's Incidents section. Every
+incident ends in a postmortem from the harness template (pokayoke skill) and a
+structural change that makes the whole class impossible, with a regression check;
+the postmortem links that change before it closes (ADR-005).
 
 ## Approved tool defaults
 

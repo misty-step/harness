@@ -1,7 +1,7 @@
 {
   "schema": "foundation-standard/1",
   "id": "misty-step.foundation",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "principles": [
     {
       "id": "FND-P-APPLICABILITY",
@@ -151,6 +151,39 @@
         "Bootstrap installs or configures the toolchain required for the project's checks without desktop credentials."
       ],
       "exception_authority": "Accountable project owner with an equivalent reproducible, credential-free workspace bootstrap."
+    },
+    {
+      "id": "FND-REL-001",
+      "title": "Continuous deployment",
+      "applies_when": "The repository is an application: it changes a live system (surface deployed) or ships something people run (surfaces ui, cli or api).",
+      "required_evidence": [
+        "Every push to the default branch that passes the gate ships automatically: a deploy or release job waits on the gate, runs with no manual step, and a failed gate stops it.",
+        "The gate is strong enough to ship at 5pm on a Friday: CI, automated tests of the core journeys, story walks and agentic QA run before shipping, and a readback or smoke check verifies the shipped candidate.",
+        "Rollback or recovery of a bad release is exercised, and recent default-branch history shows green commits reaching production without hand steps."
+      ],
+      "exception_authority": "None. Operator decision 2026-09-25 (ADR-005): no exception for an application; not_applicable only when the repository is not an application."
+    },
+    {
+      "id": "FND-ALR-001",
+      "title": "Loud production alerting",
+      "applies_when": "The repository is an application: it changes a live system (surface deployed) or ships something people run (surfaces ui, cli or api).",
+      "required_evidence": [
+        "Production errors are captured remotely with release and environment: Sentry by default (FND-DEF-SENTRY-001) or an approved equivalent that captures errors, checks health and raises incidents.",
+        "Health is checked from outside the application on a schedule; a released artifact without a live service instead reports crashes and errors from real installs.",
+        "Errors and failed health checks alert loudly to a destination a human or agent watches, proven by a controlled failure whose alert was seen and handled."
+      ],
+      "exception_authority": "None. Operator decision 2026-09-25 (ADR-005): no exception for an application; not_applicable only when the repository is not an application."
+    },
+    {
+      "id": "FND-INC-001",
+      "title": "Incident response closes the class",
+      "applies_when": "The repository is an application: it changes a live system (surface deployed) or ships something people run (surfaces ui, cli or api).",
+      "required_evidence": [
+        "The runbook's Incidents section says how an alert becomes an owned incident, who responds, and where its postmortem goes.",
+        "Every production incident ends in a postmortem under docs/postmortems/ from the harness template in the pokayoke skill.",
+        "Each closed postmortem links the structural change that rules out the whole class of error (shape, type, ownership, a removed affordance or a failing-closed check) together with its regression check; a warning or instruction is not a fix."
+      ],
+      "exception_authority": "None. Operator decision 2026-09-25 (ADR-005): no exception for an application; not_applicable only when the repository is not an application."
     }
   ],
   "approved_defaults": [
