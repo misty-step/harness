@@ -88,8 +88,9 @@ for (const task of tasks) {
 
 	for (const judge of JUDGES) {
 		const cache = join(judgeDir, `${task.id}.${judge.id}.json`);
-		if (existsSync(cache)) {
-			judgements.push(JSON.parse(readFileSync(cache, "utf8")));
+		const cached = existsSync(cache) ? JSON.parse(readFileSync(cache, "utf8")) : null;
+		if (cached?.valid) {
+			judgements.push(cached);
 			continue;
 		}
 		const order = shuffle(ARMS);
@@ -97,6 +98,7 @@ for (const task of tasks) {
 		const example = `{${LABELS.map((label) => `"${label}":{"task":n,"correctness":n,"scope":n,"quality":n}`).join(",")},"ranking":[${LABELS.map(() => '"X"').join(",")}]}`;
 		const prompt = [
 			`You are reviewing ${LABELS.length} candidate changes (${LABELS.join(", ")}) to the same Git repository for the same task. Judge each on its own merits against the task statement.`,
+			"You have no tools and cannot open files or run commands: judge only from the text below, and answer in one reply.",
 			"A reference change that the project actually accepted is included for context; other correct solutions may differ from it.",
 			`\nTask statement:\n<<<\n${task.statement}\n>>>`,
 			`\nReference change (accepted; not the only correct solution):\n<<<\n${clip(reference, 60_000)}\n>>>`,
