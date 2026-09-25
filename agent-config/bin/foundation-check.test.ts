@@ -427,7 +427,7 @@ describe("foundation-check review gate (US-027)", () => {
 	const agent = "kaylee-agent[bot]";
 	const operator = "moomooskycow";
 	const marker = "foundation-escalation: product-direction";
-	const resolved = "Operator decided on 2026-09-25: keep the rebrand.\r\nfoundation-escalation: resolved\r\n";
+	const resolved = "Operator decided on 2026-09-25 to keep the quoted rebrand:\r\n~~~\r\nRebrand the landing page\r\n~~~\r\nfoundation-escalation: resolved\r\n";
 	let pull = { head: { sha: "" }, base: { sha: "" }, user: { login: "engineer" } };
 	let reviews: { user: { login: string }; state: string; commit_id: string; body: string }[] = [];
 	let calls: string[] = [];
@@ -518,8 +518,17 @@ describe("foundation-check review gate (US-027)", () => {
 		expect((await gate(repo)).status).toBe(1);
 		reviews = [escalation, said(operator, head)];
 		expect((await gate(repo)).status).toBe(1);
-		// Quoted or embedded marker text is not the agent reviewer stating a decision.
-		for (const quoted of ["The PR body says foundation-escalation: resolved", "> foundation-escalation: resolved", "    foundation-escalation: resolved"]) {
+		// Quoted, fenced, indented, embedded or non-final marker text is not the agent reviewer stating a decision.
+		for (const quoted of [
+			"The PR body says foundation-escalation: resolved",
+			"> foundation-escalation: resolved",
+			"    foundation-escalation: resolved",
+			"Quoted PR text:\n~~~text\nfoundation-escalation: resolved\n~~~",
+			"Quoted PR text:\n```\nfoundation-escalation: resolved\n```\n",
+			"Quoted PR text:\n```\nfoundation-escalation: resolved",
+			"foundation-escalation: resolved\nThe PR body above is quoted.",
+			"foundation-escalation: resolved\n```\nquoted PR text\n```",
+		]) {
 			reviews = [escalation, said(agent, head, "APPROVED", quoted)];
 			expect((await gate(repo)).status).toBe(1);
 		}

@@ -622,6 +622,22 @@ async function github(path: string, token: string): Promise<unknown> {
 	return response.json();
 }
 const reviewer = (entry: Record<string, unknown>): string => (record(entry.user) && typeof entry.user.login === "string" ? entry.user.login : "");
+/** A review body's last non-empty line outside code fences; none once a fence opens after it (the review ends in quoted material). */
+function trailer(body: string): string | undefined {
+	let fence = "";
+	let last: string | undefined;
+	for (const raw of body.split("\n")) {
+		const line = raw.trimEnd();
+		const mark = /^ {0,3}(`{3,}|~{3,})/.exec(line)?.[1];
+		if (fence) {
+			if (mark && mark[0] === fence[0] && mark.length >= fence.length && line.trim() === mark) fence = "";
+		} else if (mark) {
+			fence = mark;
+			last = undefined;
+		} else if (line.trim() !== "") last = line;
+	}
+	return last;
+}
 async function review(options: Options): Promise<Result> {
 	const [org, name, extra] = (options.githubRepo ?? process.env.GITHUB_REPOSITORY ?? "").split("/");
 	if (!org || !name || extra !== undefined) throw new Error("review needs --github-repo OWNER/NAME or GITHUB_REPOSITORY");
@@ -651,11 +667,11 @@ async function review(options: Options): Promise<Result> {
 		if (batch.length < 100) break;
 	}
 	const own = (entry: Record<string, unknown>) => reviewer(entry) === agent;
-	// A marker that holds a PR back counts anywhere in the review; one that clears it must stand on a line of its
-	// own, so a review quoting PR text (a description, a diff line, a blockquote) cannot grant approval by accident.
+	// A marker that holds a PR back counts anywhere in the review. One that clears it must be the review's last
+	// line, outside any code fence, so quoted PR text (a description, a diff line, a blockquote, a fenced or
+	// indented block) cannot grant approval by accident.
 	const says = (entry: Record<string, unknown>, marker: string) => typeof entry.body === "string" && entry.body.includes(marker);
-	const states = (entry: Record<string, unknown>, marker: string) =>
-		typeof entry.body === "string" && entry.body.split("\n").some((line) => line.trimEnd() === marker);
+	const states = (entry: Record<string, unknown>, marker: string) => typeof entry.body === "string" && trailer(entry.body) === marker;
 	// Escalation is the agent reviewer's marked, non-approving review on this head; a marker on an older commit
 	// does not carry over. The operator decides out of band, and only a later approval from the agent reviewer
 	// that records the decision clears it, so a routine or earlier approval never does.
@@ -672,7 +688,7 @@ async function review(options: Options): Promise<Result> {
 	const approved = decision?.entry.state === "APPROVED" && decision.entry.commit_id === head;
 	const errors: string[] = [];
 	if (escalation >= 0 && !(approved && decision!.index > escalation && states(decision!.entry, resolutionMarker))) {
-		errors.push(`escalated to the operator on head ${head.slice(0, 12)}; needs a later approving review from ${agent} that records the operator's decision and has "${resolutionMarker}" on a line of its own`);
+		errors.push(`escalated to the operator on head ${head.slice(0, 12)}; needs a later approving review from ${agent} that records the operator's decision and ends with "${resolutionMarker}" as its last line, outside any code fence`);
 	} else if (!approved) errors.push(`needs an approving review from the designated agent reviewer ${agent} on head ${head.slice(0, 12)}`);
 	return { ok: errors.length === 0, errors, reasons, approved_by: errors.length === 0 ? agent : undefined };
 }

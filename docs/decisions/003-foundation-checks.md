@@ -95,8 +95,9 @@ expiry). The operator delegated both to an agent reviewer on 2026-09-25.
   commit marked `foundation-escalation: product-direction` and asks the operator
   through its usual channel. The operator's answer clears the escalation only as
   a later approving review from the same App, on the head, that records the
-  decision and has `foundation-escalation: resolved` on a line of its own (so
-  quoted PR text cannot count); an earlier or routine approval does not. CI authenticates the App, not the operator: the decision is
+  decision and ends with `foundation-escalation: resolved` as its last line,
+  outside any code fence, so quoted PR text cannot count; an earlier or routine
+  approval does not. CI authenticates the App, not the operator: the decision is
   a process step the agent reviewer records (operator choice, 2026-09-25, after
   the first drill showed an escalated PR authored under the operator's account
   could never pass when only that account's approval counted).
