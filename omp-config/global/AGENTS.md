@@ -21,7 +21,11 @@ Model policy (operator, 2026-09-25), subscriptions before paid routes: Claude
 Opus 5.5 is preferred in general and orchestrates (default: medium; `@slow`
 xhigh; `@extreme` max). Anything visual goes to Opus: `vision` and the
 `designer` agent at high, raising to xhigh or max for design and
-visual-language work; never delegate visual work to `task`. GPT-6 models are
+visual-language work; never delegate visual work to `task`. Inspect images
+with `read <image>?q=<question>` (the `vision` role) or delegate visual work to
+`designer`: both stay on Opus and fail closed during an Anthropic outage. A
+main session's own model follows `default` and may fail over, so do not rely
+on it to judge pixels. GPT-6 models are
 the workhorse subagents for specific tasks and always run Sol and Luna at max:
 `task` is Sol max; `smol`, `commit`, `advisor`, `scout`, and `sonic` are Luna
 max; `tiny` may use OMP's local model before Luna. Astra runs at high or above
