@@ -89,7 +89,7 @@ run_shared() {
   set --
   if has pass-env; then set -- "$@" --bin pass-env.ts; fi
   if has guidance; then set -- "$@" --bin design-check.ts; fi
-  if has skills; then set -- "$@" --skill all; fi
+  if has skills; then set -- "$@" --skill all --bin foundation-check.ts --bin ws.ts; fi
   if has guidance; then
     set -- "$@" \
       --guidance pokayoke \

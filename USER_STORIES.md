@@ -108,6 +108,35 @@ Evidence: `scripts/references.test.ts`,
 `agent-config/guidance/communication-and-verification.md`;
 disposable Pi and OMP installer smoke.
 
+## US-024 Enforce repository foundations with required checks
+
+Statement: When I change a project, I want its foundations checked against
+its declared standard and affected user journeys, so an incomplete map or
+unwalked behavior cannot be mistaken for release evidence.
+
+Criteria:
+1. WHEN a repository adopts the Foundation Standard, THE SYSTEM SHALL validate
+   every catalog obligation and approved default against the pinned catalog
+   digest and report pending items as needs-evidence, not compliance passes.
+2. IF required project documents, mapped live stories, tracked source globs,
+   or the verify-skill sections are missing, THEN THE SYSTEM SHALL fail the
+   repository check with the deficient item named.
+3. WHEN a base revision is supplied, THE SYSTEM SHALL identify live stories
+   affected by source files, feature files, and edited story sections.
+4. IF a walk receipt omits or fails an affected story or criterion, cites an
+   unlisted or tampered artifact, or names a different head or tree, THEN THE
+   SYSTEM SHALL reject it.
+5. WHEN a receipt binds the candidate head and tree, passes every affected
+   story and criterion, and matches all cited artifact digests, THE SYSTEM
+   SHALL accept it.
+
+No-gos: no deployment, automatic waivers, or replacing an actual story walk
+with a syntactic receipt check.
+
+Evidence: `agent-config/bin/foundation-check.test.ts`,
+`agent-config/skills/foundation/foundation-standard.test.ts`;
+`bun agent-config/bin/foundation-check.ts --help`.
+
 ## Capability: Deployment
 
 ## US-002 Deploy shared primitives
@@ -132,38 +161,71 @@ Evidence: `./scripts/verify-installers`
 
 ## US-003 Offload heavy execution to exe.dev
 
-Statement: When an agent needs to run heavy test suites, coverage, browser
-verification, or long-running tasks, I want work offloaded to an exe.dev
-persistent VM, so workstation desktop RAM and responsiveness are preserved.
+Statement: When an agent needs to run heavy suites, browser verification, or
+long-running services, I want execution in my project's owned exe.dev workspace,
+so desktop responsiveness is preserved without case-by-case VM approval.
 
 Criteria:
-1. WHEN an agent identifies a heavy or long-running workload, THE SYSTEM SHALL
-   require offloading to an approved exe.dev VM using `skill://using-exe-dev`.
-2. WHERE local execution is bounded with explicit concurrency caps, THE SYSTEM
-   SHALL permit execution under run-scoped `~/.cache/tmp` scratch.
-3. IF an uncontained or unbounded execution is attempted locally, THEN THE
-   SYSTEM SHALL reject running on `/tmp` and require explicit concurrency limits.
+1. WHEN an agent starts heavy or long-running execution from the workstation,
+   THE SYSTEM SHALL direct it to the project's `<project>-ws` workspace through
+   `ws`; WHERE a CI job runs on a GitHub-hosted runner, THE SYSTEM SHALL treat
+   it as already off the workstation (operator decision 2026-09-25).
+2. WHERE checks are bounded with explicit low concurrency caps, THE SYSTEM
+   SHALL permit local execution with run-scoped `~/.cache/tmp` scratch.
+3. IF execution requires an additional VM beyond the one project-owned VM
+   covered by the 2026-09-25 standing approval within the $40 exe.dev plan,
+   THEN THE SYSTEM SHALL require separate operator approval.
+4. WHILE stage A is in effect, THE SYSTEM SHALL keep agent sessions and model
+   credentials on the desktop.
 
-No-gos: no automatic VM creation without authorized account and spend limits.
+No-gos: no automatic additional VM or model-credential transfer.
 
-Evidence: `agent-config/guidance/host-resources.md`
+Evidence: `agent-config/guidance/host-resources.md`,
+`omp-config/global/AGENTS.md`
+
+## US-025 Work in an owned exe.dev project workspace
+
+Statement: When I need to execute and collect evidence away from my local
+checkout, I want a repeatable project workspace, so my source and proof stay
+attached to the task without moving my agent credentials.
+
+Criteria:
+1. WHEN `ws up --task T` runs, THE SYSTEM SHALL push a snapshot including
+   non-ignored untracked files and create a remote task worktree without changing
+   the local index or HEAD.
+2. WHEN the local working tree matches committed HEAD, THE SYSTEM SHALL check
+   out that exact commit on the VM so story-walk receipts bind the same HEAD.
+3. WHEN `ws run --task T --env NAME -- cmd` runs, THE SYSTEM SHALL execute in
+   the remote worktree with login PATH and forward named values only over stdin.
+4. WHEN remote evidence is generated, THE SYSTEM SHALL copy requested files
+   locally with SHA-256 digests via `ws pull --task T`.
+5. IF any remote evidence is unpulled or changed, THEN THE SYSTEM SHALL refuse
+   `ws down --task T` without removing the worktree.
+6. WHEN a task worktree is brought up or down, THE SYSTEM SHALL add or drop its
+   owner-scoped lease while preserving the standing VM.
+
+No-gos: no transfer of model credentials or automatic removal of project VMs.
+
+Evidence: `agent-config/bin/ws.test.ts`
 
 ## Capability: Session close
 
 ## US-004 Close session-owned host resources
 
-Statement: When I finish a session that created git worktrees or exe.dev VMs, I
-want a single check that fails until those creates are leased and then dropped,
-so leftover machines and trees cannot be treated as done.
+Statement: When I finish a session that created worktrees or non-standing VMs,
+I want a check scoped to my own live leases, so unrelated sessions can continue
+and stale resources receive deliberate review.
 
 Criteria:
-1. WHEN a worktree or exe.dev VM is created in-session, THE SYSTEM SHALL record
-   a lease via `session-close.ts add` in the same turn.
-2. WHEN any lease remains, `session-close.ts` SHALL exit nonzero.
-3. IF the lease directory is empty of valid leases, THEN `session-close.ts`
-   SHALL exit 0.
-4. IF a lease file is corrupt, THEN `session-close.ts` SHALL exit nonzero
-   without treating the store as clean.
+1. WHEN a local worktree or non-standing exe.dev VM is created in-session,
+   THE SYSTEM SHALL record an owner-scoped lease in the same turn.
+2. WHEN the caller owns live leases, `session-close.ts check` SHALL exit 2;
+   WHEN only foreign leases remain, THE SYSTEM SHALL exit 0 and print them.
+3. WHEN an expired, orphaned, or legacy ownerless lease exists,
+   `session-close.ts review` SHALL list it and exit 3 without deleting it.
+4. IF a lease file is corrupt, THEN `session-close.ts` SHALL exit 1 without
+   treating the store as clean.
+5. WHEN a lease is dropped by target, THE SYSTEM SHALL print its recorded owner.
 
 No-gos: no destruction of unleased or standing VMs; no global scan of other
 sessions' worktrees; no network in the unit check.
@@ -340,25 +402,29 @@ Evidence: `agent-config/bin/design-check.test.ts`,
 
 ## US-014 Use subscriptions before paid model recovery
 
-Statement: When I start or delegate work in OMP, I want working subscription
-models selected for everyday roles and provider recovery before paid API routes,
-so routine work uses the accounts I already have without making login failure
-look like additional capacity.
+Statement: When I start or delegate work in OMP, I want my ranked subscription
+models selected per role (Claude Opus 5.5 first, then GPT-6 Astra, Sol, and Luna
+by role, Grok 4.7 last) and provider recovery before paid API routes, so
+routine work uses my preferred accounts without making login failure look like
+additional capacity.
 
 Criteria:
-1. WHEN a fresh OMP session or bundled worker selects a daily, `smol`,
-   `commit`, review, or deep role, THE SYSTEM SHALL resolve its configured
-   model to the corresponding authenticated Codex or Anthropic subscription
-   route; WHERE `tiny` selects an on-device model, THE SYSTEM SHALL retain
-   Luna as its configured cloud option before paid API routes.
-2. IF a selected provider fails, THEN THE SYSTEM SHALL offer an image-capable
-   subscription route from another provider before a paid OpenRouter route;
-   WHERE the primary is Sol, THE SYSTEM MAY first try Luna on Codex.
-3. WHEN configuration is deployed, THE SYSTEM SHALL preserve OAuth stores and
+1. WHEN a fresh OMP session or bundled worker selects the default or `task`
+   role, THE SYSTEM SHALL resolve Claude Opus 5.5 with medium reasoning on the
+   authenticated Anthropic subscription; WHEN it selects `plan`, `reviewer`,
+   or `vision`, high; `slow`, xhigh; `extreme`, max.
+2. WHEN a `smol`, `commit`, or `advisor` role is selected, THE SYSTEM SHALL
+   resolve GPT-6 Luna with max reasoning on Codex, and `security-reviewer`
+   SHALL resolve GPT-6 Astra with max reasoning; WHERE `tiny` selects an
+   on-device model, THE SYSTEM SHALL retain Luna as its configured cloud option
+   before paid API routes.
+3. IF a selected provider fails, THEN THE SYSTEM SHALL offer an image-capable
+   subscription route from another provider before a paid OpenRouter route,
+   trying Astra first for `plan`, `slow`, and `extreme`, Sol with xhigh
+   reasoning first for other Opus roles, and Grok 4.7 only as the last
+   subscription link.
+4. WHEN configuration is deployed, THE SYSTEM SHALL preserve OAuth stores and
    the model already selected in existing sessions.
-4. WHEN a configured role or provider-failure link selects Luna, THE SYSTEM
-   SHALL request max reasoning; WHEN one selects Sol, THE SYSTEM SHALL request
-   xhigh reasoning.
 
 No-gos: no copying OAuth credentials between harnesses; no Pi default change
 without Pi-native subscription authentication.

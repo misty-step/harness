@@ -37,6 +37,11 @@ owned directory. Remove only that directory once its process has ended.
   states, and non-destructive failure reporting while continuing past unreadable
   directories; it does not inspect or clean the host's worktrees.
 - Existing shared, pi and OMP suites exercise component logic.
+- `agent-config/skills/session-close/session-close.test.ts` exercises scoped lease
+  ownership and stale/corrupt review (US-004); `agent-config/bin/ws.test.ts`
+  uses real disposable Git repositories and a fake SSH lobby/VM to exercise
+  snapshots, command input, leases, and evidence-gated teardown (US-025).
+  These checks do not provision a live VM or prove live CDP/browser readiness.
 - `omp-config/bin/omp-task-usage.test.ts` checks price-weighted whole-tree cost,
   failed-task inclusion, unknown/unpriced evidence, split-task worker ownership,
   scope escape, malformed archives and content-free reporting (US-018).
@@ -50,6 +55,9 @@ owned directory. Remove only that directory once its process has ended.
   root. It prints individual PASS/FAIL results and exits nonzero on any failure.
 - Exact guidance composition is compared with the committed intro/sections.
 - Launcher bytes and executable bit must match the shared source.
+- The installed `foundation-check` must resolve its catalog and story checker
+  from the installed skills and fail closed on a repository without
+  `foundation.json` (US-024); `foundation-check.test.ts` covers its contracts.
 - Foreign skill and synthetic auth files must remain byte-identical.
 - Disposable clone and destinations are removed on exit.
 

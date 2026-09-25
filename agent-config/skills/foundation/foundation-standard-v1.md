@@ -1,7 +1,7 @@
 # Foundation Standard
 
 **Standard:** `misty-step.foundation`
-**Version:** `1.0.1`
+**Version:** `1.1.0`
 **Catalog:** [`foundation-standard-v1.json`](foundation-standard-v1.json)
 
 The adjacent JSON catalog is the **single normative source for structured obligation fields**: applicability, required evidence, exception authority, approved defaults, dispositions, and required decision fields. This document is the human-readable rationale and operating guidance keyed by those IDs; it does not restate a second normative copy. The Foundation skill is an assessment and repair procedure that reads the catalog and this guidance, not another policy source.
@@ -118,6 +118,33 @@ freshness and retention expectation, owner, and response. Alert only on actionab
 user or operating impact; define its condition, window, destination, recovery
 behavior, direct diagnostic query, and runbook. Verify a fresh sanitized signal and a
 controlled failure-and-recovery retrieval before treating configuration as coverage.
+
+### FND-DOC-001 — First-class project documents
+
+Keep the product orientation at root in `README.md`, design decisions in
+`DESIGN.md`, and user intent in `USER_STORIES.md`. Keep at least one ADR in
+`docs/adr/` and a postmortem README or template in `docs/postmortems/`.
+These are reviewable inputs, not substitutes for exercised evidence.
+
+### FND-MAP-001 — Navigable feature map
+
+Index feature files from `features/README.md`. Each feature names live stories,
+tracked source globs, sub-features, the user entry path, driving instructions,
+and gotchas. Every live story needs a feature. The map should let a change
+reviewer find the affected user journeys before choosing checks.
+
+### FND-WLK-001 — Story-walk receipts
+
+Run the repository's walk runner in the same CI job as receipt validation.
+Bind the receipt to the exact candidate head and tree; pass every affected story
+and criterion, and retain digests for each cited artifact. `unwalked` is not a
+pass. The receipt attests the walk performed, not unspecified product coverage.
+
+### FND-WS-001 — Workspace-ready bootstrap
+
+An owned exe.dev project workspace needs a repeatable `.exe/setup.sh` that
+brings a fresh VM to the toolchain its checks need. It must be idempotent and
+credential-free; agent and model credentials stay on the desktop.
 
 ## Approved tool defaults
 

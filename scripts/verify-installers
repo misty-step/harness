@@ -81,6 +81,25 @@ for consumer in pi omp; do
     failures=$((failures + 1))
   fi
   rm -f "$home/dirty.html"
+  check "$consumer foundation-check bytes" cmp -s "$work/source/agent-config/bin/foundation-check.ts" "$home/.local/bin/foundation-check"
+  check "$consumer foundation-check executable" test -x "$home/.local/bin/foundation-check"
+  # The deployed checker must resolve the catalog and story checker from the
+  # installed skills, then fail closed on a repository with no adoption record.
+  git init --quiet "$home/bare-repo"
+  if env -i PATH="$PATH" HOME="$home" TMPDIR="$work" PI_CODING_AGENT_DIR="$agent" \
+    bun "$home/.local/bin/foundation-check" check --repo "$home/bare-repo" >"$work/foundation-check.log" 2>&1; then
+    printf 'FAIL %s foundation-check gate (exited 0 without foundation.json)\n' "$consumer" >&2
+    failures=$((failures + 1))
+  elif grep -q 'foundation.json' "$work/foundation-check.log" && ! grep -q 'Cannot find' "$work/foundation-check.log"; then
+    printf 'PASS %s foundation-check gate\n' "$consumer"
+  else
+    printf 'FAIL %s foundation-check gate (installed resolution)\n' "$consumer" >&2
+    cat "$work/foundation-check.log" >&2
+    failures=$((failures + 1))
+  fi
+  rm -rf "$home/bare-repo"
+  check "$consumer ws bytes" cmp -s "$work/source/agent-config/bin/ws.ts" "$home/.local/bin/ws"
+  check "$consumer ws executable" test -x "$home/.local/bin/ws"
   check "$consumer foreign skill" cmp -s "$work/expected-skill" "$agent/skills/foreign/SKILL.md"
   check "$consumer auth" cmp -s "$work/expected-auth" "$agent/auth.json"
 

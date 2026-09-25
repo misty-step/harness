@@ -47,6 +47,13 @@ record uncertainty rather than inventing proof or exemptions. The concise
 [operating pointer](operating-foundations.md) preserves compatibility for existing
 links.
 
+For enforceable repository checks, use the standalone `foundation-check`
+launcher on the target repository: `foundation-check check`,
+`foundation-check affected --base <rev>`, and
+`foundation-check receipt <path> --base <rev>`. The skill remains a read-only
+assessment, not the validator or an authorization to change the project's
+adoption record.
+
 ## Complete recommendation
 
 Deliver a coherent judgment with project-specific evidence: what to preserve,
