@@ -50,6 +50,16 @@ owned directory. Remove only that directory once its process has ended.
   (US-019). The [token-efficiency procedure](token-efficiency.md) records the
   native pre-dispatch smoke and the separate task-quality promotion gates; unit
   assertions are not evidence of model quality or production cache savings.
+- `agent-config/audio-sandbox/audio-sandbox.test.ts` checks the agent audio
+  contract (US-026): Claude Code settings keep foreign keys, the OMP dotenv block
+  and Pi shell prefix yield the exact contract, the routing proof resolves native
+  and Pulse streams and rejects leaks and vacuous passes, requested sachstand
+  speech leaves the sandbox, and an unowned PipeWire drop-in is refused. The
+  live routing proof runs in `install.ts host` only when PipeWire is reachable.
+- `omp-config/extensions/audio-sandbox/audio-sandbox.test.ts` runs revised Python
+  eval cells under a runner-like environment: spawned processes receive the
+  exact contract, `from __future__` cells still run, revision is idempotent, and
+  `%%bash` cells export the contract (US-026).
 - `scripts/verify-installers` clones committed HEAD and runs both actual installers
   with a sanitized environment, synthetic HOME, agent directories and development
   root. It prints individual PASS/FAIL results and exits nonzero on any failure.
@@ -59,6 +69,9 @@ owned directory. Remove only that directory once its process has ended.
   from the installed skills and fail closed on a repository without
   `foundation.json` (US-024); `foundation-check.test.ts` covers its contracts.
 - Foreign skill and synthetic auth files must remain byte-identical.
+- Both installers must deploy the audio sandbox's two layers, drop-in, and Claude
+  Code env with foreign settings preserved; the installed extension must apply
+  the contract self-contained, and the isolated run must not reach live PipeWire.
 - Disposable clone and destinations are removed on exit.
 
 `workspace` runs shell syntax, reference tests, and both installer checks without

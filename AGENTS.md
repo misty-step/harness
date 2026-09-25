@@ -7,7 +7,7 @@ before editing. Cross-component changes land in one commit/PR.
 
 | Path | Owns |
 | --- | --- |
-| `agent-config/` | Harness-neutral skills, guidance sections, `pass-env`, and their shared deployment contract |
+| `agent-config/` | Harness-neutral skills, guidance sections, `pass-env`, the agent audio sandbox, and their shared deployment contract |
 | `pi-config/` | pi settings, extensions, composer chrome, guidance intro, and shared-primitive selection |
 | `omp-config/` | OMP routing, config/models/MCP, extensions, themes, guidance, watchdog, and shared-primitive selection |
 | Root | Workspace setup, verification, Git hooks, CI/releases, and cross-component architecture decisions |
