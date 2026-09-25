@@ -57,11 +57,12 @@ gates.
 - **#194:** receipts must report exactly each story's numbered criteria.
 - **#195:** Scry's host gate runs on the `scry-ws` workspace.
 - **#196:** nightly full walk (run 36163081879: 11/11, receipt PASS) and a 74 ms pre-push hook.
+- **#197:** failure-response drill. Runs 36165254989 and 36165310785 failed on purpose: the first created issue #198, the second commented on it with no duplicate, and #198 was closed as a drill.
 - **Jev map pilot** (`feature-map`, results `~/.cache/tmp/feature-map-pilot-results-20260925.json`):
   - Micro precision 0.754, recall 0.867. Capability-level grouping agreement 0.655 (partly the deterministic one-feature-per-capability rule). Run-to-run agreement 11/11.
   - The threshold (0.20) was calibrated on Scry itself, so this is not a holdout result.
   - Misses include CLI wiring the reference counts (`cmd/scry/main.go` for US-004) and an offline eval runner Jev wrongly included.
-- **Unexercised:** the nightly failure-issue path, ratchet mode (not built; Scry adopted in one PR), and map drift detection.
+- **Unexercised:** ratchet mode (not built; Scry adopted in one PR) and map drift detection.
 
 ## Decision requested
 
