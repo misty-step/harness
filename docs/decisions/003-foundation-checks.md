@@ -78,8 +78,9 @@ expiry). The operator delegated both to an agent reviewer on 2026-09-25.
 - **What counts.** An approving GitHub review on the PR's head commit, read by
   CI through the GitHub API. Text in the repository grants no authority, per
   the Foundation Standard.
-- **First stories.** The PR that adds `USER_STORIES.md` needs that approval.
-  Later changes to a story's intent stay with the operator.
+- **First stories.** The PR in which `USER_STORIES.md` gains its first stories
+  needs that approval; a placeholder file with no stories counts as none. Later
+  changes to a story's intent stay with the operator.
 - **Baseline extensions.** The PR adds a decision record naming each extended
   entry, its new expiry, and the reason; the same approval makes it valid.
 - **Escalation.** The agent reviewer approves on its own authority unless the
@@ -88,6 +89,17 @@ expiry). The operator delegated both to an agent reviewer on 2026-09-25.
   product-direction`, and from then on only the operator's approval counts for
   that PR. The operator's approval counts only after that escalation, because
   agent sessions also act under the operator's GitHub account.
+- **Gate.** `foundation-check review --base REV --pr N` runs as a
+  `foundation-review` job on `pull_request` and `pull_request_review` events.
+  It passes at once when the PR needs no review; otherwise it reads the PR's
+  reviews through the GitHub API and the designated reviewers from
+  `agent-config/skills/foundation/reviewers.json` at the pinned revision.
+- **Designated reviewers (2026-09-25).** misty-step: `kaylee-agent[bot]` (App
+  4978618). r90group: none yet. `kaylee-agent` is private to misty-step and
+  cannot be installed there; the r90group Apps with keys on the workstation are
+  Nopalito's worker (`nopalito-agent`) and the workload token issuer
+  (`iron-forest`); `vulcan-agent` has no key here. Until one is designated,
+  r90group PRs that need review fail the advisory gate.
 
 ## Enforcement by plan
 

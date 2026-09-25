@@ -74,7 +74,8 @@ owned directory. Remove only that directory once its process has ended.
 - Launcher bytes and executable bit must match the shared source.
 - The installed `foundation-check` must resolve its catalog and story checker
   from the installed skills and fail closed on a repository without
-  `foundation.json` (US-024); `foundation-check.test.ts` covers its contracts.
+  `foundation.json` (US-024); `foundation-check.test.ts` covers its contracts,
+  including ratchet mode and the review gate against a fake GitHub API (US-027).
 - Foreign skill and synthetic auth files must remain byte-identical.
 - Both installers must deploy the audio sandbox's two layers, drop-in, and Claude
   Code env with foreign settings preserved; the installed extension must apply

@@ -650,6 +650,12 @@ Criteria:
    be walked. WITH `--all` (a full walk that judges no change), THE SYSTEM SHALL
    require every live story, accept `unwalked` under an unexpired walk entry, and
    fail a walk entry whose story now passes.
+5. WHEN a pull request gives `USER_STORIES.md` its first stories or adds a
+   baseline extension record, `foundation-check review` SHALL pass only with an
+   approving review on the PR head from the organisation's designated agent
+   reviewer, named by the pinned harness and not the repository, or, after that
+   reviewer's escalation review on the head, from the operator; the PR author's
+   approval SHALL never count.
 
 No-gos: no automatic waivers, no baseline for adoption-record errors, no
 baseline entry more than 30 days out.

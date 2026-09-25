@@ -422,3 +422,94 @@ describe("foundation-check ratchet (US-027)", () => {
 		expect(errors).toContain("baseline map:features/journey.md:heading:gotchas: the gap is fixed; remove the entry");
 	});
 });
+
+describe("foundation-check review gate (US-027)", () => {
+	const agent = "kaylee-agent[bot]";
+	const operator = "moomooskycow";
+	const marker = "foundation-escalation: product-direction";
+	let pull = { head: { sha: "" }, user: { login: "engineer" } };
+	let reviews: { user: { login: string }; state: string; commit_id: string; body: string }[] = [];
+	let calls = 0;
+	const server = Bun.serve({
+		port: 0,
+		fetch(request) {
+			calls++;
+			const url = new URL(request.url);
+			if (request.headers.get("authorization") !== "Bearer test-token") return new Response("unauthorized", { status: 401 });
+			if (url.pathname === "/repos/misty-step/demo/pulls/7") return Response.json(pull);
+			if (url.pathname === "/repos/misty-step/demo/pulls/7/reviews") return Response.json(url.searchParams.get("page") === "1" ? reviews : []);
+			return new Response("missing", { status: 404 });
+		},
+	});
+	afterAll(() => server.stop(true));
+	const said = (login: string, commit: string, state = "APPROVED", body = "") => ({ user: { login }, state, commit_id: commit, body });
+	async function gate(repo: string, base: string, slug = "misty-step/demo") {
+		const child = Bun.spawn(["bun", script, "review", "--base", base, "--pr", "7", "--github-repo", slug, "--repo", repo, "--json"], {
+			cwd: repo, env: { ...process.env, GITHUB_TOKEN: "test-token", GITHUB_API_URL: server.url.origin }, stdout: "pipe", stderr: "pipe",
+		});
+		const [stdout] = await Promise.all([new Response(child.stdout).text(), child.exited]);
+		return { status: child.exitCode, output: JSON.parse(stdout) as { ok: boolean; errors: string[]; reasons: string[]; approved_by?: string } };
+	}
+
+	test("a change without first stories or an extension record needs no review and makes no API call", async () => {
+		const repo = fixture("gate-quiet");
+		const base = exec(repo, ["rev-parse", "HEAD"]);
+		put(repo, "src/nested/journey.ts", "export const result = 2;\n");
+		commit(repo, "source");
+		calls = 0;
+		const result = await gate(repo, base);
+		expect(result.status).toBe(0);
+		expect(result.output.reasons).toEqual([]);
+		expect(calls).toBe(0);
+	});
+
+	test("first stories need the agent reviewer's current approval, never the author's or the operator's alone", async () => {
+		const repo = fixture("gate-stories");
+		put(repo, "USER_STORIES.md", "# Stories\n");
+		commit(repo, "placeholder without stories");
+		const base = exec(repo, ["rev-parse", "HEAD"]);
+		put(repo, "USER_STORIES.md", `# Stories\n\n${liveStory}`);
+		commit(repo, "first stories");
+		const head = exec(repo, ["rev-parse", "HEAD"]);
+		pull = { head: { sha: head }, user: { login: "engineer" } };
+		reviews = [];
+		const missing = await gate(repo, base);
+		expect(missing.status).toBe(1);
+		expect(missing.output.reasons).toEqual(["first user stories: USER_STORIES.md gains its first stories"]);
+		expect(missing.output.errors[0]).toContain(`needs an approving review from the designated agent reviewer ${agent}`);
+		reviews = [said(agent, base)];
+		expect((await gate(repo, base)).status).toBe(1);
+		reviews = [said(operator, head)];
+		expect((await gate(repo, base)).status).toBe(1);
+		reviews = [said(agent, head)];
+		const approved = await gate(repo, base);
+		expect(approved.status).toBe(0);
+		expect(approved.output.approved_by).toBe(agent);
+		reviews = [said(agent, head), said(agent, head, "CHANGES_REQUESTED")];
+		expect((await gate(repo, base)).status).toBe(1);
+		pull = { head: { sha: head }, user: { login: agent } };
+		reviews = [said(agent, head)];
+		expect((await gate(repo, base)).output.errors[0]).toContain("authored this PR, so it cannot approve it");
+	});
+
+	test("an escalation on the head hands approval to the operator; an extension record triggers review; unknown orgs fail", async () => {
+		const repo = fixture("gate-extension");
+		const base = exec(repo, ["rev-parse", "HEAD"]);
+		put(repo, "foundation/extensions/design.json", JSON.stringify({ schema: "foundation-baseline-extension/1", reason: "Rebrand", entries: [{ gap: "doc:DESIGN.md", expires: day(20) }] }));
+		commit(repo, "extension record");
+		const head = exec(repo, ["rev-parse", "HEAD"]);
+		pull = { head: { sha: head }, user: { login: "engineer" } };
+		reviews = [said(agent, head, "COMMENTED", marker), said(agent, head)];
+		const escalated = await gate(repo, base);
+		expect(escalated.output.reasons).toEqual(["baseline extension: foundation/extensions/design.json"]);
+		expect(escalated.output.errors[0]).toContain(`operator, after the agent reviewer's escalation, ${operator}`);
+		reviews = [said(agent, head, "COMMENTED", marker), said(operator, head)];
+		expect((await gate(repo, base)).output.approved_by).toBe(operator);
+		// A marker on an older commit is not an escalation of the current head.
+		reviews = [said(agent, base, "COMMENTED", marker), said(operator, head)];
+		expect((await gate(repo, base)).status).toBe(1);
+		const foreign = await gate(repo, base, "r90group/habitat");
+		expect(foreign.status).toBe(1);
+		expect(foreign.output.errors[0]).toContain("no designated reviewer for r90group");
+	});
+});
