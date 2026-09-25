@@ -1,3 +1,16 @@
+# [0.1.43](https://github.com/misty-step/harness/compare/v0.1.42...v0.1.43) (2026-09-25)
+<!-- landmark:protected-release previous=v0.1.42 source=7a5e0657b18f60f139dcb9b0f2b6dcdfb14f8b2c52a1d5cd7c02dedbbb214b17 -->
+
+### Features
+
+* **agent-config:** gate first stories and baseline extensions on the designated reviewer (US-027, MIS-150) ([b5e15f1](https://github.com/misty-step/harness/commit/b5e15f147b4f375e300cf1e5e3f8426eebc2aef2))
+
+### Bug Fixes
+
+* **agent-config:** bind the review gate to the PR's revisions and the pinned reviewer registry (US-027, MIS-150) ([fe09b8a](https://github.com/misty-step/harness/commit/fe09b8aa58e2c80be60d6154b8b9aa3f3851ab92))
+* **agent-config:** run the review gate outside the checkout under review (US-027, MIS-150) ([4cf9c49](https://github.com/misty-step/harness/commit/4cf9c499acca0d4e9ac48425dcfebc5fea2557f5))
+* **agent-config:** run the review gate from the base branch's workflow (US-027, MIS-150) ([2aa7b41](https://github.com/misty-step/harness/commit/2aa7b41adad569d3c4624c3d4b06cd7bdf57a4ea))
+* **agent-config:** re-run the review gate on retargeting and label changes (US-027, MIS-150) ([64e90b2](https://github.com/misty-step/harness/commit/64e90b2b6539a3e91eb1b69a5eca7804e19f0f35))
 # [0.1.42](https://github.com/misty-step/harness/compare/v0.1.41...v0.1.42) (2026-09-25)
 <!-- landmark:protected-release previous=v0.1.41 source=1f83307cf649a1ef5f1f7d0a1074e705a8213b100f8981bb8e2d88ba29dd09f7 -->
 
