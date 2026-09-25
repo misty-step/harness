@@ -1,0 +1,9 @@
+{
+  "defaultProvider": "anthropic",
+  "defaultModel": "claude-opus-5-5",
+  "modelThinkingLevels": {
+    "anthropic/claude-opus-5-5": "medium",
+    "openai-codex/gpt-6-sol": "max",
+    "openai-codex/gpt-6-luna": "max"
+  }
+}

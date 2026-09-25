@@ -662,47 +662,50 @@ do not maintain another skill copy in omp-config or install it globally.
 
 ### Model routing (US-014)
 
-Daily OMP roles use available subscriptions before paid API routes, in the
-operator's 2026-09-25 ranking: Claude Opus 5.5 first (medium for daily work,
-higher effort for design, hard problems, and system design), then GPT-6 Astra,
-Sol, and Luna by role, and Grok 4.7 last. The native roles and provider-failure
-chains live in `config.yml`; changing them does not switch the selected model
-in an existing session.
+OMP follows the operator's model policy (2026-09-25), subscriptions before paid
+API routes: Claude Opus 5.5 is preferred in general and orchestrates; anything
+visual goes to Opus at high or above; GPT-6 models are the workhorse subagents
+and Sol and Luna always run at max; Astra runs at high or above for system
+design, architecture, and code review; Grok 4.7 is last. The native roles and
+provider-failure chains live in `config.yml`; changing them does not switch
+the selected model in an existing session.
 
 | Entry point or role | Primary selection |
 | --- | --- |
-| Fresh `omp`, `@default` | `anthropic/claude-opus-5-5:medium` |
-| Ordinary `task` workers, `@task` | `anthropic/claude-opus-5-5:medium` |
+| Fresh `omp`, `@default` (orchestrator) | `anthropic/claude-opus-5-5:medium` |
+| Ordinary `task` workers, `@task` | `openai-codex/gpt-6-sol:max` |
 | `@smol`, `@commit`; bundled `scout` and `sonic` | `openai-codex/gpt-6-luna:max` |
 | `@tiny` | local LFM2.5-350m first, then configured `openai-codex/gpt-6-luna:max` |
-| `@plan` (system design) | `anthropic/claude-opus-5-5:high` |
+| `@plan` (system design, architecture) | `openai-codex/gpt-6-astra:high` |
+| `reviewer` (code review) | `openai-codex/gpt-6-astra:high` |
+| `security-reviewer` | `openai-codex/gpt-6-astra:max` |
 | `@advisor` | `openai-codex/gpt-6-luna:max` |
 | `@slow` (explicit thorough pass, hard problems) | `anthropic/claude-opus-5-5:xhigh` |
 | `@extreme` (rare unconstrained reasoning) | `anthropic/claude-opus-5-5:max` |
-| `security-reviewer` | `openai-codex/gpt-6-astra:max` |
-| `reviewer`, `@vision` | `anthropic/claude-opus-5-5:high` |
+| `@vision`, `designer` agent (visual and design work) | `anthropic/claude-opus-5-5:high` |
 
-Opus medium is the daily planner and builder; raise effort with `@plan`,
-`@slow`, or `@extreme` for visual design, hard problems, and system design.
+Opus medium orchestrates; raise effort with `@slow` or `@extreme` for hard
+problems, and to xhigh or max for design and visual-language work. Delegated
+implementation goes to Sol max workers; visual work goes to the owned
+`designer` agent (`agents/designer.md`, `model: "@vision"`), never to `task`.
 Luna max serves the cloud cheap tier. OMP prepends its on-device LFM2.5-350m to
-the effective `tiny` role before the configured Luna option. Astra is reserved
-for security review and is the first fallback for plan/slow/extreme; Sol xhigh
-is the workhorse fallback. Two of four Codex logins and one of three Anthropic
-logins authenticated in OMP when last counted; do not count disabled or missing
-logins as capacity. A configured role does not create an agent. Native OMP
-bundles `task`, `scout`, `sonic`, `reviewer`, and `security-reviewer`, not
-`designer`. Main uses the session model.
+the effective `tiny` role before the configured Luna option. Two of four Codex
+logins and one of three Anthropic logins authenticated in OMP when last
+counted; do not count disabled or missing logins as capacity. A configured role
+does not create an agent. Native OMP bundles `task`, `scout`, `sonic`,
+`reviewer`, and `security-reviewer`; this repo adds `designer`. Main uses the
+session model.
 
 For a new session:
 
 ```sh
-omp                         # ordinary work: Opus 5.5 medium
-omp --model @plan           # system design: Opus 5.5 high
+omp                         # ordinary work and orchestration: Opus 5.5 medium
+omp --model @plan           # system design, architecture: Astra high
 omp --model @slow           # hard problems, thorough pass: Opus 5.5 xhigh
 omp --slow                  # shorthand for @slow
 omp --model @extreme        # rare unconstrained reasoning: Opus 5.5 max
 omp --model @smol           # explicitly choose Luna max
-omp --model @vision         # visual inspection: Opus 5.5 high
+omp --model @vision         # visual inspection and design: Opus 5.5 high
 ```
 
 An already-open or resumed session retains its selected model; installing a
@@ -718,33 +721,37 @@ Task dispatch selects an **agent**, not a per-item model. Native precedence is
 Explicit `scout`/`sonic` overrides use `@smol`; its `:max` suffix takes
 precedence over their bundled `medium` thinking defaults. New task/eval
 dispatches reload persisted routing settings, but changing Main's model alone
-does not remap workers. Ordinary workers use Opus medium; Opus high serves
-`vision` and `reviewer`; Astra serves `security-reviewer`; Luna serves `smol`,
-`commit`, and `scout`/`sonic` through `@smol`. `tiny` may select the on-device
-model before Luna. Git commit, rebase, push, and similar mechanical ship steps
-use bundled `sonic` (`@smol`). Omitting `agent` selects `@task`/Opus medium.
-Choose agents for their roles, not as differently priced implementation workers.
+does not remap workers. Ordinary workers use Sol max; Astra high serves
+`reviewer`, Astra max `security-reviewer`; Opus high serves `vision` and the
+`designer` agent; Luna serves `smol`, `commit`, and `scout`/`sonic` through
+`@smol`. `tiny` may select the on-device model before Luna. Git commit, rebase,
+push, and similar mechanical ship steps use bundled `sonic` (`@smol`). Omitting
+`agent` selects `@task`/Sol max. Choose agents for their roles, not as
+differently priced implementation workers.
 
-The ten explicit retry chains are `default`, `advisor`, `plan`, `slow`,
-`extreme`, `security-reviewer`, `vision`, `smol`, `tiny`, and `commit`; roles
-without their own chain (`task`, `reviewer`) inherit `default`. Opus's default
-chain tries Sol xhigh, then Luna max, then Opus medium (so a session running a
-Codex model reaches Anthropic before xAI), then Grok 4.7, and finally paid
-OpenRouter DeepSeek V4.1 Flash. Plan, slow, and extreme try Astra (high, high,
-max) before Sol and Grok. Astra's security chain tries Opus high, Sol, then
-Grok. Opus's vision chain tries Sol, Luna, then Grok. Luna's mechanical chains
-try Opus medium, then Grok. Advisor uses Luna max, then Gemini 3.8 Flash high on
-Google Antigravity, then Grok 4.7 xhigh. Every chain ends with paid DeepSeek,
-and each link accepts images. Task quality and whole-task cost effects of this
-ranking remain unmeasured.
+The twelve explicit retry chains are `default`, `task`, `advisor`, `plan`,
+`reviewer`, `slow`, `extreme`, `security-reviewer`, `vision`, `smol`, `tiny`,
+and `commit`. Opus's default chain tries Sol max, then Luna max, then Opus
+medium (so a session running a Codex model reaches Anthropic before xAI), then
+Grok 4.7, and finally paid OpenRouter DeepSeek V4.1 Flash. Sol's `task` chain
+tries Luna, Opus medium, then Grok. Astra's `plan`, `reviewer`, and security
+chains try Opus high, Sol max, then Grok. Opus's `slow` and `extreme` chains try
+Astra (high, max), Sol max, then Grok. The `vision` chain lists only Opus, so
+the vision role never degrades to another model; a main or `designer` session
+follows its session role's chain instead. Luna's mechanical chains try Opus
+medium, then Grok. Advisor uses Luna max, then Gemini 3.8 Flash high on Google
+Antigravity, then Grok 4.7 xhigh. Every other chain ends with paid DeepSeek, and
+each link accepts images. Task quality and whole-task cost effects of this
+policy remain unmeasured.
 
 Fallbacks recover provider failures, not hard prompts; they require working
 credentials. A session's model falls back through its session role's chain:
 a main session started with `--model @smol` follows `default`, not `smol`.
 Forced outages on 2026-09-25 (`PI_PROXY_<PROVIDER>` pointed at a dead local
 port, `retry.maxRetries: 1`) showed an Anthropic outage moving default Opus to
-Sol xhigh, and a Codex outage moving a Luna session through Sol to the next
-non-Codex link. Grok is the last subscription provider before the paid
+Sol max, and a Codex outage moving a Luna session through Sol to Opus medium.
+A main session started with `--model @vision` also follows `default`. Grok is
+the last subscription provider before the paid
 OpenRouter recovery link. If a subscription is exhausted or
 its login expires, the chain can still reach a paid route. Existing sessions
 keep their selected model and Pi's separate OpenRouter default is unchanged:

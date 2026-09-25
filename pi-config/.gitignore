@@ -5,6 +5,7 @@
 !/CHANGELOG.md
 !/install
 !/settings.json
+!/settings.subscription.json
 !/global/
 !/global/**
 !/.landmark.yml
