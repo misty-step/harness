@@ -17,7 +17,9 @@ chicken-and-egg), and who may approve the steps an agent cannot self-approve.
 
 All checks use `foundation-check`, which a repository's CI pins to a harness
 revision. Deterministic checks are the gate. Jev drafts and advises but never
-gates.
+gates. CI runs the pinned checker from its own directory with `--repo` pointing
+at the checkout, never with the checkout as Bun's working directory: Bun loads a
+`bunfig.toml` preload from there, which a PR could use to skip the gate.
 
 | Check | Verifies | Tool | Gate |
 | --- | --- | --- | --- |
