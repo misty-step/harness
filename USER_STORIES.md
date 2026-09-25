@@ -340,25 +340,29 @@ Evidence: `agent-config/bin/design-check.test.ts`,
 
 ## US-014 Use subscriptions before paid model recovery
 
-Statement: When I start or delegate work in OMP, I want working subscription
-models selected for everyday roles and provider recovery before paid API routes,
-so routine work uses the accounts I already have without making login failure
-look like additional capacity.
+Statement: When I start or delegate work in OMP, I want my ranked subscription
+models selected per role (Claude Opus 5.5 first, then GPT-6 Astra, Sol, and Luna
+by role, Grok 4.7 last) and provider recovery before paid API routes, so
+routine work uses my preferred accounts without making login failure look like
+additional capacity.
 
 Criteria:
-1. WHEN a fresh OMP session or bundled worker selects a daily, `smol`,
-   `commit`, review, or deep role, THE SYSTEM SHALL resolve its configured
-   model to the corresponding authenticated Codex or Anthropic subscription
-   route; WHERE `tiny` selects an on-device model, THE SYSTEM SHALL retain
-   Luna as its configured cloud option before paid API routes.
-2. IF a selected provider fails, THEN THE SYSTEM SHALL offer an image-capable
-   subscription route from another provider before a paid OpenRouter route;
-   WHERE the primary is Sol, THE SYSTEM MAY first try Luna on Codex.
-3. WHEN configuration is deployed, THE SYSTEM SHALL preserve OAuth stores and
+1. WHEN a fresh OMP session or bundled worker selects the default or `task`
+   role, THE SYSTEM SHALL resolve Claude Opus 5.5 with medium reasoning on the
+   authenticated Anthropic subscription; WHEN it selects `plan`, `reviewer`,
+   or `vision`, high; `slow`, xhigh; `extreme`, max.
+2. WHEN a `smol`, `commit`, or `advisor` role is selected, THE SYSTEM SHALL
+   resolve GPT-6 Luna with max reasoning on Codex, and `security-reviewer`
+   SHALL resolve GPT-6 Astra with max reasoning; WHERE `tiny` selects an
+   on-device model, THE SYSTEM SHALL retain Luna as its configured cloud option
+   before paid API routes.
+3. IF a selected provider fails, THEN THE SYSTEM SHALL offer an image-capable
+   subscription route from another provider before a paid OpenRouter route,
+   trying Astra first for `plan`, `slow`, and `extreme`, Sol with xhigh
+   reasoning first for other Opus roles, and Grok 4.7 only as the last
+   subscription link.
+4. WHEN configuration is deployed, THE SYSTEM SHALL preserve OAuth stores and
    the model already selected in existing sessions.
-4. WHEN a configured role or provider-failure link selects Luna, THE SYSTEM
-   SHALL request max reasoning; WHEN one selects Sol, THE SYSTEM SHALL request
-   xhigh reasoning.
 
 No-gos: no copying OAuth credentials between harnesses; no Pi default change
 without Pi-native subscription authentication.

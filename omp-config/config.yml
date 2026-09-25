@@ -1,10 +1,10 @@
 modelRoles:
-  default: openai-codex/gpt-6-sol:xhigh
-  slow: openai-codex/gpt-6-astra:high
-  extreme: openai-codex/gpt-6-astra:max
-  plan: openai-codex/gpt-6-sol:xhigh
+  default: anthropic/claude-opus-5-5:medium
+  slow: anthropic/claude-opus-5-5:xhigh
+  extreme: anthropic/claude-opus-5-5:max
+  plan: anthropic/claude-opus-5-5:high
   advisor: openai-codex/gpt-6-luna:max
-  task: openai-codex/gpt-6-sol:xhigh
+  task: anthropic/claude-opus-5-5:medium
   reviewer: anthropic/claude-opus-5-5:high
   security-reviewer: openai-codex/gpt-6-astra:max
   vision: anthropic/claude-opus-5-5:high
@@ -75,29 +75,50 @@ providers:
 retry:
   fallbackChains:
     advisor:
-      - xai-oauth/grok-4.7:xhigh
       - google-antigravity/gemini-3.8-flash:high
+      - xai-oauth/grok-4.7:xhigh
       - openrouter/deepseek/deepseek-v4.1-flash:max
     default:
+      - openai-codex/gpt-6-sol:xhigh
       - openai-codex/gpt-6-luna:max
       - xai-oauth/grok-4.7:xhigh
+      - openrouter/deepseek/deepseek-v4.1-flash:max
+    plan:
+      - openai-codex/gpt-6-astra:high
+      - openai-codex/gpt-6-sol:xhigh
+      - xai-oauth/grok-4.7:xhigh
+      - openrouter/deepseek/deepseek-v4.1-flash:max
+    slow:
+      - openai-codex/gpt-6-astra:high
+      - openai-codex/gpt-6-sol:xhigh
+      - xai-oauth/grok-4.7:xhigh
+      - openrouter/deepseek/deepseek-v4.1-flash:max
+    extreme:
+      - openai-codex/gpt-6-astra:max
+      - openai-codex/gpt-6-sol:xhigh
+      - xai-oauth/grok-4.7:xhigh
+      - openrouter/deepseek/deepseek-v4.1-flash:max
+    security-reviewer:
       - anthropic/claude-opus-5-5:high
+      - openai-codex/gpt-6-sol:xhigh
+      - xai-oauth/grok-4.7:xhigh
       - openrouter/deepseek/deepseek-v4.1-flash:max
     vision:
-      - xai-oauth/grok-4.7:xhigh
+      - openai-codex/gpt-6-sol:xhigh
       - openai-codex/gpt-6-luna:max
+      - xai-oauth/grok-4.7:xhigh
       - openrouter/deepseek/deepseek-v4.1-flash:max
     smol:
+      - anthropic/claude-opus-5-5:medium
       - xai-oauth/grok-4.7:xhigh
-      - anthropic/claude-opus-5-5:high
       - openrouter/deepseek/deepseek-v4.1-flash:max
     tiny:
+      - anthropic/claude-opus-5-5:medium
       - xai-oauth/grok-4.7:xhigh
-      - anthropic/claude-opus-5-5:high
       - openrouter/deepseek/deepseek-v4.1-flash:max
     commit:
+      - anthropic/claude-opus-5-5:medium
       - xai-oauth/grok-4.7:xhigh
-      - anthropic/claude-opus-5-5:high
       - openrouter/deepseek/deepseek-v4.1-flash:max
 task:
   maxRecursionDepth: 3
