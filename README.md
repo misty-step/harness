@@ -70,7 +70,7 @@ the measured baseline, provider/cache provenance, instruction audit, and the
 off-by-default credential-context experiment. Run the analyzer with an explicit
 task manifest; a session stop is not proof of task completion. The credential
 experiment remains off by default. Separately, the operator-approved advisor
-route uses Luna max, then Grok 4.7 xhigh, Gemini 3.8 Flash high, and DeepSeek
+route uses Luna max, then Gemini 3.8 Flash high, Grok 4.7 xhigh, and DeepSeek
 V4.1 Flash max; other model roles remain unchanged.
 
 ## System 1 / System 2 experiment (US-029)

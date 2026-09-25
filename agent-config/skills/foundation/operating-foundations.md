@@ -16,6 +16,14 @@ data, and user-journey capabilities to the standard. Keep these distinctions cle
   evidence layers. Never promote an SDK, config file, schema, or declared pass into
   proof of live behavior.
 
+The standalone `foundation-check` launcher checks repository adoption,
+documents, feature mapping, and story-walk receipts. A Foundation assessment
+may read its result but remains read-only; the launcher, not this skill or
+pointer, is the validator. A repository adopting with gaps starts from
+`foundation-check baseline --owner NAME`: a bootstrap baseline that expires
+within 30 days and can only shrink (ADR-003, US-027). Extending it takes an
+approved `foundation/extensions/` record, never a quiet edit.
+
 ## Retained operating preferences
 
 When hosting choices matter, compare local, edge-native, and persistent Linux execution; a hybrid must remove more work than its boundary adds. This is a design preference, not another compliance obligation.

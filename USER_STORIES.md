@@ -108,6 +108,36 @@ Evidence: `scripts/references.test.ts`,
 `agent-config/guidance/communication-and-verification.md`;
 disposable Pi and OMP installer smoke.
 
+## US-024 Enforce repository foundations with required checks
+
+Statement: When I change a project, I want its foundations checked against
+its declared standard and affected user journeys, so an incomplete map or
+unwalked behavior cannot be mistaken for release evidence.
+
+Criteria:
+1. WHEN a repository adopts the Foundation Standard, THE SYSTEM SHALL validate
+   every catalog obligation and approved default against the pinned catalog
+   digest and report pending items as needs-evidence, not compliance passes.
+2. IF required project documents, mapped live stories, tracked source globs,
+   or the verify-skill sections are missing, THEN THE SYSTEM SHALL fail the
+   repository check with the deficient item named.
+3. WHEN a base revision is supplied, THE SYSTEM SHALL identify live stories
+   affected by source files, feature files, and edited story sections.
+4. IF a walk receipt omits or fails an affected story, reports a set of
+   criterion numbers that differs from that story's numbered criteria at HEAD
+   (missing, duplicated, or extra), cites an unlisted or tampered artifact, or
+   names a different head or tree, THEN THE SYSTEM SHALL reject it.
+5. WHEN a receipt binds the candidate head and tree, passes every affected
+   story and criterion, and matches all cited artifact digests, THE SYSTEM
+   SHALL accept it.
+
+No-gos: no deployment, automatic waivers, or replacing an actual story walk
+with a syntactic receipt check.
+
+Evidence: `agent-config/bin/foundation-check.test.ts`,
+`agent-config/skills/foundation/foundation-standard.test.ts`;
+`bun agent-config/bin/foundation-check.ts --help`.
+
 ## Capability: Deployment
 
 ## US-002 Deploy shared primitives
@@ -132,38 +162,73 @@ Evidence: `./scripts/verify-installers`
 
 ## US-003 Offload heavy execution to exe.dev
 
-Statement: When an agent needs to run heavy test suites, coverage, browser
-verification, or long-running tasks, I want work offloaded to an exe.dev
-persistent VM, so workstation desktop RAM and responsiveness are preserved.
+Statement: When an agent needs to run heavy suites, browser verification, or
+long-running services, I want execution in my project's owned exe.dev workspace,
+so desktop responsiveness is preserved without case-by-case VM approval.
 
 Criteria:
-1. WHEN an agent identifies a heavy or long-running workload, THE SYSTEM SHALL
-   require offloading to an approved exe.dev VM using `skill://using-exe-dev`.
-2. WHERE local execution is bounded with explicit concurrency caps, THE SYSTEM
-   SHALL permit execution under run-scoped `~/.cache/tmp` scratch.
-3. IF an uncontained or unbounded execution is attempted locally, THEN THE
-   SYSTEM SHALL reject running on `/tmp` and require explicit concurrency limits.
+1. WHEN an agent starts heavy or long-running execution from the workstation,
+   THE SYSTEM SHALL direct it to the project's `<project>-ws` workspace through
+   `ws`; WHERE a CI job runs on a GitHub-hosted runner, THE SYSTEM SHALL treat
+   it as already off the workstation (operator decision 2026-09-25).
+2. WHERE checks are bounded with explicit low concurrency caps, THE SYSTEM
+   SHALL permit local execution with run-scoped `~/.cache/tmp` scratch.
+3. IF execution requires an additional VM beyond the one project-owned VM
+   covered by the 2026-09-25 standing approval within the $40 exe.dev plan,
+   THEN THE SYSTEM SHALL require separate operator approval.
+4. WHILE stage A is in effect, THE SYSTEM SHALL keep agent sessions and model
+   credentials on the desktop.
 
-No-gos: no automatic VM creation without authorized account and spend limits.
+No-gos: no automatic additional VM or model-credential transfer.
 
-Evidence: `agent-config/guidance/host-resources.md`
+Evidence: `agent-config/guidance/host-resources.md`,
+`omp-config/global/AGENTS.md`
+
+## US-025 Work in an owned exe.dev project workspace
+
+Statement: When I need to execute and collect evidence away from my local
+checkout, I want a repeatable project workspace, so my source and proof stay
+attached to the task without moving my agent credentials.
+
+Criteria:
+1. WHEN `ws up --task T` runs, THE SYSTEM SHALL push a snapshot including
+   non-ignored untracked files and create a remote task worktree without changing
+   the local index or HEAD.
+2. WHEN the local working tree matches committed HEAD, THE SYSTEM SHALL check
+   out that exact commit on the VM so story-walk receipts bind the same HEAD.
+3. WHEN `ws run --task T --env NAME -- cmd` runs, THE SYSTEM SHALL execute in
+   the remote worktree with login PATH and forward named values only over stdin.
+4. WHEN remote evidence is generated, THE SYSTEM SHALL copy requested files
+   locally with SHA-256 digests via `ws pull --task T`.
+5. IF any remote evidence is unpulled or changed, THEN THE SYSTEM SHALL refuse
+   `ws down --task T` without removing the worktree.
+6. WHEN a task worktree is brought up or down, THE SYSTEM SHALL add or drop its
+   owner-scoped lease while preserving the standing VM.
+7. IF a VM named `<project>-ws` exists without the `ws` tag, THEN `ws` SHALL
+   refuse to adopt or modify it.
+
+No-gos: no transfer of model credentials or automatic removal of project VMs.
+
+Evidence: `agent-config/bin/ws.test.ts`
 
 ## Capability: Session close
 
 ## US-004 Close session-owned host resources
 
-Statement: When I finish a session that created git worktrees or exe.dev VMs, I
-want a single check that fails until those creates are leased and then dropped,
-so leftover machines and trees cannot be treated as done.
+Statement: When I finish a session that created worktrees or non-standing VMs,
+I want a check scoped to my own live leases, so unrelated sessions can continue
+and stale resources receive deliberate review.
 
 Criteria:
-1. WHEN a worktree or exe.dev VM is created in-session, THE SYSTEM SHALL record
-   a lease via `session-close.ts add` in the same turn.
-2. WHEN any lease remains, `session-close.ts` SHALL exit nonzero.
-3. IF the lease directory is empty of valid leases, THEN `session-close.ts`
-   SHALL exit 0.
-4. IF a lease file is corrupt, THEN `session-close.ts` SHALL exit nonzero
-   without treating the store as clean.
+1. WHEN a local worktree or non-standing exe.dev VM is created in-session,
+   THE SYSTEM SHALL record an owner-scoped lease in the same turn.
+2. WHEN the caller owns live leases, `session-close.ts check` SHALL exit 2;
+   WHEN only foreign leases remain, THE SYSTEM SHALL exit 0 and print them.
+3. WHEN an expired, orphaned, or legacy ownerless lease exists,
+   `session-close.ts review` SHALL list it and exit 3 without deleting it.
+4. IF a lease file is corrupt, THEN `session-close.ts` SHALL exit 1 without
+   treating the store as clean.
+5. WHEN a lease is dropped by target, THE SYSTEM SHALL print its recorded owner.
 
 No-gos: no destruction of unleased or standing VMs; no global scan of other
 sessions' worktrees; no network in the unit check.
@@ -199,11 +264,16 @@ Criteria:
    by default unless explicitly disabled.
 8. WHEN a diff exceeds context limits, THE SYSTEM SHALL chunk changes by file
    and hunk boundaries, evaluating chunks in parallel without truncation.
+9. WHEN an OMP session reviews a diff without a Jev key in its environment,
+   THE SYSTEM SHALL read the OpenRouter key at runtime through `pass-env` from
+   the names-only `jev.env.pass` mapping, keep the value out of the process
+   environment and disk, record each review's provider and resolved model in
+   `diff-review.jsonl`, and show a `no-key` status when resolution fails.
 
 No-gos: no fabricated probability or confidence numbers in live sessions; no
 live credential storage on disk; no uncredentialed blocking of interactive turns;
 no silent truncation of multi-file diffs.
-Evidence: `omp-config/bin/omp-diff-review.test.ts`, `omp-config/extensions/diff-review/diff-review.test.ts`, `pi-config/extensions/diff-review/diff-review.test.ts`
+Evidence: `omp-config/bin/omp-diff-review.test.ts`, `omp-config/extensions/diff-review/diff-review.test.ts`, `omp-config/extensions/diff-review/jev-key.test.ts`, `pi-config/extensions/diff-review/diff-review.test.ts`
 
 ## US-010 Bounded continuation nudge
 
@@ -340,32 +410,41 @@ Evidence: `agent-config/bin/design-check.test.ts`,
 
 ## US-014 Use subscriptions before paid model recovery
 
-Statement: When I start or delegate work in OMP, I want working subscription
-models selected for everyday roles and provider recovery before paid API routes,
-so routine work uses the accounts I already have without making login failure
-look like additional capacity.
+Statement: When I start or delegate work in any harness, I want my model policy
+applied per role (Claude Opus 5.5 preferred and orchestrating, Opus for
+anything visual, GPT-6 workhorse subagents with Sol and Luna at max, Astra at
+high or above for system design, architecture, and code review, Grok 4.7 last)
+with subscription recovery before paid API routes, so routine work uses my
+preferred accounts without making login failure look like additional capacity.
 
 Criteria:
-1. WHEN a fresh OMP session or bundled worker selects a daily, `smol`,
-   `commit`, review, or deep role, THE SYSTEM SHALL resolve its configured
-   model to the corresponding authenticated Codex or Anthropic subscription
-   route; WHERE `tiny` selects an on-device model, THE SYSTEM SHALL retain
-   Luna as its configured cloud option before paid API routes.
-2. IF a selected provider fails, THEN THE SYSTEM SHALL offer an image-capable
-   subscription route from another provider before a paid OpenRouter route;
-   WHERE the primary is Sol, THE SYSTEM MAY first try Luna on Codex.
-3. WHEN configuration is deployed, THE SYSTEM SHALL preserve OAuth stores and
+1. WHEN a fresh OMP session selects the default role, THE SYSTEM SHALL resolve
+   Claude Opus 5.5 with medium reasoning on the Anthropic subscription;
+   `slow` SHALL resolve Opus xhigh and `extreme` Opus max.
+2. WHEN OMP resolves `vision` or the `designer` agent, THE SYSTEM SHALL select
+   Opus 5.5 at high or above, and the `vision` role's fallback chain SHALL
+   contain only Opus.
+3. WHEN OMP resolves `task`, THE SYSTEM SHALL select GPT-6 Sol with max
+   reasoning; WHEN it resolves `smol`, `commit`, or `advisor`, GPT-6 Luna with
+   max reasoning; WHEN it resolves `plan` or `reviewer`, GPT-6 Astra high; and
+   `security-reviewer`, Astra max.
+4. IF a selected provider fails, THEN THE SYSTEM SHALL offer a subscription
+   route from another provider before a paid OpenRouter route, with every Sol
+   or Luna link at max reasoning and Grok 4.7 only as the last subscription
+   link.
+5. WHEN the Pi installer runs, THE SYSTEM SHALL select Opus 5.5 as Pi's default
+   only if Pi-native Anthropic and Codex logins report ready, and otherwise
+   SHALL keep the DeepSeek default and print the login instruction.
+6. WHEN configuration is deployed, THE SYSTEM SHALL preserve OAuth stores and
    the model already selected in existing sessions.
-4. WHEN a configured role or provider-failure link selects Luna, THE SYSTEM
-   SHALL request max reasoning; WHEN one selects Sol, THE SYSTEM SHALL request
-   xhigh reasoning.
 
-No-gos: no copying OAuth credentials between harnesses; no Pi default change
-without Pi-native subscription authentication.
+No-gos: no copying OAuth credentials between harnesses; no frontier model
+through OpenRouter as a default; no Pi default that is not authenticated.
 
-Evidence: `omp-config/config.yml`, `omp-config/global/AGENTS.md`,
-`omp-config/README.md`, `./scripts/verify omp`, fresh OMP role-selection
-and provider smoke checks.
+Evidence: `omp-config/config.yml`, `omp-config/agents/designer.md`,
+`omp-config/global/AGENTS.md`, `omp-config/README.md`,
+`pi-config/settings.subscription.json`, `pi-config/install`,
+`./scripts/verify all`, fresh OMP role-selection and forced-outage smoke checks.
 
 ## Capability: Protected releases
 
@@ -505,6 +584,86 @@ No-gos: no unrequested project mutations or decisions during a status brief.
 Evidence: `agent-config/skills/sachstand/SKILL.md`,
 `agent-config/skills/sachstand/scripts/speak.ts`; native online synthesis smoke
 produced a two-second WAV with `--no-play` on 2026-09-24.
+
+## Capability: Agent audio isolation
+
+## US-026 Keep agent audio out of my ears until I choose to listen
+
+Statement: When agent sessions play or record audio on my desktop, I want their
+sound routed to a silent sink they can record and analyze, so overlapping agent
+audio never reaches my headphones and I decide when to listen.
+
+Criteria:
+1. WHEN any process an OMP, Pi, or Claude Code agent session spawns plays
+   audio without naming a device, THE SYSTEM SHALL link its stream only to the
+   `agent-sandbox` sink and to no hardware sink.
+2. WHEN such a process records without naming a device, THE SYSTEM SHALL capture
+   the `agent-sandbox` monitor, so the agent can analyze what it played.
+3. IF the `agent-sandbox` sink is missing, THEN a sandboxed stream SHALL stay
+   unlinked rather than fall back to the operator's default device.
+4. IF an OMP or Pi audio-sandbox extension fails to load, THEN THE SYSTEM SHALL
+   still route the bash tool through startup configuration (the OMP agent
+   `.env`, the Pi `shellCommandPrefix`).
+5. WHEN the audio sandbox is installed, THE SYSTEM SHALL leave the default and
+   configured default sinks unchanged, keep foreign Claude Code settings, refuse
+   an unowned PipeWire drop-in, and prove live routing when PipeWire is reachable.
+6. WHEN the operator requests a spoken sachstand brief, THE SYSTEM SHALL play it
+   on the operator's default device.
+7. WHEN the operator plays a file or loops the sandbox monitor back from their
+   own terminal, THE SYSTEM SHALL play it on their default device.
+
+No-gos: no change to the default device, Kaylee's voice, or apps the operator
+launches; no PipeWire restart on install; no claim to stop deliberate bypass
+(scrubbed environments, raw ALSA devices, IPC into running operator apps).
+
+Evidence: `agent-config/audio-sandbox/audio-sandbox.test.ts`,
+`omp-config/extensions/audio-sandbox/audio-sandbox.test.ts`,
+`scripts/verify-installers`, the live routing proof in
+`agent-config/audio-sandbox/install.ts host`, and a fresh engineer-session smoke
+recorded in the pull request.
+
+## Capability: Incremental foundation adoption
+
+## US-027 Adopt foundations incrementally without stalling work
+
+Statement: When a repository adopts the Foundation Standard with existing gaps,
+I want those gaps recorded as an expiring baseline that can only shrink, so work
+continues while compliance grows and no gap is silently waived.
+
+Criteria:
+1. WHEN a repository has no `foundation.json`, `foundation-check check` SHALL
+   list every document, story, map, and verify-skill gap instead of failing to
+   run, and `foundation-check baseline --write` SHALL create a bootstrap
+   adoption record whose baseline names exactly those gaps plus one walk entry
+   per live story.
+2. WHILE a repository is in bootstrap mode, `check` SHALL pass only if every
+   current gap has an unexpired baseline entry with an owner and an expiry at
+   most 30 days out, and SHALL fail an expired entry, an entry whose gap is
+   fixed, or a baseline carried in enforced mode.
+3. WHEN a base revision is supplied, `check` SHALL fail a new baseline entry or
+   a later expiry unless an added `foundation/extensions/` record names that
+   gap and expiry, and SHALL fail a story edited in the change that stays
+   unmapped; a first adoption MAY create its baseline.
+4. WHEN validating a walk receipt against a change, THE SYSTEM SHALL accept
+   `unwalked` only for a mapped story with an unexpired baseline walk entry that
+   the change does not affect; an unmapped story's impact is unknown, so it SHALL
+   be walked. WITH `--all` (a full walk that judges no change), THE SYSTEM SHALL
+   require every live story, accept `unwalked` under an unexpired walk entry, and
+   fail a walk entry whose story now passes.
+5. WHEN a pull request gives `USER_STORIES.md` its first stories or adds a
+   baseline extension record, `foundation-check review` SHALL pass only with an
+   approving review on the PR head from the organisation's designated agent
+   reviewer, named by the pinned harness and not the repository. AFTER that
+   reviewer's escalation review on the head, only its later approval recording
+   the operator's decision (`foundation-escalation: resolved`) SHALL count. The
+   PR author's approval, and any approval from the operator's shared GitHub
+   account, SHALL never count.
+
+No-gos: no automatic waivers, no baseline for adoption-record errors, no
+baseline entry more than 30 days out.
+
+Evidence: `agent-config/bin/foundation-check.test.ts` (US-027 block);
+`docs/decisions/003-foundation-checks.md`.
 
 ## Capability: System 1 / System 2 harness
 

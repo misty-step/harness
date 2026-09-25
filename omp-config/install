@@ -154,11 +154,11 @@ install_skill() {
 
 validate_shared() {
   require_base
-  run_shared --check --skill all --bin pass-env.ts --bin design-check.ts
+  run_shared --check --skill all --bin pass-env.ts --bin design-check.ts --bin foundation-check.ts --bin ws.ts
 }
 
 install_shared() {
-  run_shared --skill all --bin pass-env.ts --bin design-check.ts
+  run_shared --skill all --bin pass-env.ts --bin design-check.ts --bin foundation-check.ts --bin ws.ts
 }
 
 validate_secrets() {
@@ -214,6 +214,8 @@ install_extensions() {
   for ext_dir in "$repo_dir"/extensions/*; do
     [ -d "$ext_dir" ] || continue
     ext_name=${ext_dir##*/}
+    # audio-sandbox deploys through its own component (install_audio_sandbox).
+    case $ext_name in audio-sandbox) continue ;; esac
     install -d -m 700 "$agent_dir/extensions/$ext_name"
     for ext_entry in "$ext_dir"/*; do
       [ -f "$ext_entry" ] || continue
@@ -230,6 +232,31 @@ install_extensions() {
   loc_hook="$repo_dir/extensions/loc/git-hook.sh"
   [ -x "$loc_hook" ] && printf '%s\n' \
     'note: to enable LOC status hooks in a checkout, see README (post-commit/post-merge/post-checkout symlink recipe)'
+}
+
+# Agent audio sandbox (US-026), two layers. OMP loads the agent .env before any
+# tool runs, so the owned block there routes the bash tool even if an extension
+# fails to load; the extension extends the contract to process.env children.
+# The shared step adds the silent PipeWire sink and Claude Code env, then
+# proves live routing when PipeWire is reachable.
+validate_audio_sandbox() {
+  require_bun
+  require_base
+  require_nonempty "$repo_dir/extensions/audio-sandbox/index.ts"
+  require_nonempty "$base_dir/audio-sandbox/env.ts"
+  bun "$base_dir/audio-sandbox/install.ts" dotenv --file "$agent_dir/.env" --check
+  run_shared --check --audio-sandbox
+}
+
+install_audio_sandbox() {
+  # Pokayoke: clean-replace the owned package; materialize the real shared
+  # contract over the repo shim so the deployed extension loads self-contained.
+  rm -rf -- "$agent_dir/extensions/audio-sandbox"
+  install -d -m 700 "$agent_dir/extensions/audio-sandbox"
+  install -m 600 "$repo_dir/extensions/audio-sandbox/index.ts" "$agent_dir/extensions/audio-sandbox/index.ts"
+  install -m 600 "$base_dir/audio-sandbox/env.ts" "$agent_dir/extensions/audio-sandbox/env.ts"
+  bun "$base_dir/audio-sandbox/install.ts" dotenv --file "$agent_dir/.env"
+  run_shared --audio-sandbox
 }
 
 install_cli() {
@@ -261,6 +288,7 @@ for component do
       validate_shared
       validate_agents
       validate_themes
+      validate_audio_sandbox
       require_nonempty "$repo_dir/bin/omp-grievances.ts"
       ;;
     guidance) validate_guidance ;;
@@ -269,6 +297,7 @@ for component do
     scopes) validate_scopes ;;
     agents) validate_agents ;;
     secrets) validate_secrets ;;
+    audio-sandbox) validate_audio_sandbox ;;
     skill:*) validate_skill "${component#skill:}" ;;
     *)
       printf 'Unknown install component: %s\n' "$component" >&2
@@ -286,6 +315,7 @@ if [ "$1" != all ]; then
       scopes) install_scopes ;;
       agents) install_agents ;;
       secrets) install_secrets ;;
+      audio-sandbox) install_audio_sandbox ;;
       skill:*) install_skill "${component#skill:}" ;;
     esac
   done
@@ -301,6 +331,7 @@ install_mcp
 install_scopes
 install_shared
 install_extensions
+install_audio_sandbox
 install_cli
 
 printf 'Installed owned OMP config in %s; foreign packages and runtime keys preserved\n' "$agent_dir"

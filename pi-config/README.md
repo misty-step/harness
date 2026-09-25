@@ -6,7 +6,7 @@ composer chrome, the LOC status extension, the Exa web-search tool, the
 image-budget extension, the model-fallback-chain extension, the OpenRouter
 live-model bridge, and
 the `pi()` key-injection wrapper block in `~/.bashrc`. Shared primitives — skill
-packages, global guidance, and the `pass-env` and `design-check` launchers — come from the sibling
+packages, global guidance, and the `pass-env`, `design-check`, `foundation-check`, and `ws` launchers — come from the sibling
 base `agent-config`. `./install`
 deploys the owned agent-directory components into `$PI_CODING_AGENT_DIR`
 (default `~/.pi/agent`); the wrapper block is applied to `~/.bashrc` by hand
@@ -56,6 +56,7 @@ presentation; "behavioral" changes agent capability, model input, or data flow.
 | Component | Owner | Class | Installed by `./install` | Divergence |
 | --- | --- | --- | --- | --- |
 | `settings.json` | this repo | config | yes | Default model/thinking, editor padding, markdown, theme name, retry budget |
+| `settings.subscription.json` | this repo | config | yes, only when Pi's Anthropic and Codex logins are ready | Operator model policy: Opus 5.5 default at medium, GPT-6 Sol/Luna at max (ADR-011 amendment 2026-09-25) |
 | `global/AGENTS.md` | this repo | behavioral | yes | Global `~/.pi/agent/AGENTS.md`: pi's intro plus shared sections spliced from `agent-config` |
 | `extensions/pi-chrome.ts` | this repo | aesthetic | yes | Session card, composer rail layout, live working state, footer |
 | `extensions/loc/` | this repo | behavioral (read-only) | yes | `/loc`, `/loc-trend`, LOC status row |
@@ -64,8 +65,9 @@ presentation; "behavioral" changes agent capability, model input, or data flow.
 | `extensions/image-budget/` | this repo | behavioral | yes | Inline-image ceiling: oldest images dropped over 15 MB per request; large images shrunk with ffmpeg at ingest (ADR-019) |
 | `extensions/openrouter-live/` | this repo | behavioral | yes | Live OpenRouter bridge: models the `pi.dev` mirror lacks are appended to `models.json`, additive-only, at session start (≥2 h) and `/models-live` (ADR-022) |
 | `extensions/continuation-nudge/` | this repo | behavioral | yes (component `continuation-nudge`; shared modules materialized) | Bounded Jev continuation nudge at agent settle: advisory, fail-open, max 2 per prompt, `JEV_NUDGE_MODE=off` disables. Review trigger: pi gains a native anti-premature-stop or continuation control, or nudges fire on completed work |
+| `extensions/audio-sandbox/` | this repo | behavioral | yes (component `audio-sandbox`; shared contract materialized) | Agent audio routed to the silent `agent-sandbox` sink (US-026): owned `shellCommandPrefix` for the bash tool plus `process.env` for every other child |
 | `extensions/s1s2/` | this repo | behavioral (experiment) | no (launched only by its `run.sh` and `eval/` runner, on raw pi) | System 1 layer for the System 1 / System 2 experiment: Jev-ranked briefing, bash-output triage, bounded monitor notes, done-gate check; fail-open, `S1S2_MODE=off` inert. `eval/` holds the three-arm vibe-check runner, parity shim, and blind judges (US-029, ADR-024) |
-| `agent-config` (skills, guidance, `pass-env`, `design-check`) | external (sibling base) | behavioral | yes | Portable skill packages, shared guidance sections, and the `pass-env` and `design-check` launchers, clean-replaced from `agent-config` (ADR-021) |
+| `agent-config` (skills, guidance, `pass-env`, `design-check`, `foundation-check`, `ws`) | external (sibling base) | behavioral | yes | Portable skill packages, shared guidance sections, and the `pass-env`, `design-check`, `foundation-check`, and `ws` launchers, clean-replaced from `agent-config` (ADR-021) |
 | `~/.bashrc` (`pi()` block) | this repo (marked block only) | behavioral | by hand | Launch hook: Exa key from pass (ADR-010); run-scoped scratch `TMPDIR` via `omp-scratch` when installed (ADR-015) |
 | `~/.config/omarchy/themed/pi.json.tpl` | this repo (hand-managed) | aesthetic | by hand | pi theme template override for every Omarchy theme: readable semantic ink, accent-derived thinking ramp, deeper surfaces (ADR-018) |
 | `extensions/agent-usage-telemetry.ts` | external (managed) | telemetry | no | Reports usage to an external endpoint |
@@ -138,9 +140,10 @@ current model — never to a remembered position — so it cannot drift out of
 sync with what the session actually runs. It never touches a model the user
 chose, and never re-sends the user's prompt — a run that dies mid-turn may
 already have executed tools. The chain is the `CHAIN` constant in `index.ts`
-(currently `openrouter/deepseek/deepseek-v4.1-flash`
-→ `openrouter/inception/mercury-2.5`; cheap and fast first, heavy backup
-last); extend it there and redeploy. `decide.ts` is pure and bun-tested;
+(`anthropic/claude-opus-5-5` → `openai-codex/gpt-6-sol` →
+`openai-codex/gpt-6-luna` → `openrouter/deepseek/deepseek-v4.1-flash` →
+`openrouter/inception/mercury-2.5`; the walk starts from the current model, so
+a DeepSeek session still advances only to Mercury); extend it there and redeploy. `decide.ts` is pure and bun-tested;
 `index.ts` is the harness-facing half. Removing the directory leaves stock
 retry + compaction recovery exactly intact.
 
@@ -195,6 +198,16 @@ files live in the agent dir (`continuation-nudge-status.json`,
 (component `continuation-nudge`) and materializes the real shared
 `continuation.ts` and `engine.ts` over the repo shims, exactly like
 `diff-review/engine.ts`, so the installed package loads self-contained.
+
+**`audio-sandbox/` — behavioral, installed.** Keeps agent audio out of the
+operator's ears (US-026). The component writes an owned `shellCommandPrefix`
+into `settings.json` (a prefix it did not write fails the install instead of
+being replaced), so pi's bash tool is routed to the silent
+`agent-sandbox` sink from settings alone, before and independent of extension
+loading. The extension applies the same contract to `process.env`, which Node
+mirrors to every child pi spawns. The shared host step adds the sink drop-in,
+Claude Code env, and live routing proof; the agent-config README documents
+listening, residuals, and revert.
 
 **Shared primitives — `agent-config`.** Skill packages, guidance sections, and
 the `pass-env` launcher live once in the base and deploy through its single
@@ -399,6 +412,16 @@ in `settings.json` (`retry.*`) instead of left to stock defaults.
 *Amended 2026-09-18:* Cerebras retired (operator: too expensive); the default
 is `openrouter/deepseek/deepseek-v4.1-flash` at `xhigh`, `mercury-2.5` the
 failover link.
+
+*Amended 2026-09-25:* the operator's model policy extends to pi: Opus 5.5
+preferred, GPT-6 Sol and Luna at max, Grok last, no frontier model through
+OpenRouter. Pi reaches Opus and GPT-6 only through its own `/login` for
+`anthropic` and `openai-codex` (OMP tokens are never copied). `./install`
+merges `settings.subscription.json` (default Opus 5.5 medium) only when
+`pi auth check` reports both ready; otherwise the DeepSeek default stays and
+the installer prints the login instruction. The chain gains the subscription
+links ahead of the paid ones; Grok is omitted because pi reaches it only with
+a paid API key.
 
 **ADR-012 — Own a global `AGENTS.md` so every pi session carries the shared
 conventions.** *Accepted · 2026-09-15.* Pi loads `~/.pi/agent/AGENTS.md` into

@@ -60,10 +60,10 @@ arguments (including `--check`); use `../scripts/verify omp` for isolated checks
 
 Preflight validates every selected input, then writes. Unset selection means
 `all`: owned config overlay, guidance, MCP, scopes, agents, skills, themes,
-extensions, `omp-grievances`, `pass-env`, and `design-check`. It does not delete
-foreign skills or agents, and it does not import live secrets into this
-checkout. Skills, shared guidance sections, `pass-env`, and `design-check` deploy from the
-sibling `agent-config` checkout
+extensions, `omp-grievances`, `pass-env`, `design-check`, `foundation-check`,
+and `ws`. It does not delete foreign skills or agents, and it does not import
+live secrets into this checkout. Skills, shared guidance sections, and those
+shared launchers deploy from the sibling `agent-config` checkout
 (default `$repo_dir/../agent-config`; override with `AGENT_CONFIG_DIR`); the
 installer fails closed when it is missing.
 
@@ -73,11 +73,12 @@ OMP_INSTALL_COMPONENTS=config ./install
 OMP_INSTALL_COMPONENTS=agents ./install
 OMP_INSTALL_COMPONENTS=secrets ./install
 OMP_INSTALL_COMPONENTS=mcp ./install
+OMP_INSTALL_COMPONENTS=audio-sandbox ./install
 OMP_INSTALL_COMPONENTS="guidance mcp scopes skill:capture" ./install
 ```
 
 Supported components are `guidance`, `config`, `mcp`, `scopes`, `agents`,
-`secrets`, and `skill:<source-directory-name>`. `all` cannot be combined with another
+`secrets`, `audio-sandbox`, and `skill:<source-directory-name>`. `all` cannot be combined with another
 component. Empty, unknown, missing-skill, invalid-name, and invalid YAML
 selections fail before any writes. The retired `OMP_INSTALL_GUIDANCE_ONLY`
 variable fails with migration instructions rather than silently triggering a
@@ -97,6 +98,17 @@ this repository.
 Configuration preservation is semantic, not preservation of YAML comments or
 formatting. Package preflight checks syntax and local imports; native loading
 must still be confirmed.
+
+`audio-sandbox` keeps agent audio out of the operator's ears (US-026). It
+writes an owned block into the agent `.env`, which OMP loads before any tool
+runs, so the bash tool is routed to the silent `agent-sandbox` sink without
+extension code. It clean-replaces `extensions/audio-sandbox`, materializing the
+shared contract over its repo shim, so JavaScript eval, browser, MCP, and LSP
+children inherit it too, and each Python eval cell is revised through
+`tool_call` to apply the contract first (OMP's Python runner drops the keys
+from its environment). It also runs the shared host step (sink drop-in, Claude Code env, live
+routing proof); see the agent-config README for listening, residuals, and revert.
+New sessions pick it up; running sessions keep their environment.
 
 `secrets` deploys the shared `pass-env` launcher and the
 `authenticated-commands` skill through
@@ -662,45 +674,50 @@ do not maintain another skill copy in omp-config or install it globally.
 
 ### Model routing (US-014)
 
-Daily OMP roles now use available subscriptions before paid API routes. GPT-6
-Sol plans and builds; Luna handles mechanical work; Claude Opus 5.5 reviews and
-inspects images. Astra remains an explicit deep/security choice. The native roles
-and provider-failure chains live in `config.yml`; changing them does not switch
+OMP follows the operator's model policy (2026-09-25), subscriptions before paid
+API routes: Claude Opus 5.5 is preferred in general and orchestrates; anything
+visual goes to Opus at high or above; GPT-6 models are the workhorse subagents
+and Sol and Luna always run at max; Astra runs at high or above for system
+design, architecture, and code review; Grok 4.7 is last. The native roles and
+provider-failure chains live in `config.yml`; changing them does not switch
 the selected model in an existing session.
 
 | Entry point or role | Primary selection |
 | --- | --- |
-| Fresh `omp`, `@default` | `openai-codex/gpt-6-sol:xhigh` |
-| Ordinary `task` workers, `@task` | `openai-codex/gpt-6-sol:xhigh` |
+| Fresh `omp`, `@default` (orchestrator) | `anthropic/claude-opus-5-5:medium` |
+| Ordinary `task` workers, `@task` | `openai-codex/gpt-6-sol:max` |
 | `@smol`, `@commit`; bundled `scout` and `sonic` | `openai-codex/gpt-6-luna:max` |
 | `@tiny` | local LFM2.5-350m first, then configured `openai-codex/gpt-6-luna:max` |
-| `@plan` | `openai-codex/gpt-6-sol:xhigh` |
-| `@advisor` | `openai-codex/gpt-6-luna:max` |
-| `@slow` (explicit thorough pass) | `openai-codex/gpt-6-astra:high` |
-| `@extreme` (rare unconstrained reasoning) | `openai-codex/gpt-6-astra:max` |
+| `@plan` (system design, architecture) | `openai-codex/gpt-6-astra:high` |
+| `reviewer` (code review) | `openai-codex/gpt-6-astra:high` |
 | `security-reviewer` | `openai-codex/gpt-6-astra:max` |
-| `reviewer`, `@vision` | `anthropic/claude-opus-5-5:high` |
+| `@advisor` | `openai-codex/gpt-6-luna:max` |
+| `@slow` (explicit thorough pass, hard problems) | `anthropic/claude-opus-5-5:xhigh` |
+| `@extreme` (rare unconstrained reasoning) | `anthropic/claude-opus-5-5:max` |
+| `@vision`, `designer` agent (visual and design work) | `anthropic/claude-opus-5-5:high` |
 
-Sol xhigh is the daily planner and builder; Luna max serves the cloud cheap
-tier. OMP prepends its on-device LFM2.5-350m to the effective `tiny` role
-before the configured Luna option. Opus high reviews and inspects images.
-Astra remains explicit: `@slow` for a
-thorough pass, `@extreme` and `security-reviewer` for unconstrained reasoning
-and security review. Two of four Codex logins and one of three Anthropic logins
-currently authenticate in OMP; do not count the disabled/missing logins as
-capacity. A configured role does not create an agent. Native OMP bundles
-`task`, `scout`, `sonic`, `reviewer`, and `security-reviewer`, not `designer`.
-Main uses the session model.
+Opus medium orchestrates; raise effort with `@slow` or `@extreme` for hard
+problems, and to xhigh or max for design and visual-language work. Delegated
+implementation goes to Sol max workers; visual work goes to the owned
+`designer` agent (`agents/designer.md`, `model: "@vision"`), never to `task`.
+Luna max serves the cloud cheap tier. OMP prepends its on-device LFM2.5-350m to
+the effective `tiny` role before the configured Luna option. Two of four Codex
+logins and one of three Anthropic logins authenticated in OMP when last
+counted; do not count disabled or missing logins as capacity. A configured role
+does not create an agent. Native OMP bundles `task`, `scout`, `sonic`,
+`reviewer`, and `security-reviewer`; this repo adds `designer`. Main uses the
+session model.
 
 For a new session:
 
 ```sh
-omp                         # ordinary work: Sol xhigh
-omp --model @slow           # explicit thorough pass: Astra high
-omp --slow                  # shorthand for @slow: Astra high
-omp --model @extreme        # rare unconstrained reasoning: Astra max
+omp                         # ordinary work and orchestration: Opus 5.5 medium
+omp --model @plan           # system design, architecture: Astra high
+omp --model @slow           # hard problems, thorough pass: Opus 5.5 xhigh
+omp --slow                  # shorthand for @slow
+omp --model @extreme        # rare unconstrained reasoning: Opus 5.5 max
 omp --model @smol           # explicitly choose Luna max
-omp --model @vision         # visual inspection: Opus 5.5 high
+omp --model @vision         # visual inspection and design: Opus 5.5 high
 ```
 
 An already-open or resumed session retains its selected model; installing a
@@ -716,35 +733,51 @@ Task dispatch selects an **agent**, not a per-item model. Native precedence is
 Explicit `scout`/`sonic` overrides use `@smol`; its `:max` suffix takes
 precedence over their bundled `medium` thinking defaults. New task/eval
 dispatches reload persisted routing settings, but changing Main's model alone
-does not remap workers. Ordinary workers use Sol; Opus serves `vision` and
-`reviewer`; Luna serves `smol`, `commit`, and `scout`/`sonic` through `@smol`.
-`tiny` may select the on-device model before Luna. Git commit, rebase, push,
-and similar mechanical ship steps use bundled `sonic` (`@smol`). Omitting
-`agent` selects `@task`/Sol. Choose agents for their roles, not as differently
-priced implementation workers.
+does not remap workers. Ordinary workers use Sol max; Astra high serves
+`reviewer`, Astra max `security-reviewer`; Opus high serves `vision` and the
+`designer` agent; Luna serves `smol`, `commit`, and `scout`/`sonic` through
+`@smol`. `tiny` may select the on-device model before Luna. Git commit, rebase,
+push, and similar mechanical ship steps use bundled `sonic` (`@smol`). Omitting
+`agent` selects `@task`/Sol max. Choose agents for their roles, not as
+differently priced implementation workers.
 
-The six explicit retry chains are `default`, `advisor`, `vision`, `smol`, `tiny`,
-and `commit`. Advisor uses Luna max, then Grok 4.7 xhigh, Gemini 3.8 Flash high
-on Google Antigravity, and finally paid OpenRouter DeepSeek V4.1 Flash max.
-This US-014 routing change lowers advisor capacity by operator choice; task
-quality and whole-task cost effects remain unmeasured.
-Sol's default chain tries Luna, then xAI's Grok 4.7, then Opus 5.5,
-and finally paid OpenRouter DeepSeek V4.1 Flash. Opus's vision chain tries
-Grok, Luna, then DeepSeek; Luna's mechanical chains try Grok, Opus, then
-DeepSeek. Each link accepts images. These chains remain explicit because native
-fallback inheritance uses `default`, not `smol`.
+The twelve explicit retry chains are `default`, `task`, `advisor`, `plan`,
+`reviewer`, `slow`, `extreme`, `security-reviewer`, `vision`, `smol`, `tiny`,
+and `commit`. Opus's default chain tries Sol max, then Luna max, then Opus
+medium (so a session running a Codex model reaches Anthropic before xAI), then
+Grok 4.7, and finally paid OpenRouter DeepSeek V4.1 Flash. Sol's `task` chain
+tries Luna, Opus medium, then Grok. Astra's `plan`, `reviewer`, and security
+chains try Opus high, Sol max, then Grok. Opus's `slow` and `extreme` chains try
+Astra (high, max), Sol max, then Grok. The `vision` chain lists only Opus, so
+the vision role never degrades to another model. A spawned `designer` child
+under a forced Anthropic outage (2026-09-25, Sol parent) failed closed after its
+retry budget ("Connection error") instead of switching models, so delegated
+visual work stays on Opus. Under the same outage, a Sol main session's
+`read red.png?q=…` image question returned `Connection error` instead of
+switching models, so image questions through the `vision` role also fail
+closed. A main session's own model follows `default` and would move to Sol, so
+guidance routes visual judgment through `?q=` or `designer`. Luna's mechanical chains try Opus
+medium, then Grok. Advisor uses Luna max, then Gemini 3.8 Flash high on Google
+Antigravity, then Grok 4.7 xhigh. Every other chain ends with paid DeepSeek, and
+each link accepts images. Task quality and whole-task cost effects of this
+policy remain unmeasured.
 
 Fallbacks recover provider failures, not hard prompts; they require working
-credentials. One Codex failure may still be recoverable on Luna, but a Codex
-provider outage proceeds to xAI. Opus adds a third subscription provider
-before the paid OpenRouter recovery link. If a subscription is exhausted or
+credentials. A session's model falls back through its session role's chain:
+a main session started with `--model @smol` follows `default`, not `smol`.
+Forced outages on 2026-09-25 (`PI_PROXY_<PROVIDER>` pointed at a dead local
+port, `retry.maxRetries: 1`) showed an Anthropic outage moving default Opus to
+Sol max, and a Codex outage moving a Luna session through Sol to Opus medium.
+A main session started with `--model @vision` also follows `default`. Grok is
+the last subscription provider before the paid
+OpenRouter recovery link. If a subscription is exhausted or
 its login expires, the chain can still reach a paid route. Existing sessions
 keep their selected model and Pi's separate OpenRouter default is unchanged:
 Pi has no Codex or Anthropic OAuth configuration. Do not copy OMP OAuth tokens
 into Pi; authorize that harness separately before moving its default.
 Exa search, approval mode, and the local title-model setting are unchanged.
 
-Use `omp models find openai-codex/gpt-6-sol --json` to inspect the
+Use `omp models find anthropic/claude-opus-5-5 --json` to inspect the
 exact catalog entry and supported thinking levels. After routing changes, deploy
 the changed owned components and inspect the effective settings:
 

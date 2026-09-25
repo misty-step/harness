@@ -34,6 +34,9 @@ for consumer in pi omp; do
   printf '{"synthetic":"auth sentinel"}\n' > "$work/expected-auth"
   cp "$work/expected-skill" "$agent/skills/foreign/SKILL.md"
   cp "$work/expected-auth" "$agent/auth.json"
+  # Claude Code settings carry foreign keys the audio sandbox must preserve.
+  mkdir -p "$home/.claude"
+  printf '{"env":{"OTEL_LOGS_EXPORTER":"otlp"},"hooks":{"SessionStart":[]}}\n' > "$home/.claude/settings.json"
   if [ "$consumer" = omp ]; then
     mkdir -p "$agent/extensions/continuation-nudge"
     printf 'retired extension\n' > "$agent/extensions/continuation-nudge/index.ts"
@@ -81,8 +84,81 @@ for consumer in pi omp; do
     failures=$((failures + 1))
   fi
   rm -f "$home/dirty.html"
+  check "$consumer foundation-check bytes" cmp -s "$work/source/agent-config/bin/foundation-check.ts" "$home/.local/bin/foundation-check"
+  check "$consumer foundation-check executable" test -x "$home/.local/bin/foundation-check"
+  # The deployed checker must resolve the catalog and story checker from the
+  # installed skills, then fail closed on a repository with no adoption record.
+  git init --quiet "$home/bare-repo"
+  if env -i PATH="$PATH" HOME="$home" TMPDIR="$work" PI_CODING_AGENT_DIR="$agent" \
+    bun "$home/.local/bin/foundation-check" check --repo "$home/bare-repo" >"$work/foundation-check.log" 2>&1; then
+    printf 'FAIL %s foundation-check gate (exited 0 without foundation.json)\n' "$consumer" >&2
+    failures=$((failures + 1))
+  elif grep -q 'foundation.json' "$work/foundation-check.log" && ! grep -q 'Cannot find' "$work/foundation-check.log"; then
+    printf 'PASS %s foundation-check gate\n' "$consumer"
+  else
+    printf 'FAIL %s foundation-check gate (installed resolution)\n' "$consumer" >&2
+    cat "$work/foundation-check.log" >&2
+    failures=$((failures + 1))
+  fi
+  rm -rf "$home/bare-repo"
+  check "$consumer ws bytes" cmp -s "$work/source/agent-config/bin/ws.ts" "$home/.local/bin/ws"
+  check "$consumer ws executable" test -x "$home/.local/bin/ws"
   check "$consumer foreign skill" cmp -s "$work/expected-skill" "$agent/skills/foreign/SKILL.md"
   check "$consumer auth" cmp -s "$work/expected-auth" "$agent/auth.json"
+  # US-026: both routing layers, the silent-sink drop-in, and Claude Code env
+  # deploy; the installed extension applies the contract self-contained; and
+  # the isolated run (no XDG_RUNTIME_DIR) never reaches live PipeWire.
+  check "$consumer audio-sandbox deploy" \
+    env -i PATH="$PATH" HOME="$home" TMPDIR="$work" CONSUMER="$consumer" AGENT="$agent" SOURCE="$work/source" \
+    bun -e '
+      const { readFileSync } = await import("node:fs");
+      const { parseEnv } = await import("node:util");
+      const { AGENT_AUDIO_ENV, shellExports } = await import(`${process.env.SOURCE}/agent-config/audio-sandbox/env.ts`);
+      const { HOME: home, AGENT: agent } = process.env;
+      const expectEqual = (actual, expected, what) => {
+        if (!Bun.deepEquals(actual, expected)) throw new Error(`${what}: ${JSON.stringify(actual)}`);
+      };
+      const claude = JSON.parse(readFileSync(`${home}/.claude/settings.json`, "utf8"));
+      expectEqual(claude.hooks, { SessionStart: [] }, "Claude Code hooks");
+      expectEqual(claude.env, { OTEL_LOGS_EXPORTER: "otlp", ...AGENT_AUDIO_ENV }, "Claude Code env");
+      const dropIn = readFileSync(`${home}/.config/pipewire/pipewire.conf.d/60-agent-sandbox.conf`, "utf8");
+      if (!dropIn.startsWith("# owned by misty-step/harness agent-config audio-sandbox")) throw new Error("PipeWire drop-in");
+      if (process.env.CONSUMER === "omp") expectEqual(parseEnv(readFileSync(`${agent}/.env`, "utf8")), { ...AGENT_AUDIO_ENV }, "OMP .env");
+      else expectEqual(JSON.parse(readFileSync(`${agent}/settings.json`, "utf8")).shellCommandPrefix, shellExports(), "Pi prefix");
+      const extension = await import(`${agent}/extensions/audio-sandbox/index.ts`);
+      extension.default({ on() {} });
+      expectEqual(Object.fromEntries(Object.keys(AGENT_AUDIO_ENV).map(name => [name, process.env[name]])), { ...AGENT_AUDIO_ENV }, "extension env");
+    '
+  check "$consumer audio-sandbox left live PipeWire alone" grep -q 'PipeWire is not reachable' "$work/$consumer.log"
+  if [ "$consumer" = pi ]; then
+    # US-026: pi-config owns shellCommandPrefix. Its own prefix redeploys
+    # unchanged; a foreign one stops the install in preflight, before any write.
+    cp "$agent/settings.json" "$work/pi-settings-owned"
+    if env -i PATH="$PATH" HOME="$home" TMPDIR="$work" PI_CODING_AGENT_DIR="$agent" PI_CONFIG_COMPONENTS=audio-sandbox \
+      "$work/source/pi-config/install" >"$work/pi-prefix.log" 2>&1 && cmp -s "$work/pi-settings-owned" "$agent/settings.json"; then
+      printf 'PASS pi audio prefix redeploys unchanged\n'
+    else
+      printf 'FAIL pi audio prefix redeploys unchanged\n' >&2
+      cat "$work/pi-prefix.log" >&2
+      failures=$((failures + 1))
+    fi
+    jq '.shellCommandPrefix = "shopt -s expand_aliases"' "$work/pi-settings-owned" > "$agent/settings.json"
+    cp "$agent/settings.json" "$work/pi-settings-foreign"
+    rm -rf "$agent/extensions/audio-sandbox"
+    if env -i PATH="$PATH" HOME="$home" TMPDIR="$work" PI_CODING_AGENT_DIR="$agent" PI_CONFIG_COMPONENTS=audio-sandbox \
+      "$work/source/pi-config/install" >"$work/pi-prefix.log" 2>&1; then
+      printf 'FAIL pi audio prefix refuses a foreign prefix (install succeeded)\n' >&2
+      failures=$((failures + 1))
+    elif grep -q 'foreign shellCommandPrefix' "$work/pi-prefix.log" \
+      && cmp -s "$work/pi-settings-foreign" "$agent/settings.json" \
+      && [ ! -e "$agent/extensions/audio-sandbox" ]; then
+      printf 'PASS pi audio prefix refuses a foreign prefix before any write\n'
+    else
+      printf 'FAIL pi audio prefix refuses a foreign prefix before any write\n' >&2
+      cat "$work/pi-prefix.log" >&2
+      failures=$((failures + 1))
+    fi
+  fi
 
   # Installed-load assertions must resolve shared modules inside the
   # installed home. OMP instead retires its previously deployed nudge.

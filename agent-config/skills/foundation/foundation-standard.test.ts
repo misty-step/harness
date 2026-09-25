@@ -17,6 +17,10 @@ const obligationIds = [
 	"FND-DAT-001",
 	"FND-PRF-001",
 	"FND-USE-001",
+	"FND-DOC-001",
+	"FND-MAP-001",
+	"FND-WLK-001",
+	"FND-WS-001",
 ];
 
 describe("Foundation Standard v1", () => {
@@ -25,7 +29,7 @@ describe("Foundation Standard v1", () => {
 		const standard = readFileSync(standardPath, "utf8");
 		expect(catalog.schema).toBe("foundation-standard/1");
 		expect(catalog.id).toBe("misty-step.foundation");
-		expect(catalog.version).toBe("1.0.1");
+		expect(catalog.version).toBe("1.1.0");
 		expect(catalog.dispositions).toEqual([
 			"satisfied",
 			"pending",
@@ -65,8 +69,10 @@ describe("Foundation Standard v1", () => {
 		const operating = readFileSync(operatingPath, "utf8");
 		expect(skill).toContain("foundation-standard-v1.md");
 		expect(skill).toContain("assessment and repair procedure");
+		expect(skill).toContain("foundation-check");
 		expect(operating).toContain("foundation-standard-v1.md");
 		expect(operating).toContain("does not redefine its obligations");
+		expect(operating).toContain("foundation-check");
 		expect(operating).toContain("local, edge-native, and persistent Linux");
 		expect(operating).toContain("a hybrid must remove more work than its boundary adds");
 		expect(operating).toContain("separately commissioned verification-infrastructure pass");

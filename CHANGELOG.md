@@ -1,3 +1,100 @@
+# [0.1.44](https://github.com/misty-step/harness/compare/v0.1.43...v0.1.44) (2026-09-25)
+<!-- landmark:protected-release previous=v0.1.43 source=432e2f1c48a824078da036842570a0176a489a8f6b271384b010864b1faffc63 -->
+
+### Bug Fixes
+
+* **agent-config:** clear a review escalation only through the agent reviewer's recorded decision (US-027, MIS-150) ([2443207](https://github.com/misty-step/harness/commit/24432070db325509ee89f34e7abf6a44e7928360))
+# [0.1.43](https://github.com/misty-step/harness/compare/v0.1.42...v0.1.43) (2026-09-25)
+<!-- landmark:protected-release previous=v0.1.42 source=7a5e0657b18f60f139dcb9b0f2b6dcdfb14f8b2c52a1d5cd7c02dedbbb214b17 -->
+
+### Features
+
+* **agent-config:** gate first stories and baseline extensions on the designated reviewer (US-027, MIS-150) ([b5e15f1](https://github.com/misty-step/harness/commit/b5e15f147b4f375e300cf1e5e3f8426eebc2aef2))
+
+### Bug Fixes
+
+* **agent-config:** bind the review gate to the PR's revisions and the pinned reviewer registry (US-027, MIS-150) ([fe09b8a](https://github.com/misty-step/harness/commit/fe09b8aa58e2c80be60d6154b8b9aa3f3851ab92))
+* **agent-config:** run the review gate outside the checkout under review (US-027, MIS-150) ([4cf9c49](https://github.com/misty-step/harness/commit/4cf9c499acca0d4e9ac48425dcfebc5fea2557f5))
+* **agent-config:** run the review gate from the base branch's workflow (US-027, MIS-150) ([2aa7b41](https://github.com/misty-step/harness/commit/2aa7b41adad569d3c4624c3d4b06cd7bdf57a4ea))
+* **agent-config:** re-run the review gate on retargeting and label changes (US-027, MIS-150) ([64e90b2](https://github.com/misty-step/harness/commit/64e90b2b6539a3e91eb1b69a5eca7804e19f0f35))
+# [0.1.42](https://github.com/misty-step/harness/compare/v0.1.41...v0.1.42) (2026-09-25)
+<!-- landmark:protected-release previous=v0.1.41 source=1f83307cf649a1ef5f1f7d0a1074e705a8213b100f8981bb8e2d88ba29dd09f7 -->
+
+### Features
+
+* **agent-config:** add foundation ratchet mode and bootstrap baseline (US-027, MIS-150) ([b427708](https://github.com/misty-step/harness/commit/b4277087fbf33b65f7011bec65b676fa1bcd349a))
+
+### Bug Fixes
+
+* **agent-config:** validate baseline exemptions everywhere and key each feature defect (US-027, MIS-150) ([16419d6](https://github.com/misty-step/harness/commit/16419d670e6bfc5b64d5ed2a882c65bd11c3d892))
+* **agent-config:** walk unmapped stories in change receipts (US-027, MIS-150) ([cee334e](https://github.com/misty-step/harness/commit/cee334e7767c135689a8520be6cc35bf436cb799))
+# [0.1.41](https://github.com/misty-step/harness/compare/v0.1.40...v0.1.41) (2026-09-25)
+<!-- landmark:protected-release previous=v0.1.40 source=19973695a5d8cc254b3ebcc655288573178fec2b179951e4963656bd694452af -->
+
+### Bug Fixes
+
+* **omp-config:** route a local:// load cell that ends with a newline ([b1ba3c2](https://github.com/misty-step/harness/commit/b1ba3c2b4afa68513380b1bda4a27d93c81c2b21))
+# [0.1.40](https://github.com/misty-step/harness/compare/v0.1.39...v0.1.40) (2026-09-25)
+<!-- landmark:protected-release previous=v0.1.39 source=0468ff327aa0ebd03dfd3352d60a1dda244bda6a7ae32f59fb4ce8d9e75e1745 -->
+
+### Bug Fixes
+
+* **omp-config:** resolve local:// loads the way OMP does in the audio sandbox ([09ce5c9](https://github.com/misty-step/harness/commit/09ce5c9f897424a37c58d98df0ff0d3c32632afa))
+# [0.1.39](https://github.com/misty-step/harness/compare/v0.1.38...v0.1.39) (2026-09-25)
+<!-- landmark:protected-release previous=v0.1.38 source=9ff14f7721c221507e68f9817b38c282eb74dae647ba916683930d76720bb4f9 -->
+
+### Bug Fixes
+
+* **agent-config:** fail closed on foreign audio sandbox state and route local Python loads ([8e3712f](https://github.com/misty-step/harness/commit/8e3712fdeebc5ecd84abc02b494a9b064bda45b6))
+# [0.1.38](https://github.com/misty-step/harness/compare/v0.1.37...v0.1.38) (2026-09-25)
+<!-- landmark:protected-release previous=v0.1.37 source=3059cd9f2e8509eaff55c399ef88ed012ed0f6f9415730fd406e6be45fa1d5a9 -->
+
+### Features
+
+* **agent-config:** route agent audio to a silent sandbox sink ([7ae98e7](https://github.com/misty-step/harness/commit/7ae98e7133aa4b069ccfbb5c04cb47a801e49e4d))
+* **omp-config:** route OMP Python eval cells into the audio sandbox ([ef96d21](https://github.com/misty-step/harness/commit/ef96d21212a4d97a375a6788388f7dd8d510510f))
+# [0.1.37](https://github.com/misty-step/harness/compare/v0.1.36...v0.1.37) (2026-09-25)
+<!-- landmark:protected-release previous=v0.1.36 source=0adcb7909be7f712a74df296e122b79abd88012f9b8d0093546856aa286c8dae -->
+
+### Features
+
+* **routing:** apply the operator model policy to OMP and Pi (US-014) (MIS-150) ([e696990](https://github.com/misty-step/harness/commit/e6969905e2071b79f3601546491f13c045bd93ec))
+# [0.1.36](https://github.com/misty-step/harness/compare/v0.1.35...v0.1.36) (2026-09-25)
+<!-- landmark:protected-release previous=v0.1.35 source=4de33f2345b820bff99d19336502a39330635bee9cc85c667048b2b7e48390c5 -->
+
+### Bug Fixes
+
+* **omp:** try Opus before Grok when a Codex session fails over (US-014) (MIS-150) ([e2f7fbc](https://github.com/misty-step/harness/commit/e2f7fbcdb0a0a2674827841ec63f4efcf0b66fe5))
+# [0.1.35](https://github.com/misty-step/harness/compare/v0.1.34...v0.1.35) (2026-09-25)
+<!-- landmark:protected-release previous=v0.1.34 source=cd28bac5e1ce9d623d42c5aaecf9cb2539b4ee99136bec0ef02fcc17225a13f8 -->
+
+### Features
+
+* **diff-review:** resolve the Jev key at runtime through pass-env (US-005) (MIS-150) ([4d66362](https://github.com/misty-step/harness/commit/4d66362b2ef063c84a1a93a0b1c91ed8725cca11))
+# [0.1.34](https://github.com/misty-step/harness/compare/v0.1.33...v0.1.34) (2026-09-25)
+<!-- landmark:protected-release previous=v0.1.33 source=f51b57ea1eebc292d8f5dd7bd51706837507427d4c5be1e430e19bccfba027b2 -->
+
+### Bug Fixes
+
+* **foundation,ws:** require every story criterion in receipts; refuse untagged VMs (US-024, US-025) (MIS-150) ([ea50f38](https://github.com/misty-step/harness/commit/ea50f384796d30eba7ee91b0fb9a8544467f0ab7))
+# [0.1.33](https://github.com/misty-step/harness/compare/v0.1.32...v0.1.33) (2026-09-25)
+<!-- landmark:protected-release previous=v0.1.32 source=940cb6475b3e1a02b15d742b58a4bb8dbe208389ce7ffd0f04b3091f9602d9cb -->
+
+### Bug Fixes
+
+* **ws:** remove pulled evidence from the VM on down (US-025) (MIS-150) ([0eade00](https://github.com/misty-step/harness/commit/0eade0058d6fa30daa33cdb9623dff78e11792e8))
+# [0.1.32](https://github.com/misty-step/harness/compare/v0.1.31...v0.1.32) (2026-09-25)
+<!-- landmark:protected-release previous=v0.1.31 source=f160131e45f0bb887ddb0aeb9e4a8cc8b119c642b6c2ace8526196d51725f285 -->
+
+### Features
+
+* **omp:** default to Opus 5.5 by operator model ranking (US-014) (MIS-150) ([39ed088](https://github.com/misty-step/harness/commit/39ed088f620024e6e799dcc10866746cd1a1246d))
+* **agent-config:** enforce foundations and add owned exe.dev workspaces (US-003, US-004, US-024, US-025) (MIS-150) ([b45bfdf](https://github.com/misty-step/harness/commit/b45bfdf088b350384fcfc15a0cd6d2c877f8fe3f))
+
+### Bug Fixes
+
+* **ws:** name the project VM after the repository, not the worktree directory (US-025) (MIS-150) ([5779f34](https://github.com/misty-step/harness/commit/5779f3426bd73bb1b03846222bdb405e8ec8fce0))
+* **ws:** quote the VM comment for the exe.dev lobby parser (US-025) (MIS-150) ([e812336](https://github.com/misty-step/harness/commit/e812336addf4cbb800589f6c31e34dac2eacb2ae))
 # [0.1.31](https://github.com/misty-step/harness/compare/v0.1.30...v0.1.31) (2026-09-24)
 <!-- landmark:protected-release previous=v0.1.30 source=c16f9f03b31caa0822377b1f4e70ef9490a050ae154397a0028c6859da35f5e4 -->
 

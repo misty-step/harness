@@ -1,7 +1,7 @@
 {
   "schema": "foundation-standard/1",
   "id": "misty-step.foundation",
-  "version": "1.0.1",
+  "version": "1.1.0",
   "principles": [
     {
       "id": "FND-P-APPLICABILITY",
@@ -111,6 +111,46 @@
         "A controlled failure-and-recovery retrieval is exercised before coverage is claimed."
       ],
       "exception_authority": "Accountable operations or product owner with the decision explicitly removed or a named substitute query and response path."
+    },
+    {
+      "id": "FND-DOC-001",
+      "title": "First-class project documents",
+      "applies_when": "The repository is maintained as a project.",
+      "required_evidence": [
+        "Root README.md, DESIGN.md, and USER_STORIES.md describe the product, design, and promised outcomes.",
+        "docs/adr/ contains at least one decision record; docs/postmortems/ contains a README or TEMPLATE for incident learning."
+      ],
+      "exception_authority": "Accountable project owner with a documented substitute for the missing project record."
+    },
+    {
+      "id": "FND-MAP-001",
+      "title": "Navigable feature map",
+      "applies_when": "The project has live user stories and tracked implementation sources.",
+      "required_evidence": [
+        "features/README.md indexes feature files with live story IDs and tracked source globs.",
+        "Every live story is mapped, and each feature records sub-features, user entry, driving procedure, and gotchas."
+      ],
+      "exception_authority": "Accountable product owner with an explicit alternative mapping from live stories to sources."
+    },
+    {
+      "id": "FND-WLK-001",
+      "title": "Story-walk receipts",
+      "applies_when": "A change affects a mapped story or story definition.",
+      "required_evidence": [
+        "A same-job walk receipt binds the candidate head and tree and passes every affected story and criterion.",
+        "Every cited evidence artifact has a retained path and matching digest; unwalked stories never pass."
+      ],
+      "exception_authority": "Accountable project owner with an independently reviewed, time-bounded substitute walk."
+    },
+    {
+      "id": "FND-WS-001",
+      "title": "Workspace-ready bootstrap",
+      "applies_when": "A project uses an owned exe.dev workspace for checks and development.",
+      "required_evidence": [
+        ".exe/setup.sh is credential-free and idempotent on a fresh workspace.",
+        "Bootstrap installs or configures the toolchain required for the project's checks without desktop credentials."
+      ],
+      "exception_authority": "Accountable project owner with an equivalent reproducible, credential-free workspace bootstrap."
     }
   ],
   "approved_defaults": [

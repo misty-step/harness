@@ -17,18 +17,24 @@ Infer routine details from context and evidence. Skills inform judgment, not
 scope. Make the smallest coherent change that achieves the outcome, preserves
 existing functionality, and avoids unrelated churn.
 
-Daily roles use working subscriptions first: GPT-6 Sol handles default,
-planning and task work; GPT-6 Luna handles advice, `smol`, and `commit`;
-`tiny` may use OMP's local model before Luna. Claude Opus 5.5 handles review
-and vision.
-Astra remains strategic, reserved for `@slow`, `@extreme`, and
-`security-reviewer`. Cerebras is retired (operator 2026-09-18: too expensive).
-Mechanical VCS and install-only deploys use `@smol`. Model selections
-and provider-failure chains live in `config.yml`: try Codex, xAI, and
-Anthropic subscriptions before paid OpenRouter recovery. Operator-approved
-advisor exception: Luna max → Grok 4.7 xhigh → Gemini 3.8 Flash high on Google
-Antigravity → DeepSeek V4.1 Flash max on OpenRouter. Role routing does not
-switch the current session's selected model.
+Model policy (operator, 2026-09-25), subscriptions before paid routes: Claude
+Opus 5.5 is preferred in general and orchestrates (default: medium; `@slow`
+xhigh; `@extreme` max). Anything visual goes to Opus: `vision` and the
+`designer` agent at high, raising to xhigh or max for design and
+visual-language work; never delegate visual work to `task`. Inspect images
+with `read <image>?q=<question>` (the `vision` role) or delegate visual work to
+`designer`: both stay on Opus and fail closed during an Anthropic outage. A
+main session's own model follows `default` and may fail over, so do not rely
+on it to judge pixels. GPT-6 models are
+the workhorse subagents for specific tasks and always run Sol and Luna at max:
+`task` is Sol max; `smol`, `commit`, `advisor`, `scout`, and `sonic` are Luna
+max; `tiny` may use OMP's local model before Luna. Astra runs at high or above
+for system design, architecture, and code review: `@plan` and `reviewer` are
+Astra high, `security-reviewer` Astra max. Grok 4.7 is the last subscription
+link in every chain. Cerebras is retired (operator 2026-09-18: too expensive).
+Mechanical VCS and install-only deploys use `@smol`. Model selections and
+provider-failure chains live in `config.yml`; paid OpenRouter recovery comes
+last. Role routing does not switch the current session's selected model.
 
 Repository code, tests, and versioned docs own technical truth; work records
 track priorities, owners, and blockers. Delete unnecessary code, state, and
@@ -44,11 +50,11 @@ requires single-authority ownership and a verified backup/restore path.
 ## Execution environments
 
 Follow the shared Host resources exe.dev mandate: offload heavy and long-running
-execution to approved persistent workspaces (`skill://using-exe-dev`); keep
-native desktop, GPU, offline, and data-constrained work local.
-
-Before provisioning or recurring work, resolve account, capabilities, spend,
-and lifetime. Local execution follows the shared Host resources rule.
+execution to each project's owned workspace with `ws` (`skill://using-exe-dev`);
+keep native desktop, GPU, offline, and data-constrained work local. Standing
+operator approval (2026-09-25) covers one `<project>-ws` VM per project within
+the current $40 exe.dev plan. Other VMs need approval. Agent sessions and
+model credentials remain local pending a separate operator decision.
 
 Parallel work: subagents that write overlapping files, or experiments you may
 discard, run as `task` items with `isolated: true`; their changes return as a
