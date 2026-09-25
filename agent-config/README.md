@@ -78,7 +78,9 @@ stays routed even when an extension fails to load:
 
 `install --audio-sandbox` runs `audio-sandbox/install.ts host`. It writes
 `~/.config/pipewire/pipewire.conf.d/60-agent-sandbox.conf` (lowest priority, so
-never a default) and merges the contract into Claude Code's `env`, keeping every
+any available hardware sink wins the default; with no hardware output at all,
+WirePlumber may select it until one returns, keeping the configured default)
+and merges the contract into Claude Code's `env`, keeping every
 other key. When PipeWire is reachable it creates the sink live, without a
 restart, and proves routing with silent `pw-play` and `paplay` streams:
 sandboxed streams link only to the sink, streams aimed at a missing sink link
@@ -96,15 +98,20 @@ playback, so `speak.ts` drops the listed keys and uses the default device.
 OMP's Python eval runner receives an allowlisted environment without these
 keys, so the OMP extension revises each Python cell through the `tool_call`
 hook: one leading line applies the contract before the cell runs (after any
-`from __future__` imports; `%%bash` cells get shell exports). Streams are
-routed at creation, never moved after linking, and tracebacks count one extra
-line. That path, like JavaScript eval and browser children, depends on the
-extension loading; the bash tool does not. Deliberate bypass stays out of
-scope: processes started outside the session environment (`env -i`,
-`systemd-run`, D-Bus activation, `hyprctl dispatch exec`), raw ALSA `hw:`
-devices while the card is idle, and IPC into operator apps that are already
-running (browser tabs, `playerctl`). Sessions started before a deploy keep
-their old environment until restarted.
+`from __future__` imports; `%%bash` cells get shell exports; a standalone
+`%load local://…` is rewritten to load its backing file by path, and fails
+closed when the session root is unknown). Streams are routed at creation,
+never moved after linking, and tracebacks count one extra line. That path,
+like JavaScript eval and the managed browser, depends on the extension
+loading; the bash tool does not. OMP shares a managed browser per project
+through a broker daemon, so a browser or broker started before a deploy, like a
+session started before it, keeps the old environment until it exits.
+
+Deliberate bypass stays out of scope: processes started outside the session
+environment (`env -i`, `systemd-run`, D-Bus activation, `hyprctl dispatch
+exec`), raw ALSA `hw:` devices while the card is idle, and IPC into operator
+apps that are already running (the browser relay or `app.cdp_url`, browser
+tabs opened with `xdg-open`, `playerctl`).
 
 Revert: remove the drop-in and run `pw-cli destroy agent-sandbox`; delete the
 owned block from `~/.omp/agent/.env`, `shellCommandPrefix` from

@@ -28,13 +28,22 @@ test("US-026 a revised Python eval cell hands the contract to every process it s
 	expect(routingKeys(run([python, "-c", routePythonCell(childEnvCell)]))).toEqual({ ...AGENT_AUDIO_ENV });
 });
 
-test("US-026 revision keeps future imports first, is idempotent, and leaves host-only loads alone", () => {
+test("US-026 revision keeps future imports first and is idempotent", () => {
 	if (!python) throw new Error("python3 is required");
 	const cell = "# typed\nfrom __future__ import annotations\nvalue: int = 7\nprint(value)";
 	const routed = routePythonCell(cell);
 	expect(run([python, "-c", routed]).trim()).toBe("7");
 	expect(routePythonCell(routed)).toBe(routed);
-	expect(routePythonCell("%load local://setup.py")).toBe("%load local://setup.py");
+});
+
+test("US-026 a standalone local:// load is routed and loaded from its backing file", () => {
+	if (!python) throw new Error("python3 is required");
+	const routed = routePythonCell('%load "local://my notes/setup.py"', "/sessions/s1").split("\n");
+	expect(routed).toHaveLength(2);
+	expect(routingKeys(run([python, "-c", `${routed[0]}\n${childEnvCell}`]))).toEqual({ ...AGENT_AUDIO_ENV });
+	expect(routed[1]).toBe('%load "/sessions/s1/local/my notes/setup.py"');
+	expect(() => routePythonCell("%load local://../../etc/rc.py", "/sessions/s1")).toThrow("escapes");
+	expect(() => routePythonCell("%load local://setup.py", null)).toThrow("cannot resolve local://");
 });
 
 test("US-026 a %%bash cell exports the contract to its shell body", () => {

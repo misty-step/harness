@@ -4,6 +4,7 @@
  *
  *   install.ts host --home DIR [--check]    PipeWire sink, Claude Code env, live proof
  *   install.ts dotenv --file FILE [--check] Merge the contract into a dotenv file
+ *   install.ts shell-prefix --file FILE [--check] Own Pi's shellCommandPrefix
  *
  * `host` writes a PipeWire drop-in that creates the silent sink whenever
  * PipeWire starts, and merges the contract into Claude Code's settings `env`.
@@ -23,7 +24,7 @@ import { randomUUID } from "node:crypto";
 import { chmodSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { basename, dirname, join } from "node:path";
-import { AGENT_AUDIO_ENV, AGENT_AUDIO_SINK } from "./env.ts";
+import { AGENT_AUDIO_ENV, AGENT_AUDIO_MARKER, AGENT_AUDIO_SINK, shellExports } from "./env.ts";
 
 const OWNER = "# owned by misty-step/harness agent-config audio-sandbox (US-026)";
 const BLOCK_END = "# end agent-config audio-sandbox";
@@ -34,7 +35,8 @@ const SINK_ARGS = [
 	'node.description = "Agent sandbox (silent)"',
 	"media.class = Audio/Sink",
 	"audio.position = [ FL FR ]",
-	// Lowest priority, so the sink is never chosen as a default device.
+	// Lowest priority: any available hardware sink wins the default. WirePlumber
+	// can still choose it when no hardware output is available at all.
 	"priority.session = 0",
 	"priority.driver = 0",
 ];
@@ -80,6 +82,7 @@ export function mergeDotenv(text: string | undefined): string {
 			kept.push(line);
 		}
 	}
+	if (owned) throw new Error("Refusing a dotenv file whose audio-sandbox block has no end marker");
 	while (kept.length > 0 && kept[kept.length - 1].trim() === "") kept.pop();
 	const block = [
 		`${OWNER}; remove this block to revert.`,
@@ -87,6 +90,25 @@ export function mergeDotenv(text: string | undefined): string {
 		BLOCK_END,
 	];
 	return `${[...kept, ...(kept.length > 0 ? [""] : []), ...block].join("\n")}\n`;
+}
+
+/**
+ * Pi settings whose `shellCommandPrefix` is the contract's export line. A prefix
+ * this installer did not write fails closed instead of being replaced.
+ */
+export function mergeShellPrefix(text: string | undefined): string {
+	const settings: unknown = text === undefined || text.trim() === "" ? {} : JSON.parse(text);
+	if (!isObject(settings)) throw new Error("Pi settings must be a JSON object");
+	const current = settings.shellCommandPrefix;
+	// Ours only when the whole prefix is an export line of quoted assignments carrying the marker.
+	const owned =
+		typeof current === "string" &&
+		/^export( [A-Za-z_][A-Za-z0-9_]*='[^'\n]*')+$/.test(current) &&
+		current.includes(` ${AGENT_AUDIO_MARKER}='`);
+	if (current !== undefined && current !== "" && !owned) {
+		throw new Error("Refusing to replace a foreign shellCommandPrefix; compose it with the audio sandbox by hand");
+	}
+	return `${JSON.stringify({ ...settings, shellCommandPrefix: shellExports() }, null, 2)}\n`;
 }
 
 function readRegular(path: string): string | undefined {
@@ -289,14 +311,21 @@ function option(args: string[], flag: string): string {
 async function main(args: string[]): Promise<void> {
 	const [command, ...rest] = args;
 	const check = rest.includes("--check");
-	if (command === "dotenv") {
+	const fileMerges: Record<string, (text: string | undefined) => string> = {
+		dotenv: mergeDotenv,
+		"shell-prefix": mergeShellPrefix,
+	};
+	const merge = fileMerges[command];
+	if (merge) {
 		const file = option(rest, "--file");
 		const current = readRegular(file);
-		const next = mergeDotenv(current);
-		if (!check) console.log(`audio-sandbox: dotenv ${file} ${writeIfChanged(file, next, current)}`);
+		const next = merge(current);
+		if (!check) console.log(`audio-sandbox: ${command} ${file} ${writeIfChanged(file, next, current)}`);
 		return;
 	}
-	if (command !== "host") throw new Error("usage: install.ts host --home DIR [--check] | dotenv --file FILE [--check]");
+	if (command !== "host") {
+		throw new Error("usage: install.ts host --home DIR | dotenv --file FILE | shell-prefix --file FILE [--check]");
+	}
 	const home = option(rest, "--home");
 	const dropIn = join(process.env.XDG_CONFIG_HOME || join(home, ".config"), "pipewire", "pipewire.conf.d", "60-agent-sandbox.conf");
 	const claude = join(process.env.CLAUDE_CONFIG_DIR || join(home, ".claude"), "settings.json");

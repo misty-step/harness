@@ -52,14 +52,16 @@ owned directory. Remove only that directory once its process has ended.
   assertions are not evidence of model quality or production cache savings.
 - `agent-config/audio-sandbox/audio-sandbox.test.ts` checks the agent audio
   contract (US-026): Claude Code settings keep foreign keys, the OMP dotenv block
-  and Pi shell prefix yield the exact contract, the routing proof resolves native
+  and Pi shell prefix yield the exact contract, an unterminated dotenv block and a
+  foreign or composed Pi prefix fail closed, the routing proof resolves native
   and Pulse streams and rejects leaks and vacuous passes, requested sachstand
   speech leaves the sandbox, and an unowned PipeWire drop-in is refused. The
   live routing proof runs in `install.ts host` only when PipeWire is reachable.
 - `omp-config/extensions/audio-sandbox/audio-sandbox.test.ts` runs revised Python
   eval cells under a runner-like environment: spawned processes receive the
-  exact contract, `from __future__` cells still run, revision is idempotent, and
-  `%%bash` cells export the contract (US-026).
+  exact contract, `from __future__` cells still run, revision is idempotent,
+  `%%bash` cells export the contract, and a standalone `local://` load is
+  routed and loaded by path or refused when unresolvable (US-026).
 - `scripts/verify-installers` clones committed HEAD and runs both actual installers
   with a sanitized environment, synthetic HOME, agent directories and development
   root. It prints individual PASS/FAIL results and exits nonzero on any failure.

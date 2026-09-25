@@ -274,10 +274,8 @@ validate_audio_sandbox() {
   require_base
   require_nonempty "$repo_dir/extensions/audio-sandbox/index.ts"
   require_nonempty "$base_dir/audio-sandbox/env.ts"
-  bun "$repo_dir/bin/pi-merge-settings.ts" \
-    --source "$repo_dir/settings.json" \
-    --dest "$agent_dir/settings.json" \
-    --check
+  # A shellCommandPrefix this installer did not write fails closed here.
+  bun "$base_dir/audio-sandbox/install.ts" shell-prefix --file "$agent_dir/settings.json" --check
 }
 
 install_audio_sandbox() {
@@ -287,10 +285,7 @@ install_audio_sandbox() {
   install -d -m 700 "$agent_dir/extensions/audio-sandbox"
   install -m 600 "$repo_dir/extensions/audio-sandbox/index.ts" "$agent_dir/extensions/audio-sandbox/index.ts"
   install -m 600 "$base_dir/audio-sandbox/env.ts" "$agent_dir/extensions/audio-sandbox/env.ts"
-  AUDIO_SANDBOX_ENV="$base_dir/audio-sandbox/env.ts" bun -e '
-    const { shellExports } = await import(process.env.AUDIO_SANDBOX_ENV);
-    console.log(JSON.stringify({ shellCommandPrefix: shellExports() }));
-  ' | bun "$repo_dir/bin/pi-merge-settings.ts" --source /dev/stdin --dest "$agent_dir/settings.json"
+  bun "$base_dir/audio-sandbox/install.ts" shell-prefix --file "$agent_dir/settings.json"
 }
 
 if has config; then validate_config; fi
