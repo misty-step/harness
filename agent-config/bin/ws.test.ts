@@ -149,6 +149,8 @@ test("US-025 env and command stdin reach only the command, exit propagates, and 
 	expect(run(["down", "--task", "one"]).code).toBe(0);
 	expect(readdirSync(join(env.HOME, ".cache/tmp/omp-session-leases"))).toHaveLength(0);
 	expect(readdirSync(join(root, "vm/ws/sample/tasks"))).not.toContain("one");
+	// Pulled evidence is removed from the VM so a reused task name starts clean.
+	expect(readdirSync(join(root, "vm/ws/sample/evidence"))).not.toContain("one");
 	expect(statSync(join(root, "vm/ws/sample/repo")).isDirectory()).toBe(true);
 	// A forwarded value is not persisted anywhere in the fake VM or local workspace.
 	const pending = [root];
