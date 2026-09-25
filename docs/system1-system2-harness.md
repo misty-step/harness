@@ -151,7 +151,7 @@ Package: [`pi-config/extensions/s1s2/`](../pi-config/extensions/s1s2/)
 | `sensors.ts` | Deterministic candidate, chunking, check-discovery, and fingerprint code |
 | `run.sh` | Headless single-task launcher |
 | `s1s2.test.ts` | US-029 contracts: fail-open, inert mode, triage and check safety, verification and edit detection, credential masking, and bounded authority |
-| `eval/vibe.ts` | Evaluation runner (US-030): isolated agent user, egress lock, upstream pin, spend guard, and grading |
+| `eval/vibe.ts` | Evaluation runner (US-030): isolated agent user, model boundary with loopback-only egress, upstream pin, strict spend ledger, and grading |
 | `eval/parity.ts` | Wire-parity shim loaded identically in every arm |
 | `eval/judge.ts` | Blind LLM and Jev judges, and the per-arm report |
 
@@ -189,18 +189,31 @@ These are registered before the main run.
 |---|---|---|
 | **A: OMP** | OMP 18.3.1 as deployed. `omp-config` at the candidate revision is installed into an isolated HOME on the VM | Every generative role is pinned to M@T: all 12 `modelRoles`, including advisor, task, smol, commit, and reviewers, plus all `agentModelOverrides`. `retry.fallbackChains` are removed. The advisor stays on because it is part of OMP's design, but it runs on M@T. There is no Linear, pass, or telemetry. |
 | **B: S1S2** | Raw Pi 0.87.1 plus `s1s2` v0 at a pinned commit | Uses M@T. Jev is the treatment. |
-| **C: raw Pi** | Stock Pi 0.87.1 | Uses M@T. It separates System 1's contribution from the base-harness difference, at 50% more run cost. The operator held it out of the pilot until he reads the pilot's results. |
+| **C: raw Pi** | Stock Pi 0.87.1 | Uses M@T. It separates System 1's contribution from the base-harness difference, at 50% more run cost. The operator held it out of the pilot; the control run compared it with B. |
 
 ### Same model, same settings, same route
 
-**M@T for the pilot** is DeepSeek V4.1 Flash
-(`openrouter/deepseek/deepseek-v4.1-flash`) at reasoning effort `high`. The
-operator chose it on 2026-09-25 as an explicit exception to subscription-only
-models for this evaluation. It replaced GPT-6 Luna max on the ChatGPT/Codex
-subscription, whose eval-only sign-ins expired before use. Every model call,
-Jev included, reaches OpenRouter through an exe.dev `http-proxy` integration
-that injects the key. No key is on the VM, and the agent's egress lock admits
-only that proxy.
+**Registered plan (operator, 2026-09-25, first ruling).** M@T is GPT-6 Luna at
+max reasoning on the ChatGPT/Codex subscription: models under test run on the
+operator's subscriptions, and OpenRouter pays only for Jev. Every arm signs in
+as one ChatGPT account through eval-only native logins on the evaluation VM. No
+host OAuth store is copied (US-014). A quota guard stops the run before the
+next task once the account's weekly usage reaches 95%.
+
+**Amendment for the pilot and its control run (second and third rulings, the
+same day).** M@T is DeepSeek V4.1 Flash
+(`openrouter/deepseek/deepseek-v4.1-flash`) at reasoning effort `high`, on an
+existing OpenRouter key, as an explicit exception to subscription-only models.
+The eval-only Codex sign-ins expired before use. The full evaluation's route is
+decided with its sized plan.
+
+Under the amendment, every model call, Jev included, passes through a model
+boundary on the VM's loopback. The boundary admits only the model under test
+(forcing the pinned upstream) and the pinned Jev model, and forwards them to an
+exe.dev `http-proxy` integration that injects the key, so no key is on the VM.
+The runner supports only this route today: the registered subscription route
+would need its own path through the boundary, and its quota guard was removed
+with the direct routes on 2026-09-25.
 
 A **wire-parity** record from every run captures the first provider request
 through `before_provider_request` (`eval/parity.ts`). The harnesses send the
@@ -216,8 +229,10 @@ completions.
 
 There is no provider fallback in any arm. A provider failure is an
 infrastructure failure: the run repeats, at most twice, and never switches
-models. A spend guard stops before the next run once the key's spend reaches the
-limit, and after each task when the projected total exceeds it.
+models. The boundary also holds spend strictly under `--spend-limit`: it admits
+a call only if the settled cost of earlier calls plus the worst case of every
+unsettled call still fits, and it settles each call from OpenRouter's own cost
+for that generation.
 
 ### Tasks
 
@@ -249,8 +264,10 @@ limit, and after each task when the projected total exceeds it.
   build longer than 15 minutes on the evaluation VM.
 - **Pilot first.** Run 6 tasks (2 per stratum) before N is fixed. The pilot
   proves the pipeline and the parity preflight, and it measures per-run cost
-  and variance. It ran on 2026-09-25 in arms A and B:
-  [pilot record](measurements/s1s2-vibe-2026-09-25.md).
+  and variance. It ran on 2026-09-25 in arms A and B
+  ([pilot record](measurements/s1s2-vibe-2026-09-25.md)). A control run then
+  compared B with C, twice per task
+  ([control record](measurements/s1s2-control-2026-09-25.md)).
 
 ### Execution
 
@@ -263,10 +280,13 @@ limit, and after each task when the projected total exceeds it.
     11 existing VMs.
   - Each run has a 40-minute timeout and a per-run spend cap.
 - **Isolation.** Agents run as a separate Unix user that cannot read the hidden
-  tests, the manifest, the runner's home, or other runs. Its egress is locked to
-  loopback, DNS, and the model proxy. The runner refuses to start while the
-  agent can reach GitHub, directly or through an exe.dev GitHub integration
-  attached to the VM. There is no Linear access, no pass, and no telemetry.
+  tests, the manifest, the runner's home, or other runs. That user may connect
+  only to the model boundary and to ephemeral loopback ports for its own test
+  servers. The runner refuses to start while the agent can reach the repository
+  host, GitHub, the exe.dev gateway that serves the VM's integrations, a raw
+  address, or any other listening service (sshd, and exe.dev's Shelley agent on
+  127.0.0.1:9999), or while the boundary accepts a foreign model. There is no
+  Linear access, no pass, and no telemetry.
 - **Replicates.** Each task-arm runs once. A stratified subset of 16 tasks gets a
   second replicate to measure run-to-run noise.
 - **Runner mechanics.** These were learned from the smoke run. Every run writes
@@ -344,9 +364,10 @@ limit, and after each task when the projected total exceeds it.
 
 ### Spend and schedule
 
-- **Pilot spend.** $0.77 billed for the scored runs, and $1.16 for all pilot
-  work on the evaluation key, including two discarded launches, probes, and
-  three check runs. The Jev judge panel cost $0.003.
+- **Pilot spend.** $0.77 billed for the scored runs. The evaluation key's usage
+  rose about $1.16 that day, a figure that also covers two discarded launches,
+  probes, three check runs, and any other use of that shared key. The Jev judge
+  panel cost $0.003.
 - **Full size, estimated.** At the pilot's billed rates, one task across three
   arms costs about $0.16 on Flash, so 48 tasks plus 16 replicates would cost
   roughly $10. The runner's spend guard stops at the configured limit.
@@ -359,14 +380,22 @@ limit, and after each task when the projected total exceeds it.
 
 1. **Pilot first.** Run the 6-task pilot before any larger evaluation. Its
    report must say what a full evaluation would teach that the pilot cannot.
-2. **One model and one setting in every arm.** OMP's advisor and subagents are
+2. **Subscriptions only for the models under test.** OpenRouter pays only for
+   Jev. Amended for the pilot and its control run by decision 5.
+3. **One model and one setting in every arm.** OMP's advisor and subagents are
    pinned to it too.
-3. **Keep arm C.** Plain Pi is what isolates System 1's effect. It waits until
-   the operator has read the pilot.
-4. **OpenRouter for the pilot.** A second ruling replaced subscription models
-   with DeepSeek V4.1 Flash on OpenRouter, as an explicit exception for this
-   evaluation. It uses an existing key, with no dedicated capped key, and the
-   pilot stops if it would cost more than about $20.
+4. **Keep arm C.** Plain Pi is what isolates System 1's effect. It waited until
+   the operator had read the pilot.
+5. **OpenRouter for the pilot (second ruling).** DeepSeek V4.1 Flash on
+   OpenRouter, as an explicit exception, on an existing key with no dedicated
+   capped key. The pilot stops if it would cost more than about $20.
+6. **Control run next (third ruling).** Plain Pi against Pi + System 1, twice
+   each on the pilot's six tasks, with network access limited to the model, one
+   upstream fixed, and a hard stop at $2 on the same key. A full evaluation
+   follows only if System 1 moves cost, turns, or judged quality beyond noise,
+   and then only after the operator approves its sized plan. If System 1 still
+   barely acts, the report says whether Jev was never consulted or consulted and
+   ignored.
 
 The pilot's six tasks come from merged harness pull requests: h37 and h57
 (small), h21 and h26 (medium), and h2 and h43 (large). Each passed three checks:
@@ -385,7 +414,9 @@ the [pilot record](measurements/s1s2-vibe-2026-09-25.md).
 - **Hidden tests that are too narrow.** The screen above addresses this, and
   judges and tests are compared against each other.
 - **Judge bias.** Mitigated by blinding, both pair orders, three model families,
-  a Jev cross-check, and a human spot-check.
+  a Jev cross-check, and a human spot-check. In the pilot, judges who scored two
+  identical diffs equally still ranked candidate A first, so exact-tie rankings
+  count as ties.
 - **Provider drift during the run.** Mitigated by interleaved arms and one
   pinned OpenRouter upstream with fallbacks off. The pilot ran before the pin,
   and its arms reached different upstreams at different prices.
@@ -394,5 +425,7 @@ the [pilot record](measurements/s1s2-vibe-2026-09-25.md).
 - **Contamination.** Tasks are merged pull requests, so the model may have seen
   the code. Both arms share this bias, but it can compress the differences
   between them. Live fetching is a separate risk: in the pilot, both arms of
-  h43 fetched the merged fix from GitHub. The egress lock and the runner's
-  refusal checks now block that route.
+  h43 fetched the merged fix from GitHub. The pilot-era lock that followed still
+  admitted the exe.dev gateway's other integrations and loopback services such
+  as Shelley; the model boundary and the runner's refusal checks close those
+  routes too.

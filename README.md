@@ -73,12 +73,14 @@ experiment remains off by default. Separately, the operator-approved advisor
 route uses Luna max, then Gemini 3.8 Flash high, Grok 4.7 xhigh, and DeepSeek
 V4.1 Flash max; other model roles remain unchanged.
 
-## System 1 / System 2 experiment (US-029)
+## System 1 / System 2 experiment (US-029, US-030)
 
 [Design and evaluation plan](docs/system1-system2-harness.md): raw pi plus a
 Jev-driven System 1 layer (`pi-config/extensions/s1s2/`, never installed into the
-daily profile), to be measured head to head against OMP with the same frontier
-model and settings. The evaluation harness is not built yet.
+daily profile), measured against OMP and plain Pi with the same model and
+settings by the runner in `pi-config/extensions/s1s2/eval/`. Results so far:
+the [pilot](docs/measurements/s1s2-vibe-2026-09-25.md) and the
+[control run](docs/measurements/s1s2-control-2026-09-25.md).
 
 ## Deploy (explicit live writes)
 

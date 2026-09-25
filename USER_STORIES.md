@@ -717,19 +717,26 @@ Criteria:
    advisor and subagents, to the model under test with provider fallback off.
 3. WHEN a run starts, THE SYSTEM SHALL use a fresh checkout whose history ends
    at the task's base commit and has no remote, SHALL disable tools that reach
-   other systems identically in every arm, and SHALL refuse to start while the
-   agent can reach the task's repository host or cannot reach the model route.
+   other systems identically in every arm, and SHALL limit the agent's network
+   to a model boundary that admits only the model under test and Jev, refusing
+   to start while the agent can reach the repository host, the exe.dev gateway,
+   an arbitrary address, or another listening service.
 4. WHEN a run ends, THE SYSTEM SHALL grade it with the pull request's own
    withheld tests and report token usage by category, wall-clock, and turns.
 5. THE SYSTEM SHALL show judges only the task, the accepted change, and
    label-shuffled diffs, never harness names, transcripts, timings, or test
    results.
-6. IF the evaluation key's spend reaches the configured limit, THEN THE SYSTEM
-   SHALL stop before the next run and record why.
+6. THE SYSTEM SHALL admit a model or Jev call only while the settled cost of
+   earlier calls plus the worst case of every unsettled call stays within the
+   configured spend limit, and SHALL stop and record why when it refuses one.
+   WHERE a subscription model is under test, THE SYSTEM SHALL also stop before
+   the next run once the watched account's weekly usage reaches its ceiling.
 
 No-gos: no paid model route for the arms or judges beyond Jev, except the
-operator's 2026-09-25 ruling that runs the pilot's model under test on
-OpenRouter; no OAuth copied between harnesses; no pushes from evaluated agents.
+operator's 2026-09-25 rulings that run the pilot's and control run's model
+under test on OpenRouter; no OAuth copied between harnesses; no pushes from
+evaluated agents.
 
 Evidence: `pi-config/extensions/s1s2/eval/`,
-`docs/measurements/s1s2-vibe-2026-09-25.md`.
+`docs/measurements/s1s2-vibe-2026-09-25.md`,
+`docs/measurements/s1s2-control-2026-09-25.md`.
