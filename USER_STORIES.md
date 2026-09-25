@@ -264,11 +264,16 @@ Criteria:
    by default unless explicitly disabled.
 8. WHEN a diff exceeds context limits, THE SYSTEM SHALL chunk changes by file
    and hunk boundaries, evaluating chunks in parallel without truncation.
+9. WHEN an OMP session reviews a diff without a Jev key in its environment,
+   THE SYSTEM SHALL read the OpenRouter key at runtime through `pass-env` from
+   the names-only `jev.env.pass` mapping, keep the value out of the process
+   environment and disk, record each review's provider and resolved model in
+   `diff-review.jsonl`, and show a `no-key` status when resolution fails.
 
 No-gos: no fabricated probability or confidence numbers in live sessions; no
 live credential storage on disk; no uncredentialed blocking of interactive turns;
 no silent truncation of multi-file diffs.
-Evidence: `omp-config/bin/omp-diff-review.test.ts`, `omp-config/extensions/diff-review/diff-review.test.ts`, `pi-config/extensions/diff-review/diff-review.test.ts`
+Evidence: `omp-config/bin/omp-diff-review.test.ts`, `omp-config/extensions/diff-review/diff-review.test.ts`, `omp-config/extensions/diff-review/jev-key.test.ts`, `pi-config/extensions/diff-review/diff-review.test.ts`
 
 ## US-010 Bounded continuation nudge
 

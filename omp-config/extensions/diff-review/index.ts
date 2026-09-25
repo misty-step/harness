@@ -1,5 +1,6 @@
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
-import { evaluateDiff, getGitDiff, resolveProvider, type ReviewVerdict, type BatteryName } from "./engine.ts";
+import { evaluateDiff, getGitDiff, type ReviewVerdict, type BatteryName } from "./engine.ts";
+import { jevProvider, logReview } from "./jev-key.ts";
 
 const RESULT_TYPE = "diff-review/report";
 
@@ -35,13 +36,11 @@ export async function checkDiffReview(ctx: ExtensionContext): Promise<ReviewVerd
 				if (ctx.hasUI) ctx.ui.setStatus("diff-review", undefined);
 				return null;
 			}
-			const provider = resolveProvider();
-			const verdict = await evaluateDiff(diff, { provider });
+			const resolution = await jevProvider();
+			const verdict = await evaluateDiff(diff, { provider: resolution.provider });
+			logReview(verdict, resolution);
 			if (ctx.hasUI) {
-				if (!verdict.enabled) {
-					ctx.ui.setStatus("diff-review", undefined);
-					return verdict;
-				}
+				// A missing key is shown, never silently cleared.
 				ctx.ui.setStatus("diff-review", formatStatus(verdict, ctx.ui.theme));
 				if (verdict.blocks.length > 0) {
 					const first = verdict.blocks[0];
@@ -80,16 +79,17 @@ export default function registerDiffReviewExtension(pi: ExtensionAPI): void {
 					return;
 				}
 
-				const provider = resolveProvider();
-				const verdict = await evaluateDiff(diff, { provider, batteryName });
+				const resolution = await jevProvider();
+				const verdict = await evaluateDiff(diff, { provider: resolution.provider, batteryName });
+				logReview(verdict, resolution);
 
 				if (!verdict.enabled) {
 					pi.sendMessage({
 						customType: RESULT_TYPE,
-						content: `## System One Diff Review (Disabled)\n\n${verdict.summary}\n\nTo enable live System One code reviews, set \`TYPESAFE_API_KEY\` or \`OPENROUTER_API_KEY\` in your environment.`,
+						content: `## System One Diff Review (Disabled)\n\n${verdict.summary}\n\nThe OpenRouter Jev key is read at runtime through \`pass-env\` from the names-only \`jev.env.pass\` beside this extension${resolution.reason ? ` (last attempt: ${resolution.reason})` : ""}. Unlock pass/GPG, or set \`TYPESAFE_API_KEY\` or \`OPENROUTER_API_KEY\`.`,
 						display: true,
 					});
-					if (ctx.hasUI) ctx.ui.setStatus("diff-review", undefined);
+					if (ctx.hasUI) ctx.ui.setStatus("diff-review", formatStatus(verdict, ctx.ui.theme));
 					return;
 				}
 
