@@ -427,6 +427,7 @@ describe("foundation-check review gate (US-027)", () => {
 	const agent = "kaylee-agent[bot]";
 	const operator = "moomooskycow";
 	const marker = "foundation-escalation: product-direction";
+	const resolved = "Operator decided on 2026-09-25: keep the rebrand. foundation-escalation: resolved";
 	let pull = { head: { sha: "" }, base: { sha: "" }, user: { login: "engineer" } };
 	let reviews: { user: { login: string }; state: string; commit_id: string; body: string }[] = [];
 	let calls: string[] = [];
@@ -465,7 +466,7 @@ describe("foundation-check review gate (US-027)", () => {
 		expect(calls.some((path) => path.endsWith("/reviews"))).toBe(false);
 	});
 
-	test("first stories need the agent reviewer's current approval, never the author's or the operator's alone", async () => {
+	test("first stories need the agent reviewer's current approval, never the author's or the operator account's", async () => {
 		const repo = fixture("gate-stories");
 		put(repo, "USER_STORIES.md", "# Stories\n");
 		commit(repo, "placeholder without stories");
@@ -499,24 +500,32 @@ describe("foundation-check review gate (US-027)", () => {
 		expect((await gate(repo)).output.errors[0]).toContain("the checkout lacks commit 000000000000");
 	});
 
-	test("an escalation on the head hands approval to the operator only for approvals given after it", async () => {
+	test("an escalation on the head holds the PR until the agent reviewer's later approval records the operator's decision", async () => {
 		const repo = fixture("gate-extension");
 		const base = exec(repo, ["rev-parse", "HEAD"]);
 		put(repo, "foundation/extensions/design.json", JSON.stringify({ schema: "foundation-baseline-extension/1", reason: "Rebrand", entries: [{ gap: "doc:DESIGN.md", expires: day(20) }] }));
 		commit(repo, "extension record");
 		const head = exec(repo, ["rev-parse", "HEAD"]);
-		opened(base, head);
+		// The factory authors most PRs under the operator's account; that must not deadlock an escalated PR.
+		opened(base, head, operator);
 		const escalation = said(agent, head, "COMMENTED", marker);
-		reviews = [escalation, said(agent, head)];
+		// An approval given before the escalation, or a routine one after it, does not clear it.
+		reviews = [said(agent, head), escalation];
 		const escalated = await gate(repo);
 		expect(escalated.output.reasons).toEqual(["baseline extension: foundation/extensions/design.json"]);
-		expect(escalated.output.errors[0]).toContain(`operator, after the agent reviewer's escalation, ${operator}`);
+		expect(escalated.output.errors[0]).toContain(`needs a later approving review from ${agent} that records the operator's decision`);
+		reviews = [escalation, said(agent, head)];
+		expect((await gate(repo)).status).toBe(1);
 		reviews = [escalation, said(operator, head)];
-		expect((await gate(repo)).output.approved_by).toBe(operator);
-		reviews = [said(operator, head), escalation];
 		expect((await gate(repo)).status).toBe(1);
-		reviews = [said(agent, base, "COMMENTED", marker), said(operator, head)];
+		reviews = [escalation, said(agent, head, "APPROVED", resolved)];
+		expect((await gate(repo)).output.approved_by).toBe(agent);
+		// A second escalation needs a second recorded decision, even though the earlier approval still stands on GitHub.
+		reviews = [escalation, said(agent, head, "APPROVED", resolved), said(agent, head, "COMMENTED", marker)];
 		expect((await gate(repo)).status).toBe(1);
+		// A marker on an older commit does not carry over; the head still needs the agent reviewer's approval.
+		reviews = [said(agent, base, "COMMENTED", marker), said(agent, head)];
+		expect((await gate(repo)).status).toBe(0);
 		const foreign = await gate(repo, "r90group/habitat");
 		expect(foreign.status).toBe(1);
 		expect(foreign.output.errors[0]).toContain("no designated reviewer for r90group");
