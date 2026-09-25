@@ -4,8 +4,8 @@ Shared, harness-neutral agent primitives for the Misty Step harnesses. It is the
 base layer under `pi-config` and
 `omp-config`: portable skills, shared
 global guidance, and the `pass-env` secret launcher live here once, and each
-harness declares which primitives it selects. The `design-check` player-copy
-launcher deploys here on the same contract.
+harness declares which primitives it selects. `design-check` and the
+`openrouter-key` directory-aware credential launcher deploy on the same contract.
 
 A primitive belongs here only if it is harness-neutral and either duplicated
 across harnesses or consumed by more than one. Model routing, trackers, settings,
@@ -23,6 +23,7 @@ harness repo. When in doubt, leave it in the harness.
 | `skills/check-cadence/` | Risk-based PR/nightly/weekly check selection without losing owned gates (US-023) |
 | `guidance/*.md` | Shared global-guidance sections, spliced at the harness marker |
 | `bin/pass-env.ts` | Standalone pass-backed environment launcher |
+| `bin/openrouter-key.ts` | Shared OMP/Pi key resolver: R90 checkout or Git-common-dir gets the R90 pass entry; other directories use `--personal` (US-028) |
 | `bin/ws.ts` | Owned exe.dev project workspace launcher: snapshot, task worktrees, remote commands, evidence, browser tunnel (US-025) |
 | `bin/foundation-check.ts` | Repository foundation validator: adoption record, documents, feature map, verify skill, affected stories, walk receipts (US-024) |
 | `bin/design-check.ts` | Standalone player-surface copy checker, installed as `~/.local/bin/design-check` |

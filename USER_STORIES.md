@@ -665,3 +665,32 @@ baseline entry more than 30 days out.
 
 Evidence: `agent-config/bin/foundation-check.test.ts` (US-027 block);
 `docs/adr/003-foundation-checks.md`.
+
+## US-028 Bill OpenRouter to the project account
+
+Statement: When I work in an R90 checkout through OMP or Pi, I want OpenRouter
+requests billed to R90 rather than my personal account, without changing how
+Misty Step sessions are billed.
+
+Criteria:
+1. WHEN a fresh OMP or Pi session runs from `~/development/r90group` or a
+   descendant, OR from a linked worktree whose Git common directory is there,
+   THE SYSTEM SHALL resolve `workstation/OPENROUTER_R90_HARNESS_API_KEY`; from
+   other directories it SHALL resolve that harness's existing personal entry.
+   A real request from each harness and each account class SHALL show usage on
+   the selected OpenRouter key, not on the other account's key.
+2. IF the R90 pass entry is missing or is not a usable `sk-or-` token, THEN an
+   OpenRouter request in either harness SHALL fail authentication rather than
+   fall back to a stored or ambient personal key; the personal key's usage
+   SHALL NOT increase from that request.
+3. WHEN `openrouter-key --which` is run, THE SYSTEM SHALL print only the
+   selected pass entry name and SHALL NOT decrypt or print any key.
+4. WHEN Pi installs OpenRouter auth, THE SYSTEM SHALL replace only the
+   `openrouter` credential mapping, retaining other providers' credentials.
+
+No-gos: no secrets in versioned files or diagnostic output; no silent personal
+fallback from an R90 lookup error; no copying OMP's stored login into Pi.
+
+Evidence: `agent-config/bin/openrouter-key.test.ts`,
+`scripts/verify-installers`, and the real OMP/Pi calls and OpenRouter billing
+checks recorded in the PR.

@@ -44,6 +44,11 @@ owned directory. Remove only that directory once its process has ended.
   uses real disposable Git repositories and a fake SSH lobby/VM to exercise
   snapshots, command input, leases, and evidence-gated teardown (US-025).
   These checks do not provision a live VM or prove live CDP/browser readiness.
+- `agent-config/bin/openrouter-key.test.ts` builds real Git checkouts and a
+  linked worktree to exercise R90 versus personal selection, damaged Git
+  metadata, invalid-token failure with a usable personal key present, bounded
+  stalled pass lookup, and `--which` without decryption (US-028). No real pass
+  entry is read by the unit test.
 - `omp-config/bin/omp-task-usage.test.ts` checks price-weighted whole-tree cost,
   failed-task inclusion, unknown/unpriced evidence, split-task worker ownership,
   scope escape, malformed archives and content-free reporting (US-018).
@@ -78,7 +83,11 @@ owned directory. Remove only that directory once its process has ended.
   from the installed skills and fail closed on a repository without
   `foundation.json` (US-024); `foundation-check.test.ts` covers its contracts,
   including ratchet mode and the review gate against a fake GitHub API (US-027).
-- Foreign skill and synthetic auth files must remain byte-identical.
+- Foreign skill files and OMP's synthetic auth file remain byte-identical.
+- Both installers deploy byte-identical executable `openrouter-key`; the
+  isolated Pi install replaces only `auth.json.openrouter`, preserving another
+  provider's synthetic credential, and the OMP install retains its auth store
+  while configuring `models.yml` to use the command (US-028).
 - Both installers must deploy the audio sandbox's two layers, drop-in, and Claude
   Code env with foreign settings preserved; the installed extension must apply
   the contract self-contained, and the isolated run must not reach live PipeWire.
@@ -87,11 +96,17 @@ owned directory. Remove only that directory once its process has ended.
 - Disposable clone and destinations are removed on exit.
 
 `workspace` runs shell syntax, reference tests, and both installer checks without
-component unit suites. All selections run both installer checks because their shared contract is
-cheap to exercise. These checks do not claim scope-discovery, idempotence, native
-extension loading, rendering, provider calls or OAuth validity. Component tests
-cover some related behavior; consult their actual assertions before claiming it.
-For changed native behavior use the fresh-session procedures in component READMEs.
+component unit suites. All selections run both installer checks because their
+shared contract is cheap to exercise. These checks do not claim native
+credential resolution, provider calls, billing, or authentication-failure
+behavior. For US-028, deploy the narrow `openrouter-auth` (Pi) and `config`
+(OMP) components from a merged revision, restart each harness in R90 and
+Misty Step directories, make real OpenRouter calls, and compare per-key usage
+via OpenRouter's management API. In a separate R90 process, point
+`PASSWORD_STORE_DIR` at a missing test store to make the lookup fail without
+modifying pass; an auth failure must not increase the personal key's usage.
+Keep keys and `auth.json` contents out of logs. Other changed native behavior
+still needs the fresh-session procedures in component READMEs.
 
 Never pipe verification through tail without preserving its exit status. Do not
 substitute a successful tool invocation or file presence for a postcondition.

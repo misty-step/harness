@@ -26,11 +26,13 @@ through the sibling `agent-config`.
 - `~/.bashrc` (marked block only; snippet in the README) — `pi()` wrapper that
   injects the Exa key from pass for interactive-shell launches (ADR-010).
 
-Everything else under `~/.pi/agent` is foreign and must not be overwritten:
-`auth.json`, sessions, `models-store.json`, `usage-outbox/`, telemetry
-(`agent-usage-telemetry.ts`), the herdr-managed `herdr-agent-state.ts`, the
-Omarchy-owned `omarchy` / `diagnose-crash` skill symlinks, and the generated
-`themes/omarchy-system.json`. Deploy only what this repo declares.
+Everything else under `~/.pi/agent` is foreign except the `openrouter` entry
+in `auth.json`. The `openrouter-auth` component overlays only that entry and
+preserves every other credential; do not replace the whole file. Sessions,
+`models-store.json`, `usage-outbox/`, telemetry (`agent-usage-telemetry.ts`),
+the herdr-managed `herdr-agent-state.ts`, Omarchy-owned `omarchy` /
+`diagnose-crash` skill symlinks, and generated `themes/omarchy-system.json`
+remain foreign.
 
 ## Shared primitives
 

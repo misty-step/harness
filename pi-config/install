@@ -29,6 +29,10 @@ require_bun() {
   command -v bun >/dev/null 2>&1 || { echo "bun is required" >&2; exit 1; }
 }
 
+require_jq() {
+  command -v jq >/dev/null 2>&1 || { echo "jq is required" >&2; exit 1; }
+}
+
 require_nonempty() {
   [ -s "$1" ] || {
     printf 'Missing or empty source: %s\n' "$1" >&2
@@ -43,7 +47,7 @@ require_base() {
   }
 }
 
-components_all="config guidance pi-chrome loc web-search failover image-budget openrouter-live continuation-nudge diff-review audio-sandbox pass-env skills"
+components_all="config guidance pi-chrome loc web-search failover image-budget openrouter-live continuation-nudge diff-review audio-sandbox pass-env skills openrouter-auth"
 
 selected=${PI_CONFIG_COMPONENTS:-all}
 case "$selected" in
@@ -103,6 +107,38 @@ install_config() {
   else
     printf 'pi: Anthropic/Codex logins not ready; default stays DeepSeek. Run /login for anthropic and openai-codex in pi, then ./install.\n'
   fi
+}
+
+# Only openrouter in Pi's runtime auth file is source-owned; leave every other
+# provider and credential untouched. A command key wins over ambient auth.
+validate_openrouter_auth() {
+  require_jq
+  require_base
+  "$base_dir/install" --check --agent-dir "$agent_dir" --bin openrouter-key.ts
+  target="$agent_dir/auth.json"
+  [ ! -L "$target" ] || { echo "Refusing symlink auth.json" >&2; exit 1; }
+  if [ -e "$target" ]; then
+    [ -f "$target" ] && jq -e 'type == "object"' "$target" >/dev/null || {
+      echo "auth.json must be a JSON object" >&2
+      exit 1
+    }
+  fi
+}
+
+install_openrouter_auth() {
+  "$base_dir/install" --agent-dir "$agent_dir" --bin openrouter-key.ts
+  install -d -m 700 "$agent_dir"
+  target="$agent_dir/auth.json"
+  temp=$(mktemp "$agent_dir/.auth.json.XXXXXX")
+  trap 'rm -f -- "$temp"' 0 1 2 15
+  if [ -f "$target" ]; then
+    jq '.openrouter = {type:"api_key",key:"!openrouter-key --personal workstation/OPENROUTER_API_KEY_MIRRODIN_PI"}' "$target" > "$temp"
+  else
+    printf '{}\n' | jq '.openrouter = {type:"api_key",key:"!openrouter-key --personal workstation/OPENROUTER_API_KEY_MIRRODIN_PI"}' > "$temp"
+  fi
+  chmod 600 "$temp"
+  mv -- "$temp" "$target"
+  trap - 0 1 2 15
 }
 
 # Shared primitives deploy from agent-config. The flag list is assembled once
@@ -299,6 +335,7 @@ if has openrouter-live; then validate_openrouter_live; fi
 if has continuation-nudge; then validate_continuation_nudge; fi
 if has diff-review; then validate_diff_review; fi
 if has audio-sandbox; then validate_audio_sandbox; fi
+if has openrouter-auth; then validate_openrouter_auth; fi
 
 if has config; then install_config; fi
 if has guidance || has pass-env || has skills || has audio-sandbox; then install_shared; fi
@@ -311,3 +348,4 @@ if has openrouter-live; then install_openrouter_live; fi
 if has continuation-nudge; then install_continuation_nudge; fi
 if has diff-review; then install_diff_review; fi
 if has audio-sandbox; then install_audio_sandbox; fi
+if has openrouter-auth; then install_openrouter_auth; fi
