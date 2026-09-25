@@ -64,6 +64,7 @@ presentation; "behavioral" changes agent capability, model input, or data flow.
 | `extensions/image-budget/` | this repo | behavioral | yes | Inline-image ceiling: oldest images dropped over 15 MB per request; large images shrunk with ffmpeg at ingest (ADR-019) |
 | `extensions/openrouter-live/` | this repo | behavioral | yes | Live OpenRouter bridge: models the `pi.dev` mirror lacks are appended to `models.json`, additive-only, at session start (≥2 h) and `/models-live` (ADR-022) |
 | `extensions/continuation-nudge/` | this repo | behavioral | yes (component `continuation-nudge`; shared modules materialized) | Bounded Jev continuation nudge at agent settle: advisory, fail-open, max 2 per prompt, `JEV_NUDGE_MODE=off` disables. Review trigger: pi gains a native anti-premature-stop or continuation control, or nudges fire on completed work |
+| `extensions/s1s2/` | this repo | behavioral (experiment) | no (launched only by its `run.sh`, on raw pi) | System 1 layer for the System 1 / System 2 experiment: Jev-ranked briefing, bash-output triage, bounded monitor notes, done-gate check; fail-open, `S1S2_MODE=off` inert (US-029, ADR-024) |
 | `agent-config` (skills, guidance, `pass-env`, `design-check`) | external (sibling base) | behavioral | yes | Portable skill packages, shared guidance sections, and the `pass-env` and `design-check` launchers, clean-replaced from `agent-config` (ADR-021) |
 | `~/.bashrc` (`pi()` block) | this repo (marked block only) | behavioral | by hand | Launch hook: Exa key from pass (ADR-010); run-scoped scratch `TMPDIR` via `omp-scratch` when installed (ADR-015) |
 | `~/.config/omarchy/themed/pi.json.tpl` | this repo (hand-managed) | aesthetic | by hand | pi theme template override for every Omarchy theme: readable semantic ink, accent-derived thinking ramp, deeper surfaces (ADR-018) |
@@ -713,6 +714,20 @@ is checked out anyway), and duplicating the deploy mechanism in each harness
 (the duplication this ADR removes). Revisit: if a harness must build without the
 sibling checkout, pin the base as a submodule.
 
+**ADR-024 — Prototype a System 1 layer on raw pi, outside the daily profile.**
+*Proposed · 2026-09-25.* The operator asked for a System 1 / System 2 harness
+designed from first principles on raw pi and measured head to head against OMP
+([design](../docs/system1-system2-harness.md), US-029). System 1 is one
+extension, `extensions/s1s2/`, that runs batched Jev judgments at four loop
+boundaries (brief, triage, monitor, done-gate) and fails open to stock pi. It is
+deliberately not installed: `./install` does not deploy it and the daily profile
+never loads it. Its `run.sh` starts pi with an empty agent directory, so the arm
+under test is raw pi plus System 1 and nothing else. It lives here because it is
+pi-specific, and it reaches the shared engine through the same shim as
+`continuation-nudge`. Alternatives rejected: a fourth top-level component (a
+topology change for an unproven experiment) and folding it into the daily
+profile before any measurement.
+
 ## Research: how pi iterates on other harnesses
 
 Surveyed 2026-09-14 against pi's bundled docs/examples, the community
@@ -838,6 +853,10 @@ failover became sticky (then revisit the once-per-session latch).
   whose crawl schedule we cannot see (incident: OpenRouter model 091,
   2026-09-16 — `omp` listed `stealth/union-alpha` within an hour of launch,
   `pi` hours later).
+- **ADR-024 (s1s2)**: the head-to-head evaluation reports a result — adopt the
+  layer into the daily profile through an install component if quality holds
+  and cost or wall-clock drops, otherwise delete the package — or pi ships a
+  native hook that makes a battery redundant.
 - **OMP parity**: OMP ships a feature we use daily and pi lacks. Port one thing
   at a time, with an ADR.
 

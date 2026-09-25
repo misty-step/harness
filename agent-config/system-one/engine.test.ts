@@ -94,6 +94,46 @@ describe("provider confidence preservation", () => {
 	});
 });
 
+describe("US-029 provider usage preservation", () => {
+	async function usageFrom(usage: unknown) {
+		const original = globalThis.fetch;
+		globalThis.fetch = (async () =>
+			new Response(
+				JSON.stringify({
+					model: "typesafe/jev-1.13-20260917",
+					answers: { continuation: { type: "noul", noul: 0.9 } },
+					usage,
+				}),
+				{ status: 200 },
+			)) as unknown as typeof fetch;
+		try {
+			const evaluation = await new OpenRouterJevProvider("test-key").evaluateWithMetadata("state", {
+				continuation: { type: "noul", instructions: "test" },
+			});
+			return evaluation.usage;
+		} finally {
+			globalThis.fetch = original;
+		}
+	}
+
+	test("reports provider-billed tokens and cost exactly", async () => {
+		expect(await usageFrom({ input_tokens: 365, output_tokens: 58, cost: 0.00001533 })).toEqual({
+			inputTokens: 365,
+			outputTokens: 58,
+			costUsd: 0.00001533,
+		});
+	});
+
+	test("omits malformed or missing usage instead of reporting zero cost", async () => {
+		expect(await usageFrom(undefined)).toBeUndefined();
+		expect(await usageFrom({ input_tokens: "365", output_tokens: 58, cost: 0.1 })).toBeUndefined();
+		expect(await usageFrom({ input_tokens: 365, output_tokens: 58, cost: "free" })).toEqual({
+			inputTokens: 365,
+			outputTokens: 58,
+		});
+	});
+});
+
 describe("provider failure classification", () => {
 	test("OpenRouter reports a JSON null body as a typed malformed response", async () => {
 		const original = globalThis.fetch;

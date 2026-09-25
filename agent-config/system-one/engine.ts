@@ -47,10 +47,19 @@ export type ScoreAnswer = {
 
 export type Answer = NoulAnswer | ChoiceAnswer | ScoreAnswer;
 
+/** Provider-reported usage for one Decisions call. `costUsd` is present only when the provider bills it. */
+export type ProviderUsage = {
+	inputTokens: number;
+	outputTokens: number;
+	costUsd?: number;
+};
+
 export type ProviderEvaluation = {
 	answers: Record<string, Answer>;
 	requestedModel: string;
 	resolvedModel?: string;
+	/** Missing or malformed usage stays `undefined`; callers must not read it as zero cost. */
+	usage?: ProviderUsage;
 };
 
 export type SystemOneProviderFailureKind = "timeout" | "quota" | "transport" | "malformed_response";
@@ -101,6 +110,20 @@ function recordOfNumbers(value: unknown): Record<string, number> | undefined {
 	const entries = Object.entries(value);
 	if (entries.some(([, item]) => typeof item !== "number" || !Number.isFinite(item))) return undefined;
 	return Object.fromEntries(entries) as Record<string, number>;
+}
+
+function finiteNumber(value: unknown): number | undefined {
+	return typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : undefined;
+}
+
+function parseProviderUsage(value: unknown): ProviderUsage | undefined {
+	if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
+	const raw = value as Record<string, unknown>;
+	const inputTokens = finiteNumber(raw.input_tokens);
+	const outputTokens = finiteNumber(raw.output_tokens);
+	if (inputTokens === undefined || outputTokens === undefined) return undefined;
+	const costUsd = finiteNumber(raw.cost);
+	return costUsd === undefined ? { inputTokens, outputTokens } : { inputTokens, outputTokens, costUsd };
 }
 
 function parseProviderAnswers(value: unknown): Record<string, Answer> {
@@ -532,7 +555,7 @@ export class TypeSafeJevProvider implements SystemOneProvider {
 					| { type: "choice"; choice: string; probabilities: Record<string, number>; confidence?: number }
 					| { type: "score"; score: number; legend?: Record<string, string>; probabilities: Record<string, number>; confidence?: number }
 				>;
-				usage?: { input_tokens: number; output_tokens: number };
+				usage?: unknown;
 			};
 			if (!data || typeof data !== "object" || !data.answers || typeof data.answers !== "object") {
 				throw new SystemOneProviderError("malformed_response", "provider returned no typed answers");
@@ -543,7 +566,12 @@ export class TypeSafeJevProvider implements SystemOneProvider {
 
 			const results = parseProviderAnswers(data.answers);
 
-			return { answers: results, requestedModel: this.requestedModel, resolvedModel: data.model };
+			return {
+				answers: results,
+				requestedModel: this.requestedModel,
+				resolvedModel: data.model,
+				usage: parseProviderUsage(data.usage),
+			};
 		} catch (error) {
 			throw providerRequestError("TypeSafe API", error);
 		} finally {
@@ -616,7 +644,7 @@ export class OpenRouterJevProvider implements SystemOneProvider {
 					| { type: "choice"; choice: string; probabilities: Record<string, number>; confidence?: number }
 					| { type: "score"; score: number; legend?: Record<string, string>; probabilities: Record<string, number>; confidence?: number }
 				>;
-				usage?: { input_tokens: number; output_tokens: number };
+				usage?: unknown;
 			};
 			if (!data || typeof data !== "object" || !data.answers || typeof data.answers !== "object") {
 				throw new SystemOneProviderError("malformed_response", "provider returned no typed answers");
@@ -627,7 +655,12 @@ export class OpenRouterJevProvider implements SystemOneProvider {
 
 			const results = parseProviderAnswers(data.answers);
 
-			return { answers: results, requestedModel: this.requestedModel, resolvedModel: data.model };
+			return {
+				answers: results,
+				requestedModel: this.requestedModel,
+				resolvedModel: data.model,
+				usage: parseProviderUsage(data.usage),
+			};
 		} catch (error) {
 			throw providerRequestError("OpenRouter Jev", error);
 		} finally {

@@ -1,0 +1,233 @@
+/**
+ * US-029 contracts for the s1s2 System 1 layer: a Jev outage leaves raw Pi
+ * behavior, `S1S2_MODE=off` is inert, triage never hides failure lines or the
+ * full-output path, the done-gate only offers side-effect-free checks, and
+ * System 1's authority stays bounded and abstains when unsure.
+ */
+import { afterEach, beforeEach, describe, expect, test } from "bun:test";
+import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
+import { execFileSync } from "node:child_process";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import s1s2 from "./index.ts";
+import { pickBriefFiles, pickCheck, pickNote } from "./questions.ts";
+import { discoverChecks, planTriage, renderTriage, type Candidate } from "./sensors.ts";
+
+type Handler = (event: unknown, ctx: ExtensionContext) => unknown;
+
+let dir: string;
+const saved = { ...process.env };
+const originalFetch = globalThis.fetch;
+
+beforeEach(() => {
+	dir = mkdtempSync(join(tmpdir(), "s1s2-test-"));
+	for (const name of ["S1S2_MODE", "S1S2_RUN_DIR", "OPENROUTER_API_KEY"]) delete process.env[name];
+});
+
+afterEach(() => {
+	globalThis.fetch = originalFetch;
+	process.env = { ...saved };
+	rmSync(dir, { recursive: true, force: true });
+});
+
+function load(): Map<string, Handler> {
+	const handlers = new Map<string, Handler>();
+	s1s2({ on: (name: string, handler: Handler) => handlers.set(name, handler) } as unknown as ExtensionAPI);
+	return handlers;
+}
+
+function repo(): string {
+	const root = join(dir, "repo");
+	mkdirSync(join(root, "src"), { recursive: true });
+	writeFileSync(join(root, "src/pricing.ts"), "export function applyDiscount(price: number, percent: number) {\n\treturn price - price * percent;\n}\n");
+	writeFileSync(join(root, "src/pricing.test.ts"), 'import { test } from "bun:test";\ntest("discount", () => {});\n');
+	const git = (...args: string[]) => execFileSync("git", args, { cwd: root, stdio: "ignore" });
+	git("init", "-q");
+	git("add", "-A");
+	git("-c", "user.name=t", "-c", "user.email=t@example.com", "commit", "-qm", "init");
+	return root;
+}
+
+function context(cwd: string, apiKey?: string): ExtensionContext {
+	return {
+		cwd,
+		modelRegistry: { getProviderAuth: async () => (apiKey ? { auth: { apiKey } } : undefined) },
+		sessionManager: { getSessionId: () => "test-session" },
+	} as unknown as ExtensionContext;
+}
+
+function longOutput(): string {
+	return Array.from({ length: 300 }, (_, i) =>
+		i === 150 ? "FAIL src/pricing.test.ts > discount: expected 150, received -4800" : `ok ${i}: routine progress line with enough text to be long`,
+	).join("\n");
+}
+
+const settle = { type: "agent_before_settle", outcome: "completed", entries: [], continue: false, context: { canContinue: false } };
+
+describe("US-029 fail-open and inert modes", () => {
+	test("a Jev outage adds no briefing, leaves bash output unchanged, and requests no continuation", async () => {
+		const cwd = repo();
+		process.env.S1S2_RUN_DIR = join(dir, "run");
+		globalThis.fetch = (async () => new Response("upstream unavailable", { status: 503 })) as unknown as typeof fetch;
+		const handlers = load();
+		const ctx = context(cwd, "test-key");
+		await handlers.get("session_start")?.({ type: "session_start", reason: "startup" }, ctx);
+
+		const start = { type: "before_agent_start", prompt: "Fix `applyDiscount` in `src/pricing.ts`.", systemPromptOptions: { sections: {} } };
+		expect(await handlers.get("before_agent_start")?.(start, ctx)).toBeUndefined();
+
+		const result = {
+			type: "tool_result",
+			toolCallId: "call-1",
+			toolName: "bash",
+			input: { command: "bun test" },
+			content: [{ type: "text", text: longOutput() }],
+			details: undefined,
+			isError: true,
+		};
+		expect(await handlers.get("tool_result")?.(result, ctx)).toBeUndefined();
+
+		writeFileSync(join(cwd, "src/pricing.ts"), "export function applyDiscount(price: number, percent: number) {\n\treturn price - (price * percent) / 100;\n}\n");
+		expect(await handlers.get("agent_before_settle")?.(settle, ctx)).toBeUndefined();
+
+		const log = readFileSync(join(dir, "run", "s1s2.jsonl"), "utf8").trim().split("\n").map((line) => JSON.parse(line));
+		const outcomes = log.filter((entry) => entry.battery).map((entry) => `${entry.battery}:${entry.action}`);
+		expect(outcomes).toEqual(["brief:fail_open", "triage:fail_open", "done:fail_open"]);
+	});
+
+	test("without a credential the System 2 prompt is untouched and no battery acts", async () => {
+		const cwd = repo();
+		process.env.S1S2_RUN_DIR = join(dir, "run");
+		const handlers = load();
+		const ctx = context(cwd);
+		await handlers.get("session_start")?.({ type: "session_start", reason: "startup" }, ctx);
+		const start = { type: "before_agent_start", prompt: "Fix `applyDiscount`.", systemPromptOptions: { sections: {} as Record<string, string> } };
+		expect(await handlers.get("before_agent_start")?.(start, ctx)).toBeUndefined();
+		expect(start.systemPromptOptions.sections).toEqual({});
+	});
+
+	test("S1S2_MODE=off registers no handlers", () => {
+		process.env.S1S2_MODE = "off";
+		expect(load().size).toBe(0);
+	});
+});
+
+describe("US-029 deterministic safety", () => {
+	test("triage always shows head, tail, and failure lines, and every elision names the full output", () => {
+		const plan = planTriage(longOutput());
+		expect(plan).not.toBeNull();
+		if (!plan) return;
+		const { text, shown } = renderTriage(plan, new Set(), "/spill/call-1.txt");
+		expect(text).toContain("ok 0: routine");
+		expect(text).toContain("ok 299: routine");
+		expect(text).toContain("FAIL src/pricing.test.ts > discount: expected 150, received -4800");
+		const markers = text.split("\n").filter((line) => line.startsWith("[… S1 elided"));
+		expect(markers.length).toBeGreaterThan(0);
+		expect(markers.every((line) => line.endsWith("full output: /spill/call-1.txt]"))).toBe(true);
+		expect(shown).toBeLessThan(300);
+	});
+
+	test("check discovery offers only scripts that neither fix, write, deploy, nor watch", () => {
+		const cwd = repo();
+		writeFileSync(
+			join(cwd, "package.json"),
+			JSON.stringify({
+				scripts: {
+					test: "vitest run",
+					"test:watch": "vitest --watch",
+					lint: "eslint --fix .",
+					typecheck: "tsc --noEmit",
+					verify: "wrangler deploy --dry-run=false",
+					build: "tsc -p .",
+				},
+			}),
+		);
+		expect(discoverChecks(cwd, []).map((check) => check.command)).toEqual(["npm run test", "npm run typecheck"]);
+	});
+});
+
+describe("US-029 bounded authority", () => {
+	test("even when Jev always urges action, a prompt gets at most three notes and two continuations", async () => {
+		const cwd = repo();
+		process.env.S1S2_RUN_DIR = join(dir, "run");
+		const urge: Record<string, string> = { note: "change_approach", completion: "unfinished", check: "none_suitable" };
+		globalThis.fetch = (async (_url: unknown, init?: { body?: unknown }) => {
+			const { questions } = JSON.parse(String(init?.body)) as { questions: Record<string, { type: string }> };
+			const answers = Object.fromEntries(
+				Object.entries(questions).map(([id, question]) => [
+					id,
+					question.type === "noul"
+						? { type: "noul", noul: 0.95 }
+						: question.type === "score"
+							? { type: "score", score: 1, probabilities: { "1": 1 }, confidence: 1 }
+							: { type: "choice", choice: urge[id], probabilities: { [urge[id]]: 0.95 }, confidence: 0.95 },
+				]),
+			);
+			return new Response(JSON.stringify({ model: "typesafe/jev-1.13-20260917", answers }), { status: 200 });
+		}) as unknown as typeof fetch;
+		const handlers = load();
+		const ctx = context(cwd, "test-key");
+		await handlers.get("session_start")?.({ type: "session_start", reason: "startup" }, ctx);
+		const start = { type: "before_agent_start", prompt: "Fix `applyDiscount`.", systemPromptOptions: { sections: {} } };
+		await handlers.get("before_agent_start")?.(start, ctx);
+
+		let notes = 0;
+		for (let turn = 0; turn < 20; turn++) {
+			await handlers.get("turn_start")?.({ type: "turn_start", turnIndex: turn, timestamp: 0 }, ctx);
+			const failing = {
+				type: "tool_result",
+				toolCallId: `c${turn}`,
+				toolName: "bash",
+				input: { command: "make" },
+				content: [{ type: "text", text: "no rule" }],
+				isError: true,
+			};
+			await handlers.get("tool_result")?.(failing, ctx);
+			const result = (await handlers.get("turn_end")?.({ type: "turn_end", turnIndex: turn, toolResults: [failing] }, ctx)) as
+				| { entries?: unknown[] }
+				| undefined;
+			if (result?.entries?.length) notes++;
+		}
+		expect(notes).toBe(3);
+
+		writeFileSync(join(cwd, "src/pricing.ts"), "export const changed = true;\n");
+		const continued: boolean[] = [];
+		for (let attempt = 0; attempt < 4; attempt++) {
+			const result = (await handlers.get("agent_before_settle")?.(settle, ctx)) as { continue?: boolean } | undefined;
+			continued.push(result?.continue === true);
+		}
+		expect(continued).toEqual([true, true, false, false]);
+	});
+
+	test("uncertain, escaped, or confidence-free answers never act", () => {
+		const choice = (picked: string, p: number, confidence?: number) => ({
+			type: "choice" as const,
+			choice: picked,
+			probabilities: { [picked]: p },
+			confidence,
+		});
+		expect(pickNote({ note: choice("change_approach", 0.9) }, true)).toBeNull();
+		expect(pickNote({ note: choice("none", 0.99, 0.99) }, true)).toBeNull();
+		expect(pickNote({ note: choice("change_approach", 0.9, 0.9), stuck: { type: "noul", probability: 0.5, confidence: 0 } }, false)).toBeNull();
+		expect(pickNote({ note: choice("change_approach", 0.9, 0.9) }, true)).toBe("change_approach");
+
+		const checks = [{ command: "npm run test", why: "declared" }];
+		expect(pickCheck({ check: choice("none_suitable", 0.99, 0.99) }, checks)).toBeNull();
+		expect(pickCheck({ check: choice("c0", 0.4, 0.9) }, checks)).toBeNull();
+		expect(pickCheck({ check: choice("c7", 0.99, 0.99) }, checks)).toBeNull();
+		expect(pickCheck({ check: choice("c0", 0.8, 0.6) }, checks)?.check.command).toBe("npm run test");
+
+		const candidates: Candidate[] = ["a.ts", "b.ts", "c.ts", "d.ts", "e.ts"].map((path) => ({ path, terms: [], hits: [], prior: 1 }));
+		const file = (p: number) => ({ type: "noul" as const, probability: p, confidence: Math.abs(p - 0.5) * 2 });
+		const picked = pickBriefFiles(candidates, {
+			scope: { type: "score", score: 0, probabilities: { "0": 1 }, confidence: 1 },
+			f0: file(0.4),
+			f1: file(0.9),
+			f2: file(0.8),
+			f3: file(0.7),
+			f4: file(0.6),
+		});
+		expect(picked.map((pick) => pick.path)).toEqual(["b.ts", "c.ts", "d.ts"]);
+	});
+});

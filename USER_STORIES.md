@@ -505,3 +505,39 @@ No-gos: no unrequested project mutations or decisions during a status brief.
 Evidence: `agent-config/skills/sachstand/SKILL.md`,
 `agent-config/skills/sachstand/scripts/speak.ts`; native online synthesis smoke
 produced a two-second WAV with `--no-play` on 2026-09-24.
+
+## Capability: System 1 / System 2 harness
+
+## US-029 Run coding tasks with a System 1 layer on raw Pi
+
+Statement: When I run a coding task on raw Pi with the System 1 layer, I want
+fast typed judgments to choose what the frontier model sees, run routine
+checks, and flag stalls, so the frontier model spends fewer, better-informed
+turns without losing control of the work.
+
+Criteria:
+1. WHEN a task prompt starts in a Git repository and Jev scores candidate
+   files, THE SYSTEM SHALL add at most one advisory briefing naming no more
+   than eight files above the relevance threshold, and SHALL add none when Jev
+   is unavailable.
+2. WHEN a bash result exceeds the triage bound, THE SYSTEM SHALL keep its head,
+   tail, and failure lines, SHALL save the complete output to a file named in
+   the replacement, and SHALL leave the result unchanged when Jev is unavailable.
+3. WHEN a run settles with Git-visible changes on which no check has passed,
+   THE SYSTEM SHALL run at most one Jev-selected check per settle, chosen only
+   from repository-declared commands that do not fix, write, deploy, publish,
+   migrate, or serve, and SHALL request at most two continuations per prompt.
+4. THE SYSTEM SHALL NOT block or rewrite a model tool call, SHALL NOT generate
+   text through Jev, and SHALL send at most three monitor notes per prompt.
+5. THE SYSTEM SHALL record every System 1 call with its battery, answers,
+   latency, provider-reported usage, and action, without state text or
+   credentials, and SHALL leave usage absent rather than zero when the provider
+   omits it.
+6. WHERE `S1S2_MODE=off` is set, THE SYSTEM SHALL register no System 1 behavior.
+
+No-gos: no second generative model; no deployment into the daily Pi profile;
+no tool veto or permission gate; no Jev-authored prose, code, or plans.
+
+Evidence: `pi-config/extensions/s1s2/`, `agent-config/system-one/engine.test.ts`
+(provider usage), `docs/system1-system2-harness.md`,
+`docs/measurements/s1s2-smoke-2026-09-25.md`.
