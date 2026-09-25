@@ -16,21 +16,30 @@
  * back, deletes it from the agent's home, and grades the copy with the pull
  * request's own tests ("hidden tests").
  *
- * Egress: every model call, Jev included, goes through a credential-injecting proxy
- * (`--openrouter-base`, an exe.dev http-proxy integration), so no key is on the VM.
- * The runner locks the agent user's network (an iptables owner match) to loopback,
- * DNS, and that proxy, re-applies the lock at every start, and refuses to run while
- * the agent can reach GitHub or cannot reach the proxy. In the pilot, both arms of
- * one task fetched its merged fix from GitHub.
+ * Egress: the agent user may connect only to a model boundary on loopback and to
+ * ephemeral loopback ports for its own test servers (an iptables owner match,
+ * replaced atomically at every start). The boundary admits only the model under
+ * test, with the pinned upstream forced on every request, the pinned Jev model,
+ * and the model catalog, and forwards them to a credential-injecting proxy
+ * (`--openrouter-base`, an exe.dev http-proxy integration). No key is on the VM,
+ * and no other model, integration, local service, or host is reachable. The
+ * boundary also enforces `--spend-limit` strictly: it admits a call only if the
+ * settled cost of earlier calls plus the worst case of every unsettled one fits,
+ * and settles each call from OpenRouter's own cost for it (`boundary.jsonl`).
+ * The runner refuses to start unless the agent reaches the boundary but not the
+ * repository host, GitHub, the exe.dev gateway, an arbitrary address, or any
+ * other listening service on the VM, and unless the boundary refuses a foreign
+ * model. In the pilot, open egress let both arms of one task fetch its merged
+ * fix from GitHub.
  *
  * Usage (on the evaluation VM):
  *   bun eval/vibe.ts --manifest m.json --hidden dir --out dir --agent-user evalagent \
- *     --code-root /opt/s1s2-src --arms omp,s1s2 --model openrouter/deepseek/deepseek-v4.1-flash \
+ *     --code-root /opt/s1s2-src --arms pi,s1s2 --model openrouter/deepseek/deepseek-v4.1-flash \
  *     --thinking high --max-output 384000 --upstream deepseek \
- *     --openrouter-base https://proxy --spend-limit 20
+ *     --openrouter-base https://proxy --spend-limit 2
  */
 import { spawn, spawnSync } from "node:child_process";
-import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { appendFileSync, cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { userInfo } from "node:os";
 import { dirname, join, resolve } from "node:path";
 
@@ -65,6 +74,8 @@ const PROXY_PLACEHOLDER = "injected-by-exe-proxy";
 // One OpenRouter upstream for every arm, fallbacks off (PARITY_UPSTREAM in parity.ts). Required:
 // unpinned, OpenRouter sent the pilot's arms to different upstreams at different prices.
 const upstream = need("upstream");
+const JEV_MODEL = "typesafe/jev-1.13"; // pinned in pi-config/extensions/s1s2/index.ts
+const boundary = `http://127.0.0.1:${Number(args.get("boundary-port") ?? 18181)}`;
 
 const runner = userInfo().username;
 const agentHome = `/home/${agentUser}`;
@@ -98,20 +109,147 @@ function ipv4(host: string): string[] {
 	return ips.length > 0 ? ips : fail(`cannot resolve ${host}`);
 }
 
+// The model boundary. Harness and Jev calls from the agent arrive here; nothing else leaves the VM.
+// It also keeps the spend cap strict: a call is admitted only if the settled cost of earlier calls
+// plus the worst case of every unsettled one still fits under --spend-limit, and a call settles
+// when OpenRouter reports its cost. A worst case that never settles stays counted.
+const MODEL_PATHS = new Set(["/api/v1/chat/completions", "/api/v1/responses"]);
+const JEV_PATH = "/api/alpha/decisions";
+/** OpenRouter refusals issued before a request is routed to a provider; every other failure keeps its worst case. */
+const PRE_GENERATION = new Set([400, 401, 402, 403, 404, 413, 422, 429]);
+type Endpoint = { tag?: string; max_completion_tokens?: number | null; context_length?: number; pricing?: Record<string, unknown> };
+
+/** Worst-case USD of a call carrying `bytes`: every byte an uncached input token, plus the full completion ceiling. */
+async function worstCase(model: string, tag?: string): Promise<(bytes: number) => number> {
+	const response = await fetch(`${openrouterBase}/api/v1/models/${model}/endpoints`, { signal: AbortSignal.timeout(30_000) });
+	const all = ((await response.json()) as { data?: { endpoints?: Endpoint[] } }).data?.endpoints ?? [];
+	const matched = all.filter((endpoint) => !tag || endpoint.tag === tag || endpoint.tag?.startsWith(`${tag}/`));
+	const price = (key: string) => Math.max(0, ...matched.map((endpoint) => Number(endpoint.pricing?.[key] ?? 0) || 0));
+	const ceiling = Math.max(0, ...matched.map((endpoint) => endpoint.max_completion_tokens ?? endpoint.context_length ?? 0));
+	const input = price("prompt");
+	const output = Math.max(price("completion"), price("internal_reasoning"));
+	if (matched.length === 0 || !(input > 0) || !(ceiling > 0)) fail(`cannot bound the cost of ${model}${tag ? ` on ${tag}` : ""}`);
+	return (bytes) => bytes * input + ceiling * output + price("request");
+}
+const worst = { model: await worstCase(modelId, upstream), jev: await worstCase(JEV_MODEL) };
+
+type Call = { ts: string; run: string | null; path: string; worstUsd: number; status?: number; id?: string; costUsd?: number; provider?: string };
+const ledger = { settledUsd: 0, pendingUsd: 0, calls: [] as Call[] };
+const settling: Promise<void>[] = [];
+let currentRun: string | null = null;
+let hardStop: string | null = null;
+
+function settle(call: Call, costUsd: number | undefined, provider?: string): void {
+	if (costUsd === undefined) return; // unsettled: its worst case stays counted
+	ledger.pendingUsd -= call.worstUsd;
+	ledger.settledUsd += costUsd;
+	Object.assign(call, { costUsd, provider });
+}
+
+async function generationCost(id: string): Promise<{ cost?: number; provider?: string }> {
+	for (let attempt = 0; attempt < 45; attempt++) {
+		try {
+			const response = await fetch(`${openrouterBase}/api/v1/generation?id=${encodeURIComponent(id)}`, { signal: AbortSignal.timeout(15_000) });
+			const data = response.ok ? ((await response.json()) as { data?: { total_cost?: unknown; provider_name?: string } }).data : undefined;
+			if (typeof data?.total_cost === "number") return { cost: data.total_cost, provider: data.provider_name };
+		} catch {
+			// not recorded yet
+		}
+		await new Promise((resolve) => setTimeout(resolve, 2_000));
+	}
+	return {};
+}
+
+/** Read the ledger's copy of a response to its end, then settle the call from OpenRouter's own figure. */
+async function account(call: Call, stream: ReadableStream<Uint8Array> | null): Promise<void> {
+	let head = "";
+	if (stream) {
+		const decoder = new TextDecoder();
+		for await (const chunk of stream) if (head.length < 65_536) head += decoder.decode(chunk, { stream: true });
+	}
+	call.id = /"id"\s*:\s*"(gen-[^"]+)"/.exec(head)?.[1];
+	if (call.id) {
+		const found = await generationCost(call.id);
+		settle(call, found.cost, found.provider);
+	} else if (call.path === JEV_PATH) {
+		let cost: unknown;
+		try {
+			cost = (JSON.parse(head) as { usage?: { cost?: unknown } }).usage?.cost;
+		} catch {
+			// unparseable: stays unsettled
+		}
+		settle(call, typeof cost === "number" ? cost : undefined);
+	} else if (call.status !== undefined && PRE_GENERATION.has(call.status)) {
+		settle(call, 0); // OpenRouter refused it before routing: no generation, no charge
+	}
+	appendFileSync(join(out, "boundary.jsonl"), `${JSON.stringify(call)}\n`);
+}
+
+const boundaryServer = Bun.serve({
+	hostname: "127.0.0.1",
+	port: Number(new URL(boundary).port),
+	idleTimeout: 0, // model streams can pause longer than the default 10 s
+	async fetch(request) {
+		if (hardStop) return new Response(hardStop, { status: 402 });
+		const { pathname, search } = new URL(request.url);
+		let body: string | undefined;
+		let call: Call | undefined;
+		if (request.method === "POST" && (MODEL_PATHS.has(pathname) || pathname === JEV_PATH)) {
+			const payload = (await request.json().catch(() => null)) as Record<string, unknown> | null;
+			const expected = MODEL_PATHS.has(pathname) ? modelId : JEV_MODEL;
+			if (payload?.model !== expected) return new Response(`the evaluation boundary admits only ${expected} here`, { status: 403 });
+			if (MODEL_PATHS.has(pathname)) payload.provider = { order: [upstream], allow_fallbacks: false };
+			body = JSON.stringify(payload);
+			const worstUsd = (MODEL_PATHS.has(pathname) ? worst.model : worst.jev)(Buffer.byteLength(body));
+			if (spendLimit > 0 && ledger.settledUsd + ledger.pendingUsd + worstUsd > spendLimit) {
+				hardStop = `spend cap: $${(ledger.settledUsd + ledger.pendingUsd).toFixed(4)} committed, and the next call could cost $${worstUsd.toFixed(4)}; the cap is $${spendLimit}`;
+				return new Response(hardStop, { status: 402 });
+			}
+			call = { ts: new Date().toISOString(), run: currentRun, path: pathname, worstUsd };
+			ledger.pendingUsd += worstUsd;
+			ledger.calls.push(call);
+		} else if (!(request.method === "GET" && pathname === "/api/v1/models")) {
+			return new Response("outside the evaluation boundary", { status: 403 });
+		}
+		const headers = new Headers(request.headers);
+		for (const name of ["host", "content-length", "accept-encoding", "connection"]) headers.delete(name);
+		const answer = await fetch(`${openrouterBase}${pathname}${search}`, { method: request.method, headers, body }).catch(() => null);
+		if (!answer) {
+			if (call) settling.push(account(call, null)); // may have reached OpenRouter: its worst case stays counted
+			return new Response("the model proxy is unreachable", { status: 502 });
+		}
+		const answerHeaders = new Headers(answer.headers);
+		for (const name of ["content-encoding", "content-length", "transfer-encoding", "connection"]) answerHeaders.delete(name);
+		let toClient = answer.body;
+		if (call && answer.body) {
+			call.status = answer.status;
+			const [forClient, forLedger] = answer.body.tee();
+			toClient = forClient;
+			settling.push(account(call, forLedger));
+		} else if (call) {
+			call.status = answer.status;
+			settling.push(account(call, null));
+		}
+		return new Response(toClient, { status: answer.status, headers: answerHeaders });
+	},
+});
+
 /**
- * Limit the agent user's egress; see "Egress" above. One `iptables-restore` transaction
- * per table replaces the whole chain, so it is never empty or partial, even while
- * another runner's agent is mid-run, and a failed replacement keeps the previous rules.
+ * Limit the agent user to the boundary and to ephemeral loopback ports (its own test
+ * servers); see "Egress" above. Fixed local services, such as sshd and exe.dev's Shelley
+ * agent on 127.0.0.1:9999, stay closed. One `iptables-restore` transaction per table
+ * replaces the whole chain, so it is never empty or partial, even while another runner's
+ * agent is mid-run, and a failed replacement keeps the previous rules.
  */
 function lockAgentEgress(): void {
 	const uid = spawnSync("id", ["-u", agentUser], { encoding: "utf8" }).stdout.trim() || fail(`no user ${agentUser}`);
-	const allow = ipv4(new URL(openrouterBase).hostname).map((ip) => `-d ${ip}/32 -j ACCEPT`);
-	const reject = ["-p tcp -j REJECT --reject-with tcp-reset", "-j REJECT"];
-	const tables: [string, string[]][] = [
-		["iptables", ["-o lo -j ACCEPT", "-p udp --dport 53 -j ACCEPT", "-p tcp --dport 53 -j ACCEPT", ...allow, ...reject]],
-		["ip6tables", ["-o lo -j ACCEPT", ...reject]],
+	const rules = [
+		`-o lo -p tcp --dport ${new URL(boundary).port} -j ACCEPT`,
+		"-o lo -p tcp --dport 32768:60999 -j ACCEPT",
+		"-p tcp -j REJECT --reject-with tcp-reset",
+		"-j REJECT",
 	];
-	for (const [tool, rules] of tables) {
+	for (const tool of ["iptables", "ip6tables"]) {
 		const input = `*filter\n:S1S2-AGENT - [0:0]\n${rules.map((rule) => `-A S1S2-AGENT ${rule}\n`).join("")}COMMIT\n`;
 		const restore = spawnSync("sudo", ["-n", `${tool}-restore`, "--noflush"], { cwd: "/", input, encoding: "utf8" });
 		if (restore.status !== 0) fail(`${tool}-restore failed: ${restore.stderr}`);
@@ -120,19 +258,38 @@ function lockAgentEgress(): void {
 	}
 }
 
-const agentReaches = (url: string) =>
-	spawnSync("sudo", ["-n", "-u", agentUser, "curl", "-sS", "-m", "10", "-o", "/dev/null", url], { cwd: "/", stdio: "ignore" }).status === 0;
+// Both harnesses reach OpenRouter only through the boundary.
+const piModels = join(out, "pi-models.json");
+writeFileSync(piModels, `${JSON.stringify({ providers: { openrouter: { baseUrl: `${boundary}/api/v1` } } })}\n`);
+asAgent(["mkdir", "-p", piAgentDir]);
+sudo(["install", "-o", agentUser, "-g", agentUser, "-m", "600", piModels, join(piAgentDir, "models.json")]);
+if (arms.includes("omp") && !asAgent(["cat", join(agentHome, ".omp/agent/models.yml")]).includes(`${boundary}/api/v1`)) {
+	fail(`the agent's OMP models.yml must set providers.openrouter.baseUrl to ${boundary}/api/v1`);
+}
+
+/** Run a command as the agent without blocking the event loop, which serves the boundary. */
+function asAgentAsync(argv: string[]): Promise<{ status: number | null; stdout: string }> {
+	return new Promise((done) => {
+		const child = spawn("sudo", ["-n", "-u", agentUser, ...argv], { cwd: "/", stdio: ["ignore", "pipe", "ignore"] });
+		let stdout = "";
+		child.stdout.on("data", (chunk) => (stdout += chunk));
+		child.on("close", (status) => done({ status, stdout }));
+	});
+}
+const agentReaches = async (url: string) => (await asAgentAsync(["curl", "-sS", "-m", "10", "-o", "/dev/null", url])).status === 0;
 lockAgentEgress();
-for (const url of new Set([new URL(manifest.repo).origin, "https://github.com", "https://raw.githubusercontent.com"])) {
-	if (agentReaches(url)) fail(`agent user ${agentUser} can reach ${url}; the egress lock is not real`);
+const gateway = ipv4(new URL(openrouterBase).hostname).map((ip) => `http://${ip}/`);
+const localServices = spawnSync("ss", ["-Hltn"], { encoding: "utf8" })
+	.stdout.split("\n")
+	.map((line) => line.trim().split(/\s+/)[3]?.split(":").pop())
+	.filter((port): port is string => !!port && port !== new URL(boundary).port)
+	.map((port) => `http://127.0.0.1:${port}/`);
+for (const url of new Set([new URL(manifest.repo).origin, "https://github.com", "https://raw.githubusercontent.com", ...gateway, "https://1.1.1.1/", ...localServices])) {
+	if (await agentReaches(url)) fail(`agent user ${agentUser} can reach ${url}; the egress lock is not real`);
 }
-if (!agentReaches(`${openrouterBase}/api/v1/models`)) fail(`agent user ${agentUser} cannot reach ${openrouterBase} under the egress lock`);
-// exe.dev integrations share the gateway address the proxy needs, so the lock cannot block a
-// GitHub integration attached to this VM; refuse to start if one serves the task repository.
-const viaIntegration = manifest.repo.replace(/^https:\/\/github\.com\//, "https://github.int.exe.xyz/");
-if (viaIntegration !== manifest.repo && spawnSync("sudo", ["-n", "-u", agentUser, "-H", "git", "ls-remote", viaIntegration], { cwd: "/", stdio: "ignore", timeout: 30_000 }).status === 0) {
-	fail(`agent user ${agentUser} can fetch ${manifest.repo} through an exe.dev GitHub integration; detach it from this VM`);
-}
+if (!(await agentReaches(`${boundary}/api/v1/models`))) fail(`agent user ${agentUser} cannot reach the model boundary at ${boundary}`);
+const foreign = await asAgentAsync(["curl", "-s", "-m", "10", "-o", "/dev/null", "-w", "%{http_code}", "-H", "content-type: application/json", "-d", '{"model":"openai/gpt-4o-mini","messages":[]}', `${boundary}/api/v1/chat/completions`]);
+if (foreign.stdout !== "403") fail(`the model boundary answered ${foreign.stdout || "nothing"} to a foreign model instead of refusing it`);
 
 function git(cwd: string, ...argv: string[]): string {
 	const result = spawnSync("git", argv, { cwd, encoding: "utf8", maxBuffer: 256 * 1024 * 1024 });
@@ -184,7 +341,7 @@ function shuffled<T>(items: readonly T[]): T[] {
 	return copy;
 }
 
-/** USD the OpenRouter key has spent so far, read through the proxy; null when unreadable. */
+/** USD the OpenRouter key has spent so far, read through the proxy; null when unreadable. Reported, not enforced. */
 async function keySpend(): Promise<number | null> {
 	try {
 		const response = await fetch(`${openrouterBase}/api/v1/key`, { signal: AbortSignal.timeout(30_000) });
@@ -193,21 +350,6 @@ async function keySpend(): Promise<number | null> {
 	} catch {
 		return null;
 	}
-}
-
-/**
- * Key spend once the last run is billed. OpenRouter's usage trails requests (a $0.001 limit let
- * a second run start), and every run makes billed calls, so wait, bounded, until it moves.
- * Null when it never moves or cannot be read, which stops the evaluation.
- */
-async function settledSpend(before: number | null): Promise<number | null> {
-	for (let attempt = 0; attempt < 24 && before !== null; attempt++) {
-		const now = await keySpend();
-		if (now === null) return null;
-		if (now > before) return now;
-		await new Promise((resolve) => setTimeout(resolve, 5_000));
-	}
-	return null;
 }
 
 function runAgent(cmd: string, argv: string[], cwd: string, env: Record<string, string>, stdoutPath: string, stderrPath: string) {
@@ -315,9 +457,8 @@ const wrapper =
 	"Leave your changes in the working tree; do not commit, push, or open pull requests. When you finish, reply with a short summary of what you changed and how you verified it.\n\nTask:\n";
 
 const spendStart = await keySpend();
-if (spendLimit > 0 && spendStart === null) fail("cannot read the key's spend through the proxy");
+const committed = () => ledger.settledUsd + ledger.pendingUsd;
 const results: Record<string, unknown>[] = [];
-let spendNow = spendStart;
 let stopped: string | null = null;
 let tasksDone = 0;
 
@@ -325,13 +466,12 @@ outer: for (const task of tasks) {
 	const branch = `vibe-base-${task.id}`;
 	git(src, "branch", "-f", branch, task.base);
 	for (const arm of shuffled(arms)) {
-		if (spendLimit > 0 && spendNow === null) {
-			stopped = "spend guard: the key's spend could not be confirmed after the last run";
+		if (hardStop) {
+			stopped = hardStop;
 			break outer;
 		}
-		const spent = spendLimit > 0 ? (spendNow ?? 0) - (spendStart ?? 0) : 0;
-		if (spendLimit > 0 && spent >= spendLimit) {
-			stopped = `spend guard: $${spent.toFixed(4)} spent >= $${spendLimit}`;
+		if (spendLimit > 0 && committed() + worst.model(0) > spendLimit) {
+			stopped = `spend cap: $${committed().toFixed(4)} committed leaves too little under $${spendLimit} for one more call`;
 			break outer;
 		}
 		const runDir = join(out, "runs", task.id, arm);
@@ -382,15 +522,17 @@ outer: for (const task of tasks) {
 			env.PI_CODING_AGENT_DIR = piAgentDir;
 			const extensions = arm === "s1s2" ? ["-e", s1s2Extension, "-e", parityExtension] : ["-e", parityExtension];
 			if (arm === "s1s2") {
-				// The proxy injects the real key; System 1 needs only a non-empty credential and the proxy endpoint.
+				// The boundary forwards to the proxy, which injects the real key; System 1 needs only a non-empty credential.
 				env.S1S2_JEV_KEY = PROXY_PLACEHOLDER;
 				env.S1S2_RUN_DIR = join(work, "s1");
-				env.S1S2_JEV_ENDPOINT = `${openrouterBase}/api/alpha/decisions`;
+				env.S1S2_JEV_ENDPOINT = `${boundary}/api/alpha/decisions`;
 			}
 			argv = ["--mode", "json", "--no-extensions", ...extensions, "--no-skills", "--no-prompt-templates", "--provider", provider, "--model", modelId, "--thinking", thinking, "--session-dir", sessions, "-p", prompt];
 		}
 		console.log(`${new Date().toISOString()} ${task.id} ${arm} start`);
+		currentRun = `${task.id}/${arm}`;
 		const run = await runAgent(cmd, argv, tree, env, join(runDir, "events.jsonl"), join(runDir, "stderr.log"));
+		currentRun = null;
 
 		// Bring the work back into the runner's home, then erase it from the agent's.
 		const copy = join(runDir, "work");
@@ -413,6 +555,8 @@ outer: for (const task of tasks) {
 		} catch {
 			// no provider request was made
 		}
+		await Promise.allSettled(settling.splice(0));
+		const calls = ledger.calls.filter((entry) => entry.run === `${task.id}/${arm}`);
 		const record = {
 			task: task.id,
 			size: task.size,
@@ -424,19 +568,28 @@ outer: for (const task of tasks) {
 			...accounting,
 			s1,
 			parity,
+			boundary: {
+				calls: calls.length,
+				settledUsd: calls.reduce((sum, entry) => sum + (entry.costUsd ?? 0), 0),
+				unsettled: calls.filter((entry) => entry.costUsd === undefined).length,
+				providers: calls.reduce<Record<string, number>>((counts, entry) => ((counts[entry.provider ?? "unknown"] = (counts[entry.provider ?? "unknown"] ?? 0) + 1), counts), {}),
+			},
+			spendCap: hardStop,
 			deliverable: { files: deliverable.files, added: deliverable.added, deleted: deliverable.deleted },
 			...graded,
 		};
 		writeFileSync(join(runDir, "run.json"), `${JSON.stringify(record, null, 2)}\n`);
 		results.push(record);
 		console.log(`${new Date().toISOString()} ${task.id} ${arm} exit=${run.exit} wall=${Math.round(run.ms / 1000)}s hidden=${graded.hiddenPass} turns=${accounting.parentTurns}`);
-		if (spendLimit > 0) spendNow = await settledSpend(spendNow);
+		if (hardStop) {
+			stopped = hardStop; // the cap cut this run short
+			break outer;
+		}
 	}
 	tasksDone++;
-	if (spendLimit > 0 && tasksDone < tasks.length && spendNow !== null) {
-		const spent = spendNow - (spendStart ?? 0);
-		const projected = (spent / tasksDone) * tasks.length;
-		console.log(`${new Date().toISOString()} spend so far $${spent.toFixed(4)}, projected $${projected.toFixed(2)}`);
+	if (spendLimit > 0 && tasksDone < tasks.length) {
+		const projected = (committed() / tasksDone) * tasks.length;
+		console.log(`${new Date().toISOString()} committed $${committed().toFixed(4)}, projected $${projected.toFixed(2)}`);
 		if (projected > spendLimit) {
 			stopped = `spend projection: $${projected.toFixed(2)} for ${tasks.length} tasks exceeds $${spendLimit}`;
 			break;
@@ -444,9 +597,12 @@ outer: for (const task of tasks) {
 	}
 }
 
+await Promise.allSettled(settling.splice(0));
+boundaryServer.stop(true);
 const spendEnd = await keySpend();
+const ledgerSummary = { settledUsd: ledger.settledUsd, pendingUsd: ledger.pendingUsd, calls: ledger.calls.length, unsettled: ledger.calls.filter((entry) => entry.costUsd === undefined).length };
 writeFileSync(
 	join(out, "vibe.json"),
-	`${JSON.stringify({ version: 1, model: `${provider}/${modelId}`, thinking, upstream, seed, arms, agentUser, spendStart, spendEnd, stopped, results }, null, 2)}\n`,
+	`${JSON.stringify({ version: 1, model: `${provider}/${modelId}`, thinking, upstream, seed, arms, agentUser, spendLimit, ledger: ledgerSummary, spendStart, spendEnd, stopped, results }, null, 2)}\n`,
 );
 console.log(stopped ?? "complete");
