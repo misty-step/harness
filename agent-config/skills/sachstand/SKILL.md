@@ -2,7 +2,7 @@
 name: sachstand
 description: Orient the chief executive on where the work stands, what matters, and which decisions need them.
 disable-model-invocation: true
-argument-hint: "[optional scope: session, repo, initiative, or portfolio] [quiet]"
+argument-hint: "[optional scope: session, repo, initiative, or portfolio]"
 ---
 
 # Sachstand
@@ -11,10 +11,11 @@ Give the operator a tight, punchy status report. They act as chief executive. In
 sixty seconds they must know where the work stands, what changed, what to keep
 in mind, what they must decide, and what they need to decide it.
 
-The brief is also spoken aloud unless the argument includes `quiet`.
-
 This skill is read-only. Do not act on a decision until the operator chooses.
-Speaking the brief is the one permitted side effect.
+
+The brief is written only. Do not play audio or call a speech tool: until one
+shared speaker owner exists, a second player can talk over the operator's voice
+assistant.
 
 ## Scope
 
@@ -80,7 +81,7 @@ line and mark which holds the changes.
 
 ## Style
 
-- Speak to the reader directly: "you", and their first name from
+- Address the reader directly: "you", and their first name from
   `git config --global user.name`. Never write "the operator" or "the user".
 - Bad news first. Absolute dates, not "yesterday".
 - Fragments are fine. No filler, praise, or restating the request.
@@ -88,44 +89,6 @@ line and mark which holds the changes.
 - Mark inferences as `[INFERENCE]`.
 - If a decision needs more than a few lines of analysis, name it and suggest
   `/skill:decide <that decision>` rather than expanding the brief.
-
-## Speak the brief
-
-Skip this section if the argument includes `quiet`.
-
-After you gather evidence and before your final answer, write a spoken script
-for the ear, not the eye. Keep it under 150 words, about one minute:
-
-- Open by greeting the reader by first name. Then name the project and the task
-  in one sentence, so the listener knows which session is speaking. Then the
-  verdict. Then give each decision with your recommendation. End with what
-  happens next. Mention done work only as a count or one phrase.
-- Use plain sentences. No markdown, bullets, paths, hashes, URLs, or IDs. Say a
-  ticket as its plain meaning, not its key.
-- Round numbers. Spell out abbreviations the listener might not know.
-- Put `<short pause>` between sections. Do not write stage directions in the
-  text; the voice and style are already set.
-
-Pipe the script to [scripts/speak.ts](scripts/speak.ts). Use its absolute path
-under this skill's directory:
-
-```sh
-pass-env run -e GEMINI_API_KEY=workstation/GEMINI_API_KEY -- \
-  bun /absolute/skill/dir/scripts/speak.ts <<'EOF'
-<spoken script>
-EOF
-```
-
-From the harness repository, `pass-env run -f .env.pass -- bun
-agent-config/skills/sachstand/scripts/speak.ts` uses its committed Gemini
-reference. The request disables provider-side interaction storage; the speech
-regression rejects any request that permits the API's default retention.
-
-Playback starts detached, and a private, uniquely named audio file is saved
-under `~/.cache/tts-play/`. End the written brief with one line: the audio path,
-length, and estimated cost if usage was reported; otherwise say cost unavailable.
-If the command fails, still deliver the written brief, and state the error in
-that line.
 
 Done when the operator can read the brief in sixty seconds and make every listed
 decision without asking what something means.
