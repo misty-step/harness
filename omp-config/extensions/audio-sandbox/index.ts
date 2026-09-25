@@ -40,7 +40,9 @@ export function routePythonCell(code: string, localRoot?: string | null): string
 	if (lines.some(line => line.trim() === PYTHON_ROUTING || line.trim() === shellExports())) return code;
 	// The host resolves a standalone `%load local://…`, but the runner cannot read
 	// that URL once other code shares the cell, so load the backing file by path.
-	const localLoad = lines.length === 1 ? /^%load\s+(["']?)local:\/\/(.+?)\1\s*$/.exec(lines[0].trim()) : null;
+	// Standalone means the only non-blank line, so a trailing newline still counts.
+	const content = lines.filter(line => line.trim() !== "");
+	const localLoad = content.length === 1 ? /^%load\s+(["']?)local:\/\/(.+?)\1\s*$/.exec(content[0].trim()) : null;
 	if (localLoad) {
 		if (!localRoot) throw new Error("audio sandbox: cannot resolve local:// for this %load; load the file by path");
 		const root = canonical(resolve(localRoot));
