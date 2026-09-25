@@ -25,15 +25,22 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { modelKey, nextInChain, runError, summarize } from "./decide.ts";
 
 /**
- * The fallback chain, in order. The first link must match the startup
- * default in the repo's settings.json; every link must be a model the
- * session can resolve and authenticate (and thinking models should carry a
- * modelThinkingLevels entry so the switch keeps posture). Order: cheap/fast
- * first, heavy backup last. Cerebras is out of the fleet (operator
- * 2026-09-18: too expensive). Startup is DeepSeek flash; mercury is the
- * last hop. Extend by editing this list and redeploying (ADR-013).
+ * The fallback chain, in order; a failure advances from the current model's
+ * link. Operator model policy (2026-09-25): Opus 5.5 first, then GPT-6 Sol and
+ * Luna at max, then the existing paid OpenRouter recovery. Grok is last in the
+ * policy and Pi reaches it only through a paid API key, so it is not a link.
+ * The subscription links apply once Pi-native Anthropic and Codex logins are
+ * ready and `./install` selects the Opus startup default; until then startup
+ * is DeepSeek flash and a failure advances to mercury. Every link must be a
+ * model the session can resolve and authenticate, with a modelThinkingLevels
+ * entry so a switch keeps posture. Cerebras is out of the fleet (operator
+ * 2026-09-18: too expensive). Extend by editing this list and redeploying
+ * (ADR-013).
  */
 const CHAIN = [
+	"anthropic/claude-opus-5-5",
+	"openai-codex/gpt-6-sol",
+	"openai-codex/gpt-6-luna",
 	"openrouter/deepseek/deepseek-v4.1-flash",
 	"openrouter/inception/mercury-2.5",
 ];

@@ -56,6 +56,7 @@ presentation; "behavioral" changes agent capability, model input, or data flow.
 | Component | Owner | Class | Installed by `./install` | Divergence |
 | --- | --- | --- | --- | --- |
 | `settings.json` | this repo | config | yes | Default model/thinking, editor padding, markdown, theme name, retry budget |
+| `settings.subscription.json` | this repo | config | yes, only when Pi's Anthropic and Codex logins are ready | Operator model policy: Opus 5.5 default at medium, GPT-6 Sol/Luna at max (ADR-011 amendment 2026-09-25) |
 | `global/AGENTS.md` | this repo | behavioral | yes | Global `~/.pi/agent/AGENTS.md`: pi's intro plus shared sections spliced from `agent-config` |
 | `extensions/pi-chrome.ts` | this repo | aesthetic | yes | Session card, composer rail layout, live working state, footer |
 | `extensions/loc/` | this repo | behavioral (read-only) | yes | `/loc`, `/loc-trend`, LOC status row |
@@ -137,9 +138,10 @@ current model — never to a remembered position — so it cannot drift out of
 sync with what the session actually runs. It never touches a model the user
 chose, and never re-sends the user's prompt — a run that dies mid-turn may
 already have executed tools. The chain is the `CHAIN` constant in `index.ts`
-(currently `openrouter/deepseek/deepseek-v4.1-flash`
-→ `openrouter/inception/mercury-2.5`; cheap and fast first, heavy backup
-last); extend it there and redeploy. `decide.ts` is pure and bun-tested;
+(`anthropic/claude-opus-5-5` → `openai-codex/gpt-6-sol` →
+`openai-codex/gpt-6-luna` → `openrouter/deepseek/deepseek-v4.1-flash` →
+`openrouter/inception/mercury-2.5`; the walk starts from the current model, so
+a DeepSeek session still advances only to Mercury); extend it there and redeploy. `decide.ts` is pure and bun-tested;
 `index.ts` is the harness-facing half. Removing the directory leaves stock
 retry + compaction recovery exactly intact.
 
@@ -398,6 +400,16 @@ in `settings.json` (`retry.*`) instead of left to stock defaults.
 *Amended 2026-09-18:* Cerebras retired (operator: too expensive); the default
 is `openrouter/deepseek/deepseek-v4.1-flash` at `xhigh`, `mercury-2.5` the
 failover link.
+
+*Amended 2026-09-25:* the operator's model policy extends to pi: Opus 5.5
+preferred, GPT-6 Sol and Luna at max, Grok last, no frontier model through
+OpenRouter. Pi reaches Opus and GPT-6 only through its own `/login` for
+`anthropic` and `openai-codex` (OMP tokens are never copied). `./install`
+merges `settings.subscription.json` (default Opus 5.5 medium) only when
+`pi auth check` reports both ready; otherwise the DeepSeek default stays and
+the installer prints the login instruction. The chain gains the subscription
+links ahead of the paid ones; Grok is omitted because pi reaches it only with
+a paid API key.
 
 **ADR-012 — Own a global `AGENTS.md` so every pi session carries the shared
 conventions.** *Accepted · 2026-09-15.* Pi loads `~/.pi/agent/AGENTS.md` into

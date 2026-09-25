@@ -410,36 +410,41 @@ Evidence: `agent-config/bin/design-check.test.ts`,
 
 ## US-014 Use subscriptions before paid model recovery
 
-Statement: When I start or delegate work in OMP, I want my ranked subscription
-models selected per role (Claude Opus 5.5 first, then GPT-6 Astra, Sol, and Luna
-by role, Grok 4.7 last) and provider recovery before paid API routes, so
-routine work uses my preferred accounts without making login failure look like
-additional capacity.
+Statement: When I start or delegate work in any harness, I want my model policy
+applied per role (Claude Opus 5.5 preferred and orchestrating, Opus for
+anything visual, GPT-6 workhorse subagents with Sol and Luna at max, Astra at
+high or above for system design, architecture, and code review, Grok 4.7 last)
+with subscription recovery before paid API routes, so routine work uses my
+preferred accounts without making login failure look like additional capacity.
 
 Criteria:
-1. WHEN a fresh OMP session or bundled worker selects the default or `task`
-   role, THE SYSTEM SHALL resolve Claude Opus 5.5 with medium reasoning on the
-   authenticated Anthropic subscription; WHEN it selects `plan`, `reviewer`,
-   or `vision`, high; `slow`, xhigh; `extreme`, max.
-2. WHEN a `smol`, `commit`, or `advisor` role is selected, THE SYSTEM SHALL
-   resolve GPT-6 Luna with max reasoning on Codex, and `security-reviewer`
-   SHALL resolve GPT-6 Astra with max reasoning; WHERE `tiny` selects an
-   on-device model, THE SYSTEM SHALL retain Luna as its configured cloud option
-   before paid API routes.
-3. IF a selected provider fails, THEN THE SYSTEM SHALL offer an image-capable
-   subscription route from another provider before a paid OpenRouter route,
-   trying Astra first for `plan`, `slow`, and `extreme`, Sol with xhigh
-   reasoning first for other Opus roles, and Grok 4.7 only as the last
-   subscription link.
-4. WHEN configuration is deployed, THE SYSTEM SHALL preserve OAuth stores and
+1. WHEN a fresh OMP session selects the default role, THE SYSTEM SHALL resolve
+   Claude Opus 5.5 with medium reasoning on the Anthropic subscription;
+   `slow` SHALL resolve Opus xhigh and `extreme` Opus max.
+2. WHEN OMP resolves `vision` or the `designer` agent, THE SYSTEM SHALL select
+   Opus 5.5 at high or above, and the `vision` role's fallback chain SHALL
+   contain only Opus.
+3. WHEN OMP resolves `task`, THE SYSTEM SHALL select GPT-6 Sol with max
+   reasoning; WHEN it resolves `smol`, `commit`, or `advisor`, GPT-6 Luna with
+   max reasoning; WHEN it resolves `plan` or `reviewer`, GPT-6 Astra high; and
+   `security-reviewer`, Astra max.
+4. IF a selected provider fails, THEN THE SYSTEM SHALL offer a subscription
+   route from another provider before a paid OpenRouter route, with every Sol
+   or Luna link at max reasoning and Grok 4.7 only as the last subscription
+   link.
+5. WHEN the Pi installer runs, THE SYSTEM SHALL select Opus 5.5 as Pi's default
+   only if Pi-native Anthropic and Codex logins report ready, and otherwise
+   SHALL keep the DeepSeek default and print the login instruction.
+6. WHEN configuration is deployed, THE SYSTEM SHALL preserve OAuth stores and
    the model already selected in existing sessions.
 
-No-gos: no copying OAuth credentials between harnesses; no Pi default change
-without Pi-native subscription authentication.
+No-gos: no copying OAuth credentials between harnesses; no frontier model
+through OpenRouter as a default; no Pi default that is not authenticated.
 
-Evidence: `omp-config/config.yml`, `omp-config/global/AGENTS.md`,
-`omp-config/README.md`, `./scripts/verify omp`, fresh OMP role-selection
-and provider smoke checks.
+Evidence: `omp-config/config.yml`, `omp-config/agents/designer.md`,
+`omp-config/global/AGENTS.md`, `omp-config/README.md`,
+`pi-config/settings.subscription.json`, `pi-config/install`,
+`./scripts/verify all`, fresh OMP role-selection and forced-outage smoke checks.
 
 ## Capability: Protected releases
 

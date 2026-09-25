@@ -17,20 +17,20 @@ Infer routine details from context and evidence. Skills inform judgment, not
 scope. Make the smallest coherent change that achieves the outcome, preserves
 existing functionality, and avoids unrelated churn.
 
-Daily roles use working subscriptions first, following the operator's
-2026-09-25 ranking. Claude Opus 5.5 is the default: medium for daily and
-`task` work, high for `@plan`, review, and vision, xhigh for `@slow`, and max
-for `@extreme`. Use higher effort for visual design, hard problems, and system
-design. GPT-6 Astra follows for the most challenging work (`security-reviewer`,
-and first fallback for plan/slow/extreme); GPT-6 Sol xhigh is the workhorse
-fallback; GPT-6 Luna max handles advice, `smol`, and `commit`; `tiny` may use
-OMP's local model before Luna. Grok 4.7 is the last subscription link in every
-chain. Cerebras is retired (operator 2026-09-18: too expensive). Mechanical VCS
-and install-only deploys use `@smol`. Model selections and provider-failure
-chains live in `config.yml`: try the Anthropic, Codex, Antigravity, and xAI
-subscriptions before paid OpenRouter recovery. Advisor: Luna max → Gemini 3.8
-Flash high on Google Antigravity → Grok 4.7 xhigh → DeepSeek V4.1 Flash max on
-OpenRouter. Role routing does not switch the current session's selected model.
+Model policy (operator, 2026-09-25), subscriptions before paid routes: Claude
+Opus 5.5 is preferred in general and orchestrates (default: medium; `@slow`
+xhigh; `@extreme` max). Anything visual goes to Opus: `vision` and the
+`designer` agent at high, raising to xhigh or max for design and
+visual-language work; never delegate visual work to `task`. GPT-6 models are
+the workhorse subagents for specific tasks and always run Sol and Luna at max:
+`task` is Sol max; `smol`, `commit`, `advisor`, `scout`, and `sonic` are Luna
+max; `tiny` may use OMP's local model before Luna. Astra runs at high or above
+for system design, architecture, and code review: `@plan` and `reviewer` are
+Astra high, `security-reviewer` Astra max. Grok 4.7 is the last subscription
+link in every chain. Cerebras is retired (operator 2026-09-18: too expensive).
+Mechanical VCS and install-only deploys use `@smol`. Model selections and
+provider-failure chains live in `config.yml`; paid OpenRouter recovery comes
+last. Role routing does not switch the current session's selected model.
 
 Repository code, tests, and versioned docs own technical truth; work records
 track priorities, owners, and blockers. Delete unnecessary code, state, and
