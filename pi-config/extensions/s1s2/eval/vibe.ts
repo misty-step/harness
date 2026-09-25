@@ -1,22 +1,29 @@
 #!/usr/bin/env bun
 /**
- * Vibe-check runner for the System 1 / System 2 experiment (US-029).
+ * Vibe-check runner for the System 1 / System 2 experiment (US-029, US-030).
  *
- * Replays curated merged pull requests in three arms, one run at a time:
+ * Replays curated merged pull requests, one run at a time, in these arms:
  *   omp   OMP as deployed, every generative role pinned to one model/setting, no fallback
  *   s1s2  raw Pi plus the s1s2 System 1 extension
  *   pi    raw Pi (control)
  * Every arm gets the same prompt, model, reasoning effort, parity shim, scrubbed
  * environment, and fresh history-truncated checkout at the task's base commit.
- * After each run the pull request's own tests ("hidden tests") are applied and run.
  *
- * Usage (from the repository root; the Jev key is only for the s1s2 arm's System 1):
- *   pass-env run -f .env.pass -- bun pi-config/extensions/s1s2/eval/vibe.ts \
- *     --manifest m.json --hidden dir --out dir [--only h21,h26] [--seed 26]
+ * Isolation: agents run as a separate Unix user (`--agent-user`, via passwordless
+ * sudo) whose home holds only that run's checkout. The hidden tests, the full-history
+ * source clone, and every other run's output stay in the runner's own home, which
+ * the agent user cannot read. After each run the runner copies the work directory
+ * back, deletes it from the agent's home, and grades the copy with the pull
+ * request's own tests ("hidden tests").
+ *
+ * Usage (on the evaluation VM):
+ *   bun eval/vibe.ts --manifest m.json --hidden dir --out dir --agent-user evalagent \
+ *     --code-root /opt/s1s2-src --arms omp,s1s2 --model openrouter/deepseek/deepseek-v4.1-flash \
+ *     --thinking high --max-output 384000 --openrouter-base https://proxy --spend-limit 20
  */
 import { spawn, spawnSync } from "node:child_process";
 import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
-import { homedir } from "node:os";
+import { userInfo } from "node:os";
 import { dirname, join, resolve } from "node:path";
 
 type Command = { cwd: string; cmd: string };
@@ -26,10 +33,13 @@ type Arm = "omp" | "s1s2" | "pi";
 
 const args = new Map<string, string>();
 for (let i = 2; i < process.argv.length; i += 2) args.set(process.argv[i].replace(/^--/, ""), process.argv[i + 1] ?? "");
-const need = (name: string) => args.get(name) || (console.error(`missing --${name}`), process.exit(2));
+const fail = (message: string): never => (console.error(message), process.exit(2));
+const need = (name: string) => args.get(name) || fail(`missing --${name}`);
 const manifestPath = resolve(need("manifest"));
 const hiddenDir = resolve(need("hidden"));
 const out = resolve(need("out"));
+const agentUser = need("agent-user");
+const codeRoot = resolve(need("code-root"));
 const only = args.get("only")?.split(",").filter(Boolean);
 const arms = (args.get("arms") ?? "omp,s1s2,pi").split(",") as Arm[];
 const seed = Number(args.get("seed") ?? 26);
@@ -45,22 +55,36 @@ const quotaMax = Number(args.get("quota-max") ?? 0.95);
 // A credential-injecting proxy (exe.dev http-proxy integration) keeps the OpenRouter key off the VM.
 const openrouterBase = (args.get("openrouter-base") ?? "").replace(/\/$/, "");
 const spendLimit = Number(args.get("spend-limit") ?? 0);
-
-const here = dirname(new URL(import.meta.url).pathname);
-const s1s2Extension = resolve(here, "..", "index.ts");
-const parityExtension = resolve(here, "parity.ts");
-const piAgentDir = args.get("pi-agent-dir") ?? join(homedir(), ".local/state/s1s2-eval/pi-agent");
 const PROXY_PLACEHOLDER = "injected-by-exe-proxy";
 const jevKey = openrouterBase ? PROXY_PLACEHOLDER : (process.env.S1S2_JEV_KEY || process.env.OPENROUTER_API_KEY || "").trim();
-if (arms.includes("s1s2") && !jevKey) (console.error("S1S2_JEV_KEY, OPENROUTER_API_KEY, or --openrouter-base is required for the s1s2 arm (Jev)"), process.exit(2));
-if (spendLimit > 0 && !openrouterBase) (console.error("--spend-limit needs --openrouter-base to read the key's usage"), process.exit(2));
-for (const forbidden of ["settings.json", "AGENTS.md", "extensions", "skills", "prompts"]) {
-	if (existsSync(join(piAgentDir, forbidden))) (console.error(`raw Pi agent dir must not contain ${forbidden}`), process.exit(2));
+if (arms.includes("s1s2") && !jevKey) fail("S1S2_JEV_KEY, OPENROUTER_API_KEY, or --openrouter-base is required for the s1s2 arm (Jev)");
+if (spendLimit > 0 && !openrouterBase) fail("--spend-limit needs --openrouter-base to read the key's usage");
+
+const runner = userInfo().username;
+const agentHome = `/home/${agentUser}`;
+const piAgentDir = join(agentHome, ".local/state/s1s2-eval/pi-agent");
+const s1s2Extension = join(codeRoot, "pi-config/extensions/s1s2/index.ts");
+const parityExtension = join(codeRoot, "pi-config/extensions/s1s2/eval/parity.ts");
+
+function sudo(argv: string[]): string {
+	// Run from "/" so the agent user never needs access to the runner's working directory.
+	const result = spawnSync("sudo", ["-n", ...argv], { cwd: "/", encoding: "utf8", maxBuffer: 64 * 1024 * 1024 });
+	if (result.status !== 0) throw new Error(`sudo ${argv.join(" ")} failed: ${result.stderr}`);
+	return result.stdout;
 }
+const asAgent = (argv: string[]) => sudo(["-u", agentUser, "-H", ...argv]);
+const agentCan = (test: string, path: string) => spawnSync("sudo", ["-n", "-u", agentUser, "test", test, path], { cwd: "/" }).status === 0;
 
 const manifest = JSON.parse(readFileSync(manifestPath, "utf8")) as Manifest;
 const tasks = manifest.tasks.filter((task) => !only || only.includes(task.id));
+// Pokayoke: refuse to start unless the agent user demonstrably cannot read the hidden tests.
+if (agentCan("-r", join(hiddenDir, manifest.tasks[0].id, manifest.tasks[0].hidden[0]))) fail(`agent user ${agentUser} can read ${hiddenDir}; isolation is not real`);
+if (agentCan("-r", manifestPath)) fail(`agent user ${agentUser} can read the manifest; isolation is not real`);
+for (const forbidden of ["settings.json", "AGENTS.md", "extensions", "skills", "prompts"]) {
+	if (agentCan("-e", join(piAgentDir, forbidden))) fail(`raw Pi agent dir must not contain ${forbidden}`);
+}
 mkdirSync(join(out, "runs"), { recursive: true });
+if (agentCan("-r", out)) fail(`agent user ${agentUser} can read ${out}; isolation is not real`);
 
 function git(cwd: string, ...argv: string[]): string {
 	const result = spawnSync("git", argv, { cwd, encoding: "utf8", maxBuffer: 256 * 1024 * 1024 });
@@ -74,8 +98,6 @@ mkdirSync(shims, { recursive: true });
 for (const tool of ["ssh", "scp", "sftp", "gh", "pass", "pass-env", "linear", "wrangler"]) {
 	writeFileSync(join(shims, tool), `#!/bin/sh\necho "${tool} is disabled in this evaluation" >&2\nexit 126\n`, { mode: 0o755 });
 }
-const nodePath = spawnSync("sh", ["-c", "command -v node"], { encoding: "utf8" }).stdout.trim();
-const PATH = [shims, join(homedir(), ".local/bin"), join(homedir(), ".bun/bin"), ...(nodePath ? [dirname(nodePath)] : []), "/usr/local/bin", "/usr/bin", "/bin"].join(":");
 
 // OMP overlay: every generative role on the model under test; provider fallback off.
 const ompOverlay = join(out, "omp-pinned.yml");
@@ -87,7 +109,7 @@ writeFileSync(
 	`modelRoles:\n${roles.map((role) => `  ${role}: ${pinned}`).join("\n")}\nretry:\n  fallbackChains:\n${chains.map((chain) => `    ${chain}: []`).join("\n")}\n`,
 );
 
-// Source clone with no remote; each run clones only the history up to its base.
+// Full-history source clone, readable only by the runner; runs get base-only bundles.
 const src = join(out, "src");
 if (!existsSync(src)) {
 	git(out, "clone", "-q", manifest.repo, src);
@@ -138,10 +160,11 @@ async function keySpend(): Promise<number | null> {
 	}
 }
 
-function runProcess(cmd: string, argv: string[], cwd: string, env: Record<string, string>, stdoutPath: string, stderrPath: string) {
+function runAgent(cmd: string, argv: string[], cwd: string, env: Record<string, string>, stdoutPath: string, stderrPath: string) {
 	const started = performance.now();
 	const { promise, resolve: done } = Promise.withResolvers<{ exit: number | null; signal: string | null; timedOut: boolean; ms: number }>();
-	const child = spawn(cmd, argv, { cwd, env, stdio: ["ignore", "pipe", "pipe"] });
+	const envPairs = Object.entries(env).map(([key, value]) => `${key}=${value}`);
+	const child = spawn("sudo", ["-n", "-u", agentUser, "-H", "env", "-i", ...envPairs, cmd, ...argv], { cwd, stdio: ["ignore", "pipe", "pipe"] });
 	const stdout: Buffer[] = [];
 	const stderr: Buffer[] = [];
 	child.stdout.on("data", (chunk: Buffer) => stdout.push(chunk));
@@ -217,8 +240,8 @@ function sessionUsage(dir: string): { usage: Usage; modelCalls: number; parentTu
 
 function testCounts(output: string): { pass: number; fail: number } {
 	const pass = [...output.matchAll(/^\s*(\d+) pass$/gm)].reduce((sum, match) => sum + Number(match[1]), 0);
-	const fail = [...output.matchAll(/^\s*(\d+) fail$/gm)].reduce((sum, match) => sum + Number(match[1]), 0);
-	return { pass, fail };
+	const failed = [...output.matchAll(/^\s*(\d+) fail$/gm)].reduce((sum, match) => sum + Number(match[1]), 0);
+	return { pass, fail: failed };
 }
 
 function grade(tree: string, task: Task, env: Record<string, string>) {
@@ -243,7 +266,7 @@ const wrapper =
 
 const quotaStart = quotaUsed();
 const spendStart = await keySpend();
-if (spendLimit > 0 && spendStart === null) (console.error("cannot read the key's spend through the proxy"), process.exit(2));
+if (spendLimit > 0 && spendStart === null) fail("cannot read the key's spend through the proxy");
 const results: Record<string, unknown>[] = [];
 let stopped: string | null = null;
 let tasksDone = 0;
@@ -265,32 +288,45 @@ outer: for (const task of tasks) {
 		const runDir = join(out, "runs", task.id, arm);
 		if (existsSync(join(runDir, "run.json"))) continue; // resumable
 		rmSync(runDir, { recursive: true, force: true });
-		const tree = join(runDir, "tree");
 		mkdirSync(join(runDir, "tmp"), { recursive: true });
-		git(out, "clone", "-q", "--no-local", "--single-branch", "--branch", branch, src, tree);
-		git(tree, "remote", "remove", "origin");
+
+		// The agent's world: one base-only checkout, shims, and scratch in its own home.
+		const work = join(agentHome, "work", `${task.id}-${arm}`);
+		asAgent(["rm", "-rf", work]);
+		asAgent(["mkdir", "-p", "-m", "750", join(work, "tmp"), join(work, "sessions"), join(work, "s1")]);
+		git(src, "bundle", "create", "-q", join(runDir, "base.bundle"), branch);
+		for (const [from, to] of [[join(runDir, "base.bundle"), join(work, "base.bundle")], [shims, join(work, "shims")], [ompOverlay, join(work, "omp-pinned.yml")]]) {
+			sudo(["cp", "-a", from, to]);
+			sudo(["chown", "-R", `${agentUser}:${agentUser}`, to]);
+		}
+		rmSync(join(runDir, "base.bundle"));
+		const tree = join(work, "tree");
+		asAgent(["git", "clone", "-q", "-b", branch, join(work, "base.bundle"), tree]);
+		asAgent(["git", "-C", tree, "remote", "remove", "origin"]);
+		asAgent(["rm", join(work, "base.bundle")]);
+
 		const env: Record<string, string> = {
-			HOME: homedir(),
-			USER: process.env.USER ?? "",
-			LOGNAME: process.env.USER ?? "",
+			HOME: agentHome,
+			USER: agentUser,
+			LOGNAME: agentUser,
 			LANG: "C.UTF-8",
 			TERM: "dumb",
 			SHELL: "/bin/bash",
-			PATH,
-			TMPDIR: join(runDir, "tmp"),
-			PARITY_OUT: join(runDir, "parity.jsonl"),
+			PATH: [join(work, "shims"), "/usr/local/bin", "/usr/bin", "/bin"].join(":"),
+			TMPDIR: join(work, "tmp"),
+			PARITY_OUT: join(work, "parity.jsonl"),
 			...(verbosity ? { PARITY_VERBOSITY: verbosity } : {}),
 			...(maxOutput ? { PARITY_MAX_OUTPUT: maxOutput } : {}),
 			// The proxy injects the real key; the harnesses only need a non-empty credential to call it.
 			...(openrouterBase ? { OPENROUTER_API_KEY: PROXY_PLACEHOLDER } : {}),
 		};
 		const prompt = wrapper + task.statement;
-		const sessions = join(runDir, "sessions");
+		const sessions = join(work, "sessions");
 		let cmd: string;
 		let argv: string[];
 		if (arm === "omp") {
 			cmd = "omp";
-			argv = ["-p", "--mode", "json", "--cwd", tree, "--session-dir", sessions, "--no-title", "--approval-mode", "yolo", "--config", ompOverlay, "-e", parityExtension, "--model", `${provider}/${modelId}`, "--thinking", thinking, prompt];
+			argv = ["-p", "--mode", "json", "--cwd", tree, "--session-dir", sessions, "--no-title", "--approval-mode", "yolo", "--config", join(work, "omp-pinned.yml"), "-e", parityExtension, "--model", `${provider}/${modelId}`, "--thinking", thinking, prompt];
 		} else {
 			cmd = "pi";
 			env.PI_CODING_AGENT_DIR = piAgentDir;
@@ -298,27 +334,32 @@ outer: for (const task of tasks) {
 			if (arm === "s1s2") {
 				// System 1 reads and then deletes this variable, so agent tool subprocesses never inherit it.
 				env.S1S2_JEV_KEY = jevKey;
-				env.S1S2_RUN_DIR = join(runDir, "s1");
+				env.S1S2_RUN_DIR = join(work, "s1");
 				if (openrouterBase) env.S1S2_JEV_ENDPOINT = `${openrouterBase}/api/alpha/decisions`;
 			}
 			argv = ["--mode", "json", "--no-extensions", ...extensions, "--no-skills", "--no-prompt-templates", "--provider", provider, "--model", modelId, "--thinking", thinking, "--session-dir", sessions, "-p", prompt];
 		}
 		console.log(`${new Date().toISOString()} ${task.id} ${arm} start`);
-		const run = await runProcess(cmd, argv, tree, env, join(runDir, "events.jsonl"), join(runDir, "stderr.log"));
-		const deliverable = finalDiff(tree, runDir);
+		const run = await runAgent(cmd, argv, tree, env, join(runDir, "events.jsonl"), join(runDir, "stderr.log"));
+
+		// Bring the work back into the runner's home, then erase it from the agent's.
+		const copy = join(runDir, "work");
+		sudo(["cp", "-a", work, copy]);
+		sudo(["chown", "-R", `${runner}:${runner}`, copy]);
+		asAgent(["rm", "-rf", work]);
+		const deliverable = finalDiff(join(copy, "tree"), runDir);
 		writeFileSync(join(runDir, "final.diff"), deliverable.diff);
-		const accounting = sessionUsage(sessions);
-		// Grade in the same environment the curator validated the hidden tests in: no shims, no keys.
-		const graded = grade(tree, task, { ...env, PATH: PATH.slice(shims.length + 1), OPENROUTER_API_KEY: "", S1S2_JEV_KEY: "", PARITY_OUT: "", PARITY_VERBOSITY: "" });
+		const accounting = sessionUsage(join(copy, "sessions"));
+		const graded = grade(join(copy, "tree"), task, { HOME: process.env.HOME ?? "", PATH: "/usr/local/bin:/usr/bin:/bin", LANG: "C.UTF-8", TMPDIR: join(runDir, "tmp") });
 		let s1: unknown = null;
 		try {
-			s1 = JSON.parse(readFileSync(join(runDir, "s1", "s1s2-summary.json"), "utf8"));
+			s1 = JSON.parse(readFileSync(join(copy, "s1", "s1s2-summary.json"), "utf8"));
 		} catch {
 			// not the s1s2 arm, or the run died before shutdown
 		}
 		let parity: unknown = null;
 		try {
-			parity = JSON.parse(readFileSync(join(runDir, "parity.jsonl"), "utf8").split("\n")[0]);
+			parity = JSON.parse(readFileSync(join(copy, "parity.jsonl"), "utf8").split("\n")[0]);
 		} catch {
 			// no provider request was made
 		}
@@ -356,6 +397,6 @@ const quotaEnd = quotaUsed();
 const spendEnd = await keySpend();
 writeFileSync(
 	join(out, "vibe.json"),
-	`${JSON.stringify({ version: 1, model: `${provider}/${modelId}`, thinking, seed, arms, quotaEmail, quotaStart, quotaEnd, spendStart, spendEnd, stopped, results }, null, 2)}\n`,
+	`${JSON.stringify({ version: 1, model: `${provider}/${modelId}`, thinking, seed, arms, agentUser, quotaEmail, quotaStart, quotaEnd, spendStart, spendEnd, stopped, results }, null, 2)}\n`,
 );
 console.log(stopped ?? "complete");
