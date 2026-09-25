@@ -1,3 +1,9 @@
+# [0.1.33](https://github.com/misty-step/harness/compare/v0.1.32...v0.1.33) (2026-09-25)
+<!-- landmark:protected-release previous=v0.1.32 source=940cb6475b3e1a02b15d742b58a4bb8dbe208389ce7ffd0f04b3091f9602d9cb -->
+
+### Bug Fixes
+
+* **ws:** remove pulled evidence from the VM on down (US-025) (MIS-150) ([0eade00](https://github.com/misty-step/harness/commit/0eade0058d6fa30daa33cdb9623dff78e11792e8))
 # [0.1.32](https://github.com/misty-step/harness/compare/v0.1.31...v0.1.32) (2026-09-25)
 <!-- landmark:protected-release previous=v0.1.31 source=f160131e45f0bb887ddb0aeb9e4a8cc8b119c642b6c2ace8526196d51725f285 -->
 
