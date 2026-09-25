@@ -16,9 +16,10 @@
  * latency, provider usage, and action, never state text or credentials.
  *
  * Environment: `S1S2_MODE=off` registers nothing. `S1S2_RUN_DIR` sets the log and
- * spill directory (default: <agent dir>/s1s2/<session id>). Jev uses Pi's
- * OpenRouter credential, then `OPENROUTER_API_KEY`; with neither, System 1 stays
- * inert and says so in its log.
+ * spill directory (default: <agent dir>/s1s2/<session id>). Jev uses
+ * `S1S2_JEV_KEY`, then Pi's OpenRouter credential, then `OPENROUTER_API_KEY`; with
+ * none, System 1 stays inert and says so in its log. `S1S2_JEV_ENDPOINT` points
+ * the Decisions call at a credential-injecting proxy instead of OpenRouter.
  */
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { execFile } from "node:child_process";
@@ -145,7 +146,7 @@ export default function s1s2(pi: ExtensionAPI): void {
 		key ||= (process.env.OPENROUTER_API_KEY ?? "").trim();
 		// System 1's credential must not reach tool subprocesses unless System 2 itself runs on OpenRouter.
 		if (ctx.model?.provider !== "openrouter") delete process.env.OPENROUTER_API_KEY;
-		jev = key ? new OpenRouterJevProvider(key, JEV_MODEL) : null;
+		jev = key ? new OpenRouterJevProvider(key, JEV_MODEL, process.env.S1S2_JEV_ENDPOINT?.trim() || undefined) : null;
 		return jev;
 	}
 

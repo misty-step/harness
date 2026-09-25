@@ -34,17 +34,25 @@ const only = args.get("only")?.split(",").filter(Boolean);
 const arms = (args.get("arms") ?? "omp,s1s2,pi").split(",") as Arm[];
 const seed = Number(args.get("seed") ?? 26);
 const timeoutMs = Number(args.get("timeout-min") ?? 25) * 60_000;
-const [provider, modelId] = (args.get("model") ?? "openai-codex/gpt-6-luna").split("/", 2);
+const modelSpec = args.get("model") ?? "openai-codex/gpt-6-luna";
+const provider = modelSpec.slice(0, modelSpec.indexOf("/"));
+const modelId = modelSpec.slice(modelSpec.indexOf("/") + 1);
 const thinking = args.get("thinking") ?? "max";
+const verbosity = args.get("verbosity") ?? "";
 const quotaEmail = args.get("quota-email") ?? "";
 const quotaMax = Number(args.get("quota-max") ?? 0.95);
+// A credential-injecting proxy (exe.dev http-proxy integration) keeps the OpenRouter key off the VM.
+const openrouterBase = (args.get("openrouter-base") ?? "").replace(/\/$/, "");
+const spendLimit = Number(args.get("spend-limit") ?? 0);
 
 const here = dirname(new URL(import.meta.url).pathname);
 const s1s2Extension = resolve(here, "..", "index.ts");
 const parityExtension = resolve(here, "parity.ts");
 const piAgentDir = args.get("pi-agent-dir") ?? join(homedir(), ".local/state/s1s2-eval/pi-agent");
-const jevKey = (process.env.S1S2_JEV_KEY || process.env.OPENROUTER_API_KEY || "").trim();
-if (arms.includes("s1s2") && !jevKey) (console.error("S1S2_JEV_KEY or OPENROUTER_API_KEY is required for the s1s2 arm (Jev)"), process.exit(2));
+const PROXY_PLACEHOLDER = "injected-by-exe-proxy";
+const jevKey = openrouterBase ? PROXY_PLACEHOLDER : (process.env.S1S2_JEV_KEY || process.env.OPENROUTER_API_KEY || "").trim();
+if (arms.includes("s1s2") && !jevKey) (console.error("S1S2_JEV_KEY, OPENROUTER_API_KEY, or --openrouter-base is required for the s1s2 arm (Jev)"), process.exit(2));
+if (spendLimit > 0 && !openrouterBase) (console.error("--spend-limit needs --openrouter-base to read the key's usage"), process.exit(2));
 for (const forbidden of ["settings.json", "AGENTS.md", "extensions", "skills", "prompts"]) {
 	if (existsSync(join(piAgentDir, forbidden))) (console.error(`raw Pi agent dir must not contain ${forbidden}`), process.exit(2));
 }
@@ -112,6 +120,18 @@ function quotaUsed(): number | null {
 		const reports = (JSON.parse(result.stdout) as { reports: { metadata?: { email?: string }; limits: { label: string; amount: { usedFraction: number } }[] }[] }).reports;
 		const report = reports.find((entry) => entry.metadata?.email === quotaEmail);
 		return report?.limits.find((limit) => limit.label === "7 days")?.amount.usedFraction ?? null;
+	} catch {
+		return null;
+	}
+}
+
+/** USD the OpenRouter key has spent so far, read through the proxy; null when unreadable. */
+async function keySpend(): Promise<number | null> {
+	if (!openrouterBase) return null;
+	try {
+		const response = await fetch(`${openrouterBase}/api/v1/key`, { signal: AbortSignal.timeout(30_000) });
+		const usage = ((await response.json()) as { data?: { usage?: unknown } }).data?.usage;
+		return typeof usage === "number" ? usage : null;
 	} catch {
 		return null;
 	}
@@ -221,8 +241,11 @@ const wrapper =
 	"Leave your changes in the working tree; do not commit, push, or open pull requests. When you finish, reply with a short summary of what you changed and how you verified it.\n\nTask:\n";
 
 const quotaStart = quotaUsed();
+const spendStart = await keySpend();
+if (spendLimit > 0 && spendStart === null) (console.error("cannot read the key's spend through the proxy"), process.exit(2));
 const results: Record<string, unknown>[] = [];
 let stopped: string | null = null;
+let tasksDone = 0;
 
 outer: for (const task of tasks) {
 	const branch = `vibe-base-${task.id}`;
@@ -231,6 +254,11 @@ outer: for (const task of tasks) {
 		const used = quotaUsed();
 		if (used !== null && used >= quotaMax) {
 			stopped = `quota guard: ${quotaEmail} 7-day usage ${used} >= ${quotaMax}`;
+			break outer;
+		}
+		const spent = spendLimit > 0 ? ((await keySpend()) ?? Number.POSITIVE_INFINITY) - (spendStart ?? 0) : 0;
+		if (spendLimit > 0 && spent >= spendLimit) {
+			stopped = `spend guard: $${spent.toFixed(4)} spent >= $${spendLimit}`;
 			break outer;
 		}
 		const runDir = join(out, "runs", task.id, arm);
@@ -250,6 +278,9 @@ outer: for (const task of tasks) {
 			PATH,
 			TMPDIR: join(runDir, "tmp"),
 			PARITY_OUT: join(runDir, "parity.jsonl"),
+			...(verbosity ? { PARITY_VERBOSITY: verbosity } : {}),
+			// The proxy injects the real key; the harnesses only need a non-empty credential to call it.
+			...(openrouterBase ? { OPENROUTER_API_KEY: PROXY_PLACEHOLDER } : {}),
 		};
 		const prompt = wrapper + task.statement;
 		const sessions = join(runDir, "sessions");
@@ -266,6 +297,7 @@ outer: for (const task of tasks) {
 				// System 1 reads and then deletes this variable, so agent tool subprocesses never inherit it.
 				env.S1S2_JEV_KEY = jevKey;
 				env.S1S2_RUN_DIR = join(runDir, "s1");
+				if (openrouterBase) env.S1S2_JEV_ENDPOINT = `${openrouterBase}/api/alpha/decisions`;
 			}
 			argv = ["--mode", "json", "--no-extensions", ...extensions, "--no-skills", "--no-prompt-templates", "--provider", provider, "--model", modelId, "--thinking", thinking, "--session-dir", sessions, "-p", prompt];
 		}
@@ -275,7 +307,7 @@ outer: for (const task of tasks) {
 		writeFileSync(join(runDir, "final.diff"), deliverable.diff);
 		const accounting = sessionUsage(sessions);
 		// Grade in the same environment the curator validated the hidden tests in: no shims, no keys.
-		const graded = grade(tree, task, { ...env, PATH: PATH.slice(shims.length + 1), S1S2_JEV_KEY: "", PARITY_OUT: "" });
+		const graded = grade(tree, task, { ...env, PATH: PATH.slice(shims.length + 1), OPENROUTER_API_KEY: "", S1S2_JEV_KEY: "", PARITY_OUT: "", PARITY_VERBOSITY: "" });
 		let s1: unknown = null;
 		try {
 			s1 = JSON.parse(readFileSync(join(runDir, "s1", "s1s2-summary.json"), "utf8"));
@@ -306,11 +338,22 @@ outer: for (const task of tasks) {
 		results.push(record);
 		console.log(`${new Date().toISOString()} ${task.id} ${arm} exit=${run.exit} wall=${Math.round(run.ms / 1000)}s hidden=${graded.hiddenPass} turns=${accounting.parentTurns}`);
 	}
+	tasksDone++;
+	if (spendLimit > 0 && tasksDone < tasks.length) {
+		const spent = ((await keySpend()) ?? Number.POSITIVE_INFINITY) - (spendStart ?? 0);
+		const projected = (spent / tasksDone) * tasks.length;
+		console.log(`${new Date().toISOString()} spend so far $${spent.toFixed(4)}, projected $${projected.toFixed(2)}`);
+		if (projected > spendLimit) {
+			stopped = `spend projection: $${projected.toFixed(2)} for ${tasks.length} tasks exceeds $${spendLimit}`;
+			break;
+		}
+	}
 }
 
 const quotaEnd = quotaUsed();
+const spendEnd = await keySpend();
 writeFileSync(
 	join(out, "vibe.json"),
-	`${JSON.stringify({ version: 1, model: `${provider}/${modelId}`, thinking, seed, quotaEmail, quotaStart, quotaEnd, stopped, results }, null, 2)}\n`,
+	`${JSON.stringify({ version: 1, model: `${provider}/${modelId}`, thinking, seed, arms, quotaEmail, quotaStart, quotaEnd, spendStart, spendEnd, stopped, results }, null, 2)}\n`,
 );
 console.log(stopped ?? "complete");
