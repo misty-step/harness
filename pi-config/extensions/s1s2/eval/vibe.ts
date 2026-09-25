@@ -195,6 +195,21 @@ async function keySpend(): Promise<number | null> {
 	}
 }
 
+/**
+ * Key spend once the last run is billed. OpenRouter's usage trails requests (a $0.001 limit let
+ * a second run start), and every run makes billed calls, so wait, bounded, until it moves.
+ * Null when it never moves or cannot be read, which stops the evaluation.
+ */
+async function settledSpend(before: number | null): Promise<number | null> {
+	for (let attempt = 0; attempt < 24 && before !== null; attempt++) {
+		const now = await keySpend();
+		if (now === null) return null;
+		if (now > before) return now;
+		await new Promise((resolve) => setTimeout(resolve, 5_000));
+	}
+	return null;
+}
+
 function runAgent(cmd: string, argv: string[], cwd: string, env: Record<string, string>, stdoutPath: string, stderrPath: string) {
 	const started = performance.now();
 	const { promise, resolve: done } = Promise.withResolvers<{ exit: number | null; signal: string | null; timedOut: boolean; ms: number }>();
@@ -302,6 +317,7 @@ const wrapper =
 const spendStart = await keySpend();
 if (spendLimit > 0 && spendStart === null) fail("cannot read the key's spend through the proxy");
 const results: Record<string, unknown>[] = [];
+let spendNow = spendStart;
 let stopped: string | null = null;
 let tasksDone = 0;
 
@@ -309,7 +325,11 @@ outer: for (const task of tasks) {
 	const branch = `vibe-base-${task.id}`;
 	git(src, "branch", "-f", branch, task.base);
 	for (const arm of shuffled(arms)) {
-		const spent = spendLimit > 0 ? ((await keySpend()) ?? Number.POSITIVE_INFINITY) - (spendStart ?? 0) : 0;
+		if (spendLimit > 0 && spendNow === null) {
+			stopped = "spend guard: the key's spend could not be confirmed after the last run";
+			break outer;
+		}
+		const spent = spendLimit > 0 ? (spendNow ?? 0) - (spendStart ?? 0) : 0;
 		if (spendLimit > 0 && spent >= spendLimit) {
 			stopped = `spend guard: $${spent.toFixed(4)} spent >= $${spendLimit}`;
 			break outer;
@@ -410,10 +430,11 @@ outer: for (const task of tasks) {
 		writeFileSync(join(runDir, "run.json"), `${JSON.stringify(record, null, 2)}\n`);
 		results.push(record);
 		console.log(`${new Date().toISOString()} ${task.id} ${arm} exit=${run.exit} wall=${Math.round(run.ms / 1000)}s hidden=${graded.hiddenPass} turns=${accounting.parentTurns}`);
+		if (spendLimit > 0) spendNow = await settledSpend(spendNow);
 	}
 	tasksDone++;
-	if (spendLimit > 0 && tasksDone < tasks.length) {
-		const spent = ((await keySpend()) ?? Number.POSITIVE_INFINITY) - (spendStart ?? 0);
+	if (spendLimit > 0 && tasksDone < tasks.length && spendNow !== null) {
+		const spent = spendNow - (spendStart ?? 0);
 		const projected = (spent / tasksDone) * tasks.length;
 		console.log(`${new Date().toISOString()} spend so far $${spent.toFixed(4)}, projected $${projected.toFixed(2)}`);
 		if (projected > spendLimit) {
