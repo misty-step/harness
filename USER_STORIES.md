@@ -700,3 +700,41 @@ fallback from an R90 lookup error; no copying OMP's stored login into Pi.
 Evidence: `agent-config/bin/openrouter-key.test.ts`,
 `scripts/verify-installers`, and the real OMP/Pi calls and OpenRouter billing
 checks recorded in the PR.
+
+## US-040 Hold every application to shipping, alerting and incident response
+
+Statement: When I run an application in either org, I want the foundation
+check to require that green on the default branch ships, that production
+failures alert loudly, and that incidents end in a fix for the whole class, so
+none of the three can be waived and a missing one cannot pass as done.
+
+Criteria:
+1. WHEN an adoption record's surfaces include `ui`, `cli`, `api` or `deployed`,
+   or it has no surfaces, `foundation-check check` SHALL treat FND-REL-001,
+   FND-ALR-001 and FND-INC-001 as owed, report each one still pending as the
+   gap `ops:ship`, `ops:alert` or `ops:incident`, and fail it unless a valid
+   bootstrap baseline entry covers it.
+2. IF one of the three is dispositioned `exception`, or `not_applicable` for an
+   application, THEN `check` SHALL fail.
+3. WHEN FND-REL-001 is `satisfied`, `check` SHALL fail unless
+   `operations.ship` names the default branch and either a platform or a
+   workflow that runs on pushes to that branch (or on its successful
+   `workflow_run`) with a named ship job that waits on the gate.
+4. WHEN FND-ALR-001 is `satisfied`, `check` SHALL fail unless
+   `operations.alert` names an error-capture file that references its
+   provider, a scheduled health workflow or a named external monitor, and an
+   alert destination.
+5. WHEN FND-INC-001 is `satisfied`, `check` SHALL fail unless
+   `docs/runbook.md` has a non-empty `## Incidents` section and every
+   postmortem in `docs/postmortems/` has `## Pokayoke` and `## Follow-up`
+   sections, with a closed one linking the change that closed its class.
+6. WHEN `baseline --revision SHA` runs on an existing record, THE SYSTEM SHALL
+   re-pin its standard to that revision and add every obligation the catalog
+   gained as `pending`, leaving existing dispositions unchanged.
+
+No-gos: no exception path for the three; no lint claiming runtime practice (a
+receipt carries the controlled-failure and shipping evidence); no heuristic
+guessing of deploy commands.
+
+Evidence: `agent-config/bin/foundation-check.test.ts` (ADR-005 block);
+`docs/adr/005-operational-obligations.md`.

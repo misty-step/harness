@@ -30,11 +30,13 @@ function adoption() {
 	return {
 		schema: "foundation-adoption/1",
 		standard: {
-			id: "misty-step.foundation", version: "1.1.0", catalog_sha256: hash(catalogBytes),
+			id: "misty-step.foundation", version: catalogData.version, catalog_sha256: hash(catalogBytes),
 			source: "https://github.com/misty-step/harness/blob/1111111111111111111111111111111111111111/agent-config/skills/foundation/foundation-standard-v1.json",
 			revision: "1111111111111111111111111111111111111111",
 		},
 		capabilities: ["User journey"],
+		// A library owes no ADR-005 operational obligations; tests that need an application say so.
+		surfaces: ["library"],
 		dispositions: Object.fromEntries([...catalogData.obligations, ...catalogData.approved_defaults].map(({ id }: { id: string }) => [id, { status: "pending", missing: "walk", owner: "team", next: "run walk" }])),
 	};
 }
@@ -282,11 +284,11 @@ describe("foundation-check ratchet (US-027)", () => {
 		exec(repo, ["rm", "-q", "foundation.json", "DESIGN.md", "features/README.md", "features/journey.md"]);
 		commit(repo, "strip");
 		const revision = "1".repeat(40);
-		const dry = cli(repo, "baseline", "--owner", "team", "--revision", revision);
+		const dry = cli(repo, "baseline", "--owner", "team", "--revision", revision, "--surfaces", "library");
 		expect(dry.status).toBe(0);
 		expect(dry.output.gaps).toEqual(["doc:DESIGN.md", "map:US-001", "map:index", "walk:US-001"].map((gap) => `${gap} (owner team, expires ${day(30)})`));
 		expect(existsSync(join(repo, "foundation.json"))).toBe(false);
-		expect(cli(repo, "baseline", "--owner", "team", "--revision", revision, "--write").output.wrote).toBe(join(repo, "foundation.json"));
+		expect(cli(repo, "baseline", "--owner", "team", "--revision", revision, "--surfaces", "library", "--write").output.wrote).toBe(join(repo, "foundation.json"));
 		const adopted = cli(repo, "check");
 		expect(adopted.status).toBe(0);
 		expect(adopted.output.baselined).toHaveLength(3);
@@ -456,6 +458,101 @@ describe("foundation-check ratchet (US-027)", () => {
 		const errors = cli(mapped, "check").output.errors;
 		expect(errors).toContain("[map:features/journey.md:source-line] features/journey.md: missing Source: line");
 		expect(errors).toContain("baseline map:features/journey.md:heading:gotchas: the gap is fixed; remove the entry");
+	});
+});
+
+describe("foundation-check operational obligations (ADR-005, US-040)", () => {
+	const ops = ["FND-REL-001", "FND-ALR-001", "FND-INC-001"];
+	const edit = (repo: string, change: (adoption: Record<string, any>) => void) => {
+		const adoption = JSON.parse(readFileSync(join(repo, "foundation.json"), "utf8"));
+		change(adoption);
+		put(repo, "foundation.json", `${JSON.stringify(adoption, null, 2)}\n`);
+	};
+	const errors = (repo: string) => cli(repo, "check").output.errors.join("\n");
+
+	test("an application owes all three: pending is a timed gap, and neither a waiver nor not_applicable passes", () => {
+		const repo = fixture("ops-pending");
+		edit(repo, (adoption) => { adoption.surfaces = ["ui", "deployed"]; });
+		const pending = cli(repo, "check");
+		expect(pending.status).toBe(1);
+		for (const id of ops) expect(pending.output.errors.join("\n")).toContain(`${id}: not yet met by this application`);
+		expect(cli(repo, "baseline", "--owner", "team", "--write").status).toBe(0);
+		const baselined = cli(repo, "check");
+		expect(baselined.status).toBe(0);
+		for (const gap of ["ops:ship", "ops:alert", "ops:incident"]) expect(baselined.output.baselined!.join("\n")).toContain(`[${gap}]`);
+		edit(repo, (adoption) => {
+			adoption.dispositions["FND-REL-001"] = { status: "exception", decision: "approvals/rel.json", expires: day(10) };
+			adoption.dispositions["FND-ALR-001"] = { status: "not_applicable", decision: "approvals/alr.json" };
+		});
+		expect(errors(repo)).toContain("FND-REL-001: no exception is allowed");
+		expect(errors(repo)).toContain("FND-ALR-001: applies to every application");
+		// A repository without surfaces is treated as an application, so it cannot opt out either.
+		edit(repo, (adoption) => { delete adoption.surfaces; });
+		expect(errors(repo)).toContain("FND-ALR-001: applies to every application");
+		// A library is not an application: not_applicable holds and nothing is owed.
+		edit(repo, (adoption) => {
+			adoption.surfaces = ["library"];
+			for (const id of ops) adoption.dispositions[id] = { status: "not_applicable", decision: "approvals/library.json" };
+			delete adoption.baseline;
+			delete adoption.mode;
+		});
+		expect(cli(repo, "check").status).toBe(0);
+	});
+
+	test("a satisfied claim must hold up: a gated ship job, named alerting, and postmortems that link their class fix", () => {
+		const repo = fixture("ops-satisfied");
+		const deploy = (on: string, job: string) => put(repo, ".github/workflows/deploy.yml", `name: deploy\non:\n${on}\njobs:\n  test:\n    runs-on: ubuntu-latest\n    steps: [{ run: "true" }]\n  deploy:\n    runs-on: ubuntu-latest\n${job}    steps: [{ run: "true" }]\n`);
+		deploy("  push:\n    branches: [main]", "    needs: [test]\n");
+		put(repo, "src/instrument.ts", "import * as Sentry from \"@sentry/node\";\nSentry.init({ release: process.env.RELEASE });\n");
+		put(repo, ".github/workflows/health.yml", "name: health\non:\n  schedule:\n    - cron: \"*/5 * * * *\"\njobs:\n  probe:\n    runs-on: ubuntu-latest\n    steps: [{ run: \"curl -f https://example.test/health\" }]\n");
+		put(repo, "docs/runbook.md", "# Runbook\n\n## Incidents\n\nSentry and the health probe page Discord #alerts; the on-call agent owns the incident and writes docs/postmortems/.\n");
+		const postmortem = (status: string, followUp: string) => put(repo, "docs/postmortems/2026-09-01-stale-cache.md",
+			`# Postmortem: stale cache\n\n- **Status:** ${status}\n\n## Summary\n\nx\n\n## Pokayoke\n\nThe cache key now includes the release.\n\n## Follow-up\n\n${followUp}\n`);
+		postmortem("closed", "Closed by #42 with a regression test.");
+		edit(repo, (adoption) => {
+			adoption.surfaces = ["ui", "deployed"];
+			for (const id of ops) adoption.dispositions[id] = { status: "satisfied", receipt: `receipts/${id}.json` };
+			adoption.operations = {
+				ship: { branch: "main", workflow: ".github/workflows/deploy.yml", job: "deploy" },
+				alert: { errors: { provider: "sentry", init: "src/instrument.ts" }, health: { monitor: ".github/workflows/health.yml" }, destination: "Discord #alerts" },
+			};
+		});
+		expect(cli(repo, "check").output.errors).toEqual([]);
+		deploy("  workflow_dispatch:", "    needs: [test]\n");
+		expect(errors(repo)).toContain("FND-REL-001: satisfied, but .github/workflows/deploy.yml does not run on pushes to main");
+		deploy("  push:\n    branches: [main]", "");
+		expect(errors(repo)).toContain("FND-REL-001: satisfied, but job deploy ships without waiting on the gate");
+		deploy("  workflow_run:\n    workflows: [ci]\n    types: [completed]\n    branches: [main]", "    if: github.event.workflow_run.conclusion == 'success'\n");
+		expect(cli(repo, "check").output.errors).toEqual([]);
+		put(repo, "src/instrument.ts", "console.error('no remote capture');\n");
+		expect(errors(repo)).toContain("FND-ALR-001: satisfied, but src/instrument.ts does not reference sentry");
+		put(repo, "src/instrument.ts", "import * as Sentry from \"@sentry/node\";\n");
+		put(repo, ".github/workflows/health.yml", "name: health\non:\n  push:\njobs:\n  probe:\n    runs-on: ubuntu-latest\n    steps: [{ run: \"true\" }]\n");
+		expect(errors(repo)).toContain("FND-ALR-001: satisfied, but .github/workflows/health.yml does not run on a schedule");
+		edit(repo, (adoption) => { adoption.operations.alert.health = { external: "uptime monitor linejam-prod" }; });
+		postmortem("closed", "We will be more careful.");
+		expect(errors(repo)).toContain("FND-INC-001: satisfied, but docs/postmortems/2026-09-01-stale-cache.md: a closed postmortem must link the change");
+		postmortem("open", "Fix in progress.");
+		put(repo, "docs/runbook.md", "# Runbook\n\n## Release\n\nShip it.\n");
+		expect(cli(repo, "check").output.errors).toEqual(["FND-INC-001: satisfied, but docs/runbook.md needs a non-empty ## Incidents section"]);
+		// A platform deploy (a git integration) proves itself in the receipt rather than a workflow file.
+		edit(repo, (adoption) => { adoption.operations.ship = { branch: "main", platform: "vercel" }; });
+		rmSync(join(repo, ".github/workflows/deploy.yml"));
+		expect(cli(repo, "check").output.errors).toEqual(["FND-INC-001: satisfied, but docs/runbook.md needs a non-empty ## Incidents section"]);
+	});
+
+	test("baseline re-pins an existing record and starts obligations the catalog gained as pending", () => {
+		const repo = fixture("ops-repin");
+		edit(repo, (adoption) => { for (const id of ops) delete adoption.dispositions[id]; });
+		expect(errors(repo)).toContain("foundation.json: missing or invalid FND-REL-001");
+		const revision = "2".repeat(40);
+		expect(cli(repo, "baseline", "--owner", "team", "--revision", revision, "--write").status).toBe(0);
+		const repinned = JSON.parse(readFileSync(join(repo, "foundation.json"), "utf8"));
+		expect(repinned.standard.revision).toBe(revision);
+		expect(repinned.standard.source).toContain(revision);
+		for (const id of ops) expect(repinned.dispositions[id].status).toBe("pending");
+		expect(repinned.dispositions["FND-CHG-001"]).toEqual(adoption().dispositions["FND-CHG-001"]);
+		expect(cli(repo, "check").status).toBe(0);
 	});
 });
 

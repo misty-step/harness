@@ -1,0 +1,152 @@
+# ADR-005: Every application ships on green, alerts loudly, and closes incident classes
+
+Status: Accepted 2026-09-25 (MIS-150). Operator directive, relayed by Kaylee:
+"a non-negotiable foundation standard, without exception, for every application
+we work on in both orgs." This record adds three obligations to the Foundation
+Standard catalog (version 1.2.0) and to `foundation-check`. It amends ADR-003's
+enforcement (these three take no exception) and builds on ADR-004's `surfaces`
+and `deployed` runbook. Rollout waves are a separate proposal.
+
+## Context
+
+The directive has three parts:
+
+1. **Continuous deployment.** Green on main ships. CI, automated tests,
+   verification and agentic QA are strong enough to deploy at 5pm on a Friday.
+2. **Deep Sentry integration**, or an equivalent error-logging and health-check
+   system, so production incidents alert loudly.
+3. **Incident response** that ends in a postmortem and a fix that rules out the
+   whole class of error.
+
+What the standard already had:
+
+- FND-OBS-001, FND-PRF-001 and FND-USE-001 cover structured diagnostics, proof
+  of capture and owned alerts, but FND-USE-001 applies only when a signal "is
+  claimed", and every obligation allows an `exception`.
+- FND-DEF-SENTRY-001 makes Sentry the default tool without requiring anyone to
+  use it.
+- FND-CHG-001/002 and FND-TRN-001 cover change paths and transitions, not
+  shipping cadence.
+- ADR-004 gives a `deployed` repository a runbook (Release, Rollback, Recover)
+  and says `docs/postmortems/` appears at the first incident. It removed the
+  per-repository postmortem template; the template lives in the pokayoke skill.
+
+The 2026-09-25 census of the 48 active repositories found no application that
+meets any of the three in full (proposal:
+`~/.cache/research-briefs/2026-09-25/operational-obligations-census.md`).
+Examples it rests on:
+
+- Most applications deploy by hand (wrangler, a dispatch-only workflow, a
+  release PR someone must merge); several deploy through a platform git
+  integration that does not wait for CI.
+- Canary, the in-house equivalent, is archived and its hostnames do not resolve.
+  Applications still configured for it drop their errors while their health
+  endpoints report capture as "configured".
+- Every Sentry alert workflow in both organizations notifies by email only.
+- Postmortems exist in a handful of repositories, mostly outside
+  `docs/postmortems/`, and few link the change that closed the class.
+
+## Decision
+
+### Three obligations
+
+| Id | Title | Owed by every application |
+| --- | --- | --- |
+| FND-REL-001 | Continuous deployment | Every push to the default branch that passes the gate ships automatically, through a job that waits on the gate; the gate (CI, tests of core journeys, story walks, agentic QA, then a readback of what shipped) is strong enough for a Friday 5pm deploy; rollback is exercised. |
+| FND-ALR-001 | Loud production alerting | Remote error capture with release and environment (Sentry by default, or an approved equivalent that captures errors, checks health and raises incidents); an outside, scheduled health check; alerts to a destination someone watches, proven by a controlled failure. |
+| FND-INC-001 | Incident response closes the class | The runbook's `## Incidents` section turns an alert into an owned incident; every incident ends in a postmortem from the pokayoke template under `docs/postmortems/`; a closed postmortem links the structural change that rules out its class, with a regression check. |
+
+The catalog (`agent-config/skills/foundation/foundation-standard-v1.json`) holds
+the normative fields; `foundation-standard-v1.md` explains them.
+
+### Applicability: every application
+
+An application is a repository whose `surfaces` (ADR-004's vocabulary) include
+`ui`, `cli`, `api` or `deployed`: it changes a live system or ships something
+people run. Libraries, content vaults and fixtures are not applications. A
+record without `surfaces` is treated as an application, so opting out takes an
+explicit, reviewable declaration. This change adds `surfaces` to the adoption
+record now; ADR-004 stage 1 adds the document checks keyed off it.
+
+For a released artifact without a live service (a CLI, a desktop app, an
+extension), "ships" means an automatic release and "health" means crash and
+error reports from real installs.
+
+### No exceptions
+
+`foundation-check` rejects `exception` for these three, and rejects
+`not_applicable` for an application. The ratchet is the only way to be late.
+
+### Enforcement through the ratchet
+
+- **Pending is a gap.** For an application, each of the three that is not
+  `satisfied` is the gap `ops:ship`, `ops:alert` or `ops:incident`. In enforced
+  mode it fails; in bootstrap mode it needs a baseline entry, at most 30 days
+  out, and an extension needs the designated reviewer (ADR-003).
+- **Satisfied must hold up.** The checker verifies the repository's side of each
+  claim; runtime practice lives in the receipt:
+  - FND-REL-001: `operations.ship` names the default branch and either a
+    platform (a git integration, proved in the receipt) or a workflow that runs
+    on pushes to that branch, or on its successful `workflow_run`, with a named
+    job that waits on the gate (`needs`, or the `workflow_run` success
+    condition).
+  - FND-ALR-001: `operations.alert` names the file that initialises error
+    capture (it must reference the provider), a scheduled health workflow or a
+    named external monitor, and the alert destination.
+  - FND-INC-001: `docs/runbook.md` has a non-empty `## Incidents` section, and
+    every postmortem in `docs/postmortems/` has `## Pokayoke` and
+    `## Follow-up`; unless its status is `open`, the follow-up links the change
+    that closed the class.
+- **The receipt carries practice:** recent green commits reaching production
+  without hand steps, a rollback drill, a controlled failure whose alert was
+  seen and handled, and the regression check a postmortem cites. A lint cannot
+  prove Friday confidence, so the checker never claims it.
+
+### Adoption record shape
+
+```json
+{
+  "surfaces": ["ui", "deployed"],
+  "operations": {
+    "ship": { "branch": "main", "workflow": ".github/workflows/deploy.yml", "job": "deploy" },
+    "alert": {
+      "errors": { "provider": "sentry", "init": "src/instrument.ts" },
+      "health": { "monitor": ".github/workflows/health.yml" },
+      "destination": "Discord #alerts"
+    }
+  }
+}
+```
+
+`ship` may instead be `{ "branch": "main", "platform": "vercel" }`, and
+`health` may be `{ "external": "<named monitor>" }`.
+
+### Pin bumps
+
+`foundation-check baseline --revision SHA` on an existing record re-pins the
+standard and adds every obligation the catalog gained as `pending`, so a pin
+bump records the three new gaps in one command. Because the baseline grows, the
+pin-bump PR carries an extension record for the designated reviewer.
+
+## Consequences
+
+- Every adopted repository fails its next pin bump until the three gaps are
+  baselined or met; the rollout proposal sequences that.
+- Structural checks prove shape, not practice. A dishonest `satisfied` with a
+  well-formed `operations` block would pass the lint; the receipt and the
+  review are the guard, as for every other `satisfied` disposition.
+- A platform deploy that does not wait on CI can only be `satisfied` if the
+  receipt shows the platform gates on the checks; otherwise it stays a gap.
+- Email-only Sentry alerts are not loud on their own; the destination must be
+  one someone watches, which the controlled-failure receipt shows.
+- Tach (`r90group/agent-usage-telemetry`) is writing its own plan; its row in
+  the census defers to it.
+
+## Alternatives rejected
+
+- **Fold the three into FND-OBS/USE/CHG.** They allow exceptions and apply only
+  when a capability is claimed; the directive is unconditional.
+- **Amend ADR-003.** ADR-003 owns checks and cadence; changes to the standard's
+  content follow ADR-004's pattern of a new record amending the catalog.
+- **Guess deploys from workflow text** (grep for `wrangler deploy`). Declarations
+  verified against the workflow file are deterministic; guesses are not.

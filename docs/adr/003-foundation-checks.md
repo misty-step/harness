@@ -31,6 +31,7 @@ at the checkout, never with the checkout as Bun's working directory: Bun loads a
 | Verification surface (FND-WS-001) | A verify skill with Launch/Doctor/Drive/Evidence/Cleanup; a credential-free `.exe/setup.sh`; a walk runner that emits receipts. Proven by the walk jobs booting the app, not by file presence. | `check` + walk jobs | required |
 | Story-walk evidence (FND-WLK-001) | For stories a PR affects: a same-job receipt bound to HEAD and its tree, every numbered criterion of each story passing, artifacts matching digests, nothing `unwalked` | `affected`, repo walk runner, `receipt` | required |
 | Full walk | Every live story on master | nightly workflow | owned: opens or updates one issue on failure |
+| Operations (FND-REL-001, FND-ALR-001, FND-INC-001) | Added by [ADR-005](005-operational-obligations.md): every application ships on green, alerts loudly and closes incident classes, with no exception. Each one still pending is the gap `ops:ship`, `ops:alert` or `ops:incident`; a `satisfied` claim must name its ship job, alerting and runbook, which the checker verifies. | `foundation-check check` | required |
 
 ## Cadence
 
