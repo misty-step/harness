@@ -144,16 +144,18 @@ Package: [`pi-config/extensions/s1s2/`](../pi-config/extensions/s1s2/)
 | `index.ts` | Hooks, ledger, and decision log |
 | `questions.ts` | Every Jev question, with its thresholds beside it |
 | `sensors.ts` | Deterministic candidate, chunking, check-discovery, and fingerprint code |
-| `engine.ts` | Shim to the shared `agent-config/system-one/engine.ts` |
 | `run.sh` | Headless single-task launcher |
+| `s1s2.test.ts` | US-029 contracts: fail-open, inert mode, triage and check safety, credential masking, and bounded authority |
 
-Jev calls go through the existing engine: `OpenRouterJevProvider`, pinned to
+Jev calls go through the existing shared engine: `OpenRouterJevProvider`, pinned to
 `typesafe/jev-1.13`. Its credential comes from Pi's OpenRouter auth or from
-`OPENROUTER_API_KEY`. The engine now also returns the token usage and cost that
-the provider reports, which it previously dropped, so System 1 cost is measured
-rather than estimated. The package is not deployed to the daily Pi profile. It
-runs only through `run.sh` or an explicit `pi --no-extensions -e …`.
-`S1S2_MODE=off` loads the extension inert.
+`OPENROUTER_API_KEY`. Every state passes through the shared `redactText` before it
+is sent. The engine now also returns the token usage and cost that the provider
+reports, which it previously dropped, so System 1 cost is measured rather than
+estimated. Edits are detected from the working-tree fingerprint, not from tool
+names, because models often patch files through `bash`. The package is not
+deployed to the daily Pi profile. It runs only through `run.sh` or an explicit
+`pi --no-extensions -e …`. `S1S2_MODE=off` loads the extension inert.
 
 Smoke evidence from the real task end to end on exe.dev:
 [s1s2-smoke-2026-09-25.md](measurements/s1s2-smoke-2026-09-25.md).

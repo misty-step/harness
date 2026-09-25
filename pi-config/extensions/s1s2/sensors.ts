@@ -357,9 +357,29 @@ export function renderTriage(plan: TriagePlan, keep: ReadonlySet<string>, fullOu
 export type ActionKind = "edit" | "check" | "explore" | "other";
 export type Action = { turn: number; sig: string; summary: string; ok: boolean; kind: ActionKind };
 
-const CHECK_COMMAND =
-	/\b(test|tests|vitest|jest|pytest|mocha|tsc|typecheck|type-check|lint|eslint|oxlint|clippy|verify|check)\b|cargo (test|check|clippy)|go (test|vet)|bin\/gate/;
+/** A segment that invokes a known test or check runner as its command, not one that merely mentions a word. */
+const CHECK_RUNNER =
+	/^(?:(?:npx|bunx|pnpm exec|pnpm dlx|yarn dlx)\s+)?(?:bun test|vitest|jest|mocha|pytest|python3? -m pytest|tsc|eslint|oxlint|ruff|mypy|cargo (?:test|check|clippy|nextest)|go (?:test|vet)|deno test|make (?:test|check)|(?:\.\/)?scripts\/(?:verify|check|test)|(?:\.\/)?bin\/(?:gate|check)|(?:npm|pnpm|yarn|bun) (?:run )?(?:test|tests|check|checks|typecheck|type-check|lint|verify|ci)(?::[\w:.-]+)?)(?:\s|$)/;
 const EXPLORE_COMMAND = /^\s*(rg|grep|git (grep|log|show|diff|status|blame)|find|ls|cat|head|tail|sed -n|wc|tree|fd)\b/;
+
+/**
+ * True only when the command's exit status is the verdict of a check: every
+ * `&&` segment is a `cd`, or a discovered check or known runner (after env
+ * assignments and `timeout`). Pipes, `;`, `||`, and backgrounding make the
+ * status belong to something else, so they never count.
+ */
+function isVerifyingCommand(command: string, checks: readonly CheckCandidate[]): boolean {
+	const unredirected = command.replace(/\d?>&\d/g, "");
+	if (/[|;&\n]/.test(unredirected.replaceAll("&&", ""))) return false;
+	let verifies = false;
+	for (const raw of unredirected.split("&&")) {
+		const segment = raw.trim().replace(/^(?:\w+=\S*\s+)*(?:timeout\s+\d+[smh]?\s+)?/, "");
+		if (/^cd\s+\S+$/.test(segment)) continue;
+		if (!checks.some((check) => segment === check.command) && !CHECK_RUNNER.test(segment)) return false;
+		verifies = true;
+	}
+	return verifies;
+}
 
 /** Normalized identity, readable summary, and kind of one tool call. */
 export function describeAction(tool: string, input: unknown, checks: readonly CheckCandidate[]): Omit<Action, "turn" | "ok"> {
@@ -368,8 +388,8 @@ export function describeAction(tool: string, input: unknown, checks: readonly Ch
 	const sig = createHash("sha1").update(tool).update(JSON.stringify(fields)).digest("hex").slice(0, 12);
 	if (tool === "bash") {
 		const command = field("command").replace(/\s+/g, " ").trim();
-		const isCheck = checks.some((check) => command.includes(check.command)) || CHECK_COMMAND.test(command);
-		return { sig, summary: `bash: ${command.slice(0, 160)}`, kind: isCheck ? "check" : EXPLORE_COMMAND.test(command) ? "explore" : "other" };
+		const kind = isVerifyingCommand(command, checks) ? "check" : EXPLORE_COMMAND.test(command) ? "explore" : "other";
+		return { sig, summary: `bash: ${command.slice(0, 160)}`, kind };
 	}
 	if (tool === "edit" || tool === "write") return { sig, summary: `${tool}: ${field("path")}`, kind: "edit" };
 	if (["read", "grep", "find", "ls"].includes(tool)) {

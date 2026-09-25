@@ -5,8 +5,12 @@
  *
  * Thresholds are v0 starting points chosen by the cost of being wrong, not
  * tuned values. They are frozen after the evaluation pilot (US-029).
+ *
+ * Every text field of every state passes through the shared `redactText`, which
+ * masks credential shapes before clipping (skill://system-one: no secrets in state).
  */
-import type { Answer, Question } from "./engine.ts";
+import { redactText } from "../../../agent-config/system-one/continuation.ts";
+import type { Answer, Question } from "../../../agent-config/system-one/engine.ts";
 import type { Candidate, CheckCandidate, Chunk, MonitorFacts } from "./sensors.ts";
 
 export const STATE_MAX_CHARS = 60_000; // OpenRouter's Jev route documents a 32k-token context.
@@ -39,11 +43,11 @@ export const BRIEF = {
 
 export function briefState(task: string, candidates: readonly Candidate[]) {
 	return {
-		task: task.slice(0, BRIEF.taskChars),
+		task: redactText(task, BRIEF.taskChars),
 		candidates: candidates.map((candidate) => ({
 			path: candidate.path,
-			matched_terms: candidate.terms,
-			sample_lines: candidate.hits,
+			matched_terms: candidate.terms.map((term) => redactText(term, 80)),
+			sample_lines: candidate.hits.map((hit) => redactText(hit, 160)),
 		})),
 	};
 }
@@ -128,10 +132,10 @@ export function triageBatches(chunks: readonly Chunk[]): Chunk[][] | null {
 
 export function triageState(task: string, command: string, currentStep: string, chunks: readonly Chunk[]) {
 	return {
-		task: task.slice(0, 1500),
-		command: command.slice(0, 400),
-		current_step: currentStep.slice(-600),
-		chunks: chunks.map((chunk) => ({ lines: `${chunk.start + 1}-${chunk.end}`, text: chunk.text })),
+		task: redactText(task, 1500),
+		command: redactText(command, 400),
+		current_step: redactText(currentStep, currentStep.length).slice(-600),
+		chunks: chunks.map((chunk) => ({ lines: `${chunk.start + 1}-${chunk.end}`, text: redactText(chunk.text, chunk.text.length) })),
 	};
 }
 
@@ -200,9 +204,9 @@ export function monitorTriggered(facts: MonitorFacts): boolean {
 
 export function monitorState(task: string, turn: number, actions: readonly { turn: number; summary: string; ok: boolean }[], facts: MonitorFacts) {
 	return {
-		task: task.slice(0, 1500),
+		task: redactText(task, 1500),
 		turn,
-		recent_actions: actions.slice(-12).map((action) => ({ turn: action.turn, action: action.summary, ok: action.ok })),
+		recent_actions: actions.slice(-12).map((action) => ({ turn: action.turn, action: redactText(action.summary, 200), ok: action.ok })),
 		facts: {
 			identical_failed_calls_in_last_8: facts.repeatedFailures,
 			consecutive_failed_calls: facts.errorStreak,
@@ -265,8 +269,8 @@ export function doneState(
 	checks: readonly CheckCandidate[],
 ) {
 	return {
-		task: task.slice(0, 2000),
-		final_message: finalMessage.slice(-1500),
+		task: redactText(task, 2000),
+		final_message: redactText(finalMessage, finalMessage.length).slice(-1500),
 		changed_files: changed.slice(0, 30),
 		diff_stat: stat,
 		check_passed_on_current_changes: checkPassed,

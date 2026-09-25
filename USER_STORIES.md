@@ -529,10 +529,11 @@ Criteria:
    migrate, or serve, and SHALL request at most two continuations per prompt.
 4. THE SYSTEM SHALL NOT block or rewrite a model tool call, SHALL NOT generate
    text through Jev, and SHALL send at most three monitor notes per prompt.
-5. THE SYSTEM SHALL record every System 1 call with its battery, answers,
-   latency, provider-reported usage, and action, without state text or
-   credentials, and SHALL leave usage absent rather than zero when the provider
-   omits it.
+5. THE SYSTEM SHALL mask credential-shaped text in every state sent to Jev,
+   and SHALL record each System 1 call's battery, answers, latency,
+   provider-reported usage, and action, naming targets only by repository file
+   paths and repository-declared check commands, never by prompt, transcript,
+   or tool-output text; usage the provider omits SHALL stay absent, not zero.
 6. WHERE `S1S2_MODE=off` is set, THE SYSTEM SHALL register no System 1 behavior.
 
 No-gos: no second generative model; no deployment into the daily Pi profile;

@@ -25,7 +25,7 @@ import { execFile } from "node:child_process";
 import { appendFileSync, mkdirSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import { OpenRouterJevProvider, SystemOneProviderError, type Answer, type ProviderUsage, type Question } from "./engine.ts";
+import { OpenRouterJevProvider, SystemOneProviderError, type Answer, type ProviderUsage, type Question } from "../../../agent-config/system-one/engine.ts";
 import * as Q from "./questions.ts";
 import * as S from "./sensors.ts";
 
@@ -94,6 +94,7 @@ export default function s1s2(pi: ExtensionAPI): void {
 	let checks: S.CheckCandidate[] = [];
 	let lastAssistantText = "";
 	let verifiedFingerprint: string | null = null;
+	let worktreeFingerprint: string | null = null;
 	let lastFailedCheck = "";
 	let notes = 0;
 	let lastNoteTurn = Number.NEGATIVE_INFINITY;
@@ -108,7 +109,7 @@ export default function s1s2(pi: ExtensionAPI): void {
 		inputTokens: 0,
 		outputTokens: 0,
 		costUsd: 0,
-		callsWithoutUsage: 0,
+		callsWithoutCost: 0,
 		actions: {} as Record<string, number>,
 	};
 
@@ -161,8 +162,8 @@ export default function s1s2(pi: ExtensionAPI): void {
 				totals.inputTokens += call.usage.inputTokens;
 				totals.outputTokens += call.usage.outputTokens;
 				if (call.usage.costUsd !== undefined) totals.costUsd += call.usage.costUsd;
-				else totals.callsWithoutUsage++;
-			} else totals.callsWithoutUsage++;
+				else totals.callsWithoutCost++;
+			} else totals.callsWithoutCost++;
 			return call;
 		} catch (error) {
 			const latencyMs = Math.round(performance.now() - started);
@@ -222,6 +223,7 @@ export default function s1s2(pi: ExtensionAPI): void {
 		remindedUnverified = false;
 		lastFailedCheck = "";
 		verifiedFingerprint = null;
+		worktreeFingerprint = S.diffFingerprint(ctx.cwd);
 		if (!(await provider(ctx))) {
 			record({ battery: "brief", action: "disabled", reason: "no_key" });
 			return;
@@ -265,9 +267,19 @@ export default function s1s2(pi: ExtensionAPI): void {
 	// Ledger for every result; triage for long bash output.
 	pi.on("tool_result", async (event, ctx) => {
 		const described = S.describeAction(event.toolName, event.input, checks);
-		actions.push({ ...described, turn, ok: !event.isError });
-		if (described.kind === "check" && !event.isError) verifiedFingerprint = S.diffFingerprint(ctx.cwd);
-		if (event.toolName !== "bash" || !jev) return;
+		let kind = described.kind;
+		if (event.toolName === "bash" || kind === "edit") {
+			// Any tool can edit (models often patch files through bash), so the worktree decides what an edit is.
+			const fingerprint = S.diffFingerprint(ctx.cwd);
+			if (fingerprint !== null && fingerprint !== worktreeFingerprint) {
+				kind = "edit";
+				worktreeFingerprint = fingerprint;
+			}
+			if (described.kind === "check" && !event.isError) verifiedFingerprint = fingerprint;
+		}
+		actions.push({ ...described, kind, turn, ok: !event.isError });
+		// Without a run directory there is nowhere outside the repository to save full output: fail open.
+		if (event.toolName !== "bash" || !jev || !runDir) return;
 		const text = textOf(event.content);
 		const plan = S.planTriage(text);
 		if (!plan) return;
@@ -386,14 +398,16 @@ export default function s1s2(pi: ExtensionAPI): void {
 			return;
 		}
 		lastFailedCheck = attempt;
-		const spill = join(runDir, "spill", `done-check-${continuations + 1}.txt`);
 		let evidence = result.output.slice(-Q.DONE.evidenceChars);
-		try {
-			writeFileSync(spill, result.output);
-			const plan = S.planTriage(result.output);
-			if (plan) evidence = S.renderTriage(plan, new Set(), spill).text.slice(-Q.DONE.evidenceChars);
-		} catch {
-			// evidence stays the output tail
+		if (runDir) {
+			const spill = join(runDir, "spill", `done-check-${continuations + 1}.txt`);
+			try {
+				writeFileSync(spill, result.output);
+				const plan = S.planTriage(result.output);
+				if (plan) evidence = S.renderTriage(plan, new Set(), spill).text.slice(-Q.DONE.evidenceChars);
+			} catch {
+				// evidence stays the output tail
+			}
 		}
 		return continueWith(
 			`S1: I ran \`${pick.check.command}\` after your last change and it failed (exit ${result.exit}).\n\n${evidence}\n\nFix the failure. If it predates your change or is unrelated to the task, say so and stop.`,
