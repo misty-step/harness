@@ -1,13 +1,17 @@
 # Foundation review gate (ADR-003 Review authority, US-027).
 # Copy to .github/workflows/foundation-review.yml and set HARNESS_SHA to the
-# harness revision the repository's foundation job pins. A review event re-runs
-# the gate, so an approval turns it green without a new push.
+# harness revision the repository's foundation job pins.
+#
+# pull_request_target runs this file as it is on the base branch, so a PR cannot
+# replace the gate that judges it. The PR's commits are checked out only as data:
+# nothing from them is executed, and Bun starts outside the checkout. Review
+# submissions cannot trigger pull_request_target, so after approving, the agent
+# reviewer adds any label to re-run the gate; the label itself grants nothing.
 name: foundation-review
 
 on:
-  pull_request:
-  pull_request_review:
-    types: [submitted, dismissed]
+  pull_request_target:
+    types: [opened, synchronize, reopened, labeled]
 
 permissions:
   contents: read
@@ -23,6 +27,7 @@ jobs:
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
+          ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 0
           persist-credentials: false
       - name: Fetch pinned foundation checker and Bun

@@ -95,7 +95,9 @@ expiry). The operator delegated both to an agent reviewer on 2026-09-25.
   escalation, because agent sessions also act under the operator's GitHub account.
 - **Gate.** `foundation-check review --pr N` runs as the `foundation-review`
   workflow (template: `agent-config/skills/foundation/foundation-review.yml`)
-  on `pull_request` and `pull_request_review` events. It reads the PR's base,
+  on `pull_request_target`, so the base branch's copy of the gate judges every PR
+  and a PR cannot replace it; the PR's commits are read as data, never run.
+  After approving, the agent reviewer adds a label to re-run it. It reads the PR's base,
   head, author and reviews through the GitHub API, decides from the PR's own
   revisions whether review is needed, and passes at once when it is not.
 - **Designated reviewers (2026-09-25).** misty-step: `kaylee-agent[bot]` (App

@@ -85,7 +85,8 @@ into the checker (misty-step: `kaylee-agent[bot]`), or, after that reviewer's
 approval given later. Copy
 [`skills/foundation/foundation-review.yml`](skills/foundation/foundation-review.yml)
 into a repository's workflows and pin the same harness revision as its
-`foundation` job.
+`foundation` job. It runs on `pull_request_target`, so the base branch's copy of
+the gate judges each PR; after approving, the reviewer adds a label to re-run it.
 
 ## Agent audio sandbox (US-026)
 
