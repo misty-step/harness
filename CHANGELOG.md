@@ -1,3 +1,9 @@
+# [0.1.36](https://github.com/misty-step/harness/compare/v0.1.35...v0.1.36) (2026-09-25)
+<!-- landmark:protected-release previous=v0.1.35 source=4de33f2345b820bff99d19336502a39330635bee9cc85c667048b2b7e48390c5 -->
+
+### Bug Fixes
+
+* **omp:** try Opus before Grok when a Codex session fails over (US-014) (MIS-150) ([e2f7fbc](https://github.com/misty-step/harness/commit/e2f7fbcdb0a0a2674827841ec63f4efcf0b66fe5))
 # [0.1.35](https://github.com/misty-step/harness/compare/v0.1.34...v0.1.35) (2026-09-25)
 <!-- landmark:protected-release previous=v0.1.34 source=cd28bac5e1ce9d623d42c5aaecf9cb2539b4ee99136bec0ef02fcc17225a13f8 -->
 
