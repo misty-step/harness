@@ -73,11 +73,12 @@ OMP_INSTALL_COMPONENTS=config ./install
 OMP_INSTALL_COMPONENTS=agents ./install
 OMP_INSTALL_COMPONENTS=secrets ./install
 OMP_INSTALL_COMPONENTS=mcp ./install
+OMP_INSTALL_COMPONENTS=audio-sandbox ./install
 OMP_INSTALL_COMPONENTS="guidance mcp scopes skill:capture" ./install
 ```
 
 Supported components are `guidance`, `config`, `mcp`, `scopes`, `agents`,
-`secrets`, and `skill:<source-directory-name>`. `all` cannot be combined with another
+`secrets`, `audio-sandbox`, and `skill:<source-directory-name>`. `all` cannot be combined with another
 component. Empty, unknown, missing-skill, invalid-name, and invalid YAML
 selections fail before any writes. The retired `OMP_INSTALL_GUIDANCE_ONLY`
 variable fails with migration instructions rather than silently triggering a
@@ -97,6 +98,17 @@ this repository.
 Configuration preservation is semantic, not preservation of YAML comments or
 formatting. Package preflight checks syntax and local imports; native loading
 must still be confirmed.
+
+`audio-sandbox` keeps agent audio out of the operator's ears (US-026). It
+writes an owned block into the agent `.env`, which OMP loads before any tool
+runs, so the bash tool is routed to the silent `agent-sandbox` sink without
+extension code. It clean-replaces `extensions/audio-sandbox`, materializing the
+shared contract over its repo shim, so JavaScript eval, browser, MCP, and LSP
+children inherit it too, and each Python eval cell is revised through
+`tool_call` to apply the contract first (OMP's Python runner drops the keys
+from its environment). It also runs the shared host step (sink drop-in, Claude Code env, live
+routing proof); see the agent-config README for listening, residuals, and revert.
+New sessions pick it up; running sessions keep their environment.
 
 `secrets` deploys the shared `pass-env` launcher and the
 `authenticated-commands` skill through
@@ -737,8 +749,14 @@ Grok 4.7, and finally paid OpenRouter DeepSeek V4.1 Flash. Sol's `task` chain
 tries Luna, Opus medium, then Grok. Astra's `plan`, `reviewer`, and security
 chains try Opus high, Sol max, then Grok. Opus's `slow` and `extreme` chains try
 Astra (high, max), Sol max, then Grok. The `vision` chain lists only Opus, so
-the vision role never degrades to another model; a main or `designer` session
-follows its session role's chain instead. Luna's mechanical chains try Opus
+the vision role never degrades to another model. A spawned `designer` child
+under a forced Anthropic outage (2026-09-25, Sol parent) failed closed after its
+retry budget ("Connection error") instead of switching models, so delegated
+visual work stays on Opus. Under the same outage, a Sol main session's
+`read red.png?q=…` image question returned `Connection error` instead of
+switching models, so image questions through the `vision` role also fail
+closed. A main session's own model follows `default` and would move to Sol, so
+guidance routes visual judgment through `?q=` or `designer`. Luna's mechanical chains try Opus
 medium, then Grok. Advisor uses Luna max, then Gemini 3.8 Flash high on Google
 Antigravity, then Grok 4.7 xhigh. Every other chain ends with paid DeepSeek, and
 each link accepts images. Task quality and whole-task cost effects of this

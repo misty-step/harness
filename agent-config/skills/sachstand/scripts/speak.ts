@@ -7,6 +7,7 @@ import { randomUUID } from "node:crypto";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
+import { operatorPlaybackEnv } from "./operator-audio.ts";
 
 const MODEL = "gemini-3.8-flash-lite-tts";
 const VOICE = process.env.SACHSTAND_VOICE ?? "voice_mb4bkecb84v5"; // designed "Chief of Staff", stored until 2027-09-24
@@ -54,8 +55,13 @@ const path = join(dir, `sachstand-${new Date().toISOString().replace(/[-:]/g, ""
 writeFileSync(path, wav, { flag: "wx", mode: 0o600 });
 
 if (!Bun.argv.includes("--no-play")) {
-  // Detached so the written brief can appear while the audio plays.
-  const player = Bun.spawn(["setsid", "-f", "pw-play", path], { stdout: "ignore", stderr: "inherit" });
+  // Detached so the written brief can appear while the audio plays. The operator
+  // asked for this brief, so it plays on their device, outside the agent sandbox.
+  const player = Bun.spawn(["setsid", "-f", "pw-play", path], {
+    env: operatorPlaybackEnv(process.env),
+    stdout: "ignore",
+    stderr: "inherit",
+  });
   if ((await player.exited) !== 0) fail(`could not start pw-play; audio kept at ${path}`);
 }
 

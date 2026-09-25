@@ -43,7 +43,7 @@ require_base() {
   }
 }
 
-components_all="config guidance pi-chrome loc web-search failover image-budget openrouter-live continuation-nudge diff-review pass-env skills"
+components_all="config guidance pi-chrome loc web-search failover image-budget openrouter-live continuation-nudge diff-review audio-sandbox pass-env skills"
 
 selected=${PI_CONFIG_COMPONENTS:-all}
 case "$selected" in
@@ -113,6 +113,7 @@ run_shared() {
   if has pass-env; then set -- "$@" --bin pass-env.ts; fi
   if has guidance; then set -- "$@" --bin design-check.ts; fi
   if has skills; then set -- "$@" --skill all --bin foundation-check.ts --bin ws.ts; fi
+  if has audio-sandbox; then set -- "$@" --audio-sandbox; fi
   if has guidance; then
     set -- "$@" \
       --guidance pokayoke \
@@ -263,8 +264,32 @@ install_diff_review() {
   install -m 600 "$base_dir/system-one/engine.ts" "$agent_dir/extensions/diff-review/engine.ts"
 }
 
+# Agent audio sandbox (US-026), two layers. The owned `shellCommandPrefix`
+# routes the bash tool from settings, independent of any extension loading;
+# the extension applies the contract to process.env, which Node mirrors to
+# every child. The shared step adds the silent PipeWire sink and Claude Code
+# env, then proves live routing when PipeWire is reachable.
+validate_audio_sandbox() {
+  require_bun
+  require_base
+  require_nonempty "$repo_dir/extensions/audio-sandbox/index.ts"
+  require_nonempty "$base_dir/audio-sandbox/env.ts"
+  # A shellCommandPrefix pi-config did not write fails closed here, before any write.
+  bun "$repo_dir/bin/pi-audio-prefix.ts" --contract "$base_dir/audio-sandbox/env.ts" --file "$agent_dir/settings.json" --check
+}
+
+install_audio_sandbox() {
+  # Pokayoke: clean-replace the owned package; materialize the real shared
+  # contract over the repo shim so the deployed extension loads self-contained.
+  rm -rf "$agent_dir/extensions/audio-sandbox"
+  install -d -m 700 "$agent_dir/extensions/audio-sandbox"
+  install -m 600 "$repo_dir/extensions/audio-sandbox/index.ts" "$agent_dir/extensions/audio-sandbox/index.ts"
+  install -m 600 "$base_dir/audio-sandbox/env.ts" "$agent_dir/extensions/audio-sandbox/env.ts"
+  bun "$repo_dir/bin/pi-audio-prefix.ts" --contract "$base_dir/audio-sandbox/env.ts" --file "$agent_dir/settings.json"
+}
+
 if has config; then validate_config; fi
-if has guidance || has pass-env || has skills; then validate_shared; fi
+if has guidance || has pass-env || has skills || has audio-sandbox; then validate_shared; fi
 if has pi-chrome; then validate_pi_chrome; fi
 if has loc; then validate_loc; fi
 if has web-search; then validate_web_search; fi
@@ -273,9 +298,10 @@ if has image-budget; then validate_image_budget; fi
 if has openrouter-live; then validate_openrouter_live; fi
 if has continuation-nudge; then validate_continuation_nudge; fi
 if has diff-review; then validate_diff_review; fi
+if has audio-sandbox; then validate_audio_sandbox; fi
 
 if has config; then install_config; fi
-if has guidance || has pass-env || has skills; then install_shared; fi
+if has guidance || has pass-env || has skills || has audio-sandbox; then install_shared; fi
 if has pi-chrome; then install_pi_chrome; fi
 if has loc; then install_loc; fi
 if has web-search; then install_web_search; fi
@@ -284,3 +310,4 @@ if has image-budget; then install_image_budget; fi
 if has openrouter-live; then install_openrouter_live; fi
 if has continuation-nudge; then install_continuation_nudge; fi
 if has diff-review; then install_diff_review; fi
+if has audio-sandbox; then install_audio_sandbox; fi

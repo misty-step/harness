@@ -65,6 +65,7 @@ presentation; "behavioral" changes agent capability, model input, or data flow.
 | `extensions/image-budget/` | this repo | behavioral | yes | Inline-image ceiling: oldest images dropped over 15 MB per request; large images shrunk with ffmpeg at ingest (ADR-019) |
 | `extensions/openrouter-live/` | this repo | behavioral | yes | Live OpenRouter bridge: models the `pi.dev` mirror lacks are appended to `models.json`, additive-only, at session start (≥2 h) and `/models-live` (ADR-022) |
 | `extensions/continuation-nudge/` | this repo | behavioral | yes (component `continuation-nudge`; shared modules materialized) | Bounded Jev continuation nudge at agent settle: advisory, fail-open, max 2 per prompt, `JEV_NUDGE_MODE=off` disables. Review trigger: pi gains a native anti-premature-stop or continuation control, or nudges fire on completed work |
+| `extensions/audio-sandbox/` | this repo | behavioral | yes (component `audio-sandbox`; shared contract materialized) | Agent audio routed to the silent `agent-sandbox` sink (US-026): owned `shellCommandPrefix` for the bash tool plus `process.env` for every other child |
 | `agent-config` (skills, guidance, `pass-env`, `design-check`, `foundation-check`, `ws`) | external (sibling base) | behavioral | yes | Portable skill packages, shared guidance sections, and the `pass-env`, `design-check`, `foundation-check`, and `ws` launchers, clean-replaced from `agent-config` (ADR-021) |
 | `~/.bashrc` (`pi()` block) | this repo (marked block only) | behavioral | by hand | Launch hook: Exa key from pass (ADR-010); run-scoped scratch `TMPDIR` via `omp-scratch` when installed (ADR-015) |
 | `~/.config/omarchy/themed/pi.json.tpl` | this repo (hand-managed) | aesthetic | by hand | pi theme template override for every Omarchy theme: readable semantic ink, accent-derived thinking ramp, deeper surfaces (ADR-018) |
@@ -196,6 +197,16 @@ files live in the agent dir (`continuation-nudge-status.json`,
 (component `continuation-nudge`) and materializes the real shared
 `continuation.ts` and `engine.ts` over the repo shims, exactly like
 `diff-review/engine.ts`, so the installed package loads self-contained.
+
+**`audio-sandbox/` — behavioral, installed.** Keeps agent audio out of the
+operator's ears (US-026). The component writes an owned `shellCommandPrefix`
+into `settings.json` (a prefix it did not write fails the install instead of
+being replaced), so pi's bash tool is routed to the silent
+`agent-sandbox` sink from settings alone, before and independent of extension
+loading. The extension applies the same contract to `process.env`, which Node
+mirrors to every child pi spawns. The shared host step adds the sink drop-in,
+Claude Code env, and live routing proof; the agent-config README documents
+listening, residuals, and revert.
 
 **Shared primitives — `agent-config`.** Skill packages, guidance sections, and
 the `pass-env` launcher live once in the base and deploy through its single

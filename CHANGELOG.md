@@ -1,3 +1,28 @@
+# [0.1.40](https://github.com/misty-step/harness/compare/v0.1.39...v0.1.40) (2026-09-25)
+<!-- landmark:protected-release previous=v0.1.39 source=0468ff327aa0ebd03dfd3352d60a1dda244bda6a7ae32f59fb4ce8d9e75e1745 -->
+
+### Bug Fixes
+
+* **omp-config:** resolve local:// loads the way OMP does in the audio sandbox ([09ce5c9](https://github.com/misty-step/harness/commit/09ce5c9f897424a37c58d98df0ff0d3c32632afa))
+# [0.1.39](https://github.com/misty-step/harness/compare/v0.1.38...v0.1.39) (2026-09-25)
+<!-- landmark:protected-release previous=v0.1.38 source=9ff14f7721c221507e68f9817b38c282eb74dae647ba916683930d76720bb4f9 -->
+
+### Bug Fixes
+
+* **agent-config:** fail closed on foreign audio sandbox state and route local Python loads ([8e3712f](https://github.com/misty-step/harness/commit/8e3712fdeebc5ecd84abc02b494a9b064bda45b6))
+# [0.1.38](https://github.com/misty-step/harness/compare/v0.1.37...v0.1.38) (2026-09-25)
+<!-- landmark:protected-release previous=v0.1.37 source=3059cd9f2e8509eaff55c399ef88ed012ed0f6f9415730fd406e6be45fa1d5a9 -->
+
+### Features
+
+* **agent-config:** route agent audio to a silent sandbox sink ([7ae98e7](https://github.com/misty-step/harness/commit/7ae98e7133aa4b069ccfbb5c04cb47a801e49e4d))
+* **omp-config:** route OMP Python eval cells into the audio sandbox ([ef96d21](https://github.com/misty-step/harness/commit/ef96d21212a4d97a375a6788388f7dd8d510510f))
+# [0.1.37](https://github.com/misty-step/harness/compare/v0.1.36...v0.1.37) (2026-09-25)
+<!-- landmark:protected-release previous=v0.1.36 source=0adcb7909be7f712a74df296e122b79abd88012f9b8d0093546856aa286c8dae -->
+
+### Features
+
+* **routing:** apply the operator model policy to OMP and Pi (US-014) (MIS-150) ([e696990](https://github.com/misty-step/harness/commit/e6969905e2071b79f3601546491f13c045bd93ec))
 # [0.1.36](https://github.com/misty-step/harness/compare/v0.1.35...v0.1.36) (2026-09-25)
 <!-- landmark:protected-release previous=v0.1.35 source=4de33f2345b820bff99d19336502a39330635bee9cc85c667048b2b7e48390c5 -->
 

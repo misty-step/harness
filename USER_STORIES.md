@@ -584,3 +584,40 @@ No-gos: no unrequested project mutations or decisions during a status brief.
 Evidence: `agent-config/skills/sachstand/SKILL.md`,
 `agent-config/skills/sachstand/scripts/speak.ts`; native online synthesis smoke
 produced a two-second WAV with `--no-play` on 2026-09-24.
+
+## Capability: Agent audio isolation
+
+## US-026 Keep agent audio out of my ears until I choose to listen
+
+Statement: When agent sessions play or record audio on my desktop, I want their
+sound routed to a silent sink they can record and analyze, so overlapping agent
+audio never reaches my headphones and I decide when to listen.
+
+Criteria:
+1. WHEN any process an OMP, Pi, or Claude Code agent session spawns plays
+   audio without naming a device, THE SYSTEM SHALL link its stream only to the
+   `agent-sandbox` sink and to no hardware sink.
+2. WHEN such a process records without naming a device, THE SYSTEM SHALL capture
+   the `agent-sandbox` monitor, so the agent can analyze what it played.
+3. IF the `agent-sandbox` sink is missing, THEN a sandboxed stream SHALL stay
+   unlinked rather than fall back to the operator's default device.
+4. IF an OMP or Pi audio-sandbox extension fails to load, THEN THE SYSTEM SHALL
+   still route the bash tool through startup configuration (the OMP agent
+   `.env`, the Pi `shellCommandPrefix`).
+5. WHEN the audio sandbox is installed, THE SYSTEM SHALL leave the default and
+   configured default sinks unchanged, keep foreign Claude Code settings, refuse
+   an unowned PipeWire drop-in, and prove live routing when PipeWire is reachable.
+6. WHEN the operator requests a spoken sachstand brief, THE SYSTEM SHALL play it
+   on the operator's default device.
+7. WHEN the operator plays a file or loops the sandbox monitor back from their
+   own terminal, THE SYSTEM SHALL play it on their default device.
+
+No-gos: no change to the default device, Kaylee's voice, or apps the operator
+launches; no PipeWire restart on install; no claim to stop deliberate bypass
+(scrubbed environments, raw ALSA devices, IPC into running operator apps).
+
+Evidence: `agent-config/audio-sandbox/audio-sandbox.test.ts`,
+`omp-config/extensions/audio-sandbox/audio-sandbox.test.ts`,
+`scripts/verify-installers`, the live routing proof in
+`agent-config/audio-sandbox/install.ts host`, and a fresh engineer-session smoke
+recorded in the pull request.

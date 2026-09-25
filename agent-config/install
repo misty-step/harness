@@ -2,8 +2,9 @@
 # Deploy shared agent primitives into a harness agent directory.
 #
 # This repo owns harness-neutral primitives: skill packages, shared global
-# guidance sections, and the pass-env secret launcher. A harness declares which
-# primitives it selects; this installer is the single deployment mechanism.
+# guidance sections, the pass-env secret launcher, and the host agent audio
+# sandbox. A harness declares which primitives it selects; this installer is
+# the single deployment mechanism.
 #
 # Preflight validates the whole selection before any write. Owned skill
 # packages are clean-replaced, so obsolete files cannot survive. Foreign skill
@@ -23,6 +24,7 @@ Usage: install --agent-dir DIR [--check] [--home DIR]
                [--skill NAME|all]...
                [--bin NAME]...
                [--guidance NAME]... --guidance-source FILE
+               [--audio-sandbox]
 
   --agent-dir DIR        Harness agent directory (required).
   --home DIR             Home for ~/.local/bin tools (default $HOME).
@@ -30,6 +32,7 @@ Usage: install --agent-dir DIR [--check] [--home DIR]
   --bin NAME             Standalone launcher to install; repeatable.
   --guidance NAME        Shared guidance section to inject; repeatable.
   --guidance-source FILE Harness AGENTS.md holding the insertion marker.
+  --audio-sandbox        Silent agent sink, Claude Code env, and live proof.
   --check                Validate the selection; write nothing.
 EOF
 }
@@ -41,6 +44,7 @@ check=0
 skills=
 bins=
 guidance=
+audio_sandbox=0
 
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -50,6 +54,7 @@ while [ $# -gt 0 ]; do
     --bin) bins="$bins ${2-}"; shift 2 ;;
     --guidance) guidance="$guidance ${2-}"; shift 2 ;;
     --guidance-source) guidance_source=${2-}; shift 2 ;;
+    --audio-sandbox) audio_sandbox=1; shift ;;
     --check) check=1; shift ;;
     -h|--help) usage; exit 0 ;;
     *) printf 'Unknown argument: %s\n' "$1" >&2; usage >&2; exit 1 ;;
@@ -157,6 +162,16 @@ validate_bins() {
   done
 }
 
+# The audio sandbox validates its own destinations (an unowned PipeWire drop-in
+# or malformed Claude Code settings fail closed) before any write.
+validate_audio_sandbox() {
+  [ "$audio_sandbox" = 1 ] || return 0
+  require_bun
+  require_nonempty "$repo_dir/audio-sandbox/env.ts"
+  require_nonempty "$repo_dir/audio-sandbox/install.ts"
+  bun "$repo_dir/audio-sandbox/install.ts" host --home "$home_dir" --check
+}
+
 install_skill() {
   name=$1
   install -d -m 700 "$agent_dir/skills"
@@ -197,6 +212,7 @@ install_guidance() {
 validate_skills
 validate_guidance
 validate_bins
+validate_audio_sandbox
 
 if [ "$check" = 1 ]; then
   exit 0
@@ -208,3 +224,4 @@ done
 for name in $skill_list; do install_skill "$name"; done
 for name in $bins; do install_bin "$name"; done
 if [ -n "$guidance" ]; then install_guidance; fi
+if [ "$audio_sandbox" = 1 ]; then bun "$repo_dir/audio-sandbox/install.ts" host --home "$home_dir"; fi
