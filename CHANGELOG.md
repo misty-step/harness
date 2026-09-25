@@ -1,3 +1,9 @@
+# [0.1.48](https://github.com/misty-step/harness/compare/v0.1.47...v0.1.48) (2026-09-25)
+<!-- landmark:protected-release previous=v0.1.47 source=4197fbc3464a2b7e8c6d426a69ed62af927e79708f24777c426b3e11f1827181 -->
+
+### Bug Fixes
+
+* **agent-config:** fetch the reviewed PR as git objects instead of checking it out (US-027, MIS-150) ([d6287e8](https://github.com/misty-step/harness/commit/d6287e8858749b078672e50df8d9edca2e517ed4))
 # [0.1.47](https://github.com/misty-step/harness/compare/v0.1.46...v0.1.47) (2026-09-25)
 <!-- landmark:protected-release previous=v0.1.46 source=1a274b9e1cb4282b49e48ae7488f2f9e3d5cf177655bd8824dd55b1155b1ffe0 -->
 
