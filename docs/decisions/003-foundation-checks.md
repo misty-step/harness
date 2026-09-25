@@ -72,9 +72,9 @@ user stories, and any baseline extension (a new baseline entry or a later
 expiry). The operator delegated both to an agent reviewer on 2026-09-25.
 
 - **Who approves.** Each organisation has one designated agent reviewer, a
-  GitHub App identity, recorded in the harness at the revision a repository's
-  CI pins; a repository cannot name its own reviewer. The PR author never
-  counts, whoever it is.
+  GitHub App identity, written into `foundation-check` itself at the revision a
+  repository's CI pins; neither the repository nor a flag can name another. The
+  PR author never counts, whoever it is.
 - **What counts.** An approving GitHub review on the PR's head commit, read by
   CI through the GitHub API. Text in the repository grants no authority, per
   the Foundation Standard.
@@ -83,17 +83,19 @@ expiry). The operator delegated both to an agent reviewer on 2026-09-25.
   changes to a story's intent stay with the operator.
 - **Baseline extensions.** The PR adds a decision record naming each extended
   entry, its new expiry, and the reason; the same approval makes it valid.
-- **Escalation.** The agent reviewer approves on its own authority unless the
-  change is a real change in product direction. Then it does not approve: it
+- **Escalation.** The agent reviewer approves on its own authority, then merges
+  the PR through its existing process (Kaylee's factory merges as
+  `app/kaylee-agent` on misty-step), unless the change is a real change in
+  product direction. Then it does not approve: it
   leaves a review on the head commit marked `foundation-escalation:
   product-direction`, and from then on only the operator's approval counts for
-  that PR. The operator's approval counts only after that escalation, because
-  agent sessions also act under the operator's GitHub account.
-- **Gate.** `foundation-check review --base REV --pr N` runs as a
-  `foundation-review` job on `pull_request` and `pull_request_review` events.
-  It passes at once when the PR needs no review; otherwise it reads the PR's
-  reviews through the GitHub API and the designated reviewers from
-  `agent-config/skills/foundation/reviewers.json` at the pinned revision.
+  that PR. The operator's approval counts only when given after that
+  escalation, because agent sessions also act under the operator's GitHub account.
+- **Gate.** `foundation-check review --pr N` runs as the `foundation-review`
+  workflow (template: `agent-config/skills/foundation/foundation-review.yml`)
+  on `pull_request` and `pull_request_review` events. It reads the PR's base,
+  head, author and reviews through the GitHub API, decides from the PR's own
+  revisions whether review is needed, and passes at once when it is not.
 - **Designated reviewers (2026-09-25).** misty-step: `kaylee-agent[bot]` (App
   4978618). r90group: none yet. `kaylee-agent` is private to misty-step and
   cannot be installed there; the r90group Apps with keys on the workstation are

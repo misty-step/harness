@@ -1,7 +1,0 @@
-{
-  "schema": "foundation-reviewers/1",
-  "escalation_marker": "foundation-escalation: product-direction",
-  "orgs": {
-    "misty-step": { "agent": "kaylee-agent[bot]", "operator": "moomooskycow" }
-  }
-}

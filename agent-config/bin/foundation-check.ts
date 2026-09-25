@@ -18,10 +18,10 @@ const usage = `Usage: foundation-check <check|baseline|affected|receipt|review> 
   affected --base REV     Print affected live story ids (space-separated)
   receipt PATH [--base REV] [--all]
                           Validate a story-walk receipt; --all requires every live story
-  review --base REV --pr N [--github-repo OWNER/NAME] [--reviewers PATH]
-                          When a PR adds first user stories or a baseline extension
-                          record, require the designated reviewer's approval on its
-                          head (GITHUB_TOKEN; GITHUB_REPOSITORY and GITHUB_API_URL)
+  review --pr N [--github-repo OWNER/NAME]
+                          When the PR gives USER_STORIES.md its first stories or adds a
+                          baseline extension record, require the designated reviewer's
+                          approval on its head (GITHUB_TOKEN; GITHUB_REPOSITORY, GITHUB_API_URL)
 Options:
   --repo DIR              Repository root (default: current directory)
   --catalog PATH          Foundation catalog JSON (otherwise source-relative or deployed)
@@ -33,7 +33,7 @@ type Command = "check" | "baseline" | "affected" | "receipt" | "review";
 type Options = {
 	command: Command; repo: string; catalog?: string; checker?: string; base?: string; receipt?: string; json: boolean;
 	all: boolean; write: boolean; owner?: string; expires?: string; revision?: string; walkGaps: boolean;
-	pr?: number; reviewers?: string; githubRepo?: string;
+	pr?: number; githubRepo?: string;
 };
 type Result = {
 	ok: boolean; errors: string[]; needs_evidence?: string[]; stories?: string[]; baselined?: string[]; gaps?: string[];
@@ -79,7 +79,7 @@ function args(argv: string[]): Options | "help" {
 	if (!command) throw new Error("expected check, baseline, affected, receipt, or review");
 	const rest = argv.slice(1);
 	const options: Options = { command, repo: process.cwd(), json: false, all: false, write: false, walkGaps: true };
-	const valued = ["--repo", "--catalog", "--stories-checker", "--base", "--owner", "--expires", "--revision", "--pr", "--reviewers", "--github-repo"];
+	const valued = ["--repo", "--catalog", "--stories-checker", "--base", "--owner", "--expires", "--revision", "--pr", "--github-repo"];
 	for (let i = 0; i < rest.length; i++) {
 		const arg = rest[i];
 		if (arg === "--json") options.json = true;
@@ -98,14 +98,14 @@ function args(argv: string[]): Options | "help" {
 			else if (arg === "--expires") options.expires = value;
 			else if (arg === "--revision") options.revision = value;
 			else if (arg === "--pr") options.pr = /^[1-9]\d*$/.test(value) ? Number(value) : Number.NaN;
-			else if (arg === "--reviewers") options.reviewers = value;
 			else options.githubRepo = value;
 		} else if (command === "receipt" && !options.receipt && arg && !arg.startsWith("-")) options.receipt = arg;
 		else throw new Error(`unexpected argument: ${arg}`);
 	}
-	if ((command === "affected" || command === "review") && !options.base) throw new Error(`${command} requires --base REV`);
+	if (command === "affected" && !options.base) throw new Error("affected requires --base REV");
+	if (command === "review" && options.base) throw new Error("review reads the pull request's base and head from GitHub; drop --base");
 	if (command === "review" && !Number.isInteger(options.pr)) throw new Error("review requires --pr N (a pull request number)");
-	if (command !== "review" && (options.pr !== undefined || options.reviewers || options.githubRepo)) throw new Error("--pr, --reviewers and --github-repo are only valid for review");
+	if (command !== "review" && (options.pr !== undefined || options.githubRepo)) throw new Error("--pr and --github-repo are only valid for review");
 	if (command === "receipt" && !options.receipt) throw new Error("receipt requires PATH");
 	if (command === "baseline" && !text(options.owner)) throw new Error("baseline requires --owner NAME");
 	if (command === "baseline" && options.base) throw new Error("--base is not valid for baseline");
@@ -591,25 +591,23 @@ function receipt(options: Options): Result {
 	}
 	return { ok: errors.length === 0, errors };
 }
-type Reviewers = { marker: string; agent: string; operator: string };
-/** The designated reviewers for an organisation, from the harness revision CI pins, never the repository. */
-function reviewersFor(options: Options, org: string): Reviewers {
-	const config = readJson(candidate(options.reviewers, "reviewers", "foundation/reviewers.json"));
-	if (!record(config) || config.schema !== "foundation-reviewers/1" || !text(config.escalation_marker) || !record(config.orgs)) {
-		throw new Error("reviewers: invalid foundation-reviewers/1 file");
-	}
-	const entry = config.orgs[org];
-	if (!record(entry) || !text(entry.agent) || !text(entry.operator)) throw new Error(`reviewers: no designated reviewer for ${org}`);
-	return { marker: config.escalation_marker, agent: entry.agent, operator: entry.operator };
-}
-/** Why a change needs the designated reviewer: its first user stories, or an added baseline extension record. */
-function reviewTriggers(repo: string, base: string): string[] {
-	const mergeBase = git(repo, "merge-base", base, "HEAD").trim();
+/**
+ * Designated reviewers per organisation (ADR-003 Review authority). They live in this pinned checker, so
+ * neither the repository under review nor a command-line flag can change who may approve.
+ */
+const reviewerRegistry: Record<string, { agent: string; operator: string }> = {
+	"misty-step": { agent: "kaylee-agent[bot]", operator: "moomooskycow" },
+};
+const escalationMarker = "foundation-escalation: product-direction";
+/** Why a PR needs the designated reviewer, judged on its own base and head: first user stories or an added extension record. */
+function reviewTriggers(repo: string, base: string, head: string): string[] {
+	const mergeBase = git(repo, "merge-base", base, head).trim();
 	const reasons: string[] = [];
 	const before = parseStories(fileAt(repo, mergeBase, "USER_STORIES.md") ?? "");
-	const after = parseStories(fileAt(repo, "HEAD", "USER_STORIES.md") ?? "");
+	const after = parseStories(fileAt(repo, head, "USER_STORIES.md") ?? "");
 	if (before.length === 0 && after.length > 0) reasons.push("first user stories: USER_STORIES.md gains its first stories");
-	for (const path of changedFiles(repo, base, "A").filter((f) => extensionPath.test(f))) reasons.push(`baseline extension: ${path}`);
+	const added = git(repo, "diff", "--name-only", "--no-renames", "--diff-filter=A", "-z", mergeBase, head).split("\0").filter(Boolean);
+	for (const path of added.filter((f) => extensionPath.test(f))) reasons.push(`baseline extension: ${path}`);
 	return reasons;
 }
 async function github(path: string, token: string): Promise<unknown> {
@@ -622,17 +620,25 @@ async function github(path: string, token: string): Promise<unknown> {
 }
 const reviewer = (entry: Record<string, unknown>): string => (record(entry.user) && typeof entry.user.login === "string" ? entry.user.login : "");
 async function review(options: Options): Promise<Result> {
-	const reasons = reviewTriggers(options.repo, options.base!);
-	if (reasons.length === 0) return { ok: true, errors: [], reasons };
 	const [org, name, extra] = (options.githubRepo ?? process.env.GITHUB_REPOSITORY ?? "").split("/");
 	if (!org || !name || extra !== undefined) throw new Error("review needs --github-repo OWNER/NAME or GITHUB_REPOSITORY");
-	const reviewers = reviewersFor(options, org);
 	const token = process.env.GITHUB_TOKEN;
-	if (!text(token)) throw new Error("review needs GITHUB_TOKEN to read the pull request's reviews");
+	if (!text(token)) throw new Error("review needs GITHUB_TOKEN to read the pull request");
+	// The PR's own base and head decide whether review is needed, never whatever the checkout happens to be.
 	const pull = await github(`/repos/${org}/${name}/pulls/${options.pr}`, token);
 	const head = record(pull) && record(pull.head) && typeof pull.head.sha === "string" ? pull.head.sha : undefined;
+	const base = record(pull) && record(pull.base) && typeof pull.base.sha === "string" ? pull.base.sha : undefined;
 	const author = record(pull) && record(pull.user) && typeof pull.user.login === "string" ? pull.user.login : undefined;
-	if (!head || !author) throw new Error(`GitHub API: pull request ${options.pr} has no head commit or author`);
+	if (!head || !base || !author) throw new Error(`GitHub API: pull request ${options.pr} has no head, base or author`);
+	for (const sha of [head, base]) {
+		if (spawnSync("git", ["cat-file", "-e", `${sha}^{commit}`], { cwd: options.repo }).status !== 0) {
+			throw new Error(`the checkout lacks commit ${sha.slice(0, 12)} of pull request ${options.pr}; check out with fetch-depth: 0`);
+		}
+	}
+	const reasons = reviewTriggers(options.repo, base, head);
+	if (reasons.length === 0) return { ok: true, errors: [], reasons };
+	const people = reviewerRegistry[org];
+	if (!people) throw new Error(`no designated reviewer for ${org}`);
 	const reviews: Record<string, unknown>[] = [];
 	for (let page = 1; ; page++) {
 		const batch = await github(`/repos/${org}/${name}/pulls/${options.pr}/reviews?per_page=100&page=${page}`, token);
@@ -640,21 +646,27 @@ async function review(options: Options): Promise<Result> {
 		reviews.push(...batch.filter(record));
 		if (batch.length < 100) break;
 	}
-	// Escalation is the agent reviewer's own review on this head, marked and not an approval; from then on only
-	// the operator's approval counts. A marker on an older commit does not carry over to new commits.
-	const escalated = reviews.some((entry) => reviewer(entry) === reviewers.agent && entry.commit_id === head &&
-		(entry.state === "COMMENTED" || entry.state === "CHANGES_REQUESTED") && typeof entry.body === "string" && entry.body.includes(reviewers.marker));
-	const approver = escalated ? reviewers.operator : reviewers.agent;
+	// Escalation is the agent reviewer's own marked, non-approving review on this head. From then on only an
+	// operator approval submitted after it counts; a marker on an older commit does not carry over.
+	let escalation = -1;
+	reviews.forEach((entry, index) => {
+		if (reviewer(entry) === people.agent && entry.commit_id === head && (entry.state === "COMMENTED" || entry.state === "CHANGES_REQUESTED") &&
+			typeof entry.body === "string" && entry.body.includes(escalationMarker)) escalation = index;
+	});
+	const escalated = escalation >= 0;
+	const approver = escalated ? people.operator : people.agent;
 	const role = escalated ? "operator, after the agent reviewer's escalation," : "designated agent reviewer";
-	// As on GitHub, each reviewer's latest approval, change request or dismissal stands; comments do not change it.
-	const latest = new Map<string, Record<string, unknown>>();
-	for (const entry of reviews) {
-		if (entry.state === "APPROVED" || entry.state === "CHANGES_REQUESTED" || entry.state === "DISMISSED") latest.set(reviewer(entry), entry);
-	}
-	const decision = latest.get(approver);
+	// Reviews arrive in submission order. As on GitHub, each reviewer's latest approval, change request or
+	// dismissal stands; comments do not change it.
+	let decision: { entry: Record<string, unknown>; index: number } | undefined;
+	reviews.forEach((entry, index) => {
+		if (reviewer(entry) === approver && (entry.state === "APPROVED" || entry.state === "CHANGES_REQUESTED" || entry.state === "DISMISSED")) decision = { entry, index };
+	});
 	const errors: string[] = [];
 	if (approver === author) errors.push(`the ${role} ${approver} authored this PR, so it cannot approve it${escalated ? "" : "; the agent reviewer may escalate to the operator"}`);
-	else if (decision?.state !== "APPROVED" || decision.commit_id !== head) errors.push(`needs an approving review from the ${role} ${approver} on head ${head.slice(0, 12)}`);
+	else if (decision?.entry.state !== "APPROVED" || decision.entry.commit_id !== head || decision.index < escalation) {
+		errors.push(`needs an approving review from the ${role} ${approver} on head ${head.slice(0, 12)}`);
+	}
 	return { ok: errors.length === 0, errors, reasons, approved_by: errors.length === 0 ? approver : undefined };
 }
 function print(result: Result, json: boolean, command: Command): void {
