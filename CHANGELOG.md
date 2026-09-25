@@ -1,3 +1,15 @@
+# [0.1.47](https://github.com/misty-step/harness/compare/v0.1.46...v0.1.47) (2026-09-25)
+<!-- landmark:protected-release previous=v0.1.46 source=1a274b9e1cb4282b49e48ae7488f2f9e3d5cf177655bd8824dd55b1155b1ffe0 -->
+
+### Features
+
+* **agent-config:** record r90group review decisions under the operator's account and stop a first map marking every story (US-024, US-027, MIS-150) ([efdbaa8](https://github.com/misty-step/harness/commit/efdbaa8cb06b070ca18971782bca08748b2e85b3))
+
+### Bug Fixes
+
+* **agent-config:** a pending review records no r90group decision (US-027, MIS-150) ([acead6b](https://github.com/misty-step/harness/commit/acead6b9ea6aa3cc1605724f958ac8b7ad275190))
+* **agent-config:** keep pre-existing feature edits and timestamp ties conservative (US-024, US-027, MIS-150) ([d55f8ed](https://github.com/misty-step/harness/commit/d55f8edd75b849224c8a2f1004bf3fd8946cbadc))
+* **agent-config:** exempt a first map only when no map file existed at the merge base (US-024, MIS-150) ([dc00ddb](https://github.com/misty-step/harness/commit/dc00ddb325aac73e8a3f06596ce3b6603c8517e4))
 # [0.1.46](https://github.com/misty-step/harness/compare/v0.1.45...v0.1.46) (2026-09-25)
 <!-- landmark:protected-release previous=v0.1.45 source=967e6106ba20962002e1985e019f3c6b0d93d3b7fda81dfe4a7499d6037040e3 -->
 
