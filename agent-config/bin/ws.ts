@@ -51,7 +51,9 @@ function listed(): boolean {
 	return response.vms.some((vm: { vm_name: string }) => vm.vm_name === vmName);
 }
 const repo = git(process.cwd(), ["rev-parse", "--show-toplevel"]);
-const project = basename(repo);
+// Linked worktrees share one project VM: name it after the repository, not the worktree directory.
+const commonDir = resolve(repo, git(repo, ["rev-parse", "--git-common-dir"]));
+const project = basename(basename(commonDir) === ".git" ? dirname(commonDir) : commonDir).replace(/\.git$/, "");
 if (!/^[a-zA-Z0-9][a-zA-Z0-9._-]*$/.test(project)) fail(`unsafe project name: ${project}`);
 const vmName = `${project}-ws`;
 const vmHost = `${vmName}.exe.xyz`;

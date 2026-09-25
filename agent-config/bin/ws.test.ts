@@ -107,6 +107,15 @@ test("US-025 clean snapshot preserves the exact committed HEAD on the VM", () =>
 	expect(sh(join(root, "vm/ws/sample/tasks/candidate"), ["git", "rev-parse", "HEAD"]).out.trim()).toBe(head);
 });
 
+test("US-025 a linked worktree targets its repository's project VM, not its directory name", () => {
+	const { repo, root, run } = fixture();
+	expect(run(["init"]).code).toBe(0);
+	const linked = join(root, "feature-branch-checkout");
+	sh(repo, ["git", "worktree", "add", "-q", "-b", "feature", linked]);
+	const status = Bun.spawnSync(["bun", ws, "status"], { cwd: linked, env: { ...process.env, HOME: join(root, "home"), PATH: `${join(root, "bin")}:${process.env.PATH}`, WS_FAKE_ROOT: root, WS_PROJECT: "sample" }, stdout: "pipe", stderr: "pipe" });
+	expect(status.stdout.toString()).toContain("sample-ws.exe.xyz: ready");
+});
+
 test("US-025 env and command stdin reach only the command, exit propagates, and down gates evidence digests", () => {
 	const { repo, root, run, env, localHome } = fixture();
 	expect(run(["init"]).code).toBe(0);
