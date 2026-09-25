@@ -720,9 +720,10 @@ Criteria:
    `operations.ship` names the repository's confirmed default branch and either
    a platform or a workflow that fires on every push to that branch (or on its
    successful `workflow_run`), honouring branch globs and exclusions and
-   rejecting path and tag-only filters, with a named ship job that waits on the
-   gate and whose `if:` neither runs it after a failed gate nor confines it to
-   another event.
+   rejecting path and tag-only filters and a `workflow_run` whose upstream is
+   not itself that push-triggered gate, with a named ship job that waits on the
+   gate and whose `if:` uses only guards that keep every green push to the
+   default branch.
 4. WHEN FND-ALR-001 is `satisfied`, `check` SHALL fail unless
    `operations.alert` names an error-capture file that references its
    provider, a scheduled health workflow or a named external monitor, and an

@@ -531,10 +531,25 @@ describe("foundation-check operational obligations (ADR-005, US-040)", () => {
 		refused("  push:\n    branches: [main]", "", "job deploy ships without waiting on the gate");
 		refused("  push:\n    branches: [main]", "    needs: [test]\n    if: always()\n", "job deploy has if: always()");
 		refused("  push:\n  workflow_dispatch:", "    needs: [test]\n    if: github.event_name == 'workflow_dispatch'\n", "job deploy has if: github.event_name == 'workflow_dispatch'");
-		// Globs, a string branch filter, and a workflow_run without a branch filter all fire on main.
-		for (const on of ["  push:\n    branches: ['**']", "  push:\n    branches: main"]) { deploy(on, "    needs: [test]\n"); expect(cli(repo, "check").output.errors).toEqual([]); }
+		refused("  push:", "    needs: [test]\n    if: github.ref == 'refs/heads/production'\n", "job deploy has if: github.ref == 'refs/heads/production'");
+		refused("  push:\n    branches: [main]", "    needs: [test]\n    if: contains(github.event.head_commit.message, '[deploy]')\n", "job deploy has if: contains(github.event.head_commit.message, '[deploy]')");
+		// Globs, a string branch filter, and the usual push guards all ship every green push to main.
+		for (const [on, job] of [["  push:\n    branches: ['**']", ""], ["  push:\n    branches: main", ""], ["  push:\n  pull_request:", "    if: github.event_name != 'pull_request'\n"],
+			["  push:", "    if: ${{ github.ref == 'refs/heads/main' && github.event_name == 'push' }}\n"]]) {
+			deploy(on, `    needs: [test]\n${job}`);
+			expect(cli(repo, "check").output.errors).toEqual([]);
+		}
+		// A workflow_run ships only when the workflow it follows is itself the push-triggered gate.
+		const upstream = (on: string) => put(repo, ".github/workflows/ci.yml", `name: ci\non:\n${on}\njobs:\n  gate:\n    runs-on: ubuntu-latest\n    steps: [{ run: "true" }]\n`);
+		upstream("  push:\n    branches: [main]");
 		deploy("  workflow_run:\n    workflows: [ci]\n    types: [completed]", "    if: github.event.workflow_run.conclusion == 'success'\n");
 		expect(cli(repo, "check").output.errors).toEqual([]);
+		upstream("  workflow_dispatch:");
+		expect(errors(repo)).toContain("FND-REL-001: satisfied, but .github/workflows/deploy.yml follows ci, which does not run on every push to main");
+		upstream("  push:\n    branches: [main]");
+		deploy("  workflow_run:\n    workflows: [Release]\n    types: [completed]", "    if: github.event.workflow_run.conclusion == 'success'\n");
+		expect(errors(repo)).toContain("follows Release, which does not run on every push to main");
+		deploy("  workflow_run:\n    workflows: [ci]\n    types: [completed]", "    if: github.event.workflow_run.conclusion == 'success'\n");
 		edit(repo, (adoption) => { adoption.operations.ship.branch = "release"; });
 		expect(errors(repo)).toContain("FND-REL-001: satisfied, but operations.ship.branch is release, but the default branch is main");
 		edit(repo, (adoption) => { adoption.operations.ship.branch = "main"; });

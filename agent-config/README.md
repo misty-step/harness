@@ -87,7 +87,8 @@ obligation still pending is the gap `ops:ship`, `ops:alert` or `ops:incident`,
 timed by the ratchet like any other. A `satisfied` claim must hold up: the
 record's `operations.ship` names the confirmed default branch and a workflow
 and job that fires on every push to it (no path or tag-only filters) and waits
-on the gate with no `if:` that bypasses it (or a platform, proved in the receipt),
+on the gate, with an `if:` limited to default-branch push guards (or a platform,
+proved in the receipt),
 `operations.alert` names the error-capture file, a scheduled health workflow or
 external monitor, and the alert destination, and `docs/runbook.md` has an
 `## Incidents` section while every closed postmortem links its class fix. For a

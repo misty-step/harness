@@ -377,7 +377,7 @@ function contentIssues(repo: string, checkerPath: string): Issue[] {
 	return issues;
 }
 /** A workflow file's triggers as an object, whatever YAML shape `on:` takes. */
-function workflowAt(repo: string, path: unknown): { on: Record<string, unknown>; jobs: Record<string, unknown> } | string {
+function workflowAt(repo: string, path: unknown): { name: string; on: Record<string, unknown>; jobs: Record<string, unknown> } | string {
 	if (!text(path) || !safePath(path) || !/^\.github\/workflows\/[^/]+\.ya?ml$/.test(path)) return `${String(path)} is not a .github/workflows/*.yml path`;
 	if (!existsSync(join(repo, path))) return `${path} does not exist`;
 	let doc: unknown;
@@ -385,7 +385,8 @@ function workflowAt(repo: string, path: unknown): { on: Record<string, unknown>;
 	if (!record(doc)) return `${path} is not a workflow`;
 	const raw = doc.on ?? (doc as Record<string, unknown>)["true"];
 	const on = typeof raw === "string" ? { [raw]: null } : Array.isArray(raw) ? Object.fromEntries(raw.map((name) => [String(name), null])) : record(raw) ? raw : {};
-	return { on, jobs: record(doc.jobs) ? doc.jobs : {} };
+	// GitHub names a workflow by its `name:`, or by its path when it has none; workflow_run refers to that name.
+	return { name: text(doc.name) ? doc.name : path, on, jobs: record(doc.jobs) ? doc.jobs : {} };
 }
 /** GitHub's branch filter semantics: `*` stays within a path segment, `**` crosses them, and a later `!pattern` excludes. */
 function branchMatches(patterns: unknown, branch: string): boolean {
@@ -430,16 +431,39 @@ function shipProblems(repo: string, ship: unknown): string[] {
 	if (!record(job)) return [`${String(ship.workflow)} has no job ${String(ship.job)}`];
 	const problems: string[] = [];
 	const onPush = "push" in workflow.on && firesOn(workflow.on.push, branch);
-	const onRun = "workflow_run" in workflow.on && firesOn(workflow.on.workflow_run, branch);
-	if (!onPush && !onRun) problems.push(`${String(ship.workflow)} does not run on every push to ${branch}`);
-	const condition = job.if === undefined ? "" : String(job.if);
-	// A condition that can run the job after a failed gate, never runs it, or limits it to another event is not shipping on green.
-	if (/\b(?:always|failure|cancelled)\s*\(/.test(condition) || /^\s*(?:\$\{\{\s*)?false\s*(?:\}\})?\s*$/.test(condition) ||
-		(/event_name/.test(condition) && !/['"](?:push|workflow_run)['"]/.test(condition)) || /!=\s*['"](?:push|workflow_run)['"]/.test(condition)) {
-		problems.push(`job ${ship.job} has if: ${condition}, which does not ship every green push`);
+	const run = workflow.on.workflow_run;
+	let onRun = "workflow_run" in workflow.on && firesOn(run, branch);
+	if (onRun) {
+		// The upstream a workflow_run follows must itself be the gate that fires on every push; a dispatch-only
+		// or scheduled upstream is a manual or periodic promotion.
+		const upstream = record(run) ? (typeof run.workflows === "string" ? [run.workflows] : Array.isArray(run.workflows) ? run.workflows.map(String) : []) : [];
+		const files = existsSync(join(repo, ".github/workflows")) ? readdirSync(join(repo, ".github/workflows")).filter((f) => /\.ya?ml$/.test(f)) : [];
+		const named = new Map(files.map((f) => workflowAt(repo, `.github/workflows/${f}`)).filter((w): w is Exclude<typeof w, string> => typeof w !== "string").map((w) => [w.name, w]));
+		const gates = upstream.map((name) => named.get(name));
+		if (upstream.length === 0 || gates.some((gate) => !gate || !("push" in gate.on) || !firesOn(gate.on.push, branch))) {
+			problems.push(`${String(ship.workflow)} follows ${upstream.join(", ") || "no workflow"}, which does not run on every push to ${branch}`);
+			onRun = false;
+		}
 	}
+	if (!onPush && !onRun && problems.length === 0) problems.push(`${String(ship.workflow)} does not run on every push to ${branch}`);
+	const condition = job.if === undefined ? "" : String(job.if);
+	// Only conditions known to keep "every green push to the default branch" pass; anything else (a promotion
+	// branch, a commit-message opt-in, a repository toggle, always()) fails closed.
+	const quoted = (value: string) => `['"]${value.replace(/[.*+?^${}()|[\]\\/]/g, "\\$&")}['"]`;
+	const allowed = [
+		/^success\(\)$/,
+		new RegExp(`^github\\.event_name==${quoted("push")}$`),
+		new RegExp(`^github\\.event_name!=${quoted("pull_request")}$`),
+		new RegExp(`^github\\.ref==${quoted(`refs/heads/${branch}`)}$`),
+		new RegExp(`^github\\.event\\.workflow_run\\.conclusion==${quoted("success")}$`),
+		new RegExp(`^github\\.event\\.workflow_run\\.head_branch==${quoted(branch)}$`),
+		new RegExp(`^github\\.event\\.workflow_run\\.event==${quoted("push")}$`),
+	];
+	const bare = condition.replace(/^\s*\$\{\{([\s\S]*)\}\}\s*$/, "$1").replace(/\s+/g, "");
+	const terms = bare === "" ? [] : bare.split("&&").map((term) => term.replace(/^\((.*)\)$/, "$1"));
+	if (terms.some((term) => !allowed.some((pattern) => pattern.test(term)))) problems.push(`job ${ship.job} has if: ${condition}, which does not ship every green push`);
 	const needs = Array.isArray(job.needs) ? job.needs.length > 0 : text(job.needs);
-	const afterGreenRun = onRun && /workflow_run\.conclusion\s*==\s*['"]success['"]/.test(condition);
+	const afterGreenRun = onRun && terms.some((term) => allowed[4].test(term));
 	if (!needs && !afterGreenRun) problems.push(`job ${ship.job} ships without waiting on the gate: give it needs, or run it from workflow_run only when the conclusion is success`);
 	return problems;
 }
