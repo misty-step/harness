@@ -1,3 +1,10 @@
+# [0.1.38](https://github.com/misty-step/harness/compare/v0.1.37...v0.1.38) (2026-09-25)
+<!-- landmark:protected-release previous=v0.1.37 source=3059cd9f2e8509eaff55c399ef88ed012ed0f6f9415730fd406e6be45fa1d5a9 -->
+
+### Features
+
+* **agent-config:** route agent audio to a silent sandbox sink ([7ae98e7](https://github.com/misty-step/harness/commit/7ae98e7133aa4b069ccfbb5c04cb47a801e49e4d))
+* **omp-config:** route OMP Python eval cells into the audio sandbox ([ef96d21](https://github.com/misty-step/harness/commit/ef96d21212a4d97a375a6788388f7dd8d510510f))
 # [0.1.37](https://github.com/misty-step/harness/compare/v0.1.36...v0.1.37) (2026-09-25)
 <!-- landmark:protected-release previous=v0.1.36 source=0adcb7909be7f712a74df296e122b79abd88012f9b8d0093546856aa286c8dae -->
 
