@@ -97,7 +97,11 @@ expiry). The operator delegated both to an agent reviewer on 2026-09-25.
   workflow (template: `agent-config/skills/foundation/foundation-review.yml`)
   on `pull_request_target`, so the base branch's copy of the gate judges every PR
   and a PR cannot replace it; the PR's commits are read as data, never run.
-  After approving, the agent reviewer adds a label to re-run it. It reads the PR's base,
+  Review events cannot trigger it, so after any review action (approve,
+  request changes, escalate) the agent reviewer adds or removes a label to
+  re-run it; retargeting the base re-runs it too. Residual: a dismissal by
+  anyone else leaves the last result until the next trigger, so the agent
+  reviewer, which merges, re-runs the gate before merging. It reads the PR's base,
   head, author and reviews through the GitHub API, decides from the PR's own
   revisions whether review is needed, and passes at once when it is not.
 - **Designated reviewers (2026-09-25).** misty-step: `kaylee-agent[bot]` (App

@@ -5,13 +5,14 @@
 # pull_request_target runs this file as it is on the base branch, so a PR cannot
 # replace the gate that judges it. The PR's commits are checked out only as data:
 # nothing from them is executed, and Bun starts outside the checkout. Review
-# submissions cannot trigger pull_request_target, so after approving, the agent
-# reviewer adds any label to re-run the gate; the label itself grants nothing.
+# events cannot trigger pull_request_target, so after any review action (approve,
+# request changes, escalate) the agent reviewer adds or removes a label to re-run
+# the gate; the label itself grants nothing. Retargeting the base re-runs it too.
 name: foundation-review
 
 on:
   pull_request_target:
-    types: [opened, synchronize, reopened, labeled]
+    types: [opened, synchronize, reopened, edited, labeled, unlabeled]
 
 permissions:
   contents: read
