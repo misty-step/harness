@@ -1,0 +1,644 @@
+{
+  "version": 1,
+  "recorded": "2026-09-25",
+  "model": "openrouter/deepseek/deepseek-v4.1-flash",
+  "thinking": "high",
+  "maxOutputTokens": 384000,
+  "arms": [
+    "omp",
+    "s1s2"
+  ],
+  "seed": 26,
+  "runnerRevision": "04b1947",
+  "ompConfigRevision": "ed16998",
+  "judges": [
+    "anthropic/claude-opus-5-5 high",
+    "google-antigravity/gemini-3.1-pro high",
+    "xai-oauth/grok-4.7 high",
+    "typesafe/jev-1.13 panel"
+  ],
+  "perTask": [
+    {
+      "task": "h37",
+      "size": "S",
+      "contaminated": false,
+      "arms": {
+        "omp": {
+          "billedModelUsd": 0.0588,
+          "jevUsd": 0,
+          "generations": 52,
+          "upstreamProviders": {
+            "Together": 33,
+            "Relace": 19
+          },
+          "wallSec": 186,
+          "parentTurns": 33,
+          "tokens": {
+            "input": 96826,
+            "output": 26223,
+            "cacheRead": 2013184,
+            "cacheWrite": 0
+          },
+          "hiddenPass": true,
+          "regressPass": true,
+          "hiddenTests": [
+            {
+              "pass": 4,
+              "fail": 0
+            }
+          ],
+          "deliverable": {
+            "files": 7,
+            "added": 88,
+            "deleted": 6
+          },
+          "judgeOverallMean": 4.5833,
+          "judgeFirstPlaces": 3,
+          "jevSuccess": 4.47,
+          "jevBest": true,
+          "s1Actions": null,
+          "parity": {
+            "api": "responses",
+            "model": "deepseek/deepseek-v4.1-flash",
+            "reasoning": {
+              "effort": "high",
+              "summary": "auto"
+            },
+            "store": false,
+            "max_output_tokens": 384000
+          }
+        },
+        "s1s2": {
+          "billedModelUsd": 0.0364,
+          "jevUsd": 0.0005,
+          "generations": 33,
+          "upstreamProviders": {
+            "Together": 33
+          },
+          "wallSec": 89,
+          "parentTurns": 33,
+          "tokens": {
+            "input": 34004,
+            "output": 16952,
+            "cacheRead": 977536,
+            "cacheWrite": 0
+          },
+          "hiddenPass": true,
+          "regressPass": true,
+          "hiddenTests": [
+            {
+              "pass": 4,
+              "fail": 0
+            }
+          ],
+          "deliverable": {
+            "files": 7,
+            "added": 58,
+            "deleted": 9
+          },
+          "judgeOverallMean": 3.8333,
+          "judgeFirstPlaces": 0,
+          "jevSuccess": 4.17,
+          "jevBest": false,
+          "s1Actions": {
+            "briefed": 1,
+            "none": 4,
+            "verified": 1
+          },
+          "parity": {
+            "api": "chat_completions",
+            "model": "deepseek/deepseek-v4.1-flash",
+            "reasoning": {
+              "effort": "high"
+            },
+            "store": false,
+            "max_completion_tokens": 384000
+          }
+        }
+      }
+    },
+    {
+      "task": "h57",
+      "size": "S",
+      "contaminated": false,
+      "arms": {
+        "omp": {
+          "billedModelUsd": 0.0412,
+          "jevUsd": 0,
+          "generations": 38,
+          "upstreamProviders": {
+            "Relace": 19,
+            "Together": 8,
+            "StreamLake": 11
+          },
+          "wallSec": 161,
+          "parentTurns": 19,
+          "tokens": {
+            "input": 124145,
+            "output": 15808,
+            "cacheRead": 961664,
+            "cacheWrite": 0
+          },
+          "hiddenPass": true,
+          "regressPass": true,
+          "hiddenTests": [
+            {
+              "pass": 6,
+              "fail": 0
+            }
+          ],
+          "deliverable": {
+            "files": 3,
+            "added": 14,
+            "deleted": 3
+          },
+          "judgeOverallMean": 4.75,
+          "judgeFirstPlaces": 3,
+          "jevSuccess": 3.65,
+          "jevBest": true,
+          "s1Actions": null,
+          "parity": {
+            "api": "responses",
+            "model": "deepseek/deepseek-v4.1-flash",
+            "reasoning": {
+              "effort": "high",
+              "summary": "auto"
+            },
+            "store": false,
+            "max_output_tokens": 384000
+          }
+        },
+        "s1s2": {
+          "billedModelUsd": 0.012,
+          "jevUsd": 0.0003,
+          "generations": 12,
+          "upstreamProviders": {
+            "Together": 12
+          },
+          "wallSec": 34,
+          "parentTurns": 12,
+          "tokens": {
+            "input": 15398,
+            "output": 5323,
+            "cacheRead": 168576,
+            "cacheWrite": 0
+          },
+          "hiddenPass": true,
+          "regressPass": true,
+          "hiddenTests": [
+            {
+              "pass": 6,
+              "fail": 0
+            }
+          ],
+          "deliverable": {
+            "files": 2,
+            "added": 5,
+            "deleted": 2
+          },
+          "judgeOverallMean": 4.5,
+          "judgeFirstPlaces": 0,
+          "jevSuccess": 3.48,
+          "jevBest": false,
+          "s1Actions": {
+            "briefed": 1,
+            "none": 1,
+            "verified": 1
+          },
+          "parity": {
+            "api": "chat_completions",
+            "model": "deepseek/deepseek-v4.1-flash",
+            "reasoning": {
+              "effort": "high"
+            },
+            "store": false,
+            "max_completion_tokens": 384000
+          }
+        }
+      }
+    },
+    {
+      "task": "h21",
+      "size": "M",
+      "contaminated": false,
+      "arms": {
+        "omp": {
+          "billedModelUsd": 0.1211,
+          "jevUsd": 0,
+          "generations": 101,
+          "upstreamProviders": {
+            "Together": 44,
+            "StreamLake": 57
+          },
+          "wallSec": 286,
+          "parentTurns": 47,
+          "tokens": {
+            "input": 197506,
+            "output": 60916,
+            "cacheRead": 4777600,
+            "cacheWrite": 0
+          },
+          "hiddenPass": true,
+          "regressPass": true,
+          "hiddenTests": [
+            {
+              "pass": 25,
+              "fail": 0
+            }
+          ],
+          "deliverable": {
+            "files": 4,
+            "added": 164,
+            "deleted": 4
+          },
+          "judgeOverallMean": 4.6667,
+          "judgeFirstPlaces": 3,
+          "jevSuccess": 3.56,
+          "jevBest": true,
+          "s1Actions": null,
+          "parity": {
+            "api": "responses",
+            "model": "deepseek/deepseek-v4.1-flash",
+            "reasoning": {
+              "effort": "high",
+              "summary": "auto"
+            },
+            "store": false,
+            "max_output_tokens": 384000
+          }
+        },
+        "s1s2": {
+          "billedModelUsd": 0.0188,
+          "jevUsd": 0.0005,
+          "generations": 23,
+          "upstreamProviders": {
+            "StreamLake": 23
+          },
+          "wallSec": 132,
+          "parentTurns": 23,
+          "tokens": {
+            "input": 38252,
+            "output": 16445,
+            "cacheRead": 487040,
+            "cacheWrite": 0
+          },
+          "hiddenPass": true,
+          "regressPass": true,
+          "hiddenTests": [
+            {
+              "pass": 25,
+              "fail": 0
+            }
+          ],
+          "deliverable": {
+            "files": 3,
+            "added": 102,
+            "deleted": 3
+          },
+          "judgeOverallMean": 4.3333,
+          "judgeFirstPlaces": 0,
+          "jevSuccess": 3.51,
+          "jevBest": false,
+          "s1Actions": {
+            "briefed": 1,
+            "none": 2,
+            "note_narrow_search": 1,
+            "verified": 1
+          },
+          "parity": {
+            "api": "chat_completions",
+            "model": "deepseek/deepseek-v4.1-flash",
+            "reasoning": {
+              "effort": "high"
+            },
+            "store": false,
+            "max_completion_tokens": 384000
+          }
+        }
+      }
+    },
+    {
+      "task": "h26",
+      "size": "M",
+      "contaminated": false,
+      "arms": {
+        "omp": {
+          "billedModelUsd": 0.0939,
+          "jevUsd": 0,
+          "generations": 83,
+          "upstreamProviders": {
+            "Together": 83
+          },
+          "wallSec": 79,
+          "parentTurns": 47,
+          "tokens": {
+            "input": 104428,
+            "output": 33764,
+            "cacheRead": 3680128,
+            "cacheWrite": 0
+          },
+          "hiddenPass": true,
+          "regressPass": true,
+          "hiddenTests": [
+            {
+              "pass": 9,
+              "fail": 0
+            },
+            {
+              "pass": 25,
+              "fail": 0
+            }
+          ],
+          "deliverable": {
+            "files": 5,
+            "added": 187,
+            "deleted": 46
+          },
+          "judgeOverallMean": 4.5,
+          "judgeFirstPlaces": 3,
+          "jevSuccess": 3.23,
+          "jevBest": false,
+          "s1Actions": null,
+          "parity": {
+            "api": "responses",
+            "model": "deepseek/deepseek-v4.1-flash",
+            "reasoning": {
+              "effort": "high",
+              "summary": "auto"
+            },
+            "store": false,
+            "max_output_tokens": 384000
+          }
+        },
+        "s1s2": {
+          "billedModelUsd": 0.0336,
+          "jevUsd": 0.0009,
+          "generations": 39,
+          "upstreamProviders": {
+            "StreamLake": 39
+          },
+          "wallSec": 205,
+          "parentTurns": 39,
+          "tokens": {
+            "input": 75213,
+            "output": 23278,
+            "cacheRead": 1762816,
+            "cacheWrite": 0
+          },
+          "hiddenPass": true,
+          "regressPass": true,
+          "hiddenTests": [
+            {
+              "pass": 9,
+              "fail": 0
+            },
+            {
+              "pass": 25,
+              "fail": 0
+            }
+          ],
+          "deliverable": {
+            "files": 3,
+            "added": 195,
+            "deleted": 42
+          },
+          "judgeOverallMean": 3.9167,
+          "judgeFirstPlaces": 0,
+          "jevSuccess": 3.17,
+          "jevBest": true,
+          "s1Actions": {
+            "briefed": 1,
+            "none": 5,
+            "unchanged": 1,
+            "note_narrow_search": 1,
+            "verified": 1
+          },
+          "parity": {
+            "api": "chat_completions",
+            "model": "deepseek/deepseek-v4.1-flash",
+            "reasoning": {
+              "effort": "high"
+            },
+            "store": false,
+            "max_completion_tokens": 384000
+          }
+        }
+      }
+    },
+    {
+      "task": "h2",
+      "size": "L",
+      "contaminated": false,
+      "arms": {
+        "omp": {
+          "billedModelUsd": 0.1161,
+          "jevUsd": 0,
+          "generations": 66,
+          "upstreamProviders": {
+            "Together": 66
+          },
+          "wallSec": 115,
+          "parentTurns": 35,
+          "tokens": {
+            "input": 99506,
+            "output": 54732,
+            "cacheRead": 3422848,
+            "cacheWrite": 0
+          },
+          "hiddenPass": false,
+          "regressPass": false,
+          "hiddenTests": [
+            {
+              "pass": 5,
+              "fail": 0
+            },
+            {
+              "pass": 2,
+              "fail": 2
+            }
+          ],
+          "deliverable": {
+            "files": 7,
+            "added": 357,
+            "deleted": 8
+          },
+          "judgeOverallMean": 3.9167,
+          "judgeFirstPlaces": 2,
+          "jevSuccess": 3.16,
+          "jevBest": true,
+          "s1Actions": null,
+          "parity": {
+            "api": "responses",
+            "model": "deepseek/deepseek-v4.1-flash",
+            "reasoning": {
+              "effort": "high",
+              "summary": "auto"
+            },
+            "store": false,
+            "max_output_tokens": 384000
+          }
+        },
+        "s1s2": {
+          "billedModelUsd": 0.0738,
+          "jevUsd": 0.001,
+          "generations": 49,
+          "upstreamProviders": {
+            "Together": 49
+          },
+          "wallSec": 143,
+          "parentTurns": 49,
+          "tokens": {
+            "input": 40855,
+            "output": 39584,
+            "cacheRead": 2345600,
+            "cacheWrite": 0
+          },
+          "hiddenPass": false,
+          "regressPass": false,
+          "hiddenTests": [
+            {
+              "pass": 4,
+              "fail": 1
+            },
+            {
+              "pass": 2,
+              "fail": 2
+            }
+          ],
+          "deliverable": {
+            "files": 8,
+            "added": 406,
+            "deleted": 5
+          },
+          "judgeOverallMean": 3.9167,
+          "judgeFirstPlaces": 1,
+          "jevSuccess": 2.9,
+          "jevBest": false,
+          "s1Actions": {
+            "none": 7,
+            "unchanged": 1,
+            "elided": 1,
+            "verified": 1
+          },
+          "parity": {
+            "api": "chat_completions",
+            "model": "deepseek/deepseek-v4.1-flash",
+            "reasoning": {
+              "effort": "high"
+            },
+            "store": false,
+            "max_completion_tokens": 384000
+          }
+        }
+      }
+    },
+    {
+      "task": "h43",
+      "size": "L",
+      "contaminated": true,
+      "arms": {
+        "omp": {
+          "billedModelUsd": 0.1273,
+          "jevUsd": 0,
+          "generations": 75,
+          "upstreamProviders": {
+            "Together": 75
+          },
+          "wallSec": 126,
+          "parentTurns": 42,
+          "tokens": {
+            "input": 139671,
+            "output": 51379,
+            "cacheRead": 3954304,
+            "cacheWrite": 0
+          },
+          "hiddenPass": true,
+          "regressPass": true,
+          "hiddenTests": [
+            {
+              "pass": 5,
+              "fail": 0
+            },
+            {
+              "pass": 4,
+              "fail": 0
+            }
+          ],
+          "deliverable": {
+            "files": 12,
+            "added": 298,
+            "deleted": 25
+          },
+          "judgeOverallMean": 4.75,
+          "judgeFirstPlaces": 3,
+          "jevSuccess": 3.12,
+          "jevBest": false,
+          "s1Actions": null,
+          "parity": {
+            "api": "responses",
+            "model": "deepseek/deepseek-v4.1-flash",
+            "reasoning": {
+              "effort": "high",
+              "summary": "auto"
+            },
+            "store": false,
+            "max_output_tokens": 384000
+          }
+        },
+        "s1s2": {
+          "billedModelUsd": 0.0331,
+          "jevUsd": 0.0008,
+          "generations": 19,
+          "upstreamProviders": {
+            "Wafer": 19
+          },
+          "wallSec": 83,
+          "parentTurns": 19,
+          "tokens": {
+            "input": 38620,
+            "output": 6409,
+            "cacheRead": 358144,
+            "cacheWrite": 0
+          },
+          "hiddenPass": true,
+          "regressPass": true,
+          "hiddenTests": [
+            {
+              "pass": 5,
+              "fail": 0
+            },
+            {
+              "pass": 4,
+              "fail": 0
+            }
+          ],
+          "deliverable": {
+            "files": 12,
+            "added": 298,
+            "deleted": 25
+          },
+          "judgeOverallMean": 4.75,
+          "judgeFirstPlaces": 0,
+          "jevSuccess": 3.08,
+          "jevBest": true,
+          "s1Actions": {
+            "briefed": 1,
+            "none": 2,
+            "unchanged": 2,
+            "note_narrow_search": 1,
+            "verified": 1
+          },
+          "parity": {
+            "api": "chat_completions",
+            "model": "deepseek/deepseek-v4.1-flash",
+            "reasoning": {
+              "effort": "high"
+            },
+            "store": false,
+            "max_completion_tokens": 384000
+          }
+        }
+      }
+    }
+  ]
+}

@@ -151,10 +151,14 @@ Package: [`pi-config/extensions/s1s2/`](../pi-config/extensions/s1s2/)
 | `sensors.ts` | Deterministic candidate, chunking, check-discovery, and fingerprint code |
 | `run.sh` | Headless single-task launcher |
 | `s1s2.test.ts` | US-029 contracts: fail-open, inert mode, triage and check safety, verification and edit detection, credential masking, and bounded authority |
+| `eval/vibe.ts` | Evaluation runner (US-030): isolated agent user, egress lock, upstream pin, spend guard, and grading |
+| `eval/parity.ts` | Wire-parity shim loaded identically in every arm |
+| `eval/judge.ts` | Blind LLM and Jev judges, and the per-arm report |
 
 Jev calls go through the existing shared engine: `OpenRouterJevProvider`, pinned to
-`typesafe/jev-1.13`. Its credential comes from Pi's OpenRouter auth or from
-`OPENROUTER_API_KEY`. Every state passes through the shared `redactText` before it
+`typesafe/jev-1.13`. Its credential comes from `S1S2_JEV_KEY`, Pi's OpenRouter
+auth, or `OPENROUTER_API_KEY`, and `S1S2_JEV_ENDPOINT` can point it at a
+credential-injecting proxy. Every state passes through the shared `redactText` before it
 is sent. The engine now also returns the token usage and cost that the provider
 reports, which it previously dropped, so System 1 cost is measured rather than
 estimated. Edits are detected from the working-tree fingerprint, not from tool
@@ -185,29 +189,35 @@ These are registered before the main run.
 |---|---|---|
 | **A: OMP** | OMP 18.3.1 as deployed. `omp-config` at the candidate revision is installed into an isolated HOME on the VM | Every generative role is pinned to M@T: all 12 `modelRoles`, including advisor, task, smol, commit, and reviewers, plus all `agentModelOverrides`. `retry.fallbackChains` are removed. The advisor stays on because it is part of OMP's design, but it runs on M@T. There is no Linear, pass, or telemetry. |
 | **B: S1S2** | Raw Pi 0.87.1 plus `s1s2` v0 at a pinned commit | Uses M@T. Jev is the treatment. |
-| **C: raw Pi** (recommended) | Stock Pi 0.87.1 | Uses M@T. It separates System 1's contribution from the base-harness difference, at 50% more run cost. |
+| **C: raw Pi** | Stock Pi 0.87.1 | Uses M@T. It separates System 1's contribution from the base-harness difference, at 50% more run cost. The operator held it out of the pilot until he reads the pilot's results. |
 
 ### Same model, same settings, same route
 
-**M@T** is GPT-6 Luna at max reasoning on the ChatGPT/Codex subscription. This
-was the operator's decision on 2026-09-25: models under test run on his
-subscriptions, and OpenRouter pays only for Jev. He offered Sol at xhigh as the
-alternative; Luna max was chosen because it draws less of the shared weekly
-quota. Every arm authenticates as one ChatGPT account (`phaedrus@r90.dev`),
-through eval-only native logins on the evaluation VM: Pi uses its device-code
-flow and OMP its browser flow through a temporary SSH tunnel. No host OAuth
-store is copied (US-014).
+**M@T for the pilot** is DeepSeek V4.1 Flash
+(`openrouter/deepseek/deepseek-v4.1-flash`) at reasoning effort `high`. The
+operator chose it on 2026-09-25 as an explicit exception to subscription-only
+models for this evaluation. It replaced GPT-6 Luna max on the ChatGPT/Codex
+subscription, whose eval-only sign-ins expired before use. Every model call,
+Jev included, reaches OpenRouter through an exe.dev `http-proxy` integration
+that injects the key. No key is on the VM, and the agent's egress lock admits
+only that proxy.
 
 A **wire-parity** record from every run captures the first provider request
-through `before_provider_request` (`eval/parity.ts`). The harnesses already
-send the same model, reasoning effort (`max`), and storage settings. They
-differed only in text verbosity: Pi always sends `low`, while OMP omits it. The
-shim therefore pins verbosity to `medium` in every arm.
+through `before_provider_request` (`eval/parity.ts`). The harnesses send the
+same model, reasoning effort, and storage setting. The shim pins what they
+would otherwise send differently:
+
+- one output ceiling: Pi sends 384,000 tokens and OMP none
+- one OpenRouter upstream with fallbacks off (`--upstream`), because unpinned
+  routing sent the pilot's arms to different upstreams at different prices
+
+The wire API remains a harness choice: OMP uses Responses and Pi uses chat
+completions.
 
 There is no provider fallback in any arm. A provider failure is an
 infrastructure failure: the run repeats, at most twice, and never switches
-models. A quota guard stops the run before the next task once the account's
-weekly usage reaches 95%.
+models. A spend guard stops before the next run once the key's spend reaches the
+limit, and after each task when the projected total exceeds it.
 
 ### Tasks
 
@@ -230,13 +240,17 @@ weekly usage reaches 95%.
     something the statement does not specify, such as a private helper's
     signature or exact output bytes, are either relaxed to the behavior or
     named in the statement. The smoke task's only hidden-test failure was
-    exactly this: byte equality with `git log -p`.
+    exactly this: byte equality with `git log -p`. The pilot's h2 failed in
+    both arms on two more: a guidance-section name and JSON whitespace. A
+    hidden assertion that fails in every arm is reviewed against the statement
+    before scoring.
   - Tasks without automatable tests are judged only and reported separately.
 - **Exclusions.** Tasks that need secrets, live services, a GUI or browser, or a
   build longer than 15 minutes on the evaluation VM.
-- **Pilot first.** Run 6 tasks (2 per stratum) in all 3 arms. The pilot proves
-  the pipeline and the parity preflight, and it measures per-run cost and
-  variance so that N is fixed on evidence.
+- **Pilot first.** Run 6 tasks (2 per stratum) before N is fixed. The pilot
+  proves the pipeline and the parity preflight, and it measures per-run cost
+  and variance. It ran on 2026-09-25 in arms A and B:
+  [pilot record](measurements/s1s2-vibe-2026-09-25.md).
 
 ### Execution
 
@@ -248,10 +262,11 @@ weekly usage reaches 95%.
   - At most 4 runs happen at once. The Medium plan pools 4 vCPU and 16 GB across
     11 existing VMs.
   - Each run has a 40-minute timeout and a per-run spend cap.
-- **Isolation.** Evaluation VMs get their own tag with read-only GitHub
-  integrations, so nothing can be pushed. They have no Linear access, no pass,
-  and no telemetry. Hidden tests and reference diffs never enter the VM before
-  the agent exits.
+- **Isolation.** Agents run as a separate Unix user that cannot read the hidden
+  tests, the manifest, the runner's home, or other runs. Its egress is locked to
+  loopback, DNS, and the model proxy. The runner refuses to start while the
+  agent can reach GitHub, directly or through an exe.dev GitHub integration
+  attached to the VM. There is no Linear access, no pass, and no telemetry.
 - **Replicates.** Each task-arm runs once. A stratified subset of 16 tasks gets a
   second replicate to measure run-to-run noise.
 - **Runner mechanics.** These were learned from the smoke run. Every run writes
@@ -265,7 +280,7 @@ weekly usage reaches 95%.
 | Metric | Definition and source |
 |---|---|
 | Tokens | Uncached input, output including reasoning, cache read, and cache write. Split by source: System 2 main, OMP advisor and subagents, and Jev. Sources are session JSONL plus sidecars and the System 1 decision log. `omp-task-usage` (US-018) will be extended for Pi `usage` entries and Jev records. |
-| Cost | Subscription runs cost weekly quota, so this records the account's usage change and prices each arm's tokens at the model's public catalog rate for comparison. Jev is billed in USD as reported by the provider. Failed runs count, and cost per successful task follows US-018. |
+| Cost | OpenRouter's billed USD per generation, looked up by generation id, plus the same tokens at the model's list price, so upstream pricing cannot pass for a harness difference. Jev is billed in USD as reported by the provider. Failed runs count, and cost per successful task follows US-018. |
 | Wall-clock | Runner launch to exit. Also recorded: System 2 turns, tool calls, and System 1 seconds on the critical path. |
 | Quality: objective | Hidden tests pass (primary), the existing suite passes, and the build and lint pass. |
 | Quality: judged | Blind LLM panel plus a Jev panel (below). |
@@ -283,12 +298,14 @@ weekly usage reaches 95%.
 - **Normalization.** Harness artifacts (session directories, `.pi`, `.omp`) are
   removed, and files appear in a fixed path order.
 - **LLM panel.**
-  - Three families, none of them the System 2 model: GPT-6 Sol, Gemini 3.1 Pro,
-    and Grok 4.7.
+  - Three families, none of them the System 2 model. The pilot used Opus 5.5,
+    Gemini 3.1 Pro, and Grok 4.7 at high thinking, through OMP with no tools.
   - Fixed rubric with anchored 1–5 levels: task success, correctness risk,
     scope discipline, maintainability, and verification.
   - A pairwise question, "Which would you merge?", with answers A, B, or
     neither. Each pair is judged in both orders.
+  - The pilot used a four-score rubric (task, correctness, scope, quality), one
+    ranking, and one shuffled order per judge, without the base-commit files.
 - **Jev panel.** The same rubric as Score and Choice questions, with 5
   paraphrase and order variants per item. It is cheap enough to run on
   everything.
@@ -310,11 +327,13 @@ weekly usage reaches 95%.
     points lower and the judged win rate is at least 45%.
   - B loses if quality is inferior.
   - Any other result is inconclusive.
-- **Power.** Assume 48 paired tasks and a log-ratio standard deviation of 0.7;
-  the pilot will measure the real value. Under that assumption, a cost or time
-  difference of about 25% is detectable at 80% power. Quality is framed as
+- **Power.** For OMP against Pi + System 1 over five tasks, the pilot measured
+  log-ratio standard deviations of 0.58 for cost, 0.97 for wall-clock, and 0.41
+  for turns, and 0.29 points for judged quality. At 80% power, a 25% cost
+  difference needs about 32 tasks, a 25% wall-clock difference about 90, and a
+  quarter point of judged quality about 11. Quality stays framed as
   non-inferiority, because 48 tasks cannot resolve a pass-rate gap of a few
-  points.
+  points. System 1's own effect (B vs C) has an unmeasured spread.
 - **Reporting.**
   - Results for each stratum.
   - B vs C and C vs A.
@@ -325,28 +344,29 @@ weekly usage reaches 95%.
 
 ### Spend and schedule
 
-- **Models under test.** GPT-6 Luna max runs on the ChatGPT/Codex subscription,
-  so it costs weekly quota, not dollars. The quota guard protects the
-  account's last 5%.
-- **Dollars.** Only Jev is billed, through the harness's existing OpenRouter
-  key (`.env.pass`). Expect cents. There is no dedicated or capped evaluation
-  key.
+- **Pilot spend.** $0.77 billed for the scored runs, and $1.11 for all pilot
+  work on the evaluation key, including two discarded launches, probes, and a
+  lock check. The Jev judge panel cost $0.003.
+- **Full size, estimated.** At the pilot's billed rates, one task across three
+  arms costs about $0.16 on Flash, so 48 tasks plus 16 replicates would cost
+  roughly $10. The runner's spend guard stops at the configured limit.
 - **Judges.** Opus, Gemini, and Grok run through OMP on their subscriptions.
 - **Compute.** One leased exe.dev VM (2 vCPU, 8 GB) within the Medium plan's
-  pooled allowance, running one job at a time. The first smoke task took
-  90–97 s per run. Bandwidth stood at 170 of 214 GB this cycle with no overage,
-  and the counter resets on October 10.
+  pooled allowance, running one job at a time. The pilot's 12 runs took 27
+  minutes, and judging took 23.
 
 ### Decisions (operator, 2026-09-25)
 
-1. **Pilot first.** Run the 6-task pilot in all three arms before any larger
-   evaluation. Its report must say what a full evaluation would teach that
-   the pilot cannot.
-2. **Subscriptions only for the models under test.** OpenRouter pays only for
-   Jev.
-3. **Keep arm C.** Plain Pi is what isolates System 1's effect.
-4. **One model and one setting in every arm.** OMP's advisor and subagents are
+1. **Pilot first.** Run the 6-task pilot before any larger evaluation. Its
+   report must say what a full evaluation would teach that the pilot cannot.
+2. **One model and one setting in every arm.** OMP's advisor and subagents are
    pinned to it too.
+3. **Keep arm C.** Plain Pi is what isolates System 1's effect. It waits until
+   the operator has read the pilot.
+4. **OpenRouter for the pilot.** A second ruling replaced subscription models
+   with DeepSeek V4.1 Flash on OpenRouter, as an explicit exception for this
+   evaluation. It uses an existing key, with no dedicated capped key, and the
+   pilot stops if it would cost more than about $20.
 
 The pilot's six tasks come from merged harness pull requests: h37 and h57
 (small), h21 and h26 (medium), and h2 and h43 (large). Each passed three checks:
@@ -354,6 +374,9 @@ The pilot's six tasks come from merged harness pull requests: h37 and h57
 - the regression suite passed at the base commit
 - the hidden tests failed there
 - the hidden tests passed at the merge commit
+
+Results, spend, the implied sample size, and the defects the pilot found are in
+the [pilot record](measurements/s1s2-vibe-2026-09-25.md).
 
 ## Threats to validity
 
@@ -363,10 +386,13 @@ The pilot's six tasks come from merged harness pull requests: h37 and h57
   judges and tests are compared against each other.
 - **Judge bias.** Mitigated by blinding, both pair orders, three model families,
   a Jev cross-check, and a human spot-check.
-- **Provider drift during the run.** Mitigated by interleaved arms and a fixed
-  route; the upstream provider is recorded for each call.
+- **Provider drift during the run.** Mitigated by interleaved arms and one
+  pinned OpenRouter upstream with fallbacks off. The pilot ran before the pin,
+  and its arms reached different upstreams at different prices.
 - **Threshold overfitting.** System 1 thresholds are frozen after the pilot and
   never tuned on main-run tasks.
 - **Contamination.** Tasks are merged pull requests, so the model may have seen
   the code. Both arms share this bias, but it can compress the differences
-  between them.
+  between them. Live fetching is a separate risk: in the pilot, both arms of
+  h43 fetched the merged fix from GitHub. The egress lock and the runner's
+  refusal checks now block that route.
