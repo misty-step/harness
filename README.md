@@ -15,6 +15,10 @@ agent-config/ ── shared install contract ──┬── pi-config/  → pi 
 | `pi-config/` | pi settings, extensions, chrome, guidance intro | [README](pi-config/README.md) |
 | `omp-config/` | OMP routing, config/MCP, extensions, themes, guidance, watchdog | [README](omp-config/README.md) |
 
+Intent: [USER_STORIES.md](USER_STORIES.md). Vocabulary, boundaries and
+invariants: [DOMAIN.md](DOMAIN.md). Decisions: [docs/adr/](docs/adr/). Agent
+rules: [AGENTS.md](AGENTS.md).
+
 ## Setup
 
 ```sh
@@ -60,7 +64,9 @@ nothing about older or unleased resources.
 ./scripts/verify workspace   # shell syntax and both isolated installs
 ```
 
-See [verification and local resource limits](docs/verification.md). The root owns
+`./scripts/check` is the fixed gate entry point (ADR-004); it runs
+`./scripts/verify` with the same arguments, and CI invokes it. See
+[verification and local resource limits](docs/verification.md). The root owns
 CI, hooks, and releases; component directories retain their focused tests.
 
 ## Token-cost evidence (US-018, US-019)
@@ -100,9 +106,10 @@ omp-config/install
   `install --check` is rejected rather than accidentally deploying. The base
   `agent-config/install --check` is an inert preflight with explicit arguments.
 
-Installers do not configure repository Git hooks; run bootstrap separately.
-Restart the relevant harness to load changed extensions/guidance. This repository
-does not own auth stores, sessions, foreign packages, or generated desktop themes.
+Restart the relevant harness to load changed extensions, guidance and OpenRouter
+credentials. Only Pi's `auth.json.openrouter` mapping is source-owned; other
+credentials, sessions, foreign packages, and generated desktop themes are not.
+See [US-028](USER_STORIES.md) for project-aware billing and failure behavior.
 
 ## Contributing and releases
 
@@ -130,7 +137,7 @@ The former `misty-step/{agent-config,pi-config,omp-config}` repositories are
 historical archives. Their original commit histories are reachable here through
 unsquashed subtree imports. Use `git log --all` for pre-import history (old commits
 retain their original paths), or browse the archived repositories and releases.
-See [ADR-001](docs/decisions/001-monorepo.md) and the
+See [ADR-001](docs/adr/001-monorepo.md) and the
 [migration record](docs/migration.md).
 
 [linear-cli](https://github.com/misty-step/linear-cli) remains an independent host

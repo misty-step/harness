@@ -28,7 +28,7 @@ prompt is: how can I pokayoke this so this kind of error never happens again?
 | `bin/design-check.ts` | Moved to `agent-config`: player-surface copy checker, installed as `~/.local/bin/design-check` |
 | `bin/tmp-health.py`, `references/dev-exec.md` | Opt-in workstation execution limits, pressure notifications, and rollback workflow |
 | `config.yml` | Model roles, fallbacks, theme/TUI, providers, task/LSP settings |
-| `models.yml` | Local Ollama discovery; cloud models come from omp's bundled catalog |
+| `models.yml` | Local Ollama discovery and command-resolved OpenRouter key; cloud models remain in omp's bundled catalog |
 | `mcp.json` | Global MCP inventory; Linear is deliberately absent |
 | `workspace-mcp.json`, `bin/omp-install-scopes.ts` | Linear directory scopes, native project-local imports, owned skill retirement |
 | `global/AGENTS.md` | OMP-specific guidance; `./install` composes it with shared sections from `agent-config` |
@@ -60,12 +60,12 @@ arguments (including `--check`); use `../scripts/verify omp` for isolated checks
 
 Preflight validates every selected input, then writes. Unset selection means
 `all`: owned config overlay, guidance, MCP, scopes, agents, skills, themes,
-extensions, `omp-grievances`, `pass-env`, `design-check`, `foundation-check`,
-and `ws`. It does not delete foreign skills or agents, and it does not import
-live secrets into this checkout. Skills, shared guidance sections, and those
-shared launchers deploy from the sibling `agent-config` checkout
-(default `$repo_dir/../agent-config`; override with `AGENT_CONFIG_DIR`); the
-installer fails closed when it is missing.
+extensions, `omp-grievances`, `pass-env`, `openrouter-key`, `design-check`,
+`foundation-check`, and `ws`. It does not delete foreign skills or agents and
+does not import live secrets into this checkout. Skills, shared guidance
+sections, and those shared launchers deploy from the sibling `agent-config`
+checkout (default `$repo_dir/../agent-config`; override with
+`AGENT_CONFIG_DIR`); the installer fails closed when it is missing.
 
 ```sh
 OMP_INSTALL_COMPONENTS=guidance ./install
@@ -94,6 +94,22 @@ stores. MCP deployment still uses the
 declared server inventory and preserves live `auth`/`oauth` metadata for those
 servers only. OMP's managed OAuth tokens remain in its auth storage, never in
 this repository.
+
+OpenRouter auth (US-028): `models.yml` resolves `openrouter-key --personal
+workstation/OPENROUTER_OMP_HARNESS_API_KEY` on first use. The shared launcher
+chooses `workstation/OPENROUTER_R90_HARNESS_API_KEY` when the process directory
+or its Git common directory is under `~/development/r90group` (linked
+worktrees included). A failed pass lookup, damaged Git metadata or timeout
+emits a fixed invalid token rather than exiting without a key: OMP omits
+failing command keys and would otherwise fall through to a stored personal
+credential or `OPENROUTER_API_KEY`. The launcher caps Git discovery at 1.5 s
+and pass lookup at 5 s, inside OMP's 10 s command deadline. This deliberately
+keeps existing `agent.db` credentials untouched, while a broken R90 entry
+receives an OpenRouter 401 instead of personal billing. Explicit runtime
+`--api-key` overrides remain higher priority and are outside this policy.
+`OMP_INSTALL_COMPONENTS=config ./install` deploys both the override and the
+launcher. Restart OMP after installation; see root verification guide for
+real-path billing checks.
 
 Configuration preservation is semantic, not preservation of YAML comments or
 formatting. Package preflight checks syntax and local imports; native loading
@@ -470,11 +486,11 @@ inviting collaborators. No paid plan or GitHub integration is enabled here.
 
 ## Review explanations and ASCII assets
 
-Maintained engineering and visual preferences live in `global/AGENTS.md`. Vision
-documents are optional context, not a mandatory first read or a higher authority
-than current requests. The unchanged `show-me` skill provides diagrams and
-code-shape explanations; choose evidence for the actual change rather than
-requiring a fixed artifact packet.
+Maintained engineering and visual preferences live in `global/AGENTS.md`.
+`VISION.md` is retired (harness ADR-004): a repository's purpose and non-goals
+live in its README, and authorized direction in Linear. The unchanged `show-me`
+skill provides diagrams and code-shape explanations; choose evidence for the
+actual change rather than requiring a fixed artifact packet.
 
 ASCII support is currently **aesthetic guidance and browser-based asset authoring**,
 not a dedicated conversion tool, skill, or automatic asset pipeline.
@@ -551,7 +567,7 @@ Repeated use should converge, not accumulate instructions or speculative work.
 Use `/skill:pokayoke [optional error class or incident]` after a defect,
 incident, or near-miss. The outcome is a mechanism that makes that class of
 error impossible—not a warning, comment, or extra instruction layer. A reminder
-is not pokayoke. `postmortems/TEMPLATE.md` requires the same close.
+is not pokayoke. The postmortem template in `skill://pokayoke` requires the same close.
 
 Use `/skill:decide [optional fork, question, or decision topic]` to request a
 dense, high-context executive brief in ASD-STE100 style when facing a technical

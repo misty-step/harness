@@ -24,18 +24,15 @@ fail=0
 err() { printf 'FAIL: %s\n' "$1" >&2; fail=1; }
 warn() { printf 'WARN: %s\n' "$1" >&2; }
 
-if [ -f USER_STORIES.md ]; then
-  files='USER_STORIES.md'
-elif [ -d USER_STORIES ]; then
-  files=$(find USER_STORIES -name '*.md' -type f | sort)
-  if [ -z "$files" ]; then
-    printf 'FAIL: USER_STORIES/ holds no .md files\n' >&2
-    exit 1
-  fi
-else
+if [ -d USER_STORIES ]; then
+  printf 'FAIL: USER_STORIES/ is not a supported layout; keep one root USER_STORIES.md\n' >&2
+  exit 1
+fi
+if [ ! -f USER_STORIES.md ]; then
   printf 'no USER_STORIES.md at %s — nothing checked\n' "$(pwd)"
   exit 0
 fi
+files='USER_STORIES.md'
 
 ids=$(grep -hE '^## US-[0-9]{3}( |$)' $files | awk '{print $2}')
 if [ -z "$ids" ]; then

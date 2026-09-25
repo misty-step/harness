@@ -1,4 +1,4 @@
-# Local Ollama discovery. Cloud providers stay in the bundled catalog.
+# Cloud models stay in the bundled catalog; override only OpenRouter auth.
 providers:
   ollama:
     baseUrl: "http://127.0.0.1:11434"
@@ -6,3 +6,5 @@ providers:
     api: openai-responses
     discovery:
       type: ollama
+  openrouter:
+    apiKey: "!openrouter-key --personal workstation/OPENROUTER_OMP_HARNESS_API_KEY"

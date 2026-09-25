@@ -23,7 +23,7 @@ printf 'Source: %s (%s)\n' "$(git rev-parse HEAD)" "$selection"
 if [ -n "$(git status --porcelain)" ]; then
   printf 'Note: unit tests read working files; isolated installer checks read committed HEAD.\n'
 fi
-for script in scripts/bootstrap scripts/verify scripts/verify-installers .githooks/pre-push agent-config/install pi-config/install omp-config/install; do
+for script in scripts/bootstrap scripts/check scripts/verify scripts/verify-installers .githooks/pre-push agent-config/install pi-config/install omp-config/install; do
   sh -n "$script"
 done
 bun test --max-concurrency=1 scripts/references.test.ts scripts/workspace-inventory.test.ts

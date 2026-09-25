@@ -35,3 +35,7 @@ closed, and any residual class that remains possible.
 
 A user-story criterion enforced by a fail-closed check is a pokayoke; cite the
 story id where the check runs.
+
+A written postmortem uses [postmortem-template.md](postmortem-template.md), the
+single copy. A repository keeps its real postmortems in `docs/postmortems/`,
+not a copy of the template (harness ADR-004).

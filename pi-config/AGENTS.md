@@ -26,11 +26,13 @@ through the sibling `agent-config`.
 - `~/.bashrc` (marked block only; snippet in the README) — `pi()` wrapper that
   injects the Exa key from pass for interactive-shell launches (ADR-010).
 
-Everything else under `~/.pi/agent` is foreign and must not be overwritten:
-`auth.json`, sessions, `models-store.json`, `usage-outbox/`, telemetry
-(`agent-usage-telemetry.ts`), the herdr-managed `herdr-agent-state.ts`, the
-Omarchy-owned `omarchy` / `diagnose-crash` skill symlinks, and the generated
-`themes/omarchy-system.json`. Deploy only what this repo declares.
+Everything else under `~/.pi/agent` is foreign except the `openrouter` entry
+in `auth.json`. The `openrouter-auth` component overlays only that entry and
+preserves every other credential; do not replace the whole file. Sessions,
+`models-store.json`, `usage-outbox/`, telemetry (`agent-usage-telemetry.ts`),
+the herdr-managed `herdr-agent-state.ts`, Omarchy-owned `omarchy` /
+`diagnose-crash` skill symlinks, and generated `themes/omarchy-system.json`
+remain foreign.
 
 ## Shared primitives
 
@@ -46,8 +48,8 @@ this repo neither owns nor deploys it (ADR-020, amended).
 ## Conventions
 
 - Keep the divergence ledger in `README.md` honest. When you add, remove, or
-  reclassify an extension or setting, update the ledger and add or amend an ADR.
-  A change absent from the ledger is not finished.
+  reclassify an extension or setting, update the ledger and add or amend an ADR
+  in `docs/adr/`. A change absent from the ledger is not finished.
 - Prefer small, single-purpose extensions over one large one. `pi-chrome.ts`
   owns the rails; `loc/` owns codebase metrics.
 - Keep the composer's bottom border empty. Identity is right-aligned on the top

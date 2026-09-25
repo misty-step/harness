@@ -37,8 +37,9 @@ alone isolates HOME, scope, or launcher writes.
 ## Verify and ship
 
 - `./scripts/bootstrap` wires the root pre-push scanners; it does not deploy.
-- `./scripts/verify [shared|pi|omp|workspace|all]` is the canonical check entry
-  point; see [verification](docs/verification.md) for bounds and postconditions.
+- `./scripts/check [shared|pi|omp|workspace|all]` is the fixed gate entry point
+  (ADR-004). It runs `./scripts/verify`, the canonical checks, and CI invokes
+  it; see [verification](docs/verification.md) for bounds and postconditions.
 - Shared changes require both consumers' affected checks. Prose needs consistency
   review; composed-guidance changes need composition inspection, not a model run.
 - Keep scratch in run-scoped `~/.cache/tmp`; cap runner and test concurrency.
@@ -48,6 +49,7 @@ alone isolates HOME, scope, or launcher writes.
 - Use conventional commits. Root Landmark automation owns the single release
   stream. Do not bypass secret scanners.
 
-Cross-component decisions live in `docs/decisions/`; component decisions stay
-with their component. [ADR-001](docs/decisions/001-monorepo.md) supersedes only
-ADR-021's separate-repository topology, not its ownership boundary.
+Cross-component decisions live in `docs/adr/`; component decisions stay with
+their component, in its own `docs/adr/` (`pi-config/docs/adr/`).
+[ADR-001](docs/adr/001-monorepo.md) supersedes only pi-config ADR-021's
+separate-repository topology, not its ownership boundary.

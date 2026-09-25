@@ -24,7 +24,7 @@ at the checkout, never with the checkout as Bun's working directory: Bun loads a
 | Check | Verifies | Tool | Gate |
 | --- | --- | --- | --- |
 | Adoption record | `foundation.json` names every Foundation Standard obligation. Unknown or missing ids and a wrong catalog digest reject. `pending` means needs-evidence, never compliance. | `foundation-check check` | required |
-| Documents (FND-DOC-001) | Root `README.md`, `DESIGN.md`, `USER_STORIES.md`; ≥1 ADR in `docs/adr/`; a postmortem README or template | `foundation-check check` | required |
+| Documents (FND-DOC-001) | Replaced by [ADR-004](004-core-project-documents.md): its core set and surface matrix, with no ADR count and no per-repository postmortem template. Until stage 1 lands at the next pin bump, the pinned checker still enforces the original list: root `README.md`, `DESIGN.md`, `USER_STORIES.md`; ≥1 ADR in `docs/adr/`; a postmortem README or template. | `foundation-check check` | required |
 | User stories | Unique ids, a non-empty statement, SHALL criteria, resolvable supersede targets, no TODO text | `check-stories.sh`, via `check` | required |
 | Feature map (FND-MAP-001) | Every live story is in ≥1 feature. Every `Source:` glob matches tracked files. Each feature has its four sections. | `foundation-check check` | required |
 | Feature map, first draft | Jev decides per (story, source area) whether the area implements the story. Code writes one draft feature per capability. | `feature-map draft` (pilot, source-only) | advisory; reviewed by a human or agent |
@@ -50,7 +50,7 @@ at the checkout, never with the checkout as Bun's working directory: Bun loads a
 | Full compliance in one PR is large, and blocking every PR until the repository is compliant stalls work | Ratchet mode (US-027). `foundation-check baseline --owner NAME --write` records the current gaps as a bootstrap baseline, with or without an existing `foundation.json`: missing documents (`doc:`), story format (`stories:format`), map gaps (`map:`), the verify skill (`skill:verify`), and one `walk:US-nnn` per live story. Each entry has an owner and an expiry at most 30 days out. `check` passes only if (1) every current gap has an unexpired entry, (2) no entry has expired or outlived its gap: an expired entry fails until its gap is fixed and the entry removed, and (3) with `--base`, the baseline only shrinks versus the base branch. A new entry or a later expiry fails unless the PR adds a `foundation/extensions/` record (reason, gap, expiry) that the designated agent reviewer approves (see Review authority). A story the PR edits must be mapped, and a change's receipt accepts `unwalked` only for mapped, unaffected stories with an unexpired walk entry (an unmapped story's impact is unknown, so it is walked), so coverage grows where work happens. An empty baseline means mode `enforced`, and a bootstrap repository cannot stay in bootstrap past its latest expiry without an approved extension. |
 | No `USER_STORIES.md` | An agent drafts stories in `user-stories` init mode. The designated agent reviewer, not the operator, approves the PR that first adds them (see Review authority). |
 | The review gate only judges PRs once it is on the base branch (`pull_request_target` runs the base copy) | The adoption PR adds `foundation-review.yml` and nothing that needs review: no first stories and no extension record. First stories and extensions follow in later PRs, once the gate is on the default branch; on misty-step it becomes a required check with the others. |
-| No feature map | `feature-map draft` gives the starting map. On Scry: area precision 0.75, recall 0.87, identical across two runs, 286 questions in 26 calls, 6.8 s. An agent completes the prose, and the deterministic check gates. |
+| No feature map | `feature-map draft` gives the starting map. Feature files added by the change that first creates it (no `features/` files at all at the merge base) mark no story, since adding the map changes no behaviour; changed source and edited stories still do, and once any map file exists every touched feature file counts. So the adoption PR can map every story while unwalked ones stay under their `walk:` entries. On Scry: area precision 0.75, recall 0.87, identical across two runs, 286 questions in 26 calls, 6.8 s. An agent completes the prose, and the deterministic check gates. |
 | No walk runner | Baseline stories stay `unwalked` until the repository's runner exists; it is written in the first PR that touches a story. Scry's `qa/walk` is the template. |
 | New checker rules could break master | Repositories pin a harness revision. Stricter rules land only through an explicit pin-bump PR, as Scry #194 did for exact criteria. |
 | Jev is unavailable in CI | Jev never sits on the required path. |
@@ -74,10 +74,12 @@ Two steps need an approval the PR author cannot give: a repository's first
 user stories, and any baseline extension (a new baseline entry or a later
 expiry). The operator delegated both to an agent reviewer on 2026-09-25.
 
-- **Who approves.** Each organisation has one designated agent reviewer, a
-  GitHub App identity, written into `foundation-check` itself at the revision a
-  repository's CI pins; neither the repository nor a flag can name another. The
-  PR author never counts, whoever it is.
+- **Who approves.** Each organisation has one designated reviewer, written into
+  `foundation-check` itself at the revision a repository's CI pins; neither the
+  repository nor a flag can name another. Where it is a GitHub App (misty-step),
+  the PR author never counts, whoever it is. Where the organisation has no
+  reviewer App (r90group), the decision is recorded instead; see Designated
+  reviewers.
 - **What counts.** An approving GitHub review on the PR's head commit from that
   App, read by CI through the GitHub API. Text in the repository grants no
   authority, per the Foundation Standard. The App is the only identity CI
@@ -95,15 +97,18 @@ expiry). The operator delegated both to an agent reviewer on 2026-09-25.
   commit marked `foundation-escalation: product-direction` and asks the operator
   through its usual channel. The operator's answer clears the escalation only as
   a later approving review from the same App, on the head, that records the
-  decision and carries `foundation-escalation: resolved`; an earlier or routine
-  approval does not. CI authenticates the App, not the operator: the decision is
+  decision and opens with `foundation-escalation: resolved` as its exact first
+  line, so quoted PR text below it or behind markup cannot count; an earlier or
+  routine approval does not. CI authenticates the App, not the operator: the decision is
   a process step the agent reviewer records (operator choice, 2026-09-25, after
   the first drill showed an escalated PR authored under the operator's account
   could never pass when only that account's approval counted).
 - **Gate.** `foundation-check review --pr N` runs as the `foundation-review`
   workflow (template: `agent-config/skills/foundation/foundation-review.yml`)
   on `pull_request_target`, so the base branch's copy of the gate judges every PR
-  and a PR cannot replace it; the PR's commits are read as data, never run.
+  and a PR cannot replace it. The job checks out only the base branch and fetches
+  the PR's commits as git objects, so none of the PR's files are checked out or
+  run (a static-analysis rule flagged the earlier head checkout, 2026-09-25).
   Review events cannot trigger it, so after any review action (approve,
   request changes, escalate) the agent reviewer adds or removes a label to
   re-run it; retargeting the base re-runs it too. Residual: a dismissal by
@@ -111,14 +116,23 @@ expiry). The operator delegated both to an agent reviewer on 2026-09-25.
   reviewer, which merges, re-runs the gate before merging. It reads the PR's base,
   head, author and reviews through the GitHub API, decides from the PR's own
   revisions whether review is needed, and passes at once when it is not.
-- **Designated reviewers (2026-09-25).** misty-step: `kaylee-agent[bot]` (App
-  4978618). r90group: none yet. `kaylee-agent` is private to misty-step and
-  cannot be installed there. r90group Apps installed with pull-request write
-  access include `vulcan-agent` (all repositories) and
-  `olympus-eval-verifier-r90` (selected repositories), neither with a key on the
-  workstation, and `nopalito-agent` and `iron-forest`, with keys here but already
-  a PR author and the workload token issuer. Until one is designated, r90group
-  PRs that need review fail the advisory gate.
+- **Designated reviewers (2026-09-25).**
+  - misty-step: `kaylee-agent[bot]` (App 4978618), as above.
+  - r90group: no reviewer App (operator decision, 2026-09-25). Agents act as the
+    operator's user `moomooskycow` there, so the agent reviewer records its
+    decision as a review or comment from that user whose exact first line is
+    `foundation-review: approved <head sha>`. An escalation is such an entry
+    whose first line is `foundation-escalation: product-direction`; only a later
+    entry whose first line is `foundation-escalation: resolved <head sha>`
+    clears it (strictly later by timestamp, so a tie stays escalated; pending
+    reviews record nothing), and Kaylee records the operator's decision that way. Every marker
+    must be a first line because the shared account writes much other text, and
+    a decision names its head because a comment is not tied to a commit. The
+    record shows what was decided, not who decided it: CI cannot tell the author
+    from the reviewer there, which is why r90group's checks stay advisory.
+  - `kaylee-agent` could not serve r90group: it is private to misty-step, and its
+    organization-level permissions would apply to all of r90group whatever
+    repositories were selected.
 
 ## Enforcement by plan
 

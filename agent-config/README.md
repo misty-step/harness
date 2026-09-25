@@ -4,8 +4,8 @@ Shared, harness-neutral agent primitives for the Misty Step harnesses. It is the
 base layer under `pi-config` and
 `omp-config`: portable skills, shared
 global guidance, and the `pass-env` secret launcher live here once, and each
-harness declares which primitives it selects. The `design-check` player-copy
-launcher deploys here on the same contract.
+harness declares which primitives it selects. `design-check` and the
+`openrouter-key` directory-aware credential launcher deploy on the same contract.
 
 A primitive belongs here only if it is harness-neutral and either duplicated
 across harnesses or consumed by more than one. Model routing, trackers, settings,
@@ -23,6 +23,7 @@ harness repo. When in doubt, leave it in the harness.
 | `skills/check-cadence/` | Risk-based PR/nightly/weekly check selection without losing owned gates (US-023) |
 | `guidance/*.md` | Shared global-guidance sections, spliced at the harness marker |
 | `bin/pass-env.ts` | Standalone pass-backed environment launcher |
+| `bin/openrouter-key.ts` | Shared OMP/Pi key resolver: R90 checkout or Git-common-dir gets the R90 pass entry; other directories use `--personal` (US-028) |
 | `bin/ws.ts` | Owned exe.dev project workspace launcher: snapshot, task worktrees, remote commands, evidence, browser tunnel (US-025) |
 | `bin/foundation-check.ts` | Repository foundation validator: adoption record, documents, feature map, verify skill, affected stories, walk receipts (US-024) |
 | `bin/design-check.ts` | Standalone player-surface copy checker, installed as `~/.local/bin/design-check` |
@@ -54,7 +55,9 @@ VM presence. Agent sessions and model credentials stay local.
 `foundation-check check --repo DIR` validates `foundation.json` against the
 Foundation Standard catalog, the first-class documents, `check-stories.sh`,
 the `features/` map, and a verify skill with Launch/Doctor/Drive/Evidence/Cleanup
-sections. `affected --base REV` prints the live stories a diff touches;
+sections. `affected --base REV` prints the live stories a diff touches (feature
+files in the change that first creates `features/` do not count; source and
+story edits do);
 `receipt PATH --base REV` validates a same-job story-walk receipt against HEAD,
 its tree, the affected stories, and artifact digests. Repository CI pins this
 file from a harness revision; the deployed launcher resolves the catalog and
@@ -80,10 +83,12 @@ requires every live story and flags walk entries whose story now passes.
 author and reviews, and passes at once unless the PR gives `USER_STORIES.md`
 its first stories or adds a `foundation/extensions/` record. Then it needs an
 approving review on the PR head from the organisation's agent reviewer, written
-into the checker (misty-step: `kaylee-agent[bot]`). After that reviewer's
+into the checker (misty-step: `kaylee-agent[bot]`). r90group has no reviewer App:
+there the decision is a review or comment from `moomooskycow` whose first line is
+`foundation-review: approved <head sha>` (ADR-003, Designated reviewers). After that reviewer's
 `foundation-escalation: product-direction` review on the head, only its later
-approval recording the operator's decision with `foundation-escalation: resolved`
-counts; approvals from the operator's shared account never do. Copy
+approval recording the operator's decision and opening with
+`foundation-escalation: resolved` as its exact first line counts; approvals from the operator's shared account never do. Copy
 [`skills/foundation/foundation-review.yml`](skills/foundation/foundation-review.yml)
 into a repository's workflows and pin the same harness revision as its
 `foundation` job. It runs on `pull_request_target`, so the base branch's copy of

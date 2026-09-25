@@ -1,3 +1,40 @@
+# [0.1.48](https://github.com/misty-step/harness/compare/v0.1.47...v0.1.48) (2026-09-25)
+<!-- landmark:protected-release previous=v0.1.47 source=4197fbc3464a2b7e8c6d426a69ed62af927e79708f24777c426b3e11f1827181 -->
+
+### Bug Fixes
+
+* **agent-config:** fetch the reviewed PR as git objects instead of checking it out (US-027, MIS-150) ([d6287e8](https://github.com/misty-step/harness/commit/d6287e8858749b078672e50df8d9edca2e517ed4))
+# [0.1.47](https://github.com/misty-step/harness/compare/v0.1.46...v0.1.47) (2026-09-25)
+<!-- landmark:protected-release previous=v0.1.46 source=1a274b9e1cb4282b49e48ae7488f2f9e3d5cf177655bd8824dd55b1155b1ffe0 -->
+
+### Features
+
+* **agent-config:** record r90group review decisions under the operator's account and stop a first map marking every story (US-024, US-027, MIS-150) ([efdbaa8](https://github.com/misty-step/harness/commit/efdbaa8cb06b070ca18971782bca08748b2e85b3))
+
+### Bug Fixes
+
+* **agent-config:** a pending review records no r90group decision (US-027, MIS-150) ([acead6b](https://github.com/misty-step/harness/commit/acead6b9ea6aa3cc1605724f958ac8b7ad275190))
+* **agent-config:** keep pre-existing feature edits and timestamp ties conservative (US-024, US-027, MIS-150) ([d55f8ed](https://github.com/misty-step/harness/commit/d55f8edd75b849224c8a2f1004bf3fd8946cbadc))
+* **agent-config:** exempt a first map only when no map file existed at the merge base (US-024, MIS-150) ([dc00ddb](https://github.com/misty-step/harness/commit/dc00ddb325aac73e8a3f06596ce3b6603c8517e4))
+# [0.1.46](https://github.com/misty-step/harness/compare/v0.1.45...v0.1.46) (2026-09-25)
+<!-- landmark:protected-release previous=v0.1.45 source=967e6106ba20962002e1985e019f3c6b0d93d3b7fda81dfe4a7499d6037040e3 -->
+
+### Features
+
+* **harness:** bill OpenRouter by working directory (US-028) ([e902b76](https://github.com/misty-step/harness/commit/e902b76ab6c25d63621b0cd844fd385f7f95695f))
+
+### Bug Fixes
+
+* **pi:** initialize missing auth file safely (US-028) ([b4f60a9](https://github.com/misty-step/harness/commit/b4f60a94c346cafb14e827e909f0256fd6cd379f))
+* **shared:** bound OpenRouter lookup and reject Git errors (US-028) ([b2bb65f](https://github.com/misty-step/harness/commit/b2bb65f3b624663e3ce47292334cd3d6e8a9010c))
+# [0.1.45](https://github.com/misty-step/harness/compare/v0.1.44...v0.1.45) (2026-09-25)
+<!-- landmark:protected-release previous=v0.1.44 source=3846eed66aac530e693a16e3b9c9697df5a3fed1abe6f492b652308d810e8c6a -->
+
+### Bug Fixes
+
+* **agent-config:** clear an escalation only on a standalone resolution line (US-027, MIS-150) ([1970d1e](https://github.com/misty-step/harness/commit/1970d1e62c592dfe55777fecc14eb2a8da549dc8))
+* **agent-config:** count the resolution marker only as the review's unfenced last line (US-027, MIS-150) ([5879b6d](https://github.com/misty-step/harness/commit/5879b6db54423eefa7bf009fadb02fc795d09bbc))
+* **agent-config:** count the resolution marker only as the review's exact first line (US-027, MIS-150) ([1d62123](https://github.com/misty-step/harness/commit/1d621239c724edb9348a3914ba8a53ac2881baea))
 # [0.1.44](https://github.com/misty-step/harness/compare/v0.1.43...v0.1.44) (2026-09-25)
 <!-- landmark:protected-release previous=v0.1.43 source=432e2f1c48a824078da036842570a0176a489a8f6b271384b010864b1faffc63 -->
 
