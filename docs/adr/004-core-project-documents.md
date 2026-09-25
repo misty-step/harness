@@ -1,10 +1,17 @@
 # ADR-004: Core project documents
 
-Proposed 2026-09-25 as an amendment to ADR-003's Documents row (FND-DOC-001),
-to FND-WS-001's applicability, and to the Foundation Standard catalog. It is
-not accepted and not enforced. Nothing here changes a repository until the
-operator accepts it and each repository takes an explicit pin-bump PR, with
-ratchet baselines absorbing the new gaps.
+Accepted 2026-09-25 (MIS-150). The operator approved option C, staged, with
+the calls recorded under Decisions, relayed by Kaylee. This record amends
+ADR-003's Documents row (FND-DOC-001), FND-WS-001's applicability, and the
+Foundation Standard catalog.
+
+Sequencing:
+
+- The accepting PR fixes the harness's own contradictions.
+- Stage 1 changes the catalog and the checker together, so that a pinned
+  revision never carries a catalog that disagrees with its checker.
+- A repository adopts only through an explicit pin-bump PR, with ratchet
+  baselines absorbing the new gaps.
 
 ## Question
 
@@ -76,7 +83,7 @@ praetor, pii-gate), and Powder is archived. Eight read-only audits then covered
 3. **One job, many names.**
    - The vocabulary or boundary document has six names, and 24/37 repositories have none.
    - Decision records collide:
-     - The harness's `docs/decisions/001-003` share numbers with `pi-config/README.md`'s inline ADR-001 to ADR-022.
+     - The harness's `docs/decisions/001-003` share numbers with the ADR-001 to ADR-021 kept inline in `pi-config/README.md`. `pi-config` also cites an ADR-022 that was never written.
      - Estate has two ADRs numbered 0011.
      - Scry has two 001s and two 002s.
 4. **`DESIGN.md` means interface design.** Scry's says it "specifies how
@@ -139,7 +146,7 @@ What already works:
   of the 26 repositories that have both, across the three development trees.
   Chrondle's `GEMINI.md` is a regular file: 85 lines against AGENTS's 345.
 
-## Decision (proposed)
+## Decision
 
 **Rule:** every readiness question has exactly one owner.
 
@@ -151,8 +158,10 @@ What already works:
   target is live and what release is authorized come from release and
   readback evidence (for example, Scry's runbook authority and Estate's
   readback), never from config alone.
-- Status, history, receipts and grants of authority never live in a core
-  document. They belong in the tracker or in CI artifacts.
+- Transient status (progress, proposals awaiting review, handoffs), history,
+  receipts and grants of authority never live in a core document. They belong
+  in the tracker or in CI artifacts. A durable lifecycle classification
+  (active, maintenance or archived) is not transient status; README states it.
 
 ### Core set: every repository
 
@@ -163,7 +172,7 @@ What already works:
   (active, maintenance or archived), purpose and non-goals, and where each
   other owner lives.
 - Never holds: toolchain pins, environment lists, procedures, deployment
-  topology, release history, roadmap, or dated status.
+  topology, release history, roadmap, or transient status.
 - Stale when:
   - a link, repository path or script target fails to resolve;
   - a generated block differs from its re-render.
@@ -181,7 +190,7 @@ to it.
   - what an agent may do without asking;
   - review priorities;
   - a routing table to every owner in this ADR, including the repository's
-    native setup, gate, walk and release commands.
+    walk runner and release command.
 - Never holds: product description, glossary, procedures, one-time
   permissions, workstation state, personas, scaffolder boilerplate, or model
   and vendor names.
@@ -242,19 +251,27 @@ to it.
   `docs/architecture/adr-*`. A declared monorepo may keep one `docs/adr/` per
   component, and each directory is its own number namespace.
 
-**Executable owners.** Each repository keeps its own commands; ADR-003 leaves
-each gate unchanged, and `verification-infrastructure` forbids wrapping a
-working command to impose a common name. AGENTS.md's routing table names them,
-and a reference check proves each named command exists.
+**Executable entry points.** Two paths are fixed, so an agent runs the same
+commands in every repository (operator call, 2026-09-25):
 
-- Setup: `.exe/setup.sh`, the one fixed path, already defined by FND-WS-001.
-  This ADR amends FND-WS-001 to apply to every active repository, because the
-  host-resources mandate sends each project's heavy execution to its own
-  exe.dev workspace. "Arbitrary environment" means a fresh Ubuntu LTS exe.dev
-  VM and a GitHub-hosted Ubuntu runner.
-- Gate: the repository's native full check, whatever CI runs today (for
-  example `npm run ci` in Scry, `./scripts/verify` in the harness).
-- Walk: the repository's walk runner (FND-WLK-001).
+- `.exe/setup.sh`: an idempotent, credential-free bootstrap, already defined
+  by FND-WS-001.
+  - This ADR amends FND-WS-001 to apply to every active repository, because
+    the host-resources mandate sends each project's heavy execution to its own
+    exe.dev workspace.
+  - "Arbitrary environment" means a fresh Ubuntu LTS exe.dev VM and a
+    GitHub-hosted Ubuntu runner.
+- `scripts/check`: the executable entry to the full deterministic gate, which
+  CI invokes.
+  - It may be a two-line wrapper around the native command, for example
+    `exec npm run ci "$@"` in Scry or `exec ./scripts/verify "$@"` in the
+    harness.
+  - The native command stays the gate, as ADR-003 requires.
+  - This entry point is the one exception to `verification-infrastructure`'s
+    rule against wrapping a working command under a common name.
+
+The walk runner stays the repository's own (FND-WLK-001), and AGENTS.md's
+routing table names it together with the release command.
 
 The verify skill keeps Launch, Doctor, Drive, Evidence and Cleanup; its Drive
 section names walk specs rather than restating them. Feature files
@@ -379,8 +396,10 @@ fleet evidence:
   `120000` and point at `AGENTS.md`.
 - `doc:refs`: relative Markdown links in core documents resolve at HEAD, and
   every command in the AGENTS routing table resolves to a script, package
-  script or target. Backticked paths are left out of stage 1, because 17 of
-  the 30 the scan flagged were false positives.
+  script or target. Backticked paths stay out of stage 1: 17 of the 30 paths
+  the scan flagged were false positives.
+- `entry:check`: `scripts/check` exists, is executable, and a CI workflow
+  invokes it.
 - `doc:adr`: this key changes meaning, from "at least one ADR" to: records in
   `docs/adr/` only, unique numbers, a status line, and resolving supersede
   targets.
@@ -406,31 +425,49 @@ Not detectable by lint: prose that contradicts config, as in Habitat ADR-0008
 and Sploot's ARCHITECTURE. Ownership removes the prose copy instead. Jev
 contradiction review stays advisory under ADR-003 decision 3.
 
-## Harness reconciliations (same PR as acceptance)
+## Harness reconciliations
 
-1. The `user-stories` skill adopts ADR-003's rule for approving first stories.
-2. The split `USER_STORIES/` layout is removed from the skill, because the
-   checker, `affected` and receipts all key on the root file.
-3. The credentials guidance adopts the conditional `.env.pass` rule.
-4. FND-DOC-001's text and catalog evidence adopt this ADR, including the
-   `surfaces` field. FND-WS-001's `applies_when` changes to every active
-   repository.
-5. The harness complies with its own standard:
-   - Rename `docs/decisions/` to `docs/adr/`.
-   - Extract the inline ADRs in `pi-config/README.md` and `omp-config/README.md`
-     into their components' `docs/adr/` directories.
-   - Add a root `DOMAIN.md`.
-   - Keep one postmortem template.
-6. Software-factory templates, which produced the product-brief, architecture,
-   acceptance and run shape seen in Rings and Seedbed, emit the core set instead.
+Done in the accepting PR:
+
+1. **User stories.** The `user-stories` skill adopts ADR-003's rule: the
+   designated agent reviewer approves first stories, and the operator keeps
+   later changes of intent. The skill keeps one root `USER_STORIES.md`, and
+   `check-stories.sh` rejects a `USER_STORIES/` directory. No repository uses
+   the split layout, and `foundation-check` reads only the root file.
+2. **Credentials.** The credentials guidance adopts the conditional `.env.pass` rule.
+3. **Gate entry point.** `verification-infrastructure` allows the
+   `scripts/check` entry point.
+4. **Harness compliance.**
+   - `docs/decisions/` moves to `docs/adr/`.
+   - `pi-config`'s inline decision log moves to `pi-config/docs/adr/`.
+     ADR-022 is recovered from commit 7590ad2, which cited it without writing
+     it; `omp-config` has no inline ADRs.
+   - A root `DOMAIN.md` is added.
+   - The one postmortem template moves into the `pokayoke` skill, so both
+     harnesses deploy it.
+   - ADR-003's Documents row points here.
+
+Stage 1, the next pin bump, handed to the harness engineer:
+
+1. **Catalog.** FND-DOC-001's text and evidence adopt this ADR, the adoption
+   record gains `surfaces`, and FND-WS-001's `applies_when` covers every
+   active repository.
+2. **Checker.** It implements the stage 1 gap keys, in the same change as the
+   catalog.
+3. **Scry.** It adopts first, through its pin bump.
+4. **Factory templates.** The software-factory templates, which produced the
+   product-brief, architecture, acceptance and run shape seen in Rings and
+   Seedbed, emit the core set instead.
 
 ## Adoption cost
 
 - **Scry (pilot):**
   - Extract `DOMAIN.md` from `SPEC.md` and AGENTS.
   - Move `docs/architecture/adr-*` into history.
-  - Name its native gate (`npm run ci`) and its walk runner in the AGENTS
-    routing table, and add an `.env.pass` for release secrets.
+  - Add a `scripts/check` wrapper around `npm run ci`, name its walk runner in
+    the AGENTS routing table, and add an `.env.pass` for release secrets.
+  - Retire `VISION.md`: purpose and non-goals move to README, authorized
+    direction to Linear.
   - Fix the README link to the superseded concept study.
   - Remove release chronology from the runbook.
   - A follow-up decision settles the future of the `SPEC.md` S-ids.
@@ -455,16 +492,15 @@ contradiction review stays advisory under ADR-003 decision 3.
 - **Let each repository declare its own document names.** Six names for one
   job show that convergence does not happen without a fixed name.
 
-## Open decisions for the operator
+## Decisions (2026-09-25)
 
-1. Approve the core set and the surface matrix.
-2. Name the vocabulary document `DOMAIN.md` (recommended; used by Tach,
-   Habitat and Olympus) or `ARCHITECTURE.md` (used by Canary, Sploot and Steno).
-3. Name the native commands in the AGENTS routing table (recommended: keeps
-   each gate as ADR-003 and `verification-infrastructure` require), or add a
-   fixed `scripts/check` wrapper (one path everywhere, at the cost of wrapper
-   files that rule forbids).
-4. Drop the "at least one ADR" and per-repository postmortem template requirements.
-5. Retire `VISION.md` fleet-wide. MIS-11 made it optional and retired only Iron Forest's.
-6. Scope the public face by audience, as above, rather than to every project.
-7. Enforce only through ratchet baselines and pin bumps, after acceptance.
+1. Approved: option C, staged. Stage 1 checks ship in the next pin bump; the
+   follow-up candidates wait for evidence.
+2. `DOMAIN.md` is the vocabulary and boundary document.
+3. A fixed `scripts/check` is the gate entry point.
+4. The "at least one ADR" count and the per-repository postmortem template
+   are dropped.
+5. `VISION.md` is retired fleet-wide.
+6. Stories stay universal, CLIs and services included.
+7. The public-face section is approved as written: scoped by audience.
+8. Enforcement comes only through ratchet baselines and pin bumps.

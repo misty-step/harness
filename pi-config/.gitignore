@@ -17,3 +17,6 @@
 !/.githooks/**
 !/.github/
 !/.github/**
+!/docs/
+!/docs/adr/
+!/docs/adr/**

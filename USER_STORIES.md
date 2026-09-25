@@ -404,7 +404,7 @@ the scoped surface list.
 
 Evidence: `agent-config/bin/design-check.test.ts`,
 `agent-config/guidance/design-routing.md`,
-`docs/decisions/002-design-toolkit-trial.md`
+`docs/adr/002-design-toolkit-trial.md`
 
 ## Capability: Model routing
 
@@ -664,4 +664,4 @@ No-gos: no automatic waivers, no baseline for adoption-record errors, no
 baseline entry more than 30 days out.
 
 Evidence: `agent-config/bin/foundation-check.test.ts` (US-027 block);
-`docs/decisions/003-foundation-checks.md`.
+`docs/adr/003-foundation-checks.md`.

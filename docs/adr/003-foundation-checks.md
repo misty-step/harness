@@ -24,7 +24,7 @@ at the checkout, never with the checkout as Bun's working directory: Bun loads a
 | Check | Verifies | Tool | Gate |
 | --- | --- | --- | --- |
 | Adoption record | `foundation.json` names every Foundation Standard obligation. Unknown or missing ids and a wrong catalog digest reject. `pending` means needs-evidence, never compliance. | `foundation-check check` | required |
-| Documents (FND-DOC-001) | Root `README.md`, `DESIGN.md`, `USER_STORIES.md`; ≥1 ADR in `docs/adr/`; a postmortem README or template | `foundation-check check` | required |
+| Documents (FND-DOC-001) | Root `README.md`, `DESIGN.md`, `USER_STORIES.md`; ≥1 ADR in `docs/adr/`; a postmortem README or template. Amended by [ADR-004](004-core-project-documents.md): the checker adopts its core set, surface matrix and stage 1 checks at the next pin bump. | `foundation-check check` | required |
 | User stories | Unique ids, a non-empty statement, SHALL criteria, resolvable supersede targets, no TODO text | `check-stories.sh`, via `check` | required |
 | Feature map (FND-MAP-001) | Every live story is in ≥1 feature. Every `Source:` glob matches tracked files. Each feature has its four sections. | `foundation-check check` | required |
 | Feature map, first draft | Jev decides per (story, source area) whether the area implements the story. Code writes one draft feature per capability. | `feature-map draft` (pilot, source-only) | advisory; reviewed by a human or agent |

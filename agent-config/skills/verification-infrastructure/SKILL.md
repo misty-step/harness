@@ -21,8 +21,11 @@ backend operation. Ordinary feature work uses and maintains the resulting skill;
 Identify the important user journeys or consumer contracts and inspect existing
 skills, development commands, fixtures, checks, CI, and operational documentation.
 Preserve useful interfaces: complete a working smoke command or specialized skill
-rather than wrapping it to impose a common name or schema. Product knowledge is
-the custom part; a library need not acquire a browser stack or container setup.
+rather than wrapping it to impose a common name or schema. The one fixed name is
+`scripts/check`, the executable entry to the repository's full gate (harness
+ADR-004); it may be a thin wrapper, and the native command stays the gate.
+Product knowledge is the custom part; a library need not acquire a browser
+stack or container setup.
 Resolve consequential uncertainty with a small experiment, not a feature catalog.
 Derive the journey list from `USER_STORIES.md` when the repository has one;
 each significant journey carries its story id, so coverage is provable by scan.

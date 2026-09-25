@@ -15,6 +15,10 @@ agent-config/ ── shared install contract ──┬── pi-config/  → pi 
 | `pi-config/` | pi settings, extensions, chrome, guidance intro | [README](pi-config/README.md) |
 | `omp-config/` | OMP routing, config/MCP, extensions, themes, guidance, watchdog | [README](omp-config/README.md) |
 
+Intent: [USER_STORIES.md](USER_STORIES.md). Vocabulary, boundaries and
+invariants: [DOMAIN.md](DOMAIN.md). Decisions: [docs/adr/](docs/adr/). Agent
+rules: [AGENTS.md](AGENTS.md).
+
 ## Setup
 
 ```sh
@@ -121,7 +125,7 @@ The former `misty-step/{agent-config,pi-config,omp-config}` repositories are
 historical archives. Their original commit histories are reachable here through
 unsquashed subtree imports. Use `git log --all` for pre-import history (old commits
 retain their original paths), or browse the archived repositories and releases.
-See [ADR-001](docs/decisions/001-monorepo.md) and the
+See [ADR-001](docs/adr/001-monorepo.md) and the
 [migration record](docs/migration.md).
 
 [linear-cli](https://github.com/misty-step/linear-cli) remains an independent host
