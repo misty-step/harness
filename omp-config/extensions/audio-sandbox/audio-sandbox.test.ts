@@ -55,7 +55,10 @@ test("US-026 a standalone local:// load is routed and loaded from its backing fi
 	writeFileSync(join(local, "inside.py"), "print('in')\n");
 	writeFileSync(join(scratch, "outside.py"), "print('out')\n");
 	symlinkSync(join(scratch, "outside.py"), join(local, "link.py"));
-	expect(routePythonCell("%load local://inside.py", local).split("\n")[1]).toBe(`%load ${JSON.stringify(join(local, "inside.py"))}`);
+	const inside = `%load ${JSON.stringify(join(local, "inside.py"))}`;
+	expect(routePythonCell("%load local://inside.py", local).split("\n")[1]).toBe(inside);
+	expect(routePythonCell("%load local://inside.py\n", local).split("\n")[1]).toBe(inside);
+	expect(routePythonCell("\n  %load local://inside.py  \n\n", local).split("\n")[1]).toBe(inside);
 	expect(() => routePythonCell("%load local://link.py", local)).toThrow("escapes");
 });
 
