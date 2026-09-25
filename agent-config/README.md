@@ -28,6 +28,7 @@ harness repo. When in doubt, leave it in the harness.
 | `bin/design-check.ts` | Standalone player-surface copy checker, installed as `~/.local/bin/design-check` |
 | `bin/semantic-check.ts` | Source candidate for an advisory semantic-quality CLI |
 | `bin/semantic-held-out.ts` | Source-only held-out evaluator for the semantic-quality candidate |
+| `bin/feature-map.ts` | Source-only pilot: Jev-drafted feature map and comparison against a reference `features/` map (ADR-003; not deployed) |
 | `system-one/` | Shared typed judgments, immutable Git adapters, fixtures, and local cache |
 | `audio-sandbox/` | Agent audio contract and host deploy: silent sink, Claude Code env, live routing proof (US-026) |
 | `candidates/effective-verification/` | Child-mandate skill source, kept outside automatic skill deployment |
