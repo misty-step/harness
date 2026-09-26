@@ -39,6 +39,10 @@ def source_files(home: Path) -> dict[Path, tuple[bytes, str, int, int]]:
         staged / "hypr/herdr.lua":
             (read_owned(ROOT / "hypr/herdr.lua", f"-- {OWNER}"), f"-- {OWNER}", 1, 0o600),
     }
+    for name in ("cutover.py", "cutover_transaction.py", "cutover_inventory.py"):
+        data = read_owned(ROOT / name, f"# {OWNER}", 2)
+        ast.parse(data, filename=str(ROOT / name))
+        files[staged / "cutover" / name] = (data, f"# {OWNER}", 2, 0o700)
     for name in UNITS:
         files[staged / "systemd/user" / name] = (
             read_owned(ROOT / "units" / name, f"# {OWNER}"), f"# {OWNER}", 1, 0o600
@@ -47,6 +51,7 @@ def source_files(home: Path) -> dict[Path, tuple[bytes, str, int, int]]:
         "owner": OWNER,
         "schema": 1,
         "cli": {"launcher": ".local/bin/desktop-guard"},
+        "cutover": {"runner": "cutover/cutover.py", "activation": "explicit launch only"},
         "units": {name: {"staged": f"systemd/user/{name}", "target": f".config/systemd/user/{name}"}
                   for name in UNITS},
         "binding": {"staged": "hypr/herdr.lua", "load_from": ".config/hypr/bindings.local.lua"},

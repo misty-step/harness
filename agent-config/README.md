@@ -284,6 +284,14 @@ desktop bindings and is not selected by normal Pi/OMP installs. The
 [operating runbook](../docs/desktop-memory-guard.md) owns verification and the
 operator's cutover/rollback; source lives in `desktop-guard/`.
 
+The cross-harness contract is native process inheritance plus a command-line job
+boundary: neither caller needs a Pi/OMP extension, classifier, routing policy,
+or credential adapter. Both consumers use the same argv/environment/exit-status
+interface. The optional cutover companion likewise stages inertly; only an
+explicit operator trigger runs it outside Herdr, with durable rollback and
+per-engineer native transcript notes. Unsupported resume identities block
+interruption rather than guessing a session.
+
 ## Not yet here
 
 Single-owner or repo-local pieces that stay with their harness for now:

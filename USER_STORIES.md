@@ -882,10 +882,19 @@ Criteria:
 6. WHEN cutover is requested, THE SYSTEM SHALL provide explicit operator-owned
    activation and rollback steps that reconcile existing limits without
    silently restarting a running fleet.
+7. WHEN the operator explicitly triggers the prepared cutover, THE SYSTEM SHALL
+   execute outside Herdr, record fresh transcript/cwd recovery notes for every
+   engineer before interruption, verify the live restored fleet and admission
+   boundary, and write a plain result to a fixed log path.
+8. IF that transition fails or its runner is killed, THEN the user manager SHALL
+   invoke recovery from the durable snapshot. Recovery SHALL preflight every
+   target before writes, preserve foreign edits and unfamiliar replacement
+   servers, and report either verified rollback or a specific reconciliation
+   blocker without claiming success.
 
-No-gos: no Herdr fork, privileged changes, global oomd tuning, automatic live
-cutover, or claim of protection from arbitrary same-user cgroup escapes or a
-kernel OOM selecting the Herdr server itself. A shared fleet cap is not
+No-gos: no Herdr fork, privileged changes, global oomd tuning, activation without
+an explicit operator trigger, or claim of protection from arbitrary same-user
+cgroup escapes or a kernel OOM selecting the Herdr server itself. A shared fleet cap is not
 per-engineer memory isolation.
 
 Evidence: `agent-config/desktop-guard/`, `docs/desktop-memory-guard.md`,

@@ -93,157 +93,102 @@ activation mechanism.
 
 ## Operator cutover — restarts every engineer
 
-Run these steps from a **separate ordinary terminal, outside Herdr**, only when
-the operator has chosen the interruption. No agent performs this transition.
-Keep that terminal open for rollback. Save work and confirm native session
-references are recorded; snapshot restoration preserves layout, not arbitrary
-running processes.
+The reviewed one-shot runner replaces the manual file-copy procedure. It runs
+in `desktop-guard-cutover.service` under `background.slice`, outside Herdr and
+the development slices. No timer is installed. Staging and preparation never
+stop a server, activate units, or reload Hyprland.
 
-1. Record the current server and job state:
+Prepare from the staged package:
 
-   ```sh
-   herdr status server --json
-   systemctl --user show dev-exec.slice -p TasksCurrent -p DropInPaths
-   systemctl --user list-units 'dev-job-*.scope' --no-pager
-   ```
+```sh
+~/.local/share/desktop-guard/staged/cutover/cutover.py prepare
+```
 
-   Wait for local jobs to finish. Do not stop a shared slice. Confirm no named
-   Herdr service already owns a running fleet, and no other unit/drop-in changes
-   have appeared since staging. Review any unfamiliar configuration first.
+Preparation checks the real host, pins the old server and configuration/source
+fingerprints, and writes private per-engineer resume notes. Unknown foreground
+workloads, missing transcript identities, active local jobs, existing managed
+fleets, unexpected unit overrides and Hyprland errors refuse preparation.
+OMP uses native transcript paths; Hermes uses its live TUI child's authoritative
+active-session file and the exact profile database, never the newest session
+row. The transaction is harness-neutral: Pi/OMP share the inherited process
+boundary and job admission; transcript recovery follows the detected native
+agent, not either harness's policy.
 
-2. Stop the old default server deliberately:
+**Only after the operator chooses the interruption**, run this single command:
 
-   ```sh
-   herdr server stop
-   herdr status server --json
-   ```
+```sh
+~/.local/share/desktop-guard/staged/cutover/cutover.py launch
+```
 
-   The result must report `running: false`. This is the step that terminates the
-   existing engineers. A running unmanaged server is never adopted automatically.
+The command only submits the independent user service. Its return is not proof
+of success. The fixed plain log is:
 
-3. Back up live units, drop-ins and the private binding file, then install the
-   staged units. The old `dev-exec.slice.d/limits.conf` must move with its old
-   unit; otherwise its 48/60/8 GiB settings would override the new budget.
+```text
+~/.local/state/desktop-guard/cutover.log
+```
 
-   ```sh
-   set -eu
-   stage="$HOME/.local/share/desktop-guard/staged"
-   units="$HOME/.config/systemd/user"
-   backup=$(mktemp -d "$HOME/.local/share/desktop-guard/cutover.XXXXXX")
-   printf '%s\n' "$backup"
-   test "$(systemctl --user show dev.slice -p TasksCurrent --value)" = 0
-   mkdir -p "$backup/units" "$backup/hypr" "$backup/retired" "$units" "$HOME/.config/hypr"
-   chmod 700 "$backup" "$backup/units" "$backup/hypr" "$backup/retired"
-   for name in dev.slice dev-fleet.slice dev-exec.slice herdr@.service; do
-     for path in "$name" "$name.d"; do
-       if [ -e "$units/$path" ] || [ -L "$units/$path" ]; then
-         cp -a -- "$units/$path" "$backup/units/$path"
-       fi
-     done
-   done
-   if [ -e "$HOME/.config/hypr/bindings.local.lua" ]; then
-     cp -a "$HOME/.config/hypr/bindings.local.lua" "$backup/hypr/"
-   else
-     touch "$backup/hypr/bindings-was-absent"
-   fi
-   touch "$backup/complete"
-   # No configuration changes precede the complete backup.
-   for name in dev.slice dev-fleet.slice dev-exec.slice herdr@.service; do
-     if [ -e "$units/$name.d" ] || [ -L "$units/$name.d" ]; then
-       mv -- "$units/$name.d" "$backup/retired/$name.d"
-     fi
-     rm -f -- "$units/$name"
-     install -m 600 "$stage/systemd/user/$name" "$units/$name"
-   done
-   systemctl --user daemon-reload
-   "$HOME/.local/bin/desktop-guard" start
-   "$HOME/.local/bin/desktop-guard" check
-   systemctl --user show dev.slice dev-fleet.slice dev-exec.slice \
-     -p Id -p MemoryMax -p MemorySwapMax
-   ```
+The fixed resume-notes path is:
 
-   Retain the printed backup path. Stop here on any error; do not attach using a
-   bare Herdr fallback. `check` must authenticate the default server and verify
-   all three slices and oomd exclusion; the following readback shows the limits.
+```text
+~/.local/state/desktop-guard/resume.md
+```
 
-4. Enable the reviewed service for graphical-session startup, and activate the
-   native binding. Append the hook **once**, after inspecting the private file
-   for an existing desktop-guard hook:
+The runner captures a fresh inventory immediately before interruption and moves
+that notes pointer to the actual run. Preserve its private run directory and
+`active.json`; they contain the exact pre-cutover backup and recovery phase.
+The notes give each engineer's cwd, transcript identity and native resume argv.
+First inspect native restoration; do not start a duplicate engineer or replay
+old prompts, approvals, or side effects.
 
-   ```sh
-   systemctl --user enable herdr@default.service
-   printf '\n-- desktop-guard US-043\ndofile(os.getenv("HOME") .. "/.local/share/desktop-guard/staged/hypr/herdr.lua")\n' \
-     >> "$HOME/.config/hypr/bindings.local.lua"
-   hyprctl reload
-   hyprctl configerrors
-   "$HOME/.local/bin/desktop-guard" attach
-   ```
+The ordered transition is:
 
-   Require no Hyprland configuration errors. Attaching supplies the terminal
-   context that Herdr uses to resume eligible native agent sessions. Check the
-   service again after restoration and inspect actual pane process cgroups.
-   Do not interpret an empty layout or a shell fallback as resumed engineers.
+1. Recheck the pinned server, files and host; lock both admission slots; require
+   an empty development hierarchy. Capture every engineer's recovery identity.
+2. Durably snapshot all unit files, drop-in trees, private binding and enablement
+   link, including their absence, before any destructive action.
+3. Stop only the recorded old default server and wait for its exit.
+4. Apply the staged units and private binding transactionally; reload the user
+   manager; start and authenticate the managed server; reload/check Hyprland.
+5. Verify real bounded job scopes and prompt third-job refusal without executing
+   the third command. Open the guarded native terminal client. Restore eligible
+   native sessions; explicitly resume a recovered Hermes identity only into its
+   identified shell fallback, never over an existing agent.
+6. Require the original engineer transcript identities, workspace/pane topology,
+   actual restored foreground-process cgroups, effective limits, oomd exclusion
+   and graphical-session enablement. Only then write `RESULT SUCCESS`.
+
+The destructive OOM drill remains the disposable-session acceptance below; the
+runner never lowers the live fleet's limit or deliberately OOMs production.
+It reuses that native binary/guard contract and checks the live placement.
 
 ## Operator rollback
 
-Rollback also interrupts the managed fleet. Use the same outside terminal and
-its recorded `backup` path. Stop local jobs first. If private bindings or unit
-files changed after cutover, reconcile those edits before restoring the snapshot;
-do not overwrite another session's work.
+Any failed or interrupted transition invokes recovery through systemd
+`ExecStopPost`, including a killed runner or start timeout. Recovery is not a
+background thread in the engineer that is about to be terminated.
 
-```sh
-if systemctl --user is-active --quiet herdr@default.service; then
-  systemctl --user stop herdr@default.service
-fi
-if systemctl --user is-enabled --quiet herdr@default.service; then
-  systemctl --user disable herdr@default.service
-fi
-# Confirm every named managed server/job has stopped before changing shared limits.
-systemctl --user list-units 'herdr@*.service' 'dev-job-*.scope' --no-pager
-```
+Before stopping the new managed fleet or restoring any file, recovery compares
+**all** transaction targets with their recorded original/planned states. This
+includes regular unit files, drop-in trees, the private binding, and the
+enablement symlink. Foreign edits cause `RESULT MANUAL_RECOVERY_REQUIRED`,
+preserve all snapshots and edits, and name the conflict; recovery never silently
+overwrites another session's work.
 
-When no affected workload remains:
+With no conflict, recovery stops only the owned managed server, requires empty
+development slices, restores the complete original configuration, retires the
+empty new cgroups, reloads the managers and opens the original packaged terminal
+launcher. It verifies transcript restoration before writing `RESULT ROLLED_BACK`.
+This restores the known weaker old memory boundary, not successful protection.
 
-```sh
-set -eu
-units="$HOME/.config/systemd/user"
-# Set backup to the exact path printed by cutover; never guess or select "latest".
-test -f "$backup/complete"
-test "$(systemctl --user show dev.slice -p TasksCurrent --value)" = 0
-for name in dev.slice dev-fleet.slice dev-exec.slice herdr@.service; do
-  # A partial cutover may leave an unchanged original drop-in directory.
-  # Anything different requires review, never deletion or a blind merge.
-  if [ -e "$units/$name.d" ] || [ -L "$units/$name.d" ]; then
-    diff -qr -- "$backup/units/$name.d" "$units/$name.d"
-  fi
-  rm -f -- "$units/$name"
-  for path in "$name" "$name.d"; do
-    if { [ -e "$backup/units/$path" ] || [ -L "$backup/units/$path" ]; } &&
-       [ ! -e "$units/$path" ] && [ ! -L "$units/$path" ]; then
-      cp -a -- "$backup/units/$path" "$units/$path"
-    fi
-  done
-done
-if [ -e "$backup/hypr/bindings-was-absent" ]; then
-  rm -f -- "$HOME/.config/hypr/bindings.local.lua"
-else
-  cp -a "$backup/hypr/bindings.local.lua" "$HOME/.config/hypr/bindings.local.lua"
-fi
-systemctl --user daemon-reload
-hyprctl reload
-hyprctl configerrors
-omarchy-launch-terminal-herdr
-```
+`RESULT PREFLIGHT_FAILED` means the old fleet was never interrupted. An unknown
+replacement server, new local workload, missing native client or unavailable
+desktop can block automatic recovery; the log and resume notes remain the
+authority for manual reconciliation. A failed attempt is not automatically
+retried. Do not rerun preparation over an unfinished recovery.
 
-This restores the old launch path and its known weaker memory boundary. It does
-not uninstall the inert staged package. No sudo, global oomd change, broad
-`systemctl revert`, or desktop restart is part of cutover or rollback.
-
-A missing `backup/complete` means backup did not finish and this procedure has
-not changed configuration; retain the partial backup and restart the old launch
-path only when the operator chooses. With that marker present, rollback also
-handles a failure midway through installing the new units: absent destinations
-are harmless and all original files remain in the complete snapshot.
+No package script or workbench-release symlink target is edited. Only Omarchy's
+existing private `bindings.local.lua` hook is changed. No sudo, global oomd
+change, broad `systemctl revert`, or desktop restart is part of the transition.
 
 ## Acceptance walk
 
@@ -276,3 +221,25 @@ the production ceiling for a memory-hog test.
 The [incident postmortem](postmortems/2026-09-26-shared-terminal-oom.md) records
 observed evidence and its limits. A passing disposable walk is not activation of
 the real fleet.
+
+### Prepared-runner evidence (2026-09-26)
+
+The staged read-only `check` ran successfully in a disposable native
+`background.slice` user service: 16 engineers (15 OMP, one Hermes), 24 panes,
+zero recovery blockers, and private mode-0600 notes. No default-fleet cutover
+was executed. The current unmanaged client's established native UI connection
+was observed, and it correctly failed the managed-client predicate.
+
+A separate native oneshot applied fixture configuration using the production
+transaction module and was killed with SIGKILL. Its real `ExecStopPost`, in a
+new process, restored original unit/binding bytes and modes, the drop-in tree,
+and absent enablement. Another native drill held `ExecStopPost` open: systemd
+rejected a duplicate start under the same unit name and the duplicate command
+did not execute. The fixed production unit name owns serialization across the
+ExecStart/ExecStopPost handoff; the file lock additionally guards both phases.
+
+Filesystem regressions cover interrupted atomic staging and foreign edits,
+including deletions. A wrong-checkout regression failed before repair and
+passed after adding transcript-matched cwd checks. The eventual live result,
+including all restored engineers and the guarded client, is deliberately left
+to the operator-triggered run and its fixed result log.

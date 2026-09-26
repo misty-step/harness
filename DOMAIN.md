@@ -74,6 +74,13 @@ the Foundation Standard tooling. It does not own:
   unmanaged server or an oomd monitoring ancestor. Enforced at runtime by
   `agent-config/desktop-guard/desktop-guard.py`; the native owner-path walk is
   documented in `docs/desktop-memory-guard.md`.
+- **INV-010** Cutover rollback preflights every unit, drop-in, binding and
+  enablement target against its journaled states before restoring any target.
+  Enforced by `agent-config/desktop-guard/test_cutover_transaction.py`.
+- **INV-011** Staging/preparation cannot launch the cutover; an explicit operator
+  trigger submits a separate user service, whose `ExecStopPost` owns recovery.
+  Enforced at runtime by `agent-config/desktop-guard/cutover.py`; the operator
+  walk is documented in `docs/desktop-memory-guard.md`.
 
 ## Code map
 
