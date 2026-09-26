@@ -266,7 +266,8 @@ function storyCriteria(contents: string): Map<string, number[]> {
 	return criteria;
 }
 function changedFiles(repo: string, base: string, filter?: string, head = "HEAD"): string[] {
-	return git(repo, "diff", "--name-only", ...(filter ? [`--diff-filter=${filter}`] : []), "-z", `${base}...${head}`).split("\0").filter(Boolean);
+	// A rename changes both the old source owner and the destination: --name-only otherwise hides the old path.
+	return git(repo, "diff", "--no-renames", "--name-only", ...(filter ? [`--diff-filter=${filter}`] : []), "-z", `${base}...${head}`).split("\0").filter(Boolean);
 }
 /** Live stories whose sections a change edits; a story file new at the base counts every section as edited. */
 function editedStories(repo: string, base: string, head: Story[], revision = "HEAD"): Set<string> {
@@ -415,19 +416,36 @@ function packageScripts(repo: string): Record<string, unknown> {
 	const value = jsonOrUndefined(fileAt(repo, "HEAD", "package.json"));
 	return record(value) && record(value.scripts) ? value.scripts : {};
 }
+/** Follow committed symlink blobs, not worktree links: the terminal check must be a file in HEAD. */
+function headFilePath(repo: string, path: string, modes: Map<string, string>): string | undefined {
+	const seen = new Set<string>();
+	while (!seen.has(path)) {
+		seen.add(path);
+		const mode = modes.get(path);
+		if (mode === "100644" || mode === "100755") return path;
+		if (mode !== "120000") return undefined;
+		const target = fileAt(repo, "HEAD", path);
+		if (!text(target)) return undefined;
+		const resolved = relative(repo, resolve(repo, dirname(path), target));
+		if (!resolved || resolved === ".." || resolved.startsWith("../") || isAbsolute(resolved)) return undefined;
+		path = resolved;
+	}
+	return undefined;
+}
 /** Resolve repository paths and package targets; bare lint rule names have no deterministic local resolver. */
-function commandTarget(repo: string, target: string, files: Set<string>): boolean {
+function commandTarget(repo: string, target: string, files: Map<string, string>): boolean {
 	const script = target.match(/^(?:(?:npm|pnpm|yarn|bun) run |(?:npm|pnpm|yarn|bun) )(?:-- )?([-\w.:]+)$/);
 	if (script) return files.has("package.json") && text(packageScripts(repo)[script[1]]);
 	const file = target.replace(/^(?:(?:sh|bash|bun|node|python3?) )?(?:\.\/)?/, "").split(/\s+/)[0];
-	if (files.has(file) && repositoryFile(repo, file)) return true;
-	if (/^make [-\w.]+$/.test(target) && files.has("Makefile")) {
-		const makefile = fileAt(repo, "HEAD", "Makefile");
+	if (headFilePath(repo, file, files)) return true;
+	if (/^make [-\w.]+$/.test(target)) {
+		const path = headFilePath(repo, "Makefile", files);
+		const makefile = path ? fileAt(repo, "HEAD", path) : undefined;
 		return makefile !== undefined && new RegExp(`^${target.slice(5)}\\s*:`, "m").test(makefile);
 	}
 	return false;
 }
-function ledgerTarget(repo: string, target: string, files: Set<string>): "resolved" | "unresolved" | "missing" {
+function ledgerTarget(repo: string, target: string, files: Map<string, string>): "resolved" | "unresolved" | "missing" {
 	if (!text(target) || /[\n\r`]/.test(target)) return "missing";
 	if (commandTarget(repo, target, files)) return "resolved";
 	// A rule id is well-formed but unresolved; explicit repository paths and package scripts must exist at HEAD.
@@ -438,7 +456,7 @@ function ledgerTarget(repo: string, target: string, files: Set<string>): "resolv
 function ledgerSections(domain: string): string[] {
 	return [...domain.matchAll(/^## Invariants[ \t]*\r?\n([\s\S]*?)(?=^## |$(?![\s\S]))/gm)].map((match) => match[1]);
 }
-function ledgerIssues(repo: string, files: Set<string>, issues: Issue[]): void {
+function ledgerIssues(repo: string, files: Map<string, string>, issues: Issue[]): void {
 	if (!files.has("DOMAIN.md") || !repositoryFile(repo, "DOMAIN.md")) return;
 	const sections = ledgerSections(readFileSync(join(repo, "DOMAIN.md"), "utf8"));
 	if (sections.length !== 1 || !sections[0].trim()) {
@@ -461,7 +479,12 @@ function ledgerIssues(repo: string, files: Set<string>, issues: Issue[]): void {
 	}
 	if (bullets.length === 0) issues.push({ gap: "doc:DOMAIN.md", message: "DOMAIN.md: ## Invariants needs at least one rule" });
 }
-function coreReferences(repo: string, files: Set<string>, documents: string[], issues: Issue[]): void {
+function headDirectory(path: string, files: Map<string, string>): boolean {
+	const prefix = `${path}/`;
+	for (const file of files.keys()) if (file.startsWith(prefix)) return true;
+	return false;
+}
+function coreReferences(repo: string, files: Map<string, string>, documents: string[], issues: Issue[]): void {
 	const root = realpathSync(repo);
 	for (const doc of documents) {
 		if (!files.has(doc) || !repositoryFile(repo, doc)) continue;
@@ -475,9 +498,9 @@ function coreReferences(repo: string, files: Set<string>, documents: string[], i
 			const resolved = resolve(repo, dirname(doc), path);
 			const within = relative(repo, resolved);
 			// A path that exists only in the working tree is not evidence for a candidate revision.
-			const atHead = within === "" || files.has(within) || [...files].some((file) => file.startsWith(`${within}/`));
+			const atHead = within === "" || files.has(within) || headDirectory(within, files);
 			const canonical = existsSync(resolved) ? relative(root, realpathSync(resolved)) : "..";
-			const canonicalAtHead = canonical === "" || files.has(canonical) || [...files].some((file) => file.startsWith(`${canonical}/`));
+			const canonicalAtHead = canonical === "" || files.has(canonical) || headDirectory(canonical, files);
 			if (within === ".." || within.startsWith("../") || isAbsolute(within) ||
 				canonical === ".." || canonical.startsWith("../") || isAbsolute(canonical) || !atHead || !canonicalAtHead)
 				issues.push({ gap: "doc:refs", message: `${doc}: Markdown link ${href} does not resolve in the repository at HEAD` });
@@ -497,7 +520,7 @@ function coreReferences(repo: string, files: Set<string>, documents: string[], i
 				if (/^(?:path|directory)$/i.test(header)) {
 					const path = target.replace(/\/$/, "");
 					const resolved = resolve(repo, path);
-					const atHead = files.has(path) || [...files].some((file) => file.startsWith(`${path}/`));
+					const atHead = target.endsWith("/") ? headDirectory(path, files) : !!headFilePath(repo, path, files);
 					const real = existsSync(resolved) ? realpathSync(resolved) : "";
 					const within = real ? relative(realpathSync(repo), real) : "..";
 					if (!safePath(path) || !atHead || within === ".." || within.startsWith("../") || isAbsolute(within) ||
@@ -545,8 +568,15 @@ function contentIssues(repo: string, checkerPath: string, adoption: unknown): Is
 	const files = tracked(repo);
 	// An unborn repository has no candidate tree; the installer smoke still needs the missing-adoption
 	// diagnostic, while no index-only path may satisfy a HEAD reference.
-	const hasHead = spawnSync("git", ["rev-parse", "--verify", "HEAD"], { cwd: repo, stdio: "ignore" }).status === 0;
-	const headFiles = new Set(hasHead ? git(repo, "ls-tree", "-r", "--name-only", "-z", "HEAD").split("\0").filter(Boolean) : []);
+	const tree = spawnSync("git", ["ls-tree", "-r", "-z", "HEAD"], { cwd: repo, encoding: "utf8" });
+	if (tree.error) throw new Error(`git ls-tree: ${tree.error.message}`);
+	if (tree.status !== 0 && spawnSync("git", ["rev-parse", "--verify", "HEAD"], { cwd: repo, stdio: "ignore" }).status === 0)
+		throw new Error(`git ls-tree: ${tree.stderr.trim()}`);
+	const headFiles = new Map<string, string>();
+	if (tree.status === 0) for (const entry of tree.stdout.split("\0")) {
+		const separator = entry.indexOf("\t");
+		if (separator !== -1) headFiles.set(entry.slice(separator + 1), entry.slice(0, 6));
+	}
 	const names = new Set(files);
 	const surfaces = record(adoption) && Array.isArray(adoption.surfaces) ? adoption.surfaces : [];
 	const required = ["README.md", "AGENTS.md", "DOMAIN.md", "USER_STORIES.md"];
@@ -866,17 +896,22 @@ function securityIssues(repo: string, adoption: unknown): Issue[] {
 		if (!prerequisitesBlock(workflow, job, events))
 			problems.push(`${label} prerequisite jobs must run and block on every applicable PR and push`);
 	};
+	const checkPullRequestTrigger = (workflow: { on: Record<string, unknown> }, label: string) => {
+		const trigger = workflow.on.pull_request;
+		if (!record(trigger)) return;
+		if (["paths", "paths-ignore", "branches", "branches-ignore", "tags", "tags-ignore"].some((key) => key in trigger))
+			problems.push(`${label} workflow cannot filter pull_request changes`);
+		if (trigger.types !== undefined &&
+			(!Array.isArray(trigger.types) || !["opened", "synchronize", "reopened"].every((type) => trigger.types.includes(type))))
+			problems.push(`${label} workflow must scan opened, synchronized and reopened PRs`);
+	};
 	const secrets = jobAt(security.secrets, "pull_request", "security.secrets");
 	if (secrets) {
 		if (!("push" in secrets.workflow.on)) problems.push("security.secrets workflow must also scan pushes");
-		for (const event of ["push", "pull_request"]) {
-			const trigger = secrets.workflow.on[event];
-			if (record(trigger) && ["paths", "paths-ignore", "branches", "branches-ignore", "tags", "tags-ignore"].some((key) => key in trigger))
-				problems.push(`security.secrets workflow cannot filter ${event} changes`);
-			if (event === "pull_request" && record(trigger) && trigger.types !== undefined &&
-				(!Array.isArray(trigger.types) || !["opened", "synchronize", "reopened"].every((type) => trigger.types.includes(type))))
-				problems.push("security.secrets workflow must scan opened, synchronized and reopened PRs");
-		}
+		const push = secrets.workflow.on.push;
+		if (record(push) && ["paths", "paths-ignore", "branches", "branches-ignore", "tags", "tags-ignore"].some((key) => key in push))
+			problems.push("security.secrets workflow cannot filter push changes");
+		checkPullRequestTrigger(secrets.workflow, "security.secrets");
 		const scanner = /^\s*(?:\S*\/)?(?:gitleaks|trufflehog|detect-secrets)(?:\s|$)/m;
 		const steps = stepsOf(secrets.job).filter((step) => text(step.run) && scanner.test(step.run));
 		if (steps.length === 0) problems.push("security.secrets job must run a secret scanner");
@@ -894,6 +929,7 @@ function securityIssues(repo: string, adoption: unknown): Issue[] {
 	}
 	const merge = jobAt(dependencies.automerge, "pull_request", "security.dependencies.automerge");
 	if (merge) {
+		checkPullRequestTrigger(merge.workflow, "security.dependencies.automerge");
 		const actor = String(merge.job.if).replace(/^\s*\$\{\{([\s\S]*)\}\}\s*$/, "$1").replace(/\s+/g, "");
 		if (!/^github\.actor==['"]dependabot\[bot\]['"]$/.test(actor))
 			problems.push("security.dependencies.automerge job must be restricted to the dependency bot");
@@ -914,6 +950,7 @@ function securityIssues(repo: string, adoption: unknown): Issue[] {
 	if (isApplication(adoption)) {
 		const auth = record(security.authorization) ? security.authorization : {};
 		const check = jobAt(auth, "pull_request", "security.authorization");
+		if (check) checkPullRequestTrigger(check.workflow, "security.authorization");
 		if (!repositoryFile(repo, auth.test) || !files.has(auth.test as string))
 			problems.push("security.authorization.test must name a tracked authorization-boundary test");
 		else if (check) {

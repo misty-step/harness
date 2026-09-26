@@ -323,6 +323,23 @@ describe("foundation-check (US-024)", () => {
 		expect(errors()).toContain("routing path src/absent/ does not resolve at HEAD");
 	});
 
+	test("enforcement symlinks must resolve entirely within the HEAD tree", () => {
+		const repo = fixture("head-target-symlink");
+		symlinkSync("../generated/check.sh", join(repo, "scripts/alias"));
+		commit(repo, "track symlink without target");
+		put(repo, "generated/check.sh", "#!/bin/sh\nexit 0\n");
+		const original = readFileSync(join(repo, "DOMAIN.md"), "utf8");
+		put(repo, "DOMAIN.md", original.replace("scripts/check", "scripts/alias"));
+		put(repo, "AGENTS.md", "# Agents\n\n## Routing\n\n| Owner | Command |\n| --- | --- |\n| Gate | `scripts/alias` |\n\nRead `DOMAIN.md` for invariants.\n");
+		const errors = () => cli(repo, "check").output.errors.join("\n");
+		expect(errors()).toContain("INV-001 cites missing check scripts/alias");
+		expect(errors()).toContain("routing command scripts/alias has no script");
+		exec(repo, ["add", "generated/check.sh"]);
+		expect(errors()).toContain("INV-001 cites missing check scripts/alias");
+		commit(repo, "track link target");
+		expect(cli(repo, "check").status).toBe(0);
+	});
+
 	test("surface checks and enforced story evidence reject missing owners", () => {
 		const repo = fixture("surface-documents");
 		const value = { ...adoption(), surfaces: ["ui", "deployed", "content"], content: { schema: "content/schema.json", lint: "scripts/check" } };
@@ -1062,6 +1079,24 @@ describe("foundation-check security baseline (ADR-006, US-024)", () => {
 		put(repo, ".github/workflows/dependencies.yml", original.replace("  gate:\n    runs-on:", "  gate:\n    if: failure()\n    runs-on:"));
 		expect(errors()).toContain("security.dependencies.automerge job needs an existing blocking gate job");
 	});
+	test("authorization PR workflow rejects closed-only and path-filtered triggers", () => {
+		const repo = fixture("authorization-trigger");
+		const value = adoption();
+		value.surfaces = ["ui"];
+		value.security.authorization.workflow = ".github/workflows/authorization.yml";
+		const authWorkflow = "name: authorization\non:\n  pull_request:\n    types: [opened, synchronize, reopened]\njobs:\n  auth:\n    runs-on: ubuntu-latest\n    steps:\n      - run: bun test tests/auth.test.ts\n";
+		put(repo, ".github/workflows/authorization.yml", authWorkflow);
+		commit(repo, "track authorization workflow");
+		put(repo, "foundation.json", JSON.stringify(value));
+		const errors = () => cli(repo, "check").output.errors.join("\n");
+		put(repo, ".github/workflows/authorization.yml", authWorkflow.replace("opened, synchronize, reopened", "closed"));
+		expect(errors()).toContain("security.authorization workflow must scan opened, synchronized and reopened PRs");
+		put(repo, ".github/workflows/authorization.yml", authWorkflow.replace("    types:", "    paths: ['src/**']\n    types:"));
+		expect(errors()).toContain("security.authorization workflow cannot filter pull_request changes");
+		put(repo, ".github/workflows/authorization.yml", authWorkflow);
+		expect(errors()).not.toContain("FND-SEC-001");
+	});
+
 });
 
 describe("foundation-check review gate (US-027)", () => {
@@ -1190,6 +1225,24 @@ describe("foundation-check review gate (US-027)", () => {
 		put(repo, "src/nested/journey.ts", "export const result = 2;\n");
 		exec(repo, ["rm", "features/journey.md"]);
 		commit(repo, "remove map while changing source");
+		const head = exec(repo, ["rev-parse", "HEAD"]);
+		reviews = [said("teammate", head)];
+		opened(base, head);
+		exec(repo, ["checkout", "-q", base]);
+		expect((await gate(repo)).output.errors.join("\n")).toContain("must cite mapped source story US-001");
+		opened(base, head, "engineer", "Stories: US-001");
+		expect((await gate(repo)).status).toBe(0);
+	});
+
+	test("a rename away from base-mapped source still requires its live story citation", async () => {
+		const repo = fixture("gate-renamed-source");
+		put(repo, "lib/journey.ts", "export const alternate = 1;\n");
+		commit(repo, "add alternate source");
+		const base = exec(repo, ["rev-parse", "HEAD"]);
+		mkdirSync(join(repo, "archive"), { recursive: true });
+		exec(repo, ["mv", "src/nested/journey.ts", "archive/journey.ts"]);
+		put(repo, "features/journey.md", feature.replace("Source: src/**", "Source: lib/**"));
+		commit(repo, "rename mapped source and remap feature");
 		const head = exec(repo, ["rev-parse", "HEAD"]);
 		reviews = [said("teammate", head)];
 		opened(base, head);
