@@ -646,12 +646,12 @@ Criteria:
    a later expiry unless an added `foundation/extensions/` record names that
    gap and expiry, and SHALL fail a story edited in the change that stays
    unmapped; a first adoption MAY create its baseline.
-4. WHEN validating a walk receipt against a change, THE SYSTEM SHALL accept
-   `unwalked` only for a mapped story with an unexpired baseline walk entry that
-   the change does not affect; an unmapped story's impact is unknown, so it SHALL
-   be walked. WITH `--all` (a full walk that judges no change), THE SYSTEM SHALL
-   require every live story, accept `unwalked` under an unexpired walk entry, and
-   fail a walk entry whose story now passes.
+4. WHEN validating a walk receipt, THE SYSTEM SHALL accept `unwalked` for a
+   story with an unexpired baseline walk entry (no walk yet), whether or not the
+   change affects it, and report it as advisory; IF a story's walk ran and
+   failed, or a story is `unwalked` without such an entry, THEN THE SYSTEM SHALL
+   fail the receipt (operator decision 2026-09-26). WITH `--all`, THE SYSTEM
+   SHALL require every live story and fail a walk entry whose story now passes.
 5. WHEN a pull request gives `USER_STORIES.md` its first stories or adds a
    baseline extension record, `foundation-check review` SHALL pass only with an
    approving review on the PR head from the organisation's designated agent

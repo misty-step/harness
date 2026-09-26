@@ -98,7 +98,7 @@ function fixture(name: string) {
 function cli(repo: string, ...args: string[]) {
 	// A CI event file names the harness's own default branch, not the fixture's.
 	const result = spawnSync("bun", [script, ...args, "--repo", repo, "--catalog", catalog, "--stories-checker", checker, "--json"], { cwd: repo, encoding: "utf8", env: { ...process.env, GITHUB_EVENT_PATH: "" } });
-	return { status: result.status, output: JSON.parse(result.stdout) as { ok: boolean; errors: string[]; needs_evidence?: string[]; stories?: string[]; baselined?: string[]; gaps?: string[]; wrote?: string } };
+	return { status: result.status, output: JSON.parse(result.stdout) as { ok: boolean; errors: string[]; needs_evidence?: string[]; stories?: string[]; baselined?: string[]; advisory?: string[]; gaps?: string[]; wrote?: string } };
 }
 function commit(repo: string, message = "change") {
 	exec(repo, ["add", "."]);
@@ -367,7 +367,7 @@ describe("foundation-check ratchet (US-027)", () => {
 		expect(cli(repo, "check", "--base", adopted).output.errors).toContain("US-001: edited in this change, so it must be mapped; remove baseline map:US-001");
 	});
 
-	test("receipts accept unwalked only for baselined, unaffected stories; --all requires every live story", () => {
+	test("an unwalked story with a walk entry is advisory, affected or not; a failed walk or an entry-less unwalked story fails", () => {
 		const repo = fixture("receipt-baseline");
 		put(repo, "USER_STORIES.md", `# Stories\n\n${liveStory}\n${otherStory}\n${retiredStory}\n${headingRetiredStory}`);
 		put(repo, "features/README.md", "# Index\n\n[Journey](journey.md)\n[Other](other.md)\n");
@@ -385,11 +385,17 @@ describe("foundation-check ratchet (US-027)", () => {
 		save({ ...walked, stories: [...walked.stories, unwalked] });
 		expect(inspect("--base", base).status).toBe(0);
 		save({ ...walked, stories: [{ id: "US-001", status: "unwalked" }, unwalked] });
-		expect(inspect("--base", base).output.errors).toContain("receipt: US-001 is unwalked");
+		expect(inspect("--base", base).output.errors).toContain("receipt: US-001 is unwalked and has no valid walk:US-001 baseline entry");
 		bootstrap(repo, [{ gap: "walk:US-001", owner: "team", expires: day(10) }, { gap: "walk:US-004", owner: "team", expires: day(10) }]);
 		commit(repo, "baseline US-001");
 		save({ ...receipt(repo, base), stories: [{ id: "US-001", status: "unwalked" }, unwalked] });
-		expect(inspect("--base", base).output.errors).toContain("receipt: US-001 is affected by this change and must be walked");
+		// US-001 has no walk yet and this change touches it: the gate reports it and still passes.
+		const affectedNoWalk = inspect("--base", base);
+		expect(affectedNoWalk.status).toBe(0);
+		expect(affectedNoWalk.output.advisory).toContain(`US-001 unwalked: no walk yet (walk:US-001, owner team, expires ${day(10)}); affected by this change`);
+		// A walk that ran and failed still fails the gate, entry or not.
+		save({ ...receipt(repo, base), stories: [{ id: "US-001", status: "fail", criteria: [{ n: 1, status: "fail", evidence: [] }, { n: 2, status: "pass", evidence: [] }] }, unwalked] });
+		expect(inspect("--base", base).output.errors).toContain("receipt: US-001 is fail");
 		bootstrap(repo, [{ gap: "walk:US-004", owner: "team", expires: day(10) }]);
 		commit(repo, "full walk");
 		const full = { ...receipt(repo, base), base: null };
@@ -403,10 +409,10 @@ describe("foundation-check ratchet (US-027)", () => {
 		bootstrap(repo, [{ gap: "walk:US-004", owner: "team", expires: day(-1) }]);
 		commit(repo, "expired");
 		save({ ...receipt(repo, base), base: null, stories: [...full.stories, unwalked] });
-		expect(inspect("--all").output.errors).toContain("receipt: US-004 is unwalked");
+		expect(inspect("--all").output.errors).toContain("receipt: US-004 is unwalked and has no valid walk:US-004 baseline entry");
 	});
 
-	test("a baselined map gap does not block affected, but a change receipt cannot excuse an unmapped story", () => {
+	test("a baselined map gap does not block affected, and an unmapped story with no walk yet is advisory", () => {
 		const repo = fixture("baselined-map");
 		put(repo, "USER_STORIES.md", `# Stories\n\n${liveStory}\n${otherStory}\n${retiredStory}\n${headingRetiredStory}`);
 		bootstrap(repo, [{ gap: "map:US-004", owner: "team", expires: day(10) }, { gap: "walk:US-004", owner: "team", expires: day(10) }]);
@@ -419,11 +425,10 @@ describe("foundation-check ratchet (US-027)", () => {
 		expect(touched.output.stories).toEqual(["US-001"]);
 		const walked = receipt(repo, base);
 		put(repo, "walk/walk-receipt.json", JSON.stringify({ ...walked, stories: [...walked.stories, { id: "US-004", status: "unwalked" }] }));
-		// No feature places US-004, so nothing shows this change leaves it unaffected: it must be mapped or walked.
-		expect(cli(repo, "receipt", "walk/walk-receipt.json", "--base", base).output.errors).toEqual([
-			"receipt: US-004 is unwalked but unmapped, so this change's effect on it is unknown; map or walk it",
-		]);
-		expect(cli(repo, "receipt", "walk/walk-receipt.json").output.errors).toContain("receipt: US-004 is unwalked; a change receipt needs --base to prove it unaffected");
+		// Its walk entry says US-004 has no walk yet, so reporting it unwalked is advisory even though no feature places it.
+		const change = cli(repo, "receipt", "walk/walk-receipt.json", "--base", base);
+		expect(change.output.errors).toEqual([]);
+		expect(change.output.advisory).toEqual([`US-004 unwalked: no walk yet (walk:US-004, owner team, expires ${day(10)})`]);
 		// A full walk judges no change, so its walk entry still covers the story until it expires.
 		put(repo, "walk/walk-receipt.json", JSON.stringify({ ...walked, base: null, stories: [...walked.stories, { id: "US-004", status: "unwalked" }] }));
 		expect(cli(repo, "receipt", "walk/walk-receipt.json", "--all").status).toBe(0);
@@ -437,11 +442,11 @@ describe("foundation-check ratchet (US-027)", () => {
 		commit(repo, "bad entry");
 		const full = { ...receipt(repo, exec(repo, ["rev-parse", "HEAD"])), base: null };
 		put(repo, "walk/walk-receipt.json", JSON.stringify({ ...full, stories: [...full.stories, { id: "US-004", status: "unwalked" }] }));
-		expect(cli(repo, "receipt", "walk/walk-receipt.json", "--all").output.errors).toContain("receipt: US-004 is unwalked");
+		expect(cli(repo, "receipt", "walk/walk-receipt.json", "--all").output.errors).toContain("receipt: US-004 is unwalked and has no valid walk:US-004 baseline entry");
 		bootstrap(repo, [{ gap: "walk:US-004", owner: "team", expires: day(45) }]);
 		commit(repo, "far entry");
 		put(repo, "walk/walk-receipt.json", JSON.stringify({ ...full, head: exec(repo, ["rev-parse", "HEAD"]), tree: exec(repo, ["rev-parse", "HEAD^{tree}"]), stories: [...full.stories, { id: "US-004", status: "unwalked" }] }));
-		expect(cli(repo, "receipt", "walk/walk-receipt.json", "--all").output.errors).toContain("receipt: US-004 is unwalked");
+		expect(cli(repo, "receipt", "walk/walk-receipt.json", "--all").output.errors).toContain("receipt: US-004 is unwalked and has no valid walk:US-004 baseline entry");
 	});
 
 	test("a first baseline records map gaps before stories exist, and one feature defect cannot cover another", () => {
