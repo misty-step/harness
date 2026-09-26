@@ -319,31 +319,43 @@ function nextCode(text: string, from: number): number {
 	return i;
 }
 
-/** Index of a function body's opening brace: the first top-level brace group after the parameters that ends the declaration, so object, conditional and generic return types are skipped. */
-function bodyBrace(text: string, paren: number): number {
+/**
+ * Where a function's body starts, or where an overload signature ends. The body is the first top-level brace group after the
+ * parameters that ends the declaration, so object, conditional and generic return types are skipped.
+ */
+function bodyBrace(text: string, paren: number): { body: number } | { overload: number } | null {
 	const paramsEnd = closing(text, paren);
-	if (paramsEnd < 0) return -1;
+	if (paramsEnd < 0) return null;
+	let last = ")";
 	for (let i = paramsEnd + 1; i < text.length; i++) {
 		const ch = text[i];
 		// Comments and string literal types are never the body.
-		if (text.startsWith("//", i) || text.startsWith("/*", i)) { const next = nextCode(text, i); if (next < 0) return -1; i = next - 1; continue; }
+		if (text.startsWith("//", i) || text.startsWith("/*", i)) { const next = nextCode(text, i); if (next < 0) return null; i = next - 1; continue; }
+		if (/\s/.test(ch)) continue;
 		if (ch === "'" || ch === '"' || ch === "`") {
 			let j = i + 1;
 			while (j < text.length && text[j] !== ch) j += text[j] === "\\" ? 2 : 1;
-			if (j >= text.length) return -1;
+			if (j >= text.length) return null;
 			i = j;
+			last = ch;
 			continue;
 		}
-		// An overload signature has no body, and an arrow return type is not parsed here: both stay unresolved.
-		if (ch === ";" || ch === "=" && text[i + 1] === ">") return -1;
-		if (ch !== "(" && ch !== "[" && ch !== "{") continue;
+		// A signature ending in ';' is an overload; an arrow return type is not parsed here and stays unresolved.
+		if (ch === ";") return { overload: i };
+		if (ch === "=" && text[i + 1] === ">") return null;
+		if (ch !== "(" && ch !== "[" && ch !== "{") { last = ch; continue; }
 		const end = closing(text, i);
-		if (end < 0) return -1;
-		// A type followed by ';' belongs to an overload or declaration; its body, if any, is elsewhere.
-		if (ch === "{" && endsStatement(text, end)) return text[nextCode(text, end + 1)] === ";" ? -1 : i;
+		if (end < 0) return null;
+		if (ch === "{" && endsStatement(text, end)) {
+			const after = nextCode(text, end + 1);
+			// Only a brace in type position followed by ';' is an overload's return type; a body may carry its own ';'.
+			const typed = /[:|&?<=,]/.test(last) || /(?:^|[^\w$])(?:extends|is|keyof|typeof|infer|asserts|readonly)\s*$/.test(text.slice(paramsEnd + 1, i));
+			return after >= 0 && text[after] === ";" && typed ? { overload: after } : { body: i };
+		}
 		i = end;
+		last = text[end];
 	}
-	return -1;
+	return null;
 }
 
 function definition(text: string, symbol: string, python = false): { line: number; text: string; complete: boolean; body?: number } | null {
@@ -360,12 +372,17 @@ function definition(text: string, symbol: string, python = false): { line: numbe
 		if (!match) continue;
 		const start = match.index;
 		if (pattern === patterns[0]) {
-			// Overload signatures come before their implementation: take the first declaration that has a body.
-			for (let candidate: RegExpExecArray | null = match; candidate; candidate = pattern.exec(text)) {
-				if (commented(text, candidate.index, python)) continue;
-				const body = bodyBrace(text, candidate.index + candidate[0].length - 1);
-				const end = body >= 0 ? closing(text, body) : -1;
-				if (end >= 0) return { line: lineOf(text, candidate.index), text: text.slice(candidate.index, end + 1), complete: true, body: body - candidate.index };
+			// TypeScript puts an implementation right after its overload signatures; a later same-named function is another binding.
+			let candidate: RegExpExecArray | null = match;
+			while (candidate) {
+				const found = bodyBrace(text, candidate.index + candidate[0].length - 1);
+				if (found && "body" in found) {
+					const end = closing(text, found.body);
+					if (end >= 0) return { line: lineOf(text, candidate.index), text: text.slice(candidate.index, end + 1), complete: true, body: found.body - candidate.index };
+				}
+				if (!found || !("overload" in found)) break;
+				const next = pattern.exec(text);
+				candidate = next && next.index === nextCode(text, found.overload + 1) && !commented(text, next.index, python) ? next : null;
 			}
 			// No recognizable body: keep the first signature as evidence, but it cannot count as resolved.
 			const eol = text.indexOf("\n", start);

@@ -171,7 +171,9 @@ describe("foundation assessment advisory", () => {
 
 	test("captures whole live definitions and records what it cannot follow", async () => {
 		const repo = fixture({
-			"sentry-init.ts": "import * as Sentry from '@sentry/node';\nimport { options, environmentOptions } from './options';\nimport { getRelease, getPrivacy, getMode, getLong, getOverloaded, getDrafted } from './release';\nimport defaults from './defaults';\n// Sentry.init({ environment: 'commented-init' });\nSentry.init(options);\nSentry.init(environmentOptions);\nSentry.init(getRelease());\nSentry.init(getPrivacy());\nSentry.init(getMode());\nSentry.init(getLong());\nSentry.init(getOverloaded());\nSentry.init(getDrafted());\nSentry.init(defaults);\n",
+			"sentry-init.ts": "import * as Sentry from '@sentry/node';\nimport { options, environmentOptions } from './options';\nimport { getRelease, getPrivacy, getMode, getLong, getOverloaded, getDrafted } from './release';\nimport { getScoped } from './scoped';\nimport defaults from './defaults';\n// Sentry.init({ environment: 'commented-init' });\nSentry.init(options);\nSentry.init(environmentOptions);\nSentry.init(getRelease());\nSentry.init(getPrivacy());\nSentry.init(getMode());\nSentry.init(getLong());\nSentry.init(getOverloaded());\nSentry.init(getDrafted());\nSentry.init(getScoped());\nSentry.init(defaults);\n",
+			// A body may end with its own ';', and a same-named function in another scope is not its implementation.
+			"scoped.ts": "export function getScoped() { return { maxValueLength: 21 } as never; };\nfunction wrapper() {\n  function getScoped() { return { maxValueLength: 23 } as never; }\n  return getScoped;\n}\n",
 			"defaults.ts": "// export default { environment: 'commented-default' };\nexport default { environment: 'live-default' };\n",
 			"worker.py": "import sentry_sdk\n# sentry_sdk.init(environment='commented-python')\nsentry_sdk.init(environment='live-python')\n# options = old_options()\noptions = live_options()\nsentry_sdk.init(options)\n",
 			"options.ts": "import { privacyOptions } from './privacy';\n// export const options = { environment: 'commented-out' };\nexport const options = { ...privacyOptions, environment: 'production' };\nexport const environmentOptions = process.env.CI\n  ? { environment: 'ci' }\n  : { environment: 'local' };\n",
@@ -180,7 +182,8 @@ describe("foundation assessment advisory", () => {
 		const snapshot = openGitSnapshot(repo);
 		const state = distillFoundationPackets(repo, snapshot, "sentry").packets[0].state;
 		expect(state).toContain("maxValueLength: 9");
-		for (const body of ["maxValueLength: 11", "maxValueLength: 15", "maxValueLength: 19"]) expect(state).toContain(body);
+		for (const body of ["maxValueLength: 11", "maxValueLength: 15", "maxValueLength: 19", "maxValueLength: 21"]) expect(state).toContain(body);
+		expect(state).not.toContain("maxValueLength: 23");
 		expect(state).toContain("sendDefaultPii: true");
 		expect(state).toContain("maxBreadcrumbs: 7");
 		for (const live of ["live-default", "live-python", "live_options"]) expect(state).toContain(live);
