@@ -36,7 +36,7 @@ type Options = {
 	pr?: number; githubRepo?: string;
 };
 type Result = {
-	ok: boolean; errors: string[]; needs_evidence?: string[]; stories?: string[]; baselined?: string[]; gaps?: string[];
+	ok: boolean; errors: string[]; needs_evidence?: string[]; stories?: string[]; baselined?: string[]; advisory?: string[]; gaps?: string[];
 	wrote?: string; adoption?: unknown; reasons?: string[]; approved_by?: string;
 };
 type Feature = { file: string; stories: string[]; sources: string[] };
@@ -532,25 +532,20 @@ function receipt(options: Options): Result {
 	const adoption = jsonOrUndefined(fileAt(options.repo, "HEAD", "foundation.json"));
 	const storiesAtHead = git(options.repo, "show", "HEAD:USER_STORIES.md");
 	const live = liveIds(parseStories(storiesAtHead));
-	// Stories the map does not place in any feature: a change's impact on them cannot be computed.
-	const unmapped = new Set<string>();
 	if (options.base) {
 		const base = git(options.repo, "rev-parse", `${options.base}^{commit}`).trim();
 		if (value.base !== base) errors.push("receipt: base differs from requested base");
 		const report: Issue[] = [];
 		expected = affected(options.repo, options.base, report);
-		for (const issue of report) {
-			const story = issue.gap?.match(/^map:(US-\d{3})$/)?.[1];
-			if (story) unmapped.add(story);
-		}
 		errors.push(...uncovered(report, adoption, live));
 	} else if (value.base !== null && !/^[0-9a-f]{40}$/.test(String(value.base))) errors.push("receipt: base must be a commit or null");
-	// A valid bootstrap baseline may excuse a story from being walked, but only when the story is provably
-	// unaffected: judged against --base with the story mapped, or in a full walk (base null) that judges no change.
+	// A story with no walk yet is one a valid bootstrap baseline names (walk:US-nnn, owner and expiry). Reporting it
+	// unwalked is advisory whether or not the change affects it (operator decision 2026-09-26): only a walk that
+	// ran and failed, or an unwalked story without such an entry, fails the receipt.
 	const now = today();
 	const baseline = readBaseline(adoption, live, [], now);
 	const excused = covering(baseline, live, now);
-	const provable = options.base !== undefined || value.base === null;
+	const advisory: string[] = [];
 	const artifacts = new Set<string>();
 	if (!Array.isArray(value.artifacts)) errors.push("receipt: artifacts must be an array");
 	else for (const artifact of value.artifacts) {
@@ -572,10 +567,9 @@ function receipt(options: Options): Result {
 		reported.add(id);
 		if (!criteriaAtHead.has(id)) { errors.push(`receipt: ${id} is not a story at HEAD`); continue; }
 		if (story.status === "unwalked") {
-			if (!excused.has(`walk:${id}`)) errors.push(`receipt: ${id} is unwalked`);
-			else if (!provable) errors.push(`receipt: ${id} is unwalked; a change receipt needs --base to prove it unaffected`);
-			else if (unmapped.has(id)) errors.push(`receipt: ${id} is unwalked but unmapped, so this change's effect on it is unknown; map or walk it`);
-			else if (expected.includes(id)) errors.push(`receipt: ${id} is affected by this change and must be walked`);
+			const entry = excused.get(`walk:${id}`);
+			if (!entry) errors.push(`receipt: ${id} is unwalked and has no valid walk:${id} baseline entry`);
+			else advisory.push(`${id} unwalked: no walk yet (walk:${id}, owner ${entry.owner}, expires ${entry.expires})${expected.includes(id) ? "; affected by this change" : ""}`);
 			continue;
 		}
 		if (story.status !== "pass") errors.push(`receipt: ${id} is ${story.status}`);
@@ -595,7 +589,7 @@ function receipt(options: Options): Result {
 	if (options.all) {
 		for (const id of live) if (!reported.has(id)) errors.push(`receipt: ${id} is missing from a full walk`);
 	}
-	return { ok: errors.length === 0, errors };
+	return { ok: errors.length === 0, errors, advisory };
 }
 /**
  * Designated reviewer per organisation (ADR-003 Review authority). It lives in this pinned checker, so neither
@@ -724,6 +718,7 @@ function print(result: Result, json: boolean, command: Command): void {
 	}
 	for (const error of result.errors) console.log(`FAIL: ${error}`);
 	for (const line of result.baselined ?? []) console.log(`baselined: ${line}`);
+	for (const line of result.advisory ?? []) console.log(`advisory: ${line}`);
 	for (const id of result.needs_evidence ?? []) console.log(`needs-evidence: ${id}`);
 	if (command === "baseline") {
 		for (const gap of result.gaps ?? []) console.log(`gap: ${gap}`);

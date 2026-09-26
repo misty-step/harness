@@ -73,10 +73,13 @@ baselined, and fails an expired entry or one whose gap is fixed. In PR CI,
 needs an added `foundation/extensions/*.json` record
 (`foundation-baseline-extension/1`: reason plus gap and expiry per entry),
 approved by the designated agent reviewer, and a story the PR edits cannot stay
-unmapped. Against a change, `receipt` accepts `unwalked` only for a mapped,
-unaffected story with an unexpired `walk:` entry: an unmapped story's impact is
-unknown, so it must be walked. The nightly full walk uses `receipt --all`, which
-requires every live story and flags walk entries whose story now passes.
+unmapped. `receipt` accepts `unwalked` for any story with an unexpired `walk:`
+entry (no walk yet), affected by the change or not, and prints it as
+`advisory:`; a walk that ran and failed, or an `unwalked` story without an
+entry, fails. A repository's walk runner therefore reports what it cannot walk
+as `unwalked` and exits non-zero only for a failed walk or a crash. The nightly
+full walk uses `receipt --all`, which requires every live story and flags walk
+entries whose story now passes.
 
 `review --pr N` is the gate for the two approvals an author cannot give
 (ADR-003 Review authority). From the GitHub API it reads the PR's base, head,
