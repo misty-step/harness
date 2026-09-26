@@ -514,7 +514,7 @@ describe("foundation-check operational obligations (ADR-005, US-040)", () => {
 		deploy("  push:\n    branches: [main]", "    needs: [test]\n");
 		put(repo, "src/instrument.ts", "import * as Sentry from \"@sentry/node\";\nSentry.init({ release: process.env.RELEASE });\n");
 		put(repo, ".github/workflows/health.yml", "name: health\non:\n  schedule:\n    - cron: \"*/5 * * * *\"\njobs:\n  probe:\n    runs-on: ubuntu-latest\n    steps: [{ run: \"curl -f https://example.test/health\" }]\n");
-		put(repo, "docs/runbook.md", "# Runbook\n\n## Incidents\n\nSentry and the health probe page Discord #alerts; the on-call agent owns the incident and writes docs/postmortems/.\n");
+		put(repo, "docs/runbook.md", "# Runbook\n\n## Incidents\n\nSentry and the health probe alert kaylee-alert-intake; triage owns the incident and writes docs/postmortems/.\n");
 		const postmortem = (status: string, followUp: string) => put(repo, "docs/postmortems/2026-09-01-stale-cache.md",
 			`# Postmortem: stale cache\n\n- **Status:** ${status}\n\n## Summary\n\nx\n\n## Pokayoke\n\nThe cache key now includes the release.\n\n## Follow-up\n\n${followUp}\n`);
 		postmortem("closed", "Closed by #42 with a regression test.");
@@ -523,9 +523,17 @@ describe("foundation-check operational obligations (ADR-005, US-040)", () => {
 			for (const id of ops) adoption.dispositions[id] = { status: "satisfied", receipt: `receipts/${id}.json` };
 			adoption.operations = {
 				ship: { branch: "main", workflow: ".github/workflows/deploy.yml", job: "deploy" },
-				alert: { errors: { provider: "sentry", init: "src/instrument.ts" }, health: { monitor: ".github/workflows/health.yml" }, destination: "Discord #alerts" },
+				alert: { errors: { provider: "sentry", init: "src/instrument.ts" }, health: { monitor: ".github/workflows/health.yml" }, destination: "kaylee-alert-intake" },
 			};
 		});
+		expect(cli(repo, "check").output.errors).toEqual([]);
+		for (const destination of ["phaedrus@example.com", "Discord #alerts"]) {
+			edit(repo, (adoption) => { adoption.operations.alert.destination = destination; });
+			expect(cli(repo, "check").output.errors).toEqual([
+				"FND-ALR-001: satisfied, but operations.alert.destination must name an approved agent triage route: kaylee-alert-intake",
+			]);
+		}
+		edit(repo, (adoption) => { adoption.operations.alert.destination = "kaylee-alert-intake"; });
 		expect(cli(repo, "check").output.errors).toEqual([]);
 		const refused = (on: string, job: string, reason: string) => { deploy(on, job); expect(errors(repo)).toContain(`FND-REL-001: satisfied, but ${reason}`); };
 		refused("  workflow_dispatch:", "    needs: [test]\n", ".github/workflows/deploy.yml does not run on every push to main");
