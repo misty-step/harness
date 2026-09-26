@@ -390,7 +390,8 @@ for (const task of tasks) {
 			const bestArm = bestChoice === "none_acceptable" ? null : bestChoice && labels.includes(bestChoice) ? order[labels.indexOf(bestChoice)] : null;
 			const success = Object.fromEntries(order.map((arm, i) => {
 				const answer = evaluation.answers[`success_${labels[i]}`];
-				return [arm, answer?.type === "score" && Number.isInteger(answer.score) && answer.score >= 0 && answer.score <= 4 ? answer.score + 1 : null];
+				// Jev reports the expected level (a real number from 0 to 4), as in round 1's success means.
+				return [arm, answer?.type === "score" && Number.isFinite(answer.score) && answer.score >= 0 && answer.score <= 4 ? answer.score + 1 : null];
 			}));
 			const record: JevVerdict = {
 				task: task.id, judge: "jev", labels: Object.fromEntries(order.map((arm, i) => [arm, labels[i]])),
