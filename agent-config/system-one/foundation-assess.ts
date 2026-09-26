@@ -28,7 +28,7 @@ export const SENTRY_QUESTIONS: Record<string, Question> = {
 	prod_capture_on: { type: "noul", instructions: "Is Sentry error capture enabled in production, accounting for enabled flags, environment guards and sample rates?" },
 	server_and_client: { type: "noul", instructions: "Are both server and browser/client Sentry initialization paths present and called? An edge-only path does not by itself prove browser initialization." },
 	sourcemaps_uploaded: { type: "noul", instructions: "Does the build upload Sentry source maps (including a configured Sentry bundler plugin when its auth token is present at build time)?" },
-	sourcemaps_not_public: { type: "noul", instructions: "Does the build configuration explicitly keep source maps out of published assets, for example deleteSourcemapsAfterUpload or hidden source maps? No explicit setting is no." },
+	sourcemaps_not_public: { type: "noul", instructions: "Does the build configuration explicitly delete source maps after upload, keep them out of the published output, or restrict access to them? Hidden source maps, which only drop the sourcemap comment, do not count, and no explicit setting is no." },
 	pii_default_off: { type: "noul", instructions: "Does the Sentry configuration explicitly set sendDefaultPii to false? A true value, or no setting at all, is no." },
 	scrub_hook: { type: "noul", instructions: "Is a Sentry beforeSend or beforeBreadcrumb scrub hook configured to remove sensitive event fields?" },
 	content_attached: { type: "noul", instructions: "Does the Sentry integration attach raw user content, request bodies, or similarly sensitive content to captured events? Yes means a potential privacy violation, not a benefit." },
@@ -230,6 +230,8 @@ function guardContext(text: string, index: number, path: string): string | undef
 function extractCalls(text: string, path: string, pattern: RegExp, kind: string): Excerpt[] {
 	const result: Excerpt[] = [];
 	for (const match of text.matchAll(pattern)) {
+		// A commented-out call is not evidence.
+		if (commented(text, match.index, /\.py$/i.test(path))) continue;
 		const open = match.index + match[0].lastIndexOf("(");
 		const end = closing(text, open);
 		if (end < 0) continue;
@@ -271,10 +273,10 @@ function balanced(text: string): boolean {
 	return count(/\(/g) === count(/\)/g) && count(/\[/g) === count(/]/g) && count(/\{/g) === count(/\}/g);
 }
 
-/** Whether `index` sits inside a line or block comment; a string that looks like one only makes the lookup fail closed. */
-function commented(text: string, index: number): boolean {
-	const lineStart = text.lastIndexOf("\n", index - 1) + 1;
-	return text.slice(lineStart, index).includes("//") || text.lastIndexOf("/*", index) > text.lastIndexOf("*/", index);
+/** Whether `index` sits inside a comment, including `#` lines for Python; a string that looks like one only makes the lookup fail closed. */
+function commented(text: string, index: number, hash = false): boolean {
+	const prefix = text.slice(text.lastIndexOf("\n", index - 1) + 1, index);
+	return prefix.includes("//") || hash && prefix.includes("#") || text.lastIndexOf("/*", index) > text.lastIndexOf("*/", index);
 }
 
 /** Index of a function body's opening brace: the first top-level brace group after the parameters that ends the declaration, so object, conditional and generic return types are skipped. */
@@ -304,7 +306,7 @@ function definition(text: string, symbol: string): { line: number; text: string;
 	for (const pattern of patterns) {
 		let match = pattern.exec(text);
 		// A declaration inside a comment is not the live one.
-		while (match && commented(text, match.index)) match = pattern.exec(text);
+		while (match && commented(text, match.index, pattern === patterns[2])) match = pattern.exec(text);
 		if (!match) continue;
 		const start = match.index;
 		if (pattern === patterns[0]) {
@@ -330,7 +332,9 @@ function definition(text: string, symbol: string): { line: number; text: string;
 		const next = after.search(/\n(?:export\s+)?(?:const|let|var|function|def)\s+/);
 		return { line: lineOf(text, start), text: next >= 0 ? after.slice(0, next) : after, complete: true };
 	}
-	const defaultBinding = new RegExp(`\\b${escaped}\\s*=\\s*[A-Za-z_$][\\w$]*\\s*\\(`).exec(text);
+	const binding = new RegExp(`\\b${escaped}\\s*=\\s*[A-Za-z_$][\\w$]*\\s*\\(`, "g");
+	let defaultBinding = binding.exec(text);
+	while (defaultBinding && commented(text, defaultBinding.index)) defaultBinding = binding.exec(text);
 	if (defaultBinding) {
 		const end = closing(text, defaultBinding.index + defaultBinding[0].lastIndexOf("("));
 		if (end >= 0) return { line: lineOf(text, defaultBinding.index), text: text.slice(defaultBinding.index, end + 1), complete: true };
@@ -392,7 +396,9 @@ function captureSymbol(snapshot: Snapshot, manifest: CoverageManifest, from: str
 	const destination = origin ? resolveImport(snapshot, from, origin.path) : from;
 	if (!destination) { unresolved(manifest, from, symbol, relevant); return; }
 	const target = source(snapshot, destination, manifest);
-	const found = origin?.imported === "default" ? target.match(/\bexport\s+default\s+([\s\S]*?);/) : null;
+	const exported = /\bexport\s+default\s+([\s\S]*?);/g;
+	let found = origin?.imported === "default" ? exported.exec(target) : null;
+	while (found && commented(target, found.index)) found = exported.exec(target);
 	const result = found ? { line: lineOf(target, found.index ?? 0), text: found[0], complete: balanced(found[0]), body: 0 } : definition(target, origin?.imported ?? symbol);
 	if (!result) { unresolved(manifest, from, symbol, relevant); return; }
 	if (excerpts.some((item) => item.path === destination && item.line === result.line && item.kind === `definition:${symbol}`)) return;
@@ -412,6 +418,7 @@ function wrapperNames(text: string, aliases: string[]): string[] {
 	const names: string[] = [];
 	const pattern = new RegExp(`\\b(?:${["Sentry", "sentry_sdk", "sentry", ...aliases].join("|")})\\.(?:init|Init)\\s*\\(`);
 	for (const match of text.matchAll(/\b(?:export\s+)?(?:async\s+)?function\s+(\w+)\s*\(|\b(?:export\s+)?(?:const|let)\s+(\w+)\s*=\s*(?:async\s*)?(?:\([^)]*\)|\w+)\s*=>/g)) {
+		if (commented(text, match.index)) continue;
 		const name = match[1] ?? match[2];
 		const body = definition(text.slice(match.index), name)?.text;
 		if (body && pattern.test(body)) names.push(name);

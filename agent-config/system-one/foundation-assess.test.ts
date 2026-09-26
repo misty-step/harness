@@ -168,7 +168,9 @@ describe("foundation assessment advisory", () => {
 
 	test("captures whole live definitions and records what it cannot follow", async () => {
 		const repo = fixture({
-			"sentry-init.ts": "import * as Sentry from '@sentry/node';\nimport { options, environmentOptions } from './options';\nimport { getRelease, getPrivacy, getMode, getLong } from './release';\nSentry.init(options);\nSentry.init(environmentOptions);\nSentry.init(getRelease());\nSentry.init(getPrivacy());\nSentry.init(getMode());\nSentry.init(getLong());\n",
+			"sentry-init.ts": "import * as Sentry from '@sentry/node';\nimport { options, environmentOptions } from './options';\nimport { getRelease, getPrivacy, getMode, getLong } from './release';\nimport defaults from './defaults';\n// Sentry.init({ environment: 'commented-init' });\nSentry.init(options);\nSentry.init(environmentOptions);\nSentry.init(getRelease());\nSentry.init(getPrivacy());\nSentry.init(getMode());\nSentry.init(getLong());\nSentry.init(defaults);\n",
+			"defaults.ts": "// export default { environment: 'commented-default' };\nexport default { environment: 'live-default' };\n",
+			"worker.py": "import sentry_sdk\n# sentry_sdk.init(environment='commented-python')\nsentry_sdk.init(environment='live-python')\n",
 			"options.ts": "import { privacyOptions } from './privacy';\n// export const options = { environment: 'commented-out' };\nexport const options = { ...privacyOptions, environment: 'production' };\nexport const environmentOptions = process.env.CI\n  ? { environment: 'ci' }\n  : { environment: 'local' };\n",
 			"release.ts": `export function getRelease(): { release: string } { return { release: 'x', sendDefaultPii: true }; }\nexport function getPrivacy(): { pii: boolean } // runtime options\n{\n  return { attachStacktrace: false, maxBreadcrumbs: 7 };\n}\nexport function getMode<T>(): T extends { strict: true } ? { mode: 'a' } : { mode: 'b' } /* by mode */ { return { maxValueLength: 9 } as never; }\nexport function getLong(): { long: true } // ${"a long explanation ".repeat(120)}\n{ return { maxValueLength: 11 } as never; }\n`,
 		});
@@ -178,7 +180,8 @@ describe("foundation assessment advisory", () => {
 		expect(state).toContain("maxValueLength: 11");
 		expect(state).toContain("sendDefaultPii: true");
 		expect(state).toContain("maxBreadcrumbs: 7");
-		expect(state).not.toContain("commented-out");
+		for (const live of ["live-default", "live-python"]) expect(state).toContain(live);
+		for (const commentedOut of ["commented-out", "commented-init", "commented-default", "commented-python"]) expect(state).not.toContain(commentedOut);
 		const coverage = distillFoundationPackets(repo, snapshot, "sentry").packets[0].coverage;
 		expect(coverage.unresolved_symbols.map((item) => item.symbol).sort()).toEqual(["environmentOptions", "privacyOptions"]);
 	});
