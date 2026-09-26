@@ -785,3 +785,38 @@ no authority granted beyond ADR-006.
 
 Evidence: `scripts/references.test.ts`, `scripts/verify-installers`;
 `docs/adr/006-foundation-decisions.md`.
+
+## US-042 See where a foundation looks weak before a check can decide it
+
+Statement: When a foundation in one of my adopted repositories cannot yet be
+decided by a deterministic check, I want an advisory read of the repository's
+own evidence, so agents see likely gaps early, uncertain answers go to a
+frontier agent, and no merge ever waits on a model's guess.
+
+Criteria:
+1. WHEN `foundation-assess` runs, THE SYSTEM SHALL read only tracked Git
+   content at the chosen ref (`origin/HEAD`, else `HEAD`) and SHALL NOT write
+   to the repository.
+2. WHEN it assesses a packet, THE SYSTEM SHALL ask `typesafe/jev-1.13` every
+   question for that packet in one request and record the packet hash,
+   coverage manifest, requested and resolved models, raw answers and an
+   outcome of `finding`, `no_finding`, `escalate`, `abstained` or
+   `unavailable` from the thresholds stored beside the questions.
+3. IF the provider fails or times out, THEN THE SYSTEM SHALL report
+   `unavailable`; IF it resolves any other model, THEN THE SYSTEM SHALL report
+   `abstained`; neither SHALL become `no_finding`.
+4. IF evidence was truncated or a relevant symbol was unresolved, THEN THE
+   SYSTEM SHALL abstain instead of reporting a confident absence; IF ledger
+   prose has no single-rule boundaries, THEN THE SYSTEM SHALL list it as not
+   assessed.
+5. WHEN selected evidence contains a secret, THE SYSTEM SHALL redact it before
+   any provider receives the packet.
+6. THE SYSTEM SHALL exit 0 for every advisory outcome and 2 for invalid
+   invocation.
+
+No-gos: no required check, merge gate or disposition change, and no
+replacement for a drill or walk (ADR-003, ADR-006); no working-tree reads; no
+credential values in output.
+
+Evidence: `agent-config/system-one/foundation-assess.test.ts`,
+`docs/semantic-quality.md`.

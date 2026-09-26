@@ -48,6 +48,30 @@ Each rule returns one status:
 The CLI exits zero for advisory outcomes. Invalid invocation exits two. Provider
 failure never becomes `no_finding`.
 
+## Foundation assessment pilot
+
+`bun agent-config/bin/foundation-assess.ts --repo DIR --pack all --json`
+reads only tracked Git content at `origin/HEAD` (falling back to `HEAD`).
+Use `--ref REF`, `--pack sentry|postmortems|ledger`, `--provider heuristic|openrouter`,
+and `--timeout-ms N` to scope a run. The OpenRouter run uses the existing
+`pass-env run -f .env.pass -- bun ...` credential path. Results are
+`foundation-assessment-1` advisory evidence: neither a gate nor a change to
+foundation disposition, and never a replacement for a drill or walk. Uncertain
+answers escalate to a frontier agent; outages are unavailable, not clean results.
+The offline heuristic is uncalibrated for these rules and abstains, rather than
+reporting a clean pass. Sentry alert routing in the Sentry API is outside
+repository evidence. The ledger pack asks about rules written one per bullet or
+numbered item; prose under an invariants heading is listed as not assessed,
+because line breaks do not mark where one rule ends.
+
+Admit any pilot rule only after naming its failure and valid counterexample,
+checking whether deterministic code can decide it, and reviewing labeled
+held-out examples, misses, abstentions, latency, and resolved model identity.
+The pilot stays advisory (US-042, ADR-006): a finding reaches a gate only when
+a deterministic check replaces it, and any other move off advisory-only use
+needs an operator-approved amendment to ADR-003, which keeps Jev off required
+checks.
+
 ## Build and exercise an installed entrypoint
 
 Do not modify the shared installer during the candidate stage. Build one bundled
