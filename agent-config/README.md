@@ -88,10 +88,31 @@ no `not_applicable` for an application. A record whose `surfaces` include `ui`,
 `cli`, `api` or `deployed`, or that has no `surfaces`, is an application. Each
 obligation still pending is the gap `ops:ship`, `ops:alert` or `ops:incident`,
 timed by the ratchet like any other. A `satisfied` claim must hold up: the
-record's `operations.ship` names the confirmed default branch and a workflow
-and job that fires on every push to it (no path or tag-only filters) and waits
-on the gate, with an `if:` limited to default-branch push guards (or a platform,
-proved in the receipt),
+record's `operations.ship` names the confirmed default branch (trunk) and a
+workflow and job that fires on every push to it (no path or tag-only filters)
+and waits on the gate, with an `if:` limited to default-branch push guards
+(or a platform for a single-tenant app, proved in the receipt). Its `tenancy`
+declares `{"model":"single"}` or, for multi-tenant apps:
+
+```json
+{
+  "model": "multi",
+  "registry": "tenants/registry.json",
+  "state": "scripts/tenant-state.sh",
+  "migrate": "migrate",
+  "excluded": [{ "tenant": "id", "reason": "reviewed reason" }]
+}
+```
+
+For multi-tenancy, the registry and state files must exist, a workflow ship
+must transitively `needs` the migration job, and every excluded tenant must
+appear in the registry with a reason; edits to exclusions are reviewable
+adoption-record changes. Migrations run before the deploy against each tenant
+and stay backward-compatible with the running code; failure stops rollout.
+The checker cannot prove actual fan-out from files: the receipt reads back
+every non-excluded tenant's deployed revision and migration level, while the
+state command reports all tenants including those excluded.
+
 `operations.alert` names the error-capture file, a scheduled health workflow or
 external monitor, and an approved agent triage route as the destination (currently
 `kaylee-alert-intake`, never a person's inbox or phone). For Sentry, every alert

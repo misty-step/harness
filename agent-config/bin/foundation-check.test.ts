@@ -522,7 +522,7 @@ describe("foundation-check operational obligations (ADR-005, US-040)", () => {
 			adoption.surfaces = ["ui", "deployed"];
 			for (const id of ops) adoption.dispositions[id] = { status: "satisfied", receipt: `receipts/${id}.json` };
 			adoption.operations = {
-				ship: { branch: "main", workflow: ".github/workflows/deploy.yml", job: "deploy" },
+				ship: { branch: "main", workflow: ".github/workflows/deploy.yml", job: "deploy", tenancy: { model: "single" } },
 				alert: { errors: { provider: "sentry", init: "src/instrument.ts" }, health: { monitor: ".github/workflows/health.yml" }, destination: "kaylee-alert-intake" },
 			};
 		});
@@ -584,9 +584,86 @@ describe("foundation-check operational obligations (ADR-005, US-040)", () => {
 		put(repo, "docs/runbook.md", "# Runbook\n\n## Release\n\nShip it.\n");
 		expect(cli(repo, "check").output.errors).toEqual(["FND-INC-001: satisfied, but docs/runbook.md needs a non-empty ## Incidents section"]);
 		// A platform deploy (a git integration) proves itself in the receipt rather than a workflow file.
-		edit(repo, (adoption) => { adoption.operations.ship = { branch: "main", platform: "vercel" }; });
+		edit(repo, (adoption) => { adoption.operations.ship = { branch: "main", platform: "vercel", tenancy: { model: "single" } }; });
 		rmSync(join(repo, ".github/workflows/deploy.yml"));
 		expect(cli(repo, "check").output.errors).toEqual(["FND-INC-001: satisfied, but docs/runbook.md needs a non-empty ## Incidents section"]);
+	});
+
+	test("a satisfied ship validates tenancy, migration order and reviewed exclusions", () => {
+		const repo = fixture("ops-tenancy");
+		exec(repo, ["update-ref", "refs/remotes/origin/main", "HEAD"]);
+		exec(repo, ["symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/main"]);
+		put(repo, ".github/workflows/deploy.yml", `name: deploy
+on:
+  push:
+    branches: [main]
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    steps: [{ run: "true" }]
+  migrate:
+    needs: [gate]
+    runs-on: ubuntu-latest
+    steps: [{ run: "true" }]
+  ready:
+    needs: [migrate]
+    runs-on: ubuntu-latest
+    steps: [{ run: "true" }]
+  ship:
+    needs: [ready]
+    runs-on: ubuntu-latest
+    steps: [{ run: "true" }]
+`);
+		put(repo, "tenants/registry.txt", "acme\nbravo\n");
+		put(repo, "scripts/tenant-state.sh", "#!/bin/sh\n# Report each tenant's deployed revision and migration level.\n");
+		edit(repo, (adoption) => {
+			adoption.surfaces = ["deployed"];
+			adoption.dispositions["FND-REL-001"] = { status: "satisfied", receipt: "receipts/ship.json" };
+			adoption.operations = {
+				ship: { branch: "main", workflow: ".github/workflows/deploy.yml", job: "ship" },
+			};
+		});
+		const shipErrors = () => cli(repo, "check").output.errors.filter((message) => message.startsWith("FND-REL-001:"));
+		expect(shipErrors()).toContain("FND-REL-001: satisfied, but operations.ship.tenancy must declare model single or multi");
+		put(repo, ".github/workflows/deploy.yml", readFileSync(join(repo, ".github/workflows/deploy.yml"), "utf8").replace("  push:\n    branches: [main]", "  workflow_dispatch:"));
+		expect(shipErrors()).toContain("FND-REL-001: satisfied, but .github/workflows/deploy.yml does not run on every push to main");
+		put(repo, ".github/workflows/deploy.yml", readFileSync(join(repo, ".github/workflows/deploy.yml"), "utf8").replace("  workflow_dispatch:", "  push:\n    branches: [main]"));
+		edit(repo, (adoption) => { adoption.operations.ship.tenancy = { model: "single" }; });
+		expect(shipErrors()).toEqual([]);
+		const multi = { model: "multi", registry: "tenants/registry.txt", state: "scripts/tenant-state.sh", migrate: "migrate", excluded: [{ tenant: "bravo", reason: "Contractual maintenance window" }] };
+		edit(repo, (adoption) => { adoption.operations.ship.tenancy = multi; });
+		expect(shipErrors()).toEqual([]);
+		put(repo, "tenants/registry.txt", "tenants:\n  acme: {}\n  bravo: {}\n");
+		expect(shipErrors()).toEqual([]);
+		put(repo, "tenants/registry.txt", "acme\nbravo\n");
+		edit(repo, (adoption) => { adoption.operations.ship = { branch: "main", platform: "vercel", tenancy: multi }; });
+		expect(shipErrors()).toContain("FND-REL-001: satisfied, but multi-tenant shipping needs a workflow job, not a platform, to verify migration order");
+		edit(repo, (adoption) => { adoption.operations.ship = { branch: "main", workflow: ".github/workflows/deploy.yml", job: "ship", tenancy: multi }; });
+		edit(repo, (adoption) => { adoption.operations.ship.tenancy.migrate = "gate"; });
+		expect(shipErrors()).toEqual([]);
+		edit(repo, (adoption) => { adoption.operations.ship.tenancy.migrate = "other"; });
+		expect(shipErrors()).toContain("FND-REL-001: satisfied, but operations.ship.tenancy.migrate must name an existing job in .github/workflows/deploy.yml");
+		put(repo, ".github/workflows/deploy.yml", readFileSync(join(repo, ".github/workflows/deploy.yml"), "utf8").replace("  ship:\n    needs: [ready]", "  other:\n    runs-on: ubuntu-latest\n    steps: [{ run: \"true\" }]\n  ship:\n    needs: [ready]"));
+		expect(shipErrors()).toContain("FND-REL-001: satisfied, but job other must be in the transitive needs chain before ship");
+		edit(repo, (adoption) => { adoption.operations.ship.tenancy.migrate = "migrate"; });
+		put(repo, ".github/workflows/deploy.yml", readFileSync(join(repo, ".github/workflows/deploy.yml"), "utf8").replace("  migrate:\n    needs: [gate]", "  migrate:\n    needs: [gate]\n    if: always()"));
+		expect(shipErrors()).toContain("FND-REL-001: satisfied, but job migrate has if: always(), which does not ship every green push");
+		put(repo, ".github/workflows/deploy.yml", readFileSync(join(repo, ".github/workflows/deploy.yml"), "utf8").replace("    if: always()\n", ""));
+		expect(shipErrors()).toEqual([]);
+		edit(repo, (adoption) => { adoption.operations.ship.tenancy.registry = "tenants/missing.txt"; });
+		expect(shipErrors()).toContain("FND-REL-001: satisfied, but operations.ship.tenancy.registry must name an existing repository file listing every tenant");
+		edit(repo, (adoption) => { adoption.operations.ship.tenancy.registry = multi.registry; adoption.operations.ship.tenancy.state = "scripts/missing.sh"; });
+		expect(shipErrors()).toContain("FND-REL-001: satisfied, but operations.ship.tenancy.state must name an existing repository file reporting each tenant's deployed revision and migration level");
+		edit(repo, (adoption) => { adoption.operations.ship.tenancy.state = multi.state; adoption.operations.ship.tenancy.excluded[0].reason = " "; });
+		expect(shipErrors()).toContain("FND-REL-001: satisfied, but operations.ship.tenancy.excluded[0].reason must be non-empty");
+		edit(repo, (adoption) => { adoption.operations.ship.tenancy.excluded[0] = { tenant: "charlie", reason: "Controlled exception" }; });
+		expect(shipErrors()).toContain("FND-REL-001: satisfied, but operations.ship.tenancy.excluded[0].tenant charlie is not in tenants/registry.txt");
+		edit(repo, (adoption) => { adoption.operations.ship.tenancy.excluded[0].tenant = "ac"; });
+		expect(shipErrors()).toContain("FND-REL-001: satisfied, but operations.ship.tenancy.excluded[0].tenant ac is not in tenants/registry.txt");
+		edit(repo, (adoption) => { adoption.operations.ship.tenancy.excluded[0].tenant = ""; });
+		expect(shipErrors()).toContain("FND-REL-001: satisfied, but operations.ship.tenancy.excluded[0].tenant must be non-empty");
+		edit(repo, (adoption) => { adoption.operations.ship.tenancy.model = "unknown"; });
+		expect(shipErrors()).toContain("FND-REL-001: satisfied, but operations.ship.tenancy.model must be single or multi");
 	});
 
 	test("baseline re-pins an existing record and starts obligations the catalog gained as pending", () => {

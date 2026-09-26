@@ -1,7 +1,7 @@
 # Foundation Standard
 
 **Standard:** `misty-step.foundation`
-**Version:** `1.3.0`
+**Version:** `1.4.0`
 **Catalog:** [`foundation-standard-v1.json`](foundation-standard-v1.json)
 
 The adjacent JSON catalog is the **single normative source for structured obligation fields**: applicability, required evidence, exception authority, approved defaults, dispositions, and required decision fields. This document is the human-readable rationale and operating guidance keyed by those IDs; it does not restate a second normative copy. The Foundation skill is an assessment and repair procedure that reads the catalog and this guidance, not another policy source.
@@ -148,12 +148,21 @@ credential-free; agent and model credentials stay on the desktop.
 
 ### FND-REL-001 — Continuous deployment
 
-Green on the default branch ships. Every push that passes the gate deploys or
-publishes a release with no hand step, and the gate is strong enough to ship at
-5pm on a Friday: CI, automated tests of the core journeys, story walks and agentic
-QA, then a readback or smoke check of what shipped. Rollback is exercised, not
-described. A manual promotion, a dispatch-only workflow, or a deploy that does
-not wait on the gate is not continuous deployment (ADR-005).
+Green on the default branch, whatever its name, deploys to production. Every
+merge that passes the gate ships with no hand step. For a multi-tenant app, the
+rollout reaches every tenant except those explicitly excluded in the adoption
+record with a reason; exclusion is a reviewable record change. Migrate every
+non-excluded tenant before deploy, keep migrations backward-compatible with
+the code still running (expand/contract), and stop the rollout if one fails.
+The repository supplies a complete tenant registry and a command or workflow
+that reports every tenant's deployed revision and migration level, even for
+excluded tenants. The receipt reads back each non-excluded tenant's production
+state after deploy; file checks cannot prove actual fan-out or migration safety.
+The gate is strong enough to ship at 5pm on a Friday: CI, automated tests of
+the core journeys, story walks and agentic QA, then a readback or smoke check.
+Rollback is exercised, not described. A manual promotion, a dispatch-only
+workflow, or a deploy that does not wait on the gate is not continuous
+deployment (ADR-005).
 
 ### FND-ALR-001 — Loud production alerting
 
@@ -162,7 +171,9 @@ default, or an approved equivalent), and outside health checks alert only to an
 approved agent triage intake, never a person's inbox or phone. For Sentry every
 alert rule's actions target that intake and no alert email goes to org members;
 a controlled failure seen and handled by triage proves delivery. An unset DSN
-or a route merely "prepared" is not alerting (ADR-005).
+or a route merely "prepared" is not alerting. `kaylee-alert-intake` is triaged
+every five minutes; an alert waiting over 30 minutes fails its route guard
+(`hermes-config/docs/alert-routing.md`, ADR-005).
 
 ### FND-INC-001 — Incident response closes the class
 
