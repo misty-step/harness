@@ -466,6 +466,19 @@ class Transaction:
         manifest, journal = self._load()
         self._preflight(manifest, journal)
 
+    def assert_rolled_back(self) -> None:
+        """Read-only: no target holds this transaction's installed state or created parent.
+
+        Later foreign edits are not transaction state; a fresh prepare snapshots them.
+        """
+        manifest, _ = self._load()
+        remaining = [record["path"] for record in manifest["paths"]
+                     if record["planned"] != record["original"]
+                     and _contents(_state(Path(record["path"]))) == _contents(record["planned"])]
+        remaining += [name for name in manifest["parents"] if _lstat(Path(name)) is not None]
+        if remaining:
+            raise ValueError("Transaction state remains: " + ", ".join(remaining))
+
     def rollback(self) -> None:
         """Preflight every path first; restore originals without following links."""
         manifest, journal = self._load()

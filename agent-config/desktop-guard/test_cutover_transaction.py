@@ -36,12 +36,14 @@ class TransactionTest(unittest.TestCase):
         self.unit.chmod(0o640)
         self.binding.write_bytes(b"-- engineer shortcuts\n")
         self.binding.chmod(0o644)
-        self.dropin.mkdir(mode=0o750)
+        self.dropin.mkdir()
+        self.dropin.chmod(0o750)  # mkdir(mode=) is umask-filtered; the cutover service runs UMask=0077.
         (self.dropin / "limits.conf").write_bytes(b"[Slice]\nMemoryHigh=36G\n")
         (self.dropin / "limits.conf").chmod(0o640)
         (self.dropin / "local-link").symlink_to("../limits.conf")
         nested = self.dropin / "legacy"
-        nested.mkdir(mode=0o750)
+        nested.mkdir()
+        nested.chmod(0o750)
         (nested / "override.conf").write_bytes(b"[Slice]\nMemoryLow=3G\n")
         (nested / "override.conf").chmod(0o604)
 
@@ -73,6 +75,16 @@ class TransactionTest(unittest.TestCase):
         )
         self.assertEqual(result.returncode, -signal.SIGKILL, result.stderr)
 
+
+    def test_reconciliation_refuses_any_remaining_transaction_state(self):
+        Transaction(self.backup).prepare(self.changes())
+        Transaction(self.backup).assert_rolled_back()  # Nothing applied yet.
+        Transaction(self.backup).apply()
+        with self.assertRaisesRegex(ValueError, str(self.binding)):
+            Transaction(self.backup).assert_rolled_back()
+        Transaction(self.backup).rollback()
+        self.unit.write_bytes(b"[Unit]\nDescription=operator edit after rollback\n")
+        Transaction(self.backup).assert_rolled_back()  # Later foreign edits are not ours.
 
     def test_success_then_fresh_process_rollback_restores_bytes_modes_links_and_tree(self):
         leaf_link = self.units / "dev-exec.slice"

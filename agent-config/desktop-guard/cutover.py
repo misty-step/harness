@@ -166,7 +166,7 @@ def snapshot(destination):
 
 def prepare():
     private_directory(STATE)
-    if read_state() and read_state()["result"] not in ("SUCCESS", "ROLLED_BACK", "PREFLIGHT_FAILED"):
+    if read_state() and read_state()["result"] not in ("SUCCESS", "ROLLED_BACK", "PREFLIGHT_FAILED", "RECONCILED"):
         raise RuntimeError("An unfinished cutover needs recovery before preparing another")
     binding = paths()[-2]
     if binding.is_symlink() or (binding.exists() and not binding.is_file()):
@@ -295,6 +295,23 @@ def client_attached(managed):
     return False
 
 
+def open_terminal(argv):
+    """Submit a desktop terminal without waiting for or ever killing it.
+
+    Omarchy's launcher runs the terminal in the foreground of a systemd scope, so it
+    returns only when the window closes. Only a prompt failure is reported here;
+    the caller's native client/fleet verification decides whether it attached.
+    """
+    process = subprocess.Popen([str(arg) for arg in argv], env=guard.native_env(), start_new_session=True,
+                               stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    try:
+        code = process.wait(timeout=2)
+    except subprocess.TimeoutExpired:
+        return
+    if code:
+        raise RuntimeError(f"{argv[0]} failed (exit {code})")
+
+
 def verify_fleet(before, directory, managed):
     deadline = time.monotonic() + 100
     last_errors = []
@@ -307,6 +324,9 @@ def verify_fleet(before, directory, managed):
         for index, engineer in enumerate(before["engineers"]):
             if engineer["agent_session"] is not None or engineer["kind"] != "hermes":
                 continue
+            live = {(agent["kind"], json.dumps(agent["transcript"], sort_keys=True)) for agent in after["engineers"]}
+            if (engineer["kind"], json.dumps(engineer["transcript"], sort_keys=True)) in live:
+                continue  # Never start a second copy of a session that is already live.
             pane = panes.get(engineer["pane_id"])
             if pane and pane["classification"].startswith("shell_only") and index not in resumed:
                 resumed.add(index)
@@ -380,7 +400,7 @@ def run():
             os.close(fd)
         job_locks.clear()
         admission_check(directory)
-        command(["/usr/share/omarchy/bin/omarchy-launch-terminal", str(CLI), "attach"], timeout=15)
+        open_terminal(["/usr/share/omarchy/bin/omarchy-launch-terminal", CLI, "attach"])
         verify_fleet(before, directory / "after", True)
         if command([guard.SYSTEMCTL, "--user", "is-enabled", "herdr@default.service"]).strip() != "enabled":
             raise RuntimeError("Managed service is not enabled for graphical-session startup")
@@ -472,7 +492,7 @@ def recover_locked():
         state["phase"] = "restoring-native"
         save(ACTIVE, state)
         if not guard.server_status("default")[0]:
-            command(["/usr/share/omarchy/bin/omarchy-launch-terminal-herdr"], timeout=15)
+            open_terminal(["/usr/share/omarchy/bin/omarchy-launch-terminal-herdr"])
         before = json.loads((directory / "before/inventory.json").read_text())
         verify_fleet(before, directory / "rollback-fleet", False)
         state.update(phase="recovered", result="ROLLED_BACK")
@@ -488,9 +508,39 @@ def recover_locked():
             os.close(fd)
 
 
+def reconcile():
+    """Record an operator-restored fleet after MANUAL_RECOVERY_REQUIRED; changes no service or configuration."""
+    lock = guard.lock_slot(guard.runtime_lock_dir() / "cutover.lock")
+    if lock is None:
+        raise RuntimeError("Another cutover holds the transaction lock")
+    try:
+        state = read_state()
+        if not state or state["result"] != "MANUAL_RECOVERY_REQUIRED":
+            raise RuntimeError("Nothing to reconcile: no MANUAL_RECOVERY_REQUIRED result")
+        if guard.systemd_show(UNIT)["ActiveState"] not in ("inactive", "failed"):
+            raise RuntimeError(f"{UNIT} is still running")
+        Transaction(Path(state["directory"]) / "configuration").assert_rolled_back()
+        managed = guard.systemd_show("herdr@default.service")
+        if managed["LoadState"] != "not-found" or managed["ActiveState"] != "inactive":
+            raise RuntimeError("Managed Herdr service is still loaded; configuration is not rolled back")
+        empty_development()
+        binding = HOME / ".config/hypr/bindings.local.lua"
+        if binding.exists() and b"desktop-guard" in binding.read_bytes():
+            raise RuntimeError("Desktop guard binding hook is still present")
+        server = identity()  # The operator-restored fleet must be running.
+        captured = inventory.capture(Path(tempfile.mkdtemp(prefix="reconciled-", dir=STATE)), guard.native_env())
+        state.update(result="RECONCILED", reconciled_server=server)
+        save(ACTIVE, state)
+        log(f"RESULT RECONCILED: configuration fully rolled back; fleet on unmanaged server pid {server['pid']} "
+            f"({server['cgroup']}); {len(captured['engineers'])} engineers, {len(captured['blockers'])} inventory "
+            "blockers. Old memory boundary in force; prepare again before any new attempt.")
+    finally:
+        os.close(lock)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("action", choices=("prepare", "check", "launch", "run", "recover"))
+    parser.add_argument("action", choices=("prepare", "check", "launch", "run", "recover", "reconcile"))
     action = parser.parse_args().action
     os.umask(0o077)
     try:
@@ -500,6 +550,8 @@ def main():
             baseline_check(json.loads(PLAN.read_text()))
             snapshot(Path(tempfile.mkdtemp(prefix="checked-", dir=STATE)))
             log("PASS read-only preflight; no service or live configuration changed")
+        elif action == "reconcile":
+            reconcile()
         elif action == "launch":
             launch()
         elif action == "run":

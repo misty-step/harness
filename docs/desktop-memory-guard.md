@@ -150,9 +150,12 @@ The ordered transition is:
 4. Apply the staged units and private binding transactionally; reload the user
    manager; start and authenticate the managed server; reload/check Hyprland.
 5. Verify real bounded job scopes and prompt third-job refusal without executing
-   the third command. Open the guarded native terminal client. Restore eligible
-   native sessions; explicitly resume a recovered Hermes identity only into its
-   identified shell fallback, never over an existing agent.
+   the third command. Submit the guarded native terminal client without waiting
+   for it: Omarchy's launcher runs the terminal in the foreground and returns
+   only when the window closes. Attachment is proven only by the native client
+   socket check. Restore eligible native sessions; explicitly resume a recovered
+   Hermes identity only into its identified shell fallback, never when that
+   session is already live and never over an existing agent.
 6. Require the original engineer transcript identities, workspace/pane topology,
    actual restored foreground-process cgroups, effective limits, oomd exclusion
    and graphical-session enablement. Only then write `RESULT SUCCESS`.
@@ -185,6 +188,20 @@ replacement server, new local workload, missing native client or unavailable
 desktop can block automatic recovery; the log and resume notes remain the
 authority for manual reconciliation. A failed attempt is not automatically
 retried. Do not rerun preparation over an unfinished recovery.
+
+After `MANUAL_RECOVERY_REQUIRED`, once the operator has restored the fleet by
+hand, record it with:
+
+```sh
+~/.local/share/desktop-guard/staged/cutover/cutover.py reconcile
+```
+
+It changes no service or configuration. It refuses while the cutover unit runs,
+while any transaction-installed file, link or created directory remains, while
+the managed service is loaded, while development slices hold work, or while the
+binding hook is present. It then records `RESULT RECONCILED` with the running
+unmanaged server and a fresh engineer inventory. Only then may `prepare` pin
+that fleet for a new attempt.
 
 No package script or workbench-release symlink target is edited. Only Omarchy's
 existing private `bindings.local.lua` hook is changed. No sudo, global oomd
@@ -221,6 +238,20 @@ the production ceiling for a memory-hog test.
 The [incident postmortem](postmortems/2026-09-26-shared-terminal-oom.md) records
 observed evidence and its limits. A passing disposable walk is not activation of
 the real fleet.
+
+### First live attempt (2026-09-26 21:58Z)
+
+Snapshot, old-server stop, unit install, managed start inside
+`dev-fleet.slice`, Hyprland reload, and two-slot admission (third job refused
+with 75) all succeeded. The guarded client terminal then opened, but the runner
+called Omarchy's launcher synchronously with a 15-second timeout. That launcher
+`exec`s the terminal in the foreground of its systemd scope, so it could not
+return; the timeout killed the terminal. `ExecStopPost` stopped the managed
+service, restored every configuration target, and reopened the old launcher.
+That identical 15-second timeout recorded `MANUAL_RECOVERY_REQUIRED`, but the
+detached server had already started. Fleet verification never ran. Kaylee
+resumed the engineers on that unmanaged server. The runner now submits both
+terminals without waiting and proves attachment through the native socket.
 
 ### Prepared-runner evidence (2026-09-26)
 
