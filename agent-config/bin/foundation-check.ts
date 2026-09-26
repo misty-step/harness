@@ -418,17 +418,32 @@ function packageScripts(repo: string): Record<string, unknown> {
 }
 /** Follow committed symlink blobs, not worktree links: the terminal check must be a file in HEAD. */
 function headFilePath(repo: string, path: string, modes: Map<string, string>): string | undefined {
-	const seen = new Set<string>();
-	while (!seen.has(path)) {
-		seen.add(path);
-		const mode = modes.get(path);
-		if (mode === "100644" || mode === "100755") return path;
-		if (mode !== "120000") return undefined;
-		const target = fileAt(repo, "HEAD", path);
-		if (!text(target)) return undefined;
-		const resolved = relative(repo, resolve(repo, dirname(path), target));
-		if (!resolved || resolved === ".." || resolved.startsWith("../") || isAbsolute(resolved)) return undefined;
-		path = resolved;
+	const seenLinks = new Set<string>();
+	let pending = path.split("/");
+	const resolved: string[] = [];
+	while (pending.length > 0) {
+		const part = pending.shift()!;
+		if (!part || part === ".") continue;
+		if (part === "..") {
+			if (resolved.length === 0) return undefined;
+			resolved.pop();
+			continue;
+		}
+		resolved.push(part);
+		const candidate = resolved.join("/");
+		const mode = modes.get(candidate);
+		if (mode === "120000") {
+			if (seenLinks.has(candidate)) return undefined;
+			seenLinks.add(candidate);
+			const target = fileAt(repo, "HEAD", candidate);
+			if (!text(target)) return undefined;
+			if (isAbsolute(target)) return undefined;
+			resolved.pop();
+			pending = [...target.split("/"), ...pending];
+		} else if (mode === "100644" || mode === "100755") {
+			if (pending.length > 0) return undefined;
+			return candidate;
+		} else if (!headDirectory(candidate, modes) || pending.length === 0) return undefined;
 	}
 	return undefined;
 }
@@ -437,7 +452,7 @@ function commandTarget(repo: string, target: string, files: Map<string, string>)
 	const script = target.match(/^(?:(?:npm|pnpm|yarn|bun) run |(?:npm|pnpm|yarn|bun) )(?:-- )?([-\w.:]+)$/);
 	if (script) return files.has("package.json") && text(packageScripts(repo)[script[1]]);
 	const file = target.replace(/^(?:(?:sh|bash|bun|node|python3?) )?(?:\.\/)?/, "").split(/\s+/)[0];
-	if (headFilePath(repo, file, files)) return true;
+	if (safePath(file) && headFilePath(repo, file, files)) return true;
 	if (/^make [-\w.]+$/.test(target)) {
 		const path = headFilePath(repo, "Makefile", files);
 		const makefile = path ? fileAt(repo, "HEAD", path) : undefined;
@@ -568,7 +583,7 @@ function contentIssues(repo: string, checkerPath: string, adoption: unknown): Is
 	const files = tracked(repo);
 	// An unborn repository has no candidate tree; the installer smoke still needs the missing-adoption
 	// diagnostic, while no index-only path may satisfy a HEAD reference.
-	const tree = spawnSync("git", ["ls-tree", "-r", "-z", "HEAD"], { cwd: repo, encoding: "utf8" });
+	const tree = spawnSync("git", ["ls-tree", "-r", "-z", "HEAD"], { cwd: repo, encoding: "utf8", maxBuffer: 32 * 1024 * 1024 });
 	if (tree.error) throw new Error(`git ls-tree: ${tree.error.message}`);
 	if (tree.status !== 0 && spawnSync("git", ["rev-parse", "--verify", "HEAD"], { cwd: repo, stdio: "ignore" }).status === 0)
 		throw new Error(`git ls-tree: ${tree.stderr.trim()}`);

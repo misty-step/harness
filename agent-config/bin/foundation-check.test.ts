@@ -340,6 +340,35 @@ describe("foundation-check (US-024)", () => {
 		expect(cli(repo, "check").status).toBe(0);
 	});
 
+	test("enforcement targets follow committed symlinks in intermediate directory components", () => {
+		const repo = fixture("head-target-directory-symlink");
+		mkdirSync(join(repo, "checks"));
+		put(repo, "checks/check.sh", "#!/bin/sh\nexit 0\n");
+		symlinkSync("checks", join(repo, "checks-link"));
+		symlinkSync("../checks-link/check.sh", join(repo, "scripts/alias"));
+		commit(repo, "track directory symlink chain");
+		const original = readFileSync(join(repo, "DOMAIN.md"), "utf8");
+		put(repo, "DOMAIN.md", original.replace("scripts/check", "scripts/alias"));
+		put(repo, "AGENTS.md", "# Agents\n\n## Routing\n\n| Owner | Command |\n| --- | --- |\n| Gate | `scripts/alias` |\n\nRead `DOMAIN.md` for invariants.\n");
+		expect(cli(repo, "check").status).toBe(0);
+	});
+
+	test("symlinked directory parents preserve subsequent '..' components", () => {
+		const repo = fixture("head-target-symlink-parent");
+		mkdirSync(join(repo, "deep/checks"), { recursive: true });
+		put(repo, "check.sh", "#!/bin/sh\nexit 0\n");
+		put(repo, "deep/checks/check.sh", "#!/bin/sh\nexit 0\n");
+		symlinkSync("deep/checks", join(repo, "checks-link"));
+		symlinkSync("../checks-link/../check.sh", join(repo, "scripts/alias"));
+		commit(repo, "track symlink path with missing resolved target");
+		const original = readFileSync(join(repo, "DOMAIN.md"), "utf8");
+		put(repo, "DOMAIN.md", original.replace("scripts/check", "scripts/alias"));
+		put(repo, "AGENTS.md", "# Agents\n\n## Routing\n\n| Owner | Command |\n| --- | --- |\n| Gate | `scripts/alias` |\n\nRead `DOMAIN.md` for invariants.\n");
+		const errors = cli(repo, "check").output.errors.join("\n");
+		expect(errors).toContain("INV-001 cites missing check scripts/alias");
+		expect(errors).toContain("routing command scripts/alias has no script");
+	});
+
 	test("surface checks and enforced story evidence reject missing owners", () => {
 		const repo = fixture("surface-documents");
 		const value = { ...adoption(), surfaces: ["ui", "deployed", "content"], content: { schema: "content/schema.json", lint: "scripts/check" } };
