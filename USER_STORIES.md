@@ -132,6 +132,19 @@ Criteria:
 5. WHEN a receipt binds the candidate head and tree, passes every affected
    story and criterion, and matches all cited artifact digests, THE SYSTEM
    SHALL accept it.
+6. WHEN catalog 1.5.0 applies, THE SYSTEM SHALL require README, AGENTS,
+   USER_STORIES and DOMAIN with a well-formed invariants ledger; SHALL check
+   the ADR-004 surface files, aliases, core links, routing targets, ADR
+   integrity and executable CI gate; and SHALL reject `Check:` or an
+   invariant's missing resolvable check.
+7. IF a `satisfied` disposition cites a missing, committed, wrong-revision
+   or wrong-digest receipt, THEN the checker SHALL reject it; IF a
+   `not_applicable` or `exception` disposition lacks a matching tracked
+   `foundation-approval/1` record THEN it SHALL reject it.
+8. IF FND-SEC-001 is `satisfied`, THEN the checker SHALL confirm a
+   secret-scanning job, a configured dependency bot with a green-gated
+   auto-merge job, and an authorization-test job for applications; a runtime
+   receipt SHALL carry the exercise these file checks cannot prove.
 
 No-gos: no deployment, automatic waivers, or replacing an actual story walk
 with a syntactic receipt check.
@@ -665,6 +678,16 @@ Criteria:
    designated account whose exact first line is `foundation-review: approved`
    and the head SHA, and after an entry whose first line is the escalation
    marker, only a later `foundation-escalation: resolved` line naming the head.
+6. WHEN an applicable non-ADR-005 obligation stays `pending`, `check` SHALL
+   require its current `obl:<ID>` baseline entry with an owner and expiry
+   within 30 days; `baseline --revision SHA` SHALL add new obligation gaps,
+   while ADR-005's three existing `ops:` keys remain their sole gaps.
+7. WHEN `foundation-check review` judges a PR, it SHALL require an
+   independent approval on its head for every change. An invariants-ledger
+   edit or a new/changed `foundation-approval/1` disposition SHALL additionally
+   require the designated reviewer, making five designated-review triggers.
+   IF mapped source changes, the PR description SHALL cite every affected
+   live story id computed from the candidate git objects.
 
 No-gos: no automatic waivers, no baseline for adoption-record errors, no
 baseline entry more than 30 days out.
@@ -752,6 +775,11 @@ Criteria:
    and migration level after deploy; migrations SHALL run for each tenant
    before deploy, remain backward-compatible with still-running code, and
    stop rollout on failure (operator decision 2026-09-26).
+10. WHEN an ADR-005 operational obligation is satisfied, its ordinary
+    `foundation-evidence/1` receipt SHALL bind a retained payload digest and
+    HEAD revision without weakening the existing structural ship, alert and
+    incident checks. Its pending `ops:` gap SHALL still be dated under the
+    ratchet, rather than silently treated as compliance.
 
 No-gos: no exception path for the three; no lint claiming runtime practice (a
 receipt carries the controlled-failure, migration and every-tenant shipping

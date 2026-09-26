@@ -1,7 +1,7 @@
 import { afterAll, describe, expect, test } from "bun:test";
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 
@@ -26,6 +26,7 @@ function put(repo: string, file: string, content: string) {
 	mkdirSync(dirname(target), { recursive: true });
 	writeFileSync(target, content);
 }
+const pending = () => ({ status: "pending", missing: "assessment", owner: "team", next: "Run the relevant check" });
 function adoption() {
 	return {
 		schema: "foundation-adoption/1",
@@ -35,10 +36,27 @@ function adoption() {
 			revision: "1111111111111111111111111111111111111111",
 		},
 		capabilities: ["User journey"],
-		// A library owes no ADR-005 operational obligations; tests that need an application say so.
 		surfaces: ["library"],
-		dispositions: Object.fromEntries([...catalogData.obligations, ...catalogData.approved_defaults].map(({ id }: { id: string }) => [id, { status: "pending", missing: "walk", owner: "team", next: "run walk" }])),
+		dispositions: Object.fromEntries([...catalogData.obligations, ...catalogData.approved_defaults].map(({ id }: { id: string }) =>
+			[id, { status: "satisfied", receipt: `foundation/receipts/${id}.json` }])),
+		security: {
+			secrets: { workflow: ".github/workflows/security.yml", job: "secrets" },
+			dependencies: { bot: "dependabot", config: ".github/dependabot.yml", automerge: { workflow: ".github/workflows/dependencies.yml", job: "automerge" } },
+			authorization: { workflow: ".github/workflows/security.yml", job: "auth", test: "tests/auth.test.ts" },
+		},
 	};
+}
+function issueEvidence(repo: string) {
+	const revision = exec(repo, ["rev-parse", "HEAD"]);
+	for (const { id } of [...catalogData.obligations, ...catalogData.approved_defaults]) {
+		const path = `foundation/receipts/${id}.json`;
+		const bytes = `Executed ${id} against ${revision}\n`;
+		put(repo, `foundation/receipts/${id}.txt`, bytes);
+		put(repo, path, JSON.stringify({
+			schema: "foundation-evidence/1", obligation: id, revision,
+			path: `${id}.txt`, sha256: hash(bytes), check: `verify ${id}`, run: `fixture-${revision}`, exit: 0,
+		}));
+	}
 }
 const liveStory = `## US-001 Follow the journey
 
@@ -81,18 +99,32 @@ function fixture(name: string) {
 	exec(repo, ["init", "-q"]);
 	exec(repo, ["config", "user.name", "Fixture"]);
 	exec(repo, ["config", "user.email", "fixture@example.test"]);
+	put(repo, ".gitignore", "foundation/receipts/\n");
 	put(repo, "README.md", "# Journey\n");
-	put(repo, "DESIGN.md", "# Design\n");
+	put(repo, "DESIGN.md", "# Interface design\n\nThe journey has a direct result.\n");
+	put(repo, "docs/runbook.md", "# Runbook\n\n## Release\n\nShip a green revision.\n\n## Rollback\n\nRestore the previous revision.\n\n## Recover\n\nRestore service.\n\n## Incidents\n\nInvestigate a controlled alert.\n");
+	put(repo, "AGENTS.md", "# Agents\n\n## Routing\n\n| Owner | Command |\n| --- | --- |\n| Gate | `scripts/check` |\n\nRead `DOMAIN.md` for invariants.\n");
+	put(repo, "DOMAIN.md", "# Domain\n\n## Glossary\n\nResult: the user outcome.\n\n## Boundaries\n\nThe library owns its result.\n\n## Invariants\n\n- **INV-001** The repository gate decides whether a change is safe. Enforced by `scripts/check`.\n\n## Code map\n\nSource lives under src/.\n");
 	put(repo, "USER_STORIES.md", `# Stories\n\n${liveStory}\n${retiredStory}\n${headingRetiredStory}`);
-	put(repo, "docs/adr/001.md", "# Initial decision\n");
-	put(repo, "docs/postmortems/README.md", "# Incidents\n");
+	put(repo, "docs/adr/0001-initial.md", "# Initial decision\n\nStatus: Accepted\n");
 	put(repo, "features/README.md", "# Index\n\n[Journey](journey.md)\n");
 	put(repo, "features/journey.md", feature);
 	put(repo, "src/nested/journey.ts", "export const result = 1;\n");
 	put(repo, "skills/verify/SKILL.md", skill);
-	put(repo, "foundation.json", `${JSON.stringify(adoption(), null, 2)}\n`);
+	put(repo, "scripts/check", "#!/bin/sh\nexit 0\n");
+	chmodSync(join(repo, "scripts/check"), 0o755);
+	put(repo, ".github/workflows/ci.yml", "name: ci\non: [push, pull_request]\njobs:\n  check:\n    runs-on: ubuntu-latest\n    steps:\n      - run: scripts/check\n");
+	put(repo, ".github/workflows/security.yml", "name: security\non: [push, pull_request]\njobs:\n  check:\n    runs-on: ubuntu-latest\n    steps:\n      - run: scripts/check\n  secrets:\n    runs-on: ubuntu-latest\n    steps:\n      - run: gitleaks detect --source .\n  auth:\n    runs-on: ubuntu-latest\n    steps:\n      - run: bun test tests/auth.test.ts\n");
+	put(repo, ".github/workflows/dependencies.yml", "name: dependencies\non: pull_request\njobs:\n  gate:\n    runs-on: ubuntu-latest\n    steps:\n      - run: scripts/check\n  automerge:\n    if: github.actor == 'dependabot[bot]'\n    needs: [gate]\n    runs-on: ubuntu-latest\n    steps:\n      - uses: dependabot/fetch-metadata@v2\n        id: metadata\n      - run: gh pr merge --auto --squash \"$PR_URL\"\n        if: \"steps.metadata.outputs.update-type == 'version-update:semver-patch' || steps.metadata.outputs.update-type == 'version-update:semver-minor'\"\n");
+	put(repo, ".github/workflows/foundation-review.yml", "name: foundation-review\non: pull_request_target\njobs:\n  foundation-review:\n    runs-on: ubuntu-latest\n    steps:\n      - run: foundation-check review --pr \"$PR_NUMBER\"\n");
+	put(repo, ".github/dependabot.yml", "version: 2\nupdates:\n  - package-ecosystem: npm\n    directory: /\n    schedule:\n      interval: weekly\n");
+	put(repo, "tests/auth.test.ts", "import { expect, test } from 'bun:test';\nconst get = (role: string) => { if (role !== 'owner') throw new Error('forbidden'); return 1; };\ntest('authorization boundary', () => { expect(() => get('stranger')).toThrow('forbidden'); expect(get('owner')).toBe(1); });\n");
+	const state = adoption();
+	if (name.startsWith("gate-")) for (const id of ["FND-REV-001", "FND-CIT-001"]) state.dispositions[id] = pending();
+	put(repo, "foundation.json", `${JSON.stringify(state, null, 2)}\n`);
 	exec(repo, ["add", "."]);
 	exec(repo, ["commit", "-qm", "baseline"]);
+	issueEvidence(repo);
 	return repo;
 }
 function cli(repo: string, ...args: string[]) {
@@ -103,6 +135,7 @@ function cli(repo: string, ...args: string[]) {
 function commit(repo: string, message = "change") {
 	exec(repo, ["add", "."]);
 	exec(repo, ["commit", "-qm", message]);
+	issueEvidence(repo);
 }
 function receipt(repo: string, base: string) {
 	put(repo, "walk/screens/US-001-1.png", "observed frame");
@@ -116,15 +149,27 @@ function receipt(repo: string, base: string) {
 }
 
 describe("foundation-check (US-024)", () => {
-	test("adoption rejects unknown, omitted, and wrong-digest obligations; honest pending passes without compliance claim", () => {
+	test("adoption rejects unknown, omitted, and wrong-digest obligations; an honestly pending item needs a dated gap", () => {
 		const repo = fixture("adoption");
 		const valid = cli(repo, "check");
 		expect(valid.status).toBe(0);
-		expect(valid.output.needs_evidence).toContain("FND-DOC-001");
 		const sourceRelative = spawnSync("bun", [script, "check", "--repo", repo, "--json"], { cwd: repo, encoding: "utf8" });
 		expect(sourceRelative.status).toBe(0);
-		expect(JSON.parse(sourceRelative.stdout).needs_evidence).toContain("FND-WS-001");
 		const value = adoption();
+		value.dispositions["FND-DOC-001"] = pending();
+		put(repo, "foundation.json", JSON.stringify(value));
+		expect(cli(repo, "check").output.errors.join(" ")).toContain("obl:FND-DOC-001");
+		value.mode = "bootstrap";
+		value.baseline = [{ gap: "obl:FND-DOC-001", owner: "team", expires: day(10) }];
+		put(repo, "foundation.json", JSON.stringify(value));
+		expect(cli(repo, "check").output.needs_evidence).toContain("FND-DOC-001");
+		value.baseline = [{ gap: "obl:FND-DOC-001", owner: "team", expires: day(-1) }];
+		put(repo, "foundation.json", JSON.stringify(value));
+		expect(cli(repo, "check").output.errors.join(" ")).toContain("baseline obl:FND-DOC-001: expired");
+		value.baseline = [{ gap: "obl:FND-DOC-001", owner: "team", expires: day(31) }];
+		put(repo, "foundation.json", JSON.stringify(value));
+		expect(cli(repo, "check").output.errors.join(" ")).toContain("baseline obl:FND-DOC-001: expires");
+		value.baseline = [{ gap: "obl:FND-DOC-001", owner: "team", expires: day(10) }];
 		value.dispositions["FND-UNKNOWN-001"] = { status: "pending", missing: "walk", owner: "team", next: "run walk" };
 		put(repo, "foundation.json", JSON.stringify(value));
 		const unknown = cli(repo, "check");
@@ -140,11 +185,169 @@ describe("foundation-check (US-024)", () => {
 		expect(cli(repo, "check").output.errors.join(" ")).toContain("catalog_sha256 differs");
 	});
 
+	test("satisfied claims require a same-head, untracked receipt with an intact payload", () => {
+		const repo = fixture("evidence-identity");
+		const path = "foundation/receipts/FND-DOC-001.json";
+		const original = JSON.parse(readFileSync(join(repo, path), "utf8"));
+		const failures = () => cli(repo, "check").output.errors.join("\n");
+		expect(cli(repo, "check").status).toBe(0);
+		put(repo, path, JSON.stringify({ ...original, revision: "0".repeat(40) }));
+		expect(failures()).toContain("FND-DOC-001: foundation/receipts/FND-DOC-001.json needs foundation-evidence/1");
+		put(repo, path, JSON.stringify({ ...original, sha256: "0".repeat(64) }));
+		expect(failures()).toContain("payload is missing, escapes its receipt directory, or has a different SHA-256");
+		put(repo, path, JSON.stringify(original));
+		put(repo, "foundation/receipts/FND-DOC-001.txt", "tampered output\n");
+		expect(failures()).toContain("different SHA-256");
+		rmSync(join(repo, path));
+		expect(failures()).toContain("receipt must be an untracked foundation/receipts/*.json");
+	});
+
+	test("not_applicable and exception require a tracked record matching HEAD, disposition and expiry", () => {
+		const repo = fixture("approval-record");
+		const id = "FND-DOC-001";
+		const value = adoption();
+		const reason = "Documentation is delegated to a generated contract";
+		const substitute = "Generation and review";
+		const approval_ref = "foundation/approvals/document.json";
+		value.dispositions[id] = { status: "not_applicable", reason, substitute, approval_ref };
+		put(repo, "foundation.json", JSON.stringify(value));
+		expect(cli(repo, "check").output.errors.join("\n")).toContain("must be a tracked foundation-approval/1 record at HEAD");
+		const approval = { schema: "foundation-approval/1", obligation: id, disposition: "not_applicable", reason, substitute };
+		put(repo, approval_ref, JSON.stringify(approval));
+		expect(cli(repo, "check").status).toBe(1); // still absent at HEAD
+		commit(repo, "reviewable approval record");
+		expect(cli(repo, "check").status).toBe(0);
+		put(repo, "foundation.json", JSON.stringify({ ...value, dispositions: { ...value.dispositions, [id]: { ...value.dispositions[id], reason: "Changed reason" } } }));
+		expect(cli(repo, "check").output.errors.join("\n")).toContain("exactly matching the disposition");
+		const expires = day(10);
+		value.dispositions[id] = { status: "exception", reason, substitute, approval_ref, expires };
+		put(repo, "foundation.json", JSON.stringify(value));
+		put(repo, approval_ref, JSON.stringify({ ...approval, disposition: "exception", expires: day(11) }));
+		commit(repo, "mismatched exception");
+		expect(cli(repo, "check").output.errors.join("\n")).toContain("exactly matching the disposition");
+		put(repo, approval_ref, JSON.stringify({ ...approval, disposition: "exception", expires }));
+		commit(repo, "match exception");
+		expect(cli(repo, "check").status).toBe(0);
+	});
+
+	test("ADR-004 core documents, aliases, HEAD references, routing and ledger targets are checked", () => {
+		const repo = fixture("core-documents");
+		const errors = () => cli(repo, "check").output.errors.join("\n");
+		expect(cli(repo, "check").status).toBe(0);
+		rmSync(join(repo, "AGENTS.md"));
+		expect(errors()).toContain("[doc:AGENTS.md]");
+		put(repo, "AGENTS.md", "# Agents\n\n## Routing\n\n| Owner | Command |\n| --- | --- |\n| Gate | `npm run gate` |\n\nRead `DOMAIN.md` for invariants.\n");
+		expect(errors()).toContain("routing command npm run gate has no script");
+		put(repo, "package.json", JSON.stringify({ scripts: { gate: "scripts/check" } }));
+		expect(errors()).toContain("routing command npm run gate has no script"); // untracked manifest is not HEAD
+		commit(repo, "track package script");
+		expect(cli(repo, "check").status).toBe(0);
+		put(repo, "AGENTS.md", "# Agents\n\n## Routing\n\n| Owner | Command |\n| --- | --- |\n| Gate | `npm run gate` |\n");
+		expect(errors()).toContain("AGENTS.md must route reviewers to DOMAIN.md");
+		put(repo, "AGENTS.md", "# Agents\n\n## Routing\n\n| Owner | Command |\n| --- | --- |\n| Gate | `missing-target` |\n\nRead `DOMAIN.md` for invariants.\n");
+		expect(errors()).toContain("routing command missing-target has no script");
+		put(repo, "AGENTS.md", "# Agents\n\n## Routing\n\n| Owner | Command |\n| --- | --- |\n| Gate | `npm run gate` |\n\nRead `DOMAIN.md` for invariants.\n");
+		put(repo, "README.md", "# Journey\n\n[New path](docs/new.md)\n");
+		put(repo, "docs/new.md", "# New\n");
+		expect(errors()).toContain("[doc:refs] README.md: Markdown link docs/new.md does not resolve");
+		commit(repo, "track linked path");
+		expect(cli(repo, "check").status).toBe(0);
+		put(repo, "../outside.md", "# Outside repository\n");
+		symlinkSync("../../outside.md", join(repo, "docs/escaped.md"));
+		put(repo, "README.md", "# Journey\n\n[Escaping link](docs/escaped.md)\n");
+		commit(repo, "track outside symlink");
+		expect(errors()).toContain("[doc:refs] README.md: Markdown link docs/escaped.md does not resolve");
+		put(repo, "README.md", "# Journey\n\n[New path](docs/new.md)\n");
+		expect(cli(repo, "check").status).toBe(0);
+		put(repo, "CLAUDE.md", "copy of operating rules\n");
+		expect(errors()).toContain("[doc:aliases]");
+		rmSync(join(repo, "CLAUDE.md"));
+		symlinkSync("AGENTS.md", join(repo, "CLAUDE.md"));
+		commit(repo, "alias");
+		expect(cli(repo, "check").status).toBe(0);
+		const baseDomain = readFileSync(join(repo, "DOMAIN.md"), "utf8");
+		put(repo, "DOMAIN.md", baseDomain.replace("Enforced by `scripts/check`", "Check: `scripts/check`"));
+		expect(errors()).toContain("invalid invariant bullet");
+		put(repo, "DOMAIN.md", baseDomain.replace("scripts/check", "scripts/missing.sh"));
+		expect(errors()).toContain("INV-001 cites missing check scripts/missing.sh");
+		put(repo, "DOMAIN.md", baseDomain.replace("scripts/check", "npm run missing"));
+		expect(errors()).toContain("INV-001 cites missing check npm run missing");
+		put(repo, "DOMAIN.md", baseDomain.replace("scripts/check", "npm run gate"));
+		expect(cli(repo, "check").status).toBe(0);
+		put(repo, "DOMAIN.md", baseDomain.replace("Enforced by `scripts/check`.", "`unenforced`. Why: reviewer decision. Scope: src/**."));
+		expect(cli(repo, "check").status).toBe(0);
+		put(repo, "DOMAIN.md", baseDomain.replace("scripts/check", "eslint/no-restricted-imports"));
+		expect(cli(repo, "check").status).toBe(0); // a lint rule id is well-formed but not resolvable from the repo
+		put(repo, "DOMAIN.md", baseDomain.replace("## Code map", "- **INV-001** Duplicate rule. `unenforced`\n\n## Code map"));
+		expect(errors()).toContain("duplicate INV-001");
+		chmodSync(join(repo, "scripts/check"), 0o644);
+		expect(errors()).toContain("[entry:check] scripts/check must exist and be executable");
+		chmodSync(join(repo, "scripts/check"), 0o755);
+		put(repo, "DOMAIN.md", baseDomain);
+		for (const name of ["ci", "security", "dependencies"]) {
+			const path = `.github/workflows/${name}.yml`;
+			put(repo, path, readFileSync(join(repo, path), "utf8").replace("run: scripts/check", "run: echo omitted\n      # scripts/check"));
+		}
+		expect(errors()).toContain("[entry:check] a CI workflow must invoke scripts/check");
+	});
+
+	test("surface checks and enforced story evidence reject missing owners", () => {
+		const repo = fixture("surface-documents");
+		const value = { ...adoption(), surfaces: ["ui", "deployed", "content"], content: { schema: "content/schema.json", lint: "scripts/check" } };
+		put(repo, "foundation.json", JSON.stringify(value));
+		rmSync(join(repo, "DESIGN.md"));
+		expect(cli(repo, "check").output.errors.join("\n")).toContain("[doc:DESIGN.md]");
+		put(repo, "DESIGN.md", "# Interface\n");
+		expect(cli(repo, "check").output.errors.join("\n")).toContain("[doc:content-schema]");
+		put(repo, "content/schema.json", "{}");
+		commit(repo, "content contract");
+		expect(cli(repo, "check").output.errors.join("\n")).not.toContain("[doc:content-schema]");
+		const storiesRepo = fixture("strict-story-evidence");
+		put(storiesRepo, "USER_STORIES.md", `# Stories\n\n${liveStory}\nEvidence: \`not-present.md\`\n`);
+		expect(cli(storiesRepo, "check").output.errors.join("\n")).toContain("[stories:format]");
+		const bootstrapValue = { ...adoption(), mode: "bootstrap", baseline: [{ gap: "walk:US-001", owner: "team", expires: day(10) }] };
+		put(storiesRepo, "foundation.json", JSON.stringify(bootstrapValue));
+		expect(cli(storiesRepo, "check").status).toBe(0);
+	});
+
+	test("names-only credential manifests reject value and shell syntax without disclosing it", () => {
+		const repo = fixture("env-pass");
+		put(repo, ".env.pass", "TOKEN=sample/credential\nBAD=$(unsafe)\n");
+		commit(repo, "malformed manifest");
+		const failure = cli(repo, "check").output.errors.join("\n");
+		expect(failure).toContain("[doc:env-pass] .env.pass: line 2");
+		expect(failure).not.toContain("unsafe");
+		put(repo, ".env.pass", "# References only\nTOKEN=sample/credential\n");
+		expect(cli(repo, "check").status).toBe(0);
+	});
+
+	test("ADR integrity rejects duplicate numbers, missing supersession and wrong homes", () => {
+		const repo = fixture("adr-integrity");
+		put(repo, "docs/adr/0001-another.md", "# Duplicate\n\nStatus: Accepted\n");
+		commit(repo, "duplicate ADR number");
+		expect(cli(repo, "check").output.errors.join(" ")).toContain("duplicate ADR 1");
+		exec(repo, ["rm", "-q", "docs/adr/0001-another.md"]);
+		put(repo, "docs/adr/0001-initial.md", "# Decision\n\nStatus: Superseded\n\nSuperseded by ADR-0002\n");
+		expect(cli(repo, "check").output.errors.join(" ")).toContain("Superseded by 0002 does not resolve");
+		put(repo, "docs/adr/0001-initial.md", "# Decision\n\nStatus: Accepted\n");
+		put(repo, "docs/decisions/0002-retired.md", "# Wrong home\n\nStatus: Accepted\n");
+		commit(repo, "outside ADR home");
+		expect(cli(repo, "check").output.errors.join(" ")).toContain("ADRs belong only in docs/adr/");
+	});
+
+	test("generated ADR index and tracked dated postmortem are not decision records", () => {
+		const repo = fixture("adr-index-history");
+		put(repo, "docs/adr/README.md", "# Decision index\n");
+		put(repo, "docs/postmortems/2026-09-01-stale-cache.md", "# Incident record\n");
+		commit(repo, "track decision index and incident");
+		expect(cli(repo, "check").status).toBe(0);
+	});
+
 	test("documents, feature map, source matches and verify skill are enforced", () => {
 		const repo = fixture("map");
-		rmSync(join(repo, "docs/adr/001.md"));
-		expect(cli(repo, "check").output.errors.join(" ")).toContain("FND-DOC-001: docs/adr/");
-		put(repo, "docs/adr/001.md", "# Decision\n");
+		put(repo, "docs/adr/0001-initial.md", "# Decision without status\n");
+		expect(cli(repo, "check").output.errors.join(" ")).toContain("doc:adr");
+		put(repo, "docs/adr/0001-initial.md", "# Decision\n\nStatus: Accepted\n");
 		put(repo, "features/journey.md", feature.replace("src/**", "ghost/**"));
 		expect(cli(repo, "check").output.errors.join(" ")).toContain("matches no tracked files");
 		put(repo, "features/journey.md", feature.replace("src/**", "src/*"));
@@ -273,78 +476,96 @@ describe("foundation-check ratchet (US-027)", () => {
 	test("check lists the gaps instead of crashing when foundation.json is missing", () => {
 		const repo = fixture("no-adoption");
 		rmSync(join(repo, "foundation.json"));
-		rmSync(join(repo, "DESIGN.md"));
+		rmSync(join(repo, "DOMAIN.md"));
 		const result = cli(repo, "check");
 		expect(result.status).toBe(1);
 		expect(result.output.errors.join("\n")).toContain("foundation.json: missing");
-		expect(result.output.errors).toContain("[doc:DESIGN.md] FND-DOC-001: missing DESIGN.md");
+		expect(result.output.errors.join("\n")).toContain("doc:DOMAIN.md");
 	});
 
 	test("baseline adopts a never-set-up repository; check passes only while its gaps stay baselined", () => {
 		const repo = fixture("bootstrap");
-		exec(repo, ["rm", "-q", "foundation.json", "DESIGN.md", "features/README.md", "features/journey.md"]);
+		exec(repo, ["rm", "-q", "foundation.json", "DOMAIN.md", "features/README.md", "features/journey.md"]);
 		commit(repo, "strip");
 		const revision = "1".repeat(40);
 		const dry = cli(repo, "baseline", "--owner", "team", "--revision", revision, "--surfaces", "library");
 		expect(dry.status).toBe(0);
-		expect(dry.output.gaps).toEqual(["doc:DESIGN.md", "map:US-001", "map:index", "walk:US-001"].map((gap) => `${gap} (owner team, expires ${day(30)})`));
+		expect(dry.output.gaps?.map((item) => item.split(" ")[0])).toEqual([...catalogData.obligations, ...catalogData.approved_defaults].map(({ id }: { id: string }) => `obl:${id}`).filter((gap) => !["obl:FND-REL-001", "obl:FND-ALR-001", "obl:FND-INC-001"].includes(gap)).concat(["doc:DOMAIN.md", "map:US-001", "map:index", "walk:US-001"]).sort());
 		expect(existsSync(join(repo, "foundation.json"))).toBe(false);
 		expect(cli(repo, "baseline", "--owner", "team", "--revision", revision, "--surfaces", "library", "--write").output.wrote).toBe(join(repo, "foundation.json"));
 		const adopted = cli(repo, "check");
-		expect(adopted.status).toBe(0);
-		expect(adopted.output.baselined).toHaveLength(3);
-		put(repo, "DESIGN.md", "# Design\n");
-		expect(cli(repo, "check").output.errors).toContain("baseline doc:DESIGN.md: the gap is fixed; remove the entry");
+		expect(adopted.output.errors).toEqual([]);
+		expect(adopted.output.baselined?.some((line) => line.includes("[doc:DOMAIN.md]"))).toBe(true);
+		put(repo, "DOMAIN.md", "# Domain\n\n## Invariants\n\n- **INV-001** The gate decides whether a change is safe. Enforced by `scripts/check`.\n");
+		expect(cli(repo, "check").output.errors.join("\n")).toContain("baseline doc:DOMAIN.md: the gap is fixed; remove the entry");
 		expect(cli(repo, "baseline", "--owner", "other", "--write").status).toBe(0);
 		const shrunk = JSON.parse(readFileSync(join(repo, "foundation.json"), "utf8"));
-		expect(shrunk.baseline.map((entry: { gap: string; owner: string }) => `${entry.gap}:${entry.owner}`)).toEqual(["map:US-001:team", "map:index:team", "walk:US-001:team"]);
+		expect(shrunk.baseline.map((entry: { gap: string }) => entry.gap)).not.toContain("doc:DOMAIN.md");
 		expect(cli(repo, "check").status).toBe(0);
+	});
+
+	test("bootstrap does not baseline advisory evidence; enforced transition requires its paths", () => {
+		const repo = fixture("bootstrap-evidence");
+		exec(repo, ["rm", "-q", "foundation.json", "DOMAIN.md"]);
+		commit(repo, "unadopted repository");
+		put(repo, "USER_STORIES.md", `# Stories\n\n${liveStory}\nEvidence: \`not-present.md\`\n`);
+		const adopted = cli(repo, "baseline", "--owner", "team", "--revision", "1".repeat(40), "--surfaces", "library", "--write");
+		expect(adopted.status).toBe(0);
+		expect(adopted.output.gaps?.join("\n")).not.toContain("stories:format");
+		expect(cli(repo, "check").status).toBe(0);
+		const ready = fixture("enforced-evidence");
+		put(ready, "USER_STORIES.md", `# Stories\n\n${liveStory}\nEvidence: \`not-present.md\`\n`);
+		const before = readFileSync(join(ready, "foundation.json"), "utf8");
+		const blocked = cli(ready, "baseline", "--owner", "team", "--no-walk-gaps", "--write");
+		expect(blocked.status).toBe(1);
+		expect(blocked.output.errors.join("\n")).toContain("[stories:format]");
+		expect(readFileSync(join(ready, "foundation.json"), "utf8")).toBe(before);
 	});
 
 	test("baseline entries must be well formed, current, at most 30 days out, and only in bootstrap mode", () => {
 		const repo = fixture("ratchet-rules");
-		rmSync(join(repo, "DESIGN.md"));
+		rmSync(join(repo, "DOMAIN.md"));
 		const errors = () => cli(repo, "check").output.errors.join("\n");
-		bootstrap(repo, [{ gap: "doc:DESIGN.md", owner: "team", expires: day(10) }]);
+		bootstrap(repo, [{ gap: "doc:DOMAIN.md", owner: "team", expires: day(10) }]);
 		expect(cli(repo, "check").status).toBe(0);
-		bootstrap(repo, [{ gap: "doc:DESIGN.md", owner: "team", expires: day(-1) }]);
-		expect(errors()).toContain(`baseline doc:DESIGN.md: expired ${day(-1)}`);
-		expect(errors()).toContain("[doc:DESIGN.md] FND-DOC-001: missing DESIGN.md");
-		bootstrap(repo, [{ gap: "doc:DESIGN.md", owner: "team", expires: day(31) }]);
+		bootstrap(repo, [{ gap: "doc:DOMAIN.md", owner: "team", expires: day(-1) }]);
+		expect(errors()).toContain(`baseline doc:DOMAIN.md: expired ${day(-1)}`);
+		expect(errors()).toContain("doc:DOMAIN.md");
+		bootstrap(repo, [{ gap: "doc:DOMAIN.md", owner: "team", expires: day(31) }]);
 		expect(errors()).toContain("more than 30 days out");
-		bootstrap(repo, [{ gap: "doc:DESIGN.md", owner: "team", expires: day(5) }, { gap: "foundation.json", owner: "team", expires: day(5) }]);
+		bootstrap(repo, [{ gap: "doc:DOMAIN.md", owner: "team", expires: day(5) }, { gap: "foundation.json", owner: "team", expires: day(5) }]);
 		expect(errors()).toContain('invalid baseline gap "foundation.json"');
-		bootstrap(repo, [{ gap: "doc:DESIGN.md", owner: "team", expires: day(5) }], "enforced");
+		bootstrap(repo, [{ gap: "doc:DOMAIN.md", owner: "team", expires: day(5) }], "enforced");
 		expect(errors()).toContain("an enforced adoption cannot carry a baseline");
 		bootstrap(repo, []);
 		expect(errors()).toContain("bootstrap mode needs a baseline");
-		bootstrap(repo, [{ gap: "doc:DESIGN.md", owner: "team", expires: day(5) }, { gap: "walk:US-002", owner: "team", expires: day(5) }]);
+		bootstrap(repo, [{ gap: "doc:DOMAIN.md", owner: "team", expires: day(5) }, { gap: "walk:US-002", owner: "team", expires: day(5) }]);
 		expect(errors()).toContain("baseline walk:US-002: US-002 is not a live story");
 	});
 
 	test("against a base, the baseline only shrinks unless an extension record names the change", () => {
 		const repo = fixture("ratchet-base");
-		exec(repo, ["rm", "-q", "DESIGN.md"]);
-		bootstrap(repo, [{ gap: "doc:DESIGN.md", owner: "team", expires: day(10) }]);
+		exec(repo, ["rm", "-q", "DOMAIN.md"]);
+		bootstrap(repo, [{ gap: "doc:DOMAIN.md", owner: "team", expires: day(10) }]);
 		commit(repo, "bootstrap");
 		const base = exec(repo, ["rev-parse", "HEAD"]);
 		const fromBase = (name: string) => exec(repo, ["checkout", "-q", "-B", name, base]);
 		const against = () => cli(repo, "check", "--base", base);
 		fromBase("shrink");
-		put(repo, "DESIGN.md", "# Design\n");
+		put(repo, "DOMAIN.md", "# Domain\n\n## Invariants\n\n- **INV-001** The gate decides whether a change is safe. Enforced by `scripts/check`.\n");
 		put(repo, "foundation.json", `${JSON.stringify(adoption(), null, 2)}\n`);
-		commit(repo, "fix design");
+		commit(repo, "fix domain");
 		expect(against().status).toBe(0);
 		fromBase("later");
-		bootstrap(repo, [{ gap: "doc:DESIGN.md", owner: "team", expires: day(20) }]);
+		bootstrap(repo, [{ gap: "doc:DOMAIN.md", owner: "team", expires: day(20) }]);
 		commit(repo, "extend");
-		expect(against().output.errors.join("\n")).toContain(`baseline doc:DESIGN.md: expiry moved from ${day(10)} to ${day(20)}`);
-		put(repo, "foundation/extensions/design.json", JSON.stringify({ schema: "foundation-baseline-extension/1", reason: "Design review waits on the rebrand", entries: [{ gap: "doc:DESIGN.md", expires: day(20) }] }));
+		expect(against().output.errors.join("\n")).toContain(`baseline doc:DOMAIN.md: expiry moved from ${day(10)} to ${day(20)}`);
+		put(repo, "foundation/extensions/domain.json", JSON.stringify({ schema: "foundation-baseline-extension/1", reason: "Domain review waits on the boundary decision", entries: [{ gap: "doc:DOMAIN.md", expires: day(20) }] }));
 		commit(repo, "record");
 		expect(against().status).toBe(0);
 		fromBase("new-entry");
-		exec(repo, ["rm", "-q", "docs/adr/001.md"]);
-		bootstrap(repo, [{ gap: "doc:DESIGN.md", owner: "team", expires: day(10) }, { gap: "doc:adr", owner: "team", expires: day(10) }]);
+		put(repo, "docs/adr/0001-initial.md", "# Decision missing status\n");
+		bootstrap(repo, [{ gap: "doc:DOMAIN.md", owner: "team", expires: day(10) }, { gap: "doc:adr", owner: "team", expires: day(10) }]);
 		put(repo, "foundation/extensions/stale.json", JSON.stringify({ schema: "foundation-baseline-extension/1", reason: "Unrelated", entries: [{ gap: "skill:verify", expires: day(10) }] }));
 		commit(repo, "regress");
 		const regressed = against().output.errors.join("\n");
@@ -453,7 +674,8 @@ describe("foundation-check ratchet (US-027)", () => {
 		const repo = fixture("map-keys");
 		exec(repo, ["rm", "-q", "foundation.json", "USER_STORIES.md", "features/README.md", "features/journey.md"]);
 		commit(repo, "bare");
-		const gaps = cli(repo, "baseline", "--owner", "team", "--revision", "1".repeat(40)).output.gaps?.map((gap) => gap.split(" ")[0]);
+		expect(cli(repo, "baseline", "--owner", "team", "--revision", "1".repeat(40)).output.errors.join(" ")).toContain("requires --surfaces");
+		const gaps = cli(repo, "baseline", "--owner", "team", "--revision", "1".repeat(40), "--surfaces", "library").output.gaps?.map((gap) => gap.split(" ")[0]);
 		expect(gaps).toContain("map:index");
 		expect(gaps).toContain("doc:USER_STORIES.md");
 		const mapped = fixture("feature-keys");
@@ -478,30 +700,41 @@ describe("foundation-check operational obligations (ADR-005, US-040)", () => {
 
 	test("an application owes all three: pending is a timed gap, and neither a waiver nor not_applicable passes", () => {
 		const repo = fixture("ops-pending");
-		edit(repo, (adoption) => { adoption.surfaces = ["ui", "deployed"]; });
-		const pending = cli(repo, "check");
-		expect(pending.status).toBe(1);
-		for (const id of ops) expect(pending.output.errors.join("\n")).toContain(`${id}: not yet met by this application`);
+		edit(repo, (adoption) => {
+			adoption.surfaces = ["ui", "deployed"];
+			for (const id of ops) adoption.dispositions[id] = pending();
+		});
+		const pendingResult = cli(repo, "check");
+		expect(pendingResult.status).toBe(1);
+		for (const id of ops) expect(pendingResult.output.errors.join("\n")).toContain(`${id}: not yet met by this application`);
 		expect(cli(repo, "baseline", "--owner", "team", "--write").status).toBe(0);
 		const baselined = cli(repo, "check");
 		expect(baselined.status).toBe(0);
 		for (const gap of ["ops:ship", "ops:alert", "ops:incident"]) expect(baselined.output.baselined!.join("\n")).toContain(`[${gap}]`);
 		edit(repo, (adoption) => {
-			adoption.dispositions["FND-REL-001"] = { status: "exception", decision: "approvals/rel.json", expires: day(10) };
-			adoption.dispositions["FND-ALR-001"] = { status: "not_applicable", decision: "approvals/alr.json" };
+			adoption.dispositions["FND-REL-001"] = { status: "exception", approval_ref: "foundation/approvals/rel.json", reason: "Temporary", substitute: "Alternative", expires: day(10) };
+			adoption.dispositions["FND-ALR-001"] = { status: "not_applicable", approval_ref: "foundation/approvals/alr.json", reason: "Library", substitute: "None" };
 		});
 		expect(errors(repo)).toContain("FND-REL-001: no exception is allowed");
 		expect(errors(repo)).toContain("FND-ALR-001: applies to every application");
 		// A repository without surfaces is treated as an application, so it cannot opt out either.
 		edit(repo, (adoption) => { delete adoption.surfaces; });
 		expect(errors(repo)).toContain("FND-ALR-001: applies to every application");
-		// A library is not an application: not_applicable holds and nothing is owed.
+		// A library may be not_applicable only with an independently reviewed, tracked record.
 		edit(repo, (adoption) => {
 			adoption.surfaces = ["library"];
-			for (const id of ops) adoption.dispositions[id] = { status: "not_applicable", decision: "approvals/library.json" };
+			for (const id of ops) adoption.dispositions[id] = {
+				status: "not_applicable", reason: "This library has no running service", substitute: "Consumers own production operation",
+				approval_ref: `foundation/approvals/${id}.json`,
+			};
 			delete adoption.baseline;
 			delete adoption.mode;
 		});
+		for (const id of ops) put(repo, `foundation/approvals/${id}.json`, JSON.stringify({
+			schema: "foundation-approval/1", obligation: id, disposition: "not_applicable",
+			reason: "This library has no running service", substitute: "Consumers own production operation",
+		}));
+		commit(repo, "approve library applicability");
 		expect(cli(repo, "check").status).toBe(0);
 	});
 
@@ -514,13 +747,13 @@ describe("foundation-check operational obligations (ADR-005, US-040)", () => {
 		deploy("  push:\n    branches: [main]", "    needs: [test]\n");
 		put(repo, "src/instrument.ts", "import * as Sentry from \"@sentry/node\";\nSentry.init({ release: process.env.RELEASE });\n");
 		put(repo, ".github/workflows/health.yml", "name: health\non:\n  schedule:\n    - cron: \"*/5 * * * *\"\njobs:\n  probe:\n    runs-on: ubuntu-latest\n    steps: [{ run: \"curl -f https://example.test/health\" }]\n");
-		put(repo, "docs/runbook.md", "# Runbook\n\n## Incidents\n\nSentry and the health probe alert kaylee-alert-intake; triage owns the incident and writes docs/postmortems/.\n");
+		put(repo, "docs/runbook.md", "# Runbook\n\n## Release\n\nShip after green.\n\n## Rollback\n\nRestore prior release.\n\n## Recover\n\nRestore service.\n\n## Incidents\n\nSentry and the health probe alert kaylee-alert-intake; triage owns the incident and writes docs/postmortems/.\n");
 		const postmortem = (status: string, followUp: string) => put(repo, "docs/postmortems/2026-09-01-stale-cache.md",
 			`# Postmortem: stale cache\n\n- **Status:** ${status}\n\n## Summary\n\nx\n\n## Pokayoke\n\nThe cache key now includes the release.\n\n## Follow-up\n\n${followUp}\n`);
 		postmortem("closed", "Closed by #42 with a regression test.");
 		edit(repo, (adoption) => {
 			adoption.surfaces = ["ui", "deployed"];
-			for (const id of ops) adoption.dispositions[id] = { status: "satisfied", receipt: `receipts/${id}.json` };
+			for (const id of ops) adoption.dispositions[id] = { status: "satisfied", receipt: `foundation/receipts/${id}.json` };
 			adoption.operations = {
 				ship: { branch: "main", workflow: ".github/workflows/deploy.yml", job: "deploy", tenancy: { model: "single" } },
 				alert: { errors: { provider: "sentry", init: "src/instrument.ts" }, health: { monitor: ".github/workflows/health.yml" }, destination: "kaylee-alert-intake" },
@@ -581,7 +814,7 @@ describe("foundation-check operational obligations (ADR-005, US-040)", () => {
 		postmortem("closed", "We will be more careful.");
 		expect(errors(repo)).toContain("FND-INC-001: satisfied, but docs/postmortems/2026-09-01-stale-cache.md: a closed postmortem must link the change");
 		postmortem("open", "Fix in progress.");
-		put(repo, "docs/runbook.md", "# Runbook\n\n## Release\n\nShip it.\n");
+		put(repo, "docs/runbook.md", "# Runbook\n\n## Release\n\nShip it.\n\n## Rollback\n\nRestore.\n\n## Recover\n\nRestart.\n");
 		expect(cli(repo, "check").output.errors).toEqual(["FND-INC-001: satisfied, but docs/runbook.md needs a non-empty ## Incidents section"]);
 		// A platform deploy (a git integration) proves itself in the receipt rather than a workflow file.
 		edit(repo, (adoption) => { adoption.operations.ship = { branch: "main", platform: "vercel", tenancy: { model: "single" } }; });
@@ -618,7 +851,7 @@ jobs:
 		put(repo, "scripts/tenant-state.sh", "#!/bin/sh\n# Report each tenant's deployed revision and migration level.\n");
 		edit(repo, (adoption) => {
 			adoption.surfaces = ["deployed"];
-			adoption.dispositions["FND-REL-001"] = { status: "satisfied", receipt: "receipts/ship.json" };
+			adoption.dispositions["FND-REL-001"] = { status: "satisfied", receipt: "foundation/receipts/FND-REL-001.json" };
 			adoption.operations = {
 				ship: { branch: "main", workflow: ".github/workflows/deploy.yml", job: "ship" },
 			};
@@ -668,18 +901,95 @@ jobs:
 
 	test("baseline re-pins an existing record and starts obligations the catalog gained as pending", () => {
 		const repo = fixture("ops-repin");
-		edit(repo, (adoption) => { for (const id of ops) delete adoption.dispositions[id]; });
+		edit(repo, (adoption) => { for (const id of [...ops, "FND-REV-001", "FND-SEC-001", "FND-CIT-001"]) delete adoption.dispositions[id]; });
 		expect(errors(repo)).toContain("foundation.json: missing or invalid FND-REL-001");
 		const revision = "2".repeat(40);
 		expect(cli(repo, "baseline", "--owner", "team", "--revision", revision, "--write").status).toBe(0);
 		const repinned = JSON.parse(readFileSync(join(repo, "foundation.json"), "utf8"));
 		expect(repinned.standard.revision).toBe(revision);
 		expect(repinned.standard.source).toContain(revision);
-		for (const id of ops) expect(repinned.dispositions[id].status).toBe("pending");
-		// A re-pin keeps the walk entries a record has; it never re-baselines stories.
-		expect(repinned.baseline).toBeUndefined();
+		for (const id of [...ops, "FND-REV-001", "FND-SEC-001", "FND-CIT-001"]) expect(repinned.dispositions[id].status).toBe("pending");
+		// A re-pin dates new obligations, retaining only existing walk entries.
+		expect(repinned.baseline.map((entry: { gap: string }) => entry.gap)).toEqual(
+			["FND-REV-001", "FND-SEC-001", "FND-CIT-001"].map((id) => `obl:${id}`).sort(),
+		);
 		expect(repinned.dispositions["FND-CHG-001"]).toEqual(adoption().dispositions["FND-CHG-001"]);
 		expect(cli(repo, "check").status).toBe(0);
+	});
+});
+
+describe("foundation-check security baseline (ADR-006, US-024)", () => {
+	test("a satisfied security claim checks secret scan, bot update gate and application authorization test", () => {
+		const repo = fixture("security-baseline");
+		const value = JSON.parse(readFileSync(join(repo, "foundation.json"), "utf8"));
+		const save = () => put(repo, "foundation.json", JSON.stringify(value));
+		const errors = () => cli(repo, "check").output.errors.join("\n");
+		expect(cli(repo, "check").status).toBe(0);
+		const workflow = readFileSync(join(repo, ".github/workflows/security.yml"), "utf8");
+		put(repo, ".github/workflows/security.yml", workflow.replace("gitleaks detect --source .", "echo skipped"));
+		expect(errors()).toContain("FND-SEC-001: satisfied, but security.secrets job must run a secret scanner");
+		put(repo, ".github/workflows/security.yml", workflow);
+		put(repo, ".github/workflows/security.yml", workflow.replace("  secrets:\n    runs-on:", "  secrets:\n    continue-on-error: true\n    runs-on:"));
+		expect(errors()).toContain("security.secrets scanner job and relevant steps must block the gate on failure");
+		put(repo, ".github/workflows/security.yml", workflow.replace("      - run: gitleaks detect --source .", "      - run: gitleaks detect --source .\n        continue-on-error: true"));
+		expect(errors()).toContain("security.secrets scanner job and relevant steps must block the gate on failure");
+		put(repo, ".github/workflows/security.yml", workflow.replace("  secrets:\n    runs-on:", "  secrets:\n    if: github.event_name == 'push'\n    runs-on:"));
+		expect(errors()).toContain("security.secrets scanner job and relevant steps must run on every applicable PR and push");
+		put(repo, ".github/workflows/security.yml", workflow.replace("      - run: gitleaks detect --source .", "      - run: gitleaks detect --source .\n        if: false"));
+		expect(errors()).toContain("security.secrets scanner job and relevant steps must run on every applicable PR and push");
+		put(repo, ".github/workflows/security.yml", workflow.replace("on: [push, pull_request]",
+			"on:\n  push:\n    paths: ['src/**']\n  pull_request:\n    paths: ['src/**']"));
+		expect(errors()).toContain("security.secrets workflow cannot filter push changes");
+		expect(errors()).toContain("security.secrets workflow cannot filter pull_request changes");
+		put(repo, ".github/workflows/security.yml", workflow.replace("on: [push, pull_request]",
+			"on:\n  push:\n  pull_request:\n    types: [closed]"));
+		expect(errors()).toContain("security.secrets workflow must scan opened, synchronized and reopened PRs");
+		put(repo, ".github/workflows/security.yml", workflow);
+		value.security.secrets.job = "absent";
+		save();
+		expect(errors()).toContain("security.secrets: .github/workflows/security.yml has no job absent");
+		value.security.secrets.job = "secrets";
+		value.security.dependencies.bot = "none";
+		save();
+		expect(errors()).toContain("security.dependencies needs a configured Dependabot");
+		value.security.dependencies.bot = "dependabot";
+		const merge = readFileSync(join(repo, ".github/workflows/dependencies.yml"), "utf8");
+		put(repo, ".github/workflows/dependencies.yml", merge.replace("needs: [gate]", "needs: [missing]"));
+		save();
+		expect(errors()).toContain("security.dependencies.automerge job needs an existing blocking gate job");
+		put(repo, ".github/workflows/dependencies.yml", merge.replace("      - run: scripts/check", "      - run: scripts/check\n        continue-on-error: true"));
+		expect(errors()).toContain("security.dependencies.automerge job needs an existing blocking gate job");
+		put(repo, ".github/workflows/dependencies.yml", merge.replace("      - run: scripts/check", "      - run: scripts/check\n        if: false"));
+		expect(errors()).toContain("security.dependencies.automerge job needs an existing blocking gate job");
+		put(repo, ".github/workflows/dependencies.yml", merge.replace("  gate:\n    runs-on:",
+			"  upstream:\n    runs-on: ubuntu-latest\n    steps:\n      - run: scripts/check\n        continue-on-error: true\n  gate:\n    needs: [upstream]\n    runs-on:"));
+		expect(errors()).toContain("security.dependencies.automerge job needs an existing blocking gate job");
+		put(repo, ".github/workflows/dependencies.yml", merge.replace("github.actor == 'dependabot[bot]'", "github.actor == 'engineer'"));
+		expect(errors()).toContain("security.dependencies.automerge job must be restricted to the dependency bot");
+		put(repo, ".github/workflows/dependencies.yml", merge.replace("version-update:semver-minor", "version-update:semver-major"));
+		expect(errors()).toContain("security.dependencies.automerge needs Dependabot metadata and a patch-or-minor-only merge guard");
+		put(repo, ".github/workflows/dependencies.yml", merge.replace("github.actor == 'dependabot[bot]'", "true || github.actor == 'dependabot[bot]'"));
+		expect(errors()).toContain("security.dependencies.automerge job must be restricted to the dependency bot");
+		put(repo, ".github/workflows/dependencies.yml", merge);
+		value.surfaces = ["ui"];
+		save();
+		expect(errors()).not.toContain("FND-SEC-001");
+		value.security.authorization.test = "tests/missing.test.ts";
+		save();
+		expect(errors()).toContain("security.authorization.test must name a tracked authorization-boundary test");
+		value.security.authorization.test = "tests/auth.test.ts";
+		put(repo, ".github/workflows/security.yml", workflow.replace("bun test tests/auth.test.ts", "echo no authorization test"));
+		save();
+		expect(errors()).toContain("security.authorization job must run its named test");
+		put(repo, ".github/workflows/security.yml", workflow.replace("      - run: bun test tests/auth.test.ts", "      - run: bun test tests/auth.test.ts\n        if: false"));
+		expect(errors()).toContain("security.authorization test job and relevant steps must run on every applicable PR and push");
+		put(repo, ".github/workflows/security.yml", workflow.replace("  auth:\n    runs-on:", "  auth:\n    continue-on-error: true\n    runs-on:"));
+		expect(errors()).toContain("security.authorization test job and relevant steps must block the gate on failure");
+		put(repo, ".github/workflows/security.yml", workflow.replace("      - run: bun test tests/auth.test.ts", "      - run: bun test tests/auth.test.ts\n        continue-on-error: true"));
+		expect(errors()).toContain("security.authorization test job and relevant steps must block the gate on failure");
+		put(repo, ".github/workflows/security.yml", workflow.replace("  auth:\n    runs-on:",
+			"  auth:\n    if: github.event_name == 'pull_request'\n    runs-on:"));
+		expect(errors()).not.toContain("FND-SEC-001");
 	});
 });
 
@@ -688,7 +998,7 @@ describe("foundation-check review gate (US-027)", () => {
 	const operator = "moomooskycow";
 	const marker = "foundation-escalation: product-direction";
 	const resolved = "foundation-escalation: resolved\r\nOperator decided on 2026-09-25 to keep the quoted rebrand:\r\n~~~\r\nRebrand the landing page\r\n~~~\r\n";
-	let pull = { head: { sha: "" }, base: { sha: "" }, user: { login: "engineer" } };
+	let pull = { head: { sha: "" }, base: { sha: "" }, user: { login: "engineer" }, body: "" };
 	let reviews: { user: { login: string }; state: string; commit_id: string; body: string; submitted_at?: string }[] = [];
 	let comments: { user: { login: string }; body: string; created_at: string }[] = [];
 	let calls: string[] = [];
@@ -706,7 +1016,7 @@ describe("foundation-check review gate (US-027)", () => {
 	});
 	afterAll(() => server.stop(true));
 	const said = (login: string, commit: string, state = "APPROVED", body = "") => ({ user: { login }, state, commit_id: commit, body });
-	const opened = (base: string, head: string, author = "engineer") => { pull = { head: { sha: head }, base: { sha: base }, user: { login: author } }; };
+	const opened = (base: string, head: string, author = "engineer", body = "") => { pull = { head: { sha: head }, base: { sha: base }, user: { login: author }, body }; };
 	async function gate(repo: string, slug = "misty-step/demo") {
 		const child = Bun.spawn(["bun", script, "review", "--pr", "7", "--github-repo", slug, "--repo", repo, "--json"], {
 			cwd: repo, env: { ...process.env, GITHUB_TOKEN: "test-token", GITHUB_API_URL: server.url.origin }, stdout: "pipe", stderr: "pipe",
@@ -734,17 +1044,108 @@ describe("foundation-check review gate (US-027)", () => {
 		expect(result.output.reasons).toEqual(["surfaces: foundation.json stops declaring an application (ADR-005)"]);
 	});
 
-	test("a PR without first stories or an extension record needs no review and reads no reviews", async () => {
+	test("ordinary PRs need independent review and mapped source citations, not a designated-review trigger", async () => {
 		const repo = fixture("gate-quiet");
 		const base = exec(repo, ["rev-parse", "HEAD"]);
 		put(repo, "src/nested/journey.ts", "export const result = 2;\n");
 		commit(repo, "source");
-		opened(base, exec(repo, ["rev-parse", "HEAD"]));
-		calls = [];
+		const head = exec(repo, ["rev-parse", "HEAD"]);
+		opened(base, head);
+		reviews = [said("engineer", head)];
+		const missing = await gate(repo);
+		expect(missing.output.errors.join("\n")).toContain("FND-CIT-001");
+		expect(missing.output.errors.join("\n")).toContain("FND-REV-001");
+		opened(base, head, "engineer", "Stories: US-001");
+		reviews = [said("engineer", head)];
+		expect((await gate(repo)).output.errors.join("\n")).toContain("FND-REV-001");
+		reviews = [said("teammate", base)];
+		expect((await gate(repo)).status).toBe(1);
+		reviews = [said("teammate", head)];
 		const result = await gate(repo);
 		expect(result.status).toBe(0);
 		expect(result.output.reasons).toEqual([]);
-		expect(calls.some((path) => path.endsWith("/reviews"))).toBe(false);
+		expect(result.output.approved_by).toBe("teammate");
+		expect(calls.some((path) => path.endsWith("/reviews"))).toBe(true);
+	});
+
+	test("citation covers each mapped source story even when the review checkout stays at the base", async () => {
+		const repo = fixture("gate-citation");
+		put(repo, "USER_STORIES.md", `# Stories\n\n${liveStory}\n${otherStory}`);
+		put(repo, "features/journey.md", feature.replace("Stories: US-001", "Stories: US-001, US-004"));
+		commit(repo, "two mapped stories");
+		const base = exec(repo, ["rev-parse", "HEAD"]);
+		put(repo, "src/nested/journey.ts", "export const result = 4;\n");
+		commit(repo, "mapped source");
+		const head = exec(repo, ["rev-parse", "HEAD"]);
+		reviews = [said("teammate", head)];
+		opened(base, head, "engineer", "Stories: US-001");
+		exec(repo, ["checkout", "-q", base]); // review runs from the trusted base, not PR files
+		expect((await gate(repo)).output.errors.join("\n")).toContain("must cite mapped source story US-004");
+		opened(base, head, "engineer", "Stories: US-001, US-004");
+		expect((await gate(repo)).status).toBe(0);
+	});
+
+	test("PR citations cover source remaps but do not apply to story-only or feature-only changes", async () => {
+		const repo = fixture("gate-remap");
+		put(repo, "lib/journey.ts", "export const alternate = 1;\n");
+		commit(repo, "add alternate source");
+		const base = exec(repo, ["rev-parse", "HEAD"]);
+		put(repo, "src/nested/journey.ts", "export const result = 2;\n");
+		put(repo, "features/journey.md", feature.replace("Source: src/**", "Source: lib/**"));
+		commit(repo, "move map away from changed source");
+		const head = exec(repo, ["rev-parse", "HEAD"]);
+		reviews = [said("teammate", head)];
+		opened(base, head);
+		expect((await gate(repo)).output.errors.join("\n")).toContain("must cite mapped source story US-001");
+		opened(base, head, "engineer", "Stories: US-001");
+		expect((await gate(repo)).status).toBe(0);
+		put(repo, "USER_STORIES.md", `# Stories\n\n${liveStory.replace("show the result", "display the result")}${retiredStory}${headingRetiredStory}`);
+		commit(repo, "edit story criterion");
+		const storyHead = exec(repo, ["rev-parse", "HEAD"]);
+		reviews = [said("teammate", storyHead)];
+		opened(head, storyHead);
+		expect((await gate(repo)).status).toBe(0);
+		put(repo, "features/journey.md", `${readFileSync(join(repo, "features/journey.md"), "utf8")}\nClarified journey.\n`);
+		commit(repo, "clarify feature guidance");
+		const featureHead = exec(repo, ["rev-parse", "HEAD"]);
+		reviews = [said("teammate", featureHead)];
+		opened(storyHead, featureHead);
+		expect((await gate(repo)).status).toBe(0);
+	});
+
+	test("ledger edits and disposition approvals require the designated reviewer on the head", async () => {
+		const repo = fixture("gate-ledger");
+		const base = exec(repo, ["rev-parse", "HEAD"]);
+		put(repo, "DOMAIN.md", readFileSync(join(repo, "DOMAIN.md"), "utf8").replace("The repository gate decides", "The independent gate decides"));
+		commit(repo, "change invariant");
+		const head = exec(repo, ["rev-parse", "HEAD"]);
+		opened(base, head);
+		reviews = [said("teammate", head)];
+		const ledger = await gate(repo);
+		expect(ledger.output.reasons).toEqual(["invariants ledger: DOMAIN.md policy changes"]);
+		expect(ledger.output.errors.join("\n")).toContain("designated agent reviewer");
+		reviews = [said(agent, head)];
+		expect((await gate(repo)).status).toBe(0);
+		const approvedBase = head;
+		const value = JSON.parse(readFileSync(join(repo, "foundation.json"), "utf8"));
+		const id = "FND-DOC-001";
+		const decision = { schema: "foundation-approval/1", obligation: id, disposition: "not_applicable", reason: "No authored docs", substitute: "Generated reference" };
+		const approval_ref = "foundation/approvals/docs.json";
+		value.dispositions[id] = { status: "not_applicable", reason: decision.reason, substitute: decision.substitute, approval_ref };
+		put(repo, "foundation.json", JSON.stringify(value));
+		put(repo, approval_ref, JSON.stringify(decision));
+		commit(repo, "submit disposition");
+		const dispositionHead = exec(repo, ["rev-parse", "HEAD"]);
+		opened(approvedBase, dispositionHead);
+		reviews = [said("teammate", dispositionHead)];
+		expect((await gate(repo)).output.reasons).toEqual([`disposition approval: ${id} not_applicable`]);
+		reviews = [said(agent, dispositionHead)];
+		expect((await gate(repo)).status).toBe(0);
+		put(repo, approval_ref, JSON.stringify({ ...decision, reason: "Mismatch" }));
+		commit(repo, "tamper record");
+		opened(approvedBase, exec(repo, ["rev-parse", "HEAD"]));
+		reviews = [said(agent, exec(repo, ["rev-parse", "HEAD"]))];
+		expect((await gate(repo)).output.errors.join("\n")).toContain("exactly matching the disposition");
 	});
 
 	test("first stories need the agent reviewer's current approval, never the author's or the operator account's", async () => {
@@ -760,7 +1161,8 @@ describe("foundation-check review gate (US-027)", () => {
 		const missing = await gate(repo);
 		expect(missing.status).toBe(1);
 		expect(missing.output.reasons).toEqual(["first user stories: USER_STORIES.md gains its first stories"]);
-		expect(missing.output.errors[0]).toContain(`needs an approving review from the designated agent reviewer ${agent}`);
+		expect(missing.output.errors.join("\n")).toContain(`needs an approving review from the designated agent reviewer ${agent}`);
+		expect(missing.output.errors.join("\n")).not.toContain("FND-CIT-001");
 		// The PR's own revisions decide, not the checkout: a checkout parked on the base still needs the approval.
 		exec(repo, ["checkout", "-q", base]);
 		expect((await gate(repo)).status).toBe(1);
@@ -776,7 +1178,7 @@ describe("foundation-check review gate (US-027)", () => {
 		expect((await gate(repo)).status).toBe(1);
 		opened(base, head, agent);
 		reviews = [said(agent, head)];
-		expect((await gate(repo)).output.errors[0]).toContain("authored this PR, so it cannot approve it");
+		expect((await gate(repo)).output.errors.join("\n")).toContain("authored this PR, so it cannot approve it");
 		opened(base, "0".repeat(40));
 		expect((await gate(repo)).output.errors[0]).toContain("the checkout lacks commit 000000000000");
 	});

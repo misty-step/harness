@@ -2,9 +2,9 @@
 // foundation-check: owned standalone launcher (misty-step/harness).
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { existsSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, realpathSync, statSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
-import { dirname, isAbsolute, join, resolve } from "node:path";
+import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const scriptDir = dirname(fileURLToPath(import.meta.url));
@@ -13,17 +13,17 @@ const usage = `Usage: foundation-check <check|baseline|affected|receipt|review> 
   check [--base REV]      Check foundation.json, documents, stories, features and verify skill;
                           with --base, the bootstrap baseline may only shrink
   baseline --owner NAME [--write] [--expires YYYY-MM-DD] [--revision SHA] [--surfaces a,b] [--no-walk-gaps]
-                          Record the current gaps as a bootstrap baseline (works
-                          without foundation.json); --write saves foundation.json.
+                          Record current gaps; --surfaces is required when no
+                          surface is declared. --write saves foundation.json.
                           On an existing record, adds dispositions for new catalog
                           obligations and --revision re-pins the standard
   affected --base REV     Print affected live story ids (space-separated)
   receipt PATH [--base REV] [--all]
                           Validate a story-walk receipt; --all requires every live story
   review --pr N [--github-repo OWNER/NAME]
-                          When the PR gives USER_STORIES.md its first stories or adds a
-                          baseline extension record, require the designated reviewer's
-                          approval on its head (GITHUB_TOKEN; GITHUB_REPOSITORY, GITHUB_API_URL)
+                          Enforce first stories, extensions, nonapplication,
+                          ledger and disposition approvals; also PR obligations
+                          (GITHUB_TOKEN; GITHUB_REPOSITORY, GITHUB_API_URL)
 Options:
   --repo DIR              Repository root (default: current directory)
   --catalog PATH          Foundation catalog JSON (otherwise source-relative or deployed)
@@ -43,7 +43,7 @@ type Result = {
 };
 type Feature = { file: string; stories: string[]; sources: string[] };
 type Story = { id: string; live: boolean; start: number; end: number };
-/** A deficiency; `gap` is the stable key a bootstrap baseline can name. Adoption-record errors have none. */
+/** A deficiency; `gap` is the stable key a bootstrap baseline can name. Invalid adoption claims have none. */
 type Issue = { gap?: string; message: string };
 type Entry = { gap: string; owner: string; expires: string };
 type Baseline = { mode: "bootstrap" | "enforced"; entries: Entry[] };
@@ -57,12 +57,15 @@ const featureHeadings: Record<string, string> = {
 };
 // Each independent defect has its own key, so a baselined defect cannot cover a new one in the same file.
 const gapPattern = new RegExp(
-	"^(?:doc:(?:README\\.md|DESIGN\\.md|USER_STORIES\\.md|adr|postmortems)|stories:format|skill:verify|walk:US-\\d{3}" +
+	"^(?:doc:(?:README\\.md|AGENTS\\.md|DOMAIN\\.md|DESIGN\\.md|USER_STORIES\\.md|runbook|content-schema|env-pass|aliases|refs|adr)" +
+	"|entry:check|stories:format|skill:verify|walk:US-\\d{3}|obl:FND-[A-Z]+(?:-[A-Z]+)*-\\d{3}" +
 	"|ops:(?:ship|alert|incident)" +
 	"|map:(?:index|US-\\d{3}|features/[^/:]+\\.md:(?:unlinked|stories-line|source-line|story:US-\\d{3}|source:[^\\s,]+" +
 	`|heading:(?:${Object.values(featureHeadings).join("|")}))))$`,
 );
 const extensionPath = /^foundation\/extensions\/[^/]+\.json$/;
+const approvalPath = /^foundation\/approvals\/[^/]+\.json$/;
+const receiptPath = /^foundation\/receipts\/[^/]+\.json$/;
 const maxBaselineDays = 30;
 // ADR-004's surface vocabulary. Any of the application surfaces makes a repository an application (ADR-005).
 const surfaceVocabulary = ["ui", "cli", "library", "api", "deployed", "content", "public"];
@@ -262,16 +265,16 @@ function storyCriteria(contents: string): Map<string, number[]> {
 	for (const list of criteria.values()) list.sort((a, b) => a - b);
 	return criteria;
 }
-function changedFiles(repo: string, base: string, filter?: string): string[] {
-	return git(repo, "diff", "--name-only", ...(filter ? [`--diff-filter=${filter}`] : []), "-z", `${base}...HEAD`).split("\0").filter(Boolean);
+function changedFiles(repo: string, base: string, filter?: string, head = "HEAD"): string[] {
+	return git(repo, "diff", "--name-only", ...(filter ? [`--diff-filter=${filter}`] : []), "-z", `${base}...${head}`).split("\0").filter(Boolean);
 }
 /** Live stories whose sections a change edits; a story file new at the base counts every section as edited. */
-function editedStories(repo: string, base: string, head: Story[]): Set<string> {
+function editedStories(repo: string, base: string, head: Story[], revision = "HEAD"): Set<string> {
 	const ids = new Set<string>();
-	if (!changedFiles(repo, base).includes("USER_STORIES.md")) return ids;
+	if (!changedFiles(repo, base, undefined, revision).includes("USER_STORIES.md")) return ids;
 	const live = liveIds(head);
-	const old = parseStories(fileAt(repo, git(repo, "merge-base", base, "HEAD").trim(), "USER_STORIES.md") ?? "");
-	const diff = git(repo, "diff", "-U0", `${base}...HEAD`, "--", "USER_STORIES.md");
+	const old = parseStories(fileAt(repo, git(repo, "merge-base", base, revision).trim(), "USER_STORIES.md") ?? "");
+	const diff = git(repo, "diff", "-U0", `${base}...${revision}`, "--", "USER_STORIES.md");
 	let oldLine = 0;
 	let newLine = 0;
 	for (const line of diff.split("\n")) {
@@ -287,26 +290,76 @@ function editedStories(repo: string, base: string, head: Story[]): Set<string> {
 	}
 	return ids;
 }
-function affected(repo: string, base: string, report: Issue[]): string[] {
-	const head = parseStories(readFileSync(join(repo, "USER_STORIES.md"), "utf8"));
+/** Use the same affected-story rules for local CLI and the PR gate; review only reads candidate git objects. */
+function changedStoryIds(repo: string, base: string, mapping: Feature[], head: Story[], revision = "HEAD"): string[] {
 	const live = liveIds(head);
-	const mapping = features(repo, tracked(repo), head, report);
-	const changed = changedFiles(repo, base);
-	const ids = editedStories(repo, base, head);
-	// The change that first creates the map (no `features/` files at all at the merge base) adds metadata, not
-	// behaviour, so its feature files mark no story; changed source and edited stories still do. Once any map
-	// file exists, every feature file a change touches, renames included, affects its stories.
-	const mergeBase = git(repo, "merge-base", base, "HEAD").trim();
+	const changed = changedFiles(repo, base, undefined, revision);
+	const ids = editedStories(repo, base, head, revision);
+	// Creating the map itself is metadata; once a map exists, changed feature files also affect their stories.
+	const mergeBase = git(repo, "merge-base", base, revision).trim();
 	const mapExisted = git(repo, "ls-tree", "--name-only", mergeBase, "features/").trim() !== "";
 	for (const feature of mapping) {
 		const featureChanged = mapExisted && changed.includes(feature.file);
-		if (featureChanged || changed.some((file) => feature.sources.some((glob) => globRegex(glob).test(file)))) {
+		if (featureChanged || changed.some((file) => feature.sources.some((glob) => globRegex(glob).test(file))))
 			for (const id of feature.stories) if (live.has(id)) ids.add(id);
-		}
 	}
 	return [...ids].sort();
 }
-function validateAdoption(adoption: unknown, catalog: { id: string; version: string; obligations: { id: string }[]; approved_defaults: { id: string }[] }, catalogBytes: Buffer, errors: string[], needs_evidence: string[]): void {
+function affected(repo: string, base: string, report: Issue[]): string[] {
+	const head = parseStories(readFileSync(join(repo, "USER_STORIES.md"), "utf8"));
+	return changedStoryIds(repo, base, features(repo, tracked(repo), head, report), head);
+}
+type Catalog = { id: string; version: string; obligations: { id: string }[]; approved_defaults: { id: string }[] };
+function pendingIssues(adoption: unknown, catalog: Catalog): Issue[] {
+	const dispositions = record(adoption) && record(adoption.dispositions) ? adoption.dispositions : {};
+	// ADR-005's existing ops: keys remain the one gap for its three application obligations.
+	return [...catalog.obligations, ...catalog.approved_defaults]
+		.filter(({ id }) => !(id in operationsGaps) && record(dispositions[id]) && dispositions[id].status === "pending")
+		.map(({ id }) => ({ gap: `obl:${id}`, message: `${id}: pending needs a dated baseline gap until independently approved not_applicable or satisfied` }));
+}
+function evidenceReceipt(repo: string, id: string, path: unknown, errors: string[]): void {
+	if (!text(path) || !receiptPath.test(path) || !safePath(path) || !repositoryFile(repo, path)) {
+		errors.push(`${id}: receipt must be an untracked foundation/receipts/*.json file from the same check job`);
+		return;
+	}
+	if (git(repo, "ls-files", "--", path).trim()) {
+		errors.push(`${id}: receipt ${path} must be untracked, outside the committed tree`);
+		return;
+	}
+	const value = jsonOrUndefined(readFileSync(join(repo, path), "utf8"));
+	if (!record(value) || value.schema !== "foundation-evidence/1" || value.obligation !== id ||
+		!text(value.check) || !text(value.run) || value.exit !== 0 ||
+		!/^[0-9a-f]{40}$/.test(String(value.revision)) || value.revision !== git(repo, "rev-parse", "HEAD").trim() ||
+		!/^[0-9a-f]{64}$/.test(String(value.sha256)) || !safePath(value.path as string)) {
+		errors.push(`${id}: ${path} needs foundation-evidence/1, this obligation, HEAD revision, check/run, exit 0 and a relative payload SHA-256`);
+		return;
+	}
+	const directory = realpathSync(dirname(join(repo, path)));
+	const payload = resolve(directory, value.path as string);
+	const within = relative(directory, payload);
+	if (within === ".." || within.startsWith("../") || isAbsolute(within) ||
+		!existsSync(payload) || !statSync(payload).isFile() ||
+		!realpathSync(payload).startsWith(`${directory}/`) || sha256(readFileSync(payload)) !== value.sha256)
+		errors.push(`${id}: ${path} payload is missing, escapes its receipt directory, or has a different SHA-256`);
+}
+function approvalRecord(repo: string, id: string, disposition: Record<string, unknown>, errors: string[], revision = "HEAD"): void {
+	const { status, reason, substitute, approval_ref, expires } = disposition;
+	if (!text(reason) || !text(substitute) || !text(approval_ref) || !approvalPath.test(approval_ref) || !safePath(approval_ref) ||
+		(status === "exception" && (!isDate(expires) || expires < today() || expires > addDays(today(), maxBaselineDays))) ||
+		(status === "not_applicable" && expires !== undefined) ||
+		Object.keys(disposition).some((key) => !["status", "reason", "substitute", "approval_ref", ...(status === "exception" ? ["expires"] : [])].includes(key))) {
+		errors.push(`${id}: ${status} requires reason, substitute, tracked approval_ref and ${status === "exception" ? "a current expiry within 30 days" : "no expiry"}`);
+		return;
+	}
+	const source = fileAt(repo, revision, approval_ref);
+	const value = jsonOrUndefined(source);
+	if (!record(value) || value.schema !== "foundation-approval/1" || value.obligation !== id ||
+		value.disposition !== status || value.reason !== reason || value.substitute !== substitute ||
+		(status === "exception" ? value.expires !== expires : value.expires !== undefined) ||
+		Object.keys(value).some((key) => !["schema", "obligation", "disposition", "reason", "substitute", ...(status === "exception" ? ["expires"] : [])].includes(key)))
+		errors.push(`${id}: ${approval_ref} must be a tracked foundation-approval/1 record at HEAD exactly matching the disposition; the designated reviewer approves the PR, not a name in JSON`);
+}
+function validateAdoption(repo: string, adoption: unknown, catalog: Catalog, catalogBytes: Buffer, errors: string[], needs_evidence: string[]): void {
 	if (!record(adoption) || adoption.schema !== "foundation-adoption/1") errors.push("foundation.json: invalid schema");
 	const standard = record(adoption) ? adoption.standard : undefined;
 	if (!record(standard) || standard.id !== catalog.id || standard.version !== catalog.version) errors.push("foundation.json: standard id or version differs from catalog");
@@ -316,10 +369,9 @@ function validateAdoption(adoption: unknown, catalog: { id: string; version: str
 		errors.push("foundation.json: source must pin its 40-hex revision and canonical catalog path");
 	if (!record(adoption) || !Array.isArray(adoption.capabilities) || !adoption.capabilities.every(text)) errors.push("foundation.json: capabilities must be an array of descriptions");
 	const surfaces = record(adoption) ? adoption.surfaces : undefined;
-	if (surfaces !== undefined && (!Array.isArray(surfaces) || surfaces.length === 0 || new Set(surfaces).size !== surfaces.length ||
-		!surfaces.every((surface) => typeof surface === "string" && surfaceVocabulary.includes(surface)))) {
+	if (!Array.isArray(surfaces) || surfaces.length === 0 || new Set(surfaces).size !== surfaces.length ||
+		!surfaces.every((surface) => typeof surface === "string" && surfaceVocabulary.includes(surface)))
 		errors.push(`foundation.json: surfaces must be a non-empty list of distinct values from ${surfaceVocabulary.join(", ")}`);
-	}
 	const dispositions = record(adoption) ? adoption.dispositions : undefined;
 	const ids = [...catalog.obligations, ...catalog.approved_defaults].map((item) => item.id);
 	if (!record(dispositions)) { errors.push("foundation.json: dispositions must be an object"); return; }
@@ -332,19 +384,17 @@ function validateAdoption(adoption: unknown, catalog: { id: string; version: str
 				if (![value.missing, value.owner, value.next].every(text)) errors.push(`${id}: pending requires missing, owner and next`);
 				else needs_evidence.push(id);
 				break;
-			case "satisfied": if (!text(value.receipt)) errors.push(`${id}: satisfied requires receipt`); break;
-			case "not_applicable": if (!text(value.decision)) errors.push(`${id}: not_applicable requires decision`); break;
-			case "exception": if (!text(value.decision) || !/^\d{4}-\d{2}-\d{2}$/.test(String(value.expires))) errors.push(`${id}: exception requires decision and expires date`); break;
+			case "satisfied": evidenceReceipt(repo, id, value.receipt, errors); break;
+			case "not_applicable":
+			case "exception": approvalRecord(repo, id, value, errors); break;
 			default: errors.push(`${id}: unknown disposition`);
 		}
 	}
-	// ADR-005 (operator decision 2026-09-25): every application owes these without exception.
 	for (const id of Object.keys(operationsGaps)) {
 		const status = record(dispositions[id]) ? dispositions[id].status : undefined;
 		if (status === "exception") errors.push(`${id}: no exception is allowed; every application owes it (ADR-005)`);
-		if (status === "not_applicable" && isApplication(adoption)) {
+		if (status === "not_applicable" && isApplication(adoption))
 			errors.push(`${id}: applies to every application; not_applicable needs surfaces without ${applicationSurfaces.join(", ")} (ADR-005)`);
-		}
 	}
 }
 /** An application changes a live system or ships something users run. Without surfaces, assume it is one. */
@@ -352,28 +402,177 @@ function isApplication(adoption: unknown): boolean {
 	const surfaces = record(adoption) ? adoption.surfaces : undefined;
 	return !Array.isArray(surfaces) || surfaces.some((surface) => applicationSurfaces.includes(surface));
 }
-/** Documents, stories, map and verify skill: the gaps a bootstrap baseline may name. */
-function contentIssues(repo: string, checkerPath: string): Issue[] {
+/** Resolve only local, repository-owned targets; an escaped path is never evidence of a valid reference. */
+function repositoryFile(repo: string, path: unknown): path is string {
+	if (!text(path) || !safePath(path)) return false;
+	const target = resolve(repo, path);
+	if (relative(repo, target).startsWith("..") || !existsSync(target)) return false;
+	const real = realpathSync(target);
+	const inside = relative(realpathSync(repo), real);
+	return inside !== ".." && !inside.startsWith("../") && !isAbsolute(inside) && statSync(real).isFile();
+}
+function packageScripts(repo: string): Record<string, unknown> {
+	const value = jsonOrUndefined(fileAt(repo, "HEAD", "package.json"));
+	return record(value) && record(value.scripts) ? value.scripts : {};
+}
+/** Resolve repository paths and package targets; bare lint rule names have no deterministic local resolver. */
+function commandTarget(repo: string, target: string, files: Set<string>): boolean {
+	const script = target.match(/^(?:(?:npm|pnpm|yarn|bun) run |(?:npm|pnpm|yarn|bun) )(?:-- )?([-\w.:]+)$/);
+	if (script) return files.has("package.json") && text(packageScripts(repo)[script[1]]);
+	const file = target.replace(/^(?:(?:sh|bash|bun|node|python3?) )?(?:\.\/)?/, "").split(/\s+/)[0];
+	if (files.has(file) && repositoryFile(repo, file)) return true;
+	if (/^make [-\w.]+$/.test(target) && repositoryFile(repo, "Makefile"))
+		return new RegExp(`^${target.slice(5)}\\s*:`, "m").test(readFileSync(join(repo, "Makefile"), "utf8"));
+	return false;
+}
+function ledgerTarget(repo: string, target: string, files: Set<string>): "resolved" | "unresolved" | "missing" {
+	if (!text(target) || /[\n\r`]/.test(target)) return "missing";
+	if (commandTarget(repo, target, files)) return "resolved";
+	// A rule id is well-formed but unresolved; explicit repository paths and package scripts must exist at HEAD.
+	if (/^(?:@[-\w]+\/)?[-\w]+(?:\/[-\w]+)?$/.test(target) &&
+		!["scripts/", "tests/", "src/"].some((prefix) => target.startsWith(prefix))) return "unresolved";
+	return "missing";
+}
+function ledgerIssues(repo: string, files: Set<string>, issues: Issue[]): void {
+	if (!files.has("DOMAIN.md") || !repositoryFile(repo, "DOMAIN.md")) return;
+	const domain = readFileSync(join(repo, "DOMAIN.md"), "utf8");
+	const ledger = domain.match(/^## Invariants\s*\n([\s\S]*?)(?=^## |$(?![\s\S]))/m)?.[1];
+	if (!ledger) { issues.push({ gap: "doc:DOMAIN.md", message: "DOMAIN.md: needs a non-empty ## Invariants ledger" }); return; }
+	const ids = new Set<string>();
+	let count = 0;
+	for (const line of ledger.split("\n").filter((item) => /^[-*]\s/.test(item))) {
+		count++;
+		const match = line.match(/^- \*\*(INV-\d{3})\*\* (.+?)\. (?:Enforced by `([^`]+)`\.?|(`unenforced`)(?:: reviewers judge it)?\.?)(?: Why: (.+?))?(?: Scope: (.+))?$/);
+		if (!match || line.includes("Check:")) { issues.push({ gap: "doc:DOMAIN.md", message: `DOMAIN.md: invalid invariant bullet: ${line}` }); continue; }
+		if (ids.has(match[1])) issues.push({ gap: "doc:DOMAIN.md", message: `DOMAIN.md: duplicate ${match[1]}` });
+		ids.add(match[1]);
+		if (match[3] && ledgerTarget(repo, match[3], files) === "missing")
+			issues.push({ gap: "doc:DOMAIN.md", message: `DOMAIN.md: ${match[1]} cites missing check ${match[3]}` });
+	}
+	if (count === 0) issues.push({ gap: "doc:DOMAIN.md", message: "DOMAIN.md: ## Invariants needs at least one rule" });
+}
+function coreReferences(repo: string, files: Set<string>, documents: string[], issues: Issue[]): void {
+	const root = realpathSync(repo);
+	for (const doc of documents) {
+		if (!files.has(doc) || !repositoryFile(repo, doc)) continue;
+		const contents = readFileSync(join(repo, doc), "utf8");
+		for (const match of contents.matchAll(/!?\[[^\]]*\]\(\s*(?:<([^>]+)>|([^)\s]+))(?:\s+["'][^"']+["'])?\s*\)/g)) {
+			const href = match[1] ?? match[2];
+			if (/^(?:[a-z][a-z\d+.-]*:|\/\/|#|\/)/i.test(href)) continue;
+			let path: string;
+			try { path = decodeURIComponent(href.split("#")[0].split("?")[0]); } catch { path = ""; }
+			if (!path) continue;
+			const resolved = resolve(repo, dirname(doc), path);
+			const within = relative(repo, resolved);
+			// A path that exists only in the working tree is not evidence for a candidate revision.
+			const atHead = within === "" || files.has(within) || [...files].some((file) => file.startsWith(`${within}/`));
+			const canonical = existsSync(resolved) ? relative(root, realpathSync(resolved)) : "..";
+			const canonicalAtHead = canonical === "" || files.has(canonical) || [...files].some((file) => file.startsWith(`${canonical}/`));
+			if (within === ".." || within.startsWith("../") || isAbsolute(within) ||
+				canonical === ".." || canonical.startsWith("../") || isAbsolute(canonical) || !atHead || !canonicalAtHead)
+				issues.push({ gap: "doc:refs", message: `${doc}: Markdown link ${href} does not resolve in the repository at HEAD` });
+		}
+	}
+	// Routing-table commands, not every backticked word in operating prose.
+	if (!files.has("AGENTS.md") || !repositoryFile(repo, "AGENTS.md")) return;
+	const agents = readFileSync(join(repo, "AGENTS.md"), "utf8");
+	const routing = agents.match(/^#{1,3} [^\n]*(?:Rout|rout)[^\n]*\n([\s\S]*?)(?=^#{1,3} |$(?![\s\S]))/m)?.[1] ?? "";
+	for (const row of routing.split("\n").filter((line) => line.startsWith("|") && !/^\|[\s|:-]+\|?$/.test(line))) {
+		for (const [, command] of row.matchAll(/`([^`]+)`/g)) {
+			// A routing-table cell is a declared target, not incidental operating prose.
+			if (!commandTarget(repo, command, files)) issues.push({ gap: "doc:refs", message: `AGENTS.md: routing command ${command} has no script, package script or target` });
+		}
+	}
+}
+function adrIssues(repo: string, files: string[], issues: Issue[]): void {
+	// A date-prefixed postmortem is not a decision. Recognize explicit ADR names and the old decisions homes.
+	const numbered = files.filter((path) =>
+		/(?:^|\/)ADR[-_]?\d{3,4}[-_][^/]+\.md$/i.test(path) ||
+		/(?:^|\/)(?:docs\/decisions|decisions)\/\d{3,4}[-_][^/]+\.md$/i.test(path));
+	for (const path of numbered) {
+		if (!/(?:^|\/)docs\/adr\/[^/]+\.md$/.test(path))
+			issues.push({ gap: "doc:adr", message: `${path}: ADRs belong only in docs/adr/ (a monorepo may have one per component)` });
+	}
+	const dirs = new Map<string, Map<string, string>>();
+	for (const path of files.filter((name) => /(?:^|\/)docs\/adr\/[^/]+\.md$/.test(name))) {
+		const dir = dirname(path);
+		const name = path.slice(dir.length + 1);
+		if (/^(?:README|INDEX)\.md$/i.test(name)) continue;
+		const match = name.match(/^(\d{3,4})[-_].+\.md$/);
+		if (!match) { issues.push({ gap: "doc:adr", message: `${path}: ADR name needs a numbered slug` }); continue; }
+		const group = dirs.get(dir) ?? new Map<string, string>();
+		const number = String(Number(match[1]));
+		if (group.has(number)) issues.push({ gap: "doc:adr", message: `${path}: duplicate ADR ${number} in ${dir}` });
+		group.set(number, path);
+		dirs.set(dir, group);
+		if (!repositoryFile(repo, path)) continue;
+		const body = readFileSync(join(repo, path), "utf8");
+		if (!/^Status:\s*\S.+$/m.test(body)) issues.push({ gap: "doc:adr", message: `${path}: missing Status: line` });
+		for (const target of body.matchAll(/\bSuperseded by\s+(?:\[)?(?:ADR[- ]?)?(\d{3,4})\b/gi)) {
+			if (!files.some((name) => dirname(name) === dir && new RegExp(`^0*${Number(target[1])}[-_]`).test(name.slice(dir.length + 1))))
+				issues.push({ gap: "doc:adr", message: `${path}: Superseded by ${target[1]} does not resolve in ${dir}` });
+		}
+	}
+}
+/** ADR-004 stage 1 documents, references, aliases, ledger and the fixed gate entry point. */
+function contentIssues(repo: string, checkerPath: string, adoption: unknown): Issue[] {
 	const issues: Issue[] = [];
-	for (const path of ["README.md", "DESIGN.md", "USER_STORIES.md"]) {
-		if (!existsSync(join(repo, path))) issues.push({ gap: `doc:${path}`, message: `FND-DOC-001: missing ${path}` });
+	const files = tracked(repo);
+	const names = new Set(files);
+	const surfaces = record(adoption) && Array.isArray(adoption.surfaces) ? adoption.surfaces : [];
+	const required = ["README.md", "AGENTS.md", "DOMAIN.md", "USER_STORIES.md"];
+	if (surfaces.includes("ui")) required.push("DESIGN.md");
+	if (surfaces.includes("deployed")) required.push("docs/runbook.md");
+	for (const path of required) {
+		if (!repositoryFile(repo, path)) issues.push({ gap: path === "docs/runbook.md" ? "doc:runbook" : `doc:${path}`, message: `FND-DOC-001: missing ${path}` });
 	}
-	const adr = join(repo, "docs/adr");
-	if (!existsSync(adr) || !readdirSync(adr).some((f) => f.endsWith(".md") && statSync(join(adr, f)).isFile())) {
-		issues.push({ gap: "doc:adr", message: "FND-DOC-001: docs/adr/ needs at least one ADR" });
+	if (repositoryFile(repo, "AGENTS.md") && !readFileSync(join(repo, "AGENTS.md"), "utf8").includes("DOMAIN.md"))
+		issues.push({ gap: "doc:AGENTS.md", message: "AGENTS.md must route reviewers to DOMAIN.md's invariants ledger" });
+	if (surfaces.includes("deployed") && repositoryFile(repo, "docs/runbook.md")) {
+		const body = readFileSync(join(repo, "docs/runbook.md"), "utf8");
+		for (const heading of ["Release", "Rollback", "Recover"])
+			if (!new RegExp(`^## ${heading}\\s*$`, "m").test(body)) issues.push({ gap: "doc:runbook", message: `docs/runbook.md: missing ## ${heading}` });
 	}
-	if (!["README.md", "TEMPLATE.md"].some((f) => existsSync(join(repo, "docs/postmortems", f)))) {
-		issues.push({ gap: "doc:postmortems", message: "FND-DOC-001: docs/postmortems/ needs README.md or TEMPLATE.md" });
+	if (surfaces.includes("content")) {
+		const content = record(adoption) ? adoption.content : undefined;
+		if (!record(content) || !text(content.schema) || !names.has(content.schema) || !repositoryFile(repo, content.schema) ||
+			!text(content.lint) || !commandTarget(repo, content.lint, names))
+			issues.push({ gap: "doc:content-schema", message: "content requires content.schema (tracked file) and content.lint (script or package script)" });
 	}
-	if (existsSync(join(repo, "USER_STORIES.md"))) {
-		const checker = spawnSync("sh", [checkerPath, repo], { cwd: repo, encoding: "utf8" });
+	if (names.has(".env.pass")) {
+		if (!repositoryFile(repo, ".env.pass")) issues.push({ gap: "doc:env-pass", message: ".env.pass: tracked credential manifest is missing" });
+		else for (const [index, line] of readFileSync(join(repo, ".env.pass"), "utf8").split("\n").entries()) {
+			if (line.trim() && !line.startsWith("#") && !/^[A-Za-z_][A-Za-z0-9_]*=[A-Za-z0-9._/@-]+$/.test(line))
+				issues.push({ gap: "doc:env-pass", message: `.env.pass: line ${index + 1} must be a names-only NAME=pass-entry mapping` });
+		}
+	}
+	for (const alias of ["CLAUDE.md", "GEMINI.md"]) {
+		if (!existsSync(join(repo, alias)) && !names.has(alias)) continue;
+		const stage = git(repo, "ls-files", "--stage", "--", alias);
+		if (!stage.startsWith("120000 ") || fileAt(repo, "HEAD", alias)?.trim() !== "AGENTS.md")
+			issues.push({ gap: "doc:aliases", message: `${alias}: must be a tracked symlink to AGENTS.md` });
+	}
+	ledgerIssues(repo, names, issues);
+	coreReferences(repo, names, [...required, ...files.filter((file) => /(?:^|\/)docs\/adr\/[^/]+\.md$/.test(file))], issues);
+	adrIssues(repo, files, issues);
+	if (!repositoryFile(repo, "scripts/check") || (statSync(join(repo, "scripts/check")).mode & 0o111) === 0)
+		issues.push({ gap: "entry:check", message: "scripts/check must exist and be executable" });
+	const workflows = files.filter((name) => /^\.github\/workflows\/[^/]+\.ya?ml$/.test(name));
+	if (!workflows.some((name) => {
+		const workflow = workflowAt(repo, name);
+		return typeof workflow !== "string" && Object.values(workflow.jobs).some((job) =>
+			record(job) && Array.isArray(job.steps) && job.steps.some((step: unknown) =>
+				record(step) && text(step.run) && /^\s*(?:(?:exec|sh|bash)\s+)?(?:\.\/)?scripts\/check(?:\s|$)/m.test(step.run)));
+	})) issues.push({ gap: "entry:check", message: "a CI workflow must invoke scripts/check" });
+	if (repositoryFile(repo, "USER_STORIES.md")) {
+		const enforced = !record(adoption) || adoption.mode !== "bootstrap";
+		const checker = spawnSync("sh", [checkerPath, ...(enforced ? ["--strict-evidence"] : []), repo], { cwd: repo, encoding: "utf8" });
 		if (checker.error || checker.status !== 0) {
 			issues.push({ gap: "stories:format", message: `check-stories.sh: ${checker.error?.message || (checker.stderr || checker.stdout).trim()}` });
 		}
 	}
-	// The map is checked even before stories exist, so a first baseline records every map gap.
-	features(repo, tracked(repo), workingStories(repo), issues);
-	const skillFiles = tracked(repo).filter((f) => /^(?:\.agents\/skills|skills)\/[^/]+\/SKILL\.md$/.test(f));
+	features(repo, files, workingStories(repo), issues);
+	const skillFiles = files.filter((f) => /^(?:\.agents\/skills|skills)\/[^/]+\/SKILL\.md$/.test(f));
 	if (!skillFiles.some((f) => {
 		const body = readFileSync(join(repo, f), "utf8");
 		return ["Launch", "Doctor", "Drive", "Evidence", "Cleanup"].every((h) => body.split("\n").some((line) => line.startsWith(`## ${h}`)));
@@ -572,6 +771,109 @@ function incidentProblems(repo: string): string[] {
 	}
 	return problems;
 }
+/** Repository-side security evidence; only an executed receipt can establish actual scan, safe merge and auth behavior. */
+function securityIssues(repo: string, adoption: unknown): Issue[] {
+	if (!record(adoption) || !record(adoption.dispositions) ||
+		!record(adoption.dispositions["FND-SEC-001"]) || adoption.dispositions["FND-SEC-001"].status !== "satisfied") return [];
+	const problems: string[] = [];
+	const files = new Set(tracked(repo));
+	const security = record(adoption.security) ? adoption.security : {};
+	const jobAt = (claim: unknown, event: string, label: string) => {
+		if (!record(claim) || !text(claim.job)) { problems.push(`${label} needs a workflow and job`); return undefined; }
+		if (!text(claim.workflow) || !files.has(claim.workflow)) { problems.push(`${label}: workflow must be tracked at HEAD`); return undefined; }
+		const workflow = workflowAt(repo, claim.workflow);
+		if (typeof workflow === "string") { problems.push(`${label}: ${workflow}`); return undefined; }
+		if (!(event in workflow.on)) problems.push(`${label}: ${String(claim.workflow)} must run on ${event}`);
+		const job = workflow.jobs[claim.job];
+		if (!record(job)) { problems.push(`${label}: ${String(claim.workflow)} has no job ${claim.job}`); return undefined; }
+		return { job, workflow };
+	};
+	const stepsOf = (job: Record<string, unknown>): Record<string, unknown>[] => Array.isArray(job.steps) ? job.steps.filter(record) : [];
+	const conditionAllowed = (condition: unknown, events: string[], bot = false): boolean =>
+		guardTerms(condition).every((term) => term === "success()" ||
+			(events.length === 1 && (term === `github.event_name=='${events[0]}'` || term === `github.event_name=="${events[0]}"`)) ||
+			(bot && /^github\.actor==['"]dependabot\[bot\]['"]$/.test(term)));
+	const blocking = (job: Record<string, unknown>, steps: Record<string, unknown>[], label: string, events: string[]) => {
+		const guarded = [job, ...steps];
+		if (guarded.some((item) => item["continue-on-error"] !== undefined && item["continue-on-error"] !== false))
+			problems.push(`${label} job and relevant steps must block the gate on failure`);
+		if (guarded.some((item) => !conditionAllowed(item.if, events)))
+			problems.push(`${label} job and relevant steps must run on every applicable PR and push`);
+	};
+	const secrets = jobAt(security.secrets, "pull_request", "security.secrets");
+	if (secrets) {
+		if (!("push" in secrets.workflow.on)) problems.push("security.secrets workflow must also scan pushes");
+		for (const event of ["push", "pull_request"]) {
+			const trigger = secrets.workflow.on[event];
+			if (record(trigger) && ["paths", "paths-ignore", "branches", "branches-ignore", "tags", "tags-ignore"].some((key) => key in trigger))
+				problems.push(`security.secrets workflow cannot filter ${event} changes`);
+			if (event === "pull_request" && record(trigger) && trigger.types !== undefined &&
+				(!Array.isArray(trigger.types) || !["opened", "synchronize", "reopened"].every((type) => trigger.types.includes(type))))
+				problems.push("security.secrets workflow must scan opened, synchronized and reopened PRs");
+		}
+		const scanner = /^\s*(?:\S*\/)?(?:gitleaks|trufflehog|detect-secrets)(?:\s|$)/m;
+		const steps = stepsOf(secrets.job).filter((step) => text(step.run) && scanner.test(step.run));
+		if (steps.length === 0) problems.push("security.secrets job must run a secret scanner");
+		else blocking(secrets.job, steps, "security.secrets scanner", ["pull_request", "push"]);
+	}
+	const dependencies = record(security.dependencies) ? security.dependencies : {};
+	if (dependencies.bot !== "dependabot" || dependencies.config !== ".github/dependabot.yml" ||
+		!files.has(".github/dependabot.yml") || !repositoryFile(repo, ".github/dependabot.yml"))
+		problems.push("security.dependencies needs a configured Dependabot at .github/dependabot.yml");
+	else {
+		let config: unknown;
+		try { config = Bun.YAML.parse(readFileSync(join(repo, ".github/dependabot.yml"), "utf8")); } catch { /* invalid config is a gap */ }
+		if (!record(config) || !Array.isArray(config.updates) || config.updates.length === 0)
+			problems.push("security.dependencies bot config needs at least one update source");
+	}
+	const merge = jobAt(dependencies.automerge, "pull_request", "security.dependencies.automerge");
+	if (merge) {
+		const actor = String(merge.job.if).replace(/^\s*\$\{\{([\s\S]*)\}\}\s*$/, "$1").replace(/\s+/g, "");
+		if (!/^github\.actor==['"]dependabot\[bot\]['"]$/.test(actor))
+			problems.push("security.dependencies.automerge job must be restricted to the dependency bot");
+		const gates = needsOf(merge.job);
+		const active = new Set<string>();
+		const checked = new Map<string, boolean>();
+		const gateBlocks = (name: string): boolean => {
+			if (checked.has(name)) return checked.get(name)!;
+			if (active.has(name)) return false;
+			const gate = merge.workflow.jobs[name];
+			if (!record(gate) || gate["continue-on-error"] !== undefined && gate["continue-on-error"] !== false ||
+				!conditionAllowed(gate.if, ["pull_request"], true)) return false;
+			active.add(name);
+			const result = stepsOf(gate).every((step) =>
+				(step["continue-on-error"] === undefined || step["continue-on-error"] === false) &&
+				conditionAllowed(step.if, ["pull_request"], true)) && needsOf(gate).every(gateBlocks);
+			active.delete(name);
+			checked.set(name, result);
+			return result;
+		};
+		if (gates.length === 0 || !gates.every(gateBlocks))
+			problems.push("security.dependencies.automerge job needs an existing blocking gate job");
+		const steps = Array.isArray(merge.job.steps) ? merge.job.steps.filter(record) : [];
+		const mergeStep = steps.find((step) => text(step.run) && /\bgh pr merge\b[^\n]*--auto\b/.test(step.run));
+		if (!mergeStep) problems.push("security.dependencies.automerge job must auto-merge green bot updates");
+		const metadata = steps.some((step) => step.id === "metadata" && /^dependabot\/fetch-metadata@/.test(String(step.uses)));
+		const condition = String(mergeStep?.if ?? "").replace(/^\s*\$\{\{([\s\S]*)\}\}\s*$/, "$1").replace(/\s+/g, "");
+		const terms = condition.split("||");
+		if (!metadata || terms.length !== 2 ||
+			!terms.includes("steps.metadata.outputs.update-type=='version-update:semver-patch'") ||
+			!terms.includes("steps.metadata.outputs.update-type=='version-update:semver-minor'"))
+			problems.push("security.dependencies.automerge needs Dependabot metadata and a patch-or-minor-only merge guard");
+	}
+	if (isApplication(adoption)) {
+		const auth = record(security.authorization) ? security.authorization : {};
+		const check = jobAt(auth, "pull_request", "security.authorization");
+		if (!repositoryFile(repo, auth.test) || !files.has(auth.test as string))
+			problems.push("security.authorization.test must name a tracked authorization-boundary test");
+		else if (check) {
+			const steps = stepsOf(check.job).filter((step) => text(step.run) && step.run.includes(auth.test as string));
+			if (steps.length === 0) problems.push("security.authorization job must run its named test");
+			else blocking(check.job, steps, "security.authorization test", ["pull_request"]);
+		}
+	}
+	return problems.map((problem) => ({ message: `FND-SEC-001: satisfied, but ${problem}` }));
+}
 /** ADR-005 gaps and false claims for an application: pending is a gap the ratchet times; satisfied must hold up. */
 function operationsIssues(repo: string, adoption: unknown): Issue[] {
 	if (!record(adoption) || !isApplication(adoption)) return [];
@@ -689,8 +991,8 @@ function check(options: Options): Result {
 	const path = join(options.repo, "foundation.json");
 	const adoption = existsSync(path) ? readJson(path) : undefined;
 	if (adoption === undefined) errors.push("foundation.json: missing; `foundation-check baseline --owner NAME --write` records the current gaps as a bootstrap baseline");
-	else validateAdoption(adoption, catalog, catalogBytes, errors, needs_evidence);
-	const issues = [...contentIssues(options.repo, checkerPath), ...operationsIssues(options.repo, adoption)];
+	else validateAdoption(options.repo, adoption, catalog, catalogBytes, errors, needs_evidence);
+	const issues = [...contentIssues(options.repo, checkerPath, adoption), ...operationsIssues(options.repo, adoption), ...pendingIssues(adoption, catalog), ...securityIssues(options.repo, adoption)];
 	const now = today();
 	const live = liveIds(workingStories(options.repo));
 	const baseline = readBaseline(adoption, live, errors, now);
@@ -724,6 +1026,8 @@ function baseline(options: Options): Result {
 	const path = join(options.repo, "foundation.json");
 	const existing = existsSync(path) ? readJson(path) : undefined;
 	if (existing !== undefined && !record(existing)) throw new Error("foundation.json is not a JSON object");
+	if (!options.surfaces && (!record(existing) || !Array.isArray(existing.surfaces) || existing.surfaces.length === 0))
+		throw new Error("baseline requires --surfaces for a record without a declared surface");
 	const owner = options.owner!;
 	const revision = existing === undefined ? (options.revision ?? harnessRevision()) : options.revision;
 	if (revision !== undefined && !/^[0-9a-f]{40}$/.test(revision)) throw new Error("--revision must be a 40-hex commit");
@@ -741,7 +1045,10 @@ function baseline(options: Options): Result {
 	const dispositions = record(adoption.dispositions) ? adoption.dispositions : {};
 	for (const { id } of [...catalog.obligations, ...catalog.approved_defaults] as { id: string }[]) if (!(id in dispositions)) dispositions[id] = { ...pending };
 	adoption.dispositions = dispositions;
-	const issues = [...contentIssues(options.repo, checkerPath), ...operationsIssues(options.repo, adoption)];
+	// A bootstrap makes missing story evidence advisory; collect gaps under the mode to be written,
+	// not the absent/old mode. An empty baseline can enter enforced mode only after strict evidence passes.
+	adoption.mode = "bootstrap";
+	const issues = [...contentIssues(options.repo, checkerPath, adoption), ...operationsIssues(options.repo, adoption), ...pendingIssues(adoption, catalog), ...securityIssues(options.repo, adoption)];
 	const live = [...liveIds(workingStories(options.repo))];
 	const prior = new Map((Array.isArray(adoption.baseline) ? adoption.baseline : []).filter(record).map((entry) => [entry.gap, entry]));
 	// A new record baselines a walk for every live story; an existing one keeps the walk entries it has, so a
@@ -758,6 +1065,9 @@ function baseline(options: Options): Result {
 	} else {
 		adoption.mode = "enforced";
 		delete adoption.baseline;
+		const strictEvidence = contentIssues(options.repo, checkerPath, adoption).filter((issue) => issue.gap === "stories:format");
+		if (strictEvidence.length > 0)
+			return { ok: false, errors: strictEvidence.map(describe), gaps: [] };
 	}
 	const listed = entries.map((entry) => `${entry.gap} (owner ${entry.owner}, expires ${entry.expires})`);
 	if (options.write) {
@@ -858,18 +1168,51 @@ const reviewerRegistry: Record<string, Reviewer> = {
 const approvalMarker = "foundation-review: approved";
 const escalationMarker = "foundation-escalation: product-direction";
 const resolutionMarker = "foundation-escalation: resolved";
-/** Why a PR needs the designated reviewer, judged on its own base and head: first user stories, an added extension record, or opting out of ADR-005. */
-function reviewTriggers(repo: string, base: string, head: string): string[] {
+/** Static map from the PR's git objects: pull_request_target never checks out or executes proposed files. */
+function mappedSourceStories(repo: string, base: string, head: string): string[] {
+	const mapAt = (revision: string): Feature[] =>
+		git(repo, "ls-tree", "-r", "--name-only", "-z", revision).split("\0")
+			.filter((file) => /^features\/[^/]+\.md$/.test(file) && file !== "features/README.md")
+			.map((file) => {
+				const body = fileAt(repo, revision, file) ?? "";
+				return {
+					file,
+					stories: body.match(/^Stories:\s*(.*)$/m)?.[1]?.split(",").map((id) => id.trim()).filter(Boolean) ?? [],
+					sources: body.match(/^Source:\s*(.*)$/m)?.[1]?.split(",").map((glob) => glob.trim()).filter(Boolean) ?? [],
+				};
+			});
+	const mapping = mapAt(head);
+	const prior = mapAt(git(repo, "merge-base", base, head).trim());
+	const changed = changedFiles(repo, base, undefined, head);
+	// Citation applies to source changes only. Base mapping still counts when a PR remaps a changed source away.
+	if (![...prior, ...mapping].some((feature) => feature.sources.some((source) =>
+		changed.some((file) => globRegex(source).test(file))))) return [];
+	return changedStoryIds(repo, base, mapping, parseStories(fileAt(repo, head, "USER_STORIES.md") ?? ""), head);
+}
+/** ADR-003's five designated-review triggers, judged against the PR's base ledger and candidate records. */
+function reviewTriggers(repo: string, base: string, head: string, errors: string[]): string[] {
 	const mergeBase = git(repo, "merge-base", base, head).trim();
 	const reasons: string[] = [];
 	const before = parseStories(fileAt(repo, mergeBase, "USER_STORIES.md") ?? "");
 	const after = parseStories(fileAt(repo, head, "USER_STORIES.md") ?? "");
 	if (before.length === 0 && after.length > 0) reasons.push("first user stories: USER_STORIES.md gains its first stories");
 	const added = git(repo, "diff", "--name-only", "--no-renames", "--diff-filter=A", "-z", mergeBase, head).split("\0").filter(Boolean);
-	for (const path of added.filter((f) => extensionPath.test(f))) reasons.push(`baseline extension: ${path}`);
-	// Declaring surfaces that make the repository a non-application drops every ADR-005 obligation, so it needs the same authority.
+	for (const path of added.filter((file) => extensionPath.test(file))) reasons.push(`baseline extension: ${path}`);
 	const adoptionAt = (rev: string) => jsonOrUndefined(fileAt(repo, rev, "foundation.json"));
-	if (isApplication(adoptionAt(mergeBase)) && !isApplication(adoptionAt(head))) reasons.push("surfaces: foundation.json stops declaring an application (ADR-005)");
+	const prior = adoptionAt(mergeBase);
+	const current = adoptionAt(head);
+	if (isApplication(prior) && !isApplication(current)) reasons.push("surfaces: foundation.json stops declaring an application (ADR-005)");
+	const ledger = (rev: string) => (fileAt(repo, rev, "DOMAIN.md") ?? "").match(/^## Invariants\s*\n([\s\S]*?)(?=^## |$(?![\s\S]))/m)?.[1] ?? "";
+	if (ledger(mergeBase) !== ledger(head)) reasons.push("invariants ledger: DOMAIN.md policy changes");
+	const priorDispositions = record(prior) && record(prior.dispositions) ? prior.dispositions : {};
+	const dispositions = record(current) && record(current.dispositions) ? current.dispositions : {};
+	for (const [id, disposition] of Object.entries(dispositions)) {
+		if (!record(disposition) || !["not_applicable", "exception"].includes(String(disposition.status))) continue;
+		approvalRecord(repo, id, disposition, errors, head);
+		if (JSON.stringify(disposition) !== JSON.stringify(priorDispositions[id]) ||
+			(text(disposition.approval_ref) && fileAt(repo, mergeBase, disposition.approval_ref) !== fileAt(repo, head, disposition.approval_ref)))
+			reasons.push(`disposition approval: ${id} ${disposition.status}`);
+	}
 	return reasons;
 }
 async function github(path: string, token: string): Promise<unknown> {
@@ -897,8 +1240,12 @@ async function review(options: Options): Promise<Result> {
 			throw new Error(`the checkout lacks commit ${sha.slice(0, 12)} of pull request ${options.pr}; check out with fetch-depth: 0`);
 		}
 	}
-	const reasons = reviewTriggers(options.repo, base, head);
-	if (reasons.length === 0) return { ok: true, errors: [], reasons };
+	const errors: string[] = [];
+	const reasons = reviewTriggers(options.repo, base, head, errors);
+	const mapped = mappedSourceStories(options.repo, base, head);
+	const citations = typeof pull.body === "string" ? [...pull.body.matchAll(/^Stories:\s*(US-\d{3}(?:\s*,\s*US-\d{3})*)\s*$/gm)]
+		.flatMap((match) => match[1].split(",").map((id) => id.trim())) : [];
+	for (const id of mapped) if (!citations.includes(id)) errors.push(`FND-CIT-001: PR description must cite mapped source story ${id} in a Stories: line`);
 	const designated = reviewerRegistry[org];
 	if (!designated) throw new Error(`no designated reviewer for ${org}`);
 	const list = async (path: string) => {
@@ -927,13 +1274,13 @@ async function review(options: Options): Promise<Result> {
 		const escalated = escalatedAt !== "";
 		const marker = escalated ? resolutionMarker : approvalMarker;
 		const decided = entries.some(({ at, entry }) => at > escalatedAt && firstLine(entry) === `${marker} ${head}`);
-		const errors = decided ? [] : [escalated
+		if (!decided) errors.push(escalated
 			? `escalated to the operator; needs a later review or comment from ${login} whose first line is "${marker} ${head}"`
-			: `needs a review or comment from ${login} recording the agent reviewer's decision, with first line "${marker} ${head}"`];
-		return { ok: decided, errors, reasons, approved_by: decided ? `${login} (recorded decision)` : undefined };
+			: `needs a review or comment from ${login} recording the agent reviewer's decision, with first line "${marker} ${head}"`);
+		return { ok: errors.length === 0, errors, reasons, approved_by: decided ? `${login} (recorded decision)` : undefined };
 	}
 	const agent = designated.app;
-	if (agent === author) return { ok: false, errors: [`the designated agent reviewer ${agent} authored this PR, so it cannot approve it`], reasons };
+	if (agent === author && reasons.length > 0) return { ok: false, errors: [...errors, `the designated agent reviewer ${agent} authored this PR, so it cannot approve it`], reasons };
 	const reviews = await list(`pulls/${options.pr}/reviews`);
 	const own = (entry: Record<string, unknown>) => reviewer(entry) === agent;
 	// A marker that holds a PR back counts anywhere in the review. One that clears it must be the review's exact
@@ -956,11 +1303,15 @@ async function review(options: Options): Promise<Result> {
 		if (own(entry) && (entry.state === "APPROVED" || entry.state === "CHANGES_REQUESTED" || entry.state === "DISMISSED")) decision = { entry, index };
 	});
 	const approved = decision?.entry.state === "APPROVED" && decision.entry.commit_id === head;
-	const errors: string[] = [];
-	if (escalation >= 0 && !(approved && decision!.index > escalation && states(decision!.entry, resolutionMarker))) {
+	if (reasons.length > 0 && escalation >= 0 && !(approved && decision!.index > escalation && states(decision!.entry, resolutionMarker))) {
 		errors.push(`escalated to the operator on head ${head.slice(0, 12)}; needs a later approving review from ${agent} that records the operator's decision and opens with "${resolutionMarker}" as its exact first line`);
-	} else if (!approved) errors.push(`needs an approving review from the designated agent reviewer ${agent} on head ${head.slice(0, 12)}`);
-	return { ok: errors.length === 0, errors, reasons, approved_by: errors.length === 0 ? agent : undefined };
+	} else if (reasons.length > 0 && !approved) errors.push(`needs an approving review from the designated agent reviewer ${agent} on head ${head.slice(0, 12)}`);
+	// GitHub authenticates the reviewer and head, but not the substance of the review against constitution, ledger and story.
+	const latest = new Map<string, Record<string, unknown>>();
+	for (const entry of reviews) if (reviewer(entry) && ["APPROVED", "CHANGES_REQUESTED", "DISMISSED"].includes(String(entry.state))) latest.set(reviewer(entry), entry);
+	const independent = [...latest.values()].find((entry) => reviewer(entry) !== author && entry.state === "APPROVED" && entry.commit_id === head);
+	if (!independent) errors.push(`FND-REV-001: needs an approving review on head ${head.slice(0, 12)} from someone other than ${author}`);
+	return { ok: errors.length === 0, errors, reasons, approved_by: errors.length === 0 ? (reasons.length > 0 ? agent : reviewer(independent!)) : undefined };
 }
 function print(result: Result, json: boolean, command: Command): void {
 	if (json) { console.log(JSON.stringify(result)); return; }
@@ -982,7 +1333,7 @@ function print(result: Result, json: boolean, command: Command): void {
 	if (command === "review") {
 		for (const reason of result.reasons ?? []) console.log(`requires review: ${reason}`);
 		if (result.approved_by) console.log(`approved by: ${result.approved_by}`);
-		if (result.ok && (result.reasons ?? []).length === 0) console.log("no agent review required");
+		if (result.ok && (result.reasons ?? []).length === 0) console.log("independent review approved; no designated-review trigger");
 	}
 	console.log(`foundation-check ${command}: ${result.ok ? "PASS" : "FAIL"}`);
 }

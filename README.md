@@ -69,6 +69,23 @@ nothing about older or unleased resources.
 [verification and local resource limits](docs/verification.md). The root owns
 CI, hooks, and releases; component directories retain their focused tests.
 
+## Foundation Standard
+
+Catalog [1.5.0](agent-config/skills/foundation/foundation-standard-v1.json)
+and its [rationale](agent-config/skills/foundation/foundation-standard-v1.md)
+ship with the pinned `foundation-check` checker (ADR-006). A repository's
+`foundation.json` pins its catalog digest and harness revision. Run
+`foundation-check check --repo <path>` for documents, mapped stories, dated
+`obl:`/`ops:` gaps, repository-side security and evidence shape;
+`foundation-check affected --base <rev> --repo <path>` identifies stories to
+walk and cite as `Stories: US-001` in a mapped-source PR. The separate
+`foundation-check review --pr N` gate verifies independent and designated
+GitHub approvals on the candidate head. Structural checks cannot prove
+runtime coverage or what a reviewer actually judged: preserve execution and
+review receipts. Existing adopters re-pin explicitly only after their
+2026-10-25 cliff entries close or are extended (ADR-006).
+
+
 ## Token-cost evidence (US-018, US-019)
 
 [Token efficiency report](docs/token-efficiency.md): scoped whole-task accounting,
