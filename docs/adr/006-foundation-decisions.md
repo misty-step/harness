@@ -17,14 +17,18 @@ Standard. The catalog and checker change that implements them is catalog
   their 84 dispositions are `pending`.
 - The checker lists `pending` as needs-evidence and never fails it, except for
   ADR-005's three operational obligations.
-- `satisfied` passes with any non-empty receipt text. `not_applicable` and
-  `exception` pass with a `decision` string, although the catalog requires an
-  `approval_ref` and a `foundation-approval/1` record.
+- For the obligations outside ADR-005, the content of a `satisfied` receipt is
+  not verified: any non-empty text passes. `not_applicable` passes with a
+  `decision` string, and `exception` with a `decision` and an `expires` date.
+  The catalog requires an `approval_ref` and a `foundation-approval/1` record
+  for both. ADR-005's three obligations already reject `exception` (and
+  `not_applicable` for an application), and their `satisfied` claims are
+  checked structurally. Catalog 1.5.0 keeps those checks.
 - Written rules do not move agents; failing checks do (ADR-003).
 - Agents were never told the foundations exist: global guidance did not
   mention them, and the `foundation` skill is invoked by the user only.
-- Unenforced repository rules had two homes under ADR-004: `AGENTS.md` review
-  priorities and `DOMAIN.md` invariants.
+- Unenforced repository rules had two homes under ADR-004: review priorities
+  in `AGENTS.md`, and invariants in `DOMAIN.md`.
 
 ## Decisions
 
@@ -42,11 +46,14 @@ Standard. The catalog and checker change that implements them is catalog
      affected story ids, computed with `foundation-check affected`.
 
    The catalog owner assigns the obligation ids and evidence fields in 1.5.0.
-2. **Repository judgement rules live in the `DOMAIN.md` invariants ledger.**
-   `AGENTS.md` routes to it and no longer holds "review priorities" or
-   "invariants that code does not enforce". The ledger's grammar is in
-   ADR-004's amendment. A change to the ledger needs the designated reviewer,
-   like first stories. Reviewers read the ledger at the base revision.
+2. **A repository's judgement rules live in the `DOMAIN.md` invariants
+   ledger.** These are the invariants and review rules for what must hold in
+   its product, code and data. `AGENTS.md` keeps operating instructions for
+   agents (local overrides of global defaults, permissions and routing) and
+   routes to the ledger; it no longer holds "review priorities" or "invariants
+   that code does not enforce". The ledger's grammar is in ADR-004's
+   amendment. A change to the ledger needs the designated reviewer, like first
+   stories. Reviewers read the ledger at the base revision.
 3. **Pending means a dated gap, and done means verified evidence.**
    - Every applicable `pending` obligation is a baseline gap with an owner and
      an expiry at most 30 days out, like the `ops:` gaps. Extensions still
@@ -78,9 +85,10 @@ Standard. The catalog and checker change that implements them is catalog
 
    The pilot is advisory (US-042). It never gates a merge, changes a
    disposition, or replaces a drill or a walk. Each question follows the rule
-   admission procedure in `docs/semantic-quality.md`. A question may feed a
-   gate only through a deterministic proxy, or after a promotion record with
-   held-out precision of at least 0.9.
+   admission procedure in `docs/semantic-quality.md`. A finding reaches a gate
+   only when a deterministic check replaces it. Any other move away from
+   advisory-only use needs a separate operator-approved amendment to ADR-003,
+   which keeps Jev off required checks.
 
 ## Rollout
 

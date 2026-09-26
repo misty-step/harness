@@ -224,10 +224,10 @@ to it.
   - a glossary, including retired terms;
   - what the system owns and what it delegates, including who holds authority
     over each piece of state;
-  - the invariants ledger: every rule specific to this repository, including
-    review priorities, each naming the check that enforces it or marked
-    `unenforced` for reviewers to judge (grammar under "Amendment: the
-    invariants ledger" below; ADR-006);
+  - the invariants ledger: every invariant and review rule for what must hold
+    in this repository's product, code and data, each naming the check that
+    enforces it or marked `unenforced` for reviewers to judge (grammar under
+    "Amendment: the invariants ledger" below; ADR-006);
   - a code map from top-level directory to responsibility;
   - for libraries and APIs, the compatibility policy.
 - Never holds: deployment topology or live state, pins, environment
@@ -515,9 +515,12 @@ Stage 1, the next pin bump, handed to the harness engineer:
 
 ## Amendment: the invariants ledger (ADR-006, 2026-09-26)
 
-The operator placed every rule specific to a repository in one home, the
-`## Invariants` section of `DOMAIN.md`. Review priorities and invariants that
-code does not enforce leave `AGENTS.md`. A repository-root `WATCHDOG.md` is
+The operator gave a repository's judgement rules one home, the
+`## Invariants` section of `DOMAIN.md`. These are the invariants and review
+rules for what must hold in its product, code and data. Review priorities and
+invariants that code does not enforce leave `AGENTS.md`, which keeps operating
+instructions for agents: local overrides of global defaults, permissions, and
+routing, including a pointer to the ledger. A repository-root `WATCHDOG.md` is
 retired into the ledger.
 
 Each rule is one bullet:

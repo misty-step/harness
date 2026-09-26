@@ -28,8 +28,9 @@ and agent rules in [AGENTS.md](AGENTS.md).
   `agent-config/skills/foundation/constitution.md` (ADR-006). The catalog
   holds the normative obligations behind it.
 - **Invariants ledger:** the `## Invariants` section of a repository's
-  `DOMAIN.md`: every rule specific to that repository, each naming its check or
-  marked `unenforced` (ADR-004 amendment, ADR-006).
+  `DOMAIN.md`: every invariant and review rule for what must hold in that
+  repository, each naming its check or marked `unenforced` (ADR-004
+  amendment, ADR-006).
 - **Adoption record:** a project's `foundation.json`, which pins the catalog
   and records a disposition for every obligation.
 - **Gap, baseline:** a named deficiency (`doc:…`, `map:…`, `walk:US-…`), and

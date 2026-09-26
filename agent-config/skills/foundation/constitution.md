@@ -43,7 +43,8 @@
   dashboard.
 - **Agents walk every user story through the real product, on every change that touches it and every night.**
   Each walk leaves evidence tied to the exact version. A story nobody can walk
-  yet is a dated gap, never a pass. A failed nightly walk opens an owned issue.
+  yet is a dated, owned gap and never counts as proof. A failed nightly walk
+  opens an owned issue.
 - **Tests prove what users can observe, not how the code is wired.**
   Few mocks, no tests of plumbing, high coverage, and property or mutation
   tests where they pay. Review flags tests that cannot fail.
