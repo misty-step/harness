@@ -1,31 +1,38 @@
 #!/usr/bin/env bun
 /**
- * Round-2 setup step (US-029): calibrate the advisor gate on recorded runs before any live run.
+ * Round-2 setup step (US-029): calibrate System 1's round-2 Jev questions on recorded runs before
+ * any live run. `--question` picks what is replayed:
  *
- * For every turn of every recorded Pi session that ended with tool results, this rebuilds the
- * state the live gate would send (task, recent actions, last executor message, ledger facts) and
- * asks Jev the gate question. It then replays the live policy (a structural consult after the
- * first edit, a minimum gap between gate consults, the last consult kept for the final review)
- * at each candidate threshold and reports gate consults per run. With `--sample N` it also
- * consults the advisor model at N of the points the chosen threshold picks, and at the end of a
- * few runs, to check the reply format, latency, and cost. Replayed edits are approximate: the
- * live battery reads the worktree, the replay reads edit tools and file-writing shell commands.
+ *   gate       Every turn of every recorded Pi session that ended with tool results: rebuild the
+ *              state the live advisor gate sends (task, recent actions, last executor message,
+ *              ledger facts), ask Jev, then replay the live policy (a structural consult after the
+ *              first edit, a minimum gap, the last consult kept for the final review) per
+ *              threshold. `--sample N` also consults the advisor model at N picked and final
+ *              points to check its reply format, latency, and cost.
+ *   effort     The same turns, asking whether the next step is routine (reasoning off).
+ *   checklist  Every recorded run's final diff against its task's requirement sentences, with the
+ *              run's hidden-test result beside Jev's most confident unmet requirement.
+ *
+ * Replayed edits are approximate: the live battery reads the worktree, the replay reads edit tools
+ * and file-writing shell commands. Answers are cached per question in `<out>/<question>-answers.json`.
  *
  * Usage (evidence from misty-step/system1-prototype):
  *   pass-env run -e OPENROUTER_API_KEY=workstation/OPENROUTER_API_KEY_MIRRODIN_PI -- \
- *     bun pi-config/extensions/s1s2/eval/gate-replay.ts --evidence <repo>/evidence --out <dir> \
- *     [--threshold 0.8] [--sample 10]
+ *     bun pi-config/extensions/s1s2/eval/jev-replay.ts --question gate --evidence <repo>/evidence \
+ *     --out <dir> [--threshold 0.55] [--sample 10] [--manifest <repo>/docs/measurements/<tasks>.json]
  */
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
-import { OpenRouterJevProvider } from "../../../../agent-config/system-one/engine.ts";
+import { OpenRouterJevProvider, type Answer, type Question } from "../../../../agent-config/system-one/engine.ts";
 import * as A from "../advisor.ts";
-import { CALL_TIMEOUT_MS, STATE_MAX_CHARS } from "../questions.ts";
-import { describeAction, monitorFacts, type Action } from "../sensors.ts";
+import * as Q from "../questions.ts";
+import { describeAction, monitorFacts, requirementSentences, type Action } from "../sensors.ts";
 
 const args = new Map<string, string>();
 for (let i = 2; i < process.argv.length; i += 2) args.set(process.argv[i].replace(/^--/, ""), process.argv[i + 1] ?? "");
 const fail = (message: string): never => (console.error(message), process.exit(2));
+const question = args.get("question") || "gate";
+if (!["gate", "effort", "checklist"].includes(question)) fail("--question must be gate, effort, or checklist");
 const evidence = resolve(args.get("evidence") || fail("missing --evidence"));
 const out = resolve(args.get("out") || fail("missing --out"));
 const threshold = Number(args.get("threshold") ?? A.ADVISOR.gateMin);
@@ -191,74 +198,123 @@ async function consultAdvisor(run: Run, cards: A.Card[], diff: string, reason: s
 }
 
 mkdirSync(out, { recursive: true });
-const runs = recordedRuns();
-const cachePath = join(out, "gate-answers.json");
+const cachePath = join(out, `${question}-answers.json`);
 const cached: Record<string, number | null> = existsSync(cachePath) ? (JSON.parse(readFileSync(cachePath, "utf8")) as Record<string, number | null>) : {};
 const jev = new OpenRouterJevProvider(key);
-let jevCostUsd = 0;
-let jevCalls = 0;
-let jevFailed = 0;
-const pending = runs.flatMap((run) => run.points.map((point) => ({ run, point })));
-await pool(pending, 6, async ({ run, point }) => {
-	const id = `${run.id}#${point.turn}`;
-	if (id in cached) {
-		point.p = cached[id];
-		return;
-	}
-	const serialized = JSON.stringify(point.state);
-	if (serialized.length > STATE_MAX_CHARS) {
-		point.p = cached[id] = null;
-		return;
-	}
-	try {
-		const evaluation = await jev.evaluateWithMetadata(serialized, A.GATE_QUESTIONS, CALL_TIMEOUT_MS);
-		point.p = cached[id] = A.gateProbability(evaluation.answers) ?? null;
-		jevCalls++;
-		jevCostUsd += evaluation.usage?.costUsd ?? 0;
-	} catch {
-		jevFailed++;
-		point.p = null; // not cached: a rerun retries it
-	}
-});
-writeFileSync(cachePath, `${JSON.stringify(cached, null, 2)}\n`);
+const spend = { calls: 0, failed: 0, cached: 0, costUsd: 0 };
 
-const perThreshold = THRESHOLDS.map((t) => {
-	const counts = runs.map((run) => gateTurns(run, t).length);
-	return { threshold: t, meanGateConsults: counts.reduce((sum, n) => sum + n, 0) / runs.length, runsWithGateConsult: counts.filter((n) => n > 0).length, maxGateConsults: Math.max(...counts) };
-});
-const probabilities = runs.flatMap((run) => run.points.flatMap((point) => (point.p === null ? [] : [point.p])));
-
-const samples: Sample[] = [];
-if (sample > 0) {
-	const gatePoints = runs.flatMap((run) => gateTurns(run, threshold).slice(0, 1).map((turn) => ({ run, turn })));
-	const chosen = gatePoints.filter((_, i) => i % Math.max(1, Math.floor(gatePoints.length / Math.ceil(sample / 2))) === 0).slice(0, Math.ceil(sample / 2));
-	const settles = runs.filter((run) => run.finalDiff.trim()).filter((_, i, all) => i % Math.max(1, Math.floor(all.length / Math.floor(sample / 2))) === 0).slice(0, Math.floor(sample / 2));
-	const jobs = [
-		...chosen.map(({ run, turn }) => () => {
-			const point = run.points.find((entry) => entry.turn === turn);
-			return consultAdvisor(run, point?.cards ?? [], "", "System 1 judged that a review now could change what the executor does next.", turn, "gate");
-		}),
-		...settles.map((run) => () => consultAdvisor(run, run.cards, run.finalDiff, "The executor says it is done. Review the final change against the task before it finishes.", run.points.at(-1)?.turn ?? 0, "settle")),
-	];
-	await pool(jobs, 3, async (job) => {
-		samples.push(await job());
+/** Ask Jev once per item (cached by id) and keep the number `read` takes from the answers. */
+async function askAll<T>(items: readonly T[], id: (item: T) => string, state: (item: T) => unknown, questions: (item: T) => Record<string, Question>, read: (answers: Record<string, Answer>, item: T) => number | undefined): Promise<Map<string, number | null>> {
+	const found = new Map<string, number | null>();
+	await pool(items, 6, async (item) => {
+		const key = id(item);
+		if (key in cached) {
+			spend.cached++;
+			found.set(key, cached[key]);
+			return;
+		}
+		const serialized = JSON.stringify(state(item));
+		if (serialized.length > Q.STATE_MAX_CHARS) {
+			found.set(key, (cached[key] = null));
+			return;
+		}
+		try {
+			const evaluation = await jev.evaluateWithMetadata(serialized, questions(item), Q.CALL_TIMEOUT_MS);
+			found.set(key, (cached[key] = read(evaluation.answers, item) ?? null));
+			spend.calls++;
+			spend.costUsd += evaluation.usage?.costUsd ?? 0;
+		} catch {
+			spend.failed++;
+			found.set(key, null); // not cached: a rerun retries it
+		}
 	});
+	writeFileSync(cachePath, `${JSON.stringify(cached, null, 2)}\n`);
+	return found;
 }
 
-const report = {
-	version: 1,
-	runs: runs.length,
-	points: probabilities.length,
-	jev: { calls: jevCalls, failed: jevFailed, costUsd: jevCostUsd, cachedAnswers: pending.length - jevCalls - jevFailed },
-	probability: {
-		mean: probabilities.reduce((sum, p) => sum + p, 0) / Math.max(1, probabilities.length),
-		atLeast: Object.fromEntries(THRESHOLDS.map((t) => [t, probabilities.filter((p) => p >= t).length])),
-	},
-	policy: { minGap: A.ADVISOR.minGap, maxConsults: A.ADVISOR.maxConsults, perThreshold },
-	sampleThreshold: sample > 0 ? threshold : null,
-	samples,
-	advisorCostUsd: samples.reduce((sum, entry) => sum + (entry.costUsd ?? 0), 0),
-	perRun: runs.map((run) => ({ run: run.id, turns: run.points.length, gateTurns: gateTurns(run, threshold), p: run.points.map((point) => point.p) })),
-};
-writeFileSync(join(out, "gate-replay.json"), `${JSON.stringify(report, null, 2)}\n`);
-console.log(JSON.stringify({ runs: report.runs, points: report.points, jev: report.jev, perThreshold, samples: samples.map(({ run, trigger, latencyMs, promptTokens, completionTokens, costUsd, severity, error }) => ({ run, trigger, latencyMs, promptTokens, completionTokens, costUsd, severity, error })) }, null, 2));
+const share = (values: readonly number[], t: number) => values.filter((p) => p >= t).length;
+let report: Record<string, unknown>;
+
+if (question === "checklist") {
+	// Every recorded run, OMP's included: only the final diff and the task statement are needed.
+	const manifest = JSON.parse(readFileSync(resolve(args.get("manifest") || fail("--manifest is required for checklist")), "utf8")) as { tasks: { id: string; statement: string }[] };
+	const statements = new Map(manifest.tasks.map((task) => [task.id, task.statement]));
+	const runs = ["pilot", "control"].flatMap((phase) =>
+		readdirSync(join(evidence, phase, "runs")).sort().flatMap((task) =>
+			readdirSync(join(evidence, phase, "runs", task)).sort().flatMap((arm) => {
+				const dir = join(evidence, phase, "runs", task, arm);
+				if (!existsSync(join(dir, "final.diff")) || !existsSync(join(dir, "run.json"))) return [];
+				const statement = statements.get(task.replace(/-r\d+$/, "")) ?? "";
+				const record = JSON.parse(readFileSync(join(dir, "run.json"), "utf8")) as { hiddenPass?: boolean };
+				return [{ id: `${phase}/${task}/${arm}`, requirements: requirementSentences(statement, Q.CHECKLIST.maxRequirements), diff: readFileSync(join(dir, "final.diff"), "utf8"), hiddenPass: record.hiddenPass === true }];
+			}),
+		),
+	);
+	const answers = await askAll(
+		runs.filter((run) => run.requirements.length > 0 && run.diff.trim()),
+		(run) => run.id,
+		(run) => Q.checklistState(run.requirements, run.diff),
+		(run) => Q.checklistQuestions(run.requirements),
+		(found, run) => Math.max(0, ...Q.missingProbabilities(found, run.requirements)),
+	);
+	const scored = runs.flatMap((run) => {
+		const maxP = answers.get(run.id);
+		return maxP === undefined || maxP === null ? [] : [{ run: run.id, maxP, hiddenPass: run.hiddenPass }];
+	});
+	report = {
+		question,
+		runs: runs.length,
+		scored: scored.length,
+		perThreshold: THRESHOLDS.map((t) => ({ threshold: t, flagged: share(scored.map((entry) => entry.maxP), t), flaggedHiddenFail: scored.filter((entry) => entry.maxP >= t && !entry.hiddenPass).length, flaggedHiddenPass: scored.filter((entry) => entry.maxP >= t && entry.hiddenPass).length })),
+		hiddenFail: scored.filter((entry) => !entry.hiddenPass).length,
+		perRun: scored,
+	};
+} else {
+	const runs = recordedRuns();
+	const points = runs.flatMap((run) => run.points.map((point) => ({ run, point })));
+	const id = ({ run, point }: { run: Run; point: Point }) => `${run.id}#${point.turn}`;
+	const questions = question === "gate" ? A.GATE_QUESTIONS : Q.EFFORT_QUESTIONS;
+	const read = question === "gate" ? A.gateProbability : Q.routineProbability;
+	const answers = await askAll(points, id, (entry) => entry.point.state, () => questions, (found) => read(found));
+	for (const entry of points) entry.point.p = answers.get(id(entry)) ?? null;
+	const probabilities = points.flatMap((entry) => (entry.point.p === null ? [] : [entry.point.p]));
+	const distribution = { mean: probabilities.reduce((sum, p) => sum + p, 0) / Math.max(1, probabilities.length), atLeast: Object.fromEntries(THRESHOLDS.map((t) => [t, share(probabilities, t)])) };
+	if (question === "effort") {
+		report = { question, runs: runs.length, points: probabilities.length, distribution, perRun: runs.map((run) => ({ run: run.id, p: run.points.map((point) => point.p) })) };
+	} else {
+		const perThreshold = THRESHOLDS.map((t) => {
+			const counts = runs.map((run) => gateTurns(run, t).length);
+			return { threshold: t, meanGateConsults: counts.reduce((sum, n) => sum + n, 0) / runs.length, runsWithGateConsult: counts.filter((n) => n > 0).length, maxGateConsults: Math.max(...counts) };
+		});
+		const samples: Sample[] = [];
+		if (sample > 0) {
+			const gatePoints = runs.flatMap((run) => gateTurns(run, threshold).slice(0, 1).map((turn) => ({ run, turn })));
+			const chosen = gatePoints.filter((_, i) => i % Math.max(1, Math.floor(gatePoints.length / Math.ceil(sample / 2))) === 0).slice(0, Math.ceil(sample / 2));
+			const settles = runs.filter((run) => run.finalDiff.trim()).filter((_, i, all) => i % Math.max(1, Math.floor(all.length / Math.floor(sample / 2))) === 0).slice(0, Math.floor(sample / 2));
+			const jobs = [
+				...chosen.map(({ run, turn }) => () => {
+					const point = run.points.find((entry) => entry.turn === turn);
+					return consultAdvisor(run, point?.cards ?? [], "", "System 1 judged that a review now could change what the executor does next.", turn, "gate");
+				}),
+				...settles.map((run) => () => consultAdvisor(run, run.cards, run.finalDiff, "The executor says it is done. Review the final change against the task before it finishes.", run.points.at(-1)?.turn ?? 0, "settle")),
+			];
+			await pool(jobs, 3, async (job) => {
+				samples.push(await job());
+			});
+		}
+		report = {
+			question,
+			runs: runs.length,
+			points: probabilities.length,
+			distribution,
+			policy: { minGap: A.ADVISOR.minGap, maxConsults: A.ADVISOR.maxConsults, perThreshold },
+			sampleThreshold: sample > 0 ? threshold : null,
+			samples,
+			advisorCostUsd: samples.reduce((sum, entry) => sum + (entry.costUsd ?? 0), 0),
+			perRun: runs.map((run) => ({ run: run.id, turns: run.points.length, gateTurns: gateTurns(run, threshold), p: run.points.map((point) => point.p) })),
+		};
+	}
+}
+
+writeFileSync(join(out, `${question}-replay.json`), `${JSON.stringify({ version: 1, jev: spend, ...report }, null, 2)}\n`);
+console.log(JSON.stringify({ jev: spend, ...Object.fromEntries(Object.entries(report).filter(([name]) => name !== "perRun")) }, null, 2));

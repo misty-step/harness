@@ -16,7 +16,7 @@ import { join } from "node:path";
 import s1s2 from "./index.ts";
 import { AdvisorConversation, parseAdvice, worthDelivering } from "./advisor.ts";
 import { briefState, doneQuestions, doneState, monitorState, NOTES, pickBriefFiles, pickCheck, pickNote, triageState } from "./questions.ts";
-import { discoverChecks, planTriage, renderTriage, type Candidate } from "./sensors.ts";
+import { briefDetails, discoverChecks, planTriage, renderTriage, requirementSentences, type Candidate } from "./sensors.ts";
 
 type Handler = (event: unknown, ctx: ExtensionContext) => unknown;
 
@@ -36,9 +36,9 @@ afterEach(() => {
 	rmSync(dir, { recursive: true, force: true });
 });
 
-function load(): Map<string, Handler> {
+function load(api: Record<string, unknown> = {}): Map<string, Handler> {
 	const handlers = new Map<string, Handler>();
-	s1s2({ on: (name: string, handler: Handler) => handlers.set(name, handler) } as unknown as ExtensionAPI);
+	s1s2({ on: (name: string, handler: Handler) => handlers.set(name, handler), ...api } as unknown as ExtensionAPI);
 	return handlers;
 }
 
@@ -431,5 +431,80 @@ describe("US-029 advisor battery", () => {
 		expect(parseAdvice('{"severity":"concern","advice":"Add SKILL.md under agent-config/skills/session-close/ and\nwire the refere')).toEqual({ severity: "concern", advice: "Add SKILL.md under agent-config/skills/session-close/ and\nwire the refere" });
 		expect(worthDelivering(parseAdvice('{"severity":"none","advice":"All good."}'))).toBe(false);
 		expect(worthDelivering(parseAdvice('{"severity":"nit","advice":""}'))).toBe(false);
+	});
+});
+
+describe("US-029 round-2 features", () => {
+	const task = "You are working in a Git repository (the current directory). Leave your changes in the working tree.\n\nTask:\nFix `applyDiscount` in src/pricing.ts so percent is a whole number. Keep prices under one dollar unrounded. Add or update tests for the new behavior.";
+
+	test("requirement sentences come from the task statement, never the runner's instructions", () => {
+		expect(requirementSentences(task)).toEqual([
+			"Fix `applyDiscount` in src/pricing.ts so percent is a whole number.",
+			"Keep prices under one dollar unrounded.",
+			"Add or update tests for the new behavior.",
+		]);
+	});
+
+	test("the checklist sends System 2 back once for its most doubtful requirement and logs only its index", async () => {
+		const cwd = repo();
+		stubJev({ completion: "complete", check: "none_suitable" });
+		process.env.S1S2_FEATURES = "checklist";
+		const handlers = load();
+		const ctx = context(cwd, "test-key");
+		await handlers.get("session_start")?.({ type: "session_start", reason: "startup" }, ctx);
+		await handlers.get("before_agent_start")?.(start(task), ctx);
+		writeFileSync(join(cwd, "src/pricing.ts"), "export const edited = true;\n");
+		const first = (await handlers.get("agent_before_settle")?.(settle, ctx)) as Boundary;
+		const second = (await handlers.get("agent_before_settle")?.(settle, ctx)) as Boundary;
+		expect(first?.continue).toBe(true);
+		expect(String(first?.entries?.at(-1)?.content)).toContain('"Fix `applyDiscount` in src/pricing.ts so percent is a whole number."');
+		expect(second?.entries?.at(-1)?.content).toBe(NOTES.unverified);
+		expect(logOf().filter((entry) => entry.battery === "checklist").map((entry) => [entry.action, entry.missing])).toEqual([["sent_back", "r0"]]);
+		expect(readFileSync(join(dir, "run", "s1s2.jsonl"), "utf8")).not.toContain("whole number");
+	});
+
+	test("effort runs a routine step with reasoning off, and any other answer restores the configured level", async () => {
+		const cwd = repo();
+		stubJev({ note: "none", completion: "complete", check: "none_suitable" });
+		process.env.S1S2_FEATURES = "effort";
+		let level = "high";
+		const handlers = load({ getThinkingLevel: () => level, setThinkingLevel: (next: string) => (level = next) });
+		const ctx = context(cwd, "test-key");
+		await handlers.get("session_start")?.({ type: "session_start", reason: "startup" }, ctx);
+		await handlers.get("before_agent_start")?.(start(task), ctx);
+		const step = async (turn: number) => {
+			const result = bash(`e${turn}`, "ls src", false);
+			await handlers.get("tool_result")?.(result, ctx);
+			await handlers.get("turn_end")?.({ type: "turn_end", turnIndex: turn, toolResults: [result], entries: [] }, ctx);
+			return level;
+		};
+		expect(await step(0)).toBe("off");
+		globalThis.fetch = (async () => new Response("upstream unavailable", { status: 503 })) as unknown as typeof fetch;
+		expect(await step(1)).toBe("high");
+	});
+
+	test("the richer brief names each file's tests and the definitions that match the task", () => {
+		const cwd = repo();
+		expect(briefDetails(cwd, [{ path: "src/pricing.ts" }], ["applyDiscount"]).get("src/pricing.ts")).toEqual({
+			tests: ["src/pricing.test.ts"],
+			definitions: ["L1: export function applyDiscount(price: number, percent: number) {"],
+		});
+	});
+
+	test("with only the brief battery, long output, stalls, and unverified changes pass untouched", async () => {
+		const cwd = repo();
+		stubJev({ note: "change_approach", completion: "unfinished", check: "none_suitable" });
+		process.env.S1S2_BATTERIES = "brief";
+		const handlers = load();
+		const ctx = context(cwd, "test-key");
+		await handlers.get("session_start")?.({ type: "session_start", reason: "startup" }, ctx);
+		await handlers.get("before_agent_start")?.(start(task), ctx);
+		for (let turn = 0; turn < 9; turn++) {
+			const failing = bash(`b${turn}`, "bun test", true, longOutput());
+			expect(await handlers.get("tool_result")?.(failing, ctx)).toBeUndefined();
+			expect(await handlers.get("turn_end")?.({ type: "turn_end", turnIndex: turn, toolResults: [failing], entries: [] }, ctx)).toBeUndefined();
+		}
+		writeFileSync(join(cwd, "src/pricing.ts"), "export const edited = true;\n");
+		expect(await handlers.get("agent_before_settle")?.(settle, ctx)).toBeUndefined();
 	});
 });

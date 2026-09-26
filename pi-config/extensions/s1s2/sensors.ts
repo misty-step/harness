@@ -307,6 +307,64 @@ export function diffText(cwd: string, maxChars: number): string {
 	return text.length > maxChars ? text.slice(0, maxChars) : text;
 }
 
+/**
+ * Requirement sentences of a task: the statement after the evaluation runner's `Task:` line (or the
+ * whole prompt), split into sentences. Code builds these candidates; Jev only scores them.
+ */
+export function requirementSentences(prompt: string, max = 12): string[] {
+	const marker = prompt.lastIndexOf("\nTask:\n");
+	const statement = marker >= 0 ? prompt.slice(marker + "\nTask:\n".length) : prompt;
+	return statement
+		.replace(/\s+/g, " ")
+		.split(/(?<=[.!?])\s+(?=[A-Z`"(])/)
+		.map((sentence) => sentence.trim())
+		.filter((sentence) => sentence.length >= 25)
+		.slice(0, max);
+}
+
+/** Tracked test files for a source file: same stem, as a sibling or under a tests directory. */
+export function testFilesFor(path: string, tracked: ReadonlySet<string>): string[] {
+	if (TEST_FILE.test(path)) return [];
+	const stem = basename(path).replace(/\.[^.]+$/, "");
+	const dir = dirname(path);
+	const found: string[] = [];
+	for (const file of tracked) {
+		if (!TEST_FILE.test(file) || basename(file).replace(TEST_FILE, "") !== stem) continue;
+		if (dirname(file) === dir || dirname(file).startsWith(`${dir}/`) || /(^|\/)(tests?|__tests__)(\/|$)/.test(dirname(file))) found.push(file);
+	}
+	return found.sort().slice(0, 3);
+}
+
+const DEFINITION = /^\s*(?:export\s+)?(?:default\s+)?(?:async\s+)?(?:function\*?|class|interface|type|const|let|enum)\s+([A-Za-z_$][\w$]*)|^#{1,4}\s+(.+)$/;
+
+/** Definitions (or Markdown headings) in a tracked file whose names share a task term: up to `max` lines `L<n>: <line>`. */
+export function definitionsFor(cwd: string, path: string, terms: readonly string[], max = 3): string[] {
+	const lowered = terms.map((term) => term.toLowerCase()).filter((term) => term.length >= 3);
+	let text: string;
+	try {
+		if (statSync(join(cwd, path)).size > 1_000_000) return [];
+		text = readFileSync(join(cwd, path), "utf8");
+	} catch {
+		return [];
+	}
+	const found: string[] = [];
+	text.split("\n").some((line, i) => {
+		const match = DEFINITION.exec(line);
+		const name = (match?.[1] ?? match?.[2] ?? "").toLowerCase();
+		if (name.length >= 3 && lowered.some((term) => name.includes(term) || term.includes(name))) found.push(`L${i + 1}: ${line.trim().slice(0, 140)}`);
+		return found.length >= max;
+	});
+	return found;
+}
+
+/** Test files and task-term definitions for each picked file, for the richer brief (round 2). */
+export type BriefDetail = { tests: string[]; definitions: string[] };
+
+export function briefDetails(cwd: string, picks: readonly { path: string }[], terms: readonly string[]): Map<string, BriefDetail> {
+	const tracked = new Set((run(cwd, "git", ["ls-files", "-z"]) ?? "").split("\0").filter(Boolean));
+	return new Map(picks.map((pick) => [pick.path, { tests: testFilesFor(pick.path, tracked), definitions: definitionsFor(cwd, pick.path, terms) }]));
+}
+
 // --------------------------------------------------------------- triage --
 
 /** Lines that must never be elided: they carry failures, errors, or assertion details. */

@@ -28,7 +28,7 @@ export const ADVISOR = {
 	maxConsults: 6,
 	/**
 	 * Jev probability that a review would change the next step, needed for a gate consult. Set by the
-	 * 2026-09-26 replay over 30 recorded Pi runs (eval/gate-replay.ts): 0.55 picks about two gate
+	 * 2026-09-26 replay over 30 recorded Pi runs (eval/jev-replay.ts): 0.55 picks about two gate
 	 * consults per run (1.9), about four consults with the first-edit and final reviews.
 	 */
 	gateMin: 0.55,

@@ -68,6 +68,11 @@ const ARM_SPECS: Record<string, ArmSpec> = {
 	"s1s2-every": piArm(true, "every"),
 	"s1s2-tool": piArm(true, "tool"),
 	"s1s2-strong": piArm(true, "off", true),
+	// Experiments 2, 3, and 5: one System 1 change each against s1s2.
+	"s1s2-checklist": piArm(true, "off", false, { S1S2_FEATURES: "checklist" }),
+	"s1s2-effort": piArm(true, "off", false, { S1S2_FEATURES: "effort" }),
+	"s1s2-richbrief": piArm(true, "off", false, { S1S2_FEATURES: "richbrief" }),
+	"s1s2-briefonly": piArm(true, "off", false, { S1S2_BATTERIES: "brief" }),
 };
 /** OMP's Steward, System 1's advisor, and the strong arm's System 2 all run the advisor model. */
 const usesAdvisorModel = (spec: ArmSpec) => spec.harness === "omp" || spec.advisor !== "off" || spec.strong;

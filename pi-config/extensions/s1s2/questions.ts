@@ -11,7 +11,7 @@
  */
 import { redactText } from "../../../agent-config/system-one/continuation.ts";
 import type { Answer, Question } from "../../../agent-config/system-one/engine.ts";
-import type { Candidate, CheckCandidate, Chunk, MonitorFacts } from "./sensors.ts";
+import type { BriefDetail, Candidate, CheckCandidate, Chunk, MonitorFacts } from "./sensors.ts";
 
 export const STATE_MAX_CHARS = 60_000; // OpenRouter's Jev route documents a 32k-token context.
 export const CALL_TIMEOUT_MS = 8_000;
@@ -91,14 +91,17 @@ export function pickBriefFiles(candidates: readonly Candidate[], answers: Record
 		.slice(0, limit);
 }
 
-export function renderBrief(picks: readonly BriefPick[], checks: readonly CheckCandidate[]): string {
+export function renderBrief(picks: readonly BriefPick[], checks: readonly CheckCandidate[], details?: ReadonlyMap<string, BriefDetail>): string {
 	const lines = [
 		"S1 briefing (advisory, from repository search ranked by System 1; verify before relying on it).",
 		"Likely relevant files:",
 	];
 	for (const pick of picks) {
 		lines.push(`- ${pick.path} (relevance ${pick.p.toFixed(2)}; matches ${pick.terms.map((term) => `\`${term}\``).join(", ")})`);
-		for (const hit of pick.hits.slice(0, 2)) lines.push(`    ${hit}`);
+		const detail = details?.get(pick.path);
+		if (detail?.definitions.length) for (const definition of detail.definitions) lines.push(`    defines ${definition}`);
+		else for (const hit of pick.hits.slice(0, 2)) lines.push(`    ${hit}`);
+		if (detail?.tests.length) lines.push(`    tests: ${detail.tests.join(", ")}`);
 	}
 	if (checks.length > 0) lines.push(`Checks this repository declares: ${checks.map((check) => `\`${check.command}\``).join(", ")}`);
 	return lines.join("\n");
@@ -320,4 +323,73 @@ export function pickCheck(answers: Record<string, Answer>, checks: readonly Chec
 	const check = checks[Number(answer.choice.slice(1))];
 	const p = answer.probabilities[answer.choice] ?? 0;
 	return check && p >= DONE.checkMin ? { check, p } : null;
+}
+
+// ------------------------------------------------------ checklist (round 2) --
+
+export const CHECKLIST = {
+	/**
+	 * Probability that a requirement is still unmet, needed to send System 2 back once. In the
+	 * 2026-09-26 replay over the 36 recorded final diffs (eval/jev-replay.ts), Jev's highest unmet
+	 * probability per run ran from 0.11 to 0.30 and did not track hidden-test failures; 0.22 sends
+	 * about a third of runs back for their most doubtful requirement.
+	 */
+	missingMin: 0.22,
+	maxRequirements: 12,
+	diffChars: 36_000,
+};
+
+export function checklistState(requirements: readonly string[], diff: string) {
+	return {
+		requirements: Object.fromEntries(requirements.map((requirement, i) => [`r${i}`, redactText(requirement, 600)])),
+		diff: redactText(diff, diff.length).slice(0, CHECKLIST.diffChars),
+	};
+}
+
+export function checklistQuestions(requirements: readonly string[]): Record<string, Question> {
+	return Object.fromEntries(
+		requirements.map((_, i): [string, Question] => [
+			`r${i}`,
+			{
+				type: "noul",
+				instructions: `Does \`diff\` leave requirement \`requirements.r${i}\` unmet? Yes only when the change visibly lacks or contradicts it. No when the diff meets it, or when it could already hold in code the diff does not touch.`,
+			},
+		]),
+	);
+}
+
+/** Jev's probability that each requirement is still unmet (0 when unanswered). */
+export function missingProbabilities(answers: Record<string, Answer>, requirements: readonly string[]): number[] {
+	return requirements.map((_, index) => probability(answers, `r${index}`) ?? 0);
+}
+
+/** The requirement Jev is most confident is unmet, if that confidence reaches the threshold. */
+export function pickMissing(answers: Record<string, Answer>, requirements: readonly string[]): { index: number; p: number } | null {
+	const probabilities = missingProbabilities(answers, requirements);
+	const index = probabilities.indexOf(Math.max(0, ...probabilities));
+	return index >= 0 && probabilities[index] >= CHECKLIST.missingMin ? { index, p: probabilities[index] } : null;
+}
+
+// --------------------------------------------------------- effort (round 2) --
+
+export const EFFORT = {
+	/**
+	 * Probability that the next step is routine, needed to run it with reasoning off. DeepSeek V4.1
+	 * Flash ignores low and medium effort on OpenRouter (a 2026-09-26 probe), so on and off is the
+	 * lever. In the replay over 1,177 recorded turns, 0.6 marks 29% of turns routine.
+	 */
+	routineMin: 0.6,
+};
+
+export const EFFORT_QUESTIONS: Record<string, Question> = {
+	routine: {
+		type: "noul",
+		instructions:
+			"Is the agent's next step routine: reading or searching files, running a command it has already decided on, or making a small mechanical edit that follows its stated plan, so it needs no deliberate reasoning? " +
+			"No when it must plan an approach, diagnose a failure, design a change, or decide whether the work is done.",
+	},
+};
+
+export function routineProbability(answers: Record<string, Answer>): number | undefined {
+	return probability(answers, "routine");
 }

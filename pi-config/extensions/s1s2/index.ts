@@ -21,6 +21,7 @@
  * none, System 1 stays inert and says so in its log. `S1S2_JEV_ENDPOINT` points
  * the Decisions call at a credential-injecting proxy instead of OpenRouter.
  */
+import type { ThinkingLevel } from "@earendil-works/pi-agent-core";
 import type { ExtensionAPI, ExtensionContext, SessionBoundaryDraft } from "@earendil-works/pi-coding-agent";
 import { execFile } from "node:child_process";
 import { appendFileSync, mkdirSync, writeFileSync } from "node:fs";
@@ -90,7 +91,12 @@ export default function s1s2(pi: ExtensionAPI): void | Promise<void> {
 	if ((process.env.S1S2_MODE ?? "").trim().toLowerCase() === "off") return;
 	const advisor = A.advisorConfig();
 	const advisorReviews = advisor.mode === "gated" || advisor.mode === "every";
-	const maxContinuations = Q.DONE.maxContinuations + (advisorReviews ? 1 : 0);
+	// Round-2 experiments: `S1S2_BATTERIES` narrows the core batteries (default all four); `S1S2_FEATURES`
+	// adds optional ones (checklist, effort, richbrief).
+	const listed = (value: string | undefined, fallback: string) => new Set((value ?? fallback).split(",").map((item) => item.trim().toLowerCase()).filter(Boolean));
+	const batteries = listed(process.env.S1S2_BATTERIES, "brief,triage,monitor,done");
+	const features = listed(process.env.S1S2_FEATURES, "");
+	const maxContinuations = Q.DONE.maxContinuations + (advisorReviews ? 1 : 0) + (features.has("checklist") ? 1 : 0);
 
 	let runDir = "";
 	let jev: OpenRouterJevProvider | null | undefined;
@@ -117,6 +123,9 @@ export default function s1s2(pi: ExtensionAPI): void | Promise<void> {
 	let settleReviewed = false;
 	let inflight: Promise<void> | null = null;
 	let pendingAdvice: A.Advice[] = [];
+	// Round-2 feature state.
+	let checklistDone = false;
+	let baseThinking: ThinkingLevel | null = null;
 	const totals = {
 		calls: 0,
 		failedCalls: 0,
@@ -322,15 +331,18 @@ export default function s1s2(pi: ExtensionAPI): void | Promise<void> {
 		firstEditConsulted = false;
 		settleReviewed = false;
 		pendingAdvice = [];
+		checklistDone = false;
+		if (features.has("effort")) baseThinking ??= pi.getThinkingLevel();
 		if (!(await provider(ctx))) {
 			record({ battery: "brief", action: "disabled", reason: "no_key" });
 			return;
 		}
 		event.systemPromptOptions.sections.system1 = [Q.S2_CONTRACT, A.advisorContract(advisor.mode)].filter(Boolean).join(" ");
+		checks = S.discoverChecks(ctx.cwd, []);
+		if (!batteries.has("brief")) return;
 		const started = performance.now();
 		const terms = S.extractTerms(task);
 		const candidates = S.findCandidates(ctx.cwd, terms);
-		checks = S.discoverChecks(ctx.cwd, []);
 		const sensorMs = Math.round(performance.now() - started);
 		if (candidates.length === 0) {
 			record({ battery: "brief", action: "none", reason: "no_candidates", terms: terms.length, sensor_ms: sensorMs });
@@ -356,7 +368,7 @@ export default function s1s2(pi: ExtensionAPI): void | Promise<void> {
 		return {
 			message: {
 				customType: "s1s2/brief",
-				content: Q.renderBrief(picks, checks),
+				content: Q.renderBrief(picks, checks, features.has("richbrief") ? S.briefDetails(ctx.cwd, picks, terms) : undefined),
 				display: true,
 				details: { files: picks.map((pick) => pick.path) },
 			},
@@ -379,7 +391,7 @@ export default function s1s2(pi: ExtensionAPI): void | Promise<void> {
 		actions.push({ ...described, kind, turn, ok: !event.isError });
 		cards.push(A.toolCard(turn, `${described.summary}${kind === "edit" && described.kind !== "edit" ? " (edited files)" : ""}`, !event.isError, event.isError ? textOf(event.content) : ""));
 		// Without a run directory there is nowhere outside the repository to save full output: fail open.
-		if (event.toolName !== "bash" || !jev || !runDir) return;
+		if (!batteries.has("triage") || event.toolName !== "bash" || !jev || !runDir) return;
 		const text = textOf(event.content);
 		const plan = S.planTriage(text);
 		if (!plan) return;
@@ -438,12 +450,26 @@ export default function s1s2(pi: ExtensionAPI): void | Promise<void> {
 		const note = await monitorTurn(event.toolResults.length, ctx);
 		if (note) added.push(note);
 		added.push(...(await advisorTurn(event.toolResults.length, ctx)));
+		await effortTurn(event.toolResults.length, ctx);
 		return added.length > 0 ? { entries: [...event.entries, ...added] } : undefined;
 	});
 
+	// Effort (round 2): Jev decides whether the next step is routine enough to run with reasoning off.
+	async function effortTurn(toolResults: number, ctx: ExtensionContext): Promise<void> {
+		if (!features.has("effort") || !jev || toolResults === 0) return;
+		const facts = S.monitorFacts(actions, turn);
+		const extra = { lastMessage: lastAssistantText, editsSoFar: actions.filter((action) => action.kind === "edit").length };
+		const call = await ask(ctx, Q.EFFORT_QUESTIONS, A.gateState(task, turn, actions, facts, extra));
+		const p = "error" in call ? undefined : Q.routineProbability(call.answers);
+		const level = p !== undefined && p >= Q.EFFORT.routineMin ? "off" : (baseThinking ?? pi.getThinkingLevel());
+		if ("error" in call) record({ battery: "effort", action: "fail_open", error: call.error, latency_ms: call.latencyMs, level });
+		else record({ battery: "effort", ...callFields(call), p: p === undefined ? null : round(p), action: level === "off" ? "reasoning_off" : "reasoning_on" });
+		if (pi.getThinkingLevel() !== level) pi.setThinkingLevel(level);
+	}
+
 	// Monitor: ask only when the ledger shows trouble or periodically; speak rarely.
 	async function monitorTurn(toolResults: number, ctx: ExtensionContext): Promise<SessionBoundaryDraft | null> {
-		if (!jev || toolResults === 0) return null;
+		if (!batteries.has("monitor") || !jev || toolResults === 0) return null;
 		const facts = S.monitorFacts(actions, turn);
 		const triggered = Q.monitorTriggered(facts);
 		if (!triggered && turn % Q.MONITOR.everyTurns !== 0) return null;
@@ -532,7 +558,24 @@ export default function s1s2(pi: ExtensionAPI): void | Promise<void> {
 				return continueWith(A.adviceMessage(advice), "advisor", event.entries);
 			}
 		}
-		if (!jev) return;
+		if (features.has("checklist") && !checklistDone && jev && S.changedFiles(ctx.cwd).length > 0) {
+			checklistDone = true;
+			const requirements = S.requirementSentences(task, Q.CHECKLIST.maxRequirements);
+			const call = requirements.length > 0 ? await ask(ctx, Q.checklistQuestions(requirements), Q.checklistState(requirements, S.diffText(ctx.cwd, Q.CHECKLIST.diffChars))) : null;
+			if (call && "error" in call) record({ battery: "checklist", action: "fail_open", error: call.error, latency_ms: call.latencyMs });
+			else if (call) {
+				const missing = Q.pickMissing(call.answers, requirements);
+				record({ battery: "checklist", ...callFields(call), requirements: requirements.length, missing: missing ? `r${missing.index}` : null, action: missing ? "sent_back" : "none" });
+				if (missing) {
+					return continueWith(
+						`S1: Before you finish, check this requirement from the task; the change may not meet it yet: "${requirements[missing.index]}" If it is already met, say so and stop.`,
+						"checklist",
+						event.entries,
+					);
+				}
+			}
+		}
+		if (!batteries.has("done") || !jev) return;
 		const changed = S.changedFiles(ctx.cwd);
 		const fingerprint = changed.length > 0 ? S.diffFingerprint(ctx.cwd) : null;
 		const checkPassed = fingerprint !== null && fingerprint === verifiedFingerprint;
