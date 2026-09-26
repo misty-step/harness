@@ -157,24 +157,29 @@ describe("foundation assessment advisory", () => {
 			"next.config.ts": `withSentryConfig({}, { authToken: "${planted}" });\n`,
 			"sentry-dsn.ts": "Sentry.init({ dsn: 'https://fixturepublickey@o0.ingest.example.invalid/1' });\n",
 			"docs/postmortems/INCIDENT-2.md": ["# Incident", "## Follow-up", begin, "fakekeybodylineone0000000000000000", "fakekeybodylinetwo1111111111111111", end, "Rotate the key."].join("\n"),
+			// The guard window before this init starts inside the key, past its BEGIN marker.
+			"sentry-guarded.ts": ["import * as Sentry from '@sentry/node';", "export function initGuarded() {", `  /* ${begin}`, ...Array.from({ length: 50 }, (_, n) => `  fakeguardkeybody${String(n).padStart(2, "0")}aaaaaaaaaaaaaaaaaaaaaaaa`), `  ${end} */`, "  Sentry.init({ enabled: true });", "}"].join("\n"),
 		});
 		let seen = "";
 		await assessFoundations({ repo, snapshot: openGitSnapshot(repo), pack: "all", provider: stub(absent, (state) => { seen += state; }) });
 		expect(seen).toContain("[REDACTED:suspected-secret]");
 		expect(seen).toContain("[REDACTED:sentry-dsn]");
 		expect(seen).toContain("docs/postmortems/INCIDENT-2.md:7: Rotate the key.");
-		for (const secret of ["fixturepublickey", planted, "fakekeybodylineone", "fakekeybodylinetwo"]) expect(seen).not.toContain(secret);
+		for (const secret of ["fixturepublickey", planted, "fakekeybodylineone", "fakekeybodylinetwo", "fakeguardkeybody"]) expect(seen).not.toContain(secret);
 	});
 
-	test("records references it cannot follow, so an absent answer abstains", async () => {
+	test("captures whole definitions and records what it cannot follow, so an absent answer abstains", async () => {
 		const repo = fixture({
-			"sentry-init.ts": "import * as Sentry from '@sentry/node';\nimport { options } from './options';\nimport { getRelease } from './release';\nSentry.init(options);\nSentry.init(getRelease());\n",
-			"options.ts": "import { privacyOptions } from './privacy';\nexport const options = { ...privacyOptions, environment: 'production' };\n",
-			"release.ts": "export function getRelease(): { release: string } { return { release: 'x', sendDefaultPii: true }; }\n",
+			"sentry-init.ts": "import * as Sentry from '@sentry/node';\nimport { options, environmentOptions } from './options';\nimport { getRelease, getPrivacy } from './release';\nSentry.init(options);\nSentry.init(environmentOptions);\nSentry.init(getRelease());\nSentry.init(getPrivacy());\n",
+			"options.ts": "import { privacyOptions } from './privacy';\nexport const options = { ...privacyOptions, environment: 'production' };\nexport const environmentOptions = process.env.CI\n  ? { environment: 'ci' }\n  : { environment: 'local' };\n",
+			"release.ts": "export function getRelease(): { release: string } { return { release: 'x', sendDefaultPii: true }; }\nexport function getPrivacy(): { pii: boolean }\n{\n  return { attachStacktrace: false, maxBreadcrumbs: 7 };\n}\n",
 		});
-		const record = await assessFoundations({ repo, snapshot: openGitSnapshot(repo), pack: "sentry", provider: stub(absent) });
-		const packet = record.packets[0];
-		expect(packet.coverage.unresolved_symbols.map((item) => item.symbol).sort()).toEqual(["getRelease", "privacyOptions"]);
+		const snapshot = openGitSnapshot(repo);
+		const state = distillFoundationPackets(repo, snapshot, "sentry").packets[0].state;
+		expect(state).toContain("sendDefaultPii: true");
+		expect(state).toContain("maxBreadcrumbs: 7");
+		const packet = (await assessFoundations({ repo, snapshot, pack: "sentry", provider: stub(absent) })).packets[0];
+		expect(packet.coverage.unresolved_symbols.map((item) => item.symbol).sort()).toEqual(["environmentOptions", "privacyOptions"]);
 		expect(packet.questions.find((item) => item.id === "pii_default_off")?.outcome).toBe("abstained");
 	});
 
@@ -192,6 +197,8 @@ describe("foundation assessment advisory", () => {
 		const repo = fixture({
 			"docs/postmortems/INCIDENT-7.md": "# Incident\n## Timeline\nprivate distractor\n## What shipped\nCompleted safe parser\n## Follow-up\nAdd regression suite\n### Action items\nOwner change\n## Appendix\nprivate appendix\n",
 			"docs/postmortems/TEMPLATE.md": "# Template\n## Follow-up\nnot an incident\n",
+			"operations/incidents/README.md": "# Incidents\n## Follow-up\nHow to file one\n",
+			"INCIDENT-TEMPLATE.md": "# Incident\n## Resolution\nFill in\n",
 		});
 		const packets = distillFoundationPackets(repo, openGitSnapshot(repo), "postmortems").packets;
 		expect(packets.map((item) => item.source)).toEqual(["docs/postmortems/INCIDENT-7.md"]);
@@ -219,15 +226,25 @@ describe("foundation assessment advisory", () => {
 		expect(unassessed.map((item) => item.source)).toEqual(["DOMAIN.md:7-8"]);
 	});
 
-	test("unexpected resolved model suppresses findings", async () => {
+	test("an unpinned or unapproved model never yields findings, and an unpinned one never receives a packet", async () => {
 		const repo = sentryRepo();
-		const provider: SystemOneProvider = {
+		const answers = (questions: Record<string, Question>) => Object.fromEntries(Object.keys(questions).map((id) => [id, { type: "noul", probability: 0.95, confidence: 0.9 } as Answer]));
+		const unapproved: SystemOneProvider = {
 			name: "openrouter", requestedModel: "typesafe/jev-1.13",
 			async evaluate() { throw new Error("metadata only"); },
-			async evaluateWithMetadata(_state, questions) { return { requestedModel: "typesafe/jev-1.13", resolvedModel: "typesafe/jev-1.13-20991231", answers: Object.fromEntries(Object.keys(questions).map((id) => [id, { type: "noul", probability: 0.95, confidence: 0.9 }])) }; },
+			async evaluateWithMetadata(_state, questions) { return { requestedModel: "typesafe/jev-1.13", resolvedModel: "typesafe/jev-1.13-20991231", answers: answers(questions) }; },
 		};
-		const record = await assessFoundations({ repo, snapshot: openGitSnapshot(repo), pack: "sentry", provider });
-		expect(record.packets[0].questions.every((answer) => answer.outcome === "abstained")).toBe(true);
+		let sent = 0;
+		const unpinned: SystemOneProvider = {
+			name: "openrouter", requestedModel: "other/model",
+			async evaluate() { throw new Error("metadata only"); },
+			async evaluateWithMetadata(_state, questions) { sent++; return { requestedModel: "other/model", resolvedModel: "typesafe/jev-1.13-20260917", answers: answers(questions) }; },
+		};
+		for (const provider of [unapproved, unpinned]) {
+			const record = await assessFoundations({ repo, snapshot: openGitSnapshot(repo), pack: "sentry", provider });
+			expect(record.packets[0].questions.every((answer) => answer.outcome === "abstained")).toBe(true);
+		}
+		expect(sent).toBe(0);
 	});
 
 	test("invalid invocation exits 2 through the actual CLI", () => {

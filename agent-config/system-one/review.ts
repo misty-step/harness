@@ -461,11 +461,11 @@ const LEAD_NOTES: Record<string, string> = {
 /* Redaction                                                           */
 /* ------------------------------------------------------------------ */
 
-const PRIVATE_KEY_BLOCK = /-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?-----END [A-Z ]*PRIVATE KEY-----/g;
+export const PRIVATE_KEY_BLOCK = /-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?-----END [A-Z ]*PRIVATE KEY-----/g;
 // An orphan BEGIN marker (no END) leaves the key body behind if only the
 // marker line is replaced. Redact from the marker to the end of the chunk:
 // for orphaned key material, over-redaction is the safe direction.
-const PRIVATE_KEY_ORPHAN = /-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*/g;
+export const PRIVATE_KEY_ORPHAN = /-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*/g;
 const AWS_KEY = /AKIA[0-9A-Z]{16}/g;
 const GITHUB_TOKEN = /github_pat_[A-Za-z0-9_]{20,}|gh[pors]_[A-Za-z0-9]{20,}/g;
 const OPENAI_TOKEN = /sk-[A-Za-z0-9_-]{20,}/g;
@@ -476,7 +476,7 @@ const JWT_TOKEN = /\beyJ[A-Za-z0-9_-]{7,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,
 const SECRET_ASSIGNMENT =
 	/((?:["']?)[A-Za-z0-9_.-]*(?:secret|token|password|passwd|api[_-]?key)[A-Za-z0-9_.-]*(?:["']?)\s*[:=]\s*)(?:"([^"\n]{12,})"|'([^'\n]{12,})'|([A-Za-z0-9_\-./+=]{12,}))/gi;
 
-const REDACTED = "[REDACTED:suspected-secret]";
+export const REDACTED = "[REDACTED:suspected-secret]";
 
 /** Count redaction markers present in a text; the sent-material measure. */
 function countRedactions(text: string): number {

@@ -4,7 +4,7 @@ import { createHash } from "node:crypto";
 import { posix } from "node:path";
 import { SystemOneProviderError } from "./engine.ts";
 import type { Answer, Question, SystemOneProvider } from "./engine.ts";
-import { isCredentialPath, redactText } from "./review.ts";
+import { isCredentialPath, PRIVATE_KEY_BLOCK, PRIVATE_KEY_ORPHAN, REDACTED, redactText } from "./review.ts";
 import { DEFAULT_EXPECTED_RESOLVED_MODELS } from "./semantic-run.ts";
 
 export const FOUNDATION_SCHEMA = "foundation-assessment-1";
@@ -129,7 +129,9 @@ type Snapshot = { repo: string; commit: string; files: string[]; fileSet: Set<st
 function source(snapshot: Snapshot, path: string, coverage: CoverageManifest): string {
 	let text = snapshot.cache.get(path);
 	if (text === undefined) {
-		text = git(snapshot.repo, "show", `${snapshot.commit}:${path}`);
+		// Mask key blocks before any excerpt is cut, keeping line numbers, so no cut can separate key material from its markers.
+		const keepLines = (block: string) => REDACTED + "\n".repeat(block.split("\n").length - 1);
+		text = git(snapshot.repo, "show", `${snapshot.commit}:${path}`).replace(PRIVATE_KEY_BLOCK, keepLines).replace(PRIVATE_KEY_ORPHAN, keepLines);
 		snapshot.cache.set(path, text);
 	}
 	if (!coverage.files_read.includes(path)) coverage.files_read.push(path);
@@ -237,9 +239,15 @@ function extractCalls(text: string, path: string, pattern: RegExp, kind: string)
 	return result;
 }
 
-/** A brace capture is complete only when its statement ends right after it; otherwise a type, parameter or later argument was cut off. */
+/** A brace capture is complete only when its statement ends right after it: a later argument, operator or continued line means it was cut off. */
 function endsStatement(text: string, end: number): boolean {
-	return /^[ \t]*(?:as\s+const|satisfies\s+[\w$.<>[\], ]+?)?[ \t]*\)*[ \t]*(?:;|\/\/|\/\*|\r?\n|$)/.test(text.slice(end + 1));
+	const rest = text.slice(end + 1);
+	const tail = /^[ \t]*(?:as\s+const|satisfies\s+[\w$.<>[\], ]+?)?[ \t]*\)*[ \t]*(;|\/\/|\/\*|\r?\n|$)/.exec(rest);
+	if (!tail) return false;
+	if (!/^\r?\n$/.test(tail[1])) return true;
+	const next = rest.slice(tail[0].length);
+	if (/^\s*\)+[ \t]*;?[ \t]*(?:\r?\n|$)/.test(next)) return true;
+	return !/^\s*(?:[?:.|&+\-,)\]{=]|as\s|satisfies\s)/.test(next);
 }
 
 function balanced(text: string): boolean {
@@ -247,7 +255,31 @@ function balanced(text: string): boolean {
 	return count(/\(/g) === count(/\)/g) && count(/\[/g) === count(/]/g) && count(/\{/g) === count(/\}/g);
 }
 
-function definition(text: string, symbol: string): { line: number; text: string; complete: boolean } | null {
+/** Index of a function body's opening brace: past the parameter list and any return type, object type literals included. */
+function bodyBrace(text: string, paren: number): number {
+	const paramsEnd = closing(text, paren);
+	if (paramsEnd < 0) return -1;
+	let depth = 0;
+	let last = ")";
+	for (let i = paramsEnd + 1; i < text.length; i++) {
+		const ch = text[i];
+		if (/\s/.test(ch)) continue;
+		if (ch === "=" && text[i + 1] === ">" || ch === ";") return -1;
+		if (ch === "<") depth++;
+		else if (ch === ">") depth = Math.max(0, depth - 1);
+		else if (ch === "(" || ch === "[" || ch === "{" && (depth > 0 || /[:|&,(<=]/.test(last))) {
+			const end = closing(text, i);
+			if (end < 0) return -1;
+			i = end;
+			last = text[end];
+			continue;
+		} else if (ch === "{") return i;
+		last = ch;
+	}
+	return -1;
+}
+
+function definition(text: string, symbol: string): { line: number; text: string; complete: boolean; body?: number } | null {
 	const escaped = symbol.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 	const patterns = [
 		new RegExp(`\\b(?:export\\s+)?(?:default\\s+)?(?:async\\s+)?function\\s+${escaped}(?:<[^>]+>)?\\s*\\(`, "g"),
@@ -258,6 +290,14 @@ function definition(text: string, symbol: string): { line: number; text: string;
 		const match = pattern.exec(text);
 		if (!match) continue;
 		const start = match.index;
+		if (pattern === patterns[0]) {
+			const body = bodyBrace(text, start + match[0].length - 1);
+			const end = body >= 0 ? closing(text, body) : -1;
+			if (end >= 0) return { line: lineOf(text, start), text: text.slice(start, end + 1), complete: true, body: body - start };
+			// No recognizable body: keep the signature as evidence, but it cannot count as resolved.
+			const eol = text.indexOf("\n", start);
+			return { line: lineOf(text, start), text: text.slice(start, eol < 0 ? text.length : eol), complete: false };
+		}
 		const after = text.slice(start);
 		const brace = after.indexOf("{");
 		const semi = after.indexOf(";");
@@ -312,16 +352,17 @@ function unresolved(manifest: CoverageManifest, path: string, symbol: string, qu
 	if (!manifest.unresolved_symbols.some((item) => item.path === path && item.symbol === symbol)) manifest.unresolved_symbols.push({ path, symbol, questions });
 }
 
-const IGNORED_SYMBOLS = /^(?:true|false|null|undefined|Object|String|Number|Boolean|process|console|require)$/;
+const IGNORED_SYMBOLS = /^(?:true|false|null|undefined|Object|String|Number|Boolean|process|console|require|string|number|boolean|unknown|any|never|void|object|bigint|symbol)$/;
 
-/** Identifiers a captured definition depends on, minus its own parameters: spreads, relevant property values, shorthand hooks and a returned identifier. */
-function optionReferences(text: string): string[] {
+/** Identifiers a captured definition depends on, from `from` on and minus its own parameters: spreads, relevant property values, shorthand hooks and a returned identifier. */
+function optionReferences(text: string, from = 0): string[] {
 	const own = new Set(text.match(/\(([^)]*)\)/)?.[1].match(/[A-Za-z_$][\w$]*/g) ?? []);
+	const body = text.slice(from);
 	const names = new Set<string>();
-	for (const match of text.matchAll(/\.\.\.\s*([A-Za-z_$][\w$]*)/g)) names.add(match[1]);
-	for (const match of text.matchAll(/\b(?:beforeSend|beforeBreadcrumb|beforeSendTransaction|beforeSendSpan|release|environment|enabled|sendDefaultPii)\s*:\s*([A-Za-z_$][\w$]*)(?=\s*[,}])/g)) names.add(match[1]);
-	for (const match of text.matchAll(/\b(beforeSend|beforeBreadcrumb|beforeSendTransaction|beforeSendSpan)\s*(?=[,}])/g)) names.add(match[1]);
-	for (const match of text.matchAll(/\breturn\s+([A-Za-z_$][\w$]*)\s*[;(\n}]/g)) names.add(match[1]);
+	for (const match of body.matchAll(/\.\.\.\s*([A-Za-z_$][\w$]*)/g)) names.add(match[1]);
+	for (const match of body.matchAll(/\b(?:beforeSend|beforeBreadcrumb|beforeSendTransaction|beforeSendSpan|release|environment|enabled|sendDefaultPii)\s*:\s*([A-Za-z_$][\w$]*)(?=\s*[,}])/g)) names.add(match[1]);
+	for (const match of body.matchAll(/\b(beforeSend|beforeBreadcrumb|beforeSendTransaction|beforeSendSpan)\s*(?=[,}])/g)) names.add(match[1]);
+	for (const match of body.matchAll(/\breturn\s+([A-Za-z_$][\w$]*)\s*[;(\n}]/g)) names.add(match[1]);
 	return [...names].filter((name) => !own.has(name) && !IGNORED_SYMBOLS.test(name));
 }
 
@@ -333,7 +374,7 @@ function captureSymbol(snapshot: Snapshot, manifest: CoverageManifest, from: str
 	if (!destination) { unresolved(manifest, from, symbol, relevant); return; }
 	const target = source(snapshot, destination, manifest);
 	const found = origin?.imported === "default" ? target.match(/\bexport\s+default\s+([\s\S]*?);/) : null;
-	const result = found ? { line: lineOf(target, found.index ?? 0), text: found[0], complete: balanced(found[0]) } : definition(target, origin?.imported ?? symbol);
+	const result = found ? { line: lineOf(target, found.index ?? 0), text: found[0], complete: balanced(found[0]), body: 0 } : definition(target, origin?.imported ?? symbol);
 	if (!result) { unresolved(manifest, from, symbol, relevant); return; }
 	if (excerpts.some((item) => item.path === destination && item.line === result.line && item.kind === `definition:${symbol}`)) return;
 	manifest.hops_followed.push({ from, to: destination, symbol });
@@ -342,7 +383,7 @@ function captureSymbol(snapshot: Snapshot, manifest: CoverageManifest, from: str
 	if (!result.complete) { unresolved(manifest, destination, symbol, relevant); return; }
 	const factory = result.text.match(/(?:\b(?:const|let|var)\s+)?\b\w+\s*=\s*([A-Za-z_$][\w$]*)\s*\(/)?.[1];
 	if (factory && remaining > 0) captureSymbol(snapshot, manifest, destination, factory, relevant, excerpts, remaining - 1);
-	const pending = new Set(optionReferences(result.text));
+	const pending = new Set(optionReferences(result.text, result.body ?? 0));
 	if (factory && remaining === 0) pending.add(factory);
 	else if (factory) pending.delete(factory);
 	for (const name of pending) if (!IGNORED_SYMBOLS.test(name) && !definition(result.text, name)) unresolved(manifest, destination, name, relevant);
@@ -452,7 +493,8 @@ function sentryPackets(snapshot: Snapshot): EvidencePacket[] {
 }
 
 function postmortemPackets(snapshot: Snapshot): EvidencePacket[] {
-	const paths = snapshot.files.filter((path) => /(?:^|\/)docs\/postmortems\/[^/]+\.md$/i.test(path) && !/(?:README|TEMPLATE)\.md$/i.test(path.split("/").at(-1) ?? "") || /(?:^|\/)[^/]*postmortem[^/]*\.md$/i.test(path) && !/(?:README|TEMPLATE)\.md$/i.test(path.split("/").at(-1) ?? "") || /(?:^|\/)INCIDENT-[^/]+\.md$/i.test(path) || /(?:^|\/)operations\/incidents\/[^/]+\.md$/i.test(path));
+	// README and TEMPLATE files are scaffolding under every incident path, not incidents.
+	const paths = snapshot.files.filter((path) => !/(?:^|[-_])(?:README|TEMPLATE)\.md$/i.test(path.split("/").at(-1) ?? "") && (/(?:^|\/)docs\/postmortems\/[^/]+\.md$/i.test(path) || /(?:^|\/)[^/]*postmortem[^/]*\.md$/i.test(path) || /(?:^|\/)INCIDENT-[^/]+\.md$/i.test(path) || /(?:^|\/)operations\/incidents\/[^/]+\.md$/i.test(path)));
 	return paths.map((path): EvidencePacket => {
 		const manifest = coverage(["docs/postmortems/*.md excluding README and TEMPLATE", "**/*postmortem*.md", "INCIDENT-*.md", "operations/incidents/*.md", "selected remediation headings"]);
 		const lines = source(snapshot, path, manifest).split("\n");
@@ -565,6 +607,9 @@ export async function assessFoundations(options: { repo: string; snapshot: GitSn
 			result.questions = ids.map((id) => ({ id, outcome: "abstained", reason: `Packet exceeds Jev request budget (${serialized.length} characters); evidence must not be truncated silently` }));
 		} else if (!provider) {
 			result.questions = ids.map((id) => ({ id, outcome: "unavailable", reason: "No OpenRouter provider configured" }));
+		} else if (provider.name === "openrouter" && requested !== FOUNDATION_MODEL) {
+			// Evidence never goes to a model other than the pinned one, such as an OPENROUTER_JEV_MODEL override.
+			result.questions = ids.map((id) => ({ id, outcome: "abstained", reason: `Requested model ${requested} is not ${FOUNDATION_MODEL}; packet not sent` }));
 		} else {
 			const started = performance.now();
 			try {
