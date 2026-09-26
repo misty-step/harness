@@ -276,13 +276,20 @@ consumers are sibling components. Follow the [root setup guide](../README.md).
 Harness installers invoke this component's `install`; a missing base fails closed.
 `AGENT_CONFIG_DIR` remains an advanced override. `linear-cli` is installed separately.
 
+## Opt-in desktop memory guard
+
+`./install --desktop-guard` stages the harness-neutral native Herdr boundary
+and two-slot local-job launcher (US-043). It does not activate user units or
+desktop bindings and is not selected by normal Pi/OMP installs. The
+[operating runbook](../docs/desktop-memory-guard.md) owns verification and the
+operator's cutover/rollback; source lives in `desktop-guard/`.
+
 ## Not yet here
 
 Single-owner or repo-local pieces that stay with their harness for now:
 
-- [Workstation runbook](../omp-config/references/dev-exec.md) and
-  [scratch-routing design](../omp-config/references/scratch-routing.md) — host docs,
-  retained with their operational implementation; linked by both harnesses.
+- [Scratch-routing design](../omp-config/references/scratch-routing.md) — host
+  design retained with its operational implementation.
 - [Pressure monitor](../omp-config/bin/tmp-health.py) — workstation-specific tool.
 - The Linear CLI is its own repo, [linear-cli](https://github.com/misty-step/linear-cli).
 - Repository hooks and release automation belong to the monorepo root.

@@ -10,7 +10,7 @@ for tool in git bun jq; do
   command -v "$tool" >/dev/null 2>&1 || { echo "$tool is required" >&2; exit 1; }
 done
 case "$selection" in all|shared)
-  command -v python3 >/dev/null 2>&1 || { echo "python3 is required for shared gallery checks" >&2; exit 1; }
+  command -v python3 >/dev/null 2>&1 || { echo "python3 is required for shared checks" >&2; exit 1; }
   ;;
 esac
 mkdir -p "$HOME/.cache/tmp"
@@ -28,6 +28,7 @@ for script in scripts/bootstrap scripts/check scripts/verify scripts/verify-inst
 done
 bun test --max-concurrency=1 scripts/references.test.ts scripts/workspace-inventory.test.ts
 case "$selection" in all|shared) (cd agent-config && bun test --max-concurrency=1 bin/ skills/ system-one/ audio-sandbox/);; esac
+case "$selection" in all|shared) PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s agent-config/desktop-guard -p 'test_*.py';; esac
 case "$selection" in all|pi) (cd pi-config && bun test --max-concurrency=1 bin/ extensions/);; esac
 case "$selection" in all|omp) (cd omp-config && bun test --max-concurrency=1 bin/ extensions/);; esac
 ./scripts/verify-installers

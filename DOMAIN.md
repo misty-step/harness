@@ -68,6 +68,12 @@ the Foundation Standard tooling. It does not own:
   and trufflehog scan (`.githooks/pre-push`, wired by `scripts/bootstrap`).
 - **INV-007** `USER_STORIES.md` passes `check-stories.sh`. `unenforced`: no
   check runs it on this repository.
+- **INV-008** Desktop-guard staging cannot alter active user units or desktop
+  bindings. Enforced by `agent-config/desktop-guard/test_install.py`.
+- **INV-009** Managed fleet launch refuses missing effective bounds, an
+  unmanaged server or an oomd monitoring ancestor. Enforced at runtime by
+  `agent-config/desktop-guard/desktop-guard.py`; the native owner-path walk is
+  documented in `docs/desktop-memory-guard.md`.
 
 ## Code map
 

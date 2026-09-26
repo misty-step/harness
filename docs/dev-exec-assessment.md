@@ -1,5 +1,11 @@
 # dev-exec: reference repair and enforcement assessment
 
+Historical assessment. The approved [native desktop memory guard](desktop-memory-guard.md)
+now owns the replacement design and operator-only activation (US-043): an
+inherited fleet backstop plus explicit two-slot local exceptions, with portable
+heavy work off-host. Staging is not activation; the claims below describe the
+earlier opt-in boundary.
+
 ## Reference incident
 
 A shared skill referenced `references/dev-exec.md`, which existed only in the

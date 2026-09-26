@@ -14,6 +14,9 @@
 !/system-one/**
 !/audio-sandbox/
 !/audio-sandbox/**
+!/desktop-guard/
+!/desktop-guard/**
+/desktop-guard/**/__pycache__/
 !/candidates/
 !/candidates/**
 !/.githooks/
