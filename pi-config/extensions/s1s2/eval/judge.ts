@@ -258,6 +258,28 @@ function parseReply(reply: unknown, order: string[]): { scores: Record<string, S
 	}
 	return { scores, ranking: ranked.map((label) => order[labels.indexOf(label)]) };
 }
+/**
+ * The verdict in a judge's reply: the whole reply as JSON, or else the last JSON object in it that is a
+ * complete verdict (MiniMax-M3 writes its reasoning, then a fenced verdict, despite "JSON only").
+ */
+function parseReplyText(reply: string | null, order: string[]): { scores: Record<string, Scores>; ranking: string[] } | null {
+	if (reply === null) return null;
+	try {
+		return parseReply(JSON.parse(reply), order);
+	} catch {
+		// prose around the verdict: look for it from the end
+	}
+	const end = reply.lastIndexOf("}");
+	for (let start = reply.lastIndexOf("{", end); start >= 0; start = start === 0 ? -1 : reply.lastIndexOf("{", start - 1)) {
+		try {
+			const result = parseReply(JSON.parse(reply.slice(start, end + 1)), order);
+			if (result) return result;
+		} catch {
+			// not a complete object yet: widen to an earlier brace
+		}
+	}
+	return null;
+}
 async function callLlm(judge: (typeof JUDGES)[number], prompt: string, order: string[], key: string): Promise<{ attempt: Attempt; result: { scores: Record<string, Scores>; ranking: string[] } | null; retry: boolean }> {
 	let reply: string | null = null;
 	let costUsd: number | null = null;
@@ -284,9 +306,7 @@ async function callLlm(judge: (typeof JUDGES)[number], prompt: string, order: st
 		const choices = isObject(data) && Array.isArray(data.choices) ? data.choices : [];
 		const message = isObject(choices[0]) ? choices[0].message : null;
 		reply = isObject(message) && typeof message.content === "string" ? message.content : null;
-		let parsed: unknown = null;
-		try { parsed = reply === null ? null : JSON.parse(reply); } catch { /* invalid model reply, retry once */ }
-		const result = parseReply(parsed, order);
+		const result = parseReplyText(reply, order);
 		return { attempt: { valid: result !== null, costUsd, promptTokens, completionTokens, reply, error: result ? null : "invalid JSON verdict" }, result, retry: result === null };
 	} catch (error) {
 		return { attempt: { valid: false, costUsd, promptTokens, completionTokens, reply, error: error instanceof Error ? error.message : String(error) }, result: null, retry: false };
@@ -354,7 +374,13 @@ for (const task of tasks) {
 		const previous = cached.get(judge.id);
 		const attempts = previous && previous.judge !== "jev" ? previous.attempts : [];
 		let record: LlmVerdict = { task: task.id, judge: judge.id, labels: mapping, valid: false, scores: null, ranking: null, costUsd: null, promptTokens: null, completionTokens: null, attempts: [...attempts] };
-		for (let retry = 0; retry < 2; retry++) {
+		// A cached reply the current parser can read is a verdict already paid for.
+		const reread = attempts.map((attempt) => parseReplyText(attempt.reply, order)).find((result) => result !== null) ?? null;
+		if (reread) {
+			record = { ...record, valid: true, scores: reread.scores, ranking: reread.ranking, costUsd: totalKnown(attempts.map((attempt) => attempt.costUsd)), promptTokens: totalKnown(attempts.map((attempt) => attempt.promptTokens)), completionTokens: totalKnown(attempts.map((attempt) => attempt.completionTokens)) };
+			writeFileSync(cachePath(task, judge.id), `${JSON.stringify(record, null, 2)}\n`);
+		}
+		for (let retry = 0; retry < 2 && !record.valid; retry++) {
 			const result = await callLlm(judge, prompt, order, apiKey);
 			const nextAttempts = [...record.attempts, result.attempt];
 			record = {
