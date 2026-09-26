@@ -543,7 +543,10 @@ function adrIssues(repo: string, files: string[], issues: Issue[]): void {
 function contentIssues(repo: string, checkerPath: string, adoption: unknown): Issue[] {
 	const issues: Issue[] = [];
 	const files = tracked(repo);
-	const headFiles = new Set(git(repo, "ls-tree", "-r", "--name-only", "-z", "HEAD").split("\0").filter(Boolean));
+	// An unborn repository has no candidate tree; the installer smoke still needs the missing-adoption
+	// diagnostic, while no index-only path may satisfy a HEAD reference.
+	const hasHead = spawnSync("git", ["rev-parse", "--verify", "HEAD"], { cwd: repo, stdio: "ignore" }).status === 0;
+	const headFiles = new Set(hasHead ? git(repo, "ls-tree", "-r", "--name-only", "-z", "HEAD").split("\0").filter(Boolean) : []);
 	const names = new Set(files);
 	const surfaces = record(adoption) && Array.isArray(adoption.surfaces) ? adoption.surfaces : [];
 	const required = ["README.md", "AGENTS.md", "DOMAIN.md", "USER_STORIES.md"];
