@@ -701,33 +701,128 @@ function defaultBranch(repo: string): string | undefined {
 	const head = spawnSync("git", ["symbolic-ref", "--short", "refs/remotes/origin/HEAD"], { cwd: repo, encoding: "utf8" });
 	return head.status === 0 && head.stdout.trim().startsWith("origin/") ? head.stdout.trim().slice("origin/".length) : undefined;
 }
+/** Predicates over one `&&` term of a ship-chain job condition. */
+interface GuardPredicates {
+	/** The term holds on every green push when the workflow runs on `push`. */
+	push: (term: string) => boolean;
+	/** The term holds on every green push when the workflow runs on the gate's successful `workflow_run`. */
+	run: (term: string) => boolean;
+	/** The term pins the default branch, which a manual-dispatch alternative must carry. */
+	trunk: (term: string) => boolean;
+}
 /**
  * Terms a ship job, or a job it needs, may combine with `&&` and still run on every green push to the default
- * branch. Anything else (a promotion branch, a commit-message opt-in, a repository toggle, always()) fails closed.
+ * branch, for the event that carries it: `workflow_run` fields do not exist on a push event, and a workflow_run
+ * event is never a push. Anything else (a promotion branch, a commit-message opt-in, a repository toggle,
+ * always()) fails closed.
  */
-function guardAllowed(branch: string): (term: string) => boolean {
-	const quoted = (value: string) => `['"]${value.replace(/[.*+?^${}()|[\]\\/]/g, "\\$&")}['"]`;
+function guardAllowed(branch: string): GuardPredicates {
+	// GitHub expressions quote strings with single quotes only; a double-quoted literal does not parse.
+	const quoted = (value: string) => `'${value.replace(/[.*+?^${}()|[\]\\/]/g, "\\$&")}'`;
 	const repository = ciEvent()?.repository;
 	const fullName = process.env.GITHUB_REPOSITORY || (record(repository) && text(repository.full_name) ? repository.full_name : undefined);
-	const allowed = [
-		/^success\(\)$/,
-		new RegExp(`^github\\.event_name==${quoted("push")}$`),
-		new RegExp(`^github\\.event_name!=${quoted("pull_request")}$`),
+	const trunk = [
 		new RegExp(`^github\\.ref==${quoted(`refs/heads/${branch}`)}$`),
 		new RegExp(`^github\\.ref_name==${quoted(branch)}$`),
 		/^github\.ref_name==github\.event\.repository\.default_branch$/,
-		/^github\.ref==format\(['"]refs\/heads\/\{0\}['"],github\.event\.repository\.default_branch\)$/,
-		new RegExp(`^github\\.event\\.workflow_run\\.conclusion==${quoted("success")}$`),
-		new RegExp(`^github\\.event\\.workflow_run\\.head_branch==${quoted(branch)}$`),
-		new RegExp(`^github\\.event\\.workflow_run\\.event==${quoted("push")}$`),
+		/^github\.ref==format\('refs\/heads\/\{0\}',github\.event\.repository\.default_branch\)$/,
+	];
+	const either = [
+		/^success\(\)$/,
+		new RegExp(`^github\\.event_name!=${quoted("pull_request")}$`),
+		...trunk,
 		...(fullName ? [new RegExp(`^github\\.repository==${quoted(fullName)}$`)] : []),
 	];
-	return (term) => allowed.some((pattern) => pattern.test(term));
+	const push = [...either, new RegExp(`^github\\.event_name==${quoted("push")}$`)];
+	const run = [
+		...either,
+		new RegExp(`^github\\.event\\.workflow_run\\.conclusion==${quoted("success")}$`),
+		new RegExp(`^github\\.event\\.workflow_run\\.head_branch==${quoted(branch)}$`),
+		/^github\.event\.workflow_run\.head_repository\.full_name==github\.repository$/,
+		new RegExp(`^github\\.event\\.workflow_run\\.event==${quoted("push")}$`),
+	];
+	const matches = (patterns: RegExp[]) => (term: string) => patterns.some((pattern) => pattern.test(term));
+	return { push: matches(push), run: matches(run), trunk: matches(trunk) };
 }
+/** Drops `${{ }}` and whitespace outside single-quoted literals, so `'p ush'` stays distinct from `'push'`. */
+const bareCondition = (condition: unknown): string => {
+	if (condition === undefined) return "";
+	let bare = "";
+	let literal = false;
+	for (const c of String(condition).replace(/^\s*\$\{\{([\s\S]*)\}\}\s*$/, "$1")) {
+		if (c === "'") literal = !literal;
+		if (literal || !/\s/.test(c)) bare += c;
+	}
+	return bare;
+};
 const guardTerms = (condition: unknown): string[] => {
-	const bare = condition === undefined ? "" : String(condition).replace(/^\s*\$\{\{([\s\S]*)\}\}\s*$/, "$1").replace(/\s+/g, "");
+	const bare = bareCondition(condition);
 	return bare === "" ? [] : bare.split("&&").map((term) => term.replace(/^\((.*)\)$/, "$1"));
 };
+/** Splits at top-level `op`, outside parentheses and quoted strings; undefined when parentheses or quotes do not balance. */
+function splitTopLevel(expression: string, op: "&&" | "||"): string[] | undefined {
+	const parts: string[] = [];
+	let depth = 0;
+	let quote = "";
+	let start = 0;
+	for (let i = 0; i < expression.length; i++) {
+		const c = expression[i];
+		if (quote) {
+			if (c === quote) quote = "";
+		} else if (c === "'") quote = c;
+		else if (c === "(") depth++;
+		else if (c === ")" && --depth < 0) return undefined;
+		else if (depth === 0 && expression.startsWith(op, i)) {
+			parts.push(expression.slice(start, i));
+			start = i + op.length;
+			i += op.length - 1;
+		}
+	}
+	if (depth !== 0 || quote) return undefined;
+	parts.push(expression.slice(start));
+	return parts;
+}
+/** Removes parentheses that enclose the whole expression, not `(a)||(b)`. */
+function unwrap(expression: string): string {
+	while (expression.startsWith("(") && expression.endsWith(")") && splitTopLevel(expression.slice(1, -1), "||") !== undefined) {
+		expression = expression.slice(1, -1);
+	}
+	return expression;
+}
+/** A condition's top-level `||` alternatives, each as its top-level `&&` terms; undefined when it does not parse. */
+function guardDisjuncts(condition: unknown): string[][] | undefined {
+	const bare = bareCondition(condition);
+	if (bare === "") return [];
+	const alternatives = splitTopLevel(unwrap(bare), "||");
+	if (!alternatives) return undefined;
+	const disjuncts: string[][] = [];
+	for (const alternative of alternatives) {
+		const terms = splitTopLevel(unwrap(alternative), "&&");
+		if (!terms || terms.some((term) => term === "")) return undefined;
+		disjuncts.push(terms.map(unwrap));
+	}
+	return disjuncts;
+}
+/** The automatic events that can carry a green push to the ship job. */
+type ShipEvent = "push" | "workflow_run";
+/**
+ * The shipping events on which a ship-chain job runs for every green push: its condition is a conjunction of terms
+ * that hold on that event, or one `||` alternative is and every other alternative is a manual dispatch of the
+ * default branch. GitHub prepends success() only to a condition that names no status function, so an extra
+ * alternative adds runs without skipping a failed gate only then: a disjunction naming any status function fails
+ * closed.
+ */
+function shipEvents(condition: unknown, allowed: GuardPredicates, events: ShipEvent[]): ShipEvent[] {
+	const disjuncts = guardDisjuncts(condition);
+	if (!disjuncts) return [];
+	const holds = (event: ShipEvent) => (terms: string[]) => terms.every(event === "push" ? allowed.push : allowed.run);
+	if (disjuncts.length <= 1) return events.filter((event) => holds(event)(disjuncts[0] ?? []));
+	if (/(?:success|always|failure|cancelled)\(\)/.test(bareCondition(condition))) return [];
+	const dispatch = (term: string) => /^github\.event_name=='workflow_dispatch'$/.test(term);
+	const manualTrunk = (terms: string[]) =>
+		terms.some(dispatch) && terms.some(allowed.trunk) && terms.every((term) => dispatch(term) || allowed.push(term) || allowed.run(term));
+	return events.filter((event) => disjuncts.some(holds(event)) && disjuncts.every((terms) => holds(event)(terms) || manualTrunk(terms)));
+}
 const needsOf = (job: Record<string, unknown>): string[] => (typeof job.needs === "string" ? [job.needs] : Array.isArray(job.needs) ? job.needs.map(String) : []);
 /** FND-REL-001: a green default branch ships through a job that waits on the gate; the receipt proves runtime tenant fan-out. */
 function shipProblems(repo: string, ship: unknown): string[] {
@@ -788,6 +883,13 @@ function shipProblems(repo: string, ship: unknown): string[] {
 	// The ship job and every job it needs, transitively, must exist, run on every green push, and block on failure:
 	// an opt-in or non-blocking gate one hop up is still not shipping on green.
 	const allowed = guardAllowed(branch);
+	// Every job in the chain must run on one common shipping event: a job that runs only on push behind one that runs
+	// only on workflow_run never ships. A workflow already failing its trigger check is judged against both events,
+	// so its guards add no second error.
+	const eligible: ShipEvent[] = onPush || onRun ? [...(onPush ? ["push" as const] : []), ...(onRun ? ["workflow_run" as const] : [])] : ["push", "workflow_run"];
+	let common = eligible;
+	let guardFailed = false;
+	const chainEvents: string[] = [];
 	const seen = new Set<string>();
 	const pending = [ship.job];
 	while (pending.length > 0) {
@@ -796,11 +898,24 @@ function shipProblems(repo: string, ship: unknown): string[] {
 		seen.add(name);
 		const current = workflow.jobs[name];
 		if (!record(current)) { problems.push(`job ${ship.job} needs ${name}, which does not exist`); continue; }
-		if (!guardTerms(current.if).every(allowed)) problems.push(`job ${name} has if: ${String(current.if)}, which does not ship every green push`);
+		const events = shipEvents(current.if, allowed, eligible);
+		if (events.length === 0) {
+			guardFailed = true;
+			problems.push(`job ${name} has if: ${String(current.if)}, which does not ship every green push`);
+		} else {
+			chainEvents.push(`${name}: ${events.join(" or ")}`);
+			common = common.filter((event) => events.includes(event));
+		}
 		if (name !== ship.job && current["continue-on-error"] !== undefined && current["continue-on-error"] !== false) problems.push(`job ${name} gates the ship job but has continue-on-error`);
 		pending.push(...needsOf(current));
 	}
-	const afterGreenRun = onRun && guardTerms(job.if).some((term) => /^github\.event\.workflow_run\.conclusion==['"]success['"]$/.test(term));
+	if (common.length === 0 && !guardFailed && chainEvents.length > 0) {
+		problems.push(`the jobs ${ship.job} needs run on no common event (${chainEvents.join("; ")}), so no green push ships`);
+	}
+	// A manual-dispatch alternative skips the upstream gate, so only a single green-run conjunction waits on it.
+	const shipDisjuncts = guardDisjuncts(job.if);
+	const afterGreenRun = onRun && shipDisjuncts?.length === 1 &&
+		shipDisjuncts[0].some((term) => /^github\.event\.workflow_run\.conclusion=='success'$/.test(term));
 	if (needsOf(job).length === 0 && !afterGreenRun) problems.push(`job ${ship.job} ships without waiting on the gate: give it needs, or run it from workflow_run only when the conclusion is success`);
 	if (multi) {
 		if (!text(tenancy.migrate) || !record(workflow.jobs[tenancy.migrate])) problems.push(`operations.ship.tenancy.migrate must name an existing job in ${ship.workflow}`);

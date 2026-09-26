@@ -144,9 +144,21 @@ error reports from real installs.
     `success()`, `github.event_name == 'push'`, `github.event_name !=
     'pull_request'`, a `github.ref`/`github.ref_name` test for the default
     branch, the repository fork guard, and the `workflow_run` conclusion, head
-    branch and event tests. Anything else (a promotion branch, a commit-message
-    opt-in, a repository toggle, `always()`) fails closed, and a gate job with
-    `continue-on-error` does not count. An all-green aggregator job with `if: always()`
+    branch, event and same-repository tests. Each guard counts only for the event
+    that ships: `github.event_name == 'push'` for a push-triggered workflow, the
+    `workflow_run` tests for one that follows the gate (their fields are empty
+    on a push), and the ship job and every job it needs must run on one common
+    event. Anything else (a promotion branch, a commit-message opt-in, a
+    repository toggle, `always()`) fails closed, and a gate job with
+    `continue-on-error` does not count. Beside such a conjunction,
+    `||` may add only manual re-runs of the default branch
+    (`github.event_name == 'workflow_dispatch'` with a default-branch `ref`
+    test and otherwise allowed guards), and only when no alternative names a
+    status function: GitHub then keeps its implicit `success()`, so a failed
+    gate still stops the job. A ship job that waits through the `workflow_run`
+    success condition rather than `needs` may not add that alternative, because a
+    dispatch run would skip the gate (amended 2026-09-26, MIS-150: Tach's
+    continuous deployment re-runs trunk this way). An all-green aggregator job with `if: always()`
     (a merge gate that fails unless every upstream succeeded) blocks correctly
     but cannot be verified from the file, so the ship job needs the checking
     jobs themselves; a repository using such an aggregator lists them. For

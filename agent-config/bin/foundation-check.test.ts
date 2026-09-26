@@ -816,7 +816,7 @@ describe("foundation-check operational obligations (ADR-005, US-040)", () => {
 		expect(cli(repo, "check").status).toBe(0);
 	});
 
-	test("a satisfied claim must hold up: a gated ship job, named alerting, and postmortems that link their class fix", () => {
+	test("a satisfied claim must hold up: a gated ship job, named alerting, and postmortems that link their class fix", { timeout: 20_000 }, () => {
 		const repo = fixture("ops-satisfied");
 		// The checker confirms the declared branch is the default one; a clone knows it through origin/HEAD.
 		exec(repo, ["update-ref", "refs/remotes/origin/main", "HEAD"]);
@@ -857,6 +857,24 @@ describe("foundation-check operational obligations (ADR-005, US-040)", () => {
 		refused("  push:\n  workflow_dispatch:", "    needs: [test]\n    if: github.event_name == 'workflow_dispatch'\n", "job deploy has if: github.event_name == 'workflow_dispatch'");
 		refused("  push:", "    needs: [test]\n    if: github.ref == 'refs/heads/production'\n", "job deploy has if: github.ref == 'refs/heads/production'");
 		refused("  push:\n    branches: [main]", "    needs: [test]\n    if: contains(github.event.head_commit.message, '[deploy]')\n", "job deploy has if: contains(github.event.head_commit.message, '[deploy]')");
+		// A manual-dispatch alternative may only re-run the default branch, and no alternative may name a status function:
+		// GitHub then drops its implicit success(), so the other alternative could ship past a failed gate.
+		const both = "  push:\n    branches: [main]\n  workflow_dispatch:";
+		for (const condition of [
+			"github.event_name == 'push' || github.event_name == 'workflow_dispatch'",
+			"github.event_name == 'push' || github.ref == 'refs/heads/production'",
+			"(github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') || always()",
+			"(github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') || (success() && github.event_name == 'push')",
+			"(github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.force) || github.event_name == 'push'",
+			"(github.event_name == 'workflow_dispatch' || github.event_name == 'push') && github.ref == 'refs/heads/main'",
+			"(github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') || (github.event_name == 'workflow_dispatch' && github.ref_name == 'main')",
+			// workflow_run fields are empty on a push event, so these never ship a push.
+			"github.event.workflow_run.head_repository.full_name == github.repository",
+			"github.event_name == 'push' && github.event.workflow_run.event == 'push'",
+			// Whitespace inside a literal is part of it, and GitHub rejects double-quoted literals.
+			"github.event_name == 'p ush'",
+			"github.event_name == \"push\"",
+		]) refused(both, `    needs: [test]\n    if: ${condition}\n`, `job deploy has if: ${condition}, which does not ship every green push`);
 		// The jobs the ship job needs are part of the gate: an opt-in, a non-blocking or a missing one is not shipping on green.
 		deploy("  push:\n    branches: [main]", "    needs: [test]\n", "    if: contains(github.event.head_commit.message, '[deploy]')\n");
 		expect(errors(repo)).toContain("FND-REL-001: satisfied, but job test has if: contains(github.event.head_commit.message, '[deploy]')");
@@ -865,7 +883,8 @@ describe("foundation-check operational obligations (ADR-005, US-040)", () => {
 		refused("  push:\n    branches: [main]", "    needs: [lint]\n", "job deploy needs lint, which does not exist");
 		// Globs, a string branch filter, and the usual push guards all ship every green push to main.
 		for (const [on, job] of [["  push:\n    branches: ['**']", ""], ["  push:\n    branches: main", ""], ["  push:\n  pull_request:", "    if: github.event_name != 'pull_request'\n"],
-			["  push:", "    if: ${{ github.ref == 'refs/heads/main' && github.event_name == 'push' }}\n"], ["  push:", "    if: github.ref_name == github.event.repository.default_branch\n"]]) {
+			["  push:", "    if: ${{ github.ref == 'refs/heads/main' && github.event_name == 'push' }}\n"], ["  push:", "    if: github.ref_name == github.event.repository.default_branch\n"],
+			[both, "    if: (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') || github.event_name == 'push'\n"]]) {
 			deploy(on, `    needs: [test]\n${job}`);
 			expect(cli(repo, "check").output.errors).toEqual([]);
 		}
@@ -873,6 +892,24 @@ describe("foundation-check operational obligations (ADR-005, US-040)", () => {
 		const upstream = (on: string) => put(repo, ".github/workflows/ci.yml", `name: ci\non:\n${on}\njobs:\n  gate:\n    runs-on: ubuntu-latest\n    steps: [{ run: "true" }]\n`);
 		upstream("  push:\n    branches: [main]");
 		deploy("  workflow_run:\n    workflows: [ci]\n    types: [completed]", "    if: github.event.workflow_run.conclusion == 'success'\n");
+		expect(cli(repo, "check").output.errors).toEqual([]);
+		// Without needs, a manual-dispatch alternative ships without the upstream gate.
+		deploy("  workflow_run:\n    workflows: [ci]\n    types: [completed]\n  workflow_dispatch:",
+			"    if: github.event.workflow_run.conclusion == 'success' || (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main')\n");
+		expect(errors(repo)).toContain("FND-REL-001: satisfied, but job deploy ships without waiting on the gate: give it needs, or run it from workflow_run only when the conclusion is success");
+		deploy("  workflow_run:\n    workflows: [ci]\n    types: [completed]\n  workflow_dispatch:",
+			"    needs: [test]\n    if: >-\n      (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') ||\n      (github.event.workflow_run.event == 'push' && github.event.workflow_run.conclusion == 'success' &&\n       github.event.workflow_run.head_branch == 'main' && github.event.workflow_run.head_repository.full_name == github.repository)\n");
+		expect(cli(repo, "check").output.errors).toEqual([]);
+		// A workflow_run event is never a push.
+		refused("  workflow_run:\n    workflows: [ci]\n    types: [completed]", "    needs: [test]\n    if: github.event_name == 'push'\n",
+			"job deploy has if: github.event_name == 'push', which does not ship every green push");
+		// With both triggers, one conjunction and the whole needs chain must hold on the same event.
+		const twice = "  push:\n    branches: [main]\n  workflow_run:\n    workflows: [ci]\n    types: [completed]";
+		refused(twice, "    needs: [test]\n    if: github.event_name == 'push' && github.event.workflow_run.event == 'push'\n",
+			"job deploy has if: github.event_name == 'push' && github.event.workflow_run.event == 'push', which does not ship every green push");
+		deploy(twice, "    needs: [test]\n    if: github.event_name == 'push'\n", "    if: github.event.workflow_run.head_repository.full_name == github.repository\n");
+		expect(errors(repo)).toContain("FND-REL-001: satisfied, but the jobs deploy needs run on no common event (deploy: push; test: workflow_run), so no green push ships");
+		deploy(twice, "    needs: [test]\n    if: github.event_name == 'push'\n", "    if: github.event_name != 'pull_request'\n");
 		expect(cli(repo, "check").output.errors).toEqual([]);
 		upstream("  workflow_dispatch:");
 		expect(errors(repo)).toContain("FND-REL-001: satisfied, but .github/workflows/deploy.yml follows ci, which does not run on every push to main");
