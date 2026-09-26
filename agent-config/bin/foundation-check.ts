@@ -841,9 +841,13 @@ function securityIssues(repo: string, adoption: unknown): Issue[] {
 			if (!record(gate) || gate["continue-on-error"] !== undefined && gate["continue-on-error"] !== false ||
 				!conditionAllowed(gate.if, ["pull_request"], true)) return false;
 			active.add(name);
+			// A step-level `if: always()` (cleanup, artifact upload) only adds runs: any failing step still fails
+			// the job. A job-level always() is different, so the job condition above stays strict.
+			const alwaysStep = (condition: unknown) => typeof condition === "string" &&
+				/^\s*(\$\{\{\s*)?always\(\)(\s*\}\})?\s*$/.test(condition);
 			const result = stepsOf(gate).every((step) =>
 				(step["continue-on-error"] === undefined || step["continue-on-error"] === false) &&
-				conditionAllowed(step.if, ["pull_request"], true)) && needsOf(gate).every(gateBlocks);
+				(conditionAllowed(step.if, ["pull_request"], true) || alwaysStep(step.if))) && needsOf(gate).every(gateBlocks);
 			active.delete(name);
 			checked.set(name, result);
 			return result;

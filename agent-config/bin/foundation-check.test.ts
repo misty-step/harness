@@ -961,6 +961,10 @@ describe("foundation-check security baseline (ADR-006, US-024)", () => {
 		expect(errors()).toContain("security.dependencies.automerge job needs an existing blocking gate job");
 		put(repo, ".github/workflows/dependencies.yml", merge.replace("      - run: scripts/check", "      - run: scripts/check\n        if: false"));
 		expect(errors()).toContain("security.dependencies.automerge job needs an existing blocking gate job");
+		put(repo, ".github/workflows/dependencies.yml", merge.replace("      - run: scripts/check", "      - run: scripts/check\n      - run: echo upload\n        if: always()"));
+		expect(errors()).not.toContain("security.dependencies.automerge job needs an existing blocking gate job");
+		put(repo, ".github/workflows/dependencies.yml", merge.replace("  gate:\n    runs-on:", "  gate:\n    if: always()\n    runs-on:"));
+		expect(errors()).toContain("security.dependencies.automerge job needs an existing blocking gate job");
 		put(repo, ".github/workflows/dependencies.yml", merge.replace("  gate:\n    runs-on:",
 			"  upstream:\n    runs-on: ubuntu-latest\n    steps:\n      - run: scripts/check\n        continue-on-error: true\n  gate:\n    needs: [upstream]\n    runs-on:"));
 		expect(errors()).toContain("security.dependencies.automerge job needs an existing blocking gate job");
