@@ -241,8 +241,9 @@ function extractCalls(text: string, path: string, pattern: RegExp, kind: string)
 
 /** A brace capture is complete only when its statement ends right after it: a later argument, operator or continued line means it was cut off. */
 function endsStatement(text: string, end: number): boolean {
-	const rest = text.slice(end + 1);
-	const tail = /^[ \t]*(?:as\s+const|satisfies\s+[\w$.<>[\], ]+?)?[ \t]*\)*[ \t]*(;|\/\/|\/\*|\r?\n|$)/.exec(rest);
+	// Comments count as whitespace, keeping their line breaks: only the next code decides whether the statement continues.
+	const rest = text.slice(end + 1, end + 2001).replace(/\/\*[\s\S]*?\*\//g, (comment) => comment.replace(/[^\n]/g, " ")).replace(/\/\/[^\n]*/g, "");
+	const tail = /^[ \t]*(?:as\s+const|satisfies\s+[\w$.<>[\], ]+?)?[ \t]*\)*[ \t]*(;|\r?\n|$)/.exec(rest);
 	if (!tail) return false;
 	if (!/^\r?\n$/.test(tail[1])) return true;
 	const next = rest.slice(tail[0].length);

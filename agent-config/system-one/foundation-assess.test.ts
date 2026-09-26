@@ -172,7 +172,7 @@ describe("foundation assessment advisory", () => {
 		const repo = fixture({
 			"sentry-init.ts": "import * as Sentry from '@sentry/node';\nimport { options, environmentOptions } from './options';\nimport { getRelease, getPrivacy, getMode } from './release';\nSentry.init(options);\nSentry.init(environmentOptions);\nSentry.init(getRelease());\nSentry.init(getPrivacy());\nSentry.init(getMode());\n",
 			"options.ts": "import { privacyOptions } from './privacy';\nexport const options = { ...privacyOptions, environment: 'production' };\nexport const environmentOptions = process.env.CI\n  ? { environment: 'ci' }\n  : { environment: 'local' };\n",
-			"release.ts": "export function getRelease(): { release: string } { return { release: 'x', sendDefaultPii: true }; }\nexport function getPrivacy(): { pii: boolean }\n{\n  return { attachStacktrace: false, maxBreadcrumbs: 7 };\n}\nexport function getMode<T>(): T extends { strict: true } ? { mode: 'a' } : { mode: 'b' } { return { maxValueLength: 9 } as never; }\n",
+			"release.ts": "export function getRelease(): { release: string } { return { release: 'x', sendDefaultPii: true }; }\nexport function getPrivacy(): { pii: boolean } // runtime options\n{\n  return { attachStacktrace: false, maxBreadcrumbs: 7 };\n}\nexport function getMode<T>(): T extends { strict: true } ? { mode: 'a' } : { mode: 'b' } /* by mode */ { return { maxValueLength: 9 } as never; }\n",
 		});
 		const snapshot = openGitSnapshot(repo);
 		const state = distillFoundationPackets(repo, snapshot, "sentry").packets[0].state;
