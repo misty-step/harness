@@ -72,6 +72,14 @@ export const ADVISOR_SYSTEM = [
 	"blocker: continuing as is would produce broken or wrong work. concern: a material risk or gap worth acting on now. nit: minor.",
 ].join(" ");
 
+/** Reset (round 2): the advisor writes the handoff that replaces a stalled conversation. */
+export const RESET_SYSTEM = [
+	"You write a handoff for an AI coding agent (the executor) whose conversation is about to be cleared because it stopped making progress.",
+	"You see the task, a log of its actions, and its current diff. You cannot run tools.",
+	"Write plain text under 350 words: what is already done (files and changes), what is known (errors, failing checks, dead ends to avoid), and a numbered plan for the next steps.",
+	"Be concrete: name files, functions, and commands.",
+].join(" ");
+
 /** One line of the advisor's work log. */
 export type Card = { turn: number; text: string };
 

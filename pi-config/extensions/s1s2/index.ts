@@ -22,7 +22,7 @@
  * the Decisions call at a credential-injecting proxy instead of OpenRouter.
  */
 import type { ThinkingLevel } from "@earendil-works/pi-agent-core";
-import type { ExtensionAPI, ExtensionContext, SessionBoundaryDraft } from "@earendil-works/pi-coding-agent";
+import type { ExtensionAPI, ExtensionContext, SessionBoundaryDraft, TurnEndEvent } from "@earendil-works/pi-coding-agent";
 import { execFile } from "node:child_process";
 import { appendFileSync, mkdirSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
@@ -126,6 +126,12 @@ export default function s1s2(pi: ExtensionAPI): void | Promise<void> {
 	// Round-2 feature state.
 	let checklistDone = false;
 	let baseThinking: ThinkingLevel | null = null;
+	let resetDone = false;
+	let lastTrimTurn = Number.NEGATIVE_INFINITY;
+	/** Tokens the latest request carried (fresh and cached input plus output): the context size trim watches. */
+	let contextTokens = 0;
+	const trimmed = new Set<string>();
+	const toolTurns = new Map<string, { turn: number; summary: string }>();
 	const totals = {
 		calls: 0,
 		failedCalls: 0,
@@ -303,8 +309,10 @@ export default function s1s2(pi: ExtensionAPI): void | Promise<void> {
 	});
 
 	pi.on("message_end", (event) => {
-		const message = event.message as { role?: string; content?: unknown };
+		const message = event.message as { role?: string; content?: unknown; usage?: { input?: number; output?: number; cacheRead?: number; cacheWrite?: number } };
 		if (message.role !== "assistant") return;
+		const usage = message.usage;
+		if (usage) contextTokens = (usage.input ?? 0) + (usage.cacheRead ?? 0) + (usage.cacheWrite ?? 0) + (usage.output ?? 0);
 		lastAssistantText = textOf(message.content).slice(-2000);
 		const card = A.assistantCard(turn, lastAssistantText);
 		if (card) cards.push(card);
@@ -332,6 +340,8 @@ export default function s1s2(pi: ExtensionAPI): void | Promise<void> {
 		settleReviewed = false;
 		pendingAdvice = [];
 		checklistDone = false;
+		resetDone = false;
+		lastTrimTurn = Number.NEGATIVE_INFINITY;
 		if (features.has("effort")) baseThinking ??= pi.getThinkingLevel();
 		if (!(await provider(ctx))) {
 			record({ battery: "brief", action: "disabled", reason: "no_key" });
@@ -389,6 +399,7 @@ export default function s1s2(pi: ExtensionAPI): void | Promise<void> {
 			if (described.kind === "check" && !event.isError) verifiedFingerprint = fingerprint;
 		}
 		actions.push({ ...described, kind, turn, ok: !event.isError });
+		toolTurns.set(event.toolCallId, { turn, summary: described.summary });
 		cards.push(A.toolCard(turn, `${described.summary}${kind === "edit" && described.kind !== "edit" ? " (edited files)" : ""}`, !event.isError, event.isError ? textOf(event.content) : ""));
 		// Without a run directory there is nowhere outside the repository to save full output: fail open.
 		if (!batteries.has("triage") || event.toolName !== "bash" || !jev || !runDir) return;
@@ -446,13 +457,115 @@ export default function s1s2(pi: ExtensionAPI): void | Promise<void> {
 	// One turn_end handler: Pi replaces boundary entries with each handler's result, so the monitor and the
 	// advisor add theirs together, after every entry an earlier handler proposed.
 	pi.on("turn_end", async (event, ctx) => {
+		// A reset replaces the whole conversation, so nothing else is added on that turn.
+		const reset = await resetTurn(event.toolResults.length, ctx);
+		if (reset) return { entries: [...event.entries, reset] };
 		const added: SessionBoundaryDraft[] = [];
 		const note = await monitorTurn(event.toolResults.length, ctx);
 		if (note) added.push(note);
 		added.push(...(await advisorTurn(event.toolResults.length, ctx)));
+		added.push(...(await trimTurn(event, ctx)));
 		await effortTurn(event.toolResults.length, ctx);
 		return added.length > 0 ? { entries: [...event.entries, ...added] } : undefined;
 	});
+
+	// Trim (round 2): once the context is large, Jev picks old tool outputs later work made obsolete; each
+	// is saved in full to a spill file and replaced in the model's context by a pointer to it.
+	async function trimTurn(event: TurnEndEvent, ctx: ExtensionContext): Promise<SessionBoundaryDraft[]> {
+		if (!features.has("trim") || !jev || !runDir || contextTokens < Q.TRIM.minContextTokens || turn - lastTrimTurn < Q.TRIM.gapTurns) return [];
+		const candidates: (Q.TrimCandidate & { id: string })[] = [];
+		for (const entry of event.context.contextEntries) {
+			const source = entry.sourceEntry;
+			if (source.type !== "message" || source.message.role !== "toolResult" || trimmed.has(source.id)) continue;
+			const meta = toolTurns.get(source.message.toolCallId);
+			if (!meta || meta.turn > turn - Q.TRIM.keepRecentTurns) continue;
+			const text = textOf(source.message.content);
+			if (text.length >= Q.TRIM.minChars) candidates.push({ id: source.id, turn: meta.turn, summary: meta.summary, text });
+		}
+		candidates.sort((a, b) => b.text.length - a.text.length).splice(Q.TRIM.maxCandidates);
+		if (candidates.length === 0) return [];
+		lastTrimTurn = turn;
+		const call = await ask(ctx, Q.trimQuestions(candidates), Q.trimState(task, turn, actions, candidates));
+		if ("error" in call) {
+			record({ battery: "trim", action: "fail_open", error: call.error, latency_ms: call.latencyMs });
+			return [];
+		}
+		const drafts: SessionBoundaryDraft[] = [];
+		let chars = 0;
+		for (const index of Q.pickStale(call.answers, candidates)) {
+			const candidate = candidates[index];
+			const spill = join(runDir, "spill", `trim-${candidate.id}.txt`);
+			try {
+				writeFileSync(spill, candidate.text);
+			} catch {
+				continue; // without the saved copy, the output stays whole
+			}
+			trimmed.add(candidate.id);
+			chars += candidate.text.length;
+			const pointer = `[S1 trimmed this output from turn ${candidate.turn} (${candidate.text.length} characters) because later work made it obsolete. The full output is saved at ${spill}; read that file if you need it.]`;
+			drafts.push({ type: "context_edit", targetId: candidate.id, replacement: { content: [{ type: "text", text: pointer }] } });
+		}
+		record({ battery: "trim", ...callFields(call), candidates: candidates.length, trimmed: drafts.length, chars, context_tokens: contextTokens, action: drafts.length > 0 ? "trimmed" : "none" });
+		return drafts;
+	}
+
+	// Reset (round 2): once per prompt, when a long run stalls, the advisor model writes a handoff that
+	// replaces the whole conversation (a compaction that keeps no earlier entry).
+	async function resetTurn(toolResults: number, ctx: ExtensionContext): Promise<SessionBoundaryDraft | null> {
+		if (!features.has("reset") || resetDone || !jev || toolResults === 0 || turn < Q.RESET.minTurn) return null;
+		const extra = { lastMessage: lastAssistantText, editsSoFar: actions.filter((action) => action.kind === "edit").length };
+		const call = await ask(ctx, Q.RESET_QUESTIONS, A.gateState(task, turn, actions, S.monitorFacts(actions, turn), extra));
+		if ("error" in call) {
+			record({ battery: "reset", action: "fail_open", error: call.error, latency_ms: call.latencyMs });
+			return null;
+		}
+		const p = Q.resetProbability(call.answers);
+		const act = p !== undefined && p >= Q.RESET.resetMin;
+		record({ battery: "reset", ...callFields(call), p: p === undefined ? null : round(p), action: act ? "reset" : "none" });
+		if (!act) return null;
+		resetDone = true;
+		const handoff = await writeHandoff(ctx);
+		if (!handoff) return null;
+		// The fresh conversation starts from the handoff, so the advisor's log and the ledger start over too.
+		cards = [A.noteCard(turn, "System 1 reset; handoff", handoff)];
+		conversation = new A.AdvisorConversation();
+		actions = [];
+		return { type: "compaction", summary: `S1 reset at turn ${turn}: your earlier conversation was replaced by this handoff from the advisor.\n\nTask:\n${task}\n\nHandoff:\n${handoff}`, firstKeptEntryId: null };
+	}
+
+	/** The reset handoff from the advisor model; null on any failure (the run continues as it was). */
+	async function writeHandoff(ctx: ExtensionContext): Promise<string | null> {
+		const model = ctx.modelRegistry.find(advisor.provider, advisor.model);
+		const started = performance.now();
+		advisorTotals.byTrigger.reset = (advisorTotals.byTrigger.reset ?? 0) + 1;
+		if (!model) {
+			advisorTotals.failed++;
+			record({ battery: "reset_handoff", action: "fail_open", error: "model_missing" });
+			return null;
+		}
+		try {
+			const content = A.composeConsult(task, cards, S.diffText(ctx.cwd, A.ADVISOR.diffChars), "The executor stopped making progress. Its conversation will be replaced by your handoff.");
+			const message = await ctx.modelRegistry
+				.streamSimple(model, { systemPrompt: A.RESET_SYSTEM, messages: [{ role: "user", content, timestamp: Date.now() }] }, { reasoning: advisor.thinking as "high", maxTokens: Q.RESET.summaryTokens, signal: AbortSignal.timeout(A.ADVISOR.timeoutMs) })
+				.result();
+			const latencyMs = Math.round(performance.now() - started);
+			const text = message.content.map((part) => (part.type === "text" ? part.text : "")).join("\n").trim();
+			advisorTotals.consults++;
+			advisorTotals.latencyMs += latencyMs;
+			advisorTotals.inputTokens += message.usage?.input ?? 0;
+			advisorTotals.outputTokens += message.usage?.output ?? 0;
+			advisorTotals.cacheReadTokens += message.usage?.cacheRead ?? 0;
+			advisorTotals.costUsd += message.usage?.cost?.total ?? 0;
+			const ok = message.stopReason !== "error" && message.stopReason !== "aborted" && text.length > 0;
+			if (!ok) advisorTotals.failed++;
+			record({ battery: "reset_handoff", latency_ms: latencyMs, chars: text.length, stop: message.stopReason, action: ok ? "handoff" : "fail_open" });
+			return ok ? text : null;
+		} catch (error) {
+			advisorTotals.failed++;
+			record({ battery: "reset_handoff", action: "fail_open", error: error instanceof Error ? error.message.slice(0, 200) : "exception", latency_ms: Math.round(performance.now() - started) });
+			return null;
+		}
+	}
 
 	// Effort (round 2): Jev decides whether the next step is routine enough to run with reasoning off.
 	async function effortTurn(toolResults: number, ctx: ExtensionContext): Promise<void> {

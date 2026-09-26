@@ -32,7 +32,7 @@ const args = new Map<string, string>();
 for (let i = 2; i < process.argv.length; i += 2) args.set(process.argv[i].replace(/^--/, ""), process.argv[i + 1] ?? "");
 const fail = (message: string): never => (console.error(message), process.exit(2));
 const question = args.get("question") || "gate";
-if (!["gate", "effort", "checklist"].includes(question)) fail("--question must be gate, effort, or checklist");
+if (!["gate", "effort", "checklist", "trim", "reset"].includes(question)) fail("--question must be gate, effort, checklist, trim, or reset");
 const evidence = resolve(args.get("evidence") || fail("missing --evidence"));
 const out = resolve(args.get("out") || fail("missing --out"));
 const threshold = Number(args.get("threshold") ?? A.ADVISOR.gateMin);
@@ -44,8 +44,9 @@ const THRESHOLDS = [0.5, 0.55, 0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 0.9];
 /** File-writing shell commands; the live battery detects these edits from the worktree instead. */
 const SHELL_EDIT = /\bsed -i|\bcat\s*>|\btee\b|\bapply_patch\b|\bpython3?\s+-\s*<<|writeFileSync|>\s*[\w./-]+\.(ts|md|json|sh|yml|yaml)\b/;
 
-type Point = { turn: number; state: A.GateState; cards: A.Card[]; edited: boolean; p: number | null };
-type Run = { id: string; task: string; points: Point[]; cards: A.Card[]; finalDiff: string };
+type Point = { turn: number; state: A.GateState; cards: A.Card[]; edited: boolean; p: number | null; contextTokens: number; actions: Action[] };
+type Output = Q.TrimCandidate;
+type Run = { id: string; task: string; points: Point[]; cards: A.Card[]; finalDiff: string; outputs: Output[] };
 
 const asObject = (value: unknown): Record<string, unknown> | undefined => (value !== null && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : undefined);
 const textOf = (content: unknown): string =>
@@ -62,11 +63,13 @@ function replay(id: string, sessionFile: string, finalDiff: string): Run {
 	const calls = new Map<string, { name: string; args: unknown }>();
 	let results = 0;
 	let edited = false;
+	let contextTokens = 0;
+	const outputs: Output[] = [];
 	const closeTurn = () => {
 		if (turn === 0 || results === 0) return;
 		const editsSoFar = actions.filter((action) => action.kind === "edit").length;
 		const state = A.gateState(task, turn, actions, monitorFacts(actions, turn), { lastMessage, editsSoFar });
-		points.push({ turn, state, cards: [...cards], edited, p: null });
+		points.push({ turn, state, cards: [...cards], edited, p: null, contextTokens, actions: [...actions] });
 	};
 	for (const line of readFileSync(sessionFile, "utf8").split("\n")) {
 		if (!line.trim()) continue;
@@ -84,6 +87,8 @@ function replay(id: string, sessionFile: string, finalDiff: string): Run {
 			results = 0;
 			edited = false;
 			const parts = Array.isArray(message.content) ? message.content.map(asObject) : [];
+			const usage = asObject(message.usage);
+			if (usage) contextTokens = ["input", "cacheRead", "cacheWrite", "output"].reduce((sum, field) => sum + (Number(usage[field]) || 0), 0);
 			lastMessage = parts.map((part) => (part?.type === "text" ? String(part.text ?? "") : "")).join("\n").slice(-2000);
 			const card = A.assistantCard(turn, lastMessage);
 			if (card) cards.push(card);
@@ -98,11 +103,12 @@ function replay(id: string, sessionFile: string, finalDiff: string): Run {
 			if (kind === "edit") edited = true;
 			actions.push({ ...described, kind, turn, ok });
 			cards.push(A.toolCard(turn, `${described.summary}${kind === "edit" && described.kind !== "edit" ? " (edited files)" : ""}`, ok, ok ? "" : textOf(message.content)));
+			outputs.push({ turn, summary: described.summary, text: textOf(message.content) });
 			results++;
 		}
 	}
 	closeTurn();
-	return { id, task, points, cards, finalDiff };
+	return { id, task, points, cards, finalDiff, outputs };
 }
 
 /** Recorded Pi sessions: the pilot's s1s2 arm and both arms of the control run (OMP transcripts use another format). */
@@ -199,28 +205,32 @@ async function consultAdvisor(run: Run, cards: A.Card[], diff: string, reason: s
 
 mkdirSync(out, { recursive: true });
 const cachePath = join(out, `${question}-answers.json`);
-const cached: Record<string, number | null> = existsSync(cachePath) ? (JSON.parse(readFileSync(cachePath, "utf8")) as Record<string, number | null>) : {};
+type Cached = number | number[] | null;
+const cached: Record<string, Cached> = existsSync(cachePath) ? (JSON.parse(readFileSync(cachePath, "utf8")) as Record<string, Cached>) : {};
 const jev = new OpenRouterJevProvider(key);
 const spend = { calls: 0, failed: 0, cached: 0, costUsd: 0 };
 
-/** Ask Jev once per item (cached by id) and keep the number `read` takes from the answers. */
-async function askAll<T>(items: readonly T[], id: (item: T) => string, state: (item: T) => unknown, questions: (item: T) => Record<string, Question>, read: (answers: Record<string, Answer>, item: T) => number | undefined): Promise<Map<string, number | null>> {
-	const found = new Map<string, number | null>();
+/** Ask Jev once per item (cached by id) and keep what `read` takes from the answers. */
+async function askAll<T, V extends number | number[]>(items: readonly T[], id: (item: T) => string, state: (item: T) => unknown, questions: (item: T) => Record<string, Question>, read: (answers: Record<string, Answer>, item: T) => V | undefined): Promise<Map<string, V | null>> {
+	const found = new Map<string, V | null>();
 	await pool(items, 6, async (item) => {
 		const key = id(item);
 		if (key in cached) {
 			spend.cached++;
-			found.set(key, cached[key]);
+			found.set(key, cached[key] as V | null);
 			return;
 		}
 		const serialized = JSON.stringify(state(item));
 		if (serialized.length > Q.STATE_MAX_CHARS) {
-			found.set(key, (cached[key] = null));
+			found.set(key, null);
+			cached[key] = null;
 			return;
 		}
 		try {
 			const evaluation = await jev.evaluateWithMetadata(serialized, questions(item), Q.CALL_TIMEOUT_MS);
-			found.set(key, (cached[key] = read(evaluation.answers, item) ?? null));
+			const value = read(evaluation.answers, item) ?? null;
+			found.set(key, value);
+			cached[key] = value;
 			spend.calls++;
 			spend.costUsd += evaluation.usage?.costUsd ?? 0;
 		} catch {
@@ -269,17 +279,50 @@ if (question === "checklist") {
 		hiddenFail: scored.filter((entry) => !entry.hiddenPass).length,
 		perRun: scored,
 	};
+} else if (question === "trim") {
+	// The live policy: once a request carries enough tokens, at most every gapTurns turns, the largest old outputs.
+	const sets = recordedRuns().flatMap((run) => {
+		let last = Number.NEGATIVE_INFINITY;
+		return run.points.flatMap((point) => {
+			if (point.contextTokens < Q.TRIM.minContextTokens || point.turn - last < Q.TRIM.gapTurns) return [];
+			const candidates = run.outputs.filter((output) => output.turn <= point.turn - Q.TRIM.keepRecentTurns && output.text.length >= Q.TRIM.minChars).sort((a, b) => b.text.length - a.text.length).slice(0, Q.TRIM.maxCandidates);
+			if (candidates.length === 0) return [];
+			last = point.turn;
+			return [{ id: `${run.id}#${point.turn}`, task: run.task, point, candidates }];
+		});
+	});
+	const answers = await askAll(
+		sets,
+		(set) => set.id,
+		(set) => Q.trimState(set.task, set.point.turn, set.point.actions, set.candidates),
+		(set) => Q.trimQuestions(set.candidates),
+		(found, set) => Q.neededProbabilities(found, set.candidates),
+	);
+	const rows = sets.flatMap((set) => (answers.get(set.id) ?? []).map((needed, i) => ({ needed, chars: set.candidates[i].text.length })));
+	const levels = [0.2, 0.3, 0.35, 0.4, 0.45, 0.5, 0.55, 0.6];
+	report = {
+		question,
+		trimPoints: sets.length,
+		candidates: rows.length,
+		candidateChars: rows.reduce((sum, row) => sum + row.chars, 0),
+		perThreshold: levels.map((t) => ({ needMax: t, trimmed: rows.filter((row) => row.needed < t).length, trimmedChars: rows.filter((row) => row.needed < t).reduce((sum, row) => sum + row.chars, 0) })),
+	};
 } else {
 	const runs = recordedRuns();
-	const points = runs.flatMap((run) => run.points.map((point) => ({ run, point })));
+	const eligible = (point: Point) => question !== "reset" || point.turn >= Q.RESET.minTurn;
+	const points = runs.flatMap((run) => run.points.filter(eligible).map((point) => ({ run, point })));
 	const id = ({ run, point }: { run: Run; point: Point }) => `${run.id}#${point.turn}`;
-	const questions = question === "gate" ? A.GATE_QUESTIONS : Q.EFFORT_QUESTIONS;
-	const read = question === "gate" ? A.gateProbability : Q.routineProbability;
+	const questions = question === "gate" ? A.GATE_QUESTIONS : question === "reset" ? Q.RESET_QUESTIONS : Q.EFFORT_QUESTIONS;
+	const read = question === "gate" ? A.gateProbability : question === "reset" ? Q.resetProbability : Q.routineProbability;
 	const answers = await askAll(points, id, (entry) => entry.point.state, () => questions, (found) => read(found));
 	for (const entry of points) entry.point.p = answers.get(id(entry)) ?? null;
 	const probabilities = points.flatMap((entry) => (entry.point.p === null ? [] : [entry.point.p]));
 	const distribution = { mean: probabilities.reduce((sum, p) => sum + p, 0) / Math.max(1, probabilities.length), atLeast: Object.fromEntries(THRESHOLDS.map((t) => [t, share(probabilities, t)])) };
-	if (question === "effort") {
+	if (question === "reset") {
+		const long = runs.filter((run) => run.points.some(eligible));
+		const perThreshold = THRESHOLDS.map((t) => ({ threshold: t, runsReset: long.filter((run) => run.points.some((point) => eligible(point) && point.p !== null && point.p >= t)).length }));
+		report = { question, runs: runs.length, longRuns: long.length, points: probabilities.length, distribution, perThreshold, perRun: long.map((run) => ({ run: run.id, p: run.points.filter(eligible).map((point) => point.p) })) };
+	} else if (question === "effort") {
 		report = { question, runs: runs.length, points: probabilities.length, distribution, perRun: runs.map((run) => ({ run: run.id, p: run.points.map((point) => point.p) })) };
 	} else {
 		const perThreshold = THRESHOLDS.map((t) => {

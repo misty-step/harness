@@ -52,30 +52,38 @@ import { createHash } from "node:crypto";
 import { appendFileSync, cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { userInfo } from "node:os";
 import { dirname, join, resolve } from "node:path";
+import { redactText } from "../../../../agent-config/system-one/continuation.ts";
+import { OpenRouterJevProvider } from "../../../../agent-config/system-one/engine.ts";
 
 type Command = { cwd: string; cmd: string };
 type Task = { id: string; pr: number; size: string; base: string; merge: string; hidden: string[]; grade: Command[]; regress: Command[]; statement: string };
 type Manifest = { repo: string; tasks: Task[] };
 type AdvisorMode = "off" | "every" | "gated" | "tool";
-/** What an arm runs: harness, whether System 1 loads, its advisor mode, whether System 2 is the advisor model, extra System 1 settings. */
-type ArmSpec = { harness: "omp" | "pi"; s1: boolean; advisor: AdvisorMode; strong: boolean; env: Record<string, string> };
-const piArm = (s1: boolean, advisor: AdvisorMode = "off", strong = false, env: Record<string, string> = {}): ArmSpec => ({ harness: "pi", s1, advisor, strong, env });
+/**
+ * What an arm runs: harness, whether System 1 loads, its advisor mode, whether System 2 is the advisor
+ * model, extra System 1 settings, and how many independent attempts it makes (best of N picks one).
+ */
+type ArmSpec = { harness: "omp" | "pi"; s1: boolean; advisor: AdvisorMode; strong: boolean; env: Record<string, string>; attempts: number };
+const piArm = (s1: boolean, advisor: AdvisorMode = "off", strong = false, env: Record<string, string> = {}, attempts = 1): ArmSpec => ({ harness: "pi", s1, advisor, strong, env, attempts });
 const ARM_SPECS: Record<string, ArmSpec> = {
 	pi: piArm(false),
-	omp: { harness: "omp", s1: false, advisor: "off", strong: false, env: {} },
+	omp: { harness: "omp", s1: false, advisor: "off", strong: false, env: {}, attempts: 1 },
 	s1s2: piArm(true),
 	"s1s2-gated": piArm(true, "gated"),
 	"s1s2-every": piArm(true, "every"),
 	"s1s2-tool": piArm(true, "tool"),
 	"s1s2-strong": piArm(true, "off", true),
-	// Experiments 2, 3, and 5: one System 1 change each against s1s2.
+	// Experiments 2, 3, 5, 6, 8, and 9: one System 1 change each against s1s2.
 	"s1s2-checklist": piArm(true, "off", false, { S1S2_FEATURES: "checklist" }),
 	"s1s2-effort": piArm(true, "off", false, { S1S2_FEATURES: "effort" }),
 	"s1s2-richbrief": piArm(true, "off", false, { S1S2_FEATURES: "richbrief" }),
 	"s1s2-briefonly": piArm(true, "off", false, { S1S2_BATTERIES: "brief" }),
+	"s1s2-trim": piArm(true, "off", false, { S1S2_FEATURES: "trim" }),
+	"s1s2-reset": piArm(true, "off", false, { S1S2_FEATURES: "reset" }),
+	"s1s2-best2": piArm(true, "off", false, {}, 2),
 };
-/** OMP's Steward, System 1's advisor, and the strong arm's System 2 all run the advisor model. */
-const usesAdvisorModel = (spec: ArmSpec) => spec.harness === "omp" || spec.advisor !== "off" || spec.strong;
+/** OMP's Steward, System 1's advisor and reset handoff, and the strong arm's System 2 all run the advisor model. */
+const usesAdvisorModel = (spec: ArmSpec) => spec.harness === "omp" || spec.advisor !== "off" || spec.strong || /\breset\b/.test(spec.env.S1S2_FEATURES ?? "");
 
 const args = new Map<string, string>();
 for (let i = 2; i < process.argv.length; i += 2) args.set(process.argv[i].replace(/^--/, ""), process.argv[i + 1] ?? "");
@@ -555,6 +563,121 @@ const wrapper =
 	"You are working in a Git repository (the current directory). Complete the task below without asking questions. " +
 	"Leave your changes in the working tree; do not commit, push, or open pull requests. When you finish, reply with a short summary of what you changed and how you verified it.\n\nTask:\n";
 
+type Attempt = {
+	copy: string;
+	run: { exit: number | null; signal: string | null; timedOut: boolean; ms: number };
+	deliverable: { diff: string; files: number; added: number; deleted: number };
+	accounting: { usage: Usage; modelCalls: number; parentTurns: number; models: string[] };
+	s1: unknown;
+	parity: unknown;
+};
+
+/** One agent attempt at a task in `dir`: a fresh base-only checkout in the agent's home, the agent run, and its work copied back. */
+async function attempt(task: Task, arm: string, spec: ArmSpec, systemModel: string, branch: string, overlay: string, dir: string, label: string): Promise<Attempt> {
+	mkdirSync(dir, { recursive: true });
+	// The agent's world: one base-only checkout, shims, and scratch in its own home.
+	const work = join(agentHome, "work", label);
+	asAgent(["rm", "-rf", work]);
+	asAgent(["mkdir", "-p", "-m", "750", join(work, "tmp"), join(work, "sessions"), join(work, "s1")]);
+	git(src, "bundle", "create", "-q", join(dir, "base.bundle"), branch);
+	for (const [from, to] of [[join(dir, "base.bundle"), join(work, "base.bundle")], [shims, join(work, "shims")], [overlay, join(work, "omp-pinned.yml")]]) {
+		sudo(["cp", "-a", from, to]);
+		sudo(["chown", "-R", `${agentUser}:${agentUser}`, to]);
+	}
+	rmSync(join(dir, "base.bundle"));
+	const tree = join(work, "tree");
+	asAgent(["git", "clone", "-q", "-b", branch, join(work, "base.bundle"), tree]);
+	asAgent(["git", "-C", tree, "remote", "remove", "origin"]);
+	asAgent(["rm", join(work, "base.bundle")]);
+
+	const env: Record<string, string> = {
+		HOME: agentHome,
+		USER: agentUser,
+		LOGNAME: agentUser,
+		LANG: "C.UTF-8",
+		TERM: "dumb",
+		SHELL: "/bin/bash",
+		PATH: [join(work, "shims"), "/usr/local/bin", "/usr/bin", "/bin"].join(":"),
+		TMPDIR: join(work, "tmp"),
+		PARITY_OUT: join(work, "parity.jsonl"),
+		PARITY_MODEL: systemModel,
+		...(verbosity ? { PARITY_VERBOSITY: verbosity } : {}),
+		...(maxOutputFor(systemModel) ? { PARITY_MAX_OUTPUT: maxOutputFor(systemModel) } : {}),
+		PARITY_UPSTREAM: PINS.get(systemModel) ?? upstream,
+		// The proxy injects the real key; the harnesses only need a non-empty credential to call it.
+		OPENROUTER_API_KEY: PROXY_PLACEHOLDER,
+	};
+	const prompt = wrapper + task.statement;
+	const sessions = join(work, "sessions");
+	let cmd: string;
+	let argv: string[];
+	if (spec.harness === "omp") {
+		cmd = "omp";
+		argv = ["-p", "--mode", "json", "--cwd", tree, "--session-dir", sessions, "--no-title", "--approval-mode", "yolo", "--config", join(work, "omp-pinned.yml"), "-e", parityExtension, "--model", `${provider}/${systemModel}`, "--thinking", thinking, prompt];
+	} else {
+		cmd = "pi";
+		env.PI_CODING_AGENT_DIR = piAgentDir;
+		const extensions = spec.s1 ? ["-e", s1s2Extension, "-e", parityExtension] : ["-e", parityExtension];
+		if (spec.s1) {
+			// The boundary forwards to the proxy, which injects the real key; System 1 needs only a non-empty credential.
+			env.S1S2_JEV_KEY = PROXY_PLACEHOLDER;
+			env.S1S2_RUN_DIR = join(work, "s1");
+			env.S1S2_JEV_ENDPOINT = `${boundary}/api/alpha/decisions`;
+			if (advisorModel) Object.assign(env, { S1S2_ADVISOR_MODEL: `${provider}/${advisorModel}`, S1S2_ADVISOR_THINKING: advisorThinking });
+			if (spec.advisor !== "off") env.S1S2_ADVISOR = spec.advisor;
+			Object.assign(env, spec.env);
+		}
+		argv = ["--mode", "json", "--no-extensions", ...extensions, "--no-skills", "--no-prompt-templates", "--provider", provider, "--model", systemModel, "--thinking", thinking, "--session-dir", sessions, "-p", prompt];
+	}
+	const run = await runAgent(cmd, argv, tree, env, join(dir, "events.jsonl"), join(dir, "stderr.log"));
+
+	// Bring the work back into the runner's home, then erase it from the agent's.
+	const copy = join(dir, "work");
+	sudo(["cp", "-a", work, copy]);
+	sudo(["chown", "-R", `${runner}:${runner}`, copy]);
+	asAgent(["rm", "-rf", work]);
+	const readJson = (path: string, line = false): unknown => {
+		try {
+			const text = readFileSync(path, "utf8");
+			return JSON.parse(line ? text.split("\n")[0] : text);
+		} catch {
+			return null; // no System 1 summary (another arm, or the run died first), or no provider request
+		}
+	};
+	return {
+		copy,
+		run,
+		deliverable: finalDiff(join(copy, "tree"), dir),
+		accounting: sessionUsage(join(copy, "sessions")),
+		s1: readJson(join(copy, "s1", "s1s2-summary.json")),
+		parity: readJson(join(copy, "parity.jsonl"), true),
+	};
+}
+
+/**
+ * Best of N (experiment 9): the one attempt whose repository checks (the task's regression commands, never
+ * the withheld tests) pass, or else Jev's choice between two, or else the first attempt.
+ */
+async function pickAttempt(task: Task, attempts: readonly Attempt[], tmp: string): Promise<{ index: number; reason: string; checks: boolean[]; p: number | null }> {
+	const env = { HOME: process.env.HOME ?? "", PATH: "/usr/local/bin:/usr/bin:/bin", LANG: "C.UTF-8", TMPDIR: tmp };
+	const checks = attempts.map((entry) => task.regress.every((command) => spawnSync("bash", ["-c", command.cmd], { cwd: join(entry.copy, "tree", command.cwd), env, timeout: 600_000, stdio: "ignore" }).status === 0));
+	if (checks.filter(Boolean).length === 1) return { index: checks.indexOf(true), reason: "checks", checks, p: null };
+	if (attempts.length === 2) {
+		try {
+			const clip = (diff: string) => redactText(diff, diff.length).slice(0, 24_000);
+			const state = { task: redactText(task.statement, 6000), change_a: clip(attempts[0].deliverable.diff), change_b: clip(attempts[1].deliverable.diff) };
+			const instructions = "Two independent attempts changed the same repository for `task`. Which change completes the task better: it does what the task asks, stays in scope, and is more likely correct?";
+			const jev = new OpenRouterJevProvider(PROXY_PLACEHOLDER, JEV_MODEL, `${boundary}/api/alpha/decisions`);
+			const evaluation = await jev.evaluateWithMetadata(JSON.stringify(state), { better: { type: "choice", instructions, criteria: { a: "`change_a` is better.", b: "`change_b` is better." } } }, 15_000);
+			const answer = evaluation.answers.better;
+			if (answer?.type === "choice" && (answer.choice === "a" || answer.choice === "b")) return { index: answer.choice === "a" ? 0 : 1, reason: "jev", checks, p: answer.probabilities[answer.choice] ?? null };
+		} catch {
+			// the first attempt stands
+		}
+	}
+	return { index: 0, reason: "default", checks, p: null };
+}
+
 const spendStart = await keySpend();
 const committed = () => ledger.settledUsd + ledger.pendingUsd;
 const committedAtStart = committed();
@@ -587,89 +710,30 @@ outer: for (const task of tasks) {
 		ranHere = true;
 		const spec = specOf(arm);
 		const systemModel = spec.strong && advisorModel ? advisorModel : modelId;
-		writeFileSync(join(runDir, "omp-pinned.yml"), ompOverlay(systemModel));
-
-		// The agent's world: one base-only checkout, shims, and scratch in its own home.
-		const work = join(agentHome, "work", `${task.id}-${arm}`);
-		asAgent(["rm", "-rf", work]);
-		asAgent(["mkdir", "-p", "-m", "750", join(work, "tmp"), join(work, "sessions"), join(work, "s1")]);
-		git(src, "bundle", "create", "-q", join(runDir, "base.bundle"), branch);
-		for (const [from, to] of [[join(runDir, "base.bundle"), join(work, "base.bundle")], [shims, join(work, "shims")], [join(runDir, "omp-pinned.yml"), join(work, "omp-pinned.yml")]]) {
-			sudo(["cp", "-a", from, to]);
-			sudo(["chown", "-R", `${agentUser}:${agentUser}`, to]);
-		}
-		rmSync(join(runDir, "base.bundle"));
-		const tree = join(work, "tree");
-		asAgent(["git", "clone", "-q", "-b", branch, join(work, "base.bundle"), tree]);
-		asAgent(["git", "-C", tree, "remote", "remove", "origin"]);
-		asAgent(["rm", join(work, "base.bundle")]);
-
-		const env: Record<string, string> = {
-			HOME: agentHome,
-			USER: agentUser,
-			LOGNAME: agentUser,
-			LANG: "C.UTF-8",
-			TERM: "dumb",
-			SHELL: "/bin/bash",
-			PATH: [join(work, "shims"), "/usr/local/bin", "/usr/bin", "/bin"].join(":"),
-			TMPDIR: join(work, "tmp"),
-			PARITY_OUT: join(work, "parity.jsonl"),
-			PARITY_MODEL: systemModel,
-			...(verbosity ? { PARITY_VERBOSITY: verbosity } : {}),
-			...(maxOutputFor(systemModel) ? { PARITY_MAX_OUTPUT: maxOutputFor(systemModel) } : {}),
-			PARITY_UPSTREAM: PINS.get(systemModel) ?? upstream,
-			// The proxy injects the real key; the harnesses only need a non-empty credential to call it.
-			OPENROUTER_API_KEY: PROXY_PLACEHOLDER,
-		};
-		const prompt = wrapper + task.statement;
-		const sessions = join(work, "sessions");
-		let cmd: string;
-		let argv: string[];
-		if (spec.harness === "omp") {
-			cmd = "omp";
-			argv = ["-p", "--mode", "json", "--cwd", tree, "--session-dir", sessions, "--no-title", "--approval-mode", "yolo", "--config", join(work, "omp-pinned.yml"), "-e", parityExtension, "--model", `${provider}/${systemModel}`, "--thinking", thinking, prompt];
-		} else {
-			cmd = "pi";
-			env.PI_CODING_AGENT_DIR = piAgentDir;
-			const extensions = spec.s1 ? ["-e", s1s2Extension, "-e", parityExtension] : ["-e", parityExtension];
-			if (spec.s1) {
-				// The boundary forwards to the proxy, which injects the real key; System 1 needs only a non-empty credential.
-				env.S1S2_JEV_KEY = PROXY_PLACEHOLDER;
-				env.S1S2_RUN_DIR = join(work, "s1");
-				env.S1S2_JEV_ENDPOINT = `${boundary}/api/alpha/decisions`;
-				if (spec.advisor !== "off" && advisorModel) {
-					Object.assign(env, { S1S2_ADVISOR: spec.advisor, S1S2_ADVISOR_MODEL: `${provider}/${advisorModel}`, S1S2_ADVISOR_THINKING: advisorThinking });
-				}
-				Object.assign(env, spec.env);
-			}
-			argv = ["--mode", "json", "--no-extensions", ...extensions, "--no-skills", "--no-prompt-templates", "--provider", provider, "--model", systemModel, "--thinking", thinking, "--session-dir", sessions, "-p", prompt];
-		}
+		const overlay = join(runDir, "omp-pinned.yml");
+		writeFileSync(overlay, ompOverlay(systemModel));
 		console.log(`${new Date().toISOString()} ${task.id} ${arm} start`);
 		currentRun = `${task.id}/${arm}`;
-		const run = await runAgent(cmd, argv, tree, env, join(runDir, "events.jsonl"), join(runDir, "stderr.log"));
+		const attempts: Attempt[] = [];
+		for (let index = 1; index <= spec.attempts; index++) {
+			const several = spec.attempts > 1;
+			attempts.push(await attempt(task, arm, spec, systemModel, branch, overlay, several ? join(runDir, `attempt-${index}`) : runDir, several ? `${task.id}-${arm}-a${index}` : `${task.id}-${arm}`));
+		}
+		// The picker's Jev call goes through the boundary under this run's name, so it is charged to the run.
+		const pick = attempts.length > 1 ? await pickAttempt(task, attempts, join(runDir, "tmp")) : null;
 		currentRun = null;
-
-		// Bring the work back into the runner's home, then erase it from the agent's.
-		const copy = join(runDir, "work");
-		sudo(["cp", "-a", work, copy]);
-		sudo(["chown", "-R", `${runner}:${runner}`, copy]);
-		asAgent(["rm", "-rf", work]);
-		const deliverable = finalDiff(join(copy, "tree"), runDir);
+		const chosen = attempts[pick?.index ?? 0];
+		const { run, deliverable } = chosen;
 		writeFileSync(join(runDir, "final.diff"), deliverable.diff);
-		const accounting = sessionUsage(join(copy, "sessions"));
-		const graded = grade(join(copy, "tree"), task, { HOME: process.env.HOME ?? "", PATH: "/usr/local/bin:/usr/bin:/bin", LANG: "C.UTF-8", TMPDIR: join(runDir, "tmp") });
-		let s1: unknown = null;
-		try {
-			s1 = JSON.parse(readFileSync(join(copy, "s1", "s1s2-summary.json"), "utf8"));
-		} catch {
-			// not the s1s2 arm, or the run died before shutdown
-		}
-		let parity: unknown = null;
-		try {
-			parity = JSON.parse(readFileSync(join(copy, "parity.jsonl"), "utf8").split("\n")[0]);
-		} catch {
-			// no provider request was made
-		}
+		const usage = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 };
+		for (const entry of attempts) for (const key of ["input", "output", "cacheRead", "cacheWrite"] as const) usage[key] += entry.accounting.usage[key];
+		const accounting = {
+			usage,
+			modelCalls: attempts.reduce((sum, entry) => sum + entry.accounting.modelCalls, 0),
+			parentTurns: attempts.reduce((sum, entry) => sum + entry.accounting.parentTurns, 0),
+			models: [...new Set(attempts.flatMap((entry) => entry.accounting.models))].sort(),
+		};
+		const graded = grade(join(chosen.copy, "tree"), task, { HOME: process.env.HOME ?? "", PATH: "/usr/local/bin:/usr/bin:/bin", LANG: "C.UTF-8", TMPDIR: join(runDir, "tmp") });
 		await Promise.allSettled(settling.splice(0));
 		const calls = ledger.calls.filter((entry) => entry.run === `${task.id}/${arm}`);
 		const byModel: Record<string, { calls: number; settledUsd: number; unsettled: number }> = {};
@@ -679,6 +743,7 @@ outer: for (const task of tasks) {
 			total.settledUsd += entry.costUsd ?? 0;
 			if (entry.costUsd === undefined) total.unsettled++;
 		}
+		const wallMs = attempts.reduce((sum, entry) => sum + entry.run.ms, 0);
 		const record = {
 			task: task.id,
 			size: task.size,
@@ -689,11 +754,13 @@ outer: for (const task of tasks) {
 			codeDigest,
 			exit: run.exit,
 			signal: run.signal,
-			timedOut: run.timedOut,
-			wallMs: run.ms,
+			timedOut: attempts.some((entry) => entry.run.timedOut),
+			// Several attempts ran one after another: wallMs is their sum, parallelWallMs the longest one.
+			wallMs,
+			...(attempts.length > 1 ? { parallelWallMs: Math.max(...attempts.map((entry) => entry.run.ms)) } : {}),
 			...accounting,
-			s1,
-			parity,
+			s1: chosen.s1,
+			parity: attempts[0].parity,
 			boundary: {
 				calls: calls.length,
 				settledUsd: calls.reduce((sum, entry) => sum + (entry.costUsd ?? 0), 0),
@@ -705,11 +772,17 @@ outer: for (const task of tasks) {
 			},
 			spendCap: hardStop,
 			deliverable: { files: deliverable.files, added: deliverable.added, deleted: deliverable.deleted },
+			...(pick
+				? {
+						pick,
+						attempts: attempts.map((entry) => ({ exit: entry.run.exit, timedOut: entry.run.timedOut, wallMs: entry.run.ms, parentTurns: entry.accounting.parentTurns, deliverable: { files: entry.deliverable.files, added: entry.deliverable.added, deleted: entry.deliverable.deleted } })),
+					}
+				: {}),
 			...graded,
 		};
 		writeFileSync(join(runDir, "run.json"), `${JSON.stringify(record, null, 2)}\n`);
 		results.push(record);
-		console.log(`${new Date().toISOString()} ${task.id} ${arm} exit=${run.exit} wall=${Math.round(run.ms / 1000)}s hidden=${graded.hiddenPass} turns=${accounting.parentTurns}`);
+		console.log(`${new Date().toISOString()} ${task.id} ${arm} exit=${run.exit} wall=${Math.round(wallMs / 1000)}s hidden=${graded.hiddenPass} turns=${accounting.parentTurns}${pick ? ` pick=${pick.index + 1}:${pick.reason}` : ""}`);
 		if (hardStop) {
 			stopped = hardStop; // the cap cut this run short
 			break outer;

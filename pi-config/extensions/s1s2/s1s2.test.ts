@@ -62,15 +62,15 @@ function context(cwd: string, apiKey?: string): ExtensionContext {
 	} as unknown as ExtensionContext;
 }
 
-/** Stub the Decisions endpoint: Noul 0.95, Score level 1, and the named choice for each Choice question id. */
-function stubJev(choices: Record<string, string>): void {
+/** Stub the Decisions endpoint: Noul `noul` (default 0.95), Score level 1, and the named choice for each Choice question id. */
+function stubJev(choices: Record<string, string>, noul = 0.95): void {
 	globalThis.fetch = (async (_url: unknown, init?: { body?: unknown }) => {
 		const { questions } = JSON.parse(String(init?.body)) as { questions: Record<string, { type: string }> };
 		const answers = Object.fromEntries(
 			Object.entries(questions).map(([id, question]) => [
 				id,
 				question.type === "noul"
-					? { type: "noul", noul: 0.95 }
+					? { type: "noul", noul }
 					: question.type === "score"
 						? { type: "score", score: 1, probabilities: { "1": 1 }, confidence: 1 }
 						: { type: "choice", choice: choices[id], probabilities: { [choices[id]]: 0.95 }, confidence: 0.95 },
@@ -434,8 +434,11 @@ describe("US-029 advisor battery", () => {
 	});
 });
 
+/** A prompt as the evaluation runner writes it: its instructions, then the task statement. */
+const runnerTask = "You are working in a Git repository (the current directory). Leave your changes in the working tree.\n\nTask:\nFix `applyDiscount` in src/pricing.ts so percent is a whole number. Keep prices under one dollar unrounded. Add or update tests for the new behavior.";
+
 describe("US-029 round-2 features", () => {
-	const task = "You are working in a Git repository (the current directory). Leave your changes in the working tree.\n\nTask:\nFix `applyDiscount` in src/pricing.ts so percent is a whole number. Keep prices under one dollar unrounded. Add or update tests for the new behavior.";
+	const task = runnerTask;
 
 	test("requirement sentences come from the task statement, never the runner's instructions", () => {
 		expect(requirementSentences(task)).toEqual([
@@ -506,5 +509,60 @@ describe("US-029 round-2 features", () => {
 		}
 		writeFileSync(join(cwd, "src/pricing.ts"), "export const edited = true;\n");
 		expect(await handlers.get("agent_before_settle")?.(settle, ctx)).toBeUndefined();
+	});
+});
+
+describe("US-029 context batteries (round 2)", () => {
+	const big = (turn: number) => `output of turn ${turn}\n${"x".repeat(3000)}`;
+	const result = (turn: number, text: string) => ({ type: "tool_result", toolCallId: `c${turn}`, toolName: "bash", input: { command: `cat part${turn}.txt` }, content: [{ type: "text", text }], isError: false });
+	const entry = (turn: number, text: string) => ({ sourceEntry: { type: "message", id: `e${turn}`, message: { role: "toolResult", toolCallId: `c${turn}`, content: [{ type: "text", text }] } }, messages: [] });
+
+	test("trim replaces only old, unneeded outputs, each with a pointer to its saved copy", async () => {
+		const cwd = repo();
+		stubJev({ note: "none", completion: "complete", check: "none_suitable" }, 0.05);
+		process.env.S1S2_FEATURES = "trim";
+		const handlers = load();
+		const ctx = context(cwd, "test-key");
+		await handlers.get("session_start")?.({ type: "session_start", reason: "startup" }, ctx);
+		await handlers.get("before_agent_start")?.(start(runnerTask), ctx);
+		const texts: string[] = [];
+		const edits: { turn: number; targetId: string; text: string }[] = [];
+		for (let turn = 1; turn <= 16; turn++) {
+			await handlers.get("turn_start")?.({ type: "turn_start", turnIndex: turn - 1, timestamp: 0 }, ctx);
+			await handlers.get("message_end")?.({ type: "message_end", message: { role: "assistant", content: [], usage: { input: 1000, cacheRead: 50_000, output: 500 } } }, ctx);
+			texts.push(turn === 1 ? big(1) : `short ${turn}`);
+			await handlers.get("tool_result")?.(result(turn, texts[turn - 1]), ctx);
+			const contextEntries = texts.map((text, i) => entry(i + 1, text));
+			const boundary = (await handlers.get("turn_end")?.({ type: "turn_end", turnIndex: turn - 1, toolResults: [{}], entries: [], context: { contextEntries } }, ctx)) as
+				| { entries?: { type: string; targetId?: string; replacement?: { content: { text: string }[] } }[] }
+				| undefined;
+			for (const draft of boundary?.entries ?? []) if (draft.type === "context_edit") edits.push({ turn, targetId: draft.targetId ?? "", text: draft.replacement?.content[0]?.text ?? "" });
+		}
+		expect(edits.map(({ turn, targetId }) => [turn, targetId])).toEqual([[7, "e1"]]);
+		const spill = /saved at (\S+?);/.exec(edits[0].text)?.[1] ?? "";
+		expect(readFileSync(spill, "utf8")).toBe(big(1));
+	});
+
+	test("reset replaces a stalled long run's conversation once, with the task and the advisor's handoff", async () => {
+		const cwd = repo();
+		stubJev({ note: "none", completion: "complete", check: "none_suitable" });
+		process.env.S1S2_FEATURES = "reset";
+		const handlers = load();
+		const { ctx } = advisorContext(cwd, ["Done: nothing. Plan: 1. Edit src/pricing.ts."]);
+		await handlers.get("session_start")?.({ type: "session_start", reason: "startup" }, ctx);
+		await handlers.get("before_agent_start")?.(start(runnerTask), ctx);
+		const resets: { turn: number; summary: string; kept: unknown }[] = [];
+		for (let turn = 1; turn <= 45; turn++) {
+			await handlers.get("turn_start")?.({ type: "turn_start", turnIndex: turn - 1, timestamp: 0 }, ctx);
+			const failing = bash(`r${turn}`, "make", true, "no rule");
+			await handlers.get("tool_result")?.(failing, ctx);
+			const boundary = (await handlers.get("turn_end")?.({ type: "turn_end", turnIndex: turn - 1, toolResults: [failing], entries: [] }, ctx)) as
+				| { entries?: { type: string; summary?: string; firstKeptEntryId?: unknown }[] }
+				| undefined;
+			for (const draft of boundary?.entries ?? []) if (draft.type === "compaction") resets.push({ turn, summary: draft.summary ?? "", kept: draft.firstKeptEntryId });
+		}
+		expect(resets.map(({ turn, kept }) => [turn, kept])).toEqual([[40, null]]);
+		expect(resets[0].summary).toContain("Fix `applyDiscount` in src/pricing.ts");
+		expect(resets[0].summary).toContain("Plan: 1. Edit src/pricing.ts.");
 	});
 });

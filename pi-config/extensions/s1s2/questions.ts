@@ -393,3 +393,84 @@ export const EFFORT_QUESTIONS: Record<string, Question> = {
 export function routineProbability(answers: Record<string, Answer>): number | undefined {
 	return probability(answers, "routine");
 }
+
+// ------------------------------------------------------------ trim (round 2) --
+
+export const TRIM = {
+	/** Trim only once a request carries this many tokens (fresh plus cached input and output). */
+	minContextTokens: 40_000,
+	/** Turns between trims: each trim changes the prompt prefix, so the next request re-reads it uncached. */
+	gapTurns: 10,
+	/** Outputs from the newest turns stay whole. */
+	keepRecentTurns: 6,
+	/** Only outputs at least this long are candidates. */
+	minChars: 2_000,
+	maxCandidates: 12,
+	/**
+	 * Probability that the agent still needs an output's full text, below which it is trimmed. In the
+	 * 2026-09-26 replay (83 trim points, 954 old outputs), 0.3 trims 59% of them and 0.2 only 9%.
+	 */
+	needMax: 0.3,
+	headChars: 400,
+};
+
+export type TrimCandidate = { turn: number; summary: string; text: string };
+
+export function trimState(task: string, turn: number, actions: readonly { turn: number; summary: string; ok: boolean }[], candidates: readonly TrimCandidate[]) {
+	return {
+		task: redactText(task, 1500),
+		turn,
+		recent_actions: actions.slice(-10).map((action) => ({ turn: action.turn, action: redactText(action.summary, 200), ok: action.ok })),
+		outputs: Object.fromEntries(
+			candidates.map((candidate, i) => [`t${i}`, { turn: candidate.turn, action: redactText(candidate.summary, 200), chars: candidate.text.length, starts_with: redactText(candidate.text, TRIM.headChars) }]),
+		),
+	};
+}
+
+export function trimQuestions(candidates: readonly TrimCandidate[]): Record<string, Question> {
+	return Object.fromEntries(
+		candidates.map((_, i): [string, Question] => [
+			`t${i}`,
+			{
+				type: "noul",
+				instructions: `Will the agent still need the full text of \`outputs.t${i}\` to finish \`task\`? Yes when it holds details the agent has not acted on or may re-read (failing tests, a file it is editing, an error it has not fixed). No when later actions made it obsolete.`,
+			},
+		]),
+	);
+}
+
+/** Jev's probability that the agent still needs each candidate's full text (1 when unanswered, so it stays). */
+export function neededProbabilities(answers: Record<string, Answer>, candidates: readonly TrimCandidate[]): number[] {
+	return candidates.map((_, i) => probability(answers, `t${i}`) ?? 1);
+}
+
+/** Indexes of candidates Jev judges no longer needed. */
+export function pickStale(answers: Record<string, Answer>, candidates: readonly TrimCandidate[]): number[] {
+	return neededProbabilities(answers, candidates).flatMap((p, i) => (p < TRIM.needMax ? [i] : []));
+}
+
+// ----------------------------------------------------------- reset (round 2) --
+
+export const RESET = {
+	/** Only long runs reset: the round-1 control arms averaged 40 to 47 turns. */
+	minTurn: 40,
+	/**
+	 * Probability that a fresh start would help more than continuing. In the 2026-09-26 replay over the 15
+	 * recorded runs that passed turn 40, 0.4 resets 4 of them, the 86-turn run among them.
+	 */
+	resetMin: 0.4,
+	/** Handoff reply ceiling, reasoning included (the setup sample's final reviews used up to 2,432 tokens). */
+	summaryTokens: 8000,
+};
+
+export const RESET_QUESTIONS: Record<string, Question> = {
+	reset: {
+		type: "noul",
+		instructions:
+			"Has the agent stopped making progress on `task`: repeating attempts that fail, circling the same files, or losing track of what the task asks, so that restarting from a written summary and plan would help more than continuing?",
+	},
+};
+
+export function resetProbability(answers: Record<string, Answer>): number | undefined {
+	return probability(answers, "reset");
+}
