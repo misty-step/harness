@@ -291,6 +291,38 @@ describe("foundation-check (US-024)", () => {
 		expect(errors()).toContain("[entry:check] a CI workflow must invoke scripts/check");
 	});
 
+	test("wrapped ledger checks and routing paths resolve from HEAD, not the staged index or working tree", () => {
+		const repo = fixture("ledger-head");
+		const original = readFileSync(join(repo, "DOMAIN.md"), "utf8");
+		const errors = () => cli(repo, "check").output.errors.join("\n");
+		put(repo, "DOMAIN.md", original.replace(" Enforced by `scripts/check`", "\n  Enforced by `scripts/check`"));
+		expect(cli(repo, "check").status).toBe(0);
+		put(repo, "DOMAIN.md", original.replace(" Enforced by `scripts/check`", "\n  Enforced by `scripts/absent`"));
+		expect(errors()).toContain("INV-001 cites missing check scripts/absent");
+		put(repo, "scripts/new-check", "#!/bin/sh\nexit 0\n");
+		exec(repo, ["add", "scripts/new-check"]);
+		put(repo, "DOMAIN.md", original.replace("scripts/check", "scripts/new-check"));
+		expect(errors()).toContain("INV-001 cites missing check scripts/new-check");
+		commit(repo, "track new check");
+		expect(cli(repo, "check").status).toBe(0);
+		put(repo, "Makefile", "verify:\n\t@true\n");
+		put(repo, "DOMAIN.md", original.replace("scripts/check", "make verify"));
+		expect(errors()).toContain("INV-001 cites missing check make verify");
+		exec(repo, ["add", "Makefile"]);
+		expect(errors()).toContain("INV-001 cites missing check make verify");
+		commit(repo, "track make target");
+		expect(cli(repo, "check").status).toBe(0);
+		put(repo, "Makefile", "verify:\n\t@true\nstaged:\n\t@true\n");
+		put(repo, "DOMAIN.md", original.replace("scripts/check", "make staged"));
+		exec(repo, ["add", "Makefile"]);
+		expect(errors()).toContain("INV-001 cites missing check make staged");
+		put(repo, "DOMAIN.md", original);
+		put(repo, "AGENTS.md", "# Agents\n\n## Route the change\n\n| Path | Command | Owns |\n| --- | --- | --- |\n| `src/` | `scripts/check` | Tools including `not-a-command` |\n\nRead `DOMAIN.md` for invariants.\n");
+		expect(cli(repo, "check").status).toBe(0);
+		put(repo, "AGENTS.md", readFileSync(join(repo, "AGENTS.md"), "utf8").replace("`src/`", "`src/absent/`"));
+		expect(errors()).toContain("routing path src/absent/ does not resolve at HEAD");
+	});
+
 	test("surface checks and enforced story evidence reject missing owners", () => {
 		const repo = fixture("surface-documents");
 		const value = { ...adoption(), surfaces: ["ui", "deployed", "content"], content: { schema: "content/schema.json", lint: "scripts/check" } };
@@ -995,6 +1027,41 @@ describe("foundation-check security baseline (ADR-006, US-024)", () => {
 			"  auth:\n    if: github.event_name == 'pull_request'\n    runs-on:"));
 		expect(errors()).not.toContain("FND-SEC-001");
 	});
+
+	test("secret scanning and authorization reject skipped or nonblocking prerequisite jobs", () => {
+		const repo = fixture("security-prerequisites");
+		const value = adoption();
+		value.surfaces = ["ui"];
+		put(repo, "foundation.json", JSON.stringify(value));
+		const original = readFileSync(join(repo, ".github/workflows/security.yml"), "utf8");
+		const chained = original.replace("  secrets:\n    runs-on:", "  secrets:\n    needs: [preflight]\n    runs-on:")
+			.replace("  auth:\n    runs-on:", "  auth:\n    needs: [preflight]\n    runs-on:");
+		const errors = () => cli(repo, "check").output.errors.join("\n");
+		for (const guard of ["if: false", "continue-on-error: true"]) {
+			put(repo, ".github/workflows/security.yml", chained.replace("  secrets:", `  preflight:\n    ${guard}\n    runs-on: ubuntu-latest\n    steps:\n      - run: scripts/check\n  secrets:`));
+			expect(errors()).toContain("security.secrets scanner prerequisite jobs must run and block");
+			expect(errors()).toContain("security.authorization test prerequisite jobs must run and block");
+		}
+		put(repo, ".github/workflows/security.yml", chained.replace("  secrets:", "  upstream:\n    if: false\n    runs-on: ubuntu-latest\n    steps:\n      - run: scripts/check\n  preflight:\n    needs: [upstream]\n    runs-on: ubuntu-latest\n    steps:\n      - run: scripts/check\n  secrets:"));
+		expect(errors()).toContain("security.secrets scanner prerequisite jobs must run and block");
+		put(repo, ".github/workflows/security.yml", chained.replace("  secrets:", "  preflight:\n    runs-on: ubuntu-latest\n    steps:\n      - run: scripts/check\n  secrets:"));
+		expect(errors()).not.toContain("FND-SEC-001");
+	});
+
+	test("dependency gate accepts failure-only diagnostics but never a conditional check or job", () => {
+		const repo = fixture("dependency-diagnostics");
+		const original = readFileSync(join(repo, ".github/workflows/dependencies.yml"), "utf8");
+		const errors = () => cli(repo, "check").output.errors.join("\n");
+		const upload = "      - uses: actions/upload-artifact@v4\n        if: failure()\n        with:\n          name: diagnostics\n          path: logs/\n";
+		put(repo, ".github/workflows/dependencies.yml", original.replace("      - run: scripts/check\n", `      - run: scripts/check\n${upload}`));
+		expect(errors()).not.toContain("security.dependencies.automerge job needs an existing blocking gate job");
+		put(repo, ".github/workflows/dependencies.yml", original.replace("      - run: scripts/check\n", `      - run: scripts/check\n        if: failure()\n${upload}`));
+		expect(errors()).toContain("security.dependencies.automerge job needs an existing blocking gate job");
+		put(repo, ".github/workflows/dependencies.yml", original.replace("      - run: scripts/check\n", upload));
+		expect(errors()).toContain("security.dependencies.automerge job needs an existing blocking gate job");
+		put(repo, ".github/workflows/dependencies.yml", original.replace("  gate:\n    runs-on:", "  gate:\n    if: failure()\n    runs-on:"));
+		expect(errors()).toContain("security.dependencies.automerge job needs an existing blocking gate job");
+	});
 });
 
 describe("foundation-check review gate (US-027)", () => {
@@ -1117,6 +1184,21 @@ describe("foundation-check review gate (US-027)", () => {
 		expect((await gate(repo)).status).toBe(0);
 	});
 
+	test("deleting the feature map cannot erase citations for changed source at the base", async () => {
+		const repo = fixture("gate-deleted-map");
+		const base = exec(repo, ["rev-parse", "HEAD"]);
+		put(repo, "src/nested/journey.ts", "export const result = 2;\n");
+		exec(repo, ["rm", "features/journey.md"]);
+		commit(repo, "remove map while changing source");
+		const head = exec(repo, ["rev-parse", "HEAD"]);
+		reviews = [said("teammate", head)];
+		opened(base, head);
+		exec(repo, ["checkout", "-q", base]);
+		expect((await gate(repo)).output.errors.join("\n")).toContain("must cite mapped source story US-001");
+		opened(base, head, "engineer", "Stories: US-001");
+		expect((await gate(repo)).status).toBe(0);
+	});
+
 	test("ledger edits and disposition approvals require the designated reviewer on the head", async () => {
 		const repo = fixture("gate-ledger");
 		const base = exec(repo, ["rev-parse", "HEAD"]);
@@ -1150,6 +1232,20 @@ describe("foundation-check review gate (US-027)", () => {
 		opened(approvedBase, exec(repo, ["rev-parse", "HEAD"]));
 		reviews = [said(agent, exec(repo, ["rev-parse", "HEAD"]))];
 		expect((await gate(repo)).output.errors.join("\n")).toContain("exactly matching the disposition");
+	});
+
+	test("appended invariants sections cannot evade validation or designated review", async () => {
+		const repo = fixture("gate-duplicate-ledger");
+		const base = exec(repo, ["rev-parse", "HEAD"]);
+		put(repo, "DOMAIN.md", `${readFileSync(join(repo, "DOMAIN.md"), "utf8")}\n## Invariants\n\n- **INV-002** Review the boundary. \`unenforced\`: reviewers judge it.\n`);
+		expect(cli(repo, "check").output.errors.join("\n")).toContain("duplicate ## Invariants");
+		commit(repo, "append second ledger");
+		const head = exec(repo, ["rev-parse", "HEAD"]);
+		opened(base, head);
+		reviews = [said("teammate", head)];
+		const result = await gate(repo);
+		expect(result.output.reasons).toContain("invariants ledger: DOMAIN.md policy changes");
+		expect(result.output.errors.join("\n")).toContain("designated agent reviewer");
 	});
 
 	test("first stories need the agent reviewer's current approval, never the author's or the operator account's", async () => {

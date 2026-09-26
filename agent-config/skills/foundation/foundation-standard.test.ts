@@ -53,7 +53,7 @@ describe("Foundation Standard v1", () => {
 			"missing",
 			"owner",
 			"next",
-			"unexpired baseline gap obl:<ID> for every applicable pending obligation",
+			"unexpired baseline gap obl:<ID> for each applicable pending obligation, except FND-REL-001, FND-ALR-001 and FND-INC-001 use ops:ship, ops:alert and ops:incident (ADR-005)",
 		]);
 		expect(catalog.exception_policy.not_applicable_requires).toContain("approval_ref");
 		expect(catalog.exception_policy.exception_requires).toContain("approval_ref");

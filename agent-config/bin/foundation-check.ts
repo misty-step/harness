@@ -421,8 +421,10 @@ function commandTarget(repo: string, target: string, files: Set<string>): boolea
 	if (script) return files.has("package.json") && text(packageScripts(repo)[script[1]]);
 	const file = target.replace(/^(?:(?:sh|bash|bun|node|python3?) )?(?:\.\/)?/, "").split(/\s+/)[0];
 	if (files.has(file) && repositoryFile(repo, file)) return true;
-	if (/^make [-\w.]+$/.test(target) && repositoryFile(repo, "Makefile"))
-		return new RegExp(`^${target.slice(5)}\\s*:`, "m").test(readFileSync(join(repo, "Makefile"), "utf8"));
+	if (/^make [-\w.]+$/.test(target) && files.has("Makefile")) {
+		const makefile = fileAt(repo, "HEAD", "Makefile");
+		return makefile !== undefined && new RegExp(`^${target.slice(5)}\\s*:`, "m").test(makefile);
+	}
 	return false;
 }
 function ledgerTarget(repo: string, target: string, files: Set<string>): "resolved" | "unresolved" | "missing" {
@@ -433,23 +435,31 @@ function ledgerTarget(repo: string, target: string, files: Set<string>): "resolv
 		!["scripts/", "tests/", "src/"].some((prefix) => target.startsWith(prefix))) return "unresolved";
 	return "missing";
 }
+function ledgerSections(domain: string): string[] {
+	return [...domain.matchAll(/^## Invariants[ \t]*\r?\n([\s\S]*?)(?=^## |$(?![\s\S]))/gm)].map((match) => match[1]);
+}
 function ledgerIssues(repo: string, files: Set<string>, issues: Issue[]): void {
 	if (!files.has("DOMAIN.md") || !repositoryFile(repo, "DOMAIN.md")) return;
-	const domain = readFileSync(join(repo, "DOMAIN.md"), "utf8");
-	const ledger = domain.match(/^## Invariants\s*\n([\s\S]*?)(?=^## |$(?![\s\S]))/m)?.[1];
-	if (!ledger) { issues.push({ gap: "doc:DOMAIN.md", message: "DOMAIN.md: needs a non-empty ## Invariants ledger" }); return; }
+	const sections = ledgerSections(readFileSync(join(repo, "DOMAIN.md"), "utf8"));
+	if (sections.length !== 1 || !sections[0].trim()) {
+		issues.push({ gap: "doc:DOMAIN.md", message: sections.length > 1 ? "DOMAIN.md: duplicate ## Invariants sections" : "DOMAIN.md: needs a non-empty ## Invariants ledger" });
+		return;
+	}
 	const ids = new Set<string>();
-	let count = 0;
-	for (const line of ledger.split("\n").filter((item) => /^[-*]\s/.test(item))) {
-		count++;
-		const match = line.match(/^- \*\*(INV-\d{3})\*\* (.+?)\. (?:Enforced by `([^`]+)`\.?|(`unenforced`)(?:: reviewers judge it)?\.?)(?: Why: (.+?))?(?: Scope: (.+))?$/);
-		if (!match || line.includes("Check:")) { issues.push({ gap: "doc:DOMAIN.md", message: `DOMAIN.md: invalid invariant bullet: ${line}` }); continue; }
+	const bullets: string[] = [];
+	for (const line of sections[0].split("\n")) {
+		if (/^[-*]\s/.test(line)) bullets.push(line);
+		else if (/^[ \t]+\S/.test(line) && bullets.length > 0) bullets[bullets.length - 1] += ` ${line.trim()}`;
+	}
+	for (const bullet of bullets) {
+		const match = bullet.match(/^- \*\*(INV-\d{3})\*\* (.+?)\. (?:Enforced by `([^`]+)`\.?|(`unenforced`)(?:: reviewers judge it)?\.?)(?: Why: (.+?))?(?: Scope: (.+))?$/);
+		if (!match || bullet.includes("Check:")) { issues.push({ gap: "doc:DOMAIN.md", message: `DOMAIN.md: invalid invariant bullet: ${bullet}` }); continue; }
 		if (ids.has(match[1])) issues.push({ gap: "doc:DOMAIN.md", message: `DOMAIN.md: duplicate ${match[1]}` });
 		ids.add(match[1]);
 		if (match[3] && ledgerTarget(repo, match[3], files) === "missing")
 			issues.push({ gap: "doc:DOMAIN.md", message: `DOMAIN.md: ${match[1]} cites missing check ${match[3]}` });
 	}
-	if (count === 0) issues.push({ gap: "doc:DOMAIN.md", message: "DOMAIN.md: ## Invariants needs at least one rule" });
+	if (bullets.length === 0) issues.push({ gap: "doc:DOMAIN.md", message: "DOMAIN.md: ## Invariants needs at least one rule" });
 }
 function coreReferences(repo: string, files: Set<string>, documents: string[], issues: Issue[]): void {
 	const root = realpathSync(repo);
@@ -473,14 +483,29 @@ function coreReferences(repo: string, files: Set<string>, documents: string[], i
 				issues.push({ gap: "doc:refs", message: `${doc}: Markdown link ${href} does not resolve in the repository at HEAD` });
 		}
 	}
-	// Routing-table commands, not every backticked word in operating prose.
+	// Only declared routing cells are targets: paths are directories or files, and description cells are prose.
 	if (!files.has("AGENTS.md") || !repositoryFile(repo, "AGENTS.md")) return;
 	const agents = readFileSync(join(repo, "AGENTS.md"), "utf8");
 	const routing = agents.match(/^#{1,3} [^\n]*(?:Rout|rout)[^\n]*\n([\s\S]*?)(?=^#{1,3} |$(?![\s\S]))/m)?.[1] ?? "";
-	for (const row of routing.split("\n").filter((line) => line.startsWith("|") && !/^\|[\s|:-]+\|?$/.test(line))) {
-		for (const [, command] of row.matchAll(/`([^`]+)`/g)) {
-			// A routing-table cell is a declared target, not incidental operating prose.
-			if (!commandTarget(repo, command, files)) issues.push({ gap: "doc:refs", message: `AGENTS.md: routing command ${command} has no script, package script or target` });
+	const rows = routing.split("\n").filter((line) => line.startsWith("|") && !/^\|[\s|:-]+\|?$/.test(line));
+	const cells = (row: string) => row.split("|").slice(1, -1).map((cell) => cell.trim());
+	const headers = cells(rows.shift() ?? "");
+	for (const row of rows) {
+		const values = cells(row);
+		for (const [index, header] of headers.entries()) {
+			for (const [, target] of (values[index] ?? "").matchAll(/`([^`]+)`/g)) {
+				if (/^(?:path|directory)$/i.test(header)) {
+					const path = target.replace(/\/$/, "");
+					const resolved = resolve(repo, path);
+					const atHead = files.has(path) || [...files].some((file) => file.startsWith(`${path}/`));
+					const real = existsSync(resolved) ? realpathSync(resolved) : "";
+					const within = real ? relative(realpathSync(repo), real) : "..";
+					if (!safePath(path) || !atHead || within === ".." || within.startsWith("../") || isAbsolute(within) ||
+						!existsSync(resolved) || (target.endsWith("/") ? !statSync(real).isDirectory() : !statSync(real).isFile()))
+						issues.push({ gap: "doc:refs", message: `AGENTS.md: routing path ${target} does not resolve at HEAD` });
+				} else if (/^(?:command|script|target|check|walk|release)(?:\s+command)?$/i.test(header) && !commandTarget(repo, target, files))
+					issues.push({ gap: "doc:refs", message: `AGENTS.md: routing command ${target} has no script, package script or target` });
+			}
 		}
 	}
 }
@@ -518,6 +543,7 @@ function adrIssues(repo: string, files: string[], issues: Issue[]): void {
 function contentIssues(repo: string, checkerPath: string, adoption: unknown): Issue[] {
 	const issues: Issue[] = [];
 	const files = tracked(repo);
+	const headFiles = new Set(git(repo, "ls-tree", "-r", "--name-only", "-z", "HEAD").split("\0").filter(Boolean));
 	const names = new Set(files);
 	const surfaces = record(adoption) && Array.isArray(adoption.surfaces) ? adoption.surfaces : [];
 	const required = ["README.md", "AGENTS.md", "DOMAIN.md", "USER_STORIES.md"];
@@ -536,7 +562,7 @@ function contentIssues(repo: string, checkerPath: string, adoption: unknown): Is
 	if (surfaces.includes("content")) {
 		const content = record(adoption) ? adoption.content : undefined;
 		if (!record(content) || !text(content.schema) || !names.has(content.schema) || !repositoryFile(repo, content.schema) ||
-			!text(content.lint) || !commandTarget(repo, content.lint, names))
+			!text(content.lint) || !commandTarget(repo, content.lint, headFiles))
 			issues.push({ gap: "doc:content-schema", message: "content requires content.schema (tracked file) and content.lint (script or package script)" });
 	}
 	if (names.has(".env.pass")) {
@@ -552,8 +578,8 @@ function contentIssues(repo: string, checkerPath: string, adoption: unknown): Is
 		if (!stage.startsWith("120000 ") || fileAt(repo, "HEAD", alias)?.trim() !== "AGENTS.md")
 			issues.push({ gap: "doc:aliases", message: `${alias}: must be a tracked symlink to AGENTS.md` });
 	}
-	ledgerIssues(repo, names, issues);
-	coreReferences(repo, names, [...required, ...files.filter((file) => /(?:^|\/)docs\/adr\/[^/]+\.md$/.test(file))], issues);
+	ledgerIssues(repo, headFiles, issues);
+	coreReferences(repo, headFiles, [...required, ...files.filter((file) => /(?:^|\/)docs\/adr\/[^/]+\.md$/.test(file))], issues);
 	adrIssues(repo, files, issues);
 	if (!repositoryFile(repo, "scripts/check") || (statSync(join(repo, "scripts/check")).mode & 0o111) === 0)
 		issues.push({ gap: "entry:check", message: "scripts/check must exist and be executable" });
@@ -793,12 +819,49 @@ function securityIssues(repo: string, adoption: unknown): Issue[] {
 		guardTerms(condition).every((term) => term === "success()" ||
 			(events.length === 1 && (term === `github.event_name=='${events[0]}'` || term === `github.event_name=="${events[0]}"`)) ||
 			(bot && /^github\.actor==['"]dependabot\[bot\]['"]$/.test(term)));
-	const blocking = (job: Record<string, unknown>, steps: Record<string, unknown>[], label: string, events: string[]) => {
+	const diagnosticStep = (step: Record<string, unknown>): boolean =>
+		/^actions\/upload-artifact@/.test(String(step.uses)) ||
+		(text(step.run) && /^(?:echo|printf)\s+[^;\n|&]+$/.test(step.run.trim()));
+	const optionalDiagnosticCondition = (condition: unknown): boolean =>
+		typeof condition === "string" && /^\s*(?:\$\{\{\s*)?(?:always|failure)\(\)(?:\s*\}\})?\s*$/.test(condition);
+	// Every prerequisite must itself be an unconditional blocking gate, recursively; diagnostics may
+	// upload on failure, but a failure-only check does not establish a green PR gate.
+	const prerequisitesBlock = (
+		workflow: { jobs: Record<string, unknown> }, job: Record<string, unknown>, events: string[], bot = false,
+	): boolean => {
+		const active = new Set<string>();
+		const checked = new Map<string, boolean>();
+		const gateBlocks = (name: string): boolean => {
+			if (checked.has(name)) return checked.get(name)!;
+			if (active.has(name)) return false;
+			const gate = workflow.jobs[name];
+			if (!record(gate) || gate["continue-on-error"] !== undefined && gate["continue-on-error"] !== false ||
+				!conditionAllowed(gate.if, events, bot)) return false;
+			active.add(name);
+			const steps = stepsOf(gate);
+			const result = steps.some((step) => !diagnosticStep(step) && (text(step.run) || text(step.uses))) &&
+				steps.every((step) => diagnosticStep(step)
+					? conditionAllowed(step.if, events, bot) || optionalDiagnosticCondition(step.if)
+					: (step["continue-on-error"] === undefined || step["continue-on-error"] === false) &&
+						conditionAllowed(step.if, events, bot)) &&
+				needsOf(gate).every(gateBlocks);
+			active.delete(name);
+			checked.set(name, result);
+			return result;
+		};
+		return needsOf(job).every(gateBlocks);
+	};
+	const blocking = (
+		workflow: { jobs: Record<string, unknown> }, job: Record<string, unknown>, steps: Record<string, unknown>[],
+		label: string, events: string[],
+	) => {
 		const guarded = [job, ...steps];
 		if (guarded.some((item) => item["continue-on-error"] !== undefined && item["continue-on-error"] !== false))
 			problems.push(`${label} job and relevant steps must block the gate on failure`);
 		if (guarded.some((item) => !conditionAllowed(item.if, events)))
 			problems.push(`${label} job and relevant steps must run on every applicable PR and push`);
+		if (!prerequisitesBlock(workflow, job, events))
+			problems.push(`${label} prerequisite jobs must run and block on every applicable PR and push`);
 	};
 	const secrets = jobAt(security.secrets, "pull_request", "security.secrets");
 	if (secrets) {
@@ -814,7 +877,7 @@ function securityIssues(repo: string, adoption: unknown): Issue[] {
 		const scanner = /^\s*(?:\S*\/)?(?:gitleaks|trufflehog|detect-secrets)(?:\s|$)/m;
 		const steps = stepsOf(secrets.job).filter((step) => text(step.run) && scanner.test(step.run));
 		if (steps.length === 0) problems.push("security.secrets job must run a secret scanner");
-		else blocking(secrets.job, steps, "security.secrets scanner", ["pull_request", "push"]);
+		else blocking(secrets.workflow, secrets.job, steps, "security.secrets scanner", ["pull_request", "push"]);
 	}
 	const dependencies = record(security.dependencies) ? security.dependencies : {};
 	if (dependencies.bot !== "dependabot" || dependencies.config !== ".github/dependabot.yml" ||
@@ -832,27 +895,7 @@ function securityIssues(repo: string, adoption: unknown): Issue[] {
 		if (!/^github\.actor==['"]dependabot\[bot\]['"]$/.test(actor))
 			problems.push("security.dependencies.automerge job must be restricted to the dependency bot");
 		const gates = needsOf(merge.job);
-		const active = new Set<string>();
-		const checked = new Map<string, boolean>();
-		const gateBlocks = (name: string): boolean => {
-			if (checked.has(name)) return checked.get(name)!;
-			if (active.has(name)) return false;
-			const gate = merge.workflow.jobs[name];
-			if (!record(gate) || gate["continue-on-error"] !== undefined && gate["continue-on-error"] !== false ||
-				!conditionAllowed(gate.if, ["pull_request"], true)) return false;
-			active.add(name);
-			// A step-level `if: always()` (cleanup, artifact upload) only adds runs: any failing step still fails
-			// the job. A job-level always() is different, so the job condition above stays strict.
-			const alwaysStep = (condition: unknown) => typeof condition === "string" &&
-				/^\s*(\$\{\{\s*)?always\(\)(\s*\}\})?\s*$/.test(condition);
-			const result = stepsOf(gate).every((step) =>
-				(step["continue-on-error"] === undefined || step["continue-on-error"] === false) &&
-				(conditionAllowed(step.if, ["pull_request"], true) || alwaysStep(step.if))) && needsOf(gate).every(gateBlocks);
-			active.delete(name);
-			checked.set(name, result);
-			return result;
-		};
-		if (gates.length === 0 || !gates.every(gateBlocks))
+		if (gates.length === 0 || !prerequisitesBlock(merge.workflow, merge.job, ["pull_request"], true))
 			problems.push("security.dependencies.automerge job needs an existing blocking gate job");
 		const steps = Array.isArray(merge.job.steps) ? merge.job.steps.filter(record) : [];
 		const mergeStep = steps.find((step) => text(step.run) && /\bgh pr merge\b[^\n]*--auto\b/.test(step.run));
@@ -873,7 +916,7 @@ function securityIssues(repo: string, adoption: unknown): Issue[] {
 		else if (check) {
 			const steps = stepsOf(check.job).filter((step) => text(step.run) && step.run.includes(auth.test as string));
 			if (steps.length === 0) problems.push("security.authorization job must run its named test");
-			else blocking(check.job, steps, "security.authorization test", ["pull_request"]);
+			else blocking(check.workflow, check.job, steps, "security.authorization test", ["pull_request"]);
 		}
 	}
 	return problems.map((problem) => ({ message: `FND-SEC-001: satisfied, but ${problem}` }));
@@ -1188,10 +1231,14 @@ function mappedSourceStories(repo: string, base: string, head: string): string[]
 	const mapping = mapAt(head);
 	const prior = mapAt(git(repo, "merge-base", base, head).trim());
 	const changed = changedFiles(repo, base, undefined, head);
-	// Citation applies to source changes only. Base mapping still counts when a PR remaps a changed source away.
-	if (![...prior, ...mapping].some((feature) => feature.sources.some((source) =>
-		changed.some((file) => globRegex(source).test(file))))) return [];
-	return changedStoryIds(repo, base, mapping, parseStories(fileAt(repo, head, "USER_STORIES.md") ?? ""), head);
+	// Source removed from the candidate map still belongs to the stories it served at the base.
+	const matching = [...prior, ...mapping].filter((feature) => feature.sources.some((source) =>
+		changed.some((file) => globRegex(source).test(file))));
+	if (matching.length === 0) return [];
+	const stories = parseStories(fileAt(repo, head, "USER_STORIES.md") ?? "");
+	const live = liveIds(stories);
+	return [...new Set([...matching.flatMap((feature) => feature.stories), ...changedStoryIds(repo, base, mapping, stories, head)])]
+		.filter((id) => live.has(id)).sort();
 }
 /** ADR-003's five designated-review triggers, judged against the PR's base ledger and candidate records. */
 function reviewTriggers(repo: string, base: string, head: string, errors: string[]): string[] {
@@ -1206,8 +1253,8 @@ function reviewTriggers(repo: string, base: string, head: string, errors: string
 	const prior = adoptionAt(mergeBase);
 	const current = adoptionAt(head);
 	if (isApplication(prior) && !isApplication(current)) reasons.push("surfaces: foundation.json stops declaring an application (ADR-005)");
-	const ledger = (rev: string) => (fileAt(repo, rev, "DOMAIN.md") ?? "").match(/^## Invariants\s*\n([\s\S]*?)(?=^## |$(?![\s\S]))/m)?.[1] ?? "";
-	if (ledger(mergeBase) !== ledger(head)) reasons.push("invariants ledger: DOMAIN.md policy changes");
+	const ledger = (rev: string) => ledgerSections(fileAt(repo, rev, "DOMAIN.md") ?? "");
+	if (JSON.stringify(ledger(mergeBase)) !== JSON.stringify(ledger(head))) reasons.push("invariants ledger: DOMAIN.md policy changes");
 	const priorDispositions = record(prior) && record(prior.dispositions) ? prior.dispositions : {};
 	const dispositions = record(current) && record(current.dispositions) ? current.dispositions : {};
 	for (const [id, disposition] of Object.entries(dispositions)) {
