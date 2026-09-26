@@ -732,9 +732,17 @@ Criteria:
    paths and repository-declared check commands, never by prompt, transcript,
    or tool-output text; usage the provider omits SHALL stay absent, not zero.
 6. WHERE `S1S2_MODE=off` is set, THE SYSTEM SHALL register no System 1 behavior.
+7. WHERE an advisor mode is set (`S1S2_ADVISOR`), THE SYSTEM SHALL send the
+   advisor model only the task, a compact log of System 2's actions, and the
+   current diff, with credential-shaped text masked; SHALL deliver its reply
+   only as an advisory note; SHALL consult it at most six times per prompt in
+   gated and tool modes, keeping the last gated consult for the review before
+   finishing; SHALL send System 2 back at most once on the advisor's word; and
+   SHALL leave the run as it would be without an advisor when a consult fails.
 
-No-gos: no second generative model; no deployment into the daily Pi profile;
-no tool veto or permission gate; no Jev-authored prose, code, or plans.
+No-gos: no second generative model beyond the advisor, which only advises
+(operator ruling 2026-09-26); no deployment into the daily Pi profile; no tool
+veto or permission gate; no Jev-authored prose, code, or plans.
 
 Evidence: `pi-config/extensions/s1s2/`, `agent-config/system-one/engine.test.ts`
 (provider usage), `docs/system1-system2-harness.md`,
@@ -749,16 +757,20 @@ than to the model, the task, or the grader.
 
 Criteria:
 1. WHEN a comparison runs, THE SYSTEM SHALL give every arm the same prompt,
-   model, reasoning effort, verbosity, output ceiling, and upstream provider,
-   and SHALL record each arm's first-request model settings as evidence.
+   reasoning effort, and verbosity, and for each model the same output ceiling
+   and upstream provider; System 2 SHALL run the model under test in every arm
+   except one that deliberately runs the advisor model; and THE SYSTEM SHALL
+   record each arm's first-request model settings as evidence.
 2. THE SYSTEM SHALL pin every generative role of an OMP arm, including its
-   advisor and subagents, to the model under test with provider fallback off.
+   subagents, to the model under test, and its advisor to the same advisor
+   model the System 1 arms consult, with provider fallback off.
 3. WHEN a run starts, THE SYSTEM SHALL use a fresh checkout whose history ends
    at the task's base commit and has no remote, SHALL disable tools that reach
    other systems identically in every arm, and SHALL limit the agent's network
-   to a model boundary that admits only the model under test and Jev, refusing
-   to start while the agent can reach the repository host, the exe.dev gateway,
-   an arbitrary address, or another listening service.
+   to a model boundary that admits only the model under test, the advisor
+   model, and Jev, each on its pinned upstream, refusing to start while the
+   agent can reach the repository host, the exe.dev gateway, an arbitrary
+   address, or another listening service.
 4. WHEN a run ends, THE SYSTEM SHALL grade it with the pull request's own
    withheld tests and report token usage by category, wall-clock, and turns.
 5. THE SYSTEM SHALL show judges only the task, the accepted change, and
@@ -772,8 +784,9 @@ Criteria:
 
 No-gos: no paid model route for the arms or judges beyond Jev, except the
 operator's 2026-09-25 rulings that run the pilot's and control run's model
-under test on OpenRouter; no OAuth copied between harnesses; no pushes from
-evaluated agents.
+under test on OpenRouter, and the 2026-09-26 ruling that runs round 2's arms,
+advisor, and judges on OpenRouter with no subscriptions; no OAuth copied
+between harnesses; no pushes from evaluated agents.
 
 Evidence: `pi-config/extensions/s1s2/eval/`,
 `docs/measurements/s1s2-vibe-2026-09-25.md`,

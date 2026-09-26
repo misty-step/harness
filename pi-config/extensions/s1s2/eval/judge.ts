@@ -1,24 +1,20 @@
 #!/usr/bin/env bun
 /**
- * Blind judging and aggregation for a vibe-check run directory (US-030).
+ * Blind judging and aggregation for an s1s2 evaluation run directory (US-030).
+ * Two OpenRouter LLM judges and a Jev panel see the task, accepted reference
+ * change, and shuffled, anonymous candidate diffs. They do not see run metrics.
+ * Verdicts are cached per task, judge, and candidate set; invalid replies are
+ * retained but never counted as votes.
  *
- * For each task where every arm finished, three subscription-backed LLM judges
- * (run through OMP with no tools, no extensions, and the advisor off) and one
- * Jev panel see the task statement, the merged pull request as one accepted
- * solution, and the arms' final diffs under shuffled labels. They never see
- * transcripts, harness names, timings, or test results. Scores map back to arms
- * only after parsing, then aggregate with the runner's measurements.
- *
- * Usage (OPENROUTER_API_KEY only for the Jev panel):
- *   pass-env run -f .env.pass -- bun pi-config/extensions/s1s2/eval/judge.ts \
- *     --manifest m.json --out dir --arms omp,s1s2 --price-model deepseek/deepseek-v4.1-flash
- * `--judges opus,jev` limits a pass to those judges, so each judge can run as its own
- * process; verdicts are cached per task and judge, and a final pass without the option
- * aggregates all of them. Each judge's candidate order is drawn from its own seed for
- * each task, so splitting passes across processes never gives every judge the same
- * order.
+ * Usage:
+ *   pass-env run -e OPENROUTER_API_KEY=workstation/OPENROUTER_API_KEY_MIRRODIN_PI -- bun pi-config/extensions/s1s2/eval/judge.ts \
+ *     --manifest m.json --out dir --arms pi,omp,s1s2 --tag exp1
+ * `--judges glm,minimax,jev` selects a panel (all by default).
+ * `--exclude-judges glm` omits a model family for that pass. Separate passes
+ * share verdicts only when their sorted candidate sets match.
  */
 import { spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { OpenRouterJevProvider, type Question } from "../../../../agent-config/system-one/engine.ts";
@@ -27,89 +23,187 @@ const CRITERIA = ["task", "correctness", "scope", "quality"] as const;
 type Scores = Record<(typeof CRITERIA)[number], number>;
 type Task = { id: string; size: string; base: string; merge: string; statement: string };
 type Usage = { input: number; output: number; cacheRead: number; cacheWrite: number };
-type S1Summary = { calls: number; failedCalls: number; latencyMs: number; costUsd: number; actions: Record<string, number> };
-type Run = { task: string; arm: string; hiddenPass: boolean; regressPass: boolean; timedOut: boolean; wallMs: number; parentTurns: number; modelCalls: number; usage: Usage; models: string[]; parity: unknown; s1: S1Summary | null };
-type LlmVerdict = { task: string; judge: string; labels: Record<string, string>; valid: boolean; scores: Record<string, Scores> | null; ranking: string[] | null; exit: number | null };
+type ModelSpend = { calls: number; settledUsd: number };
+type Boundary = { calls: number; settledUsd: number; unsettled: number; byModel: Record<string, ModelSpend> };
+type Advisor = { consults: number; costUsd: number };
+type S1Summary = { calls: number; failedCalls: number; latencyMs: number; inputTokens: number; outputTokens: number; costUsd: number; callsWithoutCost: number; actions: Record<string, number>; advisor: Advisor | null };
+type Run = { task: string; arm: string; hiddenPass: boolean; regressPass: boolean; timedOut: boolean; wallMs: number; parentTurns: number; modelCalls: number; usage: Usage; models: string[]; parity: unknown; boundary: Boundary; s1: S1Summary | null };
+type LlmJudge = "glm" | "minimax";
+type Judge = LlmJudge | "jev";
+type Attempt = { valid: boolean; costUsd: number | null; promptTokens: number | null; completionTokens: number | null; reply: string | null; error: string | null };
+type LlmVerdict = { task: string; judge: LlmJudge; labels: Record<string, string>; valid: boolean; scores: Record<string, Scores> | null; ranking: string[] | null; costUsd: number | null; promptTokens: number | null; completionTokens: number | null; attempts: Attempt[] };
 type JevVerdict = { task: string; judge: "jev"; labels: Record<string, string>; valid: boolean; success: Record<string, number | null>; best: string | null; costUsd: number | null };
 type Verdict = LlmVerdict | JevVerdict;
 
 const JUDGES = [
-	{ id: "opus", model: "anthropic/claude-opus-5-5", thinking: "high" },
-	{ id: "gemini", model: "google-antigravity/gemini-3.1-pro", thinking: "high" },
-	{ id: "grok", model: "xai-oauth/grok-4.7", thinking: "high" },
-];
+	{ id: "glm", model: "z-ai/glm-5.3", order: ["morph", "baidu", "deepinfra"] },
+	{ id: "minimax", model: "minimax/minimax-m3", order: ["minimax"] },
+] as const;
+const ALL_JUDGES: Judge[] = ["glm", "minimax", "jev"];
+const LABELS = ["A", "B", "C", "D", "E", "F", "G", "H"];
 
-// Runs, verdicts, and model replies are read from disk or a model, so every field is checked before use.
-const isObject = (value: unknown): value is Record<string, unknown> => value !== null && typeof value === "object";
+// Manifest, runs, caches, and provider replies cross trust boundaries.
+const isObject = (value: unknown): value is Record<string, unknown> => value !== null && typeof value === "object" && !Array.isArray(value);
 const finite = (value: unknown): value is number => typeof value === "number" && Number.isFinite(value);
 function number(value: unknown, what: string): number {
-	if (!finite(value)) throw new Error(`${what} is not a number`);
+	if (!finite(value) || value < 0) throw new Error(`${what} is not a nonnegative finite number`);
 	return value;
 }
 function text(value: unknown, what: string): string {
 	if (typeof value !== "string") throw new Error(`${what} is not a string`);
 	return value;
 }
-const strings = (value: unknown) => (isObject(value) ? Object.fromEntries(Object.entries(value).filter((entry): entry is [string, string] => typeof entry[1] === "string")) : {});
-const counts = (value: unknown) => (isObject(value) ? Object.fromEntries(Object.entries(value).filter((entry): entry is [string, number] => finite(entry[1]))) : {});
-
+function flag(value: unknown, what: string): boolean {
+	if (typeof value !== "boolean") throw new Error(`${what} is not a boolean`);
+	return value;
+}
+function optionalNumber(value: unknown, what: string): number | null {
+	return value === undefined || value === null ? null : number(value, what);
+}
+function counts(value: unknown, what: string): Record<string, number> {
+	if (value === undefined || value === null) return {};
+	if (!isObject(value)) throw new Error(`${what} is not an object`);
+	return Object.fromEntries(Object.entries(value).map(([key, count]) => [key, number(count, `${what}.${key}`)]));
+}
 function parseScores(value: unknown): Scores | null {
 	if (!isObject(value)) return null;
-	const { task, correctness, scope, quality } = value;
-	return finite(task) && finite(correctness) && finite(scope) && finite(quality) ? { task, correctness, scope, quality } : null;
+	const values = CRITERIA.map((criterion) => value[criterion]);
+	if (!values.every((score) => finite(score) && Number.isInteger(score) && score >= 1 && score <= 5)) return null;
+	return { task: values[0] as number, correctness: values[1] as number, scope: values[2] as number, quality: values[3] as number };
 }
-
-function parseRun(value: unknown, path: string): Run {
-	if (!isObject(value) || !isObject(value.usage)) throw new Error(`${path} is not a run record`);
-	const { usage, s1 } = value;
+function parseTask(value: unknown): Task {
+	if (!isObject(value)) throw new Error("manifest contains an invalid task");
+	const id = text(value.id, "task.id");
+	if (!/^[a-zA-Z0-9_-]+$/.test(id)) throw new Error(`unsafe task id ${id}`);
+	return { id, size: text(value.size, `${id}.size`), base: text(value.base, `${id}.base`), merge: text(value.merge, `${id}.merge`), statement: text(value.statement, `${id}.statement`) };
+}
+function parseRun(value: unknown, path: string, task: string, arm: string): Run {
+	if (!isObject(value) || !isObject(value.usage) || !isObject(value.boundary)) throw new Error(`${path} is not a run record`);
+	if (value.task !== task || value.arm !== arm) throw new Error(`${path} has the wrong task or arm`);
+	const { usage, boundary, s1 } = value;
+	const byModel: Record<string, ModelSpend> = Object.create(null);
+	if (boundary.byModel !== undefined) {
+		if (!isObject(boundary.byModel)) throw new Error(`${path} boundary.byModel is not an object`);
+		for (const [model, spend] of Object.entries(boundary.byModel)) {
+			if (!isObject(spend)) throw new Error(`${path} boundary.byModel.${model} is not an object`);
+			byModel[model] = { calls: number(spend.calls, `boundary.byModel.${model}.calls`), settledUsd: number(spend.settledUsd, `boundary.byModel.${model}.settledUsd`) };
+		}
+	}
+	if (s1 !== null && s1 !== undefined && !isObject(s1)) throw new Error(`${path} s1 is not an object`);
+	const advisor = isObject(s1) && s1.advisor !== undefined && s1.advisor !== null ? s1.advisor : null;
+	if (advisor !== null && !isObject(advisor)) throw new Error(`${path} s1.advisor is not an object`);
+	if (!Array.isArray(value.models) || !value.models.every((model) => typeof model === "string")) throw new Error(`${path} models is not a list of strings`);
 	return {
-		task: text(value.task, `${path} task`),
-		arm: text(value.arm, `${path} arm`),
-		hiddenPass: value.hiddenPass === true,
-		regressPass: value.regressPass === true,
-		timedOut: value.timedOut === true,
+		task,
+		arm,
+		hiddenPass: flag(value.hiddenPass, `${path} hiddenPass`),
+		regressPass: flag(value.regressPass, `${path} regressPass`),
+		timedOut: flag(value.timedOut, `${path} timedOut`),
 		wallMs: number(value.wallMs, `${path} wallMs`),
 		parentTurns: number(value.parentTurns, `${path} parentTurns`),
 		modelCalls: number(value.modelCalls, `${path} modelCalls`),
 		usage: { input: number(usage.input, "usage.input"), output: number(usage.output, "usage.output"), cacheRead: number(usage.cacheRead, "usage.cacheRead"), cacheWrite: number(usage.cacheWrite, "usage.cacheWrite") },
-		models: Array.isArray(value.models) ? value.models.filter((model): model is string => typeof model === "string") : [],
-		parity: value.parity,
-		s1: isObject(s1)
-			? { calls: number(s1.calls, "s1.calls"), failedCalls: number(s1.failedCalls, "s1.failedCalls"), latencyMs: number(s1.latencyMs, "s1.latencyMs"), costUsd: finite(s1.costUsd) ? s1.costUsd : 0, actions: counts(s1.actions) }
-			: null,
+		models: value.models,
+		parity: value.parity ?? null,
+		boundary: { calls: number(boundary.calls, "boundary.calls"), settledUsd: number(boundary.settledUsd, "boundary.settledUsd"), unsettled: number(boundary.unsettled, "boundary.unsettled"), byModel },
+		s1: isObject(s1) ? {
+			calls: number(s1.calls, "s1.calls"), failedCalls: number(s1.failedCalls, "s1.failedCalls"), latencyMs: number(s1.latencyMs, "s1.latencyMs"),
+			inputTokens: number(s1.inputTokens ?? 0, "s1.inputTokens"), outputTokens: number(s1.outputTokens ?? 0, "s1.outputTokens"),
+			costUsd: number(s1.costUsd ?? 0, "s1.costUsd"), callsWithoutCost: number(s1.callsWithoutCost ?? 0, "s1.callsWithoutCost"), actions: counts(s1.actions, "s1.actions"),
+			advisor: isObject(advisor) ? { consults: number(advisor.consults, "s1.advisor.consults"), costUsd: number(advisor.costUsd, "s1.advisor.costUsd") } : null,
+		} : null,
 	};
 }
-
-function parseVerdict(value: unknown): Verdict | null {
-	if (!isObject(value) || typeof value.task !== "string" || typeof value.judge !== "string") return null;
-	const labels = strings(value.labels);
-	if (value.judge === "jev") {
-		const success = isObject(value.success) ? Object.fromEntries(Object.entries(value.success).map(([arm, score]) => [arm, finite(score) ? score : null])) : {};
-		return { task: value.task, judge: "jev", labels, valid: value.valid === true, success, best: typeof value.best === "string" ? value.best : null, costUsd: finite(value.costUsd) ? value.costUsd : null };
+function parseAttempt(value: unknown): Attempt | null {
+	if (!isObject(value) || typeof value.valid !== "boolean") return null;
+	try {
+		return {
+			valid: value.valid, costUsd: optionalNumber(value.costUsd, "attempt.costUsd"),
+			promptTokens: optionalNumber(value.promptTokens, "attempt.promptTokens"), completionTokens: optionalNumber(value.completionTokens, "attempt.completionTokens"),
+			reply: value.reply === null || value.reply === undefined ? null : text(value.reply, "attempt.reply"),
+			error: value.error === null || value.error === undefined ? null : text(value.error, "attempt.error"),
+		};
+	} catch { return null; }
+}
+function totalKnown(values: (number | null)[]): number | null {
+	return values.some((value) => value !== null) ? values.reduce<number>((sum, value) => sum + (value ?? 0), 0) : null;
+}
+function parseVerdict(value: unknown, task: string, judge: Judge, arms: string[], labels: string[]): Verdict | null {
+	if (!isObject(value) || value.task !== task || value.judge !== judge) return null;
+	const given = value.labels;
+	if (!isObject(given)) return null;
+	if (Object.keys(given).length !== arms.length || !arms.every((arm) => {
+		const label = given[arm];
+		return typeof label === "string" && labels.includes(label);
+	}) || new Set(Object.values(given)).size !== arms.length) return null;
+	const mapping = Object.fromEntries(arms.map((arm) => [arm, text(given[arm], `labels.${arm}`)]));
+	if (judge === "jev") {
+		if (!isObject(value.success)) return null;
+		const success: Record<string, number | null> = {};
+		for (const arm of arms) {
+			const score = value.success[arm];
+			if (score !== null && score !== undefined && !(finite(score) && score >= 1 && score <= 5)) return null;
+			success[arm] = finite(score) ? score : null;
+		}
+		const best = typeof value.best === "string" && arms.includes(value.best) ? value.best : null;
+		return { task, judge, labels: mapping, valid: value.valid === true && arms.every((arm) => success[arm] !== null) && (value.best === null || best !== null), success, best, costUsd: optionalNumber(value.costUsd, "jev.costUsd") };
 	}
-	let complete: Record<string, Scores> | null = isObject(value.scores) ? {} : null;
-	for (const [arm, score] of isObject(value.scores) ? Object.entries(value.scores) : []) {
-		const parsed = parseScores(score);
-		if (parsed && complete) complete[arm] = parsed;
-		else complete = null;
+	if (!Array.isArray(value.attempts)) return null;
+	const attempts = value.attempts.map(parseAttempt);
+	if (attempts.some((attempt) => attempt === null)) return null;
+	const parsedAttempts = attempts.filter((attempt): attempt is Attempt => attempt !== null);
+	const scores: Record<string, Scores> = {};
+	for (const arm of arms) {
+		const score = parseScores(isObject(value.scores) ? value.scores[arm] : undefined);
+		if (score) scores[arm] = score;
 	}
-	const listed = Array.isArray(value.ranking) ? value.ranking.filter((arm): arm is string => typeof arm === "string") : [];
-	const ranking = Array.isArray(value.ranking) && listed.length === value.ranking.length ? listed : null;
-	return { task: value.task, judge: value.judge, labels, valid: value.valid === true && complete !== null && ranking !== null, scores: complete, ranking, exit: finite(value.exit) ? value.exit : null };
+	const ranking = Array.isArray(value.ranking) && value.ranking.every((arm) => typeof arm === "string") ? value.ranking as string[] : null;
+	const valid = value.valid === true && arms.every((arm) => scores[arm]) && isPermutation(ranking, arms);
+	return {
+		task, judge, labels: mapping, valid, scores: valid ? scores : null, ranking: valid ? ranking : null,
+		costUsd: totalKnown(parsedAttempts.map((attempt) => attempt.costUsd)),
+		promptTokens: totalKnown(parsedAttempts.map((attempt) => attempt.promptTokens)),
+		completionTokens: totalKnown(parsedAttempts.map((attempt) => attempt.completionTokens)), attempts: parsedAttempts,
+	};
+}
+function isPermutation(items: string[] | null, members: string[]): items is string[] {
+	return items !== null && items.length === members.length && new Set(items).size === members.length && items.every((item) => members.includes(item));
 }
 
 const args = new Map<string, string>();
-for (let i = 2; i < process.argv.length; i += 2) args.set(process.argv[i].replace(/^--/, ""), process.argv[i + 1] ?? "");
+for (let i = 2; i < process.argv.length; i += 2) {
+	const option = process.argv[i];
+	if (!option.startsWith("--") || i + 1 >= process.argv.length || process.argv[i + 1].startsWith("--") || args.has(option.slice(2))) throw new Error(`invalid option ${option}`);
+	args.set(option.slice(2), process.argv[i + 1]);
+}
+for (const option of args.keys()) if (!["manifest", "out", "arms", "tag", "judges", "exclude-judges", "seed"].includes(option)) throw new Error(`unknown option --${option}`);
+for (const option of ["manifest", "out", "arms"]) if (!args.get(option)) throw new Error(`--${option} is required`);
 const out = resolve(args.get("out") ?? "");
-const tasks = (JSON.parse(readFileSync(resolve(args.get("manifest") ?? ""), "utf8")) as { tasks: Task[] }).tasks; // the curated manifest this evaluation ships with
-const ARMS = (args.get("arms") ?? "omp,s1s2,pi").split(",");
-const selected = args.get("judges")?.split(",").filter(Boolean);
-const LABELS = ["A", "B", "C", "D"].slice(0, ARMS.length);
-const seed = Number(args.get("seed") ?? 26);
+const manifest: unknown = JSON.parse(readFileSync(resolve(args.get("manifest") ?? ""), "utf8"));
+if (!isObject(manifest) || !Array.isArray(manifest.tasks)) throw new Error("manifest has no tasks array");
+const tasks = manifest.tasks.map(parseTask);
+if (new Set(tasks.map((task) => task.id)).size !== tasks.length) throw new Error("duplicate task IDs");
+function parseCommaList(value: string): string[] { return value.split(",").map((item) => item.trim()); }
+const ARMS = parseCommaList(args.get("arms") ?? "").sort();
+if (ARMS.length < 1 || ARMS.length > LABELS.length || ARMS.some((arm) => !/^[a-zA-Z0-9_-]+$/.test(arm)) || new Set(ARMS).size !== ARMS.length) throw new Error("--arms requires 1-8 distinct arm names");
+function judgeList(option: string): Judge[] {
+	const selected = parseCommaList(args.get(option) ?? "");
+	if (selected.some((judge) => !ALL_JUDGES.includes(judge as Judge)) || new Set(selected).size !== selected.length) throw new Error(`invalid --${option}`);
+	return selected as Judge[];
+}
+const selected = args.has("judges") ? judgeList("judges") : ALL_JUDGES;
+const excluded = args.has("exclude-judges") ? judgeList("exclude-judges") : [];
+const activeJudges = selected.filter((judge) => !excluded.includes(judge));
+const tag = args.get("tag") ?? "";
+if (tag && !/^[a-zA-Z0-9_-]+$/.test(tag)) throw new Error("unsafe --tag");
+const parsedSeed = Number(args.get("seed") ?? 26);
+if (!Number.isSafeInteger(parsedSeed)) throw new Error("--seed must be an integer");
+const armsKey = createHash("sha256").update(JSON.stringify(ARMS)).digest("hex").slice(0, 8);
+const labels = LABELS.slice(0, ARMS.length);
 
 /** Candidate order for one judge on one task, from a seed of its own. */
 function shuffle<T>(items: readonly T[], key: string): T[] {
-	let state = (seed ^ 0x9e3779b9) >>> 0;
+	let state = (parsedSeed ^ 0x9e3779b9) >>> 0;
 	for (let i = 0; i < key.length; i++) state = Math.imul(state ^ key.charCodeAt(i), 16777619) >>> 0;
 	const random = () => {
 		state = (state + 0x6d2b79f5) >>> 0;
@@ -125,140 +219,184 @@ function shuffle<T>(items: readonly T[], key: string): T[] {
 	}
 	return copy;
 }
-
-/** Current public OpenRouter prices (USD per token) for the model under test. */
-async function prices(model: string) {
-	const response = await fetch("https://openrouter.ai/api/v1/models", { signal: AbortSignal.timeout(30_000) });
-	const catalog: unknown = await response.json();
-	const entry = isObject(catalog) && Array.isArray(catalog.data) ? catalog.data.find((item) => isObject(item) && item.id === model) : undefined;
-	if (!isObject(entry) || !isObject(entry.pricing)) throw new Error(`no OpenRouter price for ${model}`);
-	const rate = (value: unknown) => Number(value ?? 0) || 0;
-	return { input: rate(entry.pricing.prompt), output: rate(entry.pricing.completion), cacheRead: rate(entry.pricing.input_cache_read), cacheWrite: rate(entry.pricing.input_cache_write) };
-}
-const price = await prices(args.get("price-model") ?? "deepseek/deepseek-v4.1-flash");
-
 /** Drop harness bookkeeping so no candidate is identifiable by its artifacts. */
 function normalize(diff: string): string {
 	const blocks = diff.split(/(?=^diff --git )/m);
 	return blocks.filter((block) => !/^diff --git a\/(\.omp|\.pi|\.s1s2)\//.test(block)).join("") || "(no changes)";
 }
-
 function clip(content: string, limit: number): string {
-	return content.length <= limit ? content : `${content.slice(0, limit)}\n[… ${content.length - limit} more characters omitted]`;
+	if (content.length <= limit) return content;
+	if (limit === 0) return "";
+	const suffix = `\n[… ${content.length - limit} more characters omitted]`;
+	return suffix.length < limit ? `${content.slice(0, limit - suffix.length)}${suffix}` : content.slice(0, limit);
+}
+function promptFor(task: Task, reference: string, diffs: Record<string, string>, order: string[]): string {
+	const candidateLimit = Math.max(12_000, Math.floor(60_000 / Math.max(1, order.length - 2)));
+	const example = `{${labels.map((label) => `"${label}":{"task":3,"correctness":3,"scope":3,"quality":3}`).join(",")},"ranking":[${labels.map((label) => `"${label}"`).join(",")}]}`;
+	return [
+		`You are reviewing ${labels.length} candidate changes (${labels.join(", ")}) to the same Git repository for the same task. Judge each on its own merits against the task statement.`,
+		"You have no tools and cannot open files or run commands: judge only from the text below, and answer in one reply.",
+		"A reference change that the project actually accepted is included for context; other correct solutions may differ from it.",
+		`\nTask statement:\n<<<\n${task.statement}\n>>>`,
+		`\nReference change (accepted; not the only correct solution):\n<<<\n${clip(reference, 60_000)}\n>>>`,
+		...order.map((arm, i) => `\nCandidate ${labels[i]}:\n<<<\n${clip(diffs[arm], candidateLimit)}\n>>>`),
+		"\nScore each candidate from 1 (worst) to 5 (best) on: task (does it accomplish what the task asks), correctness (likely free of bugs and regressions),",
+		"scope (no unrelated or unrequested changes), quality (clear, fits the codebase, maintainable). Then rank the candidates from best to worst.",
+		`Reply with only this JSON and nothing else: ${example}`,
+	].join("\n");
+}
+function parseReply(reply: unknown, order: string[]): { scores: Record<string, Scores>; ranking: string[] } | null {
+	if (!isObject(reply)) return null;
+	const ranked = reply.ranking;
+	if (!Array.isArray(ranked) || !ranked.every((label) => typeof label === "string") || !isPermutation(ranked, labels)) return null;
+	const scores: Record<string, Scores> = {};
+	for (const [i, arm] of order.entries()) {
+		const score = parseScores(reply[labels[i]]);
+		if (!score) return null;
+		scores[arm] = score;
+	}
+	return { scores, ranking: ranked.map((label) => order[labels.indexOf(label)]) };
+}
+async function callLlm(judge: (typeof JUDGES)[number], prompt: string, order: string[], key: string): Promise<{ attempt: Attempt; result: { scores: Record<string, Scores>; ranking: string[] } | null; retry: boolean }> {
+	let reply: string | null = null;
+	let costUsd: number | null = null;
+	let promptTokens: number | null = null;
+	let completionTokens: number | null = null;
+	try {
+		const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+			method: "POST",
+			headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}`, "HTTP-Referer": "https://github.com/misty-step/harness", "X-Title": "Harness Blind Evaluation" },
+			body: JSON.stringify({ model: judge.model, provider: { order: judge.order, allow_fallbacks: true }, reasoning: { effort: "high" }, max_tokens: 16000, usage: { include: true }, messages: [{ role: "user", content: prompt }] }),
+			signal: AbortSignal.timeout(600_000),
+		});
+		const raw = await response.text();
+		let data: unknown;
+		try { data = JSON.parse(raw); } catch {
+			return { attempt: { valid: false, costUsd, promptTokens, completionTokens, reply: raw, error: "unparseable response JSON" }, result: null, retry: response.ok };
+		}
+		if (isObject(data) && isObject(data.usage)) {
+			costUsd = optionalNumber(data.usage.cost, "usage.cost");
+			promptTokens = optionalNumber(data.usage.prompt_tokens, "usage.prompt_tokens");
+			completionTokens = optionalNumber(data.usage.completion_tokens, "usage.completion_tokens");
+		}
+		if (!response.ok) return { attempt: { valid: false, costUsd, promptTokens, completionTokens, reply: raw, error: `HTTP ${response.status}` }, result: null, retry: false };
+		const choices = isObject(data) && Array.isArray(data.choices) ? data.choices : [];
+		const message = isObject(choices[0]) ? choices[0].message : null;
+		reply = isObject(message) && typeof message.content === "string" ? message.content : null;
+		let parsed: unknown = null;
+		try { parsed = reply === null ? null : JSON.parse(reply); } catch { /* invalid model reply, retry once */ }
+		const result = parseReply(parsed, order);
+		return { attempt: { valid: result !== null, costUsd, promptTokens, completionTokens, reply, error: result ? null : "invalid JSON verdict" }, result, retry: result === null };
+	} catch (error) {
+		return { attempt: { valid: false, costUsd, promptTokens, completionTokens, reply, error: error instanceof Error ? error.message : String(error) }, result: null, retry: false };
+	}
+}
+function jevState(task: Task, reference: string, diffs: Record<string, string>, order: string[]): string {
+	const serialize = (taskLimit: number, referenceLimit: number, candidateLimit: number) => JSON.stringify({
+		task: clip(task.statement, taskLimit), reference: clip(reference, referenceLimit),
+		candidates: Object.fromEntries(order.map((arm, i) => [labels[i], clip(diffs[arm], candidateLimit)])),
+	});
+	const fits = (text: string) => text.length < 55_000;
+	const largestFitting = (max: number, make: (limit: number) => string): number => {
+		let low = 0;
+		let high = max;
+		while (low < high) {
+			const middle = Math.ceil((low + high) / 2);
+			if (fits(make(middle))) low = middle;
+			else high = middle - 1;
+		}
+		return low;
+	};
+	let taskLimit = task.statement.length;
+	let referenceLimit = Math.min(reference.length, 10_000);
+	if (!fits(serialize(taskLimit, referenceLimit, 0))) taskLimit = largestFitting(taskLimit, (limit) => serialize(limit, referenceLimit, 0));
+	if (!fits(serialize(taskLimit, referenceLimit, 0))) referenceLimit = largestFitting(referenceLimit, (limit) => serialize(taskLimit, limit, 0));
+	if (!fits(serialize(taskLimit, referenceLimit, 0))) throw new Error(`task ${task.id} exceeds Jev's state budget`);
+	const candidateLimit = largestFitting(Math.max(0, ...order.map((arm) => diffs[arm].length)), (limit) => serialize(taskLimit, referenceLimit, limit));
+	const state = serialize(taskLimit, referenceLimit, candidateLimit);
+	if (!fits(state)) throw new Error(`task ${task.id} exceeds Jev's state budget`);
+	return state;
 }
 
 const judgeDir = join(out, "judging");
 mkdirSync(judgeDir, { recursive: true });
-const overlay = join(judgeDir, "judge.yml");
-writeFileSync(overlay, "advisor:\n  enabled: false\n");
-const jevKey = process.env.OPENROUTER_API_KEY ?? "";
-const jev = jevKey ? new OpenRouterJevProvider(jevKey, "typesafe/jev-1.13") : null;
-const readCache = (path: string) => (existsSync(path) ? parseVerdict(JSON.parse(readFileSync(path, "utf8"))) : null);
-
+const apiKey = process.env.OPENROUTER_API_KEY ?? "";
+const jev = apiKey ? new OpenRouterJevProvider(apiKey, "typesafe/jev-1.13") : null;
+const readCache = (path: string, task: string, judge: Judge) => existsSync(path) ? parseVerdict(JSON.parse(readFileSync(path, "utf8")), task, judge, ARMS, labels) : null;
+const cachePath = (task: Task, judge: Judge) => join(judgeDir, `${task.id}.${judge}.${armsKey}.json`);
 const judgements: Verdict[] = [];
 const runs: Run[] = [];
 for (const task of tasks) {
-	const taskRuns = ARMS.map((arm) => join(out, "runs", task.id, arm, "run.json"))
-		.filter(existsSync)
-		.map((path) => parseRun(JSON.parse(readFileSync(path, "utf8")), path));
+	const taskRuns = ARMS.flatMap((arm) => {
+		const path = join(out, "runs", task.id, arm, "run.json");
+		return existsSync(path) ? [parseRun(JSON.parse(readFileSync(path, "utf8")), path, task.id, arm)] : [];
+	});
 	runs.push(...taskRuns);
 	if (taskRuns.length !== ARMS.length) continue;
-	const reference = spawnSync("git", ["diff", task.base, task.merge], { cwd: join(out, "src"), encoding: "utf8", maxBuffer: 64 * 1024 * 1024 }).stdout ?? "";
+	const cached = new Map(activeJudges.map((judge) => [judge, readCache(cachePath(task, judge), task.id, judge)]));
+	const pending = activeJudges.filter((judge) => !cached.get(judge)?.valid);
+	for (const judge of activeJudges) {
+		const verdict = cached.get(judge);
+		if (verdict?.valid) judgements.push(verdict);
+	}
+	if (!pending.length) continue;
+	if (!apiKey) throw new Error(`OPENROUTER_API_KEY is required for ${task.id}: ${pending.join(", ")}`);
+	const git = spawnSync("git", ["diff", task.base, task.merge], { cwd: join(out, "src"), encoding: "utf8", maxBuffer: 64 * 1024 * 1024 });
+	if (git.status !== 0) throw new Error(`cannot load reference for ${task.id}: ${git.stderr}`);
+	const reference = git.stdout;
 	const diffs = Object.fromEntries(ARMS.map((arm) => [arm, normalize(readFileSync(join(out, "runs", task.id, arm, "final.diff"), "utf8"))]));
-
-	for (const judge of JUDGES.filter((entry) => !selected || selected.includes(entry.id))) {
-		const cache = join(judgeDir, `${task.id}.${judge.id}.json`);
-		const cached = readCache(cache);
-		if (cached?.valid) {
-			judgements.push(cached);
-			continue;
+	for (const judge of JUDGES.filter((entry) => pending.includes(entry.id))) {
+		const order = shuffle(ARMS, `${task.id}:${judge.id}:${armsKey}`);
+		const mapping = Object.fromEntries(order.map((arm, i) => [arm, labels[i]]));
+		const prompt = promptFor(task, reference, diffs, order);
+		writeFileSync(join(judgeDir, `${task.id}.${judge.id}.${armsKey}.prompt.md`), prompt);
+		const previous = cached.get(judge.id);
+		const attempts = previous && previous.judge !== "jev" ? previous.attempts : [];
+		let record: LlmVerdict = { task: task.id, judge: judge.id, labels: mapping, valid: false, scores: null, ranking: null, costUsd: null, promptTokens: null, completionTokens: null, attempts: [...attempts] };
+		for (let retry = 0; retry < 2; retry++) {
+			const result = await callLlm(judge, prompt, order, apiKey);
+			const nextAttempts = [...record.attempts, result.attempt];
+			record = {
+				...record, attempts: nextAttempts, valid: result.result !== null,
+				scores: result.result?.scores ?? null, ranking: result.result?.ranking ?? null,
+				costUsd: totalKnown(nextAttempts.map((attempt) => attempt.costUsd)),
+				promptTokens: totalKnown(nextAttempts.map((attempt) => attempt.promptTokens)),
+				completionTokens: totalKnown(nextAttempts.map((attempt) => attempt.completionTokens)),
+			};
+			writeFileSync(cachePath(task, judge.id), `${JSON.stringify(record, null, 2)}\n`);
+			if (!result.retry || result.result) break;
 		}
-		const order = shuffle(ARMS, `${task.id}:${judge.id}`);
-		const labelOf = Object.fromEntries(order.map((arm, i) => [arm, LABELS[i]]));
-		const example = `{${LABELS.map((label) => `"${label}":{"task":n,"correctness":n,"scope":n,"quality":n}`).join(",")},"ranking":[${LABELS.map(() => '"X"').join(",")}]}`;
-		const prompt = [
-			`You are reviewing ${LABELS.length} candidate changes (${LABELS.join(", ")}) to the same Git repository for the same task. Judge each on its own merits against the task statement.`,
-			"You have no tools and cannot open files or run commands: judge only from the text below, and answer in one reply.",
-			"A reference change that the project actually accepted is included for context; other correct solutions may differ from it.",
-			`\nTask statement:\n<<<\n${task.statement}\n>>>`,
-			`\nReference change (accepted; not the only correct solution):\n<<<\n${clip(reference, 60_000)}\n>>>`,
-			...order.map((arm, i) => `\nCandidate ${LABELS[i]}:\n<<<\n${clip(diffs[arm], 60_000)}\n>>>`),
-			"\nScore each candidate from 1 (worst) to 5 (best) on: task (does it accomplish what the task asks), correctness (likely free of bugs and regressions),",
-			"scope (no unrelated or unrequested changes), quality (clear, fits the codebase, maintainable). Then rank the candidates from best to worst.",
-			`Reply with only this JSON and nothing else: ${example}`,
-		].join("\n");
-		const promptFile = join(judgeDir, `${task.id}.${judge.id}.prompt.md`);
-		writeFileSync(promptFile, prompt);
-		const result = spawnSync(
-			"omp",
-			["-p", "--mode", "text", "--no-tools", "--no-extensions", "--no-skills", "--no-rules", "--no-title", "--no-session", "--config", overlay, "--model", judge.model, "--thinking", judge.thinking, `@${promptFile}`, "Follow the instructions in the attached file."],
-			{ cwd: judgeDir, encoding: "utf8", timeout: 900_000, maxBuffer: 16 * 1024 * 1024 },
-		);
-		const match = [...(result.stdout ?? "").matchAll(/\{[\s\S]*\}/g)].at(-1)?.[0];
-		let reply: unknown = null;
-		try {
-			reply = match ? JSON.parse(match) : null;
-		} catch {
-			reply = null;
-		}
-		const byLabel = Object.fromEntries(LABELS.map((label) => [label, parseScores(isObject(reply) ? reply[label] : undefined)]));
-		const rankedLabels = isObject(reply) && Array.isArray(reply.ranking) ? reply.ranking.filter((label): label is string => typeof label === "string") : [];
-		const valid = LABELS.every((label) => byLabel[label] !== null && rankedLabels.includes(label));
-		const scores: Record<string, Scores> = {};
-		for (const arm of ARMS) {
-			const score = byLabel[labelOf[arm]];
-			if (score) scores[arm] = score;
-		}
-		const record: LlmVerdict = {
-			task: task.id,
-			judge: judge.id,
-			labels: labelOf,
-			valid,
-			scores: valid ? scores : null,
-			ranking: valid ? rankedLabels.filter((label) => LABELS.includes(label)).map((label) => order[LABELS.indexOf(label)]) : null,
-			exit: result.status,
-		};
-		writeFileSync(cache, `${JSON.stringify(record, null, 2)}\n`);
 		judgements.push(record);
 		console.log(`${task.id} ${judge.id} valid=${record.valid}`);
 	}
-
-	const jevCache = join(judgeDir, `${task.id}.jev.json`);
-	const cachedJev = readCache(jevCache);
-	if (cachedJev) judgements.push(cachedJev);
-	else if (jev && (!selected || selected.includes("jev"))) {
-		const order = shuffle(ARMS, `${task.id}:jev`);
-		const bestCriteria: Record<string, string> = Object.fromEntries(LABELS.map((label) => [label, `Candidate ${label}`]));
+	if (pending.includes("jev") && jev) {
+		const order = shuffle(ARMS, `${task.id}:jev:${armsKey}`);
+		const bestCriteria: Record<string, string> = Object.fromEntries(labels.map((label) => [label, `Candidate ${label}`]));
 		bestCriteria.none_acceptable = "None of the candidates accomplishes the task";
 		const questions: Record<string, Question> = {
 			best: { type: "choice", instructions: "Which candidate change in `candidates` best accomplishes the task in `task`, judged against the accepted `reference` change?", criteria: bestCriteria },
 		};
-		for (const label of LABELS) {
+		for (const label of labels) {
 			questions[`success_${label}`] = {
-				type: "score",
-				instructions: `How completely does candidate ${label} in \`candidates\` accomplish the task in \`task\`?`,
+				type: "score", instructions: `How completely does candidate ${label} in \`candidates\` accomplish the task in \`task\`?`,
 				criteria: ["It does not address the task", "It addresses part of the task with clear gaps or errors", "It addresses most of the task with minor gaps", "It fully accomplishes the task", "It fully accomplishes the task cleanly, with appropriate tests"],
 			};
 		}
-		const jevState = JSON.stringify({ task: task.statement, reference: clip(reference, 12_000), candidates: Object.fromEntries(order.map((arm, i) => [LABELS[i], clip(diffs[arm], 12_000)])) });
 		try {
-			const evaluation = await jev.evaluateWithMetadata(jevState, questions, 30_000);
+			const evaluation = await jev.evaluateWithMetadata(jevState(task, reference, diffs, order), questions, 30_000);
 			const best = evaluation.answers.best;
+			const bestChoice = best?.type === "choice" ? best.choice : null;
+			const bestArm = bestChoice === "none_acceptable" ? null : bestChoice && labels.includes(bestChoice) ? order[labels.indexOf(bestChoice)] : null;
+			const success = Object.fromEntries(order.map((arm, i) => {
+				const answer = evaluation.answers[`success_${labels[i]}`];
+				return [arm, answer?.type === "score" && Number.isInteger(answer.score) && answer.score >= 0 && answer.score <= 4 ? answer.score + 1 : null];
+			}));
 			const record: JevVerdict = {
-				task: task.id,
-				judge: "jev",
-				labels: Object.fromEntries(order.map((arm, i) => [arm, LABELS[i]])),
-				valid: true,
-				success: Object.fromEntries(
-					order.map((arm, i) => {
-						const answer = evaluation.answers[`success_${LABELS[i]}`];
-						return [arm, answer?.type === "score" ? answer.score + 1 : null];
-					}),
-				),
-				best: best?.type === "choice" && best.choice !== "none_acceptable" ? order[LABELS.indexOf(best.choice)] : null,
-				costUsd: evaluation.usage?.costUsd ?? null,
+				task: task.id, judge: "jev", labels: Object.fromEntries(order.map((arm, i) => [arm, labels[i]])),
+				valid: bestChoice !== null && (bestChoice === "none_acceptable" || bestArm !== null) && Object.values(success).every((score) => score !== null),
+				success, best: bestArm, costUsd: evaluation.usage?.costUsd ?? null,
 			};
-			writeFileSync(jevCache, `${JSON.stringify(record, null, 2)}\n`);
+			writeFileSync(cachePath(task, "jev"), `${JSON.stringify(record, null, 2)}\n`);
 			judgements.push(record);
 		} catch (error) {
 			console.log(`${task.id} jev unavailable: ${error instanceof Error ? error.message.slice(0, 120) : error}`);
@@ -266,70 +404,67 @@ for (const task of tasks) {
 	}
 }
 
-const mean = (values: number[]) => (values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : null);
+const mean = (values: number[]) => values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : null;
 const median = (values: number[]) => {
 	if (!values.length) return null;
 	const sorted = [...values].sort((a, b) => a - b);
 	return sorted.length % 2 ? sorted[(sorted.length - 1) / 2] : (sorted[sorted.length / 2 - 1] + sorted[sorted.length / 2]) / 2;
 };
-const costOf = (usage: Usage) => usage.input * price.input + usage.output * price.output + usage.cacheRead * price.cacheRead + usage.cacheWrite * price.cacheWrite;
-const llm = judgements.filter((entry): entry is LlmVerdict & { scores: Record<string, Scores>; ranking: string[] } => entry.judge !== "jev" && entry.valid && "scores" in entry && entry.scores !== null && entry.ranking !== null);
-const jevVerdicts = judgements.filter((entry): entry is JevVerdict => entry.judge === "jev");
-const summary = Object.fromEntries(
-	ARMS.map((arm) => {
-		const armRuns = runs.filter((run) => run.arm === arm);
-		const scores = llm.map((entry) => entry.scores[arm]);
-		const s1 = armRuns.flatMap((run) => (run.s1 ? [run.s1] : []));
-		const modelCost = armRuns.reduce((sum, run) => sum + costOf(run.usage), 0);
-		const jevCost = s1.reduce((sum, value) => sum + value.costUsd, 0);
-		const actions: Record<string, number> = {};
-		for (const value of s1) for (const [key, count] of Object.entries(value.actions)) actions[key] = (actions[key] ?? 0) + count;
-		const tokens: Usage = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 };
-		for (const run of armRuns) for (const key of ["input", "output", "cacheRead", "cacheWrite"] as const) tokens[key] += run.usage[key];
-		return [
-			arm,
-			{
-				runs: armRuns.length,
-				hiddenPass: armRuns.filter((run) => run.hiddenPass).length,
-				regressPass: armRuns.filter((run) => run.regressPass).length,
-				timedOut: armRuns.filter((run) => run.timedOut).length,
-				judgeTask: mean(scores.map((score) => score.task)),
-				judgeOverall: mean(scores.map((score) => CRITERIA.reduce((sum, key) => sum + score[key], 0) / CRITERIA.length)),
-				judgeFirstPlaces: llm.filter((entry) => entry.ranking[0] === arm).length,
-				judgeVotes: llm.length,
-				jevSuccess: mean(jevVerdicts.map((entry) => entry.success[arm]).filter((value): value is number => value !== null && value !== undefined)),
-				jevBest: jevVerdicts.filter((entry) => entry.best === arm).length,
-				medianWallSec: median(armRuns.map((run) => run.wallMs / 1000)),
-				totalWallSec: armRuns.reduce((sum, run) => sum + run.wallMs / 1000, 0),
-				meanParentTurns: mean(armRuns.map((run) => run.parentTurns)),
-				meanModelCalls: mean(armRuns.map((run) => run.modelCalls)),
-				tokens,
-				modelCostUsd: modelCost,
-				jevCostUsd: jevCost,
-				totalCostUsd: modelCost + jevCost,
-				models: [...new Set(armRuns.flatMap((run) => run.models))],
-				parity: [...new Set(armRuns.map((run) => JSON.stringify(run.parity)))],
-				s1: s1.length ? { calls: s1.reduce((sum, value) => sum + value.calls, 0), failedCalls: s1.reduce((sum, value) => sum + value.failedCalls, 0), latencyMs: s1.reduce((sum, value) => sum + value.latencyMs, 0), actions } : null,
-			},
-		];
-	}),
-);
-const perTask = tasks.map((task) => ({
-	task: task.id,
-	size: task.size,
-	arms: Object.fromEntries(
-		ARMS.map((arm) => {
-			const run = runs.find((entry) => entry.task === task.id && entry.arm === arm);
-			const taskJudges = llm.filter((entry) => entry.task === task.id);
-			return [
-				arm,
-				run
-					? { hidden: run.hiddenPass, regress: run.regressPass, wallSec: Math.round(run.wallMs / 1000), turns: run.parentTurns, calls: run.modelCalls, costUsd: costOf(run.usage) + (run.s1?.costUsd ?? 0), judgeTask: mean(taskJudges.map((entry) => entry.scores[arm].task)), firsts: taskJudges.filter((entry) => entry.ranking[0] === arm).length }
-					: null,
-			];
-		}),
-	),
+const llm = judgements.filter((entry): entry is LlmVerdict & { scores: Record<string, Scores>; ranking: string[] } => entry.judge !== "jev" && entry.valid && entry.scores !== null && entry.ranking !== null);
+const jevVerdicts = judgements.filter((entry): entry is JevVerdict => entry.judge === "jev" && entry.valid);
+const summary = Object.fromEntries(ARMS.map((arm) => {
+	const armRuns = runs.filter((run) => run.arm === arm);
+	const scores = llm.flatMap((entry) => entry.scores[arm] ? [entry.scores[arm]] : []);
+	const s1 = armRuns.flatMap((run) => run.s1 ? [run.s1] : []);
+	const actions: Record<string, number> = Object.create(null);
+	for (const value of s1) for (const [key, count] of Object.entries(value.actions)) actions[key] = (actions[key] ?? 0) + count;
+	const tokens: Usage = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 };
+	for (const run of armRuns) for (const key of ["input", "output", "cacheRead", "cacheWrite"] as const) tokens[key] += run.usage[key];
+	const byModel: Record<string, ModelSpend> = Object.create(null);
+	for (const run of armRuns) for (const [model, spend] of Object.entries(run.boundary.byModel)) {
+		const total = byModel[model] ?? { calls: 0, settledUsd: 0 };
+		total.calls += spend.calls;
+		total.settledUsd += spend.settledUsd;
+		byModel[model] = total;
+	}
+	const costUsd = armRuns.reduce((sum, run) => sum + run.boundary.settledUsd, 0);
+	const advisors = s1.flatMap((value) => value.advisor ? [value.advisor] : []);
+	return [arm, {
+		runs: armRuns.length, hiddenPass: armRuns.filter((run) => run.hiddenPass).length, regressPass: armRuns.filter((run) => run.regressPass).length, timedOut: armRuns.filter((run) => run.timedOut).length,
+		judgeTask: mean(scores.map((score) => score.task)), judgeCorrectness: mean(scores.map((score) => score.correctness)),
+		judgeScope: mean(scores.map((score) => score.scope)), judgeQuality: mean(scores.map((score) => score.quality)),
+		judgeOverall: mean(scores.map((score) => CRITERIA.reduce((sum, key) => sum + score[key], 0) / CRITERIA.length)),
+		judgeFirstPlaces: llm.filter((entry) => entry.ranking[0] === arm).length, judgeVotes: llm.filter((entry) => entry.scores[arm]).length,
+		jevSuccess: mean(jevVerdicts.map((entry) => entry.success[arm]).filter((value): value is number => value !== null && value !== undefined)),
+		jevBest: jevVerdicts.filter((entry) => entry.best === arm).length,
+		medianWallMs: median(armRuns.map((run) => run.wallMs)), totalWallMs: armRuns.reduce((sum, run) => sum + run.wallMs, 0),
+		totalParentTurns: armRuns.reduce((sum, run) => sum + run.parentTurns, 0), totalModelCalls: armRuns.reduce((sum, run) => sum + run.modelCalls, 0),
+		tokens, costUsd, costByModel: byModel,
+		boundaryCalls: armRuns.reduce((sum, run) => sum + run.boundary.calls, 0), boundaryUnsettled: armRuns.reduce((sum, run) => sum + run.boundary.unsettled, 0),
+		models: [...new Set(armRuns.flatMap((run) => run.models))], parity: [...new Set(armRuns.map((run) => JSON.stringify(run.parity)))],
+		s1: s1.length ? {
+			calls: s1.reduce((sum, value) => sum + value.calls, 0), failedCalls: s1.reduce((sum, value) => sum + value.failedCalls, 0),
+			latencyMs: s1.reduce((sum, value) => sum + value.latencyMs, 0), inputTokens: s1.reduce((sum, value) => sum + value.inputTokens, 0),
+			outputTokens: s1.reduce((sum, value) => sum + value.outputTokens, 0), costUsd: s1.reduce((sum, value) => sum + value.costUsd, 0),
+			callsWithoutCost: s1.reduce((sum, value) => sum + value.callsWithoutCost, 0), actions,
+			advisor: advisors.length ? { consults: advisors.reduce((sum, value) => sum + value.consults, 0), costUsd: advisors.reduce((sum, value) => sum + value.costUsd, 0) } : null,
+		} : null,
+	}];
 }));
-const judgeJevCostUsd = jevVerdicts.reduce((sum, entry) => sum + (entry.costUsd ?? 0), 0);
-writeFileSync(join(out, "report.json"), `${JSON.stringify({ version: 1, price, summary, perTask, judgeJevCostUsd, judgements }, null, 2)}\n`);
-console.log(JSON.stringify({ summary, perTask, judgeJevCostUsd }, null, 2));
+const perTask = tasks.map((task) => ({
+	task: task.id, size: task.size,
+	arms: Object.fromEntries(ARMS.map((arm) => {
+		const run = runs.find((entry) => entry.task === task.id && entry.arm === arm);
+		const taskScores = llm.flatMap((entry) => entry.task === task.id && entry.scores[arm] ? [entry.scores[arm]] : []);
+		return [arm, run ? {
+			hiddenPass: run.hiddenPass, regressPass: run.regressPass, costUsd: run.boundary.settledUsd,
+			turns: run.parentTurns, wallMs: run.wallMs,
+			judgeOverall: mean(taskScores.map((score) => CRITERIA.reduce((sum, key) => sum + score[key], 0) / CRITERIA.length)),
+		} : null];
+	})),
+}));
+const judgeLlmCostUsd = judgements.reduce((sum, entry) => sum + (entry.judge === "jev" ? 0 : entry.costUsd ?? 0), 0);
+const judgeJevCostUsd = judgements.reduce((sum, entry) => sum + (entry.judge === "jev" ? entry.costUsd ?? 0 : 0), 0);
+const report = { version: 2, arms: ARMS, armsKey, judges: activeJudges, summary, perTask, judgeLlmCostUsd, judgeJevCostUsd, judgements };
+writeFileSync(join(out, tag ? `report-${tag}.json` : "report.json"), `${JSON.stringify(report, null, 2)}\n`);
+console.log(JSON.stringify({ summary, perTask, judgeLlmCostUsd, judgeJevCostUsd }, null, 2));

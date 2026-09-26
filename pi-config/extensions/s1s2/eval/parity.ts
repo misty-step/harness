@@ -14,6 +14,9 @@
  *   PARITY_UPSTREAM    One OpenRouter upstream provider (slug), fallbacks off. In
  *                      the pilot, OMP's Responses requests and Pi's chat
  *                      completions reached different upstreams at different prices.
+ *   PARITY_MODEL       System 2's model. Requests for any other model (OMP's
+ *                      advisor) pass untouched and unrecorded; the evaluation
+ *                      boundary pins their upstream.
  * Harness-owned transport choices (which API a harness uses for a provider, tool
  * schemas) are recorded, not normalized.
  */
@@ -26,6 +29,8 @@ export default function parity(pi: { on: (event: string, handler: (event: { payl
 	pi.on("before_provider_request", (event) => {
 		const payload = event.payload as Record<string, unknown> | undefined;
 		if (!payload || typeof payload !== "object" || !("model" in payload)) return;
+		const model = process.env.PARITY_MODEL;
+		if (model && payload.model !== model) return;
 		const verbosity = process.env.PARITY_VERBOSITY;
 		if (verbosity && "input" in payload) payload.text = { ...(payload.text as object | undefined), verbosity };
 		const maxOutput = Number(process.env.PARITY_MAX_OUTPUT) || 0;

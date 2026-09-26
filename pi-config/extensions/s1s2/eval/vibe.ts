@@ -2,12 +2,20 @@
 /**
  * Vibe-check runner for the System 1 / System 2 experiment (US-029, US-030).
  *
- * Replays curated merged pull requests, one run at a time, in these arms:
- *   omp   OMP as deployed, every generative role pinned to one model/setting, no fallback
- *   s1s2  raw Pi plus the s1s2 System 1 extension
- *   pi    raw Pi (control)
- * Every arm gets the same prompt, model, reasoning effort, parity shim, scrubbed
- * environment, and fresh history-truncated checkout at the task's base commit.
+ * Replays curated merged pull requests, one run at a time, in named arms (ARM_SPECS):
+ *   pi           raw Pi (control)
+ *   omp          OMP as deployed: every generative role pinned to the model under test and
+ *                its Steward advisor to the advisor model, no fallback
+ *   s1s2         raw Pi plus the s1s2 System 1 extension
+ *   s1s2-gated   plus the advisor, consulted when Jev's gate opens, after the first edit, and
+ *                before finishing
+ *   s1s2-every   plus the advisor reviewing every turn
+ *   s1s2-tool    plus the advisor as a tool System 2 may call
+ *   s1s2-strong  System 1 with the advisor model as System 2, and no advisor
+ * An `-r<n>` suffix (`pi-r2`) repeats an arm to check for drift. Every arm gets the same
+ * prompt, reasoning effort, parity shim, scrubbed environment, and fresh history-truncated
+ * checkout at the task's base commit. System 2 runs the model under test (`--model`) in every
+ * arm but the strong one.
  *
  * Isolation: agents run as a separate Unix user (`--agent-user`, via passwordless
  * sudo) whose home holds only that run's checkout. The hidden tests, the full-history
@@ -18,14 +26,14 @@
  *
  * Egress: the agent user may connect only to a model boundary on loopback and to
  * ephemeral loopback ports for its own test servers (an iptables owner match,
- * replaced atomically at every start). The boundary admits only the model under
- * test, with the pinned upstream forced on every request, the pinned Jev model,
- * and the model catalog, and forwards them to a credential-injecting proxy
- * (`--openrouter-base`, an exe.dev http-proxy integration). No key is on the VM,
- * and no other model, integration, local service, or host is reachable. The
- * boundary also enforces `--spend-limit` strictly: it admits a call only if the
- * settled cost of earlier calls plus the worst case of every unsettled one fits,
- * and settles each call from OpenRouter's own cost for it (`boundary.jsonl`).
+ * replaced atomically at every start). The boundary admits only the pinned models
+ * (the model under test and the advisor model, each forced onto its own upstream on
+ * every request), the pinned Jev model, and the model catalog, and forwards them to a
+ * credential-injecting proxy (`--openrouter-base`, an exe.dev http-proxy integration).
+ * No key is on the VM, and no other model, integration, local service, or host is
+ * reachable. The boundary also enforces `--spend-limit` strictly: it admits a call
+ * only if the settled cost of earlier calls plus the worst case of every unsettled one
+ * fits, and settles each call from OpenRouter's own cost for it (`boundary.jsonl`).
  * The runner refuses to start unless the agent reaches the boundary but not the
  * repository host, GitHub, the exe.dev gateway, an arbitrary address, or any
  * other listening service on the VM, and unless the boundary refuses a foreign
@@ -34,11 +42,13 @@
  *
  * Usage (on the evaluation VM):
  *   bun eval/vibe.ts --manifest m.json --hidden dir --out dir --agent-user evalagent \
- *     --code-root /opt/s1s2-src --arms pi,s1s2 --model openrouter/deepseek/deepseek-v4.1-flash \
- *     --thinking high --max-output 384000 --upstream deepseek \
- *     --openrouter-base https://proxy --spend-limit 2
+ *     --code-root /opt/s1s2-src --arms pi,omp,s1s2,s1s2-gated \
+ *     --model openrouter/deepseek/deepseek-v4.1-flash --upstream deepseek \
+ *     --advisor-model openrouter/xiaomi/mimo-v2.6-pro --advisor-upstream xiaomi \
+ *     --thinking high --max-output 384000 --openrouter-base https://proxy --spend-limit 2
  */
 import { spawn, spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { appendFileSync, cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { userInfo } from "node:os";
 import { dirname, join, resolve } from "node:path";
@@ -46,34 +56,60 @@ import { dirname, join, resolve } from "node:path";
 type Command = { cwd: string; cmd: string };
 type Task = { id: string; pr: number; size: string; base: string; merge: string; hidden: string[]; grade: Command[]; regress: Command[]; statement: string };
 type Manifest = { repo: string; tasks: Task[] };
-type Arm = "omp" | "s1s2" | "pi";
+type AdvisorMode = "off" | "every" | "gated" | "tool";
+/** What an arm runs: harness, whether System 1 loads, its advisor mode, whether System 2 is the advisor model, extra System 1 settings. */
+type ArmSpec = { harness: "omp" | "pi"; s1: boolean; advisor: AdvisorMode; strong: boolean; env: Record<string, string> };
+const piArm = (s1: boolean, advisor: AdvisorMode = "off", strong = false, env: Record<string, string> = {}): ArmSpec => ({ harness: "pi", s1, advisor, strong, env });
+const ARM_SPECS: Record<string, ArmSpec> = {
+	pi: piArm(false),
+	omp: { harness: "omp", s1: false, advisor: "off", strong: false, env: {} },
+	s1s2: piArm(true),
+	"s1s2-gated": piArm(true, "gated"),
+	"s1s2-every": piArm(true, "every"),
+	"s1s2-tool": piArm(true, "tool"),
+	"s1s2-strong": piArm(true, "off", true),
+};
+/** OMP's Steward, System 1's advisor, and the strong arm's System 2 all run the advisor model. */
+const usesAdvisorModel = (spec: ArmSpec) => spec.harness === "omp" || spec.advisor !== "off" || spec.strong;
 
 const args = new Map<string, string>();
 for (let i = 2; i < process.argv.length; i += 2) args.set(process.argv[i].replace(/^--/, ""), process.argv[i + 1] ?? "");
 const fail = (message: string): never => (console.error(message), process.exit(2));
 const need = (name: string) => args.get(name) || fail(`missing --${name}`);
+const specOf = (arm: string): ArmSpec => ARM_SPECS[arm.replace(/-r\d+$/, "")] ?? fail(`unknown arm ${arm}`);
 const manifestPath = resolve(need("manifest"));
 const hiddenDir = resolve(need("hidden"));
 const out = resolve(need("out"));
 const agentUser = need("agent-user");
 const codeRoot = resolve(need("code-root"));
 const only = args.get("only")?.split(",").filter(Boolean);
-const arms = (args.get("arms") ?? "omp,s1s2,pi").split(",") as Arm[];
+const arms = need("arms").split(",").filter(Boolean);
+arms.forEach(specOf);
 const seed = Number(args.get("seed") ?? 26);
 const timeoutMs = Number(args.get("timeout-min") ?? 25) * 60_000;
-const modelSpec = need("model");
-const provider = modelSpec.slice(0, modelSpec.indexOf("/"));
-const modelId = modelSpec.slice(modelSpec.indexOf("/") + 1);
-if (provider !== "openrouter") fail("--model must be openrouter/<id>: the egress lock admits only the OpenRouter proxy");
+const openrouterModel = (flag: string): string => {
+	const spec = need(flag);
+	return spec.startsWith("openrouter/") ? spec.slice("openrouter/".length) : fail(`--${flag} must be openrouter/<id>: the egress lock admits only the OpenRouter proxy`);
+};
+const provider = "openrouter";
+const modelId = openrouterModel("model");
+const advisorModel = arms.some((arm) => usesAdvisorModel(specOf(arm))) ? openrouterModel("advisor-model") : null;
+const advisorThinking = args.get("advisor-thinking") ?? "high";
 const openrouterBase = need("openrouter-base").replace(/\/$/, "");
 const thinking = args.get("thinking") ?? "max";
 const verbosity = args.get("verbosity") ?? "";
 const maxOutput = args.get("max-output") ?? "";
 const spendLimit = Number(args.get("spend-limit") ?? 0);
 const PROXY_PLACEHOLDER = "injected-by-exe-proxy";
-// One OpenRouter upstream for every arm, fallbacks off (PARITY_UPSTREAM in parity.ts). Required:
-// unpinned, OpenRouter sent the pilot's arms to different upstreams at different prices.
+// Every model is forced onto its own OpenRouter upstream, fallbacks off. Required: unpinned,
+// OpenRouter sent the pilot's arms to different upstreams at different prices.
 const upstream = need("upstream");
+const PINS = new Map<string, string>([[modelId, upstream]]);
+if (advisorModel) {
+	const pin = need("advisor-upstream");
+	if (PINS.has(advisorModel) && PINS.get(advisorModel) !== pin) fail("--advisor-model is the model under test on a different upstream");
+	PINS.set(advisorModel, pin);
+}
 const JEV_MODEL = "typesafe/jev-1.13"; // pinned in pi-config/extensions/s1s2/index.ts
 const boundary = `http://127.0.0.1:${Number(args.get("boundary-port") ?? 18181)}`;
 
@@ -120,12 +156,13 @@ const PRE_GENERATION = new Set([400, 401, 402, 403, 404, 413, 422, 429]);
 type Rates = Record<string, unknown>;
 type Endpoint = { tag?: string; max_completion_tokens?: number | null; context_length?: number; pricing?: Rates & { overrides?: Rates[] } };
 
+type Bound = { cost: (bytes: number) => number; ceiling: number };
 /**
  * Worst-case USD of a call carrying `bytes`: every byte an uncached input token, plus the full
  * completion ceiling, at the dearest of the endpoint's base and time-window prices (DeepSeek
- * doubles its rates in some UTC windows).
+ * doubles its rates in some UTC windows). `ceiling` is the endpoint's own output limit.
  */
-async function worstCase(model: string, tag?: string): Promise<(bytes: number) => number> {
+async function bound(model: string, tag?: string): Promise<Bound> {
 	const response = await fetch(`${openrouterBase}/api/v1/models/${model}/endpoints`, { signal: AbortSignal.timeout(30_000) });
 	const all = ((await response.json()) as { data?: { endpoints?: Endpoint[] } }).data?.endpoints ?? [];
 	const matched = all.filter((endpoint) => !tag || endpoint.tag === tag || endpoint.tag?.startsWith(`${tag}/`));
@@ -135,11 +172,16 @@ async function worstCase(model: string, tag?: string): Promise<(bytes: number) =
 	const input = price("prompt");
 	const output = Math.max(price("completion"), price("internal_reasoning"));
 	if (matched.length === 0 || !(input > 0) || !(ceiling > 0)) fail(`cannot bound the cost of ${model}${tag ? ` on ${tag}` : ""}`);
-	return (bytes) => bytes * input + ceiling * output + price("request");
+	return { cost: (bytes) => bytes * input + ceiling * output + price("request"), ceiling };
 }
-const worst = { model: await worstCase(modelId, upstream), jev: await worstCase(JEV_MODEL) };
+const bounds = new Map<string, Bound>();
+for (const [model, pin] of PINS) bounds.set(model, await bound(model, pin));
+const jevBound = await bound(JEV_MODEL);
+const worstModelCall = Math.max(...[...bounds.values()].map((entry) => entry.cost(0)));
+/** The output ceiling the parity shim sends for System 2's model: --max-output, capped at the pinned endpoint's own limit. */
+const maxOutputFor = (model: string): string => (maxOutput ? String(Math.min(Number(maxOutput), bounds.get(model)?.ceiling ?? Number(maxOutput))) : "");
 
-type Call = { seq: string; ts: string; run: string | null; path: string; worstUsd: number; status?: number; id?: string; costUsd?: number; provider?: string };
+type Call = { seq: string; ts: string; run: string | null; path: string; model: string; worstUsd: number; status?: number; id?: string; costUsd?: number; provider?: string };
 const ledger = { settledUsd: 0, pendingUsd: 0, calls: [] as Call[] };
 const journal = join(out, "boundary.jsonl");
 // A resumed evaluation inherits every earlier call: settled costs, and the worst case of any call
@@ -226,16 +268,20 @@ const boundaryServer = Bun.serve({
 		let call: Call | undefined;
 		if (request.method === "POST" && (MODEL_PATHS.has(pathname) || pathname === JEV_PATH)) {
 			const payload = (await request.json().catch(() => null)) as Record<string, unknown> | null;
-			const expected = MODEL_PATHS.has(pathname) ? modelId : JEV_MODEL;
-			if (payload?.model !== expected) return new Response(`the evaluation boundary admits only ${expected} here`, { status: 403 });
-			if (MODEL_PATHS.has(pathname)) payload.provider = { order: [upstream], allow_fallbacks: false };
+			const model = typeof payload?.model === "string" ? payload.model : "";
+			const pin = MODEL_PATHS.has(pathname) ? PINS.get(model) : undefined;
+			const limit = MODEL_PATHS.has(pathname) ? bounds.get(model) : model === JEV_MODEL ? jevBound : undefined;
+			if (!payload || !limit) {
+				return new Response(`the evaluation boundary admits only ${MODEL_PATHS.has(pathname) ? [...PINS.keys()].join(", ") : JEV_MODEL} here`, { status: 403 });
+			}
+			if (pin) payload.provider = { order: [pin], allow_fallbacks: false };
 			body = JSON.stringify(payload);
-			const worstUsd = (MODEL_PATHS.has(pathname) ? worst.model : worst.jev)(Buffer.byteLength(body));
+			const worstUsd = limit.cost(Buffer.byteLength(body));
 			if (spendLimit > 0 && ledger.settledUsd + ledger.pendingUsd + worstUsd > spendLimit) {
 				hardStop = `spend cap: $${(ledger.settledUsd + ledger.pendingUsd).toFixed(4)} committed, and the next call could cost $${worstUsd.toFixed(4)}; the cap is $${spendLimit}`;
 				return new Response(hardStop, { status: 402 });
 			}
-			call = { seq: `${runnerId}.${++callCount}`, ts: new Date().toISOString(), run: currentRun, path: pathname, worstUsd };
+			call = { seq: `${runnerId}.${++callCount}`, ts: new Date().toISOString(), run: currentRun, path: pathname, model, worstUsd };
 			ledger.pendingUsd += worstUsd;
 			ledger.calls.push(call);
 			appendFileSync(journal, `${JSON.stringify(call)}\n`); // admitted; the settled record follows
@@ -294,7 +340,7 @@ const piModels = join(out, "pi-models.json");
 writeFileSync(piModels, `${JSON.stringify({ providers: { openrouter: { baseUrl: `${boundary}/api/v1` } } })}\n`);
 asAgent(["mkdir", "-p", piAgentDir]);
 sudo(["install", "-o", agentUser, "-g", agentUser, "-m", "600", piModels, join(piAgentDir, "models.json")]);
-if (arms.includes("omp") && !asAgent(["cat", join(agentHome, ".omp/agent/models.yml")]).includes(`${boundary}/api/v1`)) {
+if (arms.some((arm) => specOf(arm).harness === "omp") && !asAgent(["cat", join(agentHome, ".omp/agent/models.yml")]).includes(`${boundary}/api/v1`)) {
 	fail(`the agent's OMP models.yml must set providers.openrouter.baseUrl to ${boundary}/api/v1`);
 }
 
@@ -339,15 +385,23 @@ for (const tool of ["ssh", "scp", "sftp", "gh", "pass", "pass-env", "linear", "w
 	writeFileSync(join(shims, tool), `#!/bin/sh\necho "${tool} is disabled in this evaluation" >&2\nexit 126\n`, { mode: 0o755 });
 }
 
-// OMP overlay: every generative role on the model under test; provider fallback off.
-const ompOverlay = join(out, "omp-pinned.yml");
-const pinned = `${provider}/${modelId}:${thinking}`;
-const roles = ["default", "slow", "extreme", "plan", "advisor", "task", "reviewer", "security-reviewer", "vision", "smol", "tiny", "commit"];
-const chains = ["advisor", "default", "vision", "smol", "tiny", "commit"];
-writeFileSync(
-	ompOverlay,
-	`modelRoles:\n${roles.map((role) => `  ${role}: ${pinned}`).join("\n")}\nretry:\n  fallbackChains:\n${chains.map((chain) => `    ${chain}: []`).join("\n")}\n`,
-);
+/** OMP overlay: every generative role on System 2's model, the Steward (advisor role) on the advisor model; provider fallback off. */
+function ompOverlay(systemModel: string): string {
+	const roles = ["default", "slow", "extreme", "plan", "task", "reviewer", "security-reviewer", "vision", "smol", "tiny", "commit"];
+	const chains = ["advisor", "default", "vision", "smol", "tiny", "commit"];
+	const advisor = `${provider}/${advisorModel ?? systemModel}:${advisorThinking}`;
+	return `modelRoles:\n${roles.map((role) => `  ${role}: ${provider}/${systemModel}:${thinking}`).join("\n")}\n  advisor: ${advisor}\nretry:\n  fallbackChains:\n${chains.map((chain) => `    ${chain}: []`).join("\n")}\n`;
+}
+
+/** What ran: a digest of every source file the arms load from the code root. */
+function digestCode(): string {
+	const hash = createHash("sha256");
+	const listed = spawnSync("find", [join(codeRoot, "pi-config/extensions/s1s2"), join(codeRoot, "agent-config/system-one"), "-type", "f", "-name", "*.ts"], { encoding: "utf8" });
+	if (listed.status !== 0) fail(`cannot list the code under ${codeRoot}`);
+	for (const file of listed.stdout.split("\n").filter(Boolean).sort()) hash.update(`${file.slice(codeRoot.length)}\0`).update(readFileSync(file));
+	return hash.digest("hex").slice(0, 16);
+}
+const codeDigest = digestCode();
 
 // Full-history source clone, readable only by the runner; runs get base-only bundles.
 const src = join(out, "src");
@@ -498,18 +552,21 @@ const wrapper =
 
 const spendStart = await keySpend();
 const committed = () => ledger.settledUsd + ledger.pendingUsd;
+const committedAtStart = committed();
+let tasksRunNow = 0;
 const results: Record<string, unknown>[] = [];
 let stopped: string | null = null;
 
 outer: for (const task of tasks) {
 	const branch = `vibe-base-${task.id}`;
 	git(src, "branch", "-f", branch, task.base);
+	let ranHere = false;
 	for (const arm of shuffled(arms)) {
 		if (hardStop) {
 			stopped = hardStop;
 			break outer;
 		}
-		if (spendLimit > 0 && committed() + worst.model(0) > spendLimit) {
+		if (spendLimit > 0 && committed() + worstModelCall > spendLimit) {
 			stopped = `spend cap: $${committed().toFixed(4)} committed leaves too little under $${spendLimit} for one more call`;
 			break outer;
 		}
@@ -522,13 +579,17 @@ outer: for (const task of tasks) {
 		}
 		rmSync(runDir, { recursive: true, force: true });
 		mkdirSync(join(runDir, "tmp"), { recursive: true });
+		ranHere = true;
+		const spec = specOf(arm);
+		const systemModel = spec.strong && advisorModel ? advisorModel : modelId;
+		writeFileSync(join(runDir, "omp-pinned.yml"), ompOverlay(systemModel));
 
 		// The agent's world: one base-only checkout, shims, and scratch in its own home.
 		const work = join(agentHome, "work", `${task.id}-${arm}`);
 		asAgent(["rm", "-rf", work]);
 		asAgent(["mkdir", "-p", "-m", "750", join(work, "tmp"), join(work, "sessions"), join(work, "s1")]);
 		git(src, "bundle", "create", "-q", join(runDir, "base.bundle"), branch);
-		for (const [from, to] of [[join(runDir, "base.bundle"), join(work, "base.bundle")], [shims, join(work, "shims")], [ompOverlay, join(work, "omp-pinned.yml")]]) {
+		for (const [from, to] of [[join(runDir, "base.bundle"), join(work, "base.bundle")], [shims, join(work, "shims")], [join(runDir, "omp-pinned.yml"), join(work, "omp-pinned.yml")]]) {
 			sudo(["cp", "-a", from, to]);
 			sudo(["chown", "-R", `${agentUser}:${agentUser}`, to]);
 		}
@@ -548,9 +609,10 @@ outer: for (const task of tasks) {
 			PATH: [join(work, "shims"), "/usr/local/bin", "/usr/bin", "/bin"].join(":"),
 			TMPDIR: join(work, "tmp"),
 			PARITY_OUT: join(work, "parity.jsonl"),
+			PARITY_MODEL: systemModel,
 			...(verbosity ? { PARITY_VERBOSITY: verbosity } : {}),
-			...(maxOutput ? { PARITY_MAX_OUTPUT: maxOutput } : {}),
-			PARITY_UPSTREAM: upstream,
+			...(maxOutputFor(systemModel) ? { PARITY_MAX_OUTPUT: maxOutputFor(systemModel) } : {}),
+			PARITY_UPSTREAM: PINS.get(systemModel) ?? upstream,
 			// The proxy injects the real key; the harnesses only need a non-empty credential to call it.
 			OPENROUTER_API_KEY: PROXY_PLACEHOLDER,
 		};
@@ -558,20 +620,24 @@ outer: for (const task of tasks) {
 		const sessions = join(work, "sessions");
 		let cmd: string;
 		let argv: string[];
-		if (arm === "omp") {
+		if (spec.harness === "omp") {
 			cmd = "omp";
-			argv = ["-p", "--mode", "json", "--cwd", tree, "--session-dir", sessions, "--no-title", "--approval-mode", "yolo", "--config", join(work, "omp-pinned.yml"), "-e", parityExtension, "--model", `${provider}/${modelId}`, "--thinking", thinking, prompt];
+			argv = ["-p", "--mode", "json", "--cwd", tree, "--session-dir", sessions, "--no-title", "--approval-mode", "yolo", "--config", join(work, "omp-pinned.yml"), "-e", parityExtension, "--model", `${provider}/${systemModel}`, "--thinking", thinking, prompt];
 		} else {
 			cmd = "pi";
 			env.PI_CODING_AGENT_DIR = piAgentDir;
-			const extensions = arm === "s1s2" ? ["-e", s1s2Extension, "-e", parityExtension] : ["-e", parityExtension];
-			if (arm === "s1s2") {
+			const extensions = spec.s1 ? ["-e", s1s2Extension, "-e", parityExtension] : ["-e", parityExtension];
+			if (spec.s1) {
 				// The boundary forwards to the proxy, which injects the real key; System 1 needs only a non-empty credential.
 				env.S1S2_JEV_KEY = PROXY_PLACEHOLDER;
 				env.S1S2_RUN_DIR = join(work, "s1");
 				env.S1S2_JEV_ENDPOINT = `${boundary}/api/alpha/decisions`;
+				if (spec.advisor !== "off" && advisorModel) {
+					Object.assign(env, { S1S2_ADVISOR: spec.advisor, S1S2_ADVISOR_MODEL: `${provider}/${advisorModel}`, S1S2_ADVISOR_THINKING: advisorThinking });
+				}
+				Object.assign(env, spec.env);
 			}
-			argv = ["--mode", "json", "--no-extensions", ...extensions, "--no-skills", "--no-prompt-templates", "--provider", provider, "--model", modelId, "--thinking", thinking, "--session-dir", sessions, "-p", prompt];
+			argv = ["--mode", "json", "--no-extensions", ...extensions, "--no-skills", "--no-prompt-templates", "--provider", provider, "--model", systemModel, "--thinking", thinking, "--session-dir", sessions, "-p", prompt];
 		}
 		console.log(`${new Date().toISOString()} ${task.id} ${arm} start`);
 		currentRun = `${task.id}/${arm}`;
@@ -601,10 +667,21 @@ outer: for (const task of tasks) {
 		}
 		await Promise.allSettled(settling.splice(0));
 		const calls = ledger.calls.filter((entry) => entry.run === `${task.id}/${arm}`);
+		const byModel: Record<string, { calls: number; settledUsd: number; unsettled: number }> = {};
+		for (const entry of calls) {
+			const total = (byModel[entry.model] ??= { calls: 0, settledUsd: 0, unsettled: 0 });
+			total.calls++;
+			total.settledUsd += entry.costUsd ?? 0;
+			if (entry.costUsd === undefined) total.unsettled++;
+		}
 		const record = {
 			task: task.id,
 			size: task.size,
 			arm,
+			harness: spec.harness,
+			advisorMode: spec.advisor,
+			model: systemModel,
+			codeDigest,
 			exit: run.exit,
 			signal: run.signal,
 			timedOut: run.timedOut,
@@ -619,6 +696,7 @@ outer: for (const task of tasks) {
 				modelUpstreams: calls
 					.filter((entry) => MODEL_PATHS.has(entry.path))
 					.reduce<Record<string, number>>((counts, entry) => ((counts[entry.provider ?? "unknown"] = (counts[entry.provider ?? "unknown"] ?? 0) + 1), counts), {}),
+				byModel,
 			},
 			spendCap: hardStop,
 			deliverable: { files: deliverable.files, added: deliverable.added, deleted: deliverable.deleted },
@@ -632,13 +710,14 @@ outer: for (const task of tasks) {
 			break outer;
 		}
 	}
-	// Count every finished task, resumed ones included, since committed spend includes theirs.
-	const finished = tasks.filter((entry) => arms.every((arm) => existsSync(join(out, "runs", entry.id, arm, "run.json")))).length;
-	if (spendLimit > 0 && finished > 0 && finished < tasks.length) {
-		const projected = (committed() / finished) * tasks.length;
+	if (ranHere) tasksRunNow++;
+	// Project from this pass's own runs: earlier passes over the same directory may have run other arms.
+	const remaining = tasks.filter((entry) => !arms.every((arm) => existsSync(join(out, "runs", entry.id, arm, "run.json")))).length;
+	if (spendLimit > 0 && tasksRunNow > 0 && remaining > 0) {
+		const projected = committed() + ((committed() - committedAtStart) / tasksRunNow) * remaining;
 		console.log(`${new Date().toISOString()} committed $${committed().toFixed(4)}, projected $${projected.toFixed(2)}`);
 		if (projected > spendLimit) {
-			stopped = `spend projection: $${projected.toFixed(2)} for ${tasks.length} tasks exceeds $${spendLimit}`;
+			stopped = `spend projection: $${projected.toFixed(2)} with ${remaining} tasks left exceeds $${spendLimit}`;
 			break;
 		}
 	}
@@ -648,8 +727,10 @@ await Promise.allSettled(settling.splice(0));
 boundaryServer.stop(true);
 const spendEnd = await keySpend();
 const ledgerSummary = { settledUsd: ledger.settledUsd, pendingUsd: ledger.pendingUsd, calls: ledger.calls.length, unsettled: ledger.calls.filter((entry) => entry.costUsd === undefined).length };
+const advisorRecord = advisorModel ? { model: `${provider}/${advisorModel}`, upstream: PINS.get(advisorModel), thinking: advisorThinking } : null;
+const ceilings = Object.fromEntries([...PINS.keys()].map((model) => [model, maxOutputFor(model) || null]));
 writeFileSync(
 	join(out, "vibe.json"),
-	`${JSON.stringify({ version: 1, model: `${provider}/${modelId}`, thinking, upstream, seed, arms, agentUser, spendLimit, ledger: ledgerSummary, spendStart, spendEnd, stopped, results }, null, 2)}\n`,
+	`${JSON.stringify({ version: 2, model: `${provider}/${modelId}`, thinking, upstream, advisor: advisorRecord, maxOutput: ceilings, codeDigest, seed, arms, agentUser, spendLimit, ledger: ledgerSummary, spendStart, spendEnd, stopped, results }, null, 2)}\n`,
 );
 console.log(stopped ?? "complete");

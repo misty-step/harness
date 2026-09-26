@@ -288,6 +288,25 @@ export function diffStat(cwd: string): string {
 	return `${stat.trim()}${untracked ? `\nuntracked:\n${untracked}` : ""}`.slice(0, 2000);
 }
 
+/** The current change as text for the advisor: the tracked diff, then new files, clipped to `maxChars`. */
+export function diffText(cwd: string, maxChars: number): string {
+	let text = run(cwd, "git", ["diff", "HEAD"]) ?? "";
+	const untracked = (run(cwd, "git", ["ls-files", "--others", "--exclude-standard", "-z"]) ?? "").split("\0").filter(Boolean).sort();
+	for (const file of untracked.slice(0, 20)) {
+		if (text.length >= maxChars) break;
+		try {
+			if (statSync(join(cwd, file)).size > 200_000) {
+				text += `\nnew file ${file} (large; not shown)\n`;
+				continue;
+			}
+			text += `\nnew file ${file}:\n${readFileSync(join(cwd, file), "utf8").slice(0, 4000)}\n`;
+		} catch {
+			// vanished between listing and reading
+		}
+	}
+	return text.length > maxChars ? text.slice(0, maxChars) : text;
+}
+
 // --------------------------------------------------------------- triage --
 
 /** Lines that must never be elided: they carry failures, errors, or assertion details. */
