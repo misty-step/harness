@@ -82,8 +82,11 @@ test.each(["pi", "omp"])("US-021 / US-022 / US-023 / US-041: %s installs routed 
 		expect(readFileSync(resolve(agent, `skills/${name}/SKILL.md`), "utf8")).toMatch(new RegExp(`^---\\r?\\nname: ${name}\\r?\\n`));
 		expect(readFileSync(resolve(agent, "AGENTS.md"), "utf8")).toContain(`skill://${name}`);
 	}
-	expect(readFileSync(resolve(agent, "AGENTS.md"), "utf8")).toContain("skill://foundation/constitution.md");
-	expect(readFileSync(resolve(agent, "skills/foundation/constitution.md"), "utf8")).toMatch(/^# Foundations\r?\n/);
+	// OMP reads skill:// URIs; Pi cannot and hides this skill, so the plain path must resolve beside AGENTS.md too.
+	const guidance = readFileSync(resolve(agent, "AGENTS.md"), "utf8");
+	const [uri, path] = [/`skill:\/\/([^`\s]+\/constitution\.md)`/, /`([^`:\s]+\/constitution\.md)`/].map((pattern) => pattern.exec(guidance)?.[1] ?? "missing");
+	expect(readFileSync(resolve(agent, "skills", uri), "utf8")).toMatch(/^# Foundations\r?\n/);
+	expect(readFileSync(resolve(agent, path), "utf8")).toMatch(/^# Foundations\r?\n/);
 	const failures = readdirSync(resolve(agent, "skills")).flatMap((name) => {
 		const pkg = resolve(agent, "skills", name);
 		return markdown(pkg).flatMap((file) => errors(file, pkg, true));

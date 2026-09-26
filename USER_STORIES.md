@@ -769,8 +769,9 @@ work implements, maintains and improves them without me restating them.
 
 Criteria:
 1. WHEN Pi or OMP installs shared guidance, THE SYSTEM SHALL compose a
-   foundations section that routes agents to
-   `skill://foundation/constitution.md`.
+   foundations section that names the constitution as
+   `skill://foundation/constitution.md` and as a path, relative to the
+   deployed `AGENTS.md`, that resolves to the deployed constitution.
 2. WHEN Pi or OMP installs shared skills, THE SYSTEM SHALL deploy the
    constitution with the `foundation` skill, and every relative link in that
    package SHALL resolve inside it.

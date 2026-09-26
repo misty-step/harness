@@ -16,9 +16,10 @@ Changing the foundations touches three owners, and they change together:
   notes and direct decisions. Accepted ADRs come next, then the catalog.
   Where they differ, the constitution follows his philosophy and the gap goes
   under open questions below.
-- A new or widened obligation needs Phaedrus's approval. Tightening a check
-  within an existing obligation, editing rationale, or retiring a check nobody
-  acts on goes through the harness's normal review (ADR-006).
+- Adding or widening an obligation, or removing an escape, needs Phaedrus's
+  approval. Tightening a check within an existing obligation, editing
+  rationale, or retiring a check nobody acts on goes through the harness's
+  normal review (ADR-006). Tightening never removes an approved escape.
 
 ## Open questions
 
