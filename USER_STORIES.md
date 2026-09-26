@@ -803,12 +803,15 @@ Criteria:
    outcome of `finding`, `no_finding`, `escalate`, `abstained` or
    `unavailable` from the thresholds stored beside the questions.
 3. IF the provider fails or times out, THEN THE SYSTEM SHALL report
-   `unavailable`; IF it resolves any other model, THEN THE SYSTEM SHALL report
-   `abstained`; neither SHALL become `no_finding`.
-4. IF evidence was truncated or a relevant symbol was unresolved, THEN THE
-   SYSTEM SHALL abstain instead of reporting a confident absence; IF ledger
-   prose has no single-rule boundaries, THEN THE SYSTEM SHALL list it as not
-   assessed.
+   `unavailable`; IF the requested model is not `typesafe/jev-1.13`, THEN THE
+   SYSTEM SHALL NOT send the packet; IF any revision other than the approved
+   one resolves, THEN THE SYSTEM SHALL report `abstained`; none of these SHALL
+   become `no_finding`.
+4. IF an answer would conclude from code excerpts that a setting is absent,
+   THEN THE SYSTEM SHALL abstain however complete the excerpts look; IF other
+   evidence was truncated, THEN THE SYSTEM SHALL abstain instead of reporting
+   a confident absence; IF ledger prose has no single-rule boundaries, THEN THE
+   SYSTEM SHALL list it as not assessed.
 5. WHEN selected evidence contains a secret, THE SYSTEM SHALL redact it before
    any provider receives the packet.
 6. THE SYSTEM SHALL exit 0 for every advisory outcome and 2 for invalid

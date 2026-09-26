@@ -8,7 +8,7 @@ import { isCredentialPath, PRIVATE_KEY_BLOCK, PRIVATE_KEY_ORPHAN, REDACTED, reda
 import { DEFAULT_EXPECTED_RESOLVED_MODELS } from "./semantic-run.ts";
 
 export const FOUNDATION_SCHEMA = "foundation-assessment-1";
-export const FOUNDATION_QUESTIONS_VERSION = "foundation-questions-1";
+export const FOUNDATION_QUESTIONS_VERSION = "foundation-questions-2";
 export const FOUNDATION_MODEL = "typesafe/jev-1.13";
 export const FOUNDATION_THRESHOLDS = { noulAbsent: 0.2, noulPresent: 0.8, choiceConfidence: 0.7 } as const;
 const MAX_QUESTIONS = 32;
@@ -28,8 +28,8 @@ export const SENTRY_QUESTIONS: Record<string, Question> = {
 	prod_capture_on: { type: "noul", instructions: "Is Sentry error capture enabled in production, accounting for enabled flags, environment guards and sample rates?" },
 	server_and_client: { type: "noul", instructions: "Are both server and browser/client Sentry initialization paths present and called? An edge-only path does not by itself prove browser initialization." },
 	sourcemaps_uploaded: { type: "noul", instructions: "Does the build upload Sentry source maps (including a configured Sentry bundler plugin when its auth token is present at build time)?" },
-	sourcemaps_not_public: { type: "noul", instructions: "Are source maps kept private or deleted from published assets after uploading, rather than publicly served?" },
-	pii_default_off: { type: "noul", instructions: "Is Sentry's default automatic PII collection disabled, rather than sendDefaultPii enabled?" },
+	sourcemaps_not_public: { type: "noul", instructions: "Does the build configuration explicitly keep source maps out of published assets, for example deleteSourcemapsAfterUpload or hidden source maps? No explicit setting is no." },
+	pii_default_off: { type: "noul", instructions: "Does the Sentry configuration explicitly set sendDefaultPii to false? A true value, or no setting at all, is no." },
 	scrub_hook: { type: "noul", instructions: "Is a Sentry beforeSend or beforeBreadcrumb scrub hook configured to remove sensitive event fields?" },
 	content_attached: { type: "noul", instructions: "Does the Sentry integration attach raw user content, request bodies, or similarly sensitive content to captured events? Yes means a potential privacy violation, not a benefit." },
 };
@@ -271,6 +271,12 @@ function balanced(text: string): boolean {
 	return count(/\(/g) === count(/\)/g) && count(/\[/g) === count(/]/g) && count(/\{/g) === count(/\}/g);
 }
 
+/** Whether `index` sits inside a line or block comment; a string that looks like one only makes the lookup fail closed. */
+function commented(text: string, index: number): boolean {
+	const lineStart = text.lastIndexOf("\n", index - 1) + 1;
+	return text.slice(lineStart, index).includes("//") || text.lastIndexOf("/*", index) > text.lastIndexOf("*/", index);
+}
+
 /** Index of a function body's opening brace: the first top-level brace group after the parameters that ends the declaration, so object, conditional and generic return types are skipped. */
 function bodyBrace(text: string, paren: number): number {
 	const paramsEnd = closing(text, paren);
@@ -296,7 +302,9 @@ function definition(text: string, symbol: string): { line: number; text: string;
 		new RegExp(`\\b(?:export\\s+)?(?:async\\s+)?def\\s+${escaped}\\s*\\(`, "g"),
 	];
 	for (const pattern of patterns) {
-		const match = pattern.exec(text);
+		let match = pattern.exec(text);
+		// A declaration inside a comment is not the live one.
+		while (match && commented(text, match.index)) match = pattern.exec(text);
 		if (!match) continue;
 		const start = match.index;
 		if (pattern === patterns[0]) {
@@ -358,7 +366,9 @@ function resolveImport(snapshot: Snapshot, from: string, relative: string): stri
 }
 
 function unresolved(manifest: CoverageManifest, path: string, symbol: string, questions: string[]): void {
-	if (!manifest.unresolved_symbols.some((item) => item.path === path && item.symbol === symbol)) manifest.unresolved_symbols.push({ path, symbol, questions });
+	const existing = manifest.unresolved_symbols.find((item) => item.path === path && item.symbol === symbol);
+	if (existing) existing.questions = [...new Set([...existing.questions, ...questions])];
+	else manifest.unresolved_symbols.push({ path, symbol, questions });
 }
 
 const IGNORED_SYMBOLS = /^(?:true|false|null|undefined|Object|String|Number|Boolean|process|console|require|string|number|boolean|unknown|any|never|void|object|bigint|symbol)$/;
@@ -582,13 +592,15 @@ export function distillFoundationPackets(repo: string, snapshot: GitSnapshot, pa
 	return { packets, unassessed };
 }
 
-function classify(id: string, question: Question, answer: Answer | undefined, manifest: CoverageManifest): QuestionResult {
+function classify(id: string, question: Question, answer: Answer | undefined, packet: EvidencePacket): QuestionResult {
 	if (!answer || answer.type !== question.type) return { id, outcome: "unavailable", reason: "Missing or invalid typed answer" };
 	if (answer.type === "noul") {
 		if (!Number.isFinite(answer.probability) || answer.probability < 0 || answer.probability > 1) return { id, outcome: "unavailable", reason: "Invalid probability" };
 		if (answer.probability >= FOUNDATION_THRESHOLDS.noulPresent) return { id, outcome: "finding", raw: answer };
 		if (answer.probability > FOUNDATION_THRESHOLDS.noulAbsent) return { id, outcome: "escalate", raw: answer };
-		if (manifest.unresolved_symbols.some((item) => item.questions.includes(id)) || manifest.limitations.length) return { id, outcome: "abstained", raw: answer, reason: "Presence cannot be ruled out: incomplete coverage" };
+		// Code excerpts can show that something is configured, never that it is not, however much the distiller captured.
+		if (packet.pack === "sentry") return { id, outcome: "abstained", raw: answer, reason: "Code excerpts cannot prove an absence" };
+		if (packet.coverage.limitations.length) return { id, outcome: "abstained", raw: answer, reason: "Presence cannot be ruled out: incomplete coverage" };
 		return { id, outcome: "no_finding", raw: answer };
 	}
 	if (answer.type === "choice" && question.type === "choice") {
@@ -625,7 +637,7 @@ export async function assessFoundations(options: { repo: string; snapshot: GitSn
 				const call = provider.evaluateWithMetadata ? await provider.evaluateWithMetadata(state, packet.questions, options.timeoutMs ?? 15_000) : { answers: await provider.evaluate(state, packet.questions, options.timeoutMs ?? 15_000), requestedModel: requested, resolvedModel: undefined };
 				result.latency_ms = Math.round(performance.now() - started);
 				result.resolved_model = call.resolvedModel ?? null;
-				result.questions = ids.map((id) => classify(id, packet.questions[id], call.answers[id], packet.coverage));
+				result.questions = ids.map((id) => classify(id, packet.questions[id], call.answers[id], packet));
 				const approved = (DEFAULT_EXPECTED_RESOLVED_MODELS as readonly string[]).includes(call.resolvedModel ?? "");
 				if (provider.name === "heuristic" || provider.name === "openrouter" && (!approved || call.requestedModel !== FOUNDATION_MODEL)) {
 					result.questions = result.questions.map((question) => question.outcome === "unavailable" ? question : { ...question, outcome: "abstained", reason: provider.name === "heuristic" ? "Heuristic answers are not calibrated for foundation questions" : "Unexpected or missing resolved/requested model" });

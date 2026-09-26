@@ -117,20 +117,18 @@ describe("foundation assessment advisory", () => {
 		expect(packet.coverage.hops_followed).toContainEqual({ from: "next.config.ts", to: "build-options.ts", symbol: "pluginOptions" });
 	});
 
-	test("absent confidence abstains when init options could not be resolved", async () => {
-		const repo = sentryRepo({ "broken.config.ts": "import * as Sentry from '@sentry/node';\nSentry.init({ ...missingOptions });\n" });
-		const record = await assessFoundations({ repo, snapshot: openGitSnapshot(repo), pack: "sentry", provider: stub(absent) });
-		const packet = record.packets[0];
-		expect(packet.coverage.unresolved_symbols).toContainEqual(expect.objectContaining({ symbol: "missingOptions" }));
-		expect(packet.questions.find((item) => item.id === "release_set")?.outcome).toBe("abstained");
-		expect(packet.questions.find((item) => item.id === "release_set")?.raw?.type).toBe("noul");
+	test("records an unresolved option with every question it could affect", () => {
+		const repo = sentryRepo({ "next.config.ts": "import * as Sentry from '@sentry/nextjs';\nimport { withSentryConfig } from '@sentry/nextjs';\nSentry.init({ ...missingOptions });\nexport default withSentryConfig({}, { ...missingOptions });\n" });
+		const entry = distillFoundationPackets(repo, openGitSnapshot(repo), "sentry").packets[0].coverage.unresolved_symbols.find((item) => item.symbol === "missingOptions");
+		expect(entry?.questions).toEqual(expect.arrayContaining(["release_set", "scrub_hook", "sourcemaps_uploaded", "sourcemaps_not_public"]));
 	});
 
-	test("applies inclusive noul and choice thresholds", async () => {
+	test("applies inclusive thresholds, and Sentry excerpts never support an absence", async () => {
 		const repo = sentryRepo({ "docs/postmortems/INCIDENT-1.md": "# Incident\n## Follow-up\nAdd a test.\n", "WATCHDOG.md": "1. Stop lost events\n" });
 		const answers: Record<string, Answer> = {
-			release_set: { type: "noul", probability: 0.2, confidence: 0.9 },
-			release_from_build: { type: "noul", probability: 0.21, confidence: 0.9 },
+			regression_check_named: { type: "noul", probability: 0.2, confidence: 0.9 },
+			closes_class: { type: "noul", probability: 0.21, confidence: 0.9 },
+			release_set: { type: "noul", probability: 0.02, confidence: 0.99 },
 			environment_set: { type: "noul", probability: 0.79, confidence: 0.9 },
 			prod_capture_on: { type: "noul", probability: 0.8, confidence: 0.9 },
 			fix_kind: { type: "choice", choice: "automated_check", probabilities: { automated_check: 0.69 }, confidence: 0.69 },
@@ -138,7 +136,7 @@ describe("foundation assessment advisory", () => {
 		};
 		const record = await assessFoundations({ repo, snapshot: openGitSnapshot(repo), pack: "all", provider: stub((id) => answers[id] ?? { type: "noul", probability: 0.5, confidence: 0 }) });
 		const outcomes = Object.fromEntries(record.packets.flatMap((packet) => packet.questions.map((question) => [question.id, question.outcome])));
-		expect(outcomes).toMatchObject({ release_set: "no_finding", release_from_build: "escalate", environment_set: "escalate", prod_capture_on: "finding", fix_kind: "escalate", mechanical: "finding" });
+		expect(outcomes).toMatchObject({ regression_check_named: "no_finding", closes_class: "escalate", release_set: "abstained", environment_set: "escalate", prod_capture_on: "finding", fix_kind: "escalate", mechanical: "finding" });
 	});
 
 	test("provider failure is unavailable, not an absent finding", async () => {
@@ -168,10 +166,10 @@ describe("foundation assessment advisory", () => {
 		for (const secret of ["fixturepublickey", planted, "fakekeybodylineone", "fakekeybodylinetwo", "fakeguardkeybody"]) expect(seen).not.toContain(secret);
 	});
 
-	test("captures whole definitions and records what it cannot follow, so an absent answer abstains", async () => {
+	test("captures whole live definitions and records what it cannot follow", async () => {
 		const repo = fixture({
 			"sentry-init.ts": "import * as Sentry from '@sentry/node';\nimport { options, environmentOptions } from './options';\nimport { getRelease, getPrivacy, getMode, getLong } from './release';\nSentry.init(options);\nSentry.init(environmentOptions);\nSentry.init(getRelease());\nSentry.init(getPrivacy());\nSentry.init(getMode());\nSentry.init(getLong());\n",
-			"options.ts": "import { privacyOptions } from './privacy';\nexport const options = { ...privacyOptions, environment: 'production' };\nexport const environmentOptions = process.env.CI\n  ? { environment: 'ci' }\n  : { environment: 'local' };\n",
+			"options.ts": "import { privacyOptions } from './privacy';\n// export const options = { environment: 'commented-out' };\nexport const options = { ...privacyOptions, environment: 'production' };\nexport const environmentOptions = process.env.CI\n  ? { environment: 'ci' }\n  : { environment: 'local' };\n",
 			"release.ts": `export function getRelease(): { release: string } { return { release: 'x', sendDefaultPii: true }; }\nexport function getPrivacy(): { pii: boolean } // runtime options\n{\n  return { attachStacktrace: false, maxBreadcrumbs: 7 };\n}\nexport function getMode<T>(): T extends { strict: true } ? { mode: 'a' } : { mode: 'b' } /* by mode */ { return { maxValueLength: 9 } as never; }\nexport function getLong(): { long: true } // ${"a long explanation ".repeat(120)}\n{ return { maxValueLength: 11 } as never; }\n`,
 		});
 		const snapshot = openGitSnapshot(repo);
@@ -180,9 +178,9 @@ describe("foundation assessment advisory", () => {
 		expect(state).toContain("maxValueLength: 11");
 		expect(state).toContain("sendDefaultPii: true");
 		expect(state).toContain("maxBreadcrumbs: 7");
-		const packet = (await assessFoundations({ repo, snapshot, pack: "sentry", provider: stub(absent) })).packets[0];
-		expect(packet.coverage.unresolved_symbols.map((item) => item.symbol).sort()).toEqual(["environmentOptions", "privacyOptions"]);
-		expect(packet.questions.find((item) => item.id === "pii_default_off")?.outcome).toBe("abstained");
+		expect(state).not.toContain("commented-out");
+		const coverage = distillFoundationPackets(repo, snapshot, "sentry").packets[0].coverage;
+		expect(coverage.unresolved_symbols.map((item) => item.symbol).sort()).toEqual(["environmentOptions", "privacyOptions"]);
 	});
 
 	test("keeps the conditions that decide whether Sentry initializes", () => {

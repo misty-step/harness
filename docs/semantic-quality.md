@@ -60,9 +60,14 @@ foundation disposition, and never a replacement for a drill or walk. Uncertain
 answers escalate to a frontier agent; outages are unavailable, not clean results.
 The offline heuristic is uncalibrated for these rules and abstains, rather than
 reporting a clean pass. Sentry alert routing in the Sentry API is outside
-repository evidence. The ledger pack asks about rules written one per bullet or
-numbered item; prose under an invariants heading is listed as not assessed,
-because line breaks do not mark where one rule ends.
+repository evidence. Sentry answers come from static code excerpts, which can
+show that a setting exists but never that it does not, so any Sentry answer that
+would conclude an absence abstains. A confident Sentry answer can still be wrong
+when the excerpts miss a later override; the coverage manifest lists what the
+distiller knows it skipped and is not a proof of completeness. The ledger pack
+asks about rules written one per bullet or numbered item; prose under an
+invariants heading is listed as not assessed, because line breaks do not mark
+where one rule ends.
 
 Admit any pilot rule only after naming its failure and valid counterexample,
 checking whether deterministic code can decide it, and reviewing labeled
