@@ -102,8 +102,10 @@ Standard. The catalog and checker change that implements them is catalog
 
 ## Consequences
 
-- An adopted repository cannot sit indefinitely on a `pending` obligation, or
-  claim `satisfied` or `not_applicable` without evidence the checker verifies.
+- An adopted repository cannot keep an applicable obligation `pending` without
+  a current, dated gap. Every gap expires, and only the designated reviewer can
+  extend one. It also cannot claim `satisfied` or `not_applicable` without
+  evidence the checker verifies.
 - Each adopter's next pin bump grows its baseline. The ratchet then shrinks it,
   and the extension count shows where the standard or the setup is wrong.
 - Review has one per-repository input, the ledger, instead of two.
