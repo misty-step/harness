@@ -215,7 +215,7 @@ all fail closed.
   --skill all \
   --bin pass-env.ts \
   --guidance pokayoke --guidance communication-and-verification --guidance host-resources --guidance credentials \
-  --guidance user-stories --guidance session-close --guidance design-routing \
+  --guidance user-stories --guidance foundations --guidance session-close --guidance design-routing \
   --guidance-source ../pi-config/global/AGENTS.md
 ```
 
@@ -240,8 +240,8 @@ Shared guidance sections may reference shared primitives and vehicles deployed a
 
 | Harness | Skills | Guidance | Launcher | Audio sandbox |
 | --- | --- | --- | --- | --- |
-| `pi-config` | all | pokayoke, communication-and-verification, host-resources, user-stories, session-close, design-routing | `pass-env`, `design-check`, `foundation-check`, `ws` | component `audio-sandbox` |
-| `omp-config` | all | pokayoke, communication-and-verification, host-resources, user-stories, session-close, design-routing | `pass-env`, `design-check`, `foundation-check`, `ws` | component `audio-sandbox` |
+| `pi-config` | all | pokayoke, communication-and-verification, host-resources, user-stories, foundations, session-close, design-routing | `pass-env`, `design-check`, `foundation-check`, `ws` | component `audio-sandbox` |
+| `omp-config` | all | pokayoke, communication-and-verification, host-resources, user-stories, foundations, session-close, design-routing | `pass-env`, `design-check`, `foundation-check`, `ws` | component `audio-sandbox` |
 
 `omp-config`'s own guidance file adds Working together (including model roles),
 Execution environments (exe.dev vehicle), and Authority

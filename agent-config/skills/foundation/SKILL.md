@@ -40,12 +40,14 @@ observations, inferences, preferences, and unknowns; identify inaccessible or
 unexercised claims. Keeping a sound foundation is a valid conclusion.
 
 This skill is an assessment and repair procedure, not a second policy source.
-Read the canonical [Foundation Standard v1](foundation-standard-v1.md) when
-verification, deployment, hosting, data, or product operation could change the
+Judge against the [constitution](constitution.md), the canonical short
+statement of the foundations every project keeps. Read the canonical
+[Foundation Standard v1](foundation-standard-v1.md) when verification,
+deployment, hosting, data, or product operation could change the
 recommendation. Map only obligations whose applicability predicates are true;
 record uncertainty rather than inventing proof or exemptions. The concise
 [operating pointer](operating-foundations.md) preserves compatibility for existing
-links.
+links. Changing the foundations follows the [authoring notes](authoring.md).
 
 For enforceable repository checks, use the standalone `foundation-check`
 launcher on the target repository: `foundation-check check`,

@@ -760,3 +760,28 @@ exclusions.
 
 Evidence: `agent-config/bin/foundation-check.test.ts` (ADR-005 block);
 `docs/adr/005-operational-obligations.md`.
+
+## US-041 Meet the foundations while working
+
+Statement: When an agent works in any of my projects, I want it to meet the
+foundations every project keeps, stated once in a short constitution, so its
+work implements, maintains and improves them without me restating them.
+
+Criteria:
+1. WHEN Pi or OMP installs shared guidance, THE SYSTEM SHALL compose a
+   foundations section that names the constitution as
+   `skill://foundation/constitution.md` and as a path, relative to the
+   deployed `AGENTS.md`, that resolves to the deployed constitution.
+2. WHEN Pi or OMP installs shared skills, THE SYSTEM SHALL deploy the
+   constitution with the `foundation` skill, and every relative link in that
+   package SHALL resolve inside it.
+3. WHEN the composed guidance is deployed, THE SYSTEM SHALL equal the harness
+   intro plus every selected section, including foundations, in the declared
+   order.
+
+No-gos: no catalog obligations restated in guidance; no authoring
+instructions in the constitution (they live in the skill's authoring notes);
+no authority granted beyond ADR-006.
+
+Evidence: `scripts/references.test.ts`, `scripts/verify-installers`;
+`docs/adr/006-foundation-decisions.md`.
