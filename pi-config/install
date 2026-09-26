@@ -157,6 +157,7 @@ run_shared() {
       --guidance host-resources \
       --guidance credentials \
       --guidance user-stories \
+      --guidance foundations \
       --guidance session-close \
       --guidance design-routing \
       --guidance-source "$repo_dir/global/AGENTS.md"

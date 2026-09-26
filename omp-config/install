@@ -54,7 +54,7 @@ validate_guidance() {
   require_base
   run_shared --check \
     --bin design-check.ts \
-    --guidance pokayoke --guidance communication-and-verification --guidance host-resources --guidance credentials --guidance user-stories --guidance session-close --guidance design-routing \
+    --guidance pokayoke --guidance communication-and-verification --guidance host-resources --guidance credentials --guidance user-stories --guidance foundations --guidance session-close --guidance design-routing \
     --guidance-source "$repo_dir/global/AGENTS.md"
 }
 install_guidance() {
@@ -65,7 +65,7 @@ install_guidance() {
   rm -f -- "$agent_dir/RULES.md"
   run_shared \
     --bin design-check.ts \
-    --guidance pokayoke --guidance communication-and-verification --guidance host-resources --guidance credentials --guidance user-stories --guidance session-close --guidance design-routing \
+    --guidance pokayoke --guidance communication-and-verification --guidance host-resources --guidance credentials --guidance user-stories --guidance foundations --guidance session-close --guidance design-routing \
     --guidance-source "$repo_dir/global/AGENTS.md"
 }
 validate_config() {
