@@ -729,15 +729,17 @@ Criteria:
    `operations.alert` names an error-capture file that references its
    provider, a scheduled health workflow or a named external monitor, and an
    alert destination.
-5. WHEN FND-INC-001 is `satisfied`, `check` SHALL fail unless
+5. WHEN FND-ALR-001 is `satisfied`, `operations.alert.destination` SHALL
+   name an approved agent triage route; no other destination SHALL pass.
+6. WHEN FND-INC-001 is `satisfied`, `check` SHALL fail unless
    `docs/runbook.md` has a non-empty `## Incidents` section and every
    postmortem in `docs/postmortems/` has `## Pokayoke` and `## Follow-up`
    sections, with a closed one linking the change that closed its class.
-6. WHEN `baseline --revision SHA` runs on an existing record, THE SYSTEM SHALL
+7. WHEN `baseline --revision SHA` runs on an existing record, THE SYSTEM SHALL
    re-pin its standard to that revision and add every obligation the catalog
    gained as `pending`, leaving existing dispositions and walk entries
    unchanged and adding no new walk entry.
-7. WHEN a pull request changes `foundation.json` from an application to a
+8. WHEN a pull request changes `foundation.json` from an application to a
    non-application, `foundation-check review` SHALL require the designated
    reviewer, as for a baseline extension.
 

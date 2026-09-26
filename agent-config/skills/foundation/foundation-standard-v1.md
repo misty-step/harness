@@ -1,7 +1,7 @@
 # Foundation Standard
 
 **Standard:** `misty-step.foundation`
-**Version:** `1.2.0`
+**Version:** `1.3.0`
 **Catalog:** [`foundation-standard-v1.json`](foundation-standard-v1.json)
 
 The adjacent JSON catalog is the **single normative source for structured obligation fields**: applicability, required evidence, exception authority, approved defaults, dispositions, and required decision fields. This document is the human-readable rationale and operating guidance keyed by those IDs; it does not restate a second normative copy. The Foundation skill is an assessment and repair procedure that reads the catalog and this guidance, not another policy source.
@@ -158,18 +158,19 @@ not wait on the gate is not continuous deployment (ADR-005).
 ### FND-ALR-001 — Loud production alerting
 
 Production errors reach a remote store with release and environment (Sentry by
-default, or an approved equivalent that captures errors, checks health and raises
-incidents), health is checked from outside the application, and both alert a
-destination someone watches. An SDK behind an unset DSN, a monitor nobody reads,
-or an alert route marked "prepared" is not alerting; a controlled failure whose
-alert was seen and handled is the proof (ADR-005).
+default, or an approved equivalent), and outside health checks alert only to an
+approved agent triage intake, never a person's inbox or phone. For Sentry every
+alert rule's actions target that intake and no alert email goes to org members;
+a controlled failure seen and handled by triage proves delivery. An unset DSN
+or a route merely "prepared" is not alerting (ADR-005).
 
 ### FND-INC-001 — Incident response closes the class
 
-An alert becomes an owned incident through the runbook's Incidents section. Every
-incident ends in a postmortem from the harness template (pokayoke skill) and a
-structural change that makes the whole class impossible, with a regression check;
-the postmortem links that change before it closes (ADR-005).
+The triage agent reads each alert, opens its incident ticket and starts an
+engineer or escalates to Kaylee only when the alert is real. Through the
+runbook's Incidents section, the ticket links a postmortem from the harness
+template (pokayoke skill) and its structural, class-closing fix with a
+regression check; it closes only with both linked (ADR-005).
 
 ## Approved tool defaults
 

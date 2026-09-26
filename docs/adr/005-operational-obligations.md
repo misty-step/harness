@@ -3,7 +3,7 @@
 Status: Accepted 2026-09-25 (MIS-150). Operator directive, relayed by Kaylee:
 "a non-negotiable foundation standard, without exception, for every application
 we work on in both orgs." This record adds three obligations to the Foundation
-Standard catalog (version 1.2.0) and to `foundation-check`. It amends ADR-003's
+Standard catalog (version 1.3.0) and to `foundation-check`. It amends ADR-003's
 enforcement (these three take no exception) and builds on ADR-004's `surfaces`
 and `deployed` runbook. Rollout waves are a separate proposal.
 
@@ -54,11 +54,28 @@ Examples it rests on:
 | Id | Title | Owed by every application |
 | --- | --- | --- |
 | FND-REL-001 | Continuous deployment | Every push to the default branch that passes the gate ships automatically, through a job that waits on the gate; the gate (CI, tests of core journeys, story walks, agentic QA, then a readback of what shipped) is strong enough for a Friday 5pm deploy; rollback is exercised. |
-| FND-ALR-001 | Loud production alerting | Remote error capture with release and environment (Sentry by default, or an approved equivalent that captures errors, checks health and raises incidents); an outside, scheduled health check; alerts to a destination someone watches, proven by a controlled failure. |
-| FND-INC-001 | Incident response closes the class | The runbook's `## Incidents` section turns an alert into an owned incident; every incident ends in a postmortem from the pokayoke template under `docs/postmortems/`; a closed postmortem links the structural change that rules out its class, with a regression check. |
+| FND-ALR-001 | Loud production alerting | Remote error capture with release and environment (Sentry by default, or an approved equivalent that captures errors, checks health and raises incidents); an outside, scheduled health check; alerts only to an approved agent triage intake, proven by a controlled failure. For Sentry, all alert rule actions target the intake and no alert email goes to org members. |
+| FND-INC-001 | Incident response closes the class | The runbook's `## Incidents` section turns an alert into an owned incident; the triage agent opens its ticket, starts an engineer or escalates to Kaylee only for a real alert; the ticket closes only when it links a postmortem from the pokayoke template under `docs/postmortems/` and the postmortem's structural, class-closing fix with a regression check. |
 
 The catalog (`agent-config/skills/foundation/foundation-standard-v1.json`) holds
 the normative fields; `foundation-standard-v1.md` explains them.
+
+### Alert routing (operator decision 2026-09-26)
+
+Production alerts in both orgs go only to the approved agent triage intake,
+never to Phaedrus or any person's inbox or phone. Tach's test alert reached his
+personal Gmail: he is the only member of each Sentry org, and Sentry emails
+members by default. For Sentry, every alert rule's actions must target the
+intake and no alert email may go to org members. The approved route is
+`kaylee-alert-intake`: Sentry internal integration → Cloudflare Worker
+`kaylee-alert-intake` → Kaylee's Hermes cron `alert-triage` → Kaylee's bot chat.
+The triage agent reads each alert, opens its incident ticket, and starts an
+engineer or escalates to Kaylee only when the alert is real; the ticket closes
+only with its linked postmortem and class-closing fix. A repository names the
+approved route key as `operations.alert.destination`, never a person, email
+address, phone or provider channel. The route itself is owned in
+`hermes-config/docs/alert-routing.md`; the checker verifies the declared key,
+while the controlled-failure receipt proves actual delivery and handling.
 
 ### Applicability: every application
 
@@ -112,7 +129,8 @@ error reports from real installs.
     jobs themselves; a repository using such an aggregator lists them.
   - FND-ALR-001: `operations.alert` names the file that initialises error
     capture (it must reference the provider), a scheduled health workflow or a
-    named external monitor, and the alert destination.
+    named external monitor, and an approved agent triage route key as its
+    destination, never a person's endpoint.
   - FND-INC-001: `docs/runbook.md` has a non-empty `## Incidents` section, and
     every postmortem in `docs/postmortems/` has `## Pokayoke` and
     `## Follow-up`; unless its status is `open`, the follow-up links the change
@@ -132,7 +150,7 @@ error reports from real installs.
     "alert": {
       "errors": { "provider": "sentry", "init": "src/instrument.ts" },
       "health": { "monitor": ".github/workflows/health.yml" },
-      "destination": "Discord #alerts"
+      "destination": "kaylee-alert-intake"
     }
   }
 }
@@ -159,8 +177,9 @@ pin-bump PR carries an extension record for the designated reviewer.
   review are the guard, as for every other `satisfied` disposition.
 - A platform deploy that does not wait on CI can only be `satisfied` if the
   receipt shows the platform gates on the checks; otherwise it stays a gap.
-- Email-only Sentry alerts are not loud on their own; the destination must be
-  one someone watches, which the controlled-failure receipt shows.
+- Email-only Sentry alerts are prohibited: every rule targets the agent triage
+  intake, no alert email goes to org members, and the controlled-failure receipt
+  proves the route was seen and handled.
 - Tach (`r90group/agent-usage-telemetry`) is writing its own plan; its row in
   the census defers to it.
 

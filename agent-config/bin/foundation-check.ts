@@ -69,6 +69,10 @@ const surfaceVocabulary = ["ui", "cli", "library", "api", "deployed", "content",
 const applicationSurfaces = ["ui", "cli", "api", "deployed"];
 // ADR-005: the operational obligations every application owes, and the gap each one is while pending.
 const operationsGaps: Record<string, string> = { "FND-REL-001": "ops:ship", "FND-ALR-001": "ops:alert", "FND-INC-001": "ops:incident" };
+// ADR-005 (operator decision 2026-09-26): repositories name a route, never an individual endpoint.
+const approvedAlertRoutes: Record<string, string> = {
+	"kaylee-alert-intake": "Kaylee's alert intake: Sentry internal integration → Cloudflare Worker kaylee-alert-intake → Hermes cron alert-triage → Kaylee's bot chat (hermes-config docs/alert-routing.md)",
+};
 const dayMs = 86_400_000;
 const text = (value: unknown): value is string => typeof value === "string" && value.trim().length > 0;
 const record = (value: unknown): value is Record<string, unknown> => value !== null && typeof value === "object" && !Array.isArray(value);
@@ -499,7 +503,7 @@ function shipProblems(repo: string, ship: unknown): string[] {
 	if (needsOf(job).length === 0 && !afterGreenRun) problems.push(`job ${ship.job} ships without waiting on the gate: give it needs, or run it from workflow_run only when the conclusion is success`);
 	return problems;
 }
-/** FND-ALR-001: remote error capture, an outside health check and a loud destination, each named and present. */
+/** FND-ALR-001: remote error capture, an outside health check and an approved agent triage destination. */
 function alertProblems(repo: string, alert: unknown): string[] {
 	if (!record(alert)) return ["operations.alert must name errors, health and destination"];
 	const problems: string[] = [];
@@ -515,6 +519,7 @@ function alertProblems(repo: string, alert: unknown): string[] {
 		else if (!("schedule" in monitor.on)) problems.push(`${String(health.monitor)} does not run on a schedule`);
 	} else problems.push("operations.alert.health needs a scheduled monitor workflow or a named external monitor");
 	if (!text(alert.destination)) problems.push("operations.alert.destination must name where alerts go");
+	else if (!Object.hasOwn(approvedAlertRoutes, alert.destination)) problems.push(`operations.alert.destination must name an approved agent triage route: ${Object.keys(approvedAlertRoutes).join(", ")}`);
 	return problems;
 }
 /** FND-INC-001: the runbook says how incidents run, and every closed postmortem links the change that closed its class. */

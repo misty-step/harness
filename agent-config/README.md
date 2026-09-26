@@ -93,8 +93,13 @@ and job that fires on every push to it (no path or tag-only filters) and waits
 on the gate, with an `if:` limited to default-branch push guards (or a platform,
 proved in the receipt),
 `operations.alert` names the error-capture file, a scheduled health workflow or
-external monitor, and the alert destination, and `docs/runbook.md` has an
-`## Incidents` section while every closed postmortem links its class fix. For a
+external monitor, and an approved agent triage route as the destination (currently
+`kaylee-alert-intake`, never a person's inbox or phone). For Sentry, every alert
+rule targets the intake and no alert email goes to org members; the route itself
+is owned in `hermes-config/docs/alert-routing.md`. The triage agent opens the
+incident ticket for a real alert and starts an engineer or escalates to Kaylee;
+`docs/runbook.md` has an `## Incidents` section, and a ticket closes only with
+its linked postmortem and class-closing fix. For a
 pin bump, `baseline --owner NAME --revision SHA --write` re-pins the standard
 and adds new catalog obligations as `pending`, keeping existing walk entries;
 `--surfaces a,b` sets the record's surfaces. Declaring an application's record a

@@ -1,7 +1,7 @@
 {
   "schema": "foundation-standard/1",
   "id": "misty-step.foundation",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "principles": [
     {
       "id": "FND-P-APPLICABILITY",
@@ -170,7 +170,8 @@
       "required_evidence": [
         "Production errors are captured remotely with release and environment: Sentry by default (FND-DEF-SENTRY-001) or an approved equivalent that captures errors, checks health and raises incidents.",
         "Health is checked from outside the application on a schedule; a released artifact without a live service instead reports crashes and errors from real installs.",
-        "Errors and failed health checks alert loudly to a destination a human or agent watches, proven by a controlled failure whose alert was seen and handled."
+        "Errors and failed health checks alert loudly only to an approved agent triage intake, never a person's inbox or phone; a controlled failure proves the alert was seen and handled.",
+        "For Sentry, every alert rule's actions target the approved intake, and no alert email goes to organization members."
       ],
       "exception_authority": "None. Operator decision 2026-09-25 (ADR-005): no exception for an application; not_applicable only when the repository is not an application."
     },
@@ -180,8 +181,9 @@
       "applies_when": "The repository is an application: it changes a live system (surface deployed) or ships something people run (surfaces ui, cli or api).",
       "required_evidence": [
         "The runbook's Incidents section says how an alert becomes an owned incident, who responds, and where its postmortem goes.",
+        "The triage agent reads each alert, opens the incident ticket, and starts an engineer or escalates to Kaylee only when the alert is real.",
         "Every production incident ends in a postmortem under docs/postmortems/ from the harness template in the pokayoke skill.",
-        "Each closed postmortem links the structural change that rules out the whole class of error (shape, type, ownership, a removed affordance or a failing-closed check) together with its regression check; a warning or instruction is not a fix."
+        "An incident ticket closes only with the postmortem it links and the structural change that postmortem links to rule out the whole class of error (shape, type, ownership, a removed affordance or a failing-closed check), together with its regression check; a warning or instruction is not a fix."
       ],
       "exception_authority": "None. Operator decision 2026-09-25 (ADR-005): no exception for an application; not_applicable only when the repository is not an application."
     }
