@@ -149,15 +149,43 @@ describe("foundation assessment advisory", () => {
 		expect(JSON.stringify(record)).not.toContain("leaked-credential-123456789");
 	});
 
-	test("redacts a planted credential before any provider receives the packet", async () => {
+	test("redacts planted credentials, including a multi-line key, before any provider receives a packet", async () => {
 		const planted = "planted-secret-value-do-not-send-123456789";
-		const repo = sentryRepo({ "next.config.ts": `withSentryConfig({}, { authToken: "${planted}" });\n`, "sentry-dsn.ts": "Sentry.init({ dsn: 'https://fixturepublickey@o0.ingest.example.invalid/1' });\n" });
+		// Built at runtime like review-check's fixture, so the source holds no key block for the secret scanner.
+		const [begin, end] = [["-----BEGIN", "PRIVATE KEY-----"].join(" "), ["-----END", "PRIVATE KEY-----"].join(" ")];
+		const repo = sentryRepo({
+			"next.config.ts": `withSentryConfig({}, { authToken: "${planted}" });\n`,
+			"sentry-dsn.ts": "Sentry.init({ dsn: 'https://fixturepublickey@o0.ingest.example.invalid/1' });\n",
+			"docs/postmortems/INCIDENT-2.md": ["# Incident", "## Follow-up", begin, "fakekeybodylineone0000000000000000", "fakekeybodylinetwo1111111111111111", end, "Rotate the key."].join("\n"),
+		});
 		let seen = "";
-		await assessFoundations({ repo, snapshot: openGitSnapshot(repo), pack: "sentry", provider: stub(absent, (state) => { seen = state; }) });
+		await assessFoundations({ repo, snapshot: openGitSnapshot(repo), pack: "all", provider: stub(absent, (state) => { seen += state; }) });
 		expect(seen).toContain("[REDACTED:suspected-secret]");
 		expect(seen).toContain("[REDACTED:sentry-dsn]");
-		expect(seen).not.toContain("fixturepublickey");
-		expect(seen).not.toContain(planted);
+		expect(seen).toContain("docs/postmortems/INCIDENT-2.md:7: Rotate the key.");
+		for (const secret of ["fixturepublickey", planted, "fakekeybodylineone", "fakekeybodylinetwo"]) expect(seen).not.toContain(secret);
+	});
+
+	test("records references it cannot follow, so an absent answer abstains", async () => {
+		const repo = fixture({
+			"sentry-init.ts": "import * as Sentry from '@sentry/node';\nimport { options } from './options';\nimport { getRelease } from './release';\nSentry.init(options);\nSentry.init(getRelease());\n",
+			"options.ts": "import { privacyOptions } from './privacy';\nexport const options = { ...privacyOptions, environment: 'production' };\n",
+			"release.ts": "export function getRelease(): { release: string } { return { release: 'x', sendDefaultPii: true }; }\n",
+		});
+		const record = await assessFoundations({ repo, snapshot: openGitSnapshot(repo), pack: "sentry", provider: stub(absent) });
+		const packet = record.packets[0];
+		expect(packet.coverage.unresolved_symbols.map((item) => item.symbol).sort()).toEqual(["getRelease", "privacyOptions"]);
+		expect(packet.questions.find((item) => item.id === "pii_default_off")?.outcome).toBe("abstained");
+	});
+
+	test("keeps the conditions that decide whether Sentry initializes", () => {
+		const repo = fixture({
+			"sentry-init.ts": "import * as Sentry from '@sentry/node';\nexport function initSentry() {\n  if (!process.env.SENTRY_DSN) return;\n  Sentry.init({ enabled: true });\n}\n",
+			"instrumentation.ts": "import { initSentry } from './sentry-init';\nif (process.env.NODE_ENV !== 'production') {\n  initSentry();\n}\n",
+		});
+		const state = distillFoundationPackets(repo, openGitSnapshot(repo), "sentry").packets[0].state;
+		expect(state).toContain("if (!process.env.SENTRY_DSN) return;");
+		expect(state).toContain("if (process.env.NODE_ENV !== 'production') {");
 	});
 
 	test("selects only relevant postmortem sections and excludes templates", () => {

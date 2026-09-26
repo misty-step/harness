@@ -175,11 +175,54 @@ function closing(text: string, open: number): number {
 	return -1;
 }
 
-type Excerpt = { path: string; line: number; kind: string; text: string };
+type Excerpt = { path: string; line: number; kind: string; text: string; guard?: string };
 
 function redactEvidence(text: string): string {
 	const general = redactText(text);
 	return general.replace(/(\b(?:SENTRY_DSN|NEXT_PUBLIC_SENTRY_DSN|dsn)\s*[:=]\s*)(?:["'`]https?:\/\/[^"'`\s]+["'`]|https?:\/\/[^\s,}]+)/gi, "$1[REDACTED:sentry-dsn]");
+}
+
+const GUARD_CHARS = 1500;
+const GUARD_TRUNCATED = "[guard context truncated]";
+
+/** Numbered source lines that decide whether the call at `index` runs: enclosing block headers, earlier statements in its own block, and the call line's prefix. */
+function guardContext(text: string, index: number, path: string): string | undefined {
+	const lineStart = (at: number) => text.lastIndexOf("\n", at - 1) + 1;
+	const lineEnd = (at: number) => { const end = text.indexOf("\n", at); return end < 0 ? text.length : end; };
+	const back = (at: number, lines: number) => { let start = lineStart(at); for (let n = 0; n < lines && start > 0; n++) start = lineStart(start - 1); return start; };
+	const numbered = (from: number, to: number) => text.slice(from, to).split("\n").map((line, n) => `${lineOf(text, from) + n}: ${line}`).join("\n");
+	const blocks: number[] = [];
+	if (/\.py$/i.test(path)) {
+		// Indentation opens Python blocks: each shallower line above the call is an enclosing header.
+		let indent = /^[ \t]*/.exec(text.slice(lineStart(index)))![0].length;
+		for (let at = lineStart(index); indent > 0 && at > 0; ) {
+			at = lineStart(at - 1);
+			const line = text.slice(at, lineEnd(at));
+			const own = /^[ \t]*/.exec(line)![0].length;
+			if (line.trim() && own < indent) { blocks.unshift(at); indent = own; }
+		}
+	} else {
+		let quote = "";
+		for (let i = 0; i < index; i++) {
+			const ch = text[i];
+			if (quote) { if (ch === "\\") i++; else if (ch === quote) quote = ""; continue; }
+			if (ch === "'" || ch === '"' || ch === "`") { quote = ch; continue; }
+			if (ch === "/" && text[i + 1] === "/") { i = text.indexOf("\n", i); if (i < 0) break; continue; }
+			if (ch === "/" && text[i + 1] === "*") { i = text.indexOf("*/", i + 2); if (i < 0) break; i++; continue; }
+			if (ch === "{") blocks.push(i);
+			else if (ch === "}") blocks.pop();
+		}
+	}
+	const inner = blocks.pop();
+	const parts = blocks.map((at) => numbered(back(at, 2), lineEnd(at)));
+	let from = inner === undefined ? lineStart(index) : back(inner, 2);
+	if (index - from > GUARD_CHARS) {
+		if (inner !== undefined) parts.push(numbered(back(inner, 2), lineEnd(inner)));
+		parts.push(GUARD_TRUNCATED);
+		from = lineStart(index - GUARD_CHARS);
+	}
+	if (!parts.length && !/\S/.test(text.slice(from, index))) return undefined;
+	return [...parts, numbered(from, index)].join("\n");
 }
 
 function extractCalls(text: string, path: string, pattern: RegExp, kind: string): Excerpt[] {
@@ -188,12 +231,23 @@ function extractCalls(text: string, path: string, pattern: RegExp, kind: string)
 		const open = match.index + match[0].lastIndexOf("(");
 		const end = closing(text, open);
 		if (end < 0) continue;
-		result.push({ path, line: lineOf(text, match.index), kind, text: text.slice(match.index, end + 1) });
+		const guard = kind === "build_plugin" ? undefined : guardContext(text, match.index, path);
+		result.push({ path, line: lineOf(text, match.index), kind, text: text.slice(match.index, end + 1), ...(guard ? { guard } : {}) });
 	}
 	return result;
 }
 
-function definition(text: string, symbol: string): { line: number; text: string } | null {
+/** A brace capture is complete only when its statement ends right after it; otherwise a type, parameter or later argument was cut off. */
+function endsStatement(text: string, end: number): boolean {
+	return /^[ \t]*(?:as\s+const|satisfies\s+[\w$.<>[\], ]+?)?[ \t]*\)*[ \t]*(?:;|\/\/|\/\*|\r?\n|$)/.test(text.slice(end + 1));
+}
+
+function balanced(text: string): boolean {
+	const count = (pattern: RegExp) => text.match(pattern)?.length ?? 0;
+	return count(/\(/g) === count(/\)/g) && count(/\[/g) === count(/]/g) && count(/\{/g) === count(/\}/g);
+}
+
+function definition(text: string, symbol: string): { line: number; text: string; complete: boolean } | null {
 	const escaped = symbol.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 	const patterns = [
 		new RegExp(`\\b(?:export\\s+)?(?:default\\s+)?(?:async\\s+)?function\\s+${escaped}(?:<[^>]+>)?\\s*\\(`, "g"),
@@ -209,16 +263,20 @@ function definition(text: string, symbol: string): { line: number; text: string 
 		const semi = after.indexOf(";");
 		if (brace >= 0 && (semi < 0 || brace < semi)) {
 			const end = closing(text, start + brace);
-			if (end >= 0) return { line: lineOf(text, start), text: text.slice(start, end + 1) };
+			// A brace inside a Python function is a literal, not its body.
+			if (end >= 0) return { line: lineOf(text, start), text: text.slice(start, end + 1), complete: pattern !== patterns[2] && endsStatement(text, end) };
 		}
-		if (semi >= 0) return { line: lineOf(text, start), text: text.slice(start, start + semi + 1) };
+		if (semi >= 0) {
+			const captured = text.slice(start, start + semi + 1);
+			return { line: lineOf(text, start), text: captured, complete: balanced(captured) };
+		}
 		const next = after.search(/\n(?:export\s+)?(?:const|let|var|function|def)\s+/);
-		return { line: lineOf(text, start), text: next >= 0 ? after.slice(0, next) : after };
+		return { line: lineOf(text, start), text: next >= 0 ? after.slice(0, next) : after, complete: true };
 	}
 	const defaultBinding = new RegExp(`\\b${escaped}\\s*=\\s*[A-Za-z_$][\\w$]*\\s*\\(`).exec(text);
 	if (defaultBinding) {
 		const end = closing(text, defaultBinding.index + defaultBinding[0].lastIndexOf("("));
-		if (end >= 0) return { line: lineOf(text, defaultBinding.index), text: text.slice(defaultBinding.index, end + 1) };
+		if (end >= 0) return { line: lineOf(text, defaultBinding.index), text: text.slice(defaultBinding.index, end + 1), complete: true };
 	}
 	return null;
 }
@@ -254,21 +312,40 @@ function unresolved(manifest: CoverageManifest, path: string, symbol: string, qu
 	if (!manifest.unresolved_symbols.some((item) => item.path === path && item.symbol === symbol)) manifest.unresolved_symbols.push({ path, symbol, questions });
 }
 
+const IGNORED_SYMBOLS = /^(?:true|false|null|undefined|Object|String|Number|Boolean|process|console|require)$/;
+
+/** Identifiers a captured definition depends on, minus its own parameters: spreads, relevant property values, shorthand hooks and a returned identifier. */
+function optionReferences(text: string): string[] {
+	const own = new Set(text.match(/\(([^)]*)\)/)?.[1].match(/[A-Za-z_$][\w$]*/g) ?? []);
+	const names = new Set<string>();
+	for (const match of text.matchAll(/\.\.\.\s*([A-Za-z_$][\w$]*)/g)) names.add(match[1]);
+	for (const match of text.matchAll(/\b(?:beforeSend|beforeBreadcrumb|beforeSendTransaction|beforeSendSpan|release|environment|enabled|sendDefaultPii)\s*:\s*([A-Za-z_$][\w$]*)(?=\s*[,}])/g)) names.add(match[1]);
+	for (const match of text.matchAll(/\b(beforeSend|beforeBreadcrumb|beforeSendTransaction|beforeSendSpan)\s*(?=[,}])/g)) names.add(match[1]);
+	for (const match of text.matchAll(/\breturn\s+([A-Za-z_$][\w$]*)\s*[;(\n}]/g)) names.add(match[1]);
+	return [...names].filter((name) => !own.has(name) && !IGNORED_SYMBOLS.test(name));
+}
+
 function captureSymbol(snapshot: Snapshot, manifest: CoverageManifest, from: string, symbol: string, relevant: string[], excerpts: Excerpt[], remaining = 1): void {
-	if (/^(?:true|false|null|undefined|Object|String|Number|Boolean|process|console|require)$/.test(symbol)) return;
+	if (IGNORED_SYMBOLS.test(symbol)) return;
 	const contents = source(snapshot, from, manifest);
 	const origin = importOrigin(contents, symbol);
 	const destination = origin ? resolveImport(snapshot, from, origin.path) : from;
 	if (!destination) { unresolved(manifest, from, symbol, relevant); return; }
 	const target = source(snapshot, destination, manifest);
 	const found = origin?.imported === "default" ? target.match(/\bexport\s+default\s+([\s\S]*?);/) : null;
-	const result = found ? { line: lineOf(target, found.index ?? 0), text: found[0] } : definition(target, origin?.imported ?? symbol);
+	const result = found ? { line: lineOf(target, found.index ?? 0), text: found[0], complete: balanced(found[0]) } : definition(target, origin?.imported ?? symbol);
 	if (!result) { unresolved(manifest, from, symbol, relevant); return; }
 	if (excerpts.some((item) => item.path === destination && item.line === result.line && item.kind === `definition:${symbol}`)) return;
 	manifest.hops_followed.push({ from, to: destination, symbol });
 	excerpts.push({ path: destination, line: result.line, kind: `definition:${symbol}`, text: result.text });
-	const factory = remaining > 0 ? result.text.match(/(?:\b(?:const|let|var)\s+)?\b\w+\s*=\s*([A-Za-z_$][\w$]*)\s*\(/) : null;
-	if (factory) captureSymbol(snapshot, manifest, destination, factory[1], relevant, excerpts, remaining - 1);
+	// A partial capture, or a reference past the hop budget, is recorded rather than dropped, so an absent answer abstains.
+	if (!result.complete) { unresolved(manifest, destination, symbol, relevant); return; }
+	const factory = result.text.match(/(?:\b(?:const|let|var)\s+)?\b\w+\s*=\s*([A-Za-z_$][\w$]*)\s*\(/)?.[1];
+	if (factory && remaining > 0) captureSymbol(snapshot, manifest, destination, factory, relevant, excerpts, remaining - 1);
+	const pending = new Set(optionReferences(result.text));
+	if (factory && remaining === 0) pending.add(factory);
+	else if (factory) pending.delete(factory);
+	for (const name of pending) if (!IGNORED_SYMBOLS.test(name) && !definition(result.text, name)) unresolved(manifest, destination, name, relevant);
 }
 
 function wrapperNames(text: string, aliases: string[]): string[] {
@@ -347,7 +424,8 @@ function sentryPackets(snapshot: Snapshot): EvidencePacket[] {
 	}
 	const facts: string[] = [];
 	if (excerpts.some((item) => item.kind === "build_plugin" && /\b(?:authToken|SENTRY_AUTH_TOKEN)\b/.test(item.text))) facts.push("A configured Sentry build plugin with an auth token injects its release and uploads source maps when the token is present at build time; repository evidence cannot prove token availability in CI.");
-	const pieces = [...excerpts.sort((a, b) => a.path.localeCompare(b.path) || a.line - b.line).map((part) => ({ ...part, text: redactEvidence(part.text) }))];
+	if (excerpts.some((item) => item.guard?.includes(GUARD_TRUNCATED))) manifest.limitations.push(`Execution guard context was cut to ${GUARD_CHARS} characters before at least one call; absence cannot be inferred`);
+	const pieces = [...excerpts.sort((a, b) => a.path.localeCompare(b.path) || a.line - b.line).map((part) => ({ ...part, text: redactEvidence(part.text), ...(part.guard ? { guard: redactEvidence(part.guard) } : {}) }))];
 	const stateBase = { env_var_names: [...names].sort(), facts };
 	const all = JSON.stringify({ ...stateBase, excerpts: pieces });
 	const make = (text: string, sourceName: string, shard: boolean): EvidencePacket => ({
@@ -385,9 +463,10 @@ function postmortemPackets(snapshot: Snapshot): EvidencePacket[] {
 			const heading = lines[i].match(/^(#{1,6})\s+(.+)/);
 			if (heading && active && heading[1].length <= depth) active = false;
 			if (heading && POSTMORTEM_HEADING.test(heading[2])) { active = true; depth = heading[1].length; }
-			if (active) selected.push({ line: i + 1, text: redactEvidence(lines[i]) });
+			if (active) selected.push({ line: i + 1, text: lines[i] });
 		}
-		const text = selected.map((item) => `${path}:${item.line}: ${item.text}`).join("\n");
+		// Redact the whole selection at once so a multi-line key matches as one block; each line keeps its own anchor.
+		const text = redactEvidence(selected.map((item) => `${path}:${item.line}: ${item.text}`).join("\n"));
 		const marker = "\n[truncated: selected sections]";
 		const kept = 8000 - marker.length;
 		if (text.length > 8000) manifest.limitations.push(`Selected sections exceed 8000 characters; omitted ${text.length - kept} characters`);
