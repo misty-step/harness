@@ -118,9 +118,12 @@ describe("foundation assessment advisory", () => {
 	});
 
 	test("records an unresolved option with every question it could affect", () => {
-		const repo = sentryRepo({ "next.config.ts": "import * as Sentry from '@sentry/nextjs';\nimport { withSentryConfig } from '@sentry/nextjs';\nSentry.init({ ...missingOptions });\nexport default withSentryConfig({}, { ...missingOptions });\n" });
-		const entry = distillFoundationPackets(repo, openGitSnapshot(repo), "sentry").packets[0].coverage.unresolved_symbols.find((item) => item.symbol === "missingOptions");
-		expect(entry?.questions).toEqual(expect.arrayContaining(["release_set", "scrub_hook", "sourcemaps_uploaded", "sourcemaps_not_public"]));
+		const repo = sentryRepo({
+			"next.config.ts": "import * as Sentry from '@sentry/nextjs';\nimport { withSentryConfig } from '@sentry/nextjs';\nimport { partial } from './partial';\nSentry.init({ ...missingOptions });\nexport default withSentryConfig({}, { ...missingOptions });\nSentry.init(partial);\nwithSentryConfig({}, partial);\n",
+			"partial.ts": "export const partial = process.env.CI\n  ? { release: 'ci' }\n  : { release: 'local' };\n",
+		});
+		const unresolved = distillFoundationPackets(repo, openGitSnapshot(repo), "sentry").packets[0].coverage.unresolved_symbols;
+		for (const symbol of ["missingOptions", "partial"]) expect(unresolved.find((item) => item.symbol === symbol)?.questions).toEqual(expect.arrayContaining(["release_set", "scrub_hook", "sourcemaps_uploaded", "sourcemaps_not_public"]));
 	});
 
 	test("applies inclusive thresholds, and Sentry excerpts never support an absence", async () => {
@@ -168,16 +171,19 @@ describe("foundation assessment advisory", () => {
 
 	test("captures whole live definitions and records what it cannot follow", async () => {
 		const repo = fixture({
-			"sentry-init.ts": "import * as Sentry from '@sentry/node';\nimport { options, environmentOptions } from './options';\nimport { getRelease, getPrivacy, getMode, getLong } from './release';\nimport defaults from './defaults';\n// Sentry.init({ environment: 'commented-init' });\nSentry.init(options);\nSentry.init(environmentOptions);\nSentry.init(getRelease());\nSentry.init(getPrivacy());\nSentry.init(getMode());\nSentry.init(getLong());\nSentry.init(defaults);\n",
+			"sentry-init.ts": "import * as Sentry from '@sentry/node';\nimport { options, environmentOptions } from './options';\nimport { getRelease, getPrivacy, getMode, getLong, getOverloaded, getDrafted } from './release';\nimport { getScoped } from './scoped';\nimport defaults from './defaults';\n// Sentry.init({ environment: 'commented-init' });\nSentry.init(options);\nSentry.init(environmentOptions);\nSentry.init(getRelease());\nSentry.init(getPrivacy());\nSentry.init(getMode());\nSentry.init(getLong());\nSentry.init(getOverloaded());\nSentry.init(getDrafted());\nSentry.init(getScoped());\nSentry.init(defaults);\n",
+			// A body may end with its own ';', and a same-named function in another scope is not its implementation.
+			"scoped.ts": "export function getScoped() { return { maxValueLength: 21 } as never; };\nfunction wrapper() {\n  function getScoped() { return { maxValueLength: 23 } as never; }\n  return getScoped;\n}\n",
 			"defaults.ts": "// export default { environment: 'commented-default' };\nexport default { environment: 'live-default' };\n",
 			"worker.py": "import sentry_sdk\n# sentry_sdk.init(environment='commented-python')\nsentry_sdk.init(environment='live-python')\n# options = old_options()\noptions = live_options()\nsentry_sdk.init(options)\n",
 			"options.ts": "import { privacyOptions } from './privacy';\n// export const options = { environment: 'commented-out' };\nexport const options = { ...privacyOptions, environment: 'production' };\nexport const environmentOptions = process.env.CI\n  ? { environment: 'ci' }\n  : { environment: 'local' };\n",
-			"release.ts": `export function getRelease(): { release: string } { return { release: 'x', sendDefaultPii: true }; }\nexport function getPrivacy(): { pii: boolean } // runtime options\n{\n  return { attachStacktrace: false, maxBreadcrumbs: 7 };\n}\nexport function getMode<T>(): T extends { strict: true } ? { mode: 'a' } : { mode: 'b' } /* by mode */ { return { maxValueLength: 9 } as never; }\nexport function getLong(): { long: true } // ${"a long explanation ".repeat(120)}\n{ return { maxValueLength: 11 } as never; }\n`,
+			"release.ts": `export function getRelease(): { release: string } { return { release: 'x', sendDefaultPii: true }; }\nexport function getPrivacy(): { pii: boolean } // runtime options\n{\n  return { attachStacktrace: false, maxBreadcrumbs: 7 };\n}\nexport function getMode<T>(): T extends { strict: true } ? { mode: 'a' } : { mode: 'b' } /* by mode */ { return { maxValueLength: 9 } as never; }\nexport function getLong(): { long: true } // ${"a long explanation ".repeat(120)}\n{ return { maxValueLength: 11 } as never; }\nexport function getOverloaded(): { overloaded: true };\nexport function getOverloaded(): { overloaded: true } { return { maxValueLength: 15 } as never; }\nexport function getDrafted() /* { draft }; */ { return { maxValueLength: 19 } as never; }\n`,
 		});
 		const snapshot = openGitSnapshot(repo);
 		const state = distillFoundationPackets(repo, snapshot, "sentry").packets[0].state;
 		expect(state).toContain("maxValueLength: 9");
-		expect(state).toContain("maxValueLength: 11");
+		for (const body of ["maxValueLength: 11", "maxValueLength: 15", "maxValueLength: 19", "maxValueLength: 21"]) expect(state).toContain(body);
+		expect(state).not.toContain("maxValueLength: 23");
 		expect(state).toContain("sendDefaultPii: true");
 		expect(state).toContain("maxBreadcrumbs: 7");
 		for (const live of ["live-default", "live-python", "live_options"]) expect(state).toContain(live);
@@ -190,10 +196,33 @@ describe("foundation assessment advisory", () => {
 		const repo = fixture({
 			"sentry-init.ts": "import * as Sentry from '@sentry/node';\nexport function initSentry() {\n  if (!process.env.SENTRY_DSN) return;\n  Sentry.init({ enabled: true });\n}\n",
 			"instrumentation.ts": "import { initSentry } from './sentry-init';\nif (process.env.NODE_ENV !== 'production') {\n  initSentry();\n}\n",
+			"multi.ts": "import * as Sentry from '@sentry/node';\nexport function initMulti() {\n  if (\n    process.env.NODE_ENV === 'production' &&\n    process.env.SENTRY_DSN &&\n    !process.env.DISABLE_SENTRY\n  ) {\n    Sentry.init({ enabled: true });\n  }\n}\n",
 		});
 		const state = distillFoundationPackets(repo, openGitSnapshot(repo), "sentry").packets[0].state;
 		expect(state).toContain("if (!process.env.SENTRY_DSN) return;");
 		expect(state).toContain("if (process.env.NODE_ENV !== 'production') {");
+		expect(state).toContain("process.env.NODE_ENV === 'production' &&");
+	});
+
+	test("withholds answers about whether Sentry runs only when guard statements were dropped", async () => {
+		const steps = (count: number) => Array.from({ length: count }, (_, n) => `  const step${n} = prepareStep(${n});`).join("\n");
+		const provider = stub(() => ({ type: "noul", probability: 0.95, confidence: 0.9 }));
+		const outcomes = async (repo: string) => Object.fromEntries((await assessFoundations({ repo, snapshot: openGitSnapshot(repo), pack: "sentry", provider })).packets[0].questions.map((question) => [question.id, question.outcome]));
+		const dropped = fixture({ "sentry-init.ts": `import * as Sentry from '@sentry/node';\nexport function initSentry() {\n${steps(60)}\n  Sentry.init({ enabled: true, release: 'r' });\n}\n` });
+		expect(await outcomes(dropped)).toMatchObject({ prod_capture_on: "abstained", server_and_client: "abstained", release_set: "finding" });
+		// A long signature plus a body that still fits keeps every statement, so nothing is withheld.
+		const signature = Array.from({ length: 12 }, (_, n) => `  option${n} = ${n},`).join("\n");
+		const kept = fixture({ "sentry-init.ts": `import * as Sentry from '@sentry/node';\nexport function initSentry({\n${signature}\n}) {\n${steps(40)}\n  Sentry.init({ enabled: true, release: 'r' });\n}\n` });
+		expect(await outcomes(kept)).toMatchObject({ prod_capture_on: "finding", server_and_client: "finding" });
+	});
+
+	test("an unterminated key block hides the rest of its file, so absences there abstain", async () => {
+		const begin = ["-----BEGIN", "PRIVATE KEY-----"].join(" ");
+		const repo = fixture({ "docs/postmortems/INCIDENT-3.md": ["# Incident", "## Follow-up", begin, "fakeorphanbody0000000000000000000", "## Resolution", "Added a regression test."].join("\n") });
+		const record = await assessFoundations({ repo, snapshot: openGitSnapshot(repo), pack: "postmortems", provider: stub((_, question) => question.type === "choice" ? { type: "choice", choice: "other", probabilities: { other: 0.9 }, confidence: 0.9 } : absent()) });
+		const packet = record.packets[0];
+		expect(packet.coverage.limitations.some((item) => item.includes("unterminated private-key block"))).toBe(true);
+		expect(packet.questions.find((item) => item.id === "regression_check_named")?.outcome).toBe("abstained");
 	});
 
 	test("selects only relevant postmortem sections and excludes templates", () => {
