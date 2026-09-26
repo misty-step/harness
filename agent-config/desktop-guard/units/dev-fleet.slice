@@ -1,0 +1,9 @@
+# owned by misty-step/harness agent-config desktop-guard
+[Unit]
+Description=Persistent development services
+
+[Slice]
+# 36G fleet + 16G execution = the 52G dev.slice cap.
+MemoryHigh=infinity
+MemoryMax=36G
+MemorySwapMax=6G

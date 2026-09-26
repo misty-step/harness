@@ -1,0 +1,9 @@
+# owned by misty-step/harness agent-config desktop-guard
+[Unit]
+Description=Development workload aggregate
+
+[Slice]
+# 36G fleet + 16G execution; allow the desktop outside this subtree headroom.
+MemoryHigh=infinity
+MemoryMax=52G
+MemorySwapMax=8G

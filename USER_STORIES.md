@@ -826,3 +826,39 @@ credential values in output.
 
 Evidence: `agent-config/system-one/foundation-assess.test.ts`,
 `docs/semantic-quality.md`.
+
+## Capability: Desktop memory containment
+
+## US-043 Keep development memory failures out of the desktop fleet
+
+Statement: When engineers and verification jobs run on my workstation, I want
+native resource boundaries and bounded local admission, so a terminal-scope
+memory kill cannot take the entire fleet with it.
+
+Criteria:
+1. WHEN the desktop guard is staged, THE SYSTEM SHALL preserve running servers,
+   engineers, active desktop configuration, and existing user-unit configuration.
+2. WHEN the managed launcher starts or attaches to Herdr, THE SYSTEM SHALL
+   verify the server belongs to its bounded user service outside every active
+   oomd monitoring ancestor, and refuse an unmanaged server without replacing it.
+3. WHEN that service restores panes or starts explicit-command panes, THE SYSTEM
+   SHALL charge their newly allocated memory beneath the same bounded fleet
+   hierarchy without relying on an interactive-shell wrapper.
+4. WHEN a child exhausts a deliberately small test memory limit, THE SYSTEM
+   SHALL keep the test Herdr server and an unrelated sentinel alive, without
+   systemd stopping the fleet service because of the child OOM.
+5. WHILE two admitted local heavy jobs are active, THE SYSTEM SHALL refuse a
+   third; admitted jobs SHALL have independent memory/swap bounds and preserve
+   command arguments, working directory, exit status, and environment except
+   for the guard-owned TMPDIR under `~/.cache/tmp`.
+6. WHEN cutover is requested, THE SYSTEM SHALL provide explicit operator-owned
+   activation and rollback steps that reconcile existing limits without
+   silently restarting a running fleet.
+
+No-gos: no Herdr fork, privileged changes, global oomd tuning, automatic live
+cutover, or claim of protection from arbitrary same-user cgroup escapes or a
+kernel OOM selecting the Herdr server itself. A shared fleet cap is not
+per-engineer memory isolation.
+
+Evidence: `agent-config/desktop-guard/`, `docs/desktop-memory-guard.md`,
+`docs/postmortems/2026-09-26-shared-terminal-oom.md`.
