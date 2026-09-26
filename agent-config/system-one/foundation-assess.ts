@@ -296,7 +296,7 @@ function bodyBrace(text: string, paren: number): number {
 	return -1;
 }
 
-function definition(text: string, symbol: string): { line: number; text: string; complete: boolean; body?: number } | null {
+function definition(text: string, symbol: string, python = false): { line: number; text: string; complete: boolean; body?: number } | null {
 	const escaped = symbol.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 	const patterns = [
 		new RegExp(`\\b(?:export\\s+)?(?:default\\s+)?(?:async\\s+)?function\\s+${escaped}(?:<[^>]+>)?\\s*\\(`, "g"),
@@ -306,7 +306,7 @@ function definition(text: string, symbol: string): { line: number; text: string;
 	for (const pattern of patterns) {
 		let match = pattern.exec(text);
 		// A declaration inside a comment is not the live one.
-		while (match && commented(text, match.index, pattern === patterns[2])) match = pattern.exec(text);
+		while (match && commented(text, match.index, python || pattern === patterns[2])) match = pattern.exec(text);
 		if (!match) continue;
 		const start = match.index;
 		if (pattern === patterns[0]) {
@@ -334,7 +334,7 @@ function definition(text: string, symbol: string): { line: number; text: string;
 	}
 	const binding = new RegExp(`\\b${escaped}\\s*=\\s*[A-Za-z_$][\\w$]*\\s*\\(`, "g");
 	let defaultBinding = binding.exec(text);
-	while (defaultBinding && commented(text, defaultBinding.index)) defaultBinding = binding.exec(text);
+	while (defaultBinding && commented(text, defaultBinding.index, python)) defaultBinding = binding.exec(text);
 	if (defaultBinding) {
 		const end = closing(text, defaultBinding.index + defaultBinding[0].lastIndexOf("("));
 		if (end >= 0) return { line: lineOf(text, defaultBinding.index), text: text.slice(defaultBinding.index, end + 1), complete: true };
@@ -399,7 +399,8 @@ function captureSymbol(snapshot: Snapshot, manifest: CoverageManifest, from: str
 	const exported = /\bexport\s+default\s+([\s\S]*?);/g;
 	let found = origin?.imported === "default" ? exported.exec(target) : null;
 	while (found && commented(target, found.index)) found = exported.exec(target);
-	const result = found ? { line: lineOf(target, found.index ?? 0), text: found[0], complete: balanced(found[0]), body: 0 } : definition(target, origin?.imported ?? symbol);
+	const python = /\.py$/i.test(destination);
+	const result = found ? { line: lineOf(target, found.index ?? 0), text: found[0], complete: balanced(found[0]), body: 0 } : definition(target, origin?.imported ?? symbol, python);
 	if (!result) { unresolved(manifest, from, symbol, relevant); return; }
 	if (excerpts.some((item) => item.path === destination && item.line === result.line && item.kind === `definition:${symbol}`)) return;
 	manifest.hops_followed.push({ from, to: destination, symbol });
@@ -411,7 +412,7 @@ function captureSymbol(snapshot: Snapshot, manifest: CoverageManifest, from: str
 	const pending = new Set(optionReferences(result.text, result.body ?? 0));
 	if (factory && remaining === 0) pending.add(factory);
 	else if (factory) pending.delete(factory);
-	for (const name of pending) if (!IGNORED_SYMBOLS.test(name) && !definition(result.text, name)) unresolved(manifest, destination, name, relevant);
+	for (const name of pending) if (!IGNORED_SYMBOLS.test(name) && !definition(result.text, name, python)) unresolved(manifest, destination, name, relevant);
 }
 
 function wrapperNames(text: string, aliases: string[]): string[] {
