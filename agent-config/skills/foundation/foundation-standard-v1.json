@@ -1,7 +1,7 @@
 {
   "schema": "foundation-standard/1",
   "id": "misty-step.foundation",
-  "version": "1.4.0",
+  "version": "1.5.0",
   "principles": [
     {
       "id": "FND-P-APPLICABILITY",
@@ -117,8 +117,9 @@
       "title": "First-class project documents",
       "applies_when": "The repository is maintained as a project.",
       "required_evidence": [
-        "Root README.md, DESIGN.md, and USER_STORIES.md describe the product, design, and promised outcomes.",
-        "docs/adr/ contains at least one decision record; docs/postmortems/ contains a README or TEMPLATE for incident learning."
+        "Root README.md, AGENTS.md, DOMAIN.md with its invariants ledger, and USER_STORIES.md own orientation, operating instructions, boundaries and user intent; every repository has an executable scripts/check invoked by CI.",
+        "Surface-specific evidence: DESIGN.md for ui, a Release/Rollback/Recover runbook for deployed, a content schema and lint for content; ADRs, when present, have unique numbers, status and resolvable supersessions under docs/adr/.",
+        "Aliases are symlinks to AGENTS.md; core Markdown links and AGENTS routing commands resolve at HEAD. A committed .env.pass, when present, contains names-only credential references. Other generated references and the public face remain follow-up checks (ADR-004)."
       ],
       "exception_authority": "Accountable project owner with a documented substitute for the missing project record."
     },
@@ -138,19 +139,50 @@
       "applies_when": "A change affects a mapped story or story definition.",
       "required_evidence": [
         "A same-job walk receipt binds the candidate head and tree and passes every affected story and criterion.",
-        "Every cited evidence artifact has a retained path and matching digest; unwalked stories never pass."
+        "Every cited evidence artifact has a retained path and matching digest; unwalked stories stay advisory only with a current walk: baseline and never count as passing."
       ],
       "exception_authority": "Accountable project owner with an independently reviewed, time-bounded substitute walk."
     },
     {
       "id": "FND-WS-001",
       "title": "Workspace-ready bootstrap",
-      "applies_when": "A project uses an owned exe.dev workspace for checks and development.",
+      "applies_when": "Every active repository (ADR-004): checks run in a fresh Ubuntu LTS exe.dev VM and GitHub-hosted Ubuntu runner.",
       "required_evidence": [
-        ".exe/setup.sh is credential-free and idempotent on a fresh workspace.",
+        ".exe/setup.sh is credential-free and idempotent in both a fresh Ubuntu LTS exe.dev VM and GitHub-hosted Ubuntu runner.",
         "Bootstrap installs or configures the toolchain required for the project's checks without desktop credentials."
       ],
       "exception_authority": "Accountable project owner with an equivalent reproducible, credential-free workspace bootstrap."
+    },
+    {
+      "id": "FND-REV-001",
+      "title": "Independent review against project judgement rules",
+      "applies_when": "Every change to a maintained repository.",
+      "required_evidence": [
+        "A reviewer other than the PR author approves the candidate head after examining the Foundation constitution, the invariants ledger at the base revision, and the story the change serves.",
+        "The repository's review gate checks an independent approving review on the head; only the review receipt shows the actual judgement against the constitution, base ledger and story."
+      ],
+      "exception_authority": "Designated reviewer under ADR-003, with a time-bounded substitute independent review."
+    },
+    {
+      "id": "FND-SEC-001",
+      "title": "Security baseline",
+      "applies_when": "Secret scanning and dependency maintenance apply to every active repository; authorization-boundary tests additionally apply to applications (ui, cli, api or deployed).",
+      "required_evidence": [
+        "The gate runs a named secret-scanning workflow job on PRs and pushes; a configured dependency bot proposes current dependencies, and a green-gated auto-merge job restricts merges to bot patch and minor updates.",
+        "Applications name an authorization test and the workflow job that runs it, including a denied and an allowed case.",
+        "The checker resolves configured files, workflow jobs, job dependencies and test references. Only a receipt can show the scan ran, updates were safely merged, and authorization was exercised with meaningful identities."
+      ],
+      "exception_authority": "Designated reviewer and security owner with residual risk and an expiring substitute control."
+    },
+    {
+      "id": "FND-CIT-001",
+      "title": "Affected-story citation",
+      "applies_when": "A pull request changes source mapped to live stories in a feature map.",
+      "required_evidence": [
+        "The pull request description cites every affected live story id returned by foundation-check affected --base <base> for mapped source changes, in a Stories: US-001, US-002 line.",
+        "The review gate computes affected ids from the PR's base and candidate head and compares them with the description; the story's actual relevance and implementation are judged in review and the walk receipt."
+      ],
+      "exception_authority": "Designated reviewer with an explanation of an unmapped change and a dated mapping gap."
     },
     {
       "id": "FND-REL-001",
@@ -210,9 +242,13 @@
   ],
   "exception_policy": {
     "pending_requires": [
-      "reason",
+      "missing",
       "owner",
-      "next_action"
+      "next",
+      "unexpired baseline gap obl:<ID> for each applicable pending obligation, except FND-REL-001, FND-ALR-001 and FND-INC-001 use ops:ship, ops:alert and ops:incident (ADR-005)"
+    ],
+    "satisfied_requires": [
+      "untracked foundation/receipts/*.json with foundation-evidence/1 schema, obligation, HEAD revision, check, run, exit 0, path and sha256 of the retained payload in the same receipt directory"
     ],
     "not_applicable_requires": [
       "reason",
@@ -226,7 +262,11 @@
       "expires"
     ],
     "approval_record_schema": "foundation-approval/1",
+    "approval_record_requires": [
+      "tracked foundation/approvals/*.json at HEAD with schema, obligation, disposition, reason, substitute and matching exception expiry if applicable",
+      "designated reviewer approval of the introducing or amended record on the PR head"
+    ],
     "review_trigger": "Reassess when project capability, data scope, hosting, or release path changes.",
-    "trust_boundary": "Approval records must be separately reviewed owner decisions. Their actor identity is trusted through repository review and protection; a committed name or allowlist is not authentication or permission by itself."
+    "trust_boundary": "The checker verifies receipt bytes and record shape; GitHub review authenticates the approver. Committed names, approvals and receipts cannot prove the underlying runtime practice or review substance."
   }
 }

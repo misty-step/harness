@@ -1,7 +1,7 @@
 # Foundation Standard
 
 **Standard:** `misty-step.foundation`
-**Version:** `1.4.0`
+**Version:** `1.5.0`
 **Catalog:** [`foundation-standard-v1.json`](foundation-standard-v1.json)
 
 The adjacent JSON catalog is the **single normative source for structured obligation fields**: applicability, required evidence, exception authority, approved defaults, dispositions, and required decision fields. This document is the human-readable rationale and operating guidance keyed by those IDs; it does not restate a second normative copy. The Foundation skill is an assessment and repair procedure that reads the catalog and this guidance, not another policy source.
@@ -18,17 +18,50 @@ The adjacent JSON catalog is the **single normative source for structured obliga
 3. **Use the smallest owned mechanism.** Prefer an executable check or missing
    affordance that closes a consequential failure path. Reuse an adequate signal,
    store, or platform; do not add telemetry merely to satisfy a tool count.
-4. **Unknown stays pending and non-pass.** `pending` means the applicability or proof is not yet assessed or complete; it can pass a clearly named structural lint but never an enforced compliance or release check. `not_applicable` means the predicate is false. `exception` means it applies but has a temporary approved waiver. The latter two reference a genuine separately reviewed owner decision; an inline name, committed allowlist, self-written record, or invented expiry grants no authority. Reassess when capability, data scope, hosting, or release path changes.
+4. **Unknown stays pending and non-pass.** `pending` requires a dated bootstrap
+   gap with an owner and expiry no more than 30 days away. The older ADR-005
+   application gaps retain their `ops:` keys; the other obligations use
+   `obl:<ID>`. `not_applicable` means the predicate is false. `exception` means
+   an applicable obligation has a temporary waiver (never for ADR-005's three
+   application obligations). Both require a separately approved record. No
+   committed name, inline decision or unverified receipt grants authority.
 
 ## Adoption record
 
-A repository adoption record pins this standard's ID, version, catalog digest, canonical source path, exact source revision, and source provenance. It lists actual project capabilities and one disposition for every obligation and approved default:
+A repository's `foundation.json` pins the catalog ID, version, byte digest,
+canonical source URL and revision. `surfaces` is a nonempty list drawn from
+`ui`, `cli`, `library`, `api`, `deployed`, `content`, `public`. Every obligation
+and approved default has one disposition:
 
-- `satisfied`: cite a retained execution receipt for a code-owned allowlisted check. The receipt binds the exact candidate head and stable input bytes, command/check identity, run identity, exit status, freshness, and retained output digest. A manifest command string or `proof_level` label is never executed or trusted.
-- `pending`: name the missing assessment or proof, its owner, and the smallest next action. Structural lint may accept that honest shape; compliance remains `needs-evidence` and non-pass.
-- `not_applicable` and `exception`: reference a separately reviewed owner decision record. The validator checks separation, subject, disposition, review, and expiry consistency; repository review remains the actor-authentication trust boundary.
+- `satisfied`: `{"status":"satisfied","receipt":"foundation/receipts/FND-DOC-001.json"}`.
+  This JSON receipt is generated in the candidate check job, not committed:
+  `{"schema":"foundation-evidence/1","obligation":"FND-DOC-001","revision":"<HEAD SHA>","path":"FND-DOC-001.txt","sha256":"<payload SHA-256>","check":"<executed check>","run":"<run id>","exit":0}`.
+  `path` resolves within the receipt's directory. The checker matches the
+  obligation and HEAD revision, rejects committed receipts and escaped paths,
+  and hashes the retained payload. A receipt still has to show the real
+  execution and coverage; a self-authored JSON file does not prove practice.
+- `pending`: `{"status":"pending","missing":"<proof>","owner":"<owner>","next":"<action>"}`.
+  For every applicable pending obligation a `foundation.json` bootstrap
+  baseline needs a current `obl:<ID>` entry with owner and expiry within 30
+  days. ADR-005's application obligations retain `ops:ship`, `ops:alert`,
+  `ops:incident` instead. Enforced mode cannot carry a baseline. A pin bump via
+  `baseline --owner NAME --revision SHA --write` adds the new `obl:` entries;
+  extensions require a `foundation/extensions/` record and designated review.
+  Missing story-evidence paths stay advisory in bootstrap mode; before an
+  otherwise gap-free record moves to enforced mode, `baseline` requires those
+  paths to resolve rather than writing an immediately stale gap.
+- `not_applicable` or `exception`: give `reason`, `substitute`, `approval_ref`;
+  `exception` also gives an unexpired `expires` date within 30 days. The
+  `approval_ref` is a committed `foundation/approvals/*.json` file at HEAD:
+  `{"schema":"foundation-approval/1","obligation":"FND-DOC-001","disposition":"not_applicable","reason":"<same reason>","substitute":"<same substitute>"}`.
+  An exception also repeats its exact `expires`. The checker matches every
+  field and rejects extras; `foundation-check review` requires the designated
+  reviewer's approval on the head of the PR adding or changing that disposition
+  or record. Approval is authenticated through GitHub, never by a name in JSON.
 
-Unknown, duplicated, or missing obligation/default IDs reject. A structural result proves only source-anchor and record shape. A compliance pass additionally requires all applicable evidence receipts and genuine referenced decisions; it never implies unlisted runtime coverage.
+Missing, duplicated or unknown IDs and a wrong catalog digest fail. A structural
+pass is not a compliance verdict; actual behavior, review substance and live
+tenant or security outcomes belong in independently judged receipts (ADR-006).
 
 ## Verifiable obligations
 
@@ -121,10 +154,16 @@ controlled failure-and-recovery retrieval before treating configuration as cover
 
 ### FND-DOC-001 — First-class project documents
 
-Keep the product orientation at root in `README.md`, design decisions in
-`DESIGN.md`, and user intent in `USER_STORIES.md`. Keep at least one ADR in
-`docs/adr/` and a postmortem README or template in `docs/postmortems/`.
-These are reviewable inputs, not substitutes for exercised evidence.
+Keep root `README.md` (orientation), `AGENTS.md` (operating rules and routes
+to the gate, walk, release and DOMAIN ledger), `USER_STORIES.md` (intent), and
+`DOMAIN.md` (glossary, ownership, code map and invariants ledger). `ui` adds
+`DESIGN.md`; `deployed` adds `docs/runbook.md` with Release, Rollback and
+Recover; `content` adds a machine schema and lint. ADRs, if present, belong
+under `docs/adr/` with unique numbers, status and valid supersession targets.
+`CLAUDE.md` and `GEMINI.md`, when present, are symlinks to AGENTS.md. Core
+Markdown links, AGENTS routing commands, and the executable `scripts/check`
+used by CI resolve at HEAD. A public face, generated references and prose
+drift remain outside stage 1 (ADR-004).
 
 ### FND-MAP-001 — Navigable feature map
 
@@ -137,14 +176,53 @@ reviewer find the affected user journeys before choosing checks.
 
 Run the repository's walk runner in the same CI job as receipt validation.
 Bind the receipt to the exact candidate head and tree; pass every affected story
-and criterion, and retain digests for each cited artifact. `unwalked` is not a
-pass. The receipt attests the walk performed, not unspecified product coverage.
+and criterion, and retain digests for each cited artifact. `unwalked` is
+advisory only with a current `walk:` baseline, never a claimed pass (ADR-003).
 
 ### FND-WS-001 — Workspace-ready bootstrap
 
-An owned exe.dev project workspace needs a repeatable `.exe/setup.sh` that
-brings a fresh VM to the toolchain its checks need. It must be idempotent and
-credential-free; agent and model credentials stay on the desktop.
+Every active repository needs a credential-free, idempotent `.exe/setup.sh`
+that brings a fresh Ubuntu LTS exe.dev VM and a GitHub-hosted Ubuntu runner to
+the toolchain its gate needs. Agent and model credentials stay on the desktop
+(ADR-004).
+
+### FND-REV-001 — Independent review
+
+Every change needs an approving reviewer other than the PR author on its
+candidate head. Review against the Foundation constitution, the
+`DOMAIN.md` invariants ledger at the base revision, and the stories the
+change serves. `review` verifies the GitHub review identity, state and head;
+it cannot infer whether the reviewer actually judged those sources. That
+judgement is the review receipt. In r90group, the designated decision marker
+records the reviewer action, but a shared GitHub account cannot prove actor
+separation; its gate is advisory (ADR-003/006).
+
+### FND-SEC-001 — Security baseline
+
+All active repositories run a secret scanner on PRs and pushes and configure
+Dependabot to propose updates. A bot-only auto-merge job waits on a blocking
+gate and uses Dependabot metadata to allow only patch and minor updates;
+other updates require review. Applications (`ui`, `cli`, `api`, `deployed`)
+additionally test authorization boundaries, including denied and allowed
+identities. `foundation.json` names `security.secrets.{workflow,job}`,
+`security.dependencies.{bot,config,automerge.{workflow,job}}`, and for
+applications `security.authorization.{workflow,job,test}`. The checker
+resolves workflow jobs, scanner command and unfiltered PR/push triggers,
+blocking job and step guards, bot config, dependency metadata and transitive
+gate, patch/minor-only auto-merge guard, and authorization test reference. Only
+an executed receipt establishes that scanning caught secrets, safe updates
+actually merged on green and authorization was tested meaningfully;
+repository syntax cannot prove those outcomes.
+
+### FND-CIT-001 — Affected-story citation
+
+For a PR changing source mapped by a feature, cite every live story id from
+`foundation-check affected --base <base>` in a PR-description
+`Stories: US-001, US-002` line. `review` tests applicability against both the
+base and candidate feature maps, then computes the full affected set from
+candidate git objects; it never checks out or executes the PR.
+The story's relevance and outcome still require human review and a walk
+receipt. No citation is required when no mapped source changes.
 
 ### FND-REL-001 — Continuous deployment
 

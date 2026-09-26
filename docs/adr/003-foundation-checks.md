@@ -23,8 +23,8 @@ at the checkout, never with the checkout as Bun's working directory: Bun loads a
 
 | Check | Verifies | Tool | Gate |
 | --- | --- | --- | --- |
-| Adoption record | `foundation.json` names every Foundation Standard obligation. Unknown or missing ids and a wrong catalog digest reject. `pending` means needs-evidence, never compliance. | `foundation-check check` | required |
-| Documents (FND-DOC-001) | Replaced by [ADR-004](004-core-project-documents.md): its core set and surface matrix, with no ADR count and no per-repository postmortem template. Until stage 1 lands at the next pin bump, the pinned checker still enforces the original list: root `README.md`, `DESIGN.md`, `USER_STORIES.md`; ≥1 ADR in `docs/adr/`; a postmortem README or template. | `foundation-check check` | required |
+| Adoption record | `foundation.json` names every Foundation Standard obligation. Unknown or missing ids and a wrong catalog digest reject. Under [ADR-006](006-foundation-decisions.md) and catalog 1.5.0, applicable `pending` items have dated `obl:` gaps (ADR-005's `ops:` keys remain), `satisfied` needs a candidate-bound payload receipt, and `not_applicable`/`exception` need a matching approval record. | `foundation-check check` | required |
+| Documents (FND-DOC-001) | [ADR-004](004-core-project-documents.md) stage 1: root README, AGENTS, DOMAIN ledger and USER_STORIES plus surface-specific files, aliases, references, ADR integrity, and executable `scripts/check`; no ADR count or postmortem template. | `foundation-check check` | required |
 | User stories | Unique ids, a non-empty statement, SHALL criteria, resolvable supersede targets, no TODO text | `check-stories.sh`, via `check` | required |
 | Feature map (FND-MAP-001) | Every live story is in ≥1 feature. Every `Source:` glob matches tracked files. Each feature has its four sections. | `foundation-check check` | required |
 | Feature map, first draft | Jev decides per (story, source area) whether the area implements the story. Code writes one draft feature per capability. | `feature-map draft` (pilot, source-only) | advisory; reviewed by a human or agent |
@@ -32,6 +32,7 @@ at the checkout, never with the checkout as Bun's working directory: Bun loads a
 | Story-walk evidence (FND-WLK-001) | For stories a PR affects: a same-job receipt bound to HEAD and its tree, every numbered criterion of each walked story passing, artifacts matching digests. A story with no walk yet (a valid `walk:` baseline entry) may be `unwalked`: the receipt reports it as advisory and passes, affected or not (operator decision 2026-09-26). A walk that ran and failed, or an `unwalked` story without an entry, fails. The repository's walk runner reports what it could not walk as `unwalked` and exits non-zero only when a walk failed or it crashed; the receipt is the judge. | `affected`, repo walk runner, `receipt` | required |
 | Full walk | Every live story on master | nightly workflow | owned: opens or updates one issue on failure |
 | Operations (FND-REL-001, FND-ALR-001, FND-INC-001) | Added by [ADR-005](005-operational-obligations.md): every application ships on green to every non-excluded tenant, alerts loudly and closes incident classes, with no exception. Each one still pending is the gap `ops:ship`, `ops:alert` or `ops:incident`; a `satisfied` claim must name its ship job and tenancy, alerting and runbook, which the checker verifies structurally; the receipt proves the live tenant fan-out. | `foundation-check check` | required |
+| Independent review, security and story citation (FND-REV-001, FND-SEC-001, FND-CIT-001) | [ADR-006](006-foundation-decisions.md): an independent reviewer approves the head, the gate scans secrets and safely merges bot updates on green, applications test authorization, and mapped-source PRs cite affected stories. File and review metadata checks are structural; receipts show actual execution and judgement. | `foundation-check check` + `review` | required |
 
 ## Cadence
 
@@ -55,6 +56,11 @@ at the checkout, never with the checkout as Bun's working directory: Bun loads a
 | No walk runner | Baseline stories stay `unwalked`, reported as advisory, until the repository's runner walks them or their `walk:` entry expires; unrelated PRs are never blocked by a story nobody can walk yet. Scry's `qa/walk` is the template. |
 | New checker rules could break master | Repositories pin a harness revision. Stricter rules land only through an explicit pin-bump PR, as Scry #194 did for exact criteria. |
 | Jev is unavailable in CI | Jev never sits on the required path. |
+
+At catalog 1.5.0, a first adoption declares `--surfaces` explicitly, and
+every applicable pending non-ADR-005 obligation also has a dated `obl:` gap.
+FND-REV-001's independent review applies to every subsequent PR, even when
+none of the five designated-review triggers below fires (ADR-006).
 
 ## Pilot evidence (Scry)
 

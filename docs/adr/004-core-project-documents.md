@@ -398,6 +398,9 @@ fleet evidence:
 - `doc:AGENTS.md`, `doc:DOMAIN.md`, `doc:DESIGN.md` (`ui`), `doc:runbook`
   (`deployed`), `doc:content-schema` (`content`); the existing `doc:README.md`
   and `doc:USER_STORIES.md` stay.
+- `doc:env-pass`: a committed `.env.pass`, when present, contains only
+  names-only `NAME=pass-entry` mappings; whether it is needed at all depends
+  on the repository's executable credential paths.
 - `doc:aliases`: `CLAUDE.md` and `GEMINI.md`, when present, have Git mode
   `120000` and point at `AGENTS.md`.
 - `doc:refs`: relative Markdown links in core documents resolve at HEAD, and
@@ -536,6 +539,11 @@ Each rule is one bullet:
   it for reviewers to judge. A rule that a lint rule, test or script could
   decide is not left `unenforced` once a check exists; pokayoke prefers the
   check.
+  Canonical syntax is exactly `Enforced by \`<target>\`` or
+  `` `unenforced` ``; `Check:` is not syntax and is not an alias. Repository
+  paths must exist at HEAD and package script names must exist in their
+  manifest, as for `doc:refs`. A well-formed bare lint-rule name may remain
+  unresolved when the checker cannot deterministically map it to a file.
 - **Optional fields.** `Why:` links the incident, postmortem or decision
   behind the rule. `Scope:` names path globs so reviewers load only the rules
   a change touches.
@@ -545,6 +553,6 @@ Each rule is one bullet:
 - **Changes.** Editing the ledger is a policy change and needs the designated
   reviewer (ADR-006). Reviewers read the ledger at the base revision, so a pull
   request cannot rewrite the rules that judge it.
-- **Checks.** Stage 1's `doc:DOMAIN.md` check extends to the ledger grammar,
-  and "an invariant cites a missing check" becomes a failing gap. Both land
-  with the catalog change that cites ADR-006.
+- **Checks.** Stage 1's `doc:DOMAIN.md` check extends to the ledger grammar;
+  an invariant citing a missing resolvable check is a failing `doc:DOMAIN.md`
+  gap. Both land with catalog 1.5.0 under ADR-006.

@@ -213,11 +213,12 @@ appear in `registry`. `health` may be `{ "external": "<named monitor>" }`.
 ### Pin bumps
 
 `foundation-check baseline --revision SHA` on an existing record re-pins the
-standard and adds every obligation the catalog gained as `pending`, so a pin
-bump records the three new gaps in one command. It keeps the walk entries the
-record already has and adds none, so a re-pin never re-baselines stories that
-walk. Because the baseline grows, the
-pin-bump PR carries an extension record for the designated reviewer.
+standard and adds obligations the catalog gained as `pending`. The three
+ADR-005 application gaps retain `ops:ship`, `ops:alert` and `ops:incident`;
+catalog 1.5.0's new obligations add `obl:FND-REV-001`, `obl:FND-SEC-001`
+and `obl:FND-CIT-001` (ADR-006). It keeps existing walk entries and adds none,
+so a re-pin never re-baselines stories that walk. Because the baseline grows,
+the pin-bump PR carries an extension record for the designated reviewer.
 
 ## Consequences
 

@@ -21,6 +21,9 @@ const obligationIds = [
 	"FND-MAP-001",
 	"FND-WLK-001",
 	"FND-WS-001",
+	"FND-REV-001",
+	"FND-SEC-001",
+	"FND-CIT-001",
 	"FND-REL-001",
 	"FND-ALR-001",
 	"FND-INC-001",
@@ -32,7 +35,7 @@ describe("Foundation Standard v1", () => {
 		const standard = readFileSync(standardPath, "utf8");
 		expect(catalog.schema).toBe("foundation-standard/1");
 		expect(catalog.id).toBe("misty-step.foundation");
-		expect(catalog.version).toBe("1.4.0");
+		expect(catalog.version).toBe("1.5.0");
 		expect(catalog.dispositions).toEqual([
 			"satisfied",
 			"pending",
@@ -47,9 +50,10 @@ describe("Foundation Standard v1", () => {
 			expect(standard).toContain(`### ${item.id}`);
 		}
 		expect(catalog.exception_policy.pending_requires).toEqual([
-			"reason",
+			"missing",
 			"owner",
-			"next_action",
+			"next",
+			"unexpired baseline gap obl:<ID> for each applicable pending obligation, except FND-REL-001, FND-ALR-001 and FND-INC-001 use ops:ship, ops:alert and ops:incident (ADR-005)",
 		]);
 		expect(catalog.exception_policy.not_applicable_requires).toContain("approval_ref");
 		expect(catalog.exception_policy.exception_requires).toContain("approval_ref");
