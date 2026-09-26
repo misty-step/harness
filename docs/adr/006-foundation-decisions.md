@@ -61,8 +61,8 @@ Standard. The catalog and checker change that implements them is catalog
    - `satisfied` needs a receipt the checker verifies against the candidate
      revision: path, digest and revision. It is no longer free text.
    - `not_applicable` and `exception` need a verified `foundation-approval/1`
-     record approved by the designated reviewer. This adds a fourth review
-     trigger to ADR-003.
+     record approved by the designated reviewer. With decision 2's ledger
+     edits, this brings ADR-003's review triggers from three to five.
    - The obligation ids and receipt field shapes are the catalog owner's call
      in 1.5.0.
 4. **Standing agent authority.** Agents may open adoption, pin-bump,
@@ -83,12 +83,13 @@ Standard. The catalog and checker change that implements them is catalog
    - Jev judges each packet in one request;
    - a frontier agent adjudicates uncertain answers.
 
-   The pilot is advisory (US-042). It never gates a merge, changes a
-   disposition, or replaces a drill or a walk. Each question follows the rule
-   admission procedure in `docs/semantic-quality.md`. A finding reaches a gate
-   only when a deterministic check replaces it. Any other move away from
-   advisory-only use needs a separate operator-approved amendment to ADR-003,
-   which keeps Jev off required checks.
+   The pilot is advisory, and its user story is minted with its code. It
+   never gates a merge, changes a disposition, or replaces a drill or a walk.
+   Each question follows the rule admission procedure in
+   `docs/semantic-quality.md`. A finding reaches a gate only when a
+   deterministic check replaces it. Any other move away from advisory-only use
+   needs a separate operator-approved amendment to ADR-003, which keeps Jev
+   off required checks.
 
 ## Rollout
 
@@ -97,7 +98,7 @@ Standard. The catalog and checker change that implements them is catalog
   3 adds a dated gap for every applicable pending obligation. The operator may
   ask for sooner.
 - The constitution reaches agents through the `foundation` skill and a shared
-  guidance section that both harnesses select (US-041).
+  guidance section that both harnesses select, under its own user story.
 
 ## Consequences
 
