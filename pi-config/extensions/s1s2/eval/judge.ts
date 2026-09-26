@@ -12,6 +12,9 @@
  * `--judges glm,minimax,jev` selects a panel (all by default).
  * `--exclude-judges glm` omits a model family for that pass. Separate passes
  * share verdicts only when their sorted candidate sets match.
+ * `--openrouter-base https://proxy` sends every judge call through a
+ * credential-injecting proxy (the evaluation workspace's), so no key is on
+ * that machine; OPENROUTER_API_KEY then only needs to be non-empty.
  */
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
@@ -176,7 +179,8 @@ for (let i = 2; i < process.argv.length; i += 2) {
 	if (!option.startsWith("--") || i + 1 >= process.argv.length || process.argv[i + 1].startsWith("--") || args.has(option.slice(2))) throw new Error(`invalid option ${option}`);
 	args.set(option.slice(2), process.argv[i + 1]);
 }
-for (const option of args.keys()) if (!["manifest", "out", "arms", "tag", "judges", "exclude-judges", "seed"].includes(option)) throw new Error(`unknown option --${option}`);
+for (const option of args.keys()) if (!["manifest", "out", "arms", "tag", "judges", "exclude-judges", "seed", "openrouter-base"].includes(option)) throw new Error(`unknown option --${option}`);
+const openrouterBase = (args.get("openrouter-base") ?? "https://openrouter.ai").replace(/\/+$/, "");
 for (const option of ["manifest", "out", "arms"]) if (!args.get(option)) throw new Error(`--${option} is required`);
 const out = resolve(args.get("out") ?? "");
 const manifest: unknown = JSON.parse(readFileSync(resolve(args.get("manifest") ?? ""), "utf8"));
@@ -286,7 +290,7 @@ async function callLlm(judge: (typeof JUDGES)[number], prompt: string, order: st
 	let promptTokens: number | null = null;
 	let completionTokens: number | null = null;
 	try {
-		const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+		const response = await fetch(`${openrouterBase}/api/v1/chat/completions`, {
 			method: "POST",
 			headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}`, "HTTP-Referer": "https://github.com/misty-step/harness", "X-Title": "Harness Blind Evaluation" },
 			body: JSON.stringify({ model: judge.model, provider: { order: judge.order, allow_fallbacks: true }, reasoning: { effort: "high" }, max_tokens: 16000, usage: { include: true }, messages: [{ role: "user", content: prompt }] }),
@@ -342,7 +346,7 @@ function jevState(task: Task, reference: string, diffs: Record<string, string>, 
 const judgeDir = join(out, "judging");
 mkdirSync(judgeDir, { recursive: true });
 const apiKey = process.env.OPENROUTER_API_KEY ?? "";
-const jev = apiKey ? new OpenRouterJevProvider(apiKey, "typesafe/jev-1.13") : null;
+const jev = apiKey ? new OpenRouterJevProvider(apiKey, "typesafe/jev-1.13", `${openrouterBase}/api/alpha/decisions`) : null;
 const readCache = (path: string, task: string, judge: Judge) => existsSync(path) ? parseVerdict(JSON.parse(readFileSync(path, "utf8")), task, judge, ARMS, labels) : null;
 const cachePath = (task: Task, judge: Judge) => join(judgeDir, `${task.id}.${judge}.${armsKey}.json`);
 const judgements: Verdict[] = [];
