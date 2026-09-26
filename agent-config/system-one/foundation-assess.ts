@@ -255,26 +255,19 @@ function balanced(text: string): boolean {
 	return count(/\(/g) === count(/\)/g) && count(/\[/g) === count(/]/g) && count(/\{/g) === count(/\}/g);
 }
 
-/** Index of a function body's opening brace: past the parameter list and any return type, object type literals included. */
+/** Index of a function body's opening brace: the first top-level brace group after the parameters that ends the declaration, so object, conditional and generic return types are skipped. */
 function bodyBrace(text: string, paren: number): number {
 	const paramsEnd = closing(text, paren);
 	if (paramsEnd < 0) return -1;
-	let depth = 0;
-	let last = ")";
 	for (let i = paramsEnd + 1; i < text.length; i++) {
 		const ch = text[i];
-		if (/\s/.test(ch)) continue;
-		if (ch === "=" && text[i + 1] === ">" || ch === ";") return -1;
-		if (ch === "<") depth++;
-		else if (ch === ">") depth = Math.max(0, depth - 1);
-		else if (ch === "(" || ch === "[" || ch === "{" && (depth > 0 || /[:|&,(<=]/.test(last))) {
-			const end = closing(text, i);
-			if (end < 0) return -1;
-			i = end;
-			last = text[end];
-			continue;
-		} else if (ch === "{") return i;
-		last = ch;
+		// An overload signature has no body, and an arrow return type is not parsed here: both stay unresolved.
+		if (ch === ";" || ch === "=" && text[i + 1] === ">") return -1;
+		if (ch !== "(" && ch !== "[" && ch !== "{") continue;
+		const end = closing(text, i);
+		if (end < 0) return -1;
+		if (ch === "{" && endsStatement(text, end)) return i;
+		i = end;
 	}
 	return -1;
 }
