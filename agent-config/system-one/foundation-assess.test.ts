@@ -170,13 +170,14 @@ describe("foundation assessment advisory", () => {
 
 	test("captures whole definitions and records what it cannot follow, so an absent answer abstains", async () => {
 		const repo = fixture({
-			"sentry-init.ts": "import * as Sentry from '@sentry/node';\nimport { options, environmentOptions } from './options';\nimport { getRelease, getPrivacy, getMode } from './release';\nSentry.init(options);\nSentry.init(environmentOptions);\nSentry.init(getRelease());\nSentry.init(getPrivacy());\nSentry.init(getMode());\n",
+			"sentry-init.ts": "import * as Sentry from '@sentry/node';\nimport { options, environmentOptions } from './options';\nimport { getRelease, getPrivacy, getMode, getLong } from './release';\nSentry.init(options);\nSentry.init(environmentOptions);\nSentry.init(getRelease());\nSentry.init(getPrivacy());\nSentry.init(getMode());\nSentry.init(getLong());\n",
 			"options.ts": "import { privacyOptions } from './privacy';\nexport const options = { ...privacyOptions, environment: 'production' };\nexport const environmentOptions = process.env.CI\n  ? { environment: 'ci' }\n  : { environment: 'local' };\n",
-			"release.ts": "export function getRelease(): { release: string } { return { release: 'x', sendDefaultPii: true }; }\nexport function getPrivacy(): { pii: boolean } // runtime options\n{\n  return { attachStacktrace: false, maxBreadcrumbs: 7 };\n}\nexport function getMode<T>(): T extends { strict: true } ? { mode: 'a' } : { mode: 'b' } /* by mode */ { return { maxValueLength: 9 } as never; }\n",
+			"release.ts": `export function getRelease(): { release: string } { return { release: 'x', sendDefaultPii: true }; }\nexport function getPrivacy(): { pii: boolean } // runtime options\n{\n  return { attachStacktrace: false, maxBreadcrumbs: 7 };\n}\nexport function getMode<T>(): T extends { strict: true } ? { mode: 'a' } : { mode: 'b' } /* by mode */ { return { maxValueLength: 9 } as never; }\nexport function getLong(): { long: true } // ${"a long explanation ".repeat(120)}\n{ return { maxValueLength: 11 } as never; }\n`,
 		});
 		const snapshot = openGitSnapshot(repo);
 		const state = distillFoundationPackets(repo, snapshot, "sentry").packets[0].state;
 		expect(state).toContain("maxValueLength: 9");
+		expect(state).toContain("maxValueLength: 11");
 		expect(state).toContain("sendDefaultPii: true");
 		expect(state).toContain("maxBreadcrumbs: 7");
 		const packet = (await assessFoundations({ repo, snapshot, pack: "sentry", provider: stub(absent) })).packets[0];

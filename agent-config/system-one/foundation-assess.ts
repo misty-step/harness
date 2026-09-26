@@ -241,14 +241,29 @@ function extractCalls(text: string, path: string, pattern: RegExp, kind: string)
 
 /** A brace capture is complete only when its statement ends right after it: a later argument, operator or continued line means it was cut off. */
 function endsStatement(text: string, end: number): boolean {
-	// Comments count as whitespace, keeping their line breaks: only the next code decides whether the statement continues.
-	const rest = text.slice(end + 1, end + 2001).replace(/\/\*[\s\S]*?\*\//g, (comment) => comment.replace(/[^\n]/g, " ")).replace(/\/\/[^\n]*/g, "");
-	const tail = /^[ \t]*(?:as\s+const|satisfies\s+[\w$.<>[\], ]+?)?[ \t]*\)*[ \t]*(;|\r?\n|$)/.exec(rest);
-	if (!tail) return false;
-	if (!/^\r?\n$/.test(tail[1])) return true;
-	const next = rest.slice(tail[0].length);
-	if (/^\s*\)+[ \t]*;?[ \t]*(?:\r?\n|$)/.test(next)) return true;
-	return !/^\s*(?:[?:.|&+\-,)\]{=]|as\s|satisfies\s)/.test(next);
+	let i = end + 1;
+	let newline = false;
+	// Comments count as whitespace, keeping their line breaks; scanning runs to the next code or the real end of the file.
+	const skip = (): boolean => {
+		while (i < text.length) {
+			if (text[i] === "\n") { newline = true; i++; }
+			else if (/\s/.test(text[i])) i++;
+			else if (text.startsWith("//", i)) { const eol = text.indexOf("\n", i); i = eol < 0 ? text.length : eol; }
+			else if (text.startsWith("/*", i)) {
+				const close = text.indexOf("*/", i + 2);
+				if (close < 0) return false;
+				if (text.slice(i, close).includes("\n")) newline = true;
+				i = close + 2;
+			} else break;
+		}
+		return true;
+	};
+	if (!skip()) return false;
+	const suffix = newline ? null : /^(?:as\s+const\b|satisfies\s+[\w$.<>[\], ]+)/.exec(text.slice(i, i + 200));
+	if (suffix) { i += suffix[0].length; if (!skip()) return false; }
+	while (text[i] === ")") { i++; if (!skip()) return false; }
+	if (i >= text.length || text[i] === ";") return true;
+	return newline && !/^(?:[?:.|&+\-,\]{=]|as\s|satisfies\s)/.test(text.slice(i, i + 12));
 }
 
 function balanced(text: string): boolean {
