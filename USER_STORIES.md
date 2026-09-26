@@ -793,6 +793,10 @@ Criteria:
    configured spend limit, and SHALL stop and record why when it refuses one.
    WHERE a subscription model is under test, THE SYSTEM SHALL also stop before
    the next run once the watched account's weekly usage reaches its ceiling.
+7. WHERE an arm makes several attempts at a task, THE SYSTEM SHALL charge
+   every attempt and the pick to that arm, SHALL pick using only the task's
+   regression commands and Jev, never the withheld tests, and SHALL report the
+   attempts' summed and longest wall-clock.
 
 No-gos: no paid model route for the arms or judges beyond Jev, except the
 operator's 2026-09-25 rulings that run the pilot's and control run's model
