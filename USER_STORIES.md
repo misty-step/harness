@@ -742,10 +742,21 @@ Criteria:
 8. WHEN a pull request changes `foundation.json` from an application to a
    non-application, `foundation-check review` SHALL require the designated
    reviewer, as for a baseline extension.
+9. WHEN FND-REL-001 is `satisfied`, `operations.ship.tenancy` SHALL declare
+   `single` or `multi`; for `multi`, `check` SHALL require an existing complete
+   tenant registry and tenant-state command or workflow, with each exclusion
+   naming a registry tenant and giving a reason. A platform-only multi-tenant
+   ship SHALL fail; the migration job SHALL exist in the ship workflow and be
+   in the ship job's transitive `needs` chain, subject to the same gate guards.
+   The receipt SHALL read back every non-excluded tenant's deployed revision
+   and migration level after deploy; migrations SHALL run for each tenant
+   before deploy, remain backward-compatible with still-running code, and
+   stop rollout on failure (operator decision 2026-09-26).
 
 No-gos: no exception path for the three; no lint claiming runtime practice (a
-receipt carries the controlled-failure and shipping evidence); no heuristic
-guessing of deploy commands.
+receipt carries the controlled-failure, migration and every-tenant shipping
+readback evidence); no heuristic guessing of deploy commands or silent tenant
+exclusions.
 
 Evidence: `agent-config/bin/foundation-check.test.ts` (ADR-005 block);
 `docs/adr/005-operational-obligations.md`.

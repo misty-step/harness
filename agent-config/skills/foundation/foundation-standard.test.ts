@@ -32,7 +32,7 @@ describe("Foundation Standard v1", () => {
 		const standard = readFileSync(standardPath, "utf8");
 		expect(catalog.schema).toBe("foundation-standard/1");
 		expect(catalog.id).toBe("misty-step.foundation");
-		expect(catalog.version).toBe("1.3.0");
+		expect(catalog.version).toBe("1.4.0");
 		expect(catalog.dispositions).toEqual([
 			"satisfied",
 			"pending",

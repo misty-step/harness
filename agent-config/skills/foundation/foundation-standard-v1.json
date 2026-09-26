@@ -1,7 +1,7 @@
 {
   "schema": "foundation-standard/1",
   "id": "misty-step.foundation",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "principles": [
     {
       "id": "FND-P-APPLICABILITY",
@@ -157,9 +157,13 @@
       "title": "Continuous deployment",
       "applies_when": "The repository is an application: it changes a live system (surface deployed) or ships something people run (surfaces ui, cli or api).",
       "required_evidence": [
-        "Every push to the default branch that passes the gate ships automatically: a deploy or release job waits on the gate, runs with no manual step, and a failed gate stops it.",
+        "Every push to the default branch that passes the gate deploys to production automatically, whether the trunk is named main, master or otherwise: a deploy or release job waits on the gate, runs with no manual step, and a failed gate stops it.",
         "The gate is strong enough to ship at 5pm on a Friday: CI, automated tests of the core journeys, story walks and agentic QA run before shipping, and a readback or smoke check verifies the shipped candidate.",
-        "Rollback or recovery of a bad release is exercised, and recent default-branch history shows green commits reaching production without hand steps."
+        "Rollback or recovery of a bad release is exercised, and recent default-branch history shows green commits reaching production without hand steps.",
+        "For a multi-tenant application, the deploy reaches every tenant in its complete registry; the receipt reads back every non-excluded tenant after deploy.",
+        "Any tenant excluded from the multi-tenant rollout is explicitly named in the adoption record with a non-empty reason; an exclusion is a reviewable record change, not an implicit deploy filter.",
+        "Before deployment, migrations run for each non-excluded tenant, remain backward-compatible with the still-running code (expand/contract), and a failed tenant migration stops the rollout.",
+        "The repository can report every tenant's production state, including each tenant's deployed revision and migration level, with excluded tenants still visible."
       ],
       "exception_authority": "None. Operator decision 2026-09-25 (ADR-005): no exception for an application; not_applicable only when the repository is not an application."
     },

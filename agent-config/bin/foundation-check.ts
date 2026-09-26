@@ -456,18 +456,46 @@ const guardTerms = (condition: unknown): string[] => {
 	return bare === "" ? [] : bare.split("&&").map((term) => term.replace(/^\((.*)\)$/, "$1"));
 };
 const needsOf = (job: Record<string, unknown>): string[] => (typeof job.needs === "string" ? [job.needs] : Array.isArray(job.needs) ? job.needs.map(String) : []);
-/** FND-REL-001: a green default branch ships through a job that waits on the gate. A platform deploy proves itself in the receipt. */
+/** FND-REL-001: a green default branch ships through a job that waits on the gate; the receipt proves runtime tenant fan-out. */
 function shipProblems(repo: string, ship: unknown): string[] {
 	if (!record(ship) || !text(ship.branch)) return ["operations.ship must name the default branch and a workflow and job, or a platform"];
-	const branch = defaultBranch(repo);
-	if (branch === undefined) return ["cannot confirm the default branch (no GITHUB_EVENT_PATH repository and no origin/HEAD)"];
-	if (ship.branch !== branch) return [`operations.ship.branch is ${ship.branch}, but the default branch is ${branch}`];
-	if (text(ship.platform)) return [];
-	const workflow = workflowAt(repo, ship.workflow);
-	if (typeof workflow === "string") return [workflow];
-	const job = text(ship.job) ? workflow.jobs[ship.job] : undefined;
-	if (!record(job)) return [`${String(ship.workflow)} has no job ${String(ship.job)}`];
 	const problems: string[] = [];
+	const tenancy = ship.tenancy;
+	const multi = record(tenancy) && tenancy.model === "multi";
+	if (!record(tenancy) || !text(tenancy.model)) problems.push("operations.ship.tenancy must declare model single or multi");
+	else if (tenancy.model !== "single" && !multi) problems.push("operations.ship.tenancy.model must be single or multi");
+	if (multi) {
+		const file = (path: unknown): path is string => text(path) && safePath(path) && existsSync(join(repo, path)) && statSync(join(repo, path)).isFile();
+		const registryFile = file(tenancy.registry);
+		if (!registryFile) problems.push("operations.ship.tenancy.registry must name an existing repository file listing every tenant");
+		if (!file(tenancy.state)) problems.push("operations.ship.tenancy.state must name an existing repository file reporting each tenant's deployed revision and migration level");
+		if (tenancy.excluded !== undefined && !Array.isArray(tenancy.excluded)) problems.push("operations.ship.tenancy.excluded must be an array of tenant and reason entries");
+		else if (Array.isArray(tenancy.excluded)) {
+			const registry = registryFile ? readFileSync(join(repo, tenancy.registry), "utf8") : undefined;
+			for (const [index, exclusion] of tenancy.excluded.entries()) {
+				if (!record(exclusion) || !text(exclusion.tenant)) problems.push(`operations.ship.tenancy.excluded[${index}].tenant must be non-empty`);
+				else if (registry !== undefined) {
+					// Complete identifiers in text, JSON or YAML; ": " ends a YAML key, "a:b" remains one ID.
+					const tenant = exclusion.tenant.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+					if (!new RegExp(`(?<![\\p{L}\\p{N}_.:-])${tenant}(?![\\p{L}\\p{N}_.-]|:\\S)`, "u").test(registry))
+						problems.push(`operations.ship.tenancy.excluded[${index}].tenant ${exclusion.tenant} is not in ${tenancy.registry}`);
+				}
+				if (!record(exclusion) || !text(exclusion.reason)) problems.push(`operations.ship.tenancy.excluded[${index}].reason must be non-empty`);
+			}
+		}
+	}
+	const branch = defaultBranch(repo);
+	if (branch === undefined) return [...problems, "cannot confirm the default branch (no GITHUB_EVENT_PATH repository and no origin/HEAD)"];
+	if (ship.branch !== branch) return [...problems, `operations.ship.branch is ${ship.branch}, but the default branch is ${branch}`];
+	if (text(ship.platform)) {
+		if (multi) problems.push("multi-tenant shipping needs a workflow job, not a platform, to verify migration order");
+		return problems;
+	}
+	const workflow = workflowAt(repo, ship.workflow);
+	if (typeof workflow === "string") return [...problems, workflow];
+	const job = text(ship.job) ? workflow.jobs[ship.job] : undefined;
+	if (!record(job)) return [...problems, `${String(ship.workflow)} has no job ${String(ship.job)}`];
+	const triggerStart = problems.length;
 	const onPush = "push" in workflow.on && firesOn(workflow.on.push, branch);
 	const run = workflow.on.workflow_run;
 	let onRun = "workflow_run" in workflow.on && firesOn(run, branch);
@@ -483,7 +511,7 @@ function shipProblems(repo: string, ship: unknown): string[] {
 			onRun = false;
 		}
 	}
-	if (!onPush && !onRun && problems.length === 0) problems.push(`${String(ship.workflow)} does not run on every push to ${branch}`);
+	if (!onPush && !onRun && problems.length === triggerStart) problems.push(`${String(ship.workflow)} does not run on every push to ${branch}`);
 	// The ship job and every job it needs, transitively, must exist, run on every green push, and block on failure:
 	// an opt-in or non-blocking gate one hop up is still not shipping on green.
 	const allowed = guardAllowed(branch);
@@ -501,6 +529,10 @@ function shipProblems(repo: string, ship: unknown): string[] {
 	}
 	const afterGreenRun = onRun && guardTerms(job.if).some((term) => /^github\.event\.workflow_run\.conclusion==['"]success['"]$/.test(term));
 	if (needsOf(job).length === 0 && !afterGreenRun) problems.push(`job ${ship.job} ships without waiting on the gate: give it needs, or run it from workflow_run only when the conclusion is success`);
+	if (multi) {
+		if (!text(tenancy.migrate) || !record(workflow.jobs[tenancy.migrate])) problems.push(`operations.ship.tenancy.migrate must name an existing job in ${ship.workflow}`);
+		else if (tenancy.migrate === ship.job || !seen.has(tenancy.migrate)) problems.push(`job ${tenancy.migrate} must be in the transitive needs chain before ${ship.job}`);
+	}
 	return problems;
 }
 /** FND-ALR-001: remote error capture, an outside health check and an approved agent triage destination. */
