@@ -903,6 +903,14 @@ describe("foundation-check operational obligations (ADR-005, US-040)", () => {
 		// A workflow_run event is never a push.
 		refused("  workflow_run:\n    workflows: [ci]\n    types: [completed]", "    needs: [test]\n    if: github.event_name == 'push'\n",
 			"job deploy has if: github.event_name == 'push', which does not ship every green push");
+		// With both triggers, one conjunction and the whole needs chain must hold on the same event.
+		const twice = "  push:\n    branches: [main]\n  workflow_run:\n    workflows: [ci]\n    types: [completed]";
+		refused(twice, "    needs: [test]\n    if: github.event_name == 'push' && github.event.workflow_run.event == 'push'\n",
+			"job deploy has if: github.event_name == 'push' && github.event.workflow_run.event == 'push', which does not ship every green push");
+		deploy(twice, "    needs: [test]\n    if: github.event_name == 'push'\n", "    if: github.event.workflow_run.head_repository.full_name == github.repository\n");
+		expect(errors(repo)).toContain("FND-REL-001: satisfied, but the jobs deploy needs run on no common event (deploy: push; test: workflow_run), so no green push ships");
+		deploy(twice, "    needs: [test]\n    if: github.event_name == 'push'\n", "    if: github.event_name != 'pull_request'\n");
+		expect(cli(repo, "check").output.errors).toEqual([]);
 		upstream("  workflow_dispatch:");
 		expect(errors(repo)).toContain("FND-REL-001: satisfied, but .github/workflows/deploy.yml follows ci, which does not run on every push to main");
 		upstream("  push:\n    branches: [main]");

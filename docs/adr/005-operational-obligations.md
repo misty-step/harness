@@ -147,7 +147,8 @@ error reports from real installs.
     branch, event and same-repository tests. Each guard counts only for the event
     that ships: `github.event_name == 'push'` for a push-triggered workflow, the
     `workflow_run` tests for one that follows the gate (their fields are empty
-    on a push). Anything else (a promotion branch, a commit-message opt-in, a
+    on a push), and the ship job and every job it needs must run on one common
+    event. Anything else (a promotion branch, a commit-message opt-in, a
     repository toggle, `always()`) fails closed, and a gate job with
     `continue-on-error` does not count. Beside such a conjunction,
     `||` may add only manual re-runs of the default branch

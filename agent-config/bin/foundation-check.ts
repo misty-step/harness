@@ -803,23 +803,25 @@ function guardDisjuncts(condition: unknown): string[][] | undefined {
 	}
 	return disjuncts;
 }
+/** The automatic events that can carry a green push to the ship job. */
+type ShipEvent = "push" | "workflow_run";
 /**
- * A ship-chain job runs on every green push when its condition is a conjunction of terms that hold on an event that
- * ships (`push`, or the gate's successful `workflow_run`), or when one `||` alternative is and every other alternative
- * is a manual dispatch of the default branch. GitHub prepends success() only to a condition that names no status
- * function, so an extra alternative adds runs without skipping a failed gate only then: a disjunction naming any
- * status function fails closed.
+ * The shipping events on which a ship-chain job runs for every green push: its condition is a conjunction of terms
+ * that hold on that event, or one `||` alternative is and every other alternative is a manual dispatch of the
+ * default branch. GitHub prepends success() only to a condition that names no status function, so an extra
+ * alternative adds runs without skipping a failed gate only then: a disjunction naming any status function fails
+ * closed.
  */
-function shipsEveryGreenPush(condition: unknown, allowed: GuardPredicates, onPush: boolean, onRun: boolean): boolean {
+function shipEvents(condition: unknown, allowed: GuardPredicates, events: ShipEvent[]): ShipEvent[] {
 	const disjuncts = guardDisjuncts(condition);
-	if (!disjuncts) return false;
-	const automatic = (terms: string[]) => (onPush && terms.every(allowed.push)) || (onRun && terms.every(allowed.run));
-	if (disjuncts.length <= 1) return automatic(disjuncts[0] ?? []);
-	if (/(?:success|always|failure|cancelled)\(\)/.test(bareCondition(condition))) return false;
+	if (!disjuncts) return [];
+	const holds = (event: ShipEvent) => (terms: string[]) => terms.every(event === "push" ? allowed.push : allowed.run);
+	if (disjuncts.length <= 1) return events.filter((event) => holds(event)(disjuncts[0] ?? []));
+	if (/(?:success|always|failure|cancelled)\(\)/.test(bareCondition(condition))) return [];
 	const dispatch = (term: string) => /^github\.event_name=='workflow_dispatch'$/.test(term);
 	const manualTrunk = (terms: string[]) =>
 		terms.some(dispatch) && terms.some(allowed.trunk) && terms.every((term) => dispatch(term) || allowed.push(term) || allowed.run(term));
-	return disjuncts.some(automatic) && disjuncts.every((terms) => automatic(terms) || manualTrunk(terms));
+	return events.filter((event) => disjuncts.some(holds(event)) && disjuncts.every((terms) => holds(event)(terms) || manualTrunk(terms)));
 }
 const needsOf = (job: Record<string, unknown>): string[] => (typeof job.needs === "string" ? [job.needs] : Array.isArray(job.needs) ? job.needs.map(String) : []);
 /** FND-REL-001: a green default branch ships through a job that waits on the gate; the receipt proves runtime tenant fan-out. */
@@ -881,8 +883,13 @@ function shipProblems(repo: string, ship: unknown): string[] {
 	// The ship job and every job it needs, transitively, must exist, run on every green push, and block on failure:
 	// an opt-in or non-blocking gate one hop up is still not shipping on green.
 	const allowed = guardAllowed(branch);
-	// A workflow already failing its trigger check is judged against both events, so its guards add no second error.
-	const [pushShips, runShips] = onPush || onRun ? [onPush, onRun] : [true, true];
+	// Every job in the chain must run on one common shipping event: a job that runs only on push behind one that runs
+	// only on workflow_run never ships. A workflow already failing its trigger check is judged against both events,
+	// so its guards add no second error.
+	const eligible: ShipEvent[] = onPush || onRun ? [...(onPush ? ["push" as const] : []), ...(onRun ? ["workflow_run" as const] : [])] : ["push", "workflow_run"];
+	let common = eligible;
+	let guardFailed = false;
+	const chainEvents: string[] = [];
 	const seen = new Set<string>();
 	const pending = [ship.job];
 	while (pending.length > 0) {
@@ -891,9 +898,19 @@ function shipProblems(repo: string, ship: unknown): string[] {
 		seen.add(name);
 		const current = workflow.jobs[name];
 		if (!record(current)) { problems.push(`job ${ship.job} needs ${name}, which does not exist`); continue; }
-		if (!shipsEveryGreenPush(current.if, allowed, pushShips, runShips)) problems.push(`job ${name} has if: ${String(current.if)}, which does not ship every green push`);
+		const events = shipEvents(current.if, allowed, eligible);
+		if (events.length === 0) {
+			guardFailed = true;
+			problems.push(`job ${name} has if: ${String(current.if)}, which does not ship every green push`);
+		} else {
+			chainEvents.push(`${name}: ${events.join(" or ")}`);
+			common = common.filter((event) => events.includes(event));
+		}
 		if (name !== ship.job && current["continue-on-error"] !== undefined && current["continue-on-error"] !== false) problems.push(`job ${name} gates the ship job but has continue-on-error`);
 		pending.push(...needsOf(current));
+	}
+	if (common.length === 0 && !guardFailed && chainEvents.length > 0) {
+		problems.push(`the jobs ${ship.job} needs run on no common event (${chainEvents.join("; ")}), so no green push ships`);
 	}
 	// A manual-dispatch alternative skips the upstream gate, so only a single green-run conjunction waits on it.
 	const shipDisjuncts = guardDisjuncts(job.if);
