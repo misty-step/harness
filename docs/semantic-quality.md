@@ -63,8 +63,10 @@ reporting a clean pass. Sentry alert routing in the Sentry API is outside
 repository evidence. Sentry answers come from static code excerpts, which can
 show that a setting exists but never that it does not, so any Sentry answer that
 would conclude an absence abstains. A confident Sentry answer can still be wrong
-when the excerpts miss a later override; the coverage manifest lists what the
-distiller knows it skipped and is not a proof of completeness. The ledger pack
+when the excerpts miss a later override. Answers about whether Sentry runs
+(`prod_capture_on`, `server_and_client`) abstain when a call's guard context was
+cut. The coverage manifest lists what the distiller knows it skipped, including
+a private key left unterminated, and is not a proof of completeness. The ledger pack
 asks about rules written one per bullet or numbered item; prose under an
 invariants heading is listed as not assessed, because line breaks do not mark
 where one rule ends.

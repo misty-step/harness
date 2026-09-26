@@ -8,7 +8,7 @@ import { isCredentialPath, PRIVATE_KEY_BLOCK, PRIVATE_KEY_ORPHAN, REDACTED, reda
 import { DEFAULT_EXPECTED_RESOLVED_MODELS } from "./semantic-run.ts";
 
 export const FOUNDATION_SCHEMA = "foundation-assessment-1";
-export const FOUNDATION_QUESTIONS_VERSION = "foundation-questions-2";
+export const FOUNDATION_QUESTIONS_VERSION = "foundation-questions-3";
 export const FOUNDATION_MODEL = "typesafe/jev-1.13";
 export const FOUNDATION_THRESHOLDS = { noulAbsent: 0.2, noulPresent: 0.8, choiceConfidence: 0.7 } as const;
 const MAX_QUESTIONS = 32;
@@ -16,6 +16,9 @@ const MAX_REQUEST_CHARS = 48_000;
 const MAX_STATE_CHARS = 30_000;
 const OPTIONS_PRESENCE = ["release_set", "release_from_build", "environment_set", "prod_capture_on", "server_and_client", "pii_default_off", "scrub_hook", "content_attached"];
 const PLUGIN_PRESENCE = ["release_set", "release_from_build", "sourcemaps_uploaded", "sourcemaps_not_public"];
+// Whether Sentry actually runs depends on its execution guards; these answers need the guard context in the packet.
+const GUARD_QUESTIONS = new Set(["prod_capture_on", "server_and_client"]);
+const GUARD_LIMITATION = "Execution guard context was cut before at least one call";
 const CODE = /\.(?:[cm]?[jt]sx?|py|go|vue|svelte)$/i;
 const PLUGIN = /\b(withSentryConfig|sentryVitePlugin|sentryWebpackPlugin|sentryRollupPlugin|sentryEsbuildPlugin|SentryWebpackPlugin)\s*\(/g;
 const INIT = /\b(?:Sentry\.init|sentry_sdk\.init|sentry\.Init)\s*\(/g;
@@ -124,16 +127,21 @@ export function openGitSnapshot(repo: string, ref?: string): GitSnapshot {
 	return { ref: selected, commit, files };
 }
 
-type Snapshot = { repo: string; commit: string; files: string[]; fileSet: Set<string>; cache: Map<string, string> };
+type Snapshot = { repo: string; commit: string; files: string[]; fileSet: Set<string>; cache: Map<string, string>; masked: Set<string> };
 
 function source(snapshot: Snapshot, path: string, coverage: CoverageManifest): string {
 	let text = snapshot.cache.get(path);
 	if (text === undefined) {
 		// Mask key blocks before any excerpt is cut, keeping line numbers, so no cut can separate key material from its markers.
 		const keepLines = (block: string) => REDACTED + "\n".repeat(block.split("\n").length - 1);
-		text = git(snapshot.repo, "show", `${snapshot.commit}:${path}`).replace(PRIVATE_KEY_BLOCK, keepLines).replace(PRIVATE_KEY_ORPHAN, keepLines);
+		const blocks = git(snapshot.repo, "show", `${snapshot.commit}:${path}`).replace(PRIVATE_KEY_BLOCK, keepLines);
+		text = blocks.replace(PRIVATE_KEY_ORPHAN, keepLines);
+		if (text !== blocks) snapshot.masked.add(path);
 		snapshot.cache.set(path, text);
 	}
+	// An unterminated key block hides everything after it, so the packet's coverage is incomplete.
+	const hidden = `${path}: an unterminated private-key block was masked to the end of the file`;
+	if (snapshot.masked.has(path) && !coverage.limitations.includes(hidden)) coverage.limitations.push(hidden);
 	if (!coverage.files_read.includes(path)) coverage.files_read.push(path);
 	return text;
 }
@@ -215,14 +223,34 @@ function guardContext(text: string, index: number, path: string): string | undef
 			else if (ch === "}") blocks.pop();
 		}
 	}
+	// A controlling condition can span lines: widen a header until its parentheses balance, or count the guard as cut.
+	let cut = false;
+	const header = (at: number) => {
+		const end = /\.py$/i.test(path) ? lineEnd(at) : at;
+		let start = back(at, 2);
+		for (let n = 0; n < 20; n++) {
+			const slice = text.slice(start, end);
+			if ((slice.match(/\(/g)?.length ?? 0) >= (slice.match(/\)/g)?.length ?? 0)) return start;
+			if (start === 0) break;
+			start = lineStart(start - 1);
+		}
+		cut = true;
+		return start;
+	};
 	const inner = blocks.pop();
-	const parts = blocks.map((at) => numbered(back(at, 2), lineEnd(at)));
-	let from = inner === undefined ? lineStart(index) : back(inner, 2);
+	const parts = blocks.map((at) => numbered(header(at), lineEnd(at)));
+	let from = inner === undefined ? lineStart(index) : header(inner);
 	if (index - from > GUARD_CHARS) {
-		if (inner !== undefined) parts.push(numbered(back(inner, 2), lineEnd(inner)));
-		parts.push(GUARD_TRUNCATED);
-		from = lineStart(index - GUARD_CHARS);
+		const tail = lineStart(index - GUARD_CHARS);
+		if (inner === undefined) { cut = true; from = tail; }
+		else {
+			// Keep the whole header; the guard is cut only if statements between it and the kept tail are dropped.
+			parts.push(numbered(from, lineEnd(inner)));
+			if (tail > lineEnd(inner) + 1) cut = true;
+			from = Math.max(tail, lineEnd(inner) + 1);
+		}
 	}
+	if (cut) parts.push(GUARD_TRUNCATED);
 	if (!parts.length && !/\S/.test(text.slice(from, index))) return undefined;
 	return [...parts, numbered(from, index)].join("\n");
 }
@@ -279,18 +307,40 @@ function commented(text: string, index: number, hash = false): boolean {
 	return prefix.includes("//") || hash && prefix.includes("#") || text.lastIndexOf("/*", index) > text.lastIndexOf("*/", index);
 }
 
+/** Index of the next code character from `from`, past whitespace and comments; -1 inside an unterminated block comment. */
+function nextCode(text: string, from: number): number {
+	let i = from;
+	while (i < text.length) {
+		if (/\s/.test(text[i])) i++;
+		else if (text.startsWith("//", i)) { const eol = text.indexOf("\n", i); i = eol < 0 ? text.length : eol; }
+		else if (text.startsWith("/*", i)) { const close = text.indexOf("*/", i + 2); if (close < 0) return -1; i = close + 2; }
+		else break;
+	}
+	return i;
+}
+
 /** Index of a function body's opening brace: the first top-level brace group after the parameters that ends the declaration, so object, conditional and generic return types are skipped. */
 function bodyBrace(text: string, paren: number): number {
 	const paramsEnd = closing(text, paren);
 	if (paramsEnd < 0) return -1;
 	for (let i = paramsEnd + 1; i < text.length; i++) {
 		const ch = text[i];
+		// Comments and string literal types are never the body.
+		if (text.startsWith("//", i) || text.startsWith("/*", i)) { const next = nextCode(text, i); if (next < 0) return -1; i = next - 1; continue; }
+		if (ch === "'" || ch === '"' || ch === "`") {
+			let j = i + 1;
+			while (j < text.length && text[j] !== ch) j += text[j] === "\\" ? 2 : 1;
+			if (j >= text.length) return -1;
+			i = j;
+			continue;
+		}
 		// An overload signature has no body, and an arrow return type is not parsed here: both stay unresolved.
 		if (ch === ";" || ch === "=" && text[i + 1] === ">") return -1;
 		if (ch !== "(" && ch !== "[" && ch !== "{") continue;
 		const end = closing(text, i);
 		if (end < 0) return -1;
-		if (ch === "{" && endsStatement(text, end)) return i;
+		// A type followed by ';' belongs to an overload or declaration; its body, if any, is elsewhere.
+		if (ch === "{" && endsStatement(text, end)) return text[nextCode(text, end + 1)] === ";" ? -1 : i;
 		i = end;
 	}
 	return -1;
@@ -310,10 +360,14 @@ function definition(text: string, symbol: string, python = false): { line: numbe
 		if (!match) continue;
 		const start = match.index;
 		if (pattern === patterns[0]) {
-			const body = bodyBrace(text, start + match[0].length - 1);
-			const end = body >= 0 ? closing(text, body) : -1;
-			if (end >= 0) return { line: lineOf(text, start), text: text.slice(start, end + 1), complete: true, body: body - start };
-			// No recognizable body: keep the signature as evidence, but it cannot count as resolved.
+			// Overload signatures come before their implementation: take the first declaration that has a body.
+			for (let candidate: RegExpExecArray | null = match; candidate; candidate = pattern.exec(text)) {
+				if (commented(text, candidate.index, python)) continue;
+				const body = bodyBrace(text, candidate.index + candidate[0].length - 1);
+				const end = body >= 0 ? closing(text, body) : -1;
+				if (end >= 0) return { line: lineOf(text, candidate.index), text: text.slice(candidate.index, end + 1), complete: true, body: body - candidate.index };
+			}
+			// No recognizable body: keep the first signature as evidence, but it cannot count as resolved.
 			const eol = text.indexOf("\n", start);
 			return { line: lineOf(text, start), text: text.slice(start, eol < 0 ? text.length : eol), complete: false };
 		}
@@ -402,9 +456,11 @@ function captureSymbol(snapshot: Snapshot, manifest: CoverageManifest, from: str
 	const python = /\.py$/i.test(destination);
 	const result = found ? { line: lineOf(target, found.index ?? 0), text: found[0], complete: balanced(found[0]), body: 0 } : definition(target, origin?.imported ?? symbol, python);
 	if (!result) { unresolved(manifest, from, symbol, relevant); return; }
-	if (excerpts.some((item) => item.path === destination && item.line === result.line && item.kind === `definition:${symbol}`)) return;
-	manifest.hops_followed.push({ from, to: destination, symbol });
-	excerpts.push({ path: destination, line: result.line, kind: `definition:${symbol}`, text: result.text });
+	// A second visit adds its questions to what the first recorded, without duplicating the excerpt.
+	if (!excerpts.some((item) => item.path === destination && item.line === result.line && item.kind === `definition:${symbol}`)) {
+		manifest.hops_followed.push({ from, to: destination, symbol });
+		excerpts.push({ path: destination, line: result.line, kind: `definition:${symbol}`, text: result.text });
+	}
 	// A partial capture, or a reference past the hop budget, is recorded rather than dropped, so an absent answer abstains.
 	if (!result.complete) { unresolved(manifest, destination, symbol, relevant); return; }
 	const factory = result.text.match(/(?:\b(?:const|let|var)\s+)?\b\w+\s*=\s*([A-Za-z_$][\w$]*)\s*\(/)?.[1];
@@ -492,7 +548,7 @@ function sentryPackets(snapshot: Snapshot): EvidencePacket[] {
 	}
 	const facts: string[] = [];
 	if (excerpts.some((item) => item.kind === "build_plugin" && /\b(?:authToken|SENTRY_AUTH_TOKEN)\b/.test(item.text))) facts.push("A configured Sentry build plugin with an auth token injects its release and uploads source maps when the token is present at build time; repository evidence cannot prove token availability in CI.");
-	if (excerpts.some((item) => item.guard?.includes(GUARD_TRUNCATED))) manifest.limitations.push(`Execution guard context was cut to ${GUARD_CHARS} characters before at least one call; absence cannot be inferred`);
+	if (excerpts.some((item) => item.guard?.includes(GUARD_TRUNCATED))) manifest.limitations.push(GUARD_LIMITATION);
 	const pieces = [...excerpts.sort((a, b) => a.path.localeCompare(b.path) || a.line - b.line).map((part) => ({ ...part, text: redactEvidence(part.text), ...(part.guard ? { guard: redactEvidence(part.guard) } : {}) }))];
 	const stateBase = { env_var_names: [...names].sort(), facts };
 	const all = JSON.stringify({ ...stateBase, excerpts: pieces });
@@ -590,7 +646,7 @@ function ledgerPackets(snapshot: Snapshot, unassessed: Unassessed[]): EvidencePa
 }
 
 export function distillFoundationPackets(repo: string, snapshot: GitSnapshot, pack: PackName | "all"): { packets: EvidencePacket[]; unassessed: Unassessed[] } {
-	const state: Snapshot = { repo, commit: snapshot.commit, files: snapshot.files, fileSet: new Set(snapshot.files), cache: new Map() };
+	const state: Snapshot = { repo, commit: snapshot.commit, files: snapshot.files, fileSet: new Set(snapshot.files), cache: new Map(), masked: new Set() };
 	const unassessed: Unassessed[] = [];
 	const packets = [
 		...(pack === "all" || pack === "sentry" ? sentryPackets(state) : []),
@@ -604,6 +660,8 @@ function classify(id: string, question: Question, answer: Answer | undefined, pa
 	if (!answer || answer.type !== question.type) return { id, outcome: "unavailable", reason: "Missing or invalid typed answer" };
 	if (answer.type === "noul") {
 		if (!Number.isFinite(answer.probability) || answer.probability < 0 || answer.probability > 1) return { id, outcome: "unavailable", reason: "Invalid probability" };
+		// Without its guard context, an answer about whether Sentry runs cannot be confident either way.
+		if (packet.pack === "sentry" && GUARD_QUESTIONS.has(id) && packet.coverage.limitations.includes(GUARD_LIMITATION)) return { id, outcome: "abstained", raw: answer, reason: "Execution guard context is incomplete" };
 		if (answer.probability >= FOUNDATION_THRESHOLDS.noulPresent) return { id, outcome: "finding", raw: answer };
 		if (answer.probability > FOUNDATION_THRESHOLDS.noulAbsent) return { id, outcome: "escalate", raw: answer };
 		// Code excerpts can show that something is configured, never that it is not, however much the distiller captured.

@@ -797,11 +797,14 @@ Criteria:
 1. WHEN `foundation-assess` runs, THE SYSTEM SHALL read only tracked Git
    content at the chosen ref (`origin/HEAD`, else `HEAD`) and SHALL NOT write
    to the repository.
-2. WHEN it assesses a packet, THE SYSTEM SHALL ask `typesafe/jev-1.13` every
-   question for that packet in one request and record the packet hash,
-   coverage manifest, requested and resolved models, raw answers and an
-   outcome of `finding`, `no_finding`, `escalate`, `abstained` or
-   `unavailable` from the thresholds stored beside the questions.
+2. WHEN it assesses a packet within the request budget using OpenRouter, THE
+   SYSTEM SHALL ask `typesafe/jev-1.13` every question for that packet in one
+   request and record the packet hash, coverage manifest, requested and
+   resolved models, raw answers and an outcome of `finding`, `no_finding`,
+   `escalate`, `abstained` or `unavailable` from the thresholds stored beside
+   the questions; a packet over the budget, and a run with the offline
+   heuristic, SHALL send nothing to Jev and report `abstained`, and a run with
+   no provider SHALL report `unavailable`.
 3. IF the provider fails or times out, THEN THE SYSTEM SHALL report
    `unavailable`; IF the requested model is not `typesafe/jev-1.13`, THEN THE
    SYSTEM SHALL NOT send the packet; IF any revision other than the approved
