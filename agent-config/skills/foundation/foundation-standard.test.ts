@@ -21,6 +21,9 @@ const obligationIds = [
 	"FND-MAP-001",
 	"FND-WLK-001",
 	"FND-WS-001",
+	"FND-REL-001",
+	"FND-ALR-001",
+	"FND-INC-001",
 ];
 
 describe("Foundation Standard v1", () => {
@@ -29,7 +32,7 @@ describe("Foundation Standard v1", () => {
 		const standard = readFileSync(standardPath, "utf8");
 		expect(catalog.schema).toBe("foundation-standard/1");
 		expect(catalog.id).toBe("misty-step.foundation");
-		expect(catalog.version).toBe("1.1.0");
+		expect(catalog.version).toBe("1.2.0");
 		expect(catalog.dispositions).toEqual([
 			"satisfied",
 			"pending",

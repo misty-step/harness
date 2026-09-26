@@ -81,6 +81,25 @@ as `unwalked` and exits non-zero only for a failed walk or a crash. The nightly
 full walk uses `receipt --all`, which requires every live story and flags walk
 entries whose story now passes.
 
+Every application owes three operational obligations (US-040, ADR-005):
+continuous deployment (FND-REL-001), loud production alerting (FND-ALR-001) and
+incident response that closes the class (FND-INC-001), with no `exception` and
+no `not_applicable` for an application. A record whose `surfaces` include `ui`,
+`cli`, `api` or `deployed`, or that has no `surfaces`, is an application. Each
+obligation still pending is the gap `ops:ship`, `ops:alert` or `ops:incident`,
+timed by the ratchet like any other. A `satisfied` claim must hold up: the
+record's `operations.ship` names the confirmed default branch and a workflow
+and job that fires on every push to it (no path or tag-only filters) and waits
+on the gate, with an `if:` limited to default-branch push guards (or a platform,
+proved in the receipt),
+`operations.alert` names the error-capture file, a scheduled health workflow or
+external monitor, and the alert destination, and `docs/runbook.md` has an
+`## Incidents` section while every closed postmortem links its class fix. For a
+pin bump, `baseline --owner NAME --revision SHA --write` re-pins the standard
+and adds new catalog obligations as `pending`, keeping existing walk entries;
+`--surfaces a,b` sets the record's surfaces. Declaring an application's record a
+non-application is a review trigger, like a baseline extension.
+
 `review --pr N` is the gate for the two approvals an author cannot give
 (ADR-003 Review authority). From the GitHub API it reads the PR's base, head,
 author and reviews, and passes at once unless the PR gives `USER_STORIES.md`

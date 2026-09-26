@@ -12,9 +12,11 @@ const skillRoot = resolve(scriptDir, "../skills");
 const usage = `Usage: foundation-check <check|baseline|affected|receipt|review> [options]
   check [--base REV]      Check foundation.json, documents, stories, features and verify skill;
                           with --base, the bootstrap baseline may only shrink
-  baseline --owner NAME [--write] [--expires YYYY-MM-DD] [--revision SHA] [--no-walk-gaps]
+  baseline --owner NAME [--write] [--expires YYYY-MM-DD] [--revision SHA] [--surfaces a,b] [--no-walk-gaps]
                           Record the current gaps as a bootstrap baseline (works
-                          without foundation.json); --write saves foundation.json
+                          without foundation.json); --write saves foundation.json.
+                          On an existing record, adds dispositions for new catalog
+                          obligations and --revision re-pins the standard
   affected --base REV     Print affected live story ids (space-separated)
   receipt PATH [--base REV] [--all]
                           Validate a story-walk receipt; --all requires every live story
@@ -32,7 +34,7 @@ Options:
 type Command = "check" | "baseline" | "affected" | "receipt" | "review";
 type Options = {
 	command: Command; repo: string; catalog?: string; checker?: string; base?: string; receipt?: string; json: boolean;
-	all: boolean; write: boolean; owner?: string; expires?: string; revision?: string; walkGaps: boolean;
+	all: boolean; write: boolean; owner?: string; expires?: string; revision?: string; surfaces?: string[]; walkGaps: boolean;
 	pr?: number; githubRepo?: string;
 };
 type Result = {
@@ -56,11 +58,17 @@ const featureHeadings: Record<string, string> = {
 // Each independent defect has its own key, so a baselined defect cannot cover a new one in the same file.
 const gapPattern = new RegExp(
 	"^(?:doc:(?:README\\.md|DESIGN\\.md|USER_STORIES\\.md|adr|postmortems)|stories:format|skill:verify|walk:US-\\d{3}" +
+	"|ops:(?:ship|alert|incident)" +
 	"|map:(?:index|US-\\d{3}|features/[^/:]+\\.md:(?:unlinked|stories-line|source-line|story:US-\\d{3}|source:[^\\s,]+" +
 	`|heading:(?:${Object.values(featureHeadings).join("|")}))))$`,
 );
 const extensionPath = /^foundation\/extensions\/[^/]+\.json$/;
 const maxBaselineDays = 30;
+// ADR-004's surface vocabulary. Any of the application surfaces makes a repository an application (ADR-005).
+const surfaceVocabulary = ["ui", "cli", "library", "api", "deployed", "content", "public"];
+const applicationSurfaces = ["ui", "cli", "api", "deployed"];
+// ADR-005: the operational obligations every application owes, and the gap each one is while pending.
+const operationsGaps: Record<string, string> = { "FND-REL-001": "ops:ship", "FND-ALR-001": "ops:alert", "FND-INC-001": "ops:incident" };
 const dayMs = 86_400_000;
 const text = (value: unknown): value is string => typeof value === "string" && value.trim().length > 0;
 const record = (value: unknown): value is Record<string, unknown> => value !== null && typeof value === "object" && !Array.isArray(value);
@@ -79,7 +87,7 @@ function args(argv: string[]): Options | "help" {
 	if (!command) throw new Error("expected check, baseline, affected, receipt, or review");
 	const rest = argv.slice(1);
 	const options: Options = { command, repo: process.cwd(), json: false, all: false, write: false, walkGaps: true };
-	const valued = ["--repo", "--catalog", "--stories-checker", "--base", "--owner", "--expires", "--revision", "--pr", "--github-repo"];
+	const valued = ["--repo", "--catalog", "--stories-checker", "--base", "--owner", "--expires", "--revision", "--surfaces", "--pr", "--github-repo"];
 	for (let i = 0; i < rest.length; i++) {
 		const arg = rest[i];
 		if (arg === "--json") options.json = true;
@@ -97,6 +105,7 @@ function args(argv: string[]): Options | "help" {
 			else if (arg === "--owner") options.owner = value;
 			else if (arg === "--expires") options.expires = value;
 			else if (arg === "--revision") options.revision = value;
+			else if (arg === "--surfaces") options.surfaces = value.split(",").map((part) => part.trim()).filter(Boolean);
 			else if (arg === "--pr") options.pr = /^[1-9]\d*$/.test(value) ? Number(value) : Number.NaN;
 			else options.githubRepo = value;
 		} else if (command === "receipt" && !options.receipt && arg && !arg.startsWith("-")) options.receipt = arg;
@@ -110,8 +119,11 @@ function args(argv: string[]): Options | "help" {
 	if (command === "baseline" && !text(options.owner)) throw new Error("baseline requires --owner NAME");
 	if (command === "baseline" && options.base) throw new Error("--base is not valid for baseline");
 	if (command !== "receipt" && options.all) throw new Error("--all is only valid for receipt");
-	const baselineOnly = options.write || options.owner || options.expires || options.revision || !options.walkGaps;
-	if (command !== "baseline" && baselineOnly) throw new Error("--write, --owner, --expires, --revision and --no-walk-gaps are only valid for baseline");
+	const baselineOnly = options.write || options.owner || options.expires || options.revision || options.surfaces || !options.walkGaps;
+	if (command !== "baseline" && baselineOnly) throw new Error("--write, --owner, --expires, --revision, --surfaces and --no-walk-gaps are only valid for baseline");
+	if (options.surfaces && !options.surfaces.every((surface) => surfaceVocabulary.includes(surface))) {
+		throw new Error(`--surfaces takes a comma-separated list from: ${surfaceVocabulary.join(", ")}`);
+	}
 	options.repo = resolve(options.repo);
 	return options;
 }
@@ -299,6 +311,11 @@ function validateAdoption(adoption: unknown, catalog: { id: string; version: str
 		standard.source !== `https://github.com/misty-step/harness/blob/${standard.revision}/agent-config/skills/foundation/foundation-standard-v1.json`)
 		errors.push("foundation.json: source must pin its 40-hex revision and canonical catalog path");
 	if (!record(adoption) || !Array.isArray(adoption.capabilities) || !adoption.capabilities.every(text)) errors.push("foundation.json: capabilities must be an array of descriptions");
+	const surfaces = record(adoption) ? adoption.surfaces : undefined;
+	if (surfaces !== undefined && (!Array.isArray(surfaces) || surfaces.length === 0 || new Set(surfaces).size !== surfaces.length ||
+		!surfaces.every((surface) => typeof surface === "string" && surfaceVocabulary.includes(surface)))) {
+		errors.push(`foundation.json: surfaces must be a non-empty list of distinct values from ${surfaceVocabulary.join(", ")}`);
+	}
 	const dispositions = record(adoption) ? adoption.dispositions : undefined;
 	const ids = [...catalog.obligations, ...catalog.approved_defaults].map((item) => item.id);
 	if (!record(dispositions)) { errors.push("foundation.json: dispositions must be an object"); return; }
@@ -317,6 +334,19 @@ function validateAdoption(adoption: unknown, catalog: { id: string; version: str
 			default: errors.push(`${id}: unknown disposition`);
 		}
 	}
+	// ADR-005 (operator decision 2026-09-25): every application owes these without exception.
+	for (const id of Object.keys(operationsGaps)) {
+		const status = record(dispositions[id]) ? dispositions[id].status : undefined;
+		if (status === "exception") errors.push(`${id}: no exception is allowed; every application owes it (ADR-005)`);
+		if (status === "not_applicable" && isApplication(adoption)) {
+			errors.push(`${id}: applies to every application; not_applicable needs surfaces without ${applicationSurfaces.join(", ")} (ADR-005)`);
+		}
+	}
+}
+/** An application changes a live system or ships something users run. Without surfaces, assume it is one. */
+function isApplication(adoption: unknown): boolean {
+	const surfaces = record(adoption) ? adoption.surfaces : undefined;
+	return !Array.isArray(surfaces) || surfaces.some((surface) => applicationSurfaces.includes(surface));
 }
 /** Documents, stories, map and verify skill: the gaps a bootstrap baseline may name. */
 function contentIssues(repo: string, checkerPath: string): Issue[] {
@@ -344,6 +374,183 @@ function contentIssues(repo: string, checkerPath: string): Issue[] {
 		const body = readFileSync(join(repo, f), "utf8");
 		return ["Launch", "Doctor", "Drive", "Evidence", "Cleanup"].every((h) => body.split("\n").some((line) => line.startsWith(`## ${h}`)));
 	})) issues.push({ gap: "skill:verify", message: "missing verify skill with ## Launch, ## Doctor, ## Drive, ## Evidence and ## Cleanup" });
+	return issues;
+}
+/** A workflow file's triggers as an object, whatever YAML shape `on:` takes. */
+function workflowAt(repo: string, path: unknown): { name: string; on: Record<string, unknown>; jobs: Record<string, unknown> } | string {
+	if (!text(path) || !safePath(path) || !/^\.github\/workflows\/[^/]+\.ya?ml$/.test(path)) return `${String(path)} is not a .github/workflows/*.yml path`;
+	if (!existsSync(join(repo, path))) return `${path} does not exist`;
+	let doc: unknown;
+	try { doc = Bun.YAML.parse(readFileSync(join(repo, path), "utf8")); } catch { return `${path} is not valid YAML`; }
+	if (!record(doc)) return `${path} is not a workflow`;
+	const raw = doc.on ?? (doc as Record<string, unknown>)["true"];
+	const on = typeof raw === "string" ? { [raw]: null } : Array.isArray(raw) ? Object.fromEntries(raw.map((name) => [String(name), null])) : record(raw) ? raw : {};
+	// GitHub names a workflow by its `name:`, or by its path when it has none; workflow_run refers to that name.
+	return { name: text(doc.name) ? doc.name : path, on, jobs: record(doc.jobs) ? doc.jobs : {} };
+}
+/** GitHub's branch filter semantics: `*` stays within a path segment, `**` crosses them, and a later `!pattern` excludes. */
+function branchMatches(patterns: unknown, branch: string): boolean {
+	const list = typeof patterns === "string" ? [patterns] : Array.isArray(patterns) ? patterns.map(String) : [];
+	const glob = (pattern: string) => new RegExp(`^${pattern.replace(/[.+^${}()|\\]/g, "\\$&").replace(/\*\*/g, "\u0000").replace(/\*/g, "[^/]*").replace(/\?/g, ".").replace(/\u0000/g, ".*")}$`);
+	let included = false;
+	for (const pattern of list) {
+		if (pattern.startsWith("!")) { if (glob(pattern.slice(1)).test(branch)) included = false; }
+		else if (glob(pattern).test(branch)) included = true;
+	}
+	return included;
+}
+/** Whether a push or workflow_run trigger fires for every push to `branch`: branch filters honoured, no path or tag-only filters. */
+function firesOn(trigger: unknown, branch: string): boolean {
+	if (trigger === null || trigger === undefined) return true;
+	if (!record(trigger)) return false;
+	// A path filter skips some green pushes, and a tag filter without a branch filter means tags only.
+	if (["paths", "paths-ignore"].some((key) => key in trigger)) return false;
+	const branches = "branches" in trigger, ignored = "branches-ignore" in trigger;
+	if (!branches && !ignored && ("tags" in trigger || "tags-ignore" in trigger)) return false;
+	if (branches && !branchMatches(trigger.branches, branch)) return false;
+	if (ignored && branchMatches(trigger["branches-ignore"], branch)) return false;
+	return true;
+}
+/** The GitHub event payload in CI, when there is one. */
+function ciEvent(): Record<string, unknown> | undefined {
+	const path = process.env.GITHUB_EVENT_PATH;
+	const event = path && existsSync(path) ? jsonOrUndefined(readFileSync(path, "utf8")) : undefined;
+	return record(event) ? event : undefined;
+}
+/** The repository's default branch, from the CI event or the clone's origin/HEAD; undefined when neither says. */
+function defaultBranch(repo: string): string | undefined {
+	const repository = ciEvent()?.repository;
+	if (record(repository) && text(repository.default_branch)) return repository.default_branch;
+	const head = spawnSync("git", ["symbolic-ref", "--short", "refs/remotes/origin/HEAD"], { cwd: repo, encoding: "utf8" });
+	return head.status === 0 && head.stdout.trim().startsWith("origin/") ? head.stdout.trim().slice("origin/".length) : undefined;
+}
+/**
+ * Terms a ship job, or a job it needs, may combine with `&&` and still run on every green push to the default
+ * branch. Anything else (a promotion branch, a commit-message opt-in, a repository toggle, always()) fails closed.
+ */
+function guardAllowed(branch: string): (term: string) => boolean {
+	const quoted = (value: string) => `['"]${value.replace(/[.*+?^${}()|[\]\\/]/g, "\\$&")}['"]`;
+	const repository = ciEvent()?.repository;
+	const fullName = process.env.GITHUB_REPOSITORY || (record(repository) && text(repository.full_name) ? repository.full_name : undefined);
+	const allowed = [
+		/^success\(\)$/,
+		new RegExp(`^github\\.event_name==${quoted("push")}$`),
+		new RegExp(`^github\\.event_name!=${quoted("pull_request")}$`),
+		new RegExp(`^github\\.ref==${quoted(`refs/heads/${branch}`)}$`),
+		new RegExp(`^github\\.ref_name==${quoted(branch)}$`),
+		/^github\.ref_name==github\.event\.repository\.default_branch$/,
+		/^github\.ref==format\(['"]refs\/heads\/\{0\}['"],github\.event\.repository\.default_branch\)$/,
+		new RegExp(`^github\\.event\\.workflow_run\\.conclusion==${quoted("success")}$`),
+		new RegExp(`^github\\.event\\.workflow_run\\.head_branch==${quoted(branch)}$`),
+		new RegExp(`^github\\.event\\.workflow_run\\.event==${quoted("push")}$`),
+		...(fullName ? [new RegExp(`^github\\.repository==${quoted(fullName)}$`)] : []),
+	];
+	return (term) => allowed.some((pattern) => pattern.test(term));
+}
+const guardTerms = (condition: unknown): string[] => {
+	const bare = condition === undefined ? "" : String(condition).replace(/^\s*\$\{\{([\s\S]*)\}\}\s*$/, "$1").replace(/\s+/g, "");
+	return bare === "" ? [] : bare.split("&&").map((term) => term.replace(/^\((.*)\)$/, "$1"));
+};
+const needsOf = (job: Record<string, unknown>): string[] => (typeof job.needs === "string" ? [job.needs] : Array.isArray(job.needs) ? job.needs.map(String) : []);
+/** FND-REL-001: a green default branch ships through a job that waits on the gate. A platform deploy proves itself in the receipt. */
+function shipProblems(repo: string, ship: unknown): string[] {
+	if (!record(ship) || !text(ship.branch)) return ["operations.ship must name the default branch and a workflow and job, or a platform"];
+	const branch = defaultBranch(repo);
+	if (branch === undefined) return ["cannot confirm the default branch (no GITHUB_EVENT_PATH repository and no origin/HEAD)"];
+	if (ship.branch !== branch) return [`operations.ship.branch is ${ship.branch}, but the default branch is ${branch}`];
+	if (text(ship.platform)) return [];
+	const workflow = workflowAt(repo, ship.workflow);
+	if (typeof workflow === "string") return [workflow];
+	const job = text(ship.job) ? workflow.jobs[ship.job] : undefined;
+	if (!record(job)) return [`${String(ship.workflow)} has no job ${String(ship.job)}`];
+	const problems: string[] = [];
+	const onPush = "push" in workflow.on && firesOn(workflow.on.push, branch);
+	const run = workflow.on.workflow_run;
+	let onRun = "workflow_run" in workflow.on && firesOn(run, branch);
+	if (onRun) {
+		// The upstream a workflow_run follows must itself be the gate that fires on every push; a dispatch-only
+		// or scheduled upstream is a manual or periodic promotion.
+		const upstream = record(run) ? (typeof run.workflows === "string" ? [run.workflows] : Array.isArray(run.workflows) ? run.workflows.map(String) : []) : [];
+		const files = existsSync(join(repo, ".github/workflows")) ? readdirSync(join(repo, ".github/workflows")).filter((f) => /\.ya?ml$/.test(f)) : [];
+		const named = new Map(files.map((f) => workflowAt(repo, `.github/workflows/${f}`)).filter((w): w is Exclude<typeof w, string> => typeof w !== "string").map((w) => [w.name, w]));
+		const gates = upstream.map((name) => named.get(name));
+		if (upstream.length === 0 || gates.some((gate) => !gate || !("push" in gate.on) || !firesOn(gate.on.push, branch))) {
+			problems.push(`${String(ship.workflow)} follows ${upstream.join(", ") || "no workflow"}, which does not run on every push to ${branch}`);
+			onRun = false;
+		}
+	}
+	if (!onPush && !onRun && problems.length === 0) problems.push(`${String(ship.workflow)} does not run on every push to ${branch}`);
+	// The ship job and every job it needs, transitively, must exist, run on every green push, and block on failure:
+	// an opt-in or non-blocking gate one hop up is still not shipping on green.
+	const allowed = guardAllowed(branch);
+	const seen = new Set<string>();
+	const pending = [ship.job];
+	while (pending.length > 0) {
+		const name = pending.shift()!;
+		if (seen.has(name)) continue;
+		seen.add(name);
+		const current = workflow.jobs[name];
+		if (!record(current)) { problems.push(`job ${ship.job} needs ${name}, which does not exist`); continue; }
+		if (!guardTerms(current.if).every(allowed)) problems.push(`job ${name} has if: ${String(current.if)}, which does not ship every green push`);
+		if (name !== ship.job && current["continue-on-error"] !== undefined && current["continue-on-error"] !== false) problems.push(`job ${name} gates the ship job but has continue-on-error`);
+		pending.push(...needsOf(current));
+	}
+	const afterGreenRun = onRun && guardTerms(job.if).some((term) => /^github\.event\.workflow_run\.conclusion==['"]success['"]$/.test(term));
+	if (needsOf(job).length === 0 && !afterGreenRun) problems.push(`job ${ship.job} ships without waiting on the gate: give it needs, or run it from workflow_run only when the conclusion is success`);
+	return problems;
+}
+/** FND-ALR-001: remote error capture, an outside health check and a loud destination, each named and present. */
+function alertProblems(repo: string, alert: unknown): string[] {
+	if (!record(alert)) return ["operations.alert must name errors, health and destination"];
+	const problems: string[] = [];
+	const errors = alert.errors;
+	if (!record(errors) || !text(errors.provider) || !text(errors.init) || !safePath(errors.init)) problems.push("operations.alert.errors needs a provider and the path that initialises it");
+	else if (!existsSync(join(repo, errors.init))) problems.push(`${errors.init} does not exist`);
+	else if (!readFileSync(join(repo, errors.init), "utf8").toLowerCase().includes(errors.provider.toLowerCase())) problems.push(`${errors.init} does not reference ${errors.provider}`);
+	const health = alert.health;
+	if (record(health) && text(health.external)) { /* an outside monitor proves itself in the receipt */ }
+	else if (record(health) && health.monitor !== undefined) {
+		const monitor = workflowAt(repo, health.monitor);
+		if (typeof monitor === "string") problems.push(monitor);
+		else if (!("schedule" in monitor.on)) problems.push(`${String(health.monitor)} does not run on a schedule`);
+	} else problems.push("operations.alert.health needs a scheduled monitor workflow or a named external monitor");
+	if (!text(alert.destination)) problems.push("operations.alert.destination must name where alerts go");
+	return problems;
+}
+/** FND-INC-001: the runbook says how incidents run, and every closed postmortem links the change that closed its class. */
+function incidentProblems(repo: string): string[] {
+	const problems: string[] = [];
+	const runbook = join(repo, "docs/runbook.md");
+	const section = (body: string, heading: string) => body.split(/^## /m).find((part) => part.startsWith(`${heading}\n`))?.slice(heading.length).trim();
+	if (!existsSync(runbook) || !section(readFileSync(runbook, "utf8"), "Incidents")) problems.push("docs/runbook.md needs a non-empty ## Incidents section");
+	const dir = join(repo, "docs/postmortems");
+	const reports = existsSync(dir) ? readdirSync(dir).filter((f) => f.endsWith(".md") && f !== "README.md" && f !== "TEMPLATE.md") : [];
+	for (const file of reports) {
+		const body = readFileSync(join(dir, file), "utf8");
+		const pokayoke = section(body, "Pokayoke");
+		const followUp = section(body, "Follow-up");
+		if (!pokayoke || followUp === undefined) { problems.push(`docs/postmortems/${file}: needs ## Pokayoke and ## Follow-up sections`); continue; }
+		const open = /^- \*\*Status:\*\*\s*open\b/im.test(body);
+		if (!open && !/https?:\/\/\S+|#\d+\b|\b[0-9a-f]{7,40}\b/.test(followUp)) problems.push(`docs/postmortems/${file}: a closed postmortem must link the change that ruled out its class`);
+	}
+	return problems;
+}
+/** ADR-005 gaps and false claims for an application: pending is a gap the ratchet times; satisfied must hold up. */
+function operationsIssues(repo: string, adoption: unknown): Issue[] {
+	if (!record(adoption) || !isApplication(adoption)) return [];
+	const dispositions = record(adoption.dispositions) ? adoption.dispositions : {};
+	const operations = record(adoption.operations) ? adoption.operations : {};
+	const checks: Record<string, () => string[]> = {
+		"FND-REL-001": () => shipProblems(repo, operations.ship),
+		"FND-ALR-001": () => alertProblems(repo, operations.alert),
+		"FND-INC-001": () => incidentProblems(repo),
+	};
+	const issues: Issue[] = [];
+	for (const [id, gap] of Object.entries(operationsGaps)) {
+		const status = record(dispositions[id]) ? dispositions[id].status : undefined;
+		if (status === "satisfied") for (const problem of checks[id]()) issues.push({ message: `${id}: satisfied, but ${problem}` });
+		else if (status !== "not_applicable" && status !== "exception") issues.push({ gap, message: `${id}: not yet met by this application (ADR-005)` });
+	}
 	return issues;
 }
 /** The adoption's mode and well-formed baseline entries; shape, expiry and horizon problems go to errors. */
@@ -446,7 +653,7 @@ function check(options: Options): Result {
 	const adoption = existsSync(path) ? readJson(path) : undefined;
 	if (adoption === undefined) errors.push("foundation.json: missing; `foundation-check baseline --owner NAME --write` records the current gaps as a bootstrap baseline");
 	else validateAdoption(adoption, catalog, catalogBytes, errors, needs_evidence);
-	const issues = contentIssues(options.repo, checkerPath);
+	const issues = [...contentIssues(options.repo, checkerPath), ...operationsIssues(options.repo, adoption)];
 	const now = today();
 	const live = liveIds(workingStories(options.repo));
 	const baseline = readBaseline(adoption, live, errors, now);
@@ -481,23 +688,29 @@ function baseline(options: Options): Result {
 	const existing = existsSync(path) ? readJson(path) : undefined;
 	if (existing !== undefined && !record(existing)) throw new Error("foundation.json is not a JSON object");
 	const owner = options.owner!;
-	const revision = existing === undefined ? (options.revision ?? harnessRevision()) : undefined;
+	const revision = existing === undefined ? (options.revision ?? harnessRevision()) : options.revision;
 	if (revision !== undefined && !/^[0-9a-f]{40}$/.test(revision)) throw new Error("--revision must be a 40-hex commit");
-	const adoption: Record<string, unknown> = existing ?? {
-		schema: "foundation-adoption/1",
-		standard: {
+	const pending = { status: "pending", missing: "Foundation assessment", owner, next: "Assess this obligation with the foundation skill" };
+	const adoption: Record<string, unknown> = existing ?? { schema: "foundation-adoption/1", capabilities: [], dispositions: {} };
+	// A new record, or a re-pin with --revision (a pin-bump PR), takes this checker's catalog.
+	if (revision !== undefined) {
+		adoption.standard = {
 			id: catalog.id, version: catalog.version, catalog_sha256: sha256(catalogBytes), revision,
 			source: `https://github.com/misty-step/harness/blob/${revision}/agent-config/skills/foundation/foundation-standard-v1.json`,
-		},
-		capabilities: [],
-		dispositions: Object.fromEntries([...catalog.obligations, ...catalog.approved_defaults].map(({ id }: { id: string }) => [
-			id, { status: "pending", missing: "Foundation assessment", owner, next: "Assess this obligation with the foundation skill" },
-		])),
-	};
-	const issues = contentIssues(options.repo, checkerPath);
+		};
+	}
+	if (options.surfaces) adoption.surfaces = options.surfaces;
+	// Obligations the catalog gained since the record was written start pending; existing dispositions stay.
+	const dispositions = record(adoption.dispositions) ? adoption.dispositions : {};
+	for (const { id } of [...catalog.obligations, ...catalog.approved_defaults] as { id: string }[]) if (!(id in dispositions)) dispositions[id] = { ...pending };
+	adoption.dispositions = dispositions;
+	const issues = [...contentIssues(options.repo, checkerPath), ...operationsIssues(options.repo, adoption)];
 	const live = [...liveIds(workingStories(options.repo))];
-	const gaps = [...new Set([...issues.map((issue) => issue.gap).filter(text), ...(options.walkGaps ? live.map((id) => `walk:${id}`) : [])])].sort();
 	const prior = new Map((Array.isArray(adoption.baseline) ? adoption.baseline : []).filter(record).map((entry) => [entry.gap, entry]));
+	// A new record baselines a walk for every live story; an existing one keeps the walk entries it has, so a
+	// re-pin never re-baselines stories that already walk.
+	const walks = !options.walkGaps ? [] : existing === undefined ? live.map((id) => `walk:${id}`) : live.map((id) => `walk:${id}`).filter((gap) => prior.has(gap));
+	const gaps = [...new Set([...issues.map((issue) => issue.gap).filter(text), ...walks])].sort();
 	const entries: Entry[] = gaps.map((gap) => {
 		const kept = prior.get(gap);
 		return kept && text(kept.owner) && isDate(kept.expires) ? { gap, owner: kept.owner, expires: kept.expires } : { gap, owner, expires };
@@ -608,7 +821,7 @@ const reviewerRegistry: Record<string, Reviewer> = {
 const approvalMarker = "foundation-review: approved";
 const escalationMarker = "foundation-escalation: product-direction";
 const resolutionMarker = "foundation-escalation: resolved";
-/** Why a PR needs the designated reviewer, judged on its own base and head: first user stories or an added extension record. */
+/** Why a PR needs the designated reviewer, judged on its own base and head: first user stories, an added extension record, or opting out of ADR-005. */
 function reviewTriggers(repo: string, base: string, head: string): string[] {
 	const mergeBase = git(repo, "merge-base", base, head).trim();
 	const reasons: string[] = [];
@@ -617,6 +830,9 @@ function reviewTriggers(repo: string, base: string, head: string): string[] {
 	if (before.length === 0 && after.length > 0) reasons.push("first user stories: USER_STORIES.md gains its first stories");
 	const added = git(repo, "diff", "--name-only", "--no-renames", "--diff-filter=A", "-z", mergeBase, head).split("\0").filter(Boolean);
 	for (const path of added.filter((f) => extensionPath.test(f))) reasons.push(`baseline extension: ${path}`);
+	// Declaring surfaces that make the repository a non-application drops every ADR-005 obligation, so it needs the same authority.
+	const adoptionAt = (rev: string) => jsonOrUndefined(fileAt(repo, rev, "foundation.json"));
+	if (isApplication(adoptionAt(mergeBase)) && !isApplication(adoptionAt(head))) reasons.push("surfaces: foundation.json stops declaring an application (ADR-005)");
 	return reasons;
 }
 async function github(path: string, token: string): Promise<unknown> {
