@@ -18,7 +18,9 @@ const args = new Map<string, string>();
 for (let i = 2; i < process.argv.length; i += 2) args.set(process.argv[i].replace(/^--/, ""), process.argv[i + 1] ?? "");
 const fail = (message: string): never => (console.error(message), process.exit(2));
 const out = resolve(args.get("out") || fail("missing --out"));
-const report = JSON.parse(readFileSync(resolve(args.get("report") || fail("missing --report")), "utf8")) as { perTask?: Record<string, Record<string, { judgeOverall?: number | null } | null>> };
+type ReportTask = { task: string; arms: Record<string, { judgeOverall?: number | null } | null> };
+const report = JSON.parse(readFileSync(resolve(args.get("report") || fail("missing --report")), "utf8")) as { perTask?: ReportTask[] };
+const judged = new Map((report.perTask ?? []).map((entry) => [entry.task, entry.arms]));
 const pairs = (args.get("pairs") || fail("missing --pairs")).split(",").map((pair) => {
 	const [arm, ref] = pair.split(":");
 	return arm && ref ? { arm, ref } : fail(`bad pair ${pair}`);
@@ -45,7 +47,7 @@ function metrics(task: string, arm: string): Metrics | null {
 		output: num(record.usage.output) + num(advisor.outputTokens),
 		wall: num(record.wallMs) / 1000,
 		hidden: record.hiddenPass === true,
-		quality: report.perTask?.[task]?.[arm]?.judgeOverall ?? null,
+		quality: judged.get(task)?.[arm]?.judgeOverall ?? null,
 	};
 }
 
@@ -119,7 +121,7 @@ function ratioInterval(pairs: readonly [number, number][]): Interval {
 	return { ...interval, estimate: Math.exp(interval.estimate), lo: Math.exp(interval.lo), hi: Math.exp(interval.hi) };
 }
 
-const tasks = [...new Set(Object.keys(report.perTask ?? {}))].filter((task) => !only || only.includes(task)).sort();
+const tasks = [...judged.keys()].filter((task) => !only || only.includes(task)).sort();
 const round = (value: number, digits = 3) => (Number.isFinite(value) ? Number(value.toFixed(digits)) : null);
 const shape = (interval: Interval, digits = 3) => ({ estimate: round(interval.estimate, digits), lo: round(interval.lo, digits), hi: round(interval.hi, digits), p: interval.p === null ? null : round(interval.p, 4), n: interval.n });
 
