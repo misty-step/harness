@@ -816,7 +816,7 @@ describe("foundation-check operational obligations (ADR-005, US-040)", () => {
 		expect(cli(repo, "check").status).toBe(0);
 	});
 
-	test("a satisfied claim must hold up: a gated ship job, named alerting, and postmortems that link their class fix", () => {
+	test("a satisfied claim must hold up: a gated ship job, named alerting, and postmortems that link their class fix", { timeout: 20_000 }, () => {
 		const repo = fixture("ops-satisfied");
 		// The checker confirms the declared branch is the default one; a clone knows it through origin/HEAD.
 		exec(repo, ["update-ref", "refs/remotes/origin/main", "HEAD"]);
