@@ -366,6 +366,24 @@ describe("US-029 advisor battery", () => {
 		expect(logOf().filter((entry) => entry.battery === "advisor").map((entry) => entry.trigger)).toEqual(["first_edit", "gate", "gate", "gate", "gate", "settle"]);
 	});
 
+	test("with the advisor on, the done gate still sends System 2 back at most twice", async () => {
+		const cwd = repo();
+		writeFileSync(join(cwd, "src/pricing.test.ts"), 'import { expect, test } from "bun:test";\ntest("discount", () => expect(1).toBe(2));\n');
+		stubJev({ note: "none", completion: "unfinished", check: "c0" });
+		process.env.S1S2_ADVISOR = "gated";
+		const handlers = load();
+		const { ctx } = advisorContext(cwd, ['{"severity":"none","advice":""}']);
+		await handlers.get("session_start")?.({ type: "session_start", reason: "startup" }, ctx);
+		await handlers.get("before_agent_start")?.(start("Fix `applyDiscount`."), ctx);
+		const notes: string[] = [];
+		for (let edit = 1; edit <= 4; edit++) {
+			writeFileSync(join(cwd, "src/pricing.ts"), `export const edit = ${edit};\n`);
+			const result = (await handlers.get("agent_before_settle")?.(settle, ctx)) as { continue?: boolean; entries?: { details?: { note?: string } }[] } | undefined;
+			notes.push(result?.continue ? String(result.entries?.at(-1)?.details?.note) : "settled");
+		}
+		expect(notes).toEqual(["unfinished", "check_failed", "settled", "settled"]);
+	});
+
 	test("an advisor failure delivers nothing and leaves the done gate in charge", async () => {
 		const cwd = repo();
 		stubJev({ note: "none", completion: "complete", check: "none_suitable" });

@@ -92,11 +92,10 @@ export default function s1s2(pi: ExtensionAPI): void | Promise<void> {
 	const advisor = A.advisorConfig();
 	const advisorReviews = advisor.mode === "gated" || advisor.mode === "every";
 	// Round-2 experiments: `S1S2_BATTERIES` narrows the core batteries (default all four); `S1S2_FEATURES`
-	// adds optional ones (checklist, effort, richbrief).
+	// adds optional ones (checklist, effort, richbrief, trim, reset).
 	const listed = (value: string | undefined, fallback: string) => new Set((value ?? fallback).split(",").map((item) => item.trim().toLowerCase()).filter(Boolean));
 	const batteries = listed(process.env.S1S2_BATTERIES, "brief,triage,monitor,done");
 	const features = listed(process.env.S1S2_FEATURES, "");
-	const maxContinuations = Q.DONE.maxContinuations + (advisorReviews ? 1 : 0) + (features.has("checklist") ? 1 : 0);
 
 	let runDir = "";
 	let jev: OpenRouterJevProvider | null | undefined;
@@ -111,7 +110,9 @@ export default function s1s2(pi: ExtensionAPI): void | Promise<void> {
 	let notes = 0;
 	let lastNoteTurn = Number.NEGATIVE_INFINITY;
 	let lastMonitorTurn = Number.NEGATIVE_INFINITY;
-	let continuations = 0;
+	// The done gate keeps round 1's two continuations in every arm; the advisor and the checklist may each
+	// add one of their own (US-029 criteria 3, 7, and 8), so neither widens the done gate's budget.
+	let doneContinuations = 0;
 	let nudgedUnfinished = false;
 	let remindedUnverified = false;
 	// Advisor state: the work log it reads, its own conversation, and its consult bookkeeping.
@@ -225,7 +226,7 @@ export default function s1s2(pi: ExtensionAPI): void | Promise<void> {
 
 	/** One continuation that keeps every entry earlier handlers proposed (Pi replaces entries with each handler's result). */
 	function continueWith(content: string, note: string, prior: readonly SessionBoundaryDraft[]) {
-		continuations++;
+		if (note !== "advisor" && note !== "checklist") doneContinuations++;
 		cards.push(A.noteCard(turn, "System 1 before finishing", content));
 		return {
 			entries: [...prior, { type: "custom_message" as const, customType: "s1s2/done", content, display: true, details: { note } }],
@@ -326,7 +327,7 @@ export default function s1s2(pi: ExtensionAPI): void | Promise<void> {
 		notes = 0;
 		lastNoteTurn = Number.NEGATIVE_INFINITY;
 		lastMonitorTurn = Number.NEGATIVE_INFINITY;
-		continuations = 0;
+		doneContinuations = 0;
 		nudgedUnfinished = false;
 		remindedUnverified = false;
 		lastFailedCheck = "";
@@ -652,7 +653,7 @@ export default function s1s2(pi: ExtensionAPI): void | Promise<void> {
 	pi.on("agent_before_settle", async (event, ctx) => {
 		// The event's context preview ends on System 2's final answer, so it never "can continue" before
 		// our drafted note is added; Pi validates the continuation after committing the drafts.
-		if (event.outcome !== "completed" || continuations >= maxContinuations) return;
+		if (event.outcome !== "completed") return;
 		// Advisor review before finishing: gated consults once; every mode delivers the review of the
 		// final turn, acting only on a blocker (OMP's rule for a completed turn).
 		if (advisorReviews && !settleReviewed && S.changedFiles(ctx.cwd).length > 0) {
@@ -688,7 +689,7 @@ export default function s1s2(pi: ExtensionAPI): void | Promise<void> {
 				}
 			}
 		}
-		if (!batteries.has("done") || !jev) return;
+		if (!batteries.has("done") || !jev || doneContinuations >= Q.DONE.maxContinuations) return;
 		const changed = S.changedFiles(ctx.cwd);
 		const fingerprint = changed.length > 0 ? S.diffFingerprint(ctx.cwd) : null;
 		const checkPassed = fingerprint !== null && fingerprint === verifiedFingerprint;
@@ -737,7 +738,7 @@ export default function s1s2(pi: ExtensionAPI): void | Promise<void> {
 		lastFailedCheck = attempt;
 		let evidence = result.output.slice(-Q.DONE.evidenceChars);
 		if (runDir) {
-			const spill = join(runDir, "spill", `done-check-${continuations + 1}.txt`);
+			const spill = join(runDir, "spill", `done-check-${doneContinuations + 1}.txt`);
 			try {
 				writeFileSync(spill, result.output);
 				const plan = S.planTriage(result.output);

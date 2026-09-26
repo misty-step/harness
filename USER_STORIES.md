@@ -723,7 +723,9 @@ Criteria:
 3. WHEN a run settles with Git-visible changes on which no check has passed,
    THE SYSTEM SHALL run at most one Jev-selected check per settle, chosen only
    from repository-declared commands that do not fix, write, deploy, publish,
-   migrate, or serve, and SHALL request at most two continuations per prompt.
+   migrate, or serve, and the done gate SHALL request at most two continuations
+   per prompt. Across all batteries, a prompt SHALL get at most four: the done
+   gate's two, and at most one each from the advisor and the checklist.
 4. THE SYSTEM SHALL NOT block or rewrite a model tool call, SHALL NOT generate
    text through Jev, and SHALL send at most three monitor notes per prompt.
 5. THE SYSTEM SHALL mask credential-shaped text in every state sent to Jev,
@@ -735,14 +737,24 @@ Criteria:
 7. WHERE an advisor mode is set (`S1S2_ADVISOR`), THE SYSTEM SHALL send the
    advisor model only the task, a compact log of System 2's actions, and the
    current diff, with credential-shaped text masked; SHALL deliver its reply
-   only as an advisory note; SHALL consult it at most six times per prompt in
-   gated and tool modes, keeping the last gated consult for the review before
-   finishing; SHALL send System 2 back at most once on the advisor's word; and
-   SHALL leave the run as it would be without an advisor when a consult fails.
+   only as an advisory note, except the reset handoff in criterion 8; SHALL
+   consult it at most six times per prompt in gated and tool modes, keeping the
+   last gated consult for the review before finishing; SHALL send System 2 back
+   at most once on the advisor's word; and SHALL leave the run as it would be
+   without an advisor when a consult fails.
+8. WHERE a round-2 experiment is set (`S1S2_FEATURES` or `S1S2_BATTERIES`),
+   THE SYSTEM SHALL keep each change bounded and fail open: the checklist sends
+   System 2 back at most once per prompt, quoting only a sentence of the task;
+   effort changes only whether System 2 reasons on its next turn; trim replaces
+   an old tool output only after saving it in full to the file its pointer
+   names; reset replaces the conversation at most once per prompt, only past
+   turn 40, with the task's text and the advisor's handoff; and a narrowed
+   battery list turns the other batteries off entirely.
 
-No-gos: no second generative model beyond the advisor, which only advises
-(operator ruling 2026-09-26); no deployment into the daily Pi profile; no tool
-veto or permission gate; no Jev-authored prose, code, or plans.
+No-gos: no second generative model beyond the advisor, which only advises or
+writes the reset handoff (operator ruling 2026-09-26); no deployment into the
+daily Pi profile; no tool veto or permission gate; no Jev-authored prose, code,
+or plans.
 
 Evidence: `pi-config/extensions/s1s2/`, `agent-config/system-one/engine.test.ts`
 (provider usage), `docs/system1-system2-harness.md`,
