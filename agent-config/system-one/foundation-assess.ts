@@ -5,6 +5,7 @@ import { posix } from "node:path";
 import { SystemOneProviderError } from "./engine.ts";
 import type { Answer, Question, SystemOneProvider } from "./engine.ts";
 import { isCredentialPath, redactText } from "./review.ts";
+import { DEFAULT_EXPECTED_RESOLVED_MODELS } from "./semantic-run.ts";
 
 export const FOUNDATION_SCHEMA = "foundation-assessment-1";
 export const FOUNDATION_QUESTIONS_VERSION = "foundation-questions-1";
@@ -492,7 +493,8 @@ export async function assessFoundations(options: { repo: string; snapshot: GitSn
 				result.latency_ms = Math.round(performance.now() - started);
 				result.resolved_model = call.resolvedModel ?? null;
 				result.questions = ids.map((id) => classify(id, packet.questions[id], call.answers[id], packet.coverage));
-				if (provider.name === "heuristic" || provider.name === "openrouter" && (!call.resolvedModel || !call.resolvedModel.startsWith(`${FOUNDATION_MODEL}`)) || provider.name === "openrouter" && call.requestedModel !== FOUNDATION_MODEL) {
+				const approved = (DEFAULT_EXPECTED_RESOLVED_MODELS as readonly string[]).includes(call.resolvedModel ?? "");
+				if (provider.name === "heuristic" || provider.name === "openrouter" && (!approved || call.requestedModel !== FOUNDATION_MODEL)) {
 					result.questions = result.questions.map((question) => question.outcome === "unavailable" ? question : { ...question, outcome: "abstained", reason: provider.name === "heuristic" ? "Heuristic answers are not calibrated for foundation questions" : "Unexpected or missing resolved/requested model" });
 				}
 			} catch (error) {

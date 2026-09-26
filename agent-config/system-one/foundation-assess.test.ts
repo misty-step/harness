@@ -196,7 +196,7 @@ describe("foundation assessment advisory", () => {
 		const provider: SystemOneProvider = {
 			name: "openrouter", requestedModel: "typesafe/jev-1.13",
 			async evaluate() { throw new Error("metadata only"); },
-			async evaluateWithMetadata(_state, questions) { return { requestedModel: "typesafe/jev-1.13", resolvedModel: "other/model", answers: Object.fromEntries(Object.keys(questions).map((id) => [id, { type: "noul", probability: 0.95, confidence: 0.9 }])) }; },
+			async evaluateWithMetadata(_state, questions) { return { requestedModel: "typesafe/jev-1.13", resolvedModel: "typesafe/jev-1.13-20991231", answers: Object.fromEntries(Object.keys(questions).map((id) => [id, { type: "noul", probability: 0.95, confidence: 0.9 }])) }; },
 		};
 		const record = await assessFoundations({ repo, snapshot: openGitSnapshot(repo), pack: "sentry", provider });
 		expect(record.packets[0].questions.every((answer) => answer.outcome === "abstained")).toBe(true);
