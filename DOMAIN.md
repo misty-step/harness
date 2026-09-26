@@ -24,6 +24,13 @@ and agent rules in [AGENTS.md](AGENTS.md).
 - **Foundation Standard:** the versioned obligation catalog in
   `agent-config/skills/foundation/`. `foundation-check` enforces it, and a
   project repository pins a harness revision to adopt it.
+- **Constitution:** the canonical short statement of the foundations,
+  `agent-config/skills/foundation/constitution.md` (ADR-006). The catalog
+  holds the normative obligations behind it.
+- **Invariants ledger:** the `## Invariants` section of a repository's
+  `DOMAIN.md`: every invariant and review rule for what must hold in that
+  repository, each naming its check or marked `unenforced` (ADR-004
+  amendment, ADR-006).
 - **Adoption record:** a project's `foundation.json`, which pins the catalog
   and records a disposition for every obligation.
 - **Gap, baseline:** a named deficiency (`doc:…`, `map:…`, `walk:US-…`), and
@@ -47,20 +54,20 @@ the Foundation Standard tooling. It does not own:
 
 ## Invariants
 
-- Shared launchers deploy byte-identical to source and executable. Enforced by
-  `scripts/verify-installers`.
-- Installers preserve foreign skills, settings and authentication files.
+- **INV-001** Shared launchers deploy byte-identical to source and executable.
   Enforced by `scripts/verify-installers`.
-- Deployed composed guidance equals the intro plus the selected sections.
-  Enforced by `scripts/verify-installers`.
-- The installed `foundation-check` fails closed on a repository without
-  `foundation.json`. Enforced by `scripts/verify-installers`.
-- Relative Markdown links resolve inside the tree. Enforced by
+- **INV-002** Installers preserve foreign skills, settings and authentication
+  files. Enforced by `scripts/verify-installers`.
+- **INV-003** Deployed composed guidance equals the intro plus the selected
+  sections. Enforced by `scripts/verify-installers`.
+- **INV-004** The installed `foundation-check` fails closed on a repository
+  without `foundation.json`. Enforced by `scripts/verify-installers`.
+- **INV-005** Relative Markdown links resolve inside the tree. Enforced by
   `scripts/references.test.ts`.
-- No secret reaches the remote. Enforced by the pre-push gitleaks and
-  trufflehog scan (`.githooks/pre-push`, wired by `scripts/bootstrap`).
-- `USER_STORIES.md` passes `check-stories.sh`. `unenforced`: no check runs it
-  on this repository.
+- **INV-006** No secret reaches the remote. Enforced by the pre-push gitleaks
+  and trufflehog scan (`.githooks/pre-push`, wired by `scripts/bootstrap`).
+- **INV-007** `USER_STORIES.md` passes `check-stories.sh`. `unenforced`: no
+  check runs it on this repository.
 
 ## Code map
 

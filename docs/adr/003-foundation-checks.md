@@ -75,6 +75,10 @@ Three steps need an approval the PR author cannot give: a repository's first
 user stories, any baseline extension (a new baseline entry or a later expiry),
 and declaring that an application's record is not an application, which drops
 its ADR-005 obligations. The operator delegated both to an agent reviewer on 2026-09-25.
+ADR-006 (2026-09-26) adds two more: a change to a repository's `DOMAIN.md`
+invariants ledger, and a `not_applicable` or `exception` disposition, whose
+`foundation-approval/1` record the designated reviewer approves. Both take
+effect with the catalog and checker change that cites ADR-006.
 
 - **Who approves.** Each organisation has one designated reviewer, written into
   `foundation-check` itself at the revision a repository's CI pins; neither the
