@@ -491,7 +491,7 @@ export default function s1s2(pi: ExtensionAPI): void | Promise<void> {
 		} else if (jev && turn - lastConsultTurn >= A.ADVISOR.minGap) {
 			advisorTotals.gateCalls++;
 			const facts = S.monitorFacts(actions, turn);
-			const extra = { lastMessage: lastAssistantText, editsSoFar: actions.filter((action) => action.kind === "edit").length, consults, turnsSinceConsult: Number.isFinite(lastConsultTurn) ? turn - lastConsultTurn : turn };
+			const extra = { lastMessage: lastAssistantText, editsSoFar: actions.filter((action) => action.kind === "edit").length };
 			const call = await ask(ctx, A.GATE_QUESTIONS, A.gateState(task, turn, actions, facts, extra));
 			if ("error" in call) {
 				record({ battery: "advisor_gate", action: "fail_open", error: call.error, latency_ms: call.latencyMs });

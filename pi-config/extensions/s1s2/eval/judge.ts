@@ -231,7 +231,8 @@ function clip(content: string, limit: number): string {
 	return suffix.length < limit ? `${content.slice(0, limit - suffix.length)}${suffix}` : content.slice(0, limit);
 }
 function promptFor(task: Task, reference: string, diffs: Record<string, string>, order: string[]): string {
-	const candidateLimit = Math.max(12_000, Math.floor(60_000 / Math.max(1, order.length - 2)));
+	// Round-1 final diffs ran to 30,348 characters (median 12,672), so no candidate is clipped below 32,000.
+	const candidateLimit = Math.max(32_000, Math.floor(60_000 / Math.max(1, order.length - 2)));
 	const example = `{${labels.map((label) => `"${label}":{"task":3,"correctness":3,"scope":3,"quality":3}`).join(",")},"ranking":[${labels.map((label) => `"${label}"`).join(",")}]}`;
 	return [
 		`You are reviewing ${labels.length} candidate changes (${labels.join(", ")}) to the same Git repository for the same task. Judge each on its own merits against the task statement.`,

@@ -428,6 +428,7 @@ describe("US-029 advisor battery", () => {
 		expect(parseAdvice('Review done.\n```json\n{"severity":"concern","advice":"Handle {percent} over 100."}\n```')).toEqual({ severity: "concern", advice: "Handle {percent} over 100." });
 		expect(parseAdvice('{"severity":"urgent","advice":"x"}')).toBeNull();
 		expect(parseAdvice("Looks fine to me.")).toBeNull();
+		expect(parseAdvice('{"severity":"concern","advice":"Add SKILL.md under agent-config/skills/session-close/ and\nwire the refere')).toEqual({ severity: "concern", advice: "Add SKILL.md under agent-config/skills/session-close/ and\nwire the refere" });
 		expect(worthDelivering(parseAdvice('{"severity":"none","advice":"All good."}'))).toBe(false);
 		expect(worthDelivering(parseAdvice('{"severity":"nit","advice":""}'))).toBe(false);
 	});

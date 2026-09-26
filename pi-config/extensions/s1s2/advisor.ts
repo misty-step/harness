@@ -26,13 +26,18 @@ export type AdvisorConfig = { mode: AdvisorMode; provider: string; model: string
 export const ADVISOR = {
 	/** Consults per task in gated and tool modes. Gated reserves the last one for the review before finishing. */
 	maxConsults: 6,
-	/** Jev probability that a review would change the next step, needed for a gate consult (setup calibrated). */
-	gateMin: 0.7,
+	/**
+	 * Jev probability that a review would change the next step, needed for a gate consult. Set by the
+	 * 2026-09-26 replay over 30 recorded Pi runs (eval/gate-replay.ts): 0.55 picks about two gate
+	 * consults per run (1.9), about four consults with the first-edit and final reviews.
+	 */
+	gateMin: 0.55,
 	/** Turns between gate-triggered consults; structural consults ignore it. */
 	minGap: 3,
 	/** Reply ceiling, reasoning included. */
 	maxTokens: 6000,
-	timeoutMs: 120_000,
+	/** The setup sample's final reviews took 49 to 94 s, and one passed 120 s. */
+	timeoutMs: 180_000,
 	/** Work-log and diff budgets for one consult message (characters). */
 	logChars: 40_000,
 	diffChars: 16_000,
@@ -150,7 +155,11 @@ export class AdvisorConversation {
 
 const SEVERITIES: readonly Severity[] = ["none", "nit", "concern", "blocker"];
 
-/** The advisor's reply: the outermost JSON object that ends at the reply's last brace. Null when unusable. */
+/**
+ * The advisor's reply: the outermost JSON object that ends at the reply's last brace, or else the
+ * severity and advice fields read one by one (the setup sample had a reply whose advice string never
+ * closed). Null when no known severity is present.
+ */
 export function parseAdvice(text: string): Advice | null {
 	const end = text.lastIndexOf("}");
 	for (let start = end < 0 ? -1 : text.lastIndexOf("{", end); start >= 0; start = start === 0 ? -1 : text.lastIndexOf("{", start - 1)) {
@@ -167,7 +176,16 @@ export function parseAdvice(text: string): Advice | null {
 		const advice = typeof record.advice === "string" ? record.advice.trim() : "";
 		return { severity: severity as Severity, advice: severity === "none" ? "" : advice.slice(0, 1500) };
 	}
-	return null;
+	const severity = /"severity"\s*:\s*"(none|nit|concern|blocker)"/i.exec(text)?.[1].toLowerCase() as Severity | undefined;
+	if (!severity) return null;
+	const raw = /"advice"\s*:\s*"((?:[^"\\]|\\.)*)/s.exec(text)?.[1] ?? "";
+	let advice = raw;
+	try {
+		advice = JSON.parse(`"${raw.replace(/\\$/, "")}"`) as string;
+	} catch {
+		advice = raw.replace(/\\n/g, "\n").replace(/\\"/g, '"');
+	}
+	return { severity, advice: severity === "none" ? "" : advice.trim().slice(0, 1500) };
 }
 
 export function worthDelivering(advice: Advice | null): advice is Advice {
@@ -180,13 +198,22 @@ export function adviceMessage(advice: Advice): string {
 
 // ----------------------------------------------------------------- gate --
 
+/** The gate's view of one turn. It omits consult history, so a replay over recorded runs asks exactly what the live gate asks. */
+export type GateState = {
+	task: string;
+	turn: number;
+	recent_actions: { turn: number; action: string; kind: string; ok: boolean }[];
+	executor_last_message: string;
+	facts: { identical_failed_calls_in_last_8: number; consecutive_failed_calls: number; turns_since_last_edit: number; edits_so_far: number };
+};
+
 export function gateState(
 	task: string,
 	turn: number,
 	actions: readonly { turn: number; summary: string; ok: boolean; kind: string }[],
 	facts: MonitorFacts,
-	extra: { lastMessage: string; editsSoFar: number; consults: number; turnsSinceConsult: number },
-) {
+	extra: { lastMessage: string; editsSoFar: number },
+): GateState {
 	return {
 		task: redactText(task, 1500),
 		turn,
@@ -197,8 +224,6 @@ export function gateState(
 			consecutive_failed_calls: facts.errorStreak,
 			turns_since_last_edit: facts.turnsSinceEdit,
 			edits_so_far: extra.editsSoFar,
-			advisor_consults_so_far: extra.consults,
-			turns_since_last_consult: extra.turnsSinceConsult,
 		},
 	};
 }
