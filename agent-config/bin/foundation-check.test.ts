@@ -871,6 +871,9 @@ describe("foundation-check operational obligations (ADR-005, US-040)", () => {
 			// workflow_run fields are empty on a push event, so these never ship a push.
 			"github.event.workflow_run.head_repository.full_name == github.repository",
 			"github.event_name == 'push' && github.event.workflow_run.event == 'push'",
+			// Whitespace inside a literal is part of it, and GitHub rejects double-quoted literals.
+			"github.event_name == 'p ush'",
+			"github.event_name == \"push\"",
 		]) refused(both, `    needs: [test]\n    if: ${condition}\n`, `job deploy has if: ${condition}, which does not ship every green push`);
 		// The jobs the ship job needs are part of the gate: an opt-in, a non-blocking or a missing one is not shipping on green.
 		deploy("  push:\n    branches: [main]", "    needs: [test]\n", "    if: contains(github.event.head_commit.message, '[deploy]')\n");

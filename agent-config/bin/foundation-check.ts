@@ -717,14 +717,15 @@ interface GuardPredicates {
  * always()) fails closed.
  */
 function guardAllowed(branch: string): GuardPredicates {
-	const quoted = (value: string) => `['"]${value.replace(/[.*+?^${}()|[\]\\/]/g, "\\$&")}['"]`;
+	// GitHub expressions quote strings with single quotes only; a double-quoted literal does not parse.
+	const quoted = (value: string) => `'${value.replace(/[.*+?^${}()|[\]\\/]/g, "\\$&")}'`;
 	const repository = ciEvent()?.repository;
 	const fullName = process.env.GITHUB_REPOSITORY || (record(repository) && text(repository.full_name) ? repository.full_name : undefined);
 	const trunk = [
 		new RegExp(`^github\\.ref==${quoted(`refs/heads/${branch}`)}$`),
 		new RegExp(`^github\\.ref_name==${quoted(branch)}$`),
 		/^github\.ref_name==github\.event\.repository\.default_branch$/,
-		/^github\.ref==format\(['"]refs\/heads\/\{0\}['"],github\.event\.repository\.default_branch\)$/,
+		/^github\.ref==format\('refs\/heads\/\{0\}',github\.event\.repository\.default_branch\)$/,
 	];
 	const either = [
 		/^success\(\)$/,
@@ -743,8 +744,17 @@ function guardAllowed(branch: string): GuardPredicates {
 	const matches = (patterns: RegExp[]) => (term: string) => patterns.some((pattern) => pattern.test(term));
 	return { push: matches(push), run: matches(run), trunk: matches(trunk) };
 }
-const bareCondition = (condition: unknown): string =>
-	condition === undefined ? "" : String(condition).replace(/^\s*\$\{\{([\s\S]*)\}\}\s*$/, "$1").replace(/\s+/g, "");
+/** Drops `${{ }}` and whitespace outside single-quoted literals, so `'p ush'` stays distinct from `'push'`. */
+const bareCondition = (condition: unknown): string => {
+	if (condition === undefined) return "";
+	let bare = "";
+	let literal = false;
+	for (const c of String(condition).replace(/^\s*\$\{\{([\s\S]*)\}\}\s*$/, "$1")) {
+		if (c === "'") literal = !literal;
+		if (literal || !/\s/.test(c)) bare += c;
+	}
+	return bare;
+};
 const guardTerms = (condition: unknown): string[] => {
 	const bare = bareCondition(condition);
 	return bare === "" ? [] : bare.split("&&").map((term) => term.replace(/^\((.*)\)$/, "$1"));
@@ -759,7 +769,7 @@ function splitTopLevel(expression: string, op: "&&" | "||"): string[] | undefine
 		const c = expression[i];
 		if (quote) {
 			if (c === quote) quote = "";
-		} else if (c === "'" || c === '"') quote = c;
+		} else if (c === "'") quote = c;
 		else if (c === "(") depth++;
 		else if (c === ")" && --depth < 0) return undefined;
 		else if (depth === 0 && expression.startsWith(op, i)) {
@@ -806,7 +816,7 @@ function shipsEveryGreenPush(condition: unknown, allowed: GuardPredicates, onPus
 	const automatic = (terms: string[]) => (onPush && terms.every(allowed.push)) || (onRun && terms.every(allowed.run));
 	if (disjuncts.length <= 1) return automatic(disjuncts[0] ?? []);
 	if (/(?:success|always|failure|cancelled)\(\)/.test(bareCondition(condition))) return false;
-	const dispatch = (term: string) => /^github\.event_name==['"]workflow_dispatch['"]$/.test(term);
+	const dispatch = (term: string) => /^github\.event_name=='workflow_dispatch'$/.test(term);
 	const manualTrunk = (terms: string[]) =>
 		terms.some(dispatch) && terms.some(allowed.trunk) && terms.every((term) => dispatch(term) || allowed.push(term) || allowed.run(term));
 	return disjuncts.some(automatic) && disjuncts.every((terms) => automatic(terms) || manualTrunk(terms));
@@ -888,7 +898,7 @@ function shipProblems(repo: string, ship: unknown): string[] {
 	// A manual-dispatch alternative skips the upstream gate, so only a single green-run conjunction waits on it.
 	const shipDisjuncts = guardDisjuncts(job.if);
 	const afterGreenRun = onRun && shipDisjuncts?.length === 1 &&
-		shipDisjuncts[0].some((term) => /^github\.event\.workflow_run\.conclusion==['"]success['"]$/.test(term));
+		shipDisjuncts[0].some((term) => /^github\.event\.workflow_run\.conclusion=='success'$/.test(term));
 	if (needsOf(job).length === 0 && !afterGreenRun) problems.push(`job ${ship.job} ships without waiting on the gate: give it needs, or run it from workflow_run only when the conclusion is success`);
 	if (multi) {
 		if (!text(tenancy.migrate) || !record(workflow.jobs[tenancy.migrate])) problems.push(`operations.ship.tenancy.migrate must name an existing job in ${ship.workflow}`);
