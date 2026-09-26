@@ -284,6 +284,13 @@ function parseReplyText(reply: string | null, order: string[]): { scores: Record
 	}
 	return null;
 }
+/**
+ * Output ceiling per judge reply, reasoning included. On round 2, MiniMax-M3 at high effort used 6,295-14,392
+ * tokens on its valid verdicts and twice spent all of an earlier 16,000 on reasoning with no reply (h84). A ceiling
+ * binds only replies that reach it, so raising it leaves every completed verdict unchanged.
+ */
+const JUDGE_MAX_TOKENS = 32_000;
+const JUDGE_TIMEOUT_MS = 1_200_000;
 async function callLlm(judge: (typeof JUDGES)[number], prompt: string, order: string[], key: string): Promise<{ attempt: Attempt; result: { scores: Record<string, Scores>; ranking: string[] } | null; retry: boolean }> {
 	let reply: string | null = null;
 	let costUsd: number | null = null;
@@ -293,8 +300,8 @@ async function callLlm(judge: (typeof JUDGES)[number], prompt: string, order: st
 		const response = await fetch(`${openrouterBase}/api/v1/chat/completions`, {
 			method: "POST",
 			headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}`, "HTTP-Referer": "https://github.com/misty-step/harness", "X-Title": "Harness Blind Evaluation" },
-			body: JSON.stringify({ model: judge.model, provider: { order: judge.order, allow_fallbacks: true }, reasoning: { effort: "high" }, max_tokens: 16000, usage: { include: true }, messages: [{ role: "user", content: prompt }] }),
-			signal: AbortSignal.timeout(600_000),
+			body: JSON.stringify({ model: judge.model, provider: { order: judge.order, allow_fallbacks: true }, reasoning: { effort: "high" }, max_tokens: JUDGE_MAX_TOKENS, usage: { include: true }, messages: [{ role: "user", content: prompt }] }),
+			signal: AbortSignal.timeout(JUDGE_TIMEOUT_MS),
 		});
 		const raw = await response.text();
 		let data: unknown;
