@@ -186,11 +186,13 @@ to it.
 - Owner: project maintainer. Authority itself is never granted in text.
 - Must answer:
   - local rules that override the global defaults;
-  - invariants that code does not enforce;
   - what an agent may do without asking;
-  - review priorities;
   - a routing table to every owner in this ADR, including the repository's
-    walk runner and release command.
+    walk runner, release command and `DOMAIN.md` invariants ledger.
+
+  Amended by ADR-006 (2026-09-26): "invariants that code does not enforce" and
+  "review priorities" moved to the `DOMAIN.md` invariants ledger, their single
+  home.
 - Never holds: product description, glossary, procedures, one-time
   permissions, workstation state, personas, scaffolder boilerplate, or model
   and vendor names.
@@ -200,7 +202,8 @@ to it.
     repositories exceed that today; Chrondle's is 345);
   - a reference does not resolve;
   - it contains a spent or dated authority phrase.
-- Replaces: `WATCHDOG.md`, which holds review priorities.
+- Replaces: `WATCHDOG.md`. Its review priorities move to the `DOMAIN.md`
+  invariants ledger (ADR-006).
 
 **`USER_STORIES.md`: the intent contract.** Its format is unchanged.
 
@@ -221,7 +224,10 @@ to it.
   - a glossary, including retired terms;
   - what the system owns and what it delegates, including who holds authority
     over each piece of state;
-  - invariants, each naming the check that enforces it or marked `unenforced`;
+  - the invariants ledger: every rule specific to this repository, including
+    review priorities, each naming the check that enforces it or marked
+    `unenforced` for reviewers to judge (grammar under "Amendment: the
+    invariants ledger" below; ADR-006);
   - a code map from top-level directory to responsibility;
   - for libraries and APIs, the compatibility policy.
 - Never holds: deployment topology or live state, pins, environment
@@ -506,3 +512,36 @@ Stage 1, the next pin bump, handed to the harness engineer:
 6. Stories stay universal, CLIs and services included.
 7. The public-face section is approved as written: scoped by audience.
 8. Enforcement comes only through ratchet baselines and pin bumps.
+
+## Amendment: the invariants ledger (ADR-006, 2026-09-26)
+
+The operator placed every rule specific to a repository in one home, the
+`## Invariants` section of `DOMAIN.md`. Review priorities and invariants that
+code does not enforce leave `AGENTS.md`. A repository-root `WATCHDOG.md` is
+retired into the ledger.
+
+Each rule is one bullet:
+
+```
+- **INV-007** Schema changes land only through tracked migrations. Enforced by `scripts/check-migrations.sh`.
+- **INV-008** A read key never writes and an ingest key never queries. `unenforced`: reviewers judge it. Why: the 2026-08 key-scope incident. Scope: `supabase/**`.
+```
+
+- **Ids.** `INV-NNN` ids are unique within the repository and never reused.
+- **Enforcement.** A rule either names its check with `Enforced by` (a
+  command, script, test or lint rule) or is marked `unenforced`, which leaves
+  it for reviewers to judge. A rule that a lint rule, test or script could
+  decide is not left `unenforced` once a check exists; pokayoke prefers the
+  check.
+- **Optional fields.** `Why:` links the incident, postmortem or decision
+  behind the rule. `Scope:` names path globs so reviewers load only the rules
+  a change touches.
+- **What does not belong.** The ledger never restates a Foundation Standard
+  obligation, since reviewers receive the pinned catalog and `foundation.json`
+  directly. Pure style belongs to the formatter or linter.
+- **Changes.** Editing the ledger is a policy change and needs the designated
+  reviewer (ADR-006). Reviewers read the ledger at the base revision, so a pull
+  request cannot rewrite the rules that judge it.
+- **Checks.** Stage 1's `doc:DOMAIN.md` check extends to the ledger grammar,
+  and "an invariant cites a missing check" becomes a failing gap. Both land
+  with the catalog change that cites ADR-006.
