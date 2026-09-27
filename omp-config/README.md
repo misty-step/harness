@@ -782,8 +782,11 @@ hop from a non-Opus primary can still follow that original pinned chain.
 Nor does it repair a saved session already running DeepSeek, protect other
 Opus model/provider identities, or override more-specific project/run settings.
 Start guarded work on the configured Opus primary, not on a recovery hop.
-Changing the configured Opus version requires updating its model-key guard;
-the installer regression checks every configured Opus primary.
+Changing the configured Opus version requires updating its model-key guard
+and registering the new key in `bin/omp-merge-config.ts`'s owned retirement
+list. Keep prior owned keys there so removal from source also removes them
+from live config. The regression checks every configured Opus primary and
+a successor cutover while preserving an unrelated model guard.
 
 Fallbacks recover provider failures, not hard prompts, and require working
 credentials. A main session selected with a role alias still carries the

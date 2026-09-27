@@ -116,11 +116,12 @@ foreign: {keep: true}
 	});
 });
 
-test("US-014 installed Opus primaries fail closed without disabling subscription-first recovery", () => {
+test("US-014 Opus guards fail closed, retire on cutover, and preserve allowed recovery", () => {
 	const source = readFileSync(join(import.meta.dir, "../config.yml"), "utf8");
 	const files = fixture(source, `retry:
   fallbackChains:
     anthropic/claude-opus-5-5: [openrouter/deepseek/deepseek-v4.1-flash:max]
+    anthropic/claude-opus-4-6: []
 `);
 	expect(invoke(files).exitCode).toBe(0);
 	const installed = parsed(files) as {
@@ -142,4 +143,20 @@ test("US-014 installed Opus primaries fail closed without disabling subscription
 			expect(chain.slice(paid).every(selector => selector.startsWith("openrouter/"))).toBe(true);
 		}
 	}
+	const successor = "anthropic/claude-opus-next";
+	const next = Bun.YAML.parse(source) as typeof installed;
+	for (const [role, selector] of Object.entries(next.modelRoles)) {
+		const model = selector.replace(/:[^/:]+$/, "");
+		if (opusModels.has(model)) next.modelRoles[role] = selector.replace(model, successor);
+	}
+	for (const model of opusModels) delete next.retry.fallbackChains[model];
+	next.retry.fallbackChains[successor] = [];
+	writeFileSync(files.source, Bun.YAML.stringify(next));
+	expect(invoke(files).exitCode).toBe(0);
+	const migrated = parsed(files) as typeof installed;
+	for (const model of opusModels) {
+		expect(Object.hasOwn(migrated.retry.fallbackChains, model)).toBe(false);
+	}
+	expect(migrated.retry.fallbackChains[successor]).toEqual([]);
+	expect(migrated.retry.fallbackChains["anthropic/claude-opus-4-6"]).toEqual([]);
 });
