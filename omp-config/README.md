@@ -780,8 +780,12 @@ there is no need to disable `retry.modelFallback` globally.
 The guard is not a universal current-model veto: an Opus entered as a recovery
 hop from a non-Opus primary can still follow that original pinned chain.
 Nor does it repair a saved session already running DeepSeek, protect other
-Opus model/provider identities, or override more-specific project/run settings.
-Start guarded work on the configured Opus primary, not on a recovery hop.
+Opus model/provider identities, or override more-specific local selectors or
+project/run settings. An effort-specific key such as
+`anthropic/claude-opus-5-5:max` outranks this suffixless guard; installers
+preserve foreign keys. Before deployment, inspect effective selectors for
+such overrides. Start guarded work on the configured Opus primary, not on a
+recovery hop.
 Changing the configured Opus version requires updating its model-key guard
 and registering the new key in `bin/omp-merge-config.ts`'s owned retirement
 list. Keep prior owned keys there so removal from source also removes them
