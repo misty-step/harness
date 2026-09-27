@@ -426,8 +426,8 @@ Evidence: `agent-config/bin/design-check.test.ts`,
 ## US-014 Use subscriptions before paid model recovery
 
 Statement: When I start or delegate work in any harness, I want my model policy
-applied per role (Claude Opus 5.5 preferred and orchestrating, Opus for
-anything visual, GPT-6 workhorse subagents with Sol and Luna at max, Astra at
+applied per role (Claude Opus 5.5 preferred and orchestrating, Opus required for
+visual, motion, UX and communications work, GPT-6 workhorse subagents with Sol and Luna at max, Astra at
 high or above for system design, architecture, and code review, Grok 4.7 last)
 with subscription recovery before paid API routes, so routine work uses my
 preferred accounts without making login failure look like additional capacity.
@@ -438,15 +438,17 @@ Criteria:
    `slow` SHALL resolve Opus xhigh and `extreme` Opus max.
 2. WHEN OMP resolves `vision` or the `designer` agent, THE SYSTEM SHALL select
    Opus 5.5 at high or above, and the `vision` role's fallback chain SHALL
-   contain only Opus.
+   contain only Opus. IF a session starts on the configured Opus primary and
+   that provider fails, THEN THE SYSTEM SHALL stop after same-model recovery
+   rather than switch models, at every reasoning level.
 3. WHEN OMP resolves `task`, THE SYSTEM SHALL select GPT-6 Sol with max
    reasoning; WHEN it resolves `smol`, `commit`, or `advisor`, GPT-6 Luna with
    max reasoning; WHEN it resolves `plan` or `reviewer`, GPT-6 Astra high; and
    `security-reviewer`, Astra max.
-4. IF a selected provider fails, THEN THE SYSTEM SHALL offer a subscription
-   route from another provider before a paid OpenRouter route, with every Sol
-   or Luna link at max reasoning and Grok 4.7 only as the last subscription
-   link.
+4. WHERE cross-model recovery is allowed, IF a selected provider fails, THEN
+   THE SYSTEM SHALL offer a subscription route from another provider before a
+   paid OpenRouter route, with every Sol or Luna link at max reasoning and
+   Grok 4.7 only as the last subscription link.
 5. WHEN the Pi installer runs, THE SYSTEM SHALL select Opus 5.5 as Pi's default
    only if Pi-native Anthropic and Codex logins report ready, and otherwise
    SHALL keep the DeepSeek default and print the login instruction.
@@ -457,7 +459,7 @@ No-gos: no copying OAuth credentials between harnesses; no frontier model
 through OpenRouter as a default; no Pi default that is not authenticated.
 
 Evidence: `omp-config/config.yml`, `omp-config/agents/designer.md`,
-`omp-config/global/AGENTS.md`, `omp-config/README.md`,
+`omp-config/bin/omp-merge-config.test.ts`, `omp-config/global/AGENTS.md`, `omp-config/README.md`,
 `pi-config/settings.subscription.json`, `pi-config/install`,
 `./scripts/verify all`, fresh OMP role-selection and forced-outage smoke checks.
 

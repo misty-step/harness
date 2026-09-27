@@ -74,6 +74,9 @@ providers:
     - exa
 retry:
   fallbackChains:
+    # Model keys outrank role chains, including a main session's `default`.
+    # No effort suffix: every Opus 5.5 reasoning level stops on an outage.
+    anthropic/claude-opus-5-5: []
     advisor:
       - google-antigravity/gemini-3.8-flash:high
       - xai-oauth/grok-4.7:xhigh
@@ -114,8 +117,7 @@ retry:
       - openai-codex/gpt-6-sol:max
       - xai-oauth/grok-4.7:xhigh
       - openrouter/deepseek/deepseek-v4.1-flash:max
-    # Visual work always stays on Opus: an empty chain would inherit `default`,
-    # so the only link is Opus itself and an Anthropic outage exhausts instead.
+    # Dedicated vision consumers also retain an Opus-only chain.
     vision:
       - anthropic/claude-opus-5-5:xhigh
     smol:

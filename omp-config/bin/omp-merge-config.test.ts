@@ -115,3 +115,48 @@ foreign: {keep: true}
 		foreign: { keep: true },
 	});
 });
+
+test("US-014 Opus guards fail closed, retire on cutover, and preserve allowed recovery", () => {
+	const source = readFileSync(join(import.meta.dir, "../config.yml"), "utf8");
+	const files = fixture(source, `retry:
+  fallbackChains:
+    anthropic/claude-opus-5-5: [openrouter/deepseek/deepseek-v4.1-flash:max]
+    anthropic/claude-opus-4-6: []
+`);
+	expect(invoke(files).exitCode).toBe(0);
+	const installed = parsed(files) as {
+		modelRoles: Record<string, string>;
+		retry: { modelFallback?: boolean; fallbackChains: Record<string, string[]> };
+	};
+	const opusModels = new Set(Object.values(installed.modelRoles)
+		.filter(selector => selector.includes("/claude-opus-"))
+		.map(selector => selector.replace(/:[^/:]+$/, "")));
+	// Fail rather than silently passing if the policy no longer selects any Opus.
+	expect(opusModels.size).toBeGreaterThan(0);
+	for (const model of opusModels) {
+		expect(installed.retry.fallbackChains[model]).toEqual([]);
+	}
+	expect(installed.retry.modelFallback).not.toBe(false);
+	for (const chain of Object.values(installed.retry.fallbackChains)) {
+		const paid = chain.findIndex(selector => selector.startsWith("openrouter/"));
+		if (paid !== -1) {
+			expect(chain.slice(paid).every(selector => selector.startsWith("openrouter/"))).toBe(true);
+		}
+	}
+	const successor = "anthropic/claude-opus-next";
+	const next = Bun.YAML.parse(source) as typeof installed;
+	for (const [role, selector] of Object.entries(next.modelRoles)) {
+		const model = selector.replace(/:[^/:]+$/, "");
+		if (opusModels.has(model)) next.modelRoles[role] = selector.replace(model, successor);
+	}
+	for (const model of opusModels) delete next.retry.fallbackChains[model];
+	next.retry.fallbackChains[successor] = [];
+	writeFileSync(files.source, Bun.YAML.stringify(next));
+	expect(invoke(files).exitCode).toBe(0);
+	const migrated = parsed(files) as typeof installed;
+	for (const model of opusModels) {
+		expect(Object.hasOwn(migrated.retry.fallbackChains, model)).toBe(false);
+	}
+	expect(migrated.retry.fallbackChains[successor]).toEqual([]);
+	expect(migrated.retry.fallbackChains["anthropic/claude-opus-4-6"]).toEqual([]);
+});

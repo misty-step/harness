@@ -56,6 +56,7 @@ function pruneRetiredKeys(source: Yaml, merged: Yaml): void {
 		["retry", "fallbackChains", "designer"],
 		["retry", "fallbackChains", "reviewer"],
 		["retry", "fallbackChains", "security-reviewer"],
+		["retry", "fallbackChains", "anthropic/claude-opus-5-5"],
 	];
 	for (const path of paths) {
 		let sourceParent: Yaml | undefined = source;
