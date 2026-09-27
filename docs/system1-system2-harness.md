@@ -227,12 +227,17 @@ would otherwise send differently:
 The wire API remains a harness choice: OMP uses Responses and Pi uses chat
 completions.
 
-There is no provider fallback in any arm. A provider failure is an
-infrastructure failure: the run repeats, at most twice, and never switches
-models. The boundary also holds spend strictly under `--spend-limit`: it admits
-a call only if the settled cost of earlier calls plus the worst case of every
-unsettled call still fits, and it settles each call from OpenRouter's own cost
-for that generation.
+There is no provider fallback in any arm. A pinned upstream can still throttle:
+the round-2 Qwen check received 133 HTTP 429s across 16 of 18 runs. The runner
+recorded them, but its process exit of zero did not invalidate interrupted
+no-patch changes; the [round-2 record](measurements/s1s2-round2-2026-09-26.md)
+marks that model check confounded rather than attributing the result to a
+harness. A future repeat must reject sustained provider interruptions for
+both contestants before scoring them. The boundary holds spend under each
+`--spend-limit` by counting settled cost plus the worst case of unsettled
+calls. After the round-2 runs, Jev's reservation was raised to at least its
+advertised input-context token count; billed key usage remains the account
+spend authority.
 
 ### Tasks
 
@@ -417,9 +422,11 @@ the [pilot record](measurements/s1s2-vibe-2026-09-25.md).
   a Jev cross-check, and a human spot-check. In the pilot, judges who scored two
   identical diffs equally still ranked candidate A first, so exact-tie rankings
   count as ties.
-- **Provider drift during the run.** Mitigated by interleaved arms and one
-  pinned OpenRouter upstream with fallbacks off. The pilot ran before the pin,
-  and its arms reached different upstreams at different prices.
+- **Provider drift and availability.** Interleaved arms and one pinned
+  OpenRouter upstream with fallbacks off make routes comparable; they do not
+  guarantee provider availability. The pilot ran before the pin and reached
+  different upstreams at different prices. Round 2's Qwen upstream throttled
+  most runs, leaving its cross-harness result confounded as recorded above.
 - **Threshold overfitting.** System 1 thresholds are frozen after the pilot and
   never tuned on main-run tasks.
 - **Contamination.** Tasks are merged pull requests, so the model may have seen

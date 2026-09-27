@@ -54,6 +54,7 @@ import { userInfo } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { redactText } from "../../../../agent-config/system-one/continuation.ts";
 import { OpenRouterJevProvider } from "../../../../agent-config/system-one/engine.ts";
+import { pricedBound, worstCallUsd, type Bound, type Endpoint } from "./spend.ts";
 
 type Command = { cwd: string; cmd: string };
 type Task = { id: string; pr: number; size: string; base: string; merge: string; hidden: string[]; grade: Command[]; regress: Command[]; statement: string };
@@ -166,30 +167,20 @@ const MODEL_PATHS = new Set(["/api/v1/chat/completions", "/api/v1/responses"]);
 const JEV_PATH = "/api/alpha/decisions";
 /** OpenRouter refusals issued before a request is routed to a provider; every other failure keeps its worst case. */
 const PRE_GENERATION = new Set([400, 401, 402, 403, 404, 413, 422, 429]);
-type Rates = Record<string, unknown>;
-type Endpoint = { tag?: string; max_completion_tokens?: number | null; context_length?: number; pricing?: Rates & { overrides?: Rates[] } };
 
-type Bound = { cost: (bytes: number) => number; ceiling: number };
-/**
- * Worst-case USD of a call carrying `bytes`: every byte an uncached input token, plus the full
- * completion ceiling, at the dearest of the endpoint's base and time-window prices (DeepSeek
- * doubles its rates in some UTC windows). `ceiling` is the endpoint's own output limit.
- */
 async function bound(model: string, tag?: string): Promise<Bound> {
 	const response = await fetch(`${openrouterBase}/api/v1/models/${model}/endpoints`, { signal: AbortSignal.timeout(30_000) });
 	const all = ((await response.json()) as { data?: { endpoints?: Endpoint[] } }).data?.endpoints ?? [];
-	const matched = all.filter((endpoint) => !tag || endpoint.tag === tag || endpoint.tag?.startsWith(`${tag}/`));
-	const rates = matched.flatMap((endpoint) => [endpoint.pricing ?? {}, ...(endpoint.pricing?.overrides ?? [])]);
-	const price = (key: string) => Math.max(0, ...rates.map((rate) => Number(rate[key] ?? 0) || 0));
-	const ceiling = Math.max(0, ...matched.map((endpoint) => endpoint.max_completion_tokens ?? endpoint.context_length ?? 0));
-	const input = price("prompt");
-	const output = Math.max(price("completion"), price("internal_reasoning"));
-	if (matched.length === 0 || !(input > 0) || !(ceiling > 0)) fail(`cannot bound the cost of ${model}${tag ? ` on ${tag}` : ""}`);
-	return { cost: (bytes) => bytes * input + ceiling * output + price("request"), ceiling };
+	try {
+		return pricedBound(model, all, tag);
+	} catch (error) {
+		return fail(error instanceof Error ? error.message : String(error));
+	}
 }
 const bounds = new Map<string, Bound>();
 for (const [model, pin] of PINS) bounds.set(model, await bound(model, pin));
 const jevBound = await bound(JEV_MODEL);
+if (!(jevBound.contextTokens > 0)) fail(`cannot bound the input context of ${JEV_MODEL}`);
 const worstModelCall = Math.max(...[...bounds.values()].map((entry) => entry.cost(0)));
 /** The output ceiling the parity shim sends for System 2's model: --max-output, capped at the pinned endpoint's own limit. */
 const maxOutputFor = (model: string): string => (maxOutput ? String(Math.min(Number(maxOutput), bounds.get(model)?.ceiling ?? Number(maxOutput))) : "");
@@ -289,7 +280,7 @@ const boundaryServer = Bun.serve({
 			}
 			if (pin) payload.provider = { order: [pin], allow_fallbacks: false };
 			body = JSON.stringify(payload);
-			const worstUsd = limit.cost(Buffer.byteLength(body));
+			const worstUsd = worstCallUsd(limit, Buffer.byteLength(body), pathname === JEV_PATH);
 			if (spendLimit > 0 && ledger.settledUsd + ledger.pendingUsd + worstUsd > spendLimit) {
 				hardStop = `spend cap: $${(ledger.settledUsd + ledger.pendingUsd).toFixed(4)} committed, and the next call could cost $${worstUsd.toFixed(4)}; the cap is $${spendLimit}`;
 				return new Response(hardStop, { status: 402 });
