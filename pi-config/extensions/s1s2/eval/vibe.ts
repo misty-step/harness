@@ -54,7 +54,7 @@ import { userInfo } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { redactText } from "../../../../agent-config/system-one/continuation.ts";
 import { OpenRouterJevProvider } from "../../../../agent-config/system-one/engine.ts";
-import { pricedBound, worstCallUsd, type Bound, type Endpoint } from "./spend.ts";
+import { pricedBound, worstCallUsd, type Bound } from "./spend.ts";
 
 type Command = { cwd: string; cmd: string };
 type Task = { id: string; pr: number; size: string; base: string; merge: string; hidden: string[]; grade: Command[]; regress: Command[]; statement: string };
@@ -169,10 +169,10 @@ const JEV_PATH = "/api/alpha/decisions";
 const PRE_GENERATION = new Set([400, 401, 402, 403, 404, 413, 422, 429]);
 
 async function bound(model: string, tag?: string): Promise<Bound> {
-	const response = await fetch(`${openrouterBase}/api/v1/models/${model}/endpoints`, { signal: AbortSignal.timeout(30_000) });
-	const all = ((await response.json()) as { data?: { endpoints?: Endpoint[] } }).data?.endpoints ?? [];
 	try {
-		return pricedBound(model, all, tag);
+		const response = await fetch(`${openrouterBase}/api/v1/models/${model}/endpoints`, { signal: AbortSignal.timeout(30_000) });
+		if (!response.ok) throw new Error(`OpenRouter's endpoint listing for ${model} returned HTTP ${response.status}`);
+		return pricedBound(model, await response.json(), tag);
 	} catch (error) {
 		return fail(error instanceof Error ? error.message : String(error));
 	}

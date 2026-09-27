@@ -1,13 +1,35 @@
 // The evaluation boundary prices an upper bound, never a typical token estimate (US-030).
-type Rates = Record<string, unknown>;
-export type Endpoint = { tag?: string; max_completion_tokens?: number | null; context_length?: number; pricing?: Rates & { overrides?: Rates[] } };
+type Fields = Record<string, unknown>;
+type Endpoint = { tag?: string; max_completion_tokens?: number | null; context_length?: number; pricing?: Fields & { overrides?: Fields[] } };
 export type Bound = { cost: (inputTokenUpperBound: number) => number; ceiling: number; contextTokens: number };
 
-/** Dearest endpoint/base or time-window rate, with its full completion ceiling. */
-export function pricedBound(model: string, endpoints: readonly Endpoint[], tag?: string): Bound {
+const isFields = (value: unknown): value is Fields => typeof value === "object" && value !== null && !Array.isArray(value);
+const optional = (value: unknown, type: "string" | "number") => value === undefined || typeof value === type;
+
+/** Only the shape priced below. One malformed endpoint rejects the listing: dropping it could drop the dearest rate. */
+function isEndpoint(value: unknown): value is Endpoint {
+	if (!isFields(value) || !optional(value.tag, "string") || !optional(value.context_length, "number")) return false;
+	if (value.max_completion_tokens !== null && !optional(value.max_completion_tokens, "number")) return false;
+	const pricing = value.pricing;
+	return pricing === undefined || (isFields(pricing) && (pricing.overrides === undefined || (Array.isArray(pricing.overrides) && pricing.overrides.every(isFields))));
+}
+
+/** A listed USD price; an unreadable or negative one fails closed instead of counting as free. */
+function usd(model: string, value: unknown): number {
+	if (value === undefined) return 0;
+	const price = typeof value === "string" || typeof value === "number" ? Number(value) : Number.NaN;
+	if (!Number.isFinite(price) || price < 0) throw new Error(`OpenRouter listed an unreadable price for ${model}: ${JSON.stringify(value)}`);
+	return price;
+}
+
+/** From OpenRouter's raw endpoint listing: the dearest base or time-window rate, with the full completion ceiling. */
+export function pricedBound(model: string, listing: unknown, tag?: string): Bound {
+	const data = isFields(listing) ? listing.data : undefined;
+	const endpoints = isFields(data) ? data.endpoints : undefined;
+	if (!Array.isArray(endpoints) || !endpoints.every(isEndpoint)) throw new Error(`OpenRouter returned no valid endpoint list for ${model}`);
 	const matched = endpoints.filter((endpoint) => !tag || endpoint.tag === tag || endpoint.tag?.startsWith(`${tag}/`));
 	const rates = matched.flatMap((endpoint) => [endpoint.pricing ?? {}, ...(endpoint.pricing?.overrides ?? [])]);
-	const price = (key: string) => Math.max(0, ...rates.map((rate) => Number(rate[key] ?? 0) || 0));
+	const price = (key: string) => Math.max(0, ...rates.map((rate) => usd(model, rate[key])));
 	const ceiling = Math.max(0, ...matched.map((endpoint) => endpoint.max_completion_tokens ?? endpoint.context_length ?? 0));
 	const contextTokens = Math.max(0, ...matched.map((endpoint) => endpoint.context_length ?? 0));
 	const input = price("prompt");
