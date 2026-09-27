@@ -7,9 +7,7 @@ import { claimsUnavailable, isAuthFailure, matchEntries, serviceTokens } from ".
 const ENTRIES = [
 	"workstation/SENTRY_AUTH_TOKEN",
 	"workstation/DOUBLETAKE_CONVEX_DEPLOY_KEY",
-	"workstation/DOUBLETAKE_OPENROUTER_API_KEY",
 	"workstation/LINEAR_API_KEY",
-	"workstation/OPENROUTER_R90_ALLIE_API_KEY",
 ];
 
 describe("credential awareness", () => {
