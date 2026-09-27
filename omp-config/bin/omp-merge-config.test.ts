@@ -115,3 +115,31 @@ foreign: {keep: true}
 		foreign: { keep: true },
 	});
 });
+
+test("US-014 installed Opus primaries fail closed without disabling subscription-first recovery", () => {
+	const source = readFileSync(join(import.meta.dir, "../config.yml"), "utf8");
+	const files = fixture(source, `retry:
+  fallbackChains:
+    anthropic/claude-opus-5-5: [openrouter/deepseek/deepseek-v4.1-flash:max]
+`);
+	expect(invoke(files).exitCode).toBe(0);
+	const installed = parsed(files) as {
+		modelRoles: Record<string, string>;
+		retry: { modelFallback?: boolean; fallbackChains: Record<string, string[]> };
+	};
+	const opusModels = new Set(Object.values(installed.modelRoles)
+		.filter(selector => selector.includes("/claude-opus-"))
+		.map(selector => selector.replace(/:[^/:]+$/, "")));
+	// Fail rather than silently passing if the policy no longer selects any Opus.
+	expect(opusModels.size).toBeGreaterThan(0);
+	for (const model of opusModels) {
+		expect(installed.retry.fallbackChains[model]).toEqual([]);
+	}
+	expect(installed.retry.modelFallback).not.toBe(false);
+	for (const chain of Object.values(installed.retry.fallbackChains)) {
+		const paid = chain.findIndex(selector => selector.startsWith("openrouter/"));
+		if (paid !== -1) {
+			expect(chain.slice(paid).every(selector => selector.startsWith("openrouter/"))).toBe(true);
+		}
+	}
+});

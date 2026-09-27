@@ -757,41 +757,55 @@ push, and similar mechanical ship steps use bundled `sonic` (`@smol`). Omitting
 `agent` selects `@task`/Sol max. Choose agents for their roles, not as
 differently priced implementation workers.
 
-The twelve explicit retry chains are `default`, `task`, `advisor`, `plan`,
-`reviewer`, `slow`, `extreme`, `security-reviewer`, `vision`, `smol`, `tiny`,
-and `commit`. Opus's default chain tries Sol max, then Luna max, then Opus
-medium (so a session running a Codex model reaches Anthropic before xAI), then
-Grok 4.7, and finally paid OpenRouter DeepSeek V4.1 Flash. Sol's `task` chain
-tries Luna, Opus medium, then Grok. Astra's `plan`, `reviewer`, and security
-chains try Opus high, Sol max, then Grok. Opus's `slow` and `extreme` chains try
-Astra (high, max), Sol max, then Grok. The `vision` chain lists only Opus, so
-the vision role never degrades to another model. A spawned `designer` child
-under a forced Anthropic outage (2026-09-25, Sol parent) failed closed after its
-retry budget ("Connection error") instead of switching models, so delegated
-visual work stays on Opus. Under the same outage, a Sol main session's
-`read red.png?q=…` image question returned `Connection error` instead of
-switching models, so image questions through the `vision` role also fail
-closed. A main session's own model follows `default` and would move to Sol, so
-guidance routes visual judgment through `?q=` or `designer`. Luna's mechanical chains try Opus
-medium, then Grok. Advisor uses Luna max, then Gemini 3.8 Flash high on Google
-Antigravity, then Grok 4.7 xhigh. Every other chain ends with paid DeepSeek, and
-each link accepts images. Task quality and whole-task cost effects of this
-policy remain unmeasured.
+Visual, motion, UX and communications work must start on Opus and stop on an
+outage rather than switch models (US-014, operator decision 2026-09-27).
+`retry.fallbackChains` has an empty chain keyed by the configured Opus model,
+without an effort suffix. Native OMP model-selector keys outrank role chains:
+this covers direct selection and role aliases at every reasoning level,
+including a main session whose session role is `default`. Normal same-model
+retries remain available; exhausting them surfaces the provider error.
 
-Fallbacks recover provider failures, not hard prompts; they require working
-credentials. A session's model falls back through its session role's chain:
-a main session started with `--model @smol` follows `default`, not `smol`.
-Forced outages on 2026-09-25 (`PI_PROXY_<PROVIDER>` pointed at a dead local
-port, `retry.maxRetries: 1`) showed an Anthropic outage moving default Opus to
-Sol max, and a Codex outage moving a Luna session through Sol to Opus medium.
-A main session started with `--model @vision` also follows `default`. Grok is
-the last subscription provider before the paid
-OpenRouter recovery link. If a subscription is exhausted or
-its login expires, the chain can still reach a paid route. Existing sessions
-keep their selected model and Pi's separate OpenRouter default is unchanged:
-Pi has no Codex or Anthropic OAuth configuration. Do not copy OMP OAuth tokens
-into Pi; authorize that harness separately before moving its default.
+This is deliberately a model boundary, not a task-purpose classifier. It also
+stops automatic fallback for coding sessions started on that Opus model.
+Select a non-Opus primary explicitly when cross-model recovery is appropriate.
+Do not use an extension that throws during startup as a substitute: OMP can
+isolate extension failures and continue.
+
+The role chains remain in `config.yml` for allowed non-Opus recovery. They
+retain subscription providers before paid OpenRouter, with Grok last among
+subscriptions. The dedicated `vision` chain also remains Opus-only. Unlike an
+absent chain, an explicit empty model chain means no fallback candidates;
+there is no need to disable `retry.modelFallback` globally.
+
+The guard is not a universal current-model veto: an Opus entered as a recovery
+hop from a non-Opus primary can still follow that original pinned chain.
+Nor does it repair a saved session already running DeepSeek, protect other
+Opus model/provider identities, or override more-specific project/run settings.
+Start guarded work on the configured Opus primary, not on a recovery hop.
+Changing the configured Opus version requires updating its model-key guard;
+the installer regression checks every configured Opus primary.
+
+Fallbacks recover provider failures, not hard prompts, and require working
+credentials. A main session selected with a role alias still carries the
+`default` session role; the model-specific guard is what closes that gap.
+The 2026-09-25 forced-outage observation of default Opus moving to Sol described
+the old configuration, not the guarded policy. The separate `designer` and
+image-question outage checks on that date already stopped on Opus.
+Task quality and whole-task cost effects remain unmeasured.
+
+Existing sessions retain their selected model; deployment is not a retrofit
+of active fallback state. After installing, restart guarded work on an explicit
+Opus primary and verify the selected model before continuing. Pi's separate
+default/authentication policy is unchanged. Do not copy OMP OAuth tokens into Pi.
 Exa search, approval mode, and the local title-model setting are unchanged.
+
+For outage verification, use the real OMP CLI with disposable HOME/agent state
+and a network-disabled synthetic provider extension, not live account exhaustion.
+Keep model fallback enabled and every recovery candidate available. Compare
+guarded Opus with a control that removes only its model-key guard; the control
+must actually reach the final OpenRouter candidate. Also walk a non-Opus
+recovery and a healthy Opus turn. Preserve the original error, attempted-model
+trace and exit status as PR evidence, then remove the disposable state.
 
 Use `omp models find anthropic/claude-opus-5-5 --json` to inspect the
 exact catalog entry and supported thinking levels. After routing changes, deploy
