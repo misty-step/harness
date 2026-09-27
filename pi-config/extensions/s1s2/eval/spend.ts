@@ -22,17 +22,21 @@ function usd(model: string, value: unknown): number {
 	return price;
 }
 
-/** From OpenRouter's raw endpoint listing: the dearest base or time-window rate, with the full completion ceiling. */
+/** From OpenRouter's raw endpoint listing: each token kind's dearest base or time-window rate, with the full completion ceiling. */
 export function pricedBound(model: string, listing: unknown, tag?: string): Bound {
 	const data = isFields(listing) ? listing.data : undefined;
 	const endpoints = isFields(data) ? data.endpoints : undefined;
 	if (!Array.isArray(endpoints) || !endpoints.every(isEndpoint)) throw new Error(`OpenRouter returned no valid endpoint list for ${model}`);
 	const matched = endpoints.filter((endpoint) => !tag || endpoint.tag === tag || endpoint.tag?.startsWith(`${tag}/`));
+	// Every matched endpoint must list what the bound multiplies; an omitted value would count as zero.
+	const unlisted = matched.find((endpoint) => !((endpoint.context_length ?? 0) > 0) || endpoint.pricing?.prompt === undefined || endpoint.pricing?.completion === undefined);
+	if (unlisted) throw new Error(`OpenRouter lists no context length or base prompt and completion rates for ${model}${unlisted.tag ? ` on ${unlisted.tag}` : ""}`);
 	const rates = matched.flatMap((endpoint) => [endpoint.pricing ?? {}, ...(endpoint.pricing?.overrides ?? [])]);
 	const price = (key: string) => Math.max(0, ...rates.map((rate) => usd(model, rate[key])));
 	const ceiling = Math.max(0, ...matched.map((endpoint) => endpoint.max_completion_tokens ?? endpoint.context_length ?? 0));
 	const contextTokens = Math.max(0, ...matched.map((endpoint) => endpoint.context_length ?? 0));
-	const input = price("prompt");
+	// Input may bill at the cache-write rate, which can exceed the uncached prompt rate.
+	const input = Math.max(price("prompt"), price("input_cache_write"));
 	const output = Math.max(price("completion"), price("internal_reasoning"));
 	if (matched.length === 0 || !(input > 0) || !(ceiling > 0)) throw new Error(`cannot bound the cost of ${model}${tag ? ` on ${tag}` : ""}`);
 	const fixed = ceiling * output + price("request");

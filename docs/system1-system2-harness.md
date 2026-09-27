@@ -235,9 +235,10 @@ marks that model check confounded rather than attributing the result to a
 harness. A future repeat must reject sustained provider interruptions for
 both contestants before scoring them. The boundary holds spend under each
 `--spend-limit` by counting settled cost plus the worst case of unsettled
-calls. After the round-2 runs, Jev's reservation was raised to at least its
-advertised input-context token count; billed key usage remains the account
-spend authority.
+calls. After the round-2 runs, that worst case prices input at the dearer of
+the prompt and cache-write rates and reserves Jev at least its advertised
+input context, and a listing missing a context length or base rate stops the
+runner; billed key usage remains the account spend authority.
 
 ### Tasks
 
