@@ -11,6 +11,7 @@ modelRoles:
   smol: openai-codex/gpt-6-luna:max
   tiny: openai-codex/gpt-6-luna:max
   commit: openai-codex/gpt-6-luna:max
+  web: web/exa
 cycleOrder: [smol, default, extreme]
 symbolPreset: nerd
 theme:
@@ -69,7 +70,6 @@ advisor:
   enabled: true
   syncBacklog: "off"
 providers:
-  tinyModel: lfm2-350m
   webSearchOrder:
     - exa
 retry:
@@ -81,57 +81,68 @@ retry:
       - openai-codex/gpt-6-sol:medium
       - xai-oauth/grok-4.7:xhigh
       - google-antigravity/gemini-3.8-flash:high
+    # Web search recovery stays on search providers, never retired chat models.
+    web:
+      - web/parallel
+      - web/perplexity
+      - web/zai
+      - web/tinyfish
+      - web/jina
+      - web/kagi
+      - web/tavily
+      - web/firecrawl
+      - web/brave
+      - web/kimi
+      - web/synthetic
+      - web/ollama
+      - web/searxng
+      - web/startpage
+      - web/duckduckgo
+      - web/ecosia
+      - web/google
+      - web/mojeek
+      - web/public
     default:
       - openai-codex/gpt-6-sol:max
       - openai-codex/gpt-6-luna:max
       - anthropic/claude-opus-5-5:medium
       - xai-oauth/grok-4.7:xhigh
-      - openrouter/deepseek/deepseek-v4.1-flash:max
     task:
       - openai-codex/gpt-6-luna:max
       - anthropic/claude-opus-5-5:medium
       - xai-oauth/grok-4.7:xhigh
-      - openrouter/deepseek/deepseek-v4.1-flash:max
     plan:
       - anthropic/claude-opus-5-5:high
       - openai-codex/gpt-6-sol:max
       - xai-oauth/grok-4.7:xhigh
-      - openrouter/deepseek/deepseek-v4.1-flash:max
     reviewer:
       - anthropic/claude-opus-5-5:high
       - openai-codex/gpt-6-sol:max
       - xai-oauth/grok-4.7:xhigh
-      - openrouter/deepseek/deepseek-v4.1-flash:max
     slow:
       - openai-codex/gpt-6-astra:high
       - openai-codex/gpt-6-sol:max
       - xai-oauth/grok-4.7:xhigh
-      - openrouter/deepseek/deepseek-v4.1-flash:max
     extreme:
       - openai-codex/gpt-6-astra:max
       - openai-codex/gpt-6-sol:max
       - xai-oauth/grok-4.7:xhigh
-      - openrouter/deepseek/deepseek-v4.1-flash:max
     security-reviewer:
       - anthropic/claude-opus-5-5:high
       - openai-codex/gpt-6-sol:max
       - xai-oauth/grok-4.7:xhigh
-      - openrouter/deepseek/deepseek-v4.1-flash:max
     # Dedicated vision consumers also retain an Opus-only chain.
     vision:
       - anthropic/claude-opus-5-5:xhigh
     smol:
       - anthropic/claude-opus-5-5:medium
       - xai-oauth/grok-4.7:xhigh
-      - openrouter/deepseek/deepseek-v4.1-flash:max
     tiny:
       - anthropic/claude-opus-5-5:medium
       - xai-oauth/grok-4.7:xhigh
-      - openrouter/deepseek/deepseek-v4.1-flash:max
     commit:
       - anthropic/claude-opus-5-5:medium
       - xai-oauth/grok-4.7:xhigh
-      - openrouter/deepseek/deepseek-v4.1-flash:max
 task:
   maxRecursionDepth: 3
   showResolvedModelBadge: true

@@ -53,6 +53,7 @@ test("full config retirement removes only absent owned leaves and preserves fore
 	const astra = "openai-codex/gpt-6-astra:high";
 	const flash = "google-antigravity/gemini-3.8-flash:high";
 	const source = {
+		providers: { webSearchOrder: ["exa"] },
 		modelRoles: {
 			default: astra, slow: astra, extreme: "openai-codex/gpt-6-astra:max",
 			plan: astra, advisor: astra, task: astra, reviewer: astra, "security-reviewer": astra,
@@ -79,6 +80,9 @@ test("full config retirement removes only absent owned leaves and preserves fore
   default: old/default
   designer: old/designer
   fast: foreign/fast
+providers:
+  tinyModel: lfm2-350m
+  custom: keep
 retry:
   fallbackChains:
     default: [old/default]
@@ -106,6 +110,7 @@ foreign: {keep: true}
 	expect(result.stderr.toString()).toBe("");
 	expect(result.exitCode).toBe(0);
 	expect(parsed(files)).toEqual({
+		providers: { ...source.providers, custom: "keep" },
 		modelRoles: { ...source.modelRoles, fast: "foreign/fast" },
 		retry: { fallbackChains: { ...source.retry.fallbackChains, custom: ["foreign/custom"] } },
 		task: {
