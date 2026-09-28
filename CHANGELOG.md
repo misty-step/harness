@@ -1,3 +1,9 @@
+# [0.1.57](https://github.com/misty-step/harness/compare/v0.1.56...v0.1.57) (2026-09-28)
+<!-- landmark:protected-release previous=v0.1.56 source=ddef4dbddf44ed04f11acf879538c5f9021783df1bcb0e41b25868426224e82b -->
+
+### Bug Fixes
+
+* **harness:** narrow subtraction and keep visual floor (US-044, US-014) (#130) ([27280a9](https://github.com/misty-step/harness/commit/27280a984cf1bcf24af23bbacf21d33313c63021))
 # [0.1.56](https://github.com/misty-step/harness/compare/v0.1.55...v0.1.56) (2026-09-28)
 <!-- landmark:protected-release previous=v0.1.55 source=b5ad12d6c47af486bfa6e2ddcdd30bba292e9225e0f4e613264299e0cbb1f9a8 -->
 
