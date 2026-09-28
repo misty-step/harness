@@ -459,6 +459,8 @@ Criteria:
 2. WHEN OMP resolves `vision` or `designer`, THE SYSTEM SHALL select Opus 5.5
    at high or above. A designer child of a non-Opus parent SHALL use Opus high;
    a designer child of an Opus high/xhigh/max parent SHALL retain that level.
+   Missing Opus authentication SHALL block designer dispatch before native
+   startup can substitute the parent's authenticated model.
    The vision fallback chain SHALL contain only Opus. IF a session starts on
    the configured Opus primary and that provider fails, THEN THE SYSTEM SHALL
    stop after same-model recovery rather than switch models, at every
@@ -480,7 +482,9 @@ Criteria:
    Authorization or priority SHALL NOT be treated as proof of available quota.
 5. WHEN the Pi installer runs, THE SYSTEM SHALL select Sonnet 5.5 medium as
    Pi's default and report missing Pi-native logins rather than restore the
-   retired DeepSeek default.
+   retired DeepSeek default. If native startup selects an unapproved model
+   after login loss, agent prompts and provider requests SHALL be refused
+   before paid inference.
 6. WHEN configuration is deployed, THE SYSTEM SHALL preserve OAuth stores and
    the model already selected in existing sessions.
 7. WHEN OMP model routing is checked, THE SYSTEM SHALL reject every chat role,

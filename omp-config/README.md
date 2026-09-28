@@ -702,7 +702,7 @@ catalog across binary updates: an old process can fuzzy-resolve a new model ID
 to a different, retired model. Restart that process after a catalog upgrade.
 
 For a model-routing deployment, run
-`OMP_MODEL_PROBE=1 OMP_INSTALL_COMPONENTS='config guidance' ./omp-config/install`
+`OMP_MODEL_PROBE=1 OMP_INSTALL_COMPONENTS='config guidance extensions' ./omp-config/install`
 from the repository root. Before writing live config, the installer overlays
 the source onto a disposable copy of the effective config and rejects retired
 or unapproved chat selectors in every role, task agent override, and fallback,
@@ -782,6 +782,10 @@ retain their thinking level. A task's `agent` can name a model tagged with
 to the selected model's supported range. Designer `lo` and `med` are refused
 before spawn. The hook applies to `task`, not eval `agent()` or direct role
 selection.
+Designer dispatch also resolves Opus credentials before spawn. Missing models,
+missing credentials, lookup failures, and lookups exceeding five seconds return
+an explicit block; otherwise native startup can silently select the authenticated
+parent before retry chains apply. This checks authentication, not remaining quota.
 
 The native task result already records the actual resolved model identity,
 thinking level, and fallback status (`resolvedModelIdentity`,
@@ -859,7 +863,7 @@ exact catalog entry and supported thinking levels. After routing changes, deploy
 the changed owned components and inspect the effective settings:
 
 ```sh
-OMP_INSTALL_COMPONENTS="config guidance" ./install
+OMP_INSTALL_COMPONENTS="config guidance extensions" ./install
 omp config get modelRoles --json
 omp config get cycleOrder --json
 omp config get task.agentModelOverrides --json

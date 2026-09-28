@@ -48,3 +48,8 @@ builder recovery. Pi 0.87.1 has no native Antigravity provider, so OMP's Gemini
 Flash subscription tail cannot be mirrored here without inventing a provider
 or switching to paid inference; Pi's chain ends at Luna. OMP credentials remain
 separate and are never copied into Pi.
+The failover extension also closes Pi's native unauthenticated-default escape:
+an input handler consumes prompts on unapproved model selections, and a
+provider-request handler aborts extension-originated turns before transport.
+Thrown extension errors are not a guard because Pi catches them. The guard
+does not delete credentials or model catalog entries; it restricts agent turns.

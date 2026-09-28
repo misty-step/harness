@@ -41,9 +41,29 @@ const CHAIN = [
 	"openai-codex/gpt-6-luna",
 ];
 
+const approved = [...CHAIN, "anthropic/claude-opus-5-5", "openai-codex/gpt-6-astra"];
+const blockedRoute = "Model policy: select an approved subscription model and sign in with /login; paid startup fallback is disabled.";
+
 export default function (pi: ExtensionAPI) {
 	let hadError = false;
 	let errorText = "";
+
+	// Pi may skip an unauthenticated default and pick any authenticated
+	// provider. Consume input before that implicit selection can spend.
+	pi.on("input", (_event, ctx) => {
+		if (approved.includes(modelKey(ctx.model))) return;
+		ctx.ui.notify(blockedRoute, "error");
+		if (!ctx.hasUI) console.error(blockedRoute);
+		return { action: "handled" };
+	});
+	// Extension-originated agent requests also carry the native abort signal.
+	// Throwing here would fail open: Pi catches provider-hook exceptions.
+	pi.on("before_provider_request", (_event, ctx) => {
+		if (approved.includes(modelKey(ctx.model))) return;
+		ctx.ui.notify(blockedRoute, "error");
+		if (!ctx.hasUI) console.error(blockedRoute);
+		ctx.abort();
+	});
 
 	pi.on("agent_end", async (event) => {
 		const error = runError((event as { messages?: unknown })?.messages);
