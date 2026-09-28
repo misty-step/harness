@@ -690,32 +690,31 @@ do not maintain another skill copy in omp-config or install it globally.
 
 ### Model routing (US-014)
 
-OMP follows the operator's model policy (2026-09-25), subscriptions before paid
-API routes: Claude Opus 5.5 is preferred in general and orchestrates; anything
-visual goes to Opus at high or above; GPT-6 models are the workhorse subagents
-and Sol and Luna always run at max; Astra runs at high or above for system
-design, architecture, and code review; Grok 4.7 is last. The native roles and
+OMP follows the operator's model policy (US-014), subscriptions before paid
+API routes: Claude Opus 5.5 is preferred in general and orchestrates; visual
+work stays on Opus at high or above. Direct GPT-6 roles use Sol/Luna at max and
+Astra at high or above; `task` children inherit their parent's model and
+thinking by default instead. Grok 4.7 is last. Native roles and
 provider-failure chains live in `config.yml`; changing them does not switch
 the selected model in an existing session.
 
-| Entry point or role | Primary selection |
+| Direct selection or role default (before task inheritance) | Primary selection |
 | --- | --- |
 | Fresh `omp`, `@default` (orchestrator) | `anthropic/claude-opus-5-5:medium` |
-| Ordinary `task` workers, `@task` | `openai-codex/gpt-6-sol:max` |
-| `@smol`, `@commit`; bundled `scout` and `sonic` | `openai-codex/gpt-6-luna:max` |
+| `@task` | `openai-codex/gpt-6-sol:max` |
+| `@smol`, `@commit`; `scout` and `sonic` outside task dispatch | `openai-codex/gpt-6-luna:max` |
 | `@tiny` | local LFM2.5-350m first, then configured `openai-codex/gpt-6-luna:max` |
 | `@plan` (system design, architecture) | `openai-codex/gpt-6-astra:high` |
-| `reviewer` (code review) | `openai-codex/gpt-6-astra:high` |
-| `security-reviewer` | `openai-codex/gpt-6-astra:max` |
+| `reviewer` outside task dispatch | `openai-codex/gpt-6-astra:high` |
+| `security-reviewer` outside task dispatch | `openai-codex/gpt-6-astra:max` |
 | `@advisor` | `openai-codex/gpt-6-luna:max` |
 | `@slow` (explicit thorough pass, hard problems) | `anthropic/claude-opus-5-5:xhigh` |
 | `@extreme` (rare unconstrained reasoning) | `anthropic/claude-opus-5-5:max` |
-| `@vision`, `designer` agent (visual and design work) | `anthropic/claude-opus-5-5:high` |
+| `@vision`, `designer` before task dispatch (visual and design work) | `anthropic/claude-opus-5-5:high` |
 
 Opus medium orchestrates; raise effort with `@slow` or `@extreme` for hard
-problems, and to xhigh or max for design and visual-language work. Delegated
-implementation goes to Sol max workers; visual work goes to the owned
-`designer` agent (`agents/designer.md`, `model: "@vision"`), never to `task`.
+problems, and to xhigh or max for design and visual-language work. Visual work
+goes to the owned `designer` agent (`agents/designer.md`), never to `task`.
 Luna max serves the cloud cheap tier. OMP prepends its on-device LFM2.5-350m to
 the effective `tiny` role before the configured Luna option. Two of four Codex
 logins and one of three Anthropic logins authenticated in OMP when last
@@ -744,18 +743,30 @@ picker; select a concrete model without rewriting the default.
 default keybindings; local bindings can override them. Explicit CLI selections,
 project config, and one-run `--config` overlays can override the global default.
 
-Task dispatch selects an **agent**, not a per-item model. Native precedence is
-`task.agentModelOverrides` → agent frontmatter → parent/default fallback.
-Explicit `scout`/`sonic` overrides use `@smol`; its `:max` suffix takes
-precedence over their bundled `medium` thinking defaults. New task/eval
-dispatches reload persisted routing settings, but changing Main's model alone
-does not remap workers. Ordinary workers use Sol max; Astra high serves
-`reviewer`, Astra max `security-reviewer`; Opus high serves `vision` and the
-`designer` agent; Luna serves `smol`, `commit`, and `scout`/`sonic` through
-`@smol`. `tiny` may select the on-device model before Luna. Git commit, rebase,
-push, and similar mechanical ship steps use bundled `sonic` (`@smol`). Omitting
-`agent` selects `@task`/Sol max. Choose agents for their roles, not as
-differently priced implementation workers.
+Task dispatch selects an **agent**, not a direct model selector. Native
+precedence is `task.agentModelOverrides` → agent frontmatter → parent/default
+fallback. `extensions/subagent-inheritance` uses the supported
+`before_subagent_spawn` hook to select the **current parent model and thinking
+level** for every ordinary `task` child, including `designer`; its role
+frontmatter does not downgrade an Opus max parent to high. A task's `agent`
+can name a model tagged with `^` in the composer (`m1`, `m2`, …); that explicit
+model choice bypasses inheritance. `task.enableEffort` exposes per-item
+`effort: \"lo\" | \"med\" | \"hi\"`, which overrides inherited thinking on the
+selected model (mapped to its supported range). Omitted `effort` keeps the
+parent level. The hook applies to `task`, not eval `agent()` or direct role
+selection. If a `designer` child's parent is not Opus 5.5 at high, xhigh, or
+max, dispatch refuses to start; switch the parent first. Visual work must
+never silently fall back to a non-Opus model.
+
+The native task result already records the actual resolved model identity,
+thinking level, and fallback status (`resolvedModelIdentity`,
+`resolvedThinkingLevel`, `resolvedModelIsFallback` in
+`TaskToolDetails.results[]`); `task.showResolvedModelBadge` displays the
+resolved model and thinking on each task row. Read these rather than
+inferring the child model from its agent name. Ordinary task workers no longer
+implicitly switch to Sol max; choose `@task` explicitly in the parent to
+delegate on Sol max. Non-task routing retains the configured role defaults.
+Git commit, rebase, push, and similar mechanical ship steps use `@smol`.
 
 Visual, motion, UX and communications work must start on Opus and stop on an
 outage rather than switch models (US-014, operator decision 2026-09-27).
