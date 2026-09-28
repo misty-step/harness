@@ -38,12 +38,11 @@ occurred. Say so in `notes` and `limitations`.
 ## Subtraction evidence for designed surfaces
 
 For each affected state, capture its before and after into distinct image files
-at the same group, viewport, theme, and scroll position. Both entries must
-have non-empty text for those fields. If either entry declares a render source
-(`kind`), both must declare the same non-empty source (for example, `live` or
-`replay`); the template records one by default. Mark entries
-`phase: "before"` and `phase: "after"` in `states`. Add one record per pair
-to the top-level `subtraction` array:
+at the same group, viewport, theme, scroll position, and render source (`kind`).
+Both entries must record non-empty matching text for those fields; use the
+actual source, such as `live` or `replay`. Unpaired states can omit `kind`.
+Mark pair entries `phase: "before"` and `phase: "after"` in `states`. Add one
+record per pair to the top-level `subtraction` array:
 
 ```json
 {
