@@ -1,3 +1,9 @@
+# [0.1.53](https://github.com/misty-step/harness/compare/v0.1.52...v0.1.53) (2026-09-28)
+<!-- landmark:protected-release previous=v0.1.52 source=c91ec6a82d19987fe2930918d4d22eccacb35cf25a39ddd8d7804b4b1fbbea99 -->
+
+### Bug Fixes
+
+* **hooks:** admit one public release SHA false positive (US-025) (#121) ([94cfde0](https://github.com/misty-step/harness/commit/94cfde098dff35a61122359dd469e4f1b51cb659))
 # [0.1.52](https://github.com/misty-step/harness/compare/v0.1.51...v0.1.52) (2026-09-28)
 <!-- landmark:protected-release previous=v0.1.51 source=1c95f206987ee19c839fa1d025252f09b33c4ea575b3d3eb79f7a4e1b81d58b9 -->
 
