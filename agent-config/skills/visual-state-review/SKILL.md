@@ -38,7 +38,8 @@ occurred. Say so in `notes` and `limitations`.
 ## Subtraction evidence for designed surfaces
 
 For each affected state, capture its before and after into distinct image files
-at the same group, viewport, theme, and scroll position. Mark those entries
+at the same group, viewport, theme, scroll position, and render source (`kind`).
+Both entries must have non-empty text for those fields. Mark them
 `phase: "before"` and `phase: "after"` in `states`. Add one record per pair to
 the top-level `subtraction` array:
 

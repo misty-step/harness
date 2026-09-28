@@ -132,8 +132,8 @@ def inspect(
                 f"{label}: before and after must be different image files; "
                 f"{before_file} and {after_file} are the same file"
             )
-        for field in ("group", "size", "theme", "scroll"):
-            if not before.get(field) or before[field] != after.get(field):
+        for field in ("group", "size", "theme", "scroll", "kind"):
+            if not filled(before.get(field)) or before[field] != after.get(field):
                 errors.append(f"{label}: before and after must match {field}")
         if not filled(pair.get("job")):
             errors.append(f"{label}: primary job is required")
