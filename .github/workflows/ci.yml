@@ -17,6 +17,14 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
+      # Local-only validation uses the same candidate classifier as publication.
+      # Any newly generated changelog stays in this disposable checkout.
+      - name: Validate protected release candidate before merge
+        uses: misty-step/landmark@0be932f9fd775f826427eb5ada2f24efb9a393d8 # v0.28.9
+        with:
+          mode: prepare-protected
+          github-token: ${{ github.token }}
+          synthesis: 'false'
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: '1.4.2'
