@@ -1,3 +1,45 @@
+# [0.1.49](https://github.com/misty-step/harness/compare/v0.1.48...v0.1.49) (2026-09-28)
+<!-- landmark:protected-release previous=v0.1.48 source=788b62f95f6d98da66c3ae128ae53c7b6588cfd08e802133a206cfb6b93f7b33 -->
+
+### Features
+
+* **agent-config:** hold every application to continuous deployment, loud alerting and incident response (ADR-005, US-040, MIS-150) ([4de8e17](https://github.com/misty-step/harness/commit/4de8e17e7b541f75142d84ba9557a60e4f869dde))
+* **foundation:** require agent alert intake (US-040, MIS-150) ([c2187e3](https://github.com/misty-step/harness/commit/c2187e36eef1e33416278ccf4f99f2d84b5faa1c))
+* **foundation:** require tenant-wide continuous delivery (US-040, MIS-150) ([5823063](https://github.com/misty-step/harness/commit/5823063a21c61b113117d5c89fdff34b1c952209))
+* **agent-config:** route every agent to the foundations constitution (US-041, MIS-150) ([59edd24](https://github.com/misty-step/harness/commit/59edd24708bdf5a32b56b01fae607a2893cff78b))
+* **system-one:** advisory foundation assessment pilot (US-042, MIS-150) ([8b3449e](https://github.com/misty-step/harness/commit/8b3449e95b658423e14257b27c480db7b3cc55cc))
+* **foundation:** catalog 1.5.0 per ADR-006 (US-024, US-027, US-040, MIS-150) ([42ad4cf](https://github.com/misty-step/harness/commit/42ad4cfdae9da96e1bb45a9b23f3a05b43ba3d00))
+* **workstation:** stage native fleet memory containment (US-043) (#110) ([4487bbf](https://github.com/misty-step/harness/commit/4487bbfaaa06e4bf7e4ea0a54555720a05febaa3))
+
+### Bug Fixes
+
+* **agent-config:** close ship-trigger loopholes and require review to leave ADR-005 (ADR-005, US-040, MIS-150) ([9f1622f](https://github.com/misty-step/harness/commit/9f1622fba9a7cd89121bd5bce0c88b9942f5bec0))
+* **agent-config:** accept only ship conditions and upstream gates that keep every green push shipping (ADR-005, US-040, MIS-150) ([2faccb8](https://github.com/misty-step/harness/commit/2faccb8009ab890bc05c0a845f228d9d56bf0546))
+* **agent-config:** hold the jobs a ship job needs to the same gate rules (ADR-005, US-040, MIS-150) ([678bf98](https://github.com/misty-step/harness/commit/678bf986db61de80d4f9df6ec46cbca7fde395a2))
+* **agent-config:** report a story with no walk yet as advisory instead of failing the story walk (US-027, MIS-150) ([41f0e8e](https://github.com/misty-step/harness/commit/41f0e8ec83294424cbc29ea6b8453e729845d000))
+* **agent-config:** give Pi a readable constitution path and keep escape removal with Phaedrus (US-041, MIS-150) ([a308564](https://github.com/misty-step/harness/commit/a30856438b6e32963d192abf032ec364088d56f1))
+* **agent-config:** stop promising dated gaps before catalog 1.5.0 ships (US-041, MIS-150) ([0eb31db](https://github.com/misty-step/harness/commit/0eb31db1cac38aefeab41a5f1291c53f162d2bcf))
+* **system-one:** abstain on any unapproved Jev revision in the foundation pilot (US-042, MIS-150) ([597de35](https://github.com/misty-step/harness/commit/597de353798a64dad385f1fc79e53d797d093dc4))
+* **system-one:** close foundation pilot review findings (US-042, MIS-150) ([db084f0](https://github.com/misty-step/harness/commit/db084f080f747378753037f77e5664cdfb3cbf44))
+* **system-one:** mask keys at read, find real function bodies, pin the requested model (US-042, MIS-150) ([7265d16](https://github.com/misty-step/harness/commit/7265d168605792152f4fe21739f0aafb52a923ce))
+* **system-one:** take the brace group that ends the declaration as a function body (US-042, MIS-150) ([8b03101](https://github.com/misty-step/harness/commit/8b0310138f08b54ca534b9253599c63dc45a03b0))
+* **system-one:** read past comments before deciding a declaration ended (US-042, MIS-150) ([b53030c](https://github.com/misty-step/harness/commit/b53030c6a28c109b9d5ebf6dc508f2380b94fe58))
+* **system-one:** scan to the next code token, not a fixed window, to find a declaration's end (US-042, MIS-150) ([8e5b559](https://github.com/misty-step/harness/commit/8e5b5595f3d4ae3786db56db69b0f455d3757415))
+* **system-one:** never conclude an absence from Sentry code excerpts (US-042, MIS-150) ([2862dc3](https://github.com/misty-step/harness/commit/2862dc32b69f5ae3ec895716a3745b95d72e3b53))
+* **system-one:** skip commented-out code at every evidence site; hidden maps are not private (US-042, MIS-150) ([ba58787](https://github.com/misty-step/harness/commit/ba5878715bd81bbc3bf0919bbf989c6bc1767cd4))
+* **system-one:** filter Python comments on every definition lookup (US-042, MIS-150) ([ac7a50f](https://github.com/misty-step/harness/commit/ac7a50f32eecde0f05f21b42f997fd998c052bc9))
+* **system-one:** close foundation pilot follow-ups (US-042, MIS-150) ([4e44133](https://github.com/misty-step/harness/commit/4e441332b487b04eba844eef716935ac35801081))
+* **system-one:** tell overloads from bodies ending in ';', never take another scope's function (US-042, MIS-150) ([52d3f36](https://github.com/misty-step/harness/commit/52d3f36fc4f2d03aa2dd6002a297504a0babe981))
+* **foundation:** allow step-level always() in the dependency gate job (US-040, MIS-150) ([c68744f](https://github.com/misty-step/harness/commit/c68744f556d9140a28aecc784c71016ce745ebba))
+* **foundation:** enforce catalog 1.5.0 review edges (US-024, US-027, US-040, MIS-150) ([4cf87d3](https://github.com/misty-step/harness/commit/4cf87d321edac91f4d3fa9dd0761bd84489393bd))
+* **foundation:** handle unborn installer smoke repository (US-024, MIS-150) ([4c95169](https://github.com/misty-step/harness/commit/4c9516934d9a24f7aa730705fd2446131f638601))
+* **foundation:** close review gate bypasses (US-024, US-027, US-040, MIS-150) ([4e0f604](https://github.com/misty-step/harness/commit/4e0f60454121c5927ce34ccf5b8da62aeacbba3b))
+* **foundation:** resolve committed enforcement symlinks (US-024, MIS-150) ([1befb10](https://github.com/misty-step/harness/commit/1befb1082255be6c47da6842080c60200c640827))
+* **foundation:** judge ship guards per shipping event and accept a manual trunk re-run (US-040, MIS-150) ([5866131](https://github.com/misty-step/harness/commit/5866131812606ee31fe73200bfaaa6fbf7f3eb01))
+* **foundation:** keep ship-guard literals exact (US-040, MIS-150) ([3a4f709](https://github.com/misty-step/harness/commit/3a4f709119918f462526588152184284370f54ac))
+* **foundation:** require one shipping event across the ship chain (US-040, MIS-150) ([2addd4e](https://github.com/misty-step/harness/commit/2addd4e466606efeebfe4d2a00af560485848bb2))
+* **omp:** fail closed for Opus-primary sessions (#113) ([4ec7ab4](https://github.com/misty-step/harness/commit/4ec7ab4f1c3fdee3960536b79699ef008d8031b1))
+* **release:** reject stale candidates before merge (MIS-177) (#114) ([8c704a3](https://github.com/misty-step/harness/commit/8c704a3755cad41fe28cef0d58604af149e0ce06))
 # [0.1.48](https://github.com/misty-step/harness/compare/v0.1.47...v0.1.48) (2026-09-25)
 <!-- landmark:protected-release previous=v0.1.47 source=4197fbc3464a2b7e8c6d426a69ed62af927e79708f24777c426b3e11f1827181 -->
 
