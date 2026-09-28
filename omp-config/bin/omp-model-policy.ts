@@ -57,6 +57,15 @@ function configuredSelectors(config: unknown): Map<string, Model> {
 		if (key.includes("/")) add(key, `retry.fallbackChains key ${key}`);
 		else if (!Object.hasOwn(roles, key)) throw new Error(`Unknown retry.fallbackChains role: ${key}`);
 		if (!Array.isArray(chain)) throw new Error(`retry.fallbackChains.${key} must be an array`);
+		if (key === "web") {
+			if (roles.web !== "web/exa") throw new Error("web recovery needs the web/exa search role");
+			for (const [index, value] of chain.entries()) {
+				if (typeof value !== "string" || !/^web\/[a-z][a-z0-9-]*$/.test(value)) {
+					throw new Error(`retry.fallbackChains.web[${index}] must be a web search provider`);
+				}
+			}
+			continue;
+		}
 		for (const [index, value] of chain.entries()) add(value, `retry.fallbackChains.${key}[${index}]`);
 	}
 	const task = root.task === undefined ? undefined : mapping(root.task, "task");

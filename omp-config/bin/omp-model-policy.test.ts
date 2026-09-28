@@ -59,6 +59,8 @@ test("offline policy rejects stale, alias, malformed and disallowed routing sele
 		["malformed fallback chain", config => { config.retry.fallbackChains.default = "anthropic/claude-opus-5-5"; }, "must be an array"],
 		["unknown chain role", config => { config.retry.fallbackChains.typo = []; }, "Unknown retry.fallbackChains role"],
 		["web route exemption is exact", config => { config.modelRoles.web = "openrouter/deepseek/deepseek-v4.1-flash"; }, "concrete model selector"],
+		["retired web recovery model", config => { config.retry.fallbackChains.web = ["web/parallel", "anthropic/claude-sonnet-5:medium"]; }, "must be a web search provider"],
+		["chat model in web recovery", config => { config.retry.fallbackChains.web = ["anthropic/claude-sonnet-5-5:medium"]; }, "must be a web search provider"],
 		["local tiny model bypass", config => { config.providers = { tinyModel: "lfm2-350m" }; }, "providers.tinyModel"],
 	];
 	for (const [label, change, reason] of cases) {
@@ -68,6 +70,13 @@ test("offline policy rejects stale, alias, malformed and disallowed routing sele
 		expect(result.exitCode, label).not.toBe(0);
 		expect(result.stderr.toString(), label).toContain(reason);
 	}
+});
+
+test("web search fallback providers remain available without chat model recovery", () => {
+	const config = smallConfig();
+	config.retry.fallbackChains.web = ["web/parallel", "web/perplexity"];
+	const result = run(fixture(config).config);
+	expect(result.exitCode).toBe(0);
 });
 
 function fakeOmp(root: string, mode: string): Record<string, string> {

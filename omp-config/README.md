@@ -712,6 +712,10 @@ gate. An installed config cannot update the in-memory catalog in already-running
 engineers; restart only after preserving each session and confirming it is idle
 or complete.
 
+The `web` role is a search route rather than a chat model. Its recovery chain
+keeps the existing `web/*` search providers but drops older chat models; the
+policy check rejects any chat selector added back to that chain.
+
 | Direct selection or role default (before task inheritance) | Primary selection |
 | --- | --- |
 | Fresh `omp`, `@default` (orchestrator) | `anthropic/claude-opus-5-5:medium` |
