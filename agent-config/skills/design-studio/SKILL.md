@@ -132,11 +132,11 @@ Format and checklist: [references/handoff.md](references/handoff.md).
 ## Evidence and QA
 
 Every named UI state is captured and looked at — `skill://visual-state-review` is the
-procedure. For a designed surface, pair before and after captures and record the
-task and required information that remain reachable; run `gallery.py --check
---require-subtraction`. Generated concept images and real browser screenshots must
-be distinguishable in the evidence manifest: [templates/evidence-manifest.json](templates/evidence-manifest.json).
-No claim of functional proof from a screenshot alone.
+procedure. Show each affected screen before and after the final subtraction
+pass, naming what was cut and what the user can still do. Generated concept images
+and real browser screenshots must be distinguishable in the evidence manifest:
+[templates/evidence-manifest.json](templates/evidence-manifest.json). No claim of
+functional proof from a screenshot alone.
 
 ## Principal touchpoints
 

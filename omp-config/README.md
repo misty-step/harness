@@ -748,17 +748,17 @@ project config, and one-run `--config` overlays can override the global default.
 Task dispatch selects an **agent**, not a direct model selector. Native
 precedence is `task.agentModelOverrides` → agent frontmatter → parent/default
 fallback. `extensions/subagent-inheritance` uses the supported
-`before_subagent_spawn` hook to select the **current parent model and thinking
-level** for every ordinary `task` child, including `designer`; its role
-frontmatter does not downgrade an Opus max parent to high. A task's `agent`
-can name a model tagged with `^` in the composer (`m1`, `m2`, …); that explicit
-model choice bypasses inheritance. `task.enableEffort` exposes per-item
-`effort: \"lo\" | \"med\" | \"hi\"`, which overrides inherited thinking on the
-selected model (mapped to its supported range). Omitted `effort` keeps the
-parent level. The hook applies to `task`, not eval `agent()` or direct role
-selection. If a `designer` child's parent is not Opus 5.5 at high, xhigh, or
-max, dispatch refuses to start; switch the parent first. Visual work must
-never silently fall back to a non-Opus model.
+`before_subagent_spawn` hook to select the current parent model and thinking
+level for ordinary `task` children; a `designer` child keeps the existing
+Opus 5.5 high minimum rather than downgrading an Opus max parent. An Opus
+parent below high is raised to high for `designer`; a non-Opus parent is
+refused. A task's `agent` can name a model tagged with `^` in the composer
+(`m1`, `m2`, …); that explicit model choice bypasses inheritance.
+`task.enableEffort` exposes per-item `effort: "lo" | "med" | "hi"`, which
+overrides inherited thinking on the selected model (mapped to its supported
+range). Omitted `effort` keeps the parent level except for the designer
+minimum; designer `lo` and `med` are refused before spawn. The hook applies
+to `task`, not eval `agent()` or direct role selection.
 
 The native task result already records the actual resolved model identity,
 thinking level, and fallback status (`resolvedModelIdentity`,

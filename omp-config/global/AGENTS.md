@@ -32,9 +32,10 @@ fell back to another model. GPT-6 roles serve specific direct selections:
 max; `@advisor` is Sonnet 5.5 medium (Sol medium recovery); `@tiny` may use
 OMP's local model before Luna. OMP `task` tool children instead inherit the
 current parent's model and thinking unless a tagged model agent (`^` then `m1`,
-`m2`, …) or per-item `effort` overrides them. The `designer` child only runs
-when its parent is Opus 5.5 at high or above; switch the parent first rather
-than sending visual work to another model. Astra runs at high or above for
+`m2`, …) or per-item `effort` overrides them. `designer` retains an Opus 5.5
+high minimum: an Opus parent below high is raised to high, high/xhigh/max
+inherit unchanged, and a non-Opus parent or `designer` effort below `hi` is
+refused. Astra runs at high or above for
 system design, architecture, and code review: `@plan` and direct `reviewer`
 are Astra high, `security-reviewer` Astra max. Grok 4.7 is the last
 subscription link for other chains; advisor tries Grok before Gemini 3.8
