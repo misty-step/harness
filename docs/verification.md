@@ -177,6 +177,13 @@ LANDMARK_BIN=/absolute/path/to/landmark bun test --max-concurrency=1 scripts/pro
 The fixtures live under run-scoped `~/.cache/tmp` and are removed on exit. The
 replay rejects a stale docs-only candidate, then proves regeneration and the
 next tagged boundary. It does not pretend to publish a GitHub Release.
+With `CI=true`, a missing `LANDMARK_BIN` fails the gate rather than silently
+skipping this replay.
+
+Between a release PR landing and its tag being published, other PR checks can
+reject that pending candidate if they add commits. After publication, rerun
+their checks with freshly fetched tags; validation is then bounded by the
+published tag. Do not remove the guard to clear this transient state.
 
 For real-path acceptance, observe required `verify` on the fix PR, merge
 through protection, observe green `Verify and Release` on master, and follow

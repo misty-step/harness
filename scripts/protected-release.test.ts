@@ -20,17 +20,24 @@ function steps(job: Record<string, unknown>): Record<string, unknown>[] {
 // This is a required-check configuration contract, not an assertion about
 // private source: a skipped/different validator lets the release race land.
 test("US-015 required verify validates the merge candidate with the publisher's Landmark", () => {
+	if (process.env.CI === "true") {
+		expect(landmark, "CI must supply LANDMARK_BIN; the real release replay must not silently skip").toBeTruthy();
+	}
 	const ci = object(Bun.YAML.parse(readFileSync(join(root, ".github/workflows/ci.yml"), "utf8")));
 	const release = object(Bun.YAML.parse(readFileSync(join(root, ".github/workflows/landmark-release.yml"), "utf8")));
 	const job = object(object(ci.jobs).verify);
+	expect(ci.permissions).toEqual({ contents: "read" });
+	expect(job.permissions).toBeUndefined();
 	expect(job.if).toBeUndefined();
 	expect(job["continue-on-error"]).toBeUndefined();
 	const checkout = steps(job).find(step => typeof step.uses === "string" && step.uses.startsWith("actions/checkout@"));
 	expect(object(checkout?.with)["fetch-depth"]).toBe(0);
+	expect(object(checkout?.with)["persist-credentials"]).toBe(false);
 	expect(object(checkout?.with).ref).toBeUndefined(); // PR default is the prospective merge, not just its head.
 	const validator = steps(job).find(step => step.with && object(step.with).mode === "prepare-protected");
 	expect(validator, "Required verify must reject stale protected release candidates before merge").toBeDefined();
 	if (!validator) throw new Error("Missing release validator");
+	expect(steps(job).indexOf(validator)).toBeGreaterThan(steps(job).indexOf(checkout!));
 	expect(validator.if).toBeUndefined();
 	expect(validator["continue-on-error"]).toBeUndefined();
 	expect(object(validator.with).synthesis).toBe("false");
