@@ -1,3 +1,9 @@
+# [0.1.54](https://github.com/misty-step/harness/compare/v0.1.53...v0.1.54) (2026-09-28)
+<!-- landmark:protected-release previous=v0.1.53 source=c01af7a8d1fd885286b75f8c5e843ec308fd50c72394883ad85dd5a8e476526a -->
+
+### Bug Fixes
+
+* **gallery:** require source on subtraction pairs (US-044) (#123) ([f91e790](https://github.com/misty-step/harness/commit/f91e7904444689dd52e66a22fa97a747bc1492c6))
 # [0.1.53](https://github.com/misty-step/harness/compare/v0.1.52...v0.1.53) (2026-09-28)
 <!-- landmark:protected-release previous=v0.1.52 source=c91ec6a82d19987fe2930918d4d22eccacb35cf25a39ddd8d7804b4b1fbbea99 -->
 
