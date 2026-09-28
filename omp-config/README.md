@@ -692,11 +692,13 @@ do not maintain another skill copy in omp-config or install it globally.
 
 OMP follows the operator's model policy (US-014), subscriptions before paid
 API routes: Claude Opus 5.5 is preferred in general and orchestrates; visual
-work stays on Opus at high or above. Direct GPT-6 roles use Sol/Luna at max and
-Astra at high or above; `task` children inherit their parent's model and
-thinking by default instead. Grok 4.7 is last. Native roles and
-provider-failure chains live in `config.yml`; changing them does not switch
-the selected model in an existing session.
+work stays on Opus at high or above. Direct GPT-6 roles use Sol/Luna at max,
+except advisor recovery at Sol medium; `task` children inherit their parent's
+model and thinking by default instead. Advisor uses Sonnet 5.5 medium and
+recovers via Sol medium, Grok 4.7, then Gemini 3.8 Flash. Other roles retain
+their declared chains. Native roles and provider-failure chains live in
+`config.yml`; changing them does not switch the selected model in an existing
+session.
 
 | Direct selection or role default (before task inheritance) | Primary selection |
 | --- | --- |
@@ -707,7 +709,7 @@ the selected model in an existing session.
 | `@plan` (system design, architecture) | `openai-codex/gpt-6-astra:high` |
 | `reviewer` outside task dispatch | `openai-codex/gpt-6-astra:high` |
 | `security-reviewer` outside task dispatch | `openai-codex/gpt-6-astra:max` |
-| `@advisor` | `openai-codex/gpt-6-luna:max` |
+| `@advisor` | `anthropic/claude-sonnet-5-5:medium` |
 | `@slow` (explicit thorough pass, hard problems) | `anthropic/claude-opus-5-5:xhigh` |
 | `@extreme` (rare unconstrained reasoning) | `anthropic/claude-opus-5-5:max` |
 | `@vision`, `designer` before task dispatch (visual and design work) | `anthropic/claude-opus-5-5:high` |
