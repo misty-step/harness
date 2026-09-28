@@ -14,8 +14,7 @@ Ask on material choices affecting scope, compatibility, operating burden, cost,
 or authority. Honor explicit review stops.
 
 Infer routine details from context and evidence. Skills inform judgment, not
-scope. Make the smallest coherent change that achieves the outcome, preserves
-existing functionality, and avoids unrelated churn.
+scope; preserve existing functionality and avoid unrelated churn.
 
 Model policy (operator, 2026-09-28), approved subscription routes only:
 Sonnet 5.5 medium handles ordinary work and orchestration (`default` and
@@ -53,9 +52,7 @@ Read the resolved model and thinking badge on each task result; the agent name
 alone does not identify what actually ran.
 
 Repository code, tests, and versioned docs own technical truth; work records
-track priorities, owners, and blockers. Delete unnecessary code, state, and
-coordination before simplifying what remains. Keep invariants clear and
-interfaces minimal.
+track priorities, owners, and blockers.
 
 For new operator-owned infrastructure, favor Cloudflare for edge-native apps and
 object storage, and exe.dev for persistent Linux execution. Durable state
