@@ -57,7 +57,7 @@ presentation; "behavioral" changes agent capability, model input, or data flow.
 
 | Component | Owner | Class | Installed by `./install` | Divergence |
 | --- | --- | --- | --- | --- |
-| `settings.json` | this repo | config | yes | Sonnet 5.5 medium default; subscription recovery pins, Opus high for explicit visual selection; editor padding, markdown, theme name, retry budget (ADR-011 amendment 2026-09-28) |
+| `settings.json` | this repo | config | yes | Sonnet 5.5 medium default; subscription recovery pins, Opus high for explicit visual selection; Codex account slots mirror the base Codex thinking levels (ADR-024); editor padding, markdown, theme name, retry budget (ADR-011 amendment 2026-09-28) |
 | `global/AGENTS.md` | this repo | behavioral | yes | Global `~/.pi/agent/AGENTS.md`: pi's intro plus shared sections spliced from `agent-config` |
 | `extensions/pi-chrome.ts` | this repo | aesthetic | yes | Session card, composer rail layout, live working state, footer |
 | `extensions/loc/` | this repo | behavioral (read-only) | yes | `/loc`, `/loc-trend`, LOC status row |

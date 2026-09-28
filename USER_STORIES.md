@@ -950,9 +950,9 @@ Criteria:
    slot's login, never the base provider's.
 3. WHEN the component is removed, THE SYSTEM SHALL leave the base providers and
    their stored logins working as stock Pi.
-4. WHEN a slot model is selected, Pi's model policy and fallback chain SHALL
-   treat it as the base provider's model: approved models run, unapproved ones
-   stay refused.
+4. WHEN a slot model is selected, Pi's model policy SHALL approve exactly the
+   models it approves for the base provider, at the same thinking level, and
+   SHALL refuse unlisted look-alike provider ids.
 
 No-gos: no reading, copying, or refreshing another harness's stored tokens; no
 Claude Code or Google client impersonation added by this repository.

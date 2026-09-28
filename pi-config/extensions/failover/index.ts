@@ -22,7 +22,7 @@
  * stock pi behavior (retry + compaction) intact.
  */
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
-import { modelKey, nextInChain, policyKey, runError, summarize } from "./decide.ts";
+import { modelKey, nextInChain, runError, summarize } from "./decide.ts";
 
 /**
  * The fallback chain, in order; a failure advances from the current model's
@@ -41,11 +41,24 @@ const CHAIN = [
 	"openai-codex/gpt-6-luna",
 ];
 
-const approved = [...CHAIN, "anthropic/claude-opus-5-5", "openai-codex/gpt-6-astra"];
+const subscription = [...CHAIN, "anthropic/claude-opus-5-5", "openai-codex/gpt-6-astra"];
+/**
+ * Extra Codex logins from extensions/accounts (ADR-024) run the same approved
+ * models. Listed rather than pattern-matched, so an unlisted or custom
+ * provider id stays refused. Slots sit outside CHAIN: a failure on a slot the
+ * user chose does not move the session.
+ */
+const ACCOUNT_SLOTS = ["openai-codex-2", "openai-codex-3", "openai-codex-4"];
+const approved = [
+	...subscription,
+	...subscription
+		.filter((key) => key.startsWith("openai-codex/"))
+		.flatMap((key) => ACCOUNT_SLOTS.map((slot) => `${slot}/${key.slice("openai-codex/".length)}`)),
+];
 const blockedRoute = "Model policy: select an approved subscription model and sign in with /login; paid startup fallback is disabled.";
 
 function allowsInference(ctx: ExtensionContext) {
-	if (approved.includes(policyKey(ctx.model))) return true;
+	if (approved.includes(modelKey(ctx.model))) return true;
 	ctx.ui.notify(blockedRoute, "error");
 	if (!ctx.hasUI) console.error(blockedRoute);
 	return false;
@@ -87,7 +100,7 @@ export default function (pi: ExtensionAPI) {
 		errorText = "";
 		if (!failed) return;
 		const from = modelKey(ctx.model);
-		const decision = nextInChain(CHAIN, policyKey(ctx.model));
+		const decision = nextInChain(CHAIN, from);
 		if (!decision) return;
 		if (decision.action === "exhausted") {
 			ctx.ui.notify(

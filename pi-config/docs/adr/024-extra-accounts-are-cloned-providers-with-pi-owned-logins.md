@@ -15,10 +15,15 @@ for the four Codex accounts OMP also holds. A clone reuses the built-in login,
 refresh and streaming unchanged. Pi therefore stores it under its own
 `auth.json` key and gives it its own `/login` entry and locked refresh. Models
 are re-tagged with the slot id because Pi resolves credentials by
-`model.provider`; an untagged model would spend the base account.
-The failover extension folds a slot into its base provider (`policyKey`), so
-model policy and the chain stay per model: a slot can never approve a model
-its base would refuse.
+`model.provider`; an untagged model would spend the base account. Requests
+are then built as the base provider, because pi-ai keys protocol details such
+as Codex tool-call ids on the provider id. Slots list the catalog bundled with
+the installed Pi release, not the remote catalog.
+
+The failover extension lists the slot ids and approves on a slot exactly the
+models it approves on the base provider; an unlisted id stays refused. Slots
+sit outside the fallback chain, and `settings.json` gives slot models the
+base models' thinking levels.
 
 Pi owns these logins; it does not share OMP's `agent.db`. OAuth refresh tokens
 rotate, and OMP serialises refreshes with its own leases, which Pi cannot take.

@@ -21,15 +21,6 @@ export function modelKey(model: ModelRef | null | undefined): string {
 }
 
 /**
- * `modelKey` with an account slot folded into its base provider
- * (`openai-codex-2/x` → `openai-codex/x`, ADR-024). Model policy and the
- * chain are per model, not per account.
- */
-export function policyKey(model: ModelRef | null | undefined): string {
-	return modelKey(model).replace(/^([^/]+)-\d+\//, "$1/");
-}
-
-/**
  * The errorMessage of the *last* assistant message in a run. Present means
  * the run ended in a provider failure; user aborts and tool errors leave the
  * last assistant message error-free, so they settle clean. Absent means the
