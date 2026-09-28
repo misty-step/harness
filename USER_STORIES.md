@@ -451,15 +451,15 @@ Evidence: `agent-config/bin/design-check.test.ts`,
 
 ## Capability: Model routing
 
-## US-014 Use subscriptions before paid model recovery
+## US-014 Use approved model routing and recovery
 
 Statement: When I start or delegate work in any harness, I want my model policy
 applied per role (Claude Opus 5.5 preferred and orchestrating, Opus required for
 visual, motion, UX and communications work, GPT-6 workhorse subagents with Sol and
 Luna at max except advisor recovery at Sol medium, Sonnet 5.5 medium for advisor,
 Astra at high or above for system design, architecture, and code review)
-with subscription recovery before paid API routes, so routine work uses my
-preferred accounts without making login failure look like additional capacity.
+with only approved subscription recovery, so routine work uses my preferred
+accounts without making login failure look like additional capacity.
 
 Criteria:
 1. WHEN a fresh OMP session selects the default role, THE SYSTEM SHALL resolve
@@ -476,24 +476,31 @@ Criteria:
    resolves `plan` or `reviewer`, GPT-6 Astra high; and `security-reviewer`,
    Astra max.
 4. WHERE cross-model recovery is allowed, IF a selected provider fails, THEN
-   THE SYSTEM SHALL offer a subscription route from another provider before a
-   paid OpenRouter route, with Sol and Luna links at max reasoning except
-   advisor recovery at Sol medium. Advisor recovery SHALL try Sol medium, then
-   Grok 4.7, then Gemini 3.8 Flash, with no other model; other role chains
-   SHALL retain Grok 4.7 as their last subscription link.
+   THE SYSTEM SHALL offer an approved subscription route from another provider.
+   Sol and Luna links SHALL use max reasoning except advisor recovery at Sol
+   medium. Advisor recovery SHALL try Sol medium, then Grok 4.7, then Gemini
+   3.8 Flash, with no other model; other role chains SHALL retain Grok 4.7
+   as their final link.
 5. WHEN the Pi installer runs, THE SYSTEM SHALL select Opus 5.5 as Pi's default
    only if Pi-native Anthropic and Codex logins report ready, and otherwise
    SHALL keep the DeepSeek default and print the login instruction.
 6. WHEN configuration is deployed, THE SYSTEM SHALL preserve OAuth stores and
    the model already selected in existing sessions.
+7. WHEN OMP model routing is checked, THE SYSTEM SHALL reject every chat role or
+   fallback outside Opus 5.5, Sonnet 5.5, GPT-6, Grok 4.7, and Gemini 3.8
+   Flash; an online predeployment probe SHALL reject a selector not accepted
+   by its provider or resolved to a different model.
 
 No-gos: no copying OAuth credentials between harnesses; no frontier model
-through OpenRouter as a default; no Pi default that is not authenticated.
+through OpenRouter as a default; no Pi default that is not authenticated; no
+retired Sonnet or unapproved paid model fallback.
 
 Evidence: `omp-config/config.yml`, `omp-config/agents/designer.md`,
-`omp-config/bin/omp-merge-config.test.ts`, `omp-config/global/AGENTS.md`, `omp-config/README.md`,
+`omp-config/bin/omp-merge-config.test.ts`, `omp-config/bin/omp-model-policy.test.ts`,
+`omp-config/global/AGENTS.md`, `omp-config/README.md`,
 `pi-config/settings.subscription.json`, `pi-config/install`,
-`./scripts/verify all`, fresh OMP role-selection and forced-outage smoke checks.
+`./scripts/verify all`, the online model-policy probe, fresh OMP role-selection
+and forced-outage smoke checks.
 
 ## Capability: Protected releases
 

@@ -690,22 +690,34 @@ do not maintain another skill copy in omp-config or install it globally.
 
 ### Model routing (US-014)
 
-OMP follows the operator's model policy (US-014), subscriptions before paid
-API routes: Claude Opus 5.5 is preferred in general and orchestrates; visual
-work stays on Opus at high or above. Direct GPT-6 roles use Sol/Luna at max,
-except advisor recovery at Sol medium; `task` children inherit their parent's
-model and thinking by default instead. Advisor uses Sonnet 5.5 medium and
-recovers via Sol medium, Grok 4.7, then Gemini 3.8 Flash. Other roles retain
-their declared chains. Native roles and provider-failure chains live in
-`config.yml`; changing them does not switch the selected model in an existing
-session.
+OMP follows the operator's model policy (US-014): Claude Opus 5.5 is preferred
+in general and orchestrates; visual work stays on Opus at high or above.
+Direct GPT-6 roles use Sol/Luna at max, except advisor recovery at Sol medium;
+`task` children inherit their parent's model and thinking by default. Advisor
+uses Sonnet 5.5 medium and recovers via Sol medium, Grok 4.7, then Gemini 3.8
+Flash. Other role chains end at Grok 4.7. Native roles and provider-failure
+chains live in `config.yml`; changing them does not switch the selected model
+in an existing session. A running OMP process also retains its in-memory model
+catalog across binary updates: an old process can fuzzy-resolve a new model ID
+to a different, retired model. Restart that process after a catalog upgrade.
+
+Before deploying model changes, run
+`bun omp-config/bin/omp-model-policy.ts --probe` from the repository root. Its
+offline mode (without `--probe`) rejects retired and unapproved chat selectors
+in every role and fallback, including model-key chains. The online mode
+additionally requires exact OMP catalog matches and successful provider
+responses with the requested model. It needs the workstation's existing
+provider logins and is separate from the credential-free `./scripts/verify`
+gate. An installed config cannot update the in-memory catalog in already-running
+engineers; restart only after preserving each session and confirming it is idle
+or complete.
 
 | Direct selection or role default (before task inheritance) | Primary selection |
 | --- | --- |
 | Fresh `omp`, `@default` (orchestrator) | `anthropic/claude-opus-5-5:medium` |
 | `@task` | `openai-codex/gpt-6-sol:max` |
 | `@smol`, `@commit`; `scout` and `sonic` outside task dispatch | `openai-codex/gpt-6-luna:max` |
-| `@tiny` | local LFM2.5-350m first, then configured `openai-codex/gpt-6-luna:max` |
+| `@tiny` | configured `openai-codex/gpt-6-luna:max` |
 | `@plan` (system design, architecture) | `openai-codex/gpt-6-astra:high` |
 | `reviewer` outside task dispatch | `openai-codex/gpt-6-astra:high` |
 | `security-reviewer` outside task dispatch | `openai-codex/gpt-6-astra:max` |
@@ -717,9 +729,9 @@ session.
 Opus medium orchestrates; raise effort with `@slow` or `@extreme` for hard
 problems, and to xhigh or max for design and visual-language work. Visual work
 goes to the owned `designer` agent (`agents/designer.md`), never to `task`.
-Luna max serves the cloud cheap tier. OMP prepends its on-device LFM2.5-350m to
-the effective `tiny` role before the configured Luna option. Two of four Codex
-logins and one of three Anthropic logins authenticated in OMP when last
+Luna max serves the cheap tier, including `tiny`; the local LFM selector is
+disabled to keep every configured chat role within the approved model set. Two
+of four Codex logins and one of three Anthropic logins authenticated in OMP when last
 counted; do not count disabled or missing logins as capacity. A configured role
 does not create an agent. Native OMP bundles `task`, `scout`, `sonic`,
 `reviewer`, and `security-reviewer`; this repo adds `designer`. Main uses the
@@ -785,9 +797,9 @@ Do not use an extension that throws during startup as a substitute: OMP can
 isolate extension failures and continue.
 
 The role chains remain in `config.yml` for allowed non-Opus recovery. They
-retain subscription providers before paid OpenRouter, with Grok last among
-subscriptions. The dedicated `vision` chain also remains Opus-only. Unlike an
-absent chain, an explicit empty model chain means no fallback candidates;
+retain approved subscription providers, with Grok last for non-advisor roles.
+The dedicated `vision` chain also remains Opus-only. Unlike an absent chain,
+an explicit empty model chain means no fallback candidates;
 there is no need to disable `retry.modelFallback` globally.
 
 The guard is not a universal current-model veto: an Opus entered as a recovery

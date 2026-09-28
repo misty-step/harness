@@ -74,6 +74,18 @@ validate_config() {
   require_nonempty "$repo_dir/models.yml"
   bun "$repo_dir/bin/omp-merge-config.ts" --source "$repo_dir/config.yml" --dest "$agent_dir/config.yml" --check
   bun "$repo_dir/bin/omp-merge-config.ts" --source "$repo_dir/models.yml" --dest "$agent_dir/models.yml" --check
+  # Validate the effective overlay before touching live config, including
+  # foreign model roles and chains that the installer preserves.
+  (
+    mkdir -p "$HOME/.cache/tmp"
+    candidate=$(mktemp -d "$HOME/.cache/tmp/omp-model-policy.XXXXXX")
+    trap 'rm -rf -- "$candidate"' 0 1 2 15
+    if [ -f "$agent_dir/config.yml" ]; then
+      cp "$agent_dir/config.yml" "$candidate/config.yml"
+    fi
+    bun "$repo_dir/bin/omp-merge-config.ts" --source "$repo_dir/config.yml" --dest "$candidate/config.yml"
+    bun "$repo_dir/bin/omp-model-policy.ts" --config "$candidate/config.yml"
+  )
   require_base
   run_shared --check --bin openrouter-key.ts
 }
