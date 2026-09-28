@@ -1,3 +1,9 @@
+# [0.1.60](https://github.com/misty-step/harness/compare/v0.1.59...v0.1.60) (2026-09-28)
+<!-- landmark:protected-release previous=v0.1.59 source=37685f53c109e73a2e8f9f0ccd90fc5a7452a1769d731c0562985257568dcdff -->
+
+### Features
+
+* **guidance:** codify taste, strategic design, and agile delivery (US-041) (#137) ([02a2d69](https://github.com/misty-step/harness/commit/02a2d69b228ba9d8d583129464f9f798681870a6))
 # [0.1.59](https://github.com/misty-step/harness/compare/v0.1.58...v0.1.59) (2026-09-28)
 <!-- landmark:protected-release previous=v0.1.58 source=76e74effe52f6ee1cd563dc2aa29082831cdf16f290bd6ced7289ea19708abe8 -->
 
