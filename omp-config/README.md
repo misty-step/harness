@@ -702,7 +702,7 @@ catalog across binary updates: an old process can fuzzy-resolve a new model ID
 to a different, retired model. Restart that process after a catalog upgrade.
 
 For a model-routing deployment, run
-`OMP_MODEL_PROBE=1 OMP_INSTALL_COMPONENTS='config guidance extensions' ./omp-config/install`
+`OMP_MODEL_PROBE=1 OMP_INSTALL_COMPONENTS=all ./omp-config/install`
 from the repository root. Before writing live config, the installer overlays
 the source onto a disposable copy of the effective config and rejects retired
 or unapproved chat selectors in every role, task agent override, and fallback,
@@ -863,7 +863,7 @@ exact catalog entry and supported thinking levels. After routing changes, deploy
 the changed owned components and inspect the effective settings:
 
 ```sh
-OMP_INSTALL_COMPONENTS="config guidance extensions" ./install
+OMP_INSTALL_COMPONENTS=all ./install
 omp config get modelRoles --json
 omp config get cycleOrder --json
 omp config get task.agentModelOverrides --json

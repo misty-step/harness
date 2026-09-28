@@ -21,7 +21,7 @@
  * user chose that is outside the chain. Removing this directory leaves
  * stock pi behavior (retry + compaction) intact.
  */
-import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { modelKey, nextInChain, runError, summarize } from "./decide.ts";
 
 /**
@@ -44,6 +44,13 @@ const CHAIN = [
 const approved = [...CHAIN, "anthropic/claude-opus-5-5", "openai-codex/gpt-6-astra"];
 const blockedRoute = "Model policy: select an approved subscription model and sign in with /login; paid startup fallback is disabled.";
 
+function allowsInference(ctx: ExtensionContext) {
+	if (approved.includes(modelKey(ctx.model))) return true;
+	ctx.ui.notify(blockedRoute, "error");
+	if (!ctx.hasUI) console.error(blockedRoute);
+	return false;
+}
+
 export default function (pi: ExtensionAPI) {
 	let hadError = false;
 	let errorText = "";
@@ -51,18 +58,20 @@ export default function (pi: ExtensionAPI) {
 	// Pi may skip an unauthenticated default and pick any authenticated
 	// provider. Consume input before that implicit selection can spend.
 	pi.on("input", (_event, ctx) => {
-		if (approved.includes(modelKey(ctx.model))) return;
-		ctx.ui.notify(blockedRoute, "error");
-		if (!ctx.hasUI) console.error(blockedRoute);
+		if (allowsInference(ctx)) return;
 		return { action: "handled" };
 	});
 	// Extension-originated agent requests also carry the native abort signal.
 	// Throwing here would fail open: Pi catches provider-hook exceptions.
 	pi.on("before_provider_request", (_event, ctx) => {
-		if (approved.includes(modelKey(ctx.model))) return;
-		ctx.ui.notify(blockedRoute, "error");
-		if (!ctx.hasUI) console.error(blockedRoute);
-		ctx.abort();
+		if (!allowsInference(ctx)) ctx.abort();
+	});
+	// Native summaries bypass both input and the agent payload hook.
+	pi.on("session_before_compact", (_event, ctx) => {
+		if (!allowsInference(ctx)) return { cancel: true };
+	});
+	pi.on("session_before_tree", (event, ctx) => {
+		if (event.preparation.userWantsSummary && !allowsInference(ctx)) return { cancel: true };
 	});
 
 	pi.on("agent_end", async (event) => {

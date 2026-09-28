@@ -51,5 +51,7 @@ separate and are never copied into Pi.
 The failover extension also closes Pi's native unauthenticated-default escape:
 an input handler consumes prompts on unapproved model selections, and a
 provider-request handler aborts extension-originated turns before transport.
+Native compaction and branch summaries use separate cancellation hooks because
+their requests bypass the agent payload hook; plain navigation stays available.
 Thrown extension errors are not a guard because Pi catches them. The guard
 does not delete credentials or model catalog entries; it restricts agent turns.

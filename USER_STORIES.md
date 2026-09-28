@@ -483,8 +483,8 @@ Criteria:
 5. WHEN the Pi installer runs, THE SYSTEM SHALL select Sonnet 5.5 medium as
    Pi's default and report missing Pi-native logins rather than restore the
    retired DeepSeek default. If native startup selects an unapproved model
-   after login loss, agent prompts and provider requests SHALL be refused
-   before paid inference.
+   after login loss, agent prompts, provider requests, compaction and branch
+   summaries SHALL be refused before paid inference.
 6. WHEN configuration is deployed, THE SYSTEM SHALL preserve OAuth stores and
    the model already selected in existing sessions.
 7. WHEN OMP model routing is checked, THE SYSTEM SHALL reject every chat role,

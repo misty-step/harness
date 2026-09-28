@@ -2,7 +2,7 @@ import { expect, test } from "bun:test";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import registerFailover from "./index.ts";
 
-test("US-014 rejects implicit paid startup selection before accepting a prompt", () => {
+test("US-014 refuses paid prompts and summaries while preserving subscription work and navigation", () => {
 	const handlers: Record<string, (event: unknown, ctx: unknown) => unknown> = {};
 	registerFailover({ on(name: string, handler: (event: unknown, ctx: unknown) => unknown) {
 		handlers[name] = handler;
@@ -14,8 +14,13 @@ test("US-014 rejects implicit paid startup selection before accepting a prompt",
 		ui: { notify(message: string) { notifications.push(message); } },
 	};
 	expect(handlers.input({ text: "Build the feature", source: "interactive" }, ctx)).toEqual({ action: "handled" });
+	expect(handlers.session_before_compact({}, ctx)).toEqual({ cancel: true });
+	expect(handlers.session_before_tree({ preparation: { userWantsSummary: true } }, ctx)).toEqual({ cancel: true });
+	expect(handlers.session_before_tree({ preparation: { userWantsSummary: false } }, ctx)).toBeUndefined();
 	ctx.model = { provider: "anthropic", id: "claude-sonnet-5-5" };
 	expect(handlers.input({ text: "Build the feature", source: "interactive" }, ctx)).toBeUndefined();
+	expect(handlers.session_before_compact({}, ctx)).toBeUndefined();
+	expect(handlers.session_before_tree({ preparation: { userWantsSummary: true } }, ctx)).toBeUndefined();
 	ctx.model = { provider: "anthropic", id: "claude-opus-5-5" };
 	expect(handlers.input({ text: "Review the design", source: "interactive" }, ctx)).toBeUndefined();
 });

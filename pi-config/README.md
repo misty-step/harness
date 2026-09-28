@@ -151,6 +151,8 @@ ends at Luna until an approved native subscription route exists.
 Pi can otherwise skip an unauthenticated default and select an available paid
 provider. The extension consumes input on unapproved selections before a turn
 starts, with a native request-abort backstop for extension-originated turns.
+Native compaction and summarized tree navigation are cancelled on those
+selections too; navigation without a summary remains available.
 Only the subscription chain plus explicit Opus/Astra selections may run;
 credentials and model catalogs remain untouched. Headless refusals print the
 login instruction to stderr. Removing the extension removes this protection.
