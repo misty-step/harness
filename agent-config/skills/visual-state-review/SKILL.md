@@ -59,12 +59,13 @@ theme, and scroll position. Mark those entries `phase: "before"` and
 Inventory the content kept, cut, and deferred for each named state: `kept` is a
 non-empty list, while `cut` and `deferred` are explicit lists that may be empty.
 If nothing can safely be cut, use `keptReason` instead of a `cut` entry. For
-deferred content, supply `access` with the named action used to reveal it and
-include the observed result in `retained`. The `--require-subtraction` flag refuses
-missing or mismatched pairs, missing inventories, and missing retained-task
-evidence. It does not decide whether the content should have been cut. Walk the
-action and route back on the real interface, including keyboard and assistive
-access; note unavailable paths as limitations, never as proof.
+deferred content, supply `access` with each named action used to reveal it, and
+record the same action with its observed result in `retained`. The gate matches
+these action names, and refuses missing pairs, inventories, and observed tasks
+with `--require-subtraction`. It cannot judge whether the content should have
+been cut or whether the revealed information suffices. Walk the action and
+route back on the real interface, including keyboard and assistive access;
+note unavailable paths as limitations, never as proof.
 
 ## Organise and look
 

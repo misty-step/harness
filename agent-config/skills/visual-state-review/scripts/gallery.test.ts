@@ -141,6 +141,7 @@ test("US-044 a deferred route or a justified no-cut state can complete review", 
 		if (decision === "defer") {
 			data.subtraction[0]!.deferred = ["Source detail"];
 			data.subtraction[0]!.access = ["Open source detail from the goal"];
+			data.subtraction[0]!.retained.push({ action: "Open source detail from the goal", observed: "Source detail opened with the original content" });
 		} else {
 			data.subtraction[0]!.keptReason = "All visible status is required for choosing a concept";
 		}
@@ -158,6 +159,7 @@ test("US-044 missing or mismatched subtraction proof is not a completed matrix",
 		["unobserved task", data => { data.subtraction[0]!.retained = []; }, "retained"],
 		["no safe cut unexplained", data => { data.subtraction[0]!.cut = []; }, "keptReason"],
 		["deferred but unreachable", data => { data.subtraction[0]!.deferred = ["Source detail"]; }, "access"],
+		["deferred route not observed", data => { data.subtraction[0]!.deferred = ["Source detail"]; data.subtraction[0]!.access = ["Open source detail from the goal"]; }, "observed"],
 	];
 	for (const [name, mutate, message] of cases) {
 		const root = dir();

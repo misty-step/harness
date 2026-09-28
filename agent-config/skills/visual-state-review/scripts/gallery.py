@@ -135,7 +135,8 @@ def inspect(
             errors.append(f"{label}: cut and deferred must be lists of text")
         elif not cut and not deferred and not filled(pair.get("keptReason")):
             errors.append(f"{label}: keptReason is required when nothing was cut or deferred")
-        if deferred and not string_list(pair.get("access"), nonempty=True):
+        access = pair.get("access")
+        if deferred and not string_list(access, nonempty=True):
             errors.append(f"{label}: access route is required for deferred content")
         retained = pair.get("retained")
         if not isinstance(retained, list) or not retained or any(
@@ -145,6 +146,22 @@ def inspect(
             for item in retained
         ):
             errors.append(f"{label}: retained task needs an action and observed result")
+        if (
+            deferred
+            and string_list(access, nonempty=True)
+            and isinstance(retained, list)
+        ):
+            observed_actions = {
+                item["action"] for item in retained
+                if isinstance(item, dict)
+                and filled(item.get("action"))
+                and filled(item.get("observed"))
+            }
+            for action in access:
+                if action not in observed_actions:
+                    errors.append(
+                        f"{label}: deferred access route {action!r} needs an observed retained action"
+                    )
     for state in states:
         if state.get("phase") == "after" and state["id"] not in after_ids:
             errors.append(f"{state['id']}: unpaired after state")
