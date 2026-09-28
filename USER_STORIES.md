@@ -392,6 +392,32 @@ Evidence: `agent-config/skills/design-studio/SKILL.md`,
 `agent-config/skills/design-studio/scripts/imagine.test.ts`,
 `agent-config/guidance/design-routing.md`
 
+## US-044 Subtract content before shipping a designed surface
+
+Statement: When agents design a UI, I want them to remove repeated or premature
+content without losing the task, so each screen shows what I need now and keeps
+the rest findable when I ask for it.
+
+Criteria:
+1. WHEN a design direction is refined, THE SYSTEM SHALL make a state-by-state
+   keep, cut, or defer pass against the primary user job an exit condition before
+   the spec handoff; a state with no safe cut SHALL record why.
+2. WHEN a design-surface subtraction is claimed verified, THE SYSTEM SHALL pair
+   before and after captures at matching viewport, theme, and scroll position,
+   record the removed or deferred content, and record observed evidence that the
+   primary task and required information remain reachable; `gallery.py --check
+   --require-subtraction` SHALL fail on a missing pair or retained-task evidence.
+3. WHEN content is deferred, THE SYSTEM SHALL name and exercise its accessible
+   route back; an overall word count or screenshot alone SHALL NOT prove that a
+   required fact remains available.
+
+No-gos: no global word budget, automatic judgment of semantic redundancy, or
+hiding required safety, status, or accessibility information to meet a count.
+
+Evidence: `agent-config/skills/design-studio/references/loop.md`,
+`agent-config/skills/visual-state-review/SKILL.md`,
+`agent-config/skills/visual-state-review/scripts/gallery.test.ts`
+
 ## Capability: Design-surface verification
 
 ## US-013 Check player-surface copy before done

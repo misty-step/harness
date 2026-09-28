@@ -51,6 +51,11 @@ def load_manifest(path: Path) -> dict[str, Any]:
             raise SystemExit(
                 f"gallery: states[{i}] is skipped but has no reason"
             )
+        if "phase" in state and (
+            not isinstance(state["phase"], str)
+            or state["phase"] not in {"before", "after"}
+        ):
+            raise SystemExit(f"gallery: states[{i}].phase must be before or after")
         state["status"] = status
     data.setdefault("summary", "")
     data.setdefault("notes", "")
@@ -68,9 +73,12 @@ def resolve_file(manifest_path: Path, state: dict[str, Any]) -> Path:
     return (manifest_path.parent / raw).resolve()
 
 
-def inspect(manifest_path: Path, data: dict[str, Any]) -> list[str]:
+def inspect(
+    manifest_path: Path, data: dict[str, Any], require_subtraction: bool = False
+) -> list[str]:
     errors: list[str] = []
-    for state in data["states"]:
+    states = data["states"]
+    for state in states:
         path = resolve_file(manifest_path, state)
         exists = path.is_file()
         status = state["status"]
@@ -82,7 +90,77 @@ def inspect(manifest_path: Path, data: dict[str, Any]) -> list[str]:
             errors.append(f"{state['id']}: declared missing")
         elif exists and path.suffix.lower() not in IMAGE_SUFFIXES:
             errors.append(f"{state['id']}: not an image file {path}")
+
+    pairs = data.get("subtraction", [])
+    if not isinstance(pairs, list):
+        return errors + ["subtraction: must be an array"]
+    if not require_subtraction and not pairs and not any(s.get("phase") for s in states):
+        return errors
+    if not pairs:
+        errors.append("subtraction: no before/after pairs")
+    by_id = {state["id"]: state for state in states}
+    before_ids: set[str] = set()
+    after_ids: set[str] = set()
+    for index, pair in enumerate(pairs):
+        label = f"subtraction[{index}]"
+        if not isinstance(pair, dict):
+            errors.append(f"{label}: must be an object")
+            continue
+        before_id = pair.get("before")
+        after_id = pair.get("after")
+        before = by_id.get(before_id) if isinstance(before_id, str) else None
+        after = by_id.get(after_id) if isinstance(after_id, str) else None
+        if before is None or after is None or before is after:
+            errors.append(f"{label}: before and after must name distinct states")
+            continue
+        if before_id in before_ids or after_id in after_ids:
+            errors.append(f"{label}: a state cannot belong to two subtraction pairs")
+        before_ids.add(before_id)
+        after_ids.add(after_id)
+        if before.get("phase") != "before" or after.get("phase") != "after":
+            errors.append(f"{label}: states must have before and after phases")
+        if before["status"] != "captured" or after["status"] != "captured":
+            errors.append(f"{label}: before and after must both be captured")
+        for field in ("group", "size", "theme", "scroll"):
+            if not before.get(field) or before[field] != after.get(field):
+                errors.append(f"{label}: before and after must match {field}")
+        if not filled(pair.get("job")):
+            errors.append(f"{label}: primary job is required")
+        kept = pair.get("kept")
+        cut = pair.get("cut")
+        deferred = pair.get("deferred")
+        if not string_list(kept, nonempty=True):
+            errors.append(f"{label}: kept must be a non-empty list of text")
+        if not string_list(cut) or not string_list(deferred):
+            errors.append(f"{label}: cut and deferred must be lists of text")
+        elif not cut and not deferred and not filled(pair.get("keptReason")):
+            errors.append(f"{label}: keptReason is required when nothing was cut or deferred")
+        if deferred and not string_list(pair.get("access"), nonempty=True):
+            errors.append(f"{label}: access route is required for deferred content")
+        retained = pair.get("retained")
+        if not isinstance(retained, list) or not retained or any(
+            not isinstance(item, dict)
+            or not filled(item.get("action"))
+            or not filled(item.get("observed"))
+            for item in retained
+        ):
+            errors.append(f"{label}: retained task needs an action and observed result")
+    for state in states:
+        if state.get("phase") == "after" and state["id"] not in after_ids:
+            errors.append(f"{state['id']}: unpaired after state")
+        if state.get("phase") == "before" and state["id"] not in before_ids:
+            errors.append(f"{state['id']}: unpaired before state")
     return errors
+
+
+def filled(value: Any) -> bool:
+    return isinstance(value, str) and bool(value.strip())
+
+
+def string_list(value: Any, nonempty: bool = False) -> bool:
+    return isinstance(value, list) and (not nonempty or bool(value)) and all(
+        filled(item) for item in value
+    )
 
 
 def unique(values: list[str]) -> list[str]:
@@ -123,6 +201,7 @@ def card_html(manifest_path: Path, state: dict[str, Any]) -> str:
         str(state.get("theme") or ""),
         str(state.get("size") or ""),
         str(state.get("scroll") or ""),
+        str(state.get("phase") or ""),
         str(state.get("status") or ""),
     ]
     tag_line = " · ".join(t for t in tags if t)
@@ -137,7 +216,7 @@ def card_html(manifest_path: Path, state: dict[str, Any]) -> str:
         img = f'      <div class="missing">{html.escape(reason)}</div>'
     attrs = " ".join(
         f'data-{key}="{html.escape(str(state.get(key) or ""))}"'
-        for key in ("id", "group", "size", "scroll", "theme", "kind", "status")
+        for key in ("id", "group", "size", "scroll", "theme", "kind", "phase", "status")
     )
     return (
         f'    <article class="card" {attrs}>\n'
@@ -162,6 +241,34 @@ def list_html(title: str, items: Any, empty: str) -> str:
     bullets = "\n".join(f"<li>{html.escape(str(item))}</li>" for item in items)
     return f"<h2>{html.escape(title)}</h2><ul>\n{bullets}\n</ul>"
 
+def subtraction_html(pairs: Any) -> str:
+    if not isinstance(pairs, list) or not pairs:
+        return ""
+    rows = []
+    for pair in pairs:
+        if not isinstance(pair, dict):
+            continue
+        label = f"{pair.get('before', '')} → {pair.get('after', '')}"
+        details = []
+        for name, key in (("Kept", "kept"), ("Cut", "cut"), ("Deferred", "deferred"), ("Access", "access")):
+            values = pair.get(key)
+            if isinstance(values, list) and values:
+                details.append(f"{name}: {', '.join(str(value) for value in values)}")
+        if pair.get("keptReason"):
+            details.append(f"No safe cut: {pair['keptReason']}")
+        retained = pair.get("retained")
+        if isinstance(retained, list):
+            for item in retained:
+                if isinstance(item, dict):
+                    details.append(f"Retained: {item.get('action', '')} → {item.get('observed', '')}")
+        rows.append(
+            f"<li><strong>{html.escape(label)}</strong>: "
+            f"{html.escape(str(pair.get('job') or ''))}<br>"
+            + "<br>".join(html.escape(detail) for detail in details)
+            + "</li>"
+        )
+    return "<h2>Subtraction</h2><ul>\n" + "\n".join(rows) + "\n</ul>"
+
 
 def render(manifest_path: Path, data: dict[str, Any]) -> str:
     states = data["states"]
@@ -177,6 +284,7 @@ def render(manifest_path: Path, data: dict[str, Any]) -> str:
             options_html("groups", "group", option_values(states, "group")),
             options_html("sizes", "size", option_values(states, "size")),
             options_html("scroll", "scroll", option_values(states, "scroll")),
+            options_html("phases", "phase", option_values(states, "phase")),
             options_html("themes", "theme", option_values(states, "theme")),
         )
         if part
@@ -232,6 +340,7 @@ def render(manifest_path: Path, data: dict[str, Any]) -> str:
 {cards}
   </main>
   <footer>
+    {subtraction_html(data.get("subtraction"))}
     {list_html("Coverage", data.get("coverage"), "No coverage notes.")}
     {list_html("Limitations", data.get("limitations"), "No limitations recorded.")}
     {list_html("Findings", data.get("findings"), "No findings recorded.")}
@@ -341,6 +450,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("manifest", nargs="?", type=Path)
     parser.add_argument("--out", type=Path)
     parser.add_argument("--check", action="store_true")
+    parser.add_argument("--require-subtraction", action="store_true")
     parser.add_argument("--self-test", action="store_true")
     args = parser.parse_args(argv)
     if args.self_test:
@@ -351,7 +461,7 @@ def main(argv: list[str] | None = None) -> int:
     if not manifest_path.is_file():
         raise SystemExit(f"gallery: manifest not found: {manifest_path}")
     data = load_manifest(manifest_path)
-    errors = inspect(manifest_path, data)
+    errors = inspect(manifest_path, data, args.require_subtraction)
     for err in errors:
         print(err, file=sys.stderr)
     if args.check:
