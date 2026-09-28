@@ -1,3 +1,9 @@
+# [0.1.50](https://github.com/misty-step/harness/compare/v0.1.49...v0.1.50) (2026-09-28)
+<!-- landmark:protected-release previous=v0.1.49 source=4d522a49e10abebe9629faa47dc8f4b05a3996678ec631f69c6f4da84365abf6 -->
+
+### Features
+
+* **design:** require subtraction evidence before handoff (US-044) ([70c8cd1](https://github.com/misty-step/harness/commit/70c8cd177fcaaba6255350d030b9efb52a29f723))
 # [0.1.49](https://github.com/misty-step/harness/compare/v0.1.48...v0.1.49) (2026-09-28)
 <!-- landmark:protected-release previous=v0.1.48 source=788b62f95f6d98da66c3ae128ae53c7b6588cfd08e802133a206cfb6b93f7b33 -->
 
