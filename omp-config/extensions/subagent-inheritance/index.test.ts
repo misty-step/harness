@@ -3,27 +3,36 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import registerSubagentInheritance from "./index.ts";
 
 type ParentModel = { provider: string; id: string };
-type Hook = (event: { agent: string; invocationKind: "task" | "eval" }, ctx: { model?: ParentModel }) => unknown;
+type SpawnHook = (event: { agent: string; invocationKind: "task" | "eval" }, ctx: { model?: ParentModel }) => unknown;
+type ToolHook = (event: { toolName: string; input: Record<string, unknown> }) => unknown;
 
-function taskSelection() {
+function hooks() {
 	let level = "max";
-	let handler: Hook | undefined;
+	let spawn: SpawnHook | undefined;
+	let toolCall: ToolHook | undefined;
 	registerSubagentInheritance({
-		on(event: string, callback: Hook) {
-			if (event !== "before_subagent_spawn") throw new Error(`Unexpected hook: ${event}`);
-			handler = callback;
+		on(event: string, callback: SpawnHook | ToolHook) {
+			if (event === "before_subagent_spawn") spawn = callback as SpawnHook;
+			else if (event === "tool_call") toolCall = callback as ToolHook;
+			else throw new Error(`Unexpected hook: ${event}`);
 		},
 		getThinkingLevel() { return level; },
 	} as unknown as ExtensionAPI);
-	return (agent: string, parent: ParentModel | undefined, thinking: string, invocationKind: "task" | "eval" = "task") => {
-		level = thinking;
-		if (!handler) throw new Error("Subagent spawn hook was not registered");
-		return handler({ agent, invocationKind }, { model: parent });
+	return {
+		select(agent: string, parent: ParentModel | undefined, thinking: string, invocationKind: "task" | "eval" = "task") {
+			level = thinking;
+			if (!spawn) throw new Error("Subagent spawn hook was not registered");
+			return spawn({ agent, invocationKind }, { model: parent });
+		},
+		call(input: Record<string, unknown>, toolName = "task") {
+			if (!toolCall) throw new Error("Task tool-call guard was not registered");
+			return toolCall({ toolName, input });
+		},
 	};
 }
 
 test("task agents inherit the live parent model and thinking, including designer at max", () => {
-	const select = taskSelection();
+	const { select } = hooks();
 	expect(select("designer", { provider: "anthropic", id: "claude-opus-5-5" }, "max"))
 		.toEqual({ model: "anthropic/claude-opus-5-5:max" });
 	expect(select("task", { provider: "openai-codex", id: "gpt-6-sol" }, "high"))
@@ -31,19 +40,27 @@ test("task agents inherit the live parent model and thinking, including designer
 });
 
 test("an explicitly tagged task model and non-task dispatch keep their own selection", () => {
-	const select = taskSelection();
+	const { select } = hooks();
 	const parent = { provider: "anthropic", id: "claude-opus-5-5" };
 	expect(select("m1", parent, "max")).toBeUndefined();
 	expect(select("reviewer", parent, "max", "eval")).toBeUndefined();
 });
 
-test("designer never silently inherits a non-Opus or below-high parent", () => {
-	const select = taskSelection();
-	for (const [parent, thinking] of [
-		[{ provider: "openai-codex", id: "gpt-6-sol" }, "max"],
-		[{ provider: "anthropic", id: "claude-opus-5-5" }, "medium"],
-	] as const) {
-		expect(select("designer", parent, thinking)).toMatchObject({ block: true });
-	}
+test("designer keeps the high visual minimum without downgrading an Opus max parent", () => {
+	const { select } = hooks();
+	const opus = { provider: "anthropic", id: "claude-opus-5-5" };
+	expect(select("designer", opus, "medium")).toMatchObject({ model: "anthropic/claude-opus-5-5:high" });
+	expect(select("designer", { provider: "openai-codex", id: "gpt-6-sol" }, "max")).toMatchObject({ block: true });
 	expect(select("task", undefined, "max")).toMatchObject({ block: true });
+});
+
+test("per-item low effort cannot lower designer below the visual minimum", () => {
+	const { call } = hooks();
+	expect(call({ context: "Visual review", tasks: [
+		{ agent: "task", task: "Inspect code", effort: "lo" },
+		{ agent: "designer", task: "Inspect design", effort: "lo" },
+	] })).toMatchObject({ block: true });
+	expect(call({ agent: "designer", task: "Inspect design", effort: "med" })).toMatchObject({ block: true });
+	expect(call({ agent: "designer", task: "Inspect design", effort: "hi" })).toBeUndefined();
+	expect(call({ agent: "task", task: "Inspect code", effort: "lo" })).toBeUndefined();
 });

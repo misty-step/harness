@@ -26,7 +26,6 @@
       "reason": "replace with a real empty state or keep skipped with a reason"
     }
   ],
-  "subtraction": [],
   "coverage": [],
   "limitations": [],
   "findings": []

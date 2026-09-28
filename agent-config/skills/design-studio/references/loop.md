@@ -76,25 +76,15 @@ restyle). Preserve the pre-revision version for the before/after record.
 - Before/after is required evidence: what the critique said, what changed, what it fixed.
 - Further rounds: only with new evidence or a named open decision.
 
-## 9. Subtract — the content must earn its place
+## 9. Subtract — one final screen-by-screen pass
 
-For each affected named state, write the primary user job and inventory the visible
-messages, rows, controls, and repeated facts. Decide **keep / cut / defer** for each:
-keep what the task needs now, cut repeated or unneeded material, and defer only
-secondary information behind a named, accessible action. A visually shorter screen
-is not better if the task becomes slower or a required status, warning, or concept
-disappears. When nothing can safely be cut, record why rather than invent a cut.
+For each screen of the refined direction, list every visible element. Keep
+what serves the primary task or provides required status, safety, or
+accessibility; cut everything else. If nothing can safely go, say why.
+Show that screen before and after, then check that the task and required
+information still work. If information moved, show how to reach it.
 
-Compare the actual rendered state before and after at the same viewport, theme, and
-scroll position. Walk the primary action and the route to deferred information,
-including keyboard and assistive access. Record what was removed, what stayed
-reachable, and what the interaction did. `skill://visual-state-review` owns the
-paired captures and `gallery.py --check --require-subtraction` checks that this
-evidence is present; it cannot judge the quality of the decision.
-
-- Exit: every affected state has a keep/cut/defer decision, paired captures, and
-  observed retained-task evidence. A missing or inaccessible required fact blocks
-  handoff, even if the word count fell.
+- Exit: each screen has its element list, cuts (or no-cut reason), and before/after.
 
 ## 10. Decision capture — the spec
 
