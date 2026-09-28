@@ -17,30 +17,34 @@ Infer routine details from context and evidence. Skills inform judgment, not
 scope. Make the smallest coherent change that achieves the outcome, preserves
 existing functionality, and avoids unrelated churn.
 
-Model policy (operator, 2026-09-28), approved subscription routes only: Claude
-Opus 5.5 is preferred in general and orchestrates (default: medium; `@slow`
-xhigh; `@extreme` max). Anything visual goes to Opus: `vision` and the
-`designer` agent at high, raising to xhigh or max for design and
-visual-language work; never delegate visual work to `task`. Inspect images
-with `read <image>?q=<question>` (the `vision` role) or delegate visual work to
-`designer`: both stay on Opus and fail closed during an Anthropic outage.
-Visual, motion, UX and communications work must start on Opus and stop rather
-than change models on an outage. The configured Opus primary also fails closed
-in main sessions, at every effort. This does not repair a session that already
-fell back to another model. GPT-6 roles serve specific direct selections:
-`@task` is Sol max; `@smol`, `@commit`, `scout`, and `sonic` map to Luna
-max; `@advisor` is Sonnet 5.5 medium (Sol medium recovery); `@tiny` selects
-Luna max. OMP `task` tool children instead inherit the
-current parent's model and thinking unless a tagged model agent (`^` then `m1`,
-`m2`, …) or per-item `effort` overrides them. `designer` retains an Opus 5.5
-high minimum: an Opus parent below high is raised to high, high/xhigh/max
-inherit unchanged, and a non-Opus parent or `designer` effort below `hi` is
-refused. Astra runs at high or above for
-system design, architecture, and code review: `@plan` and direct `reviewer`
-are Astra high, `security-reviewer` Astra max. Grok 4.7 is the last
-subscription link for other chains; advisor tries Grok before Gemini 3.8
-Flash. Sonnet 5 and older, Cerebras, and unapproved paid fallback models are
-retired. Mechanical VCS and install-only deploys use `@smol`. Model selections
+Model policy (operator, 2026-09-28), approved subscription routes only:
+Sonnet 5.5 medium handles ordinary work and orchestration (`default` and
+`@task`); `@slow` selects Sonnet high and `@extreme` Opus 5.5 xhigh.
+Anything visual goes to Opus: `vision` and the `designer` agent at high,
+raising to xhigh or max for design and visual-language work; never delegate
+visual work to `task`. Inspect images with `read <image>?q=<question>` (the
+`vision` role) or delegate visual work to `designer`: both stay on Opus and
+fail closed during an Anthropic outage. Visual, motion, UX and communications
+work must start on Opus and stop rather than change models on an outage.
+The configured Opus primary also fails closed in main sessions, at every
+effort. This does not repair a session that already fell back to another
+model. Direct selections use `@plan` and `security-reviewer` at Astra medium,
+`reviewer` at Sol xhigh, `@advisor` at Sonnet 5.5 medium, and `@smol`,
+`@tiny`, `@commit`, `scout`, and `sonic` at Luna max. Ordinary OMP `task`
+tool children use their configured agent model and thinking, not the live
+parent's selection; tagged model agents (`^` then `m1`, `m2`, …) and per-item
+`effort` remain explicit overrides. `designer` retains an Opus 5.5 high
+minimum: non-Opus parents and Opus parents below high select Opus high;
+an Opus parent's high/xhigh/max inherits unchanged. `designer` effort below
+`hi` is refused. Grok 4.7 is permitted only for read-only advisory/review
+recovery (`advisor`, `reviewer`, `security-reviewer`), never builder fallback.
+Gemini 3.8 Flash is the last resort where cross-model recovery is allowed;
+Opus has no cross-model fallback. All shared subscription accounts are
+authorized for any work. Native account policies prefer eligible r90.dev
+Anthropic and Codex accounts; blocked accounts and reserve rules still apply.
+Authorization and priority do not establish usable capacity. Sonnet 5 and older,
+Cerebras, and unapproved paid fallback models are retired. Mechanical VCS
+and install-only deploys use `@smol`. Model selections
 and provider-failure chains live in `config.yml`; the model-policy check rejects
 unapproved selectors before deployment. Role routing does not switch the
 current session's selected model, and an already-running process retains its

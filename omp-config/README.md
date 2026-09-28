@@ -690,19 +690,19 @@ do not maintain another skill copy in omp-config or install it globally.
 
 ### Model routing (US-014)
 
-OMP follows the operator's model policy (US-014): Claude Opus 5.5 is preferred
-in general and orchestrates; visual work stays on Opus at high or above.
-Direct GPT-6 roles use Sol/Luna at max, except advisor recovery at Sol medium;
-`task` children inherit their parent's model and thinking by default. Advisor
-uses Sonnet 5.5 medium and recovers via Sol medium, Grok 4.7, then Gemini 3.8
-Flash. Other role chains end at Grok 4.7. Native roles and provider-failure
+OMP follows the operator's lower-spend model policy (US-014, 2026-09-28):
+Sonnet 5.5 medium handles ordinary work and orchestration; visual work stays
+on Opus at high or above. Ordinary `task` children use their configured agent
+routes rather than the live parent's model. Grok 4.7 is allowed only for read-only advisory/review
+recovery, never as a builder fallback. Gemini 3.8 Flash is the last resort
+where cross-model recovery is allowed; Opus has none. Native roles and provider-failure
 chains live in `config.yml`; changing them does not switch the selected model
 in an existing session. A running OMP process also retains its in-memory model
 catalog across binary updates: an old process can fuzzy-resolve a new model ID
 to a different, retired model. Restart that process after a catalog upgrade.
 
 For a model-routing deployment, run
-`OMP_MODEL_PROBE=1 OMP_INSTALL_COMPONENTS='config guidance' ./omp-config/install`
+`OMP_MODEL_PROBE=1 OMP_INSTALL_COMPONENTS=all ./omp-config/install`
 from the repository root. Before writing live config, the installer overlays
 the source onto a disposable copy of the effective config and rejects retired
 or unapproved chat selectors in every role, task agent override, and fallback,
@@ -718,39 +718,45 @@ The `web` role is a search route rather than a chat model. Its recovery chain
 keeps the existing `web/*` search providers but drops older chat models; the
 policy check rejects any chat selector added back to that chain.
 
-| Direct selection or role default (before task inheritance) | Primary selection |
+| Direct selection or configured agent route | Primary selection |
 | --- | --- |
-| Fresh `omp`, `@default` (orchestrator) | `anthropic/claude-opus-5-5:medium` |
-| `@task` | `openai-codex/gpt-6-sol:max` |
-| `@smol`, `@commit`; `scout` and `sonic` outside task dispatch | `openai-codex/gpt-6-luna:max` |
+| Fresh `omp`, `@default` (orchestrator) | `anthropic/claude-sonnet-5-5:medium` |
+| `@task` | `anthropic/claude-sonnet-5-5:medium` |
+| `@smol`, `@commit`; `scout` and `sonic` | `openai-codex/gpt-6-luna:max` |
 | `@tiny` | configured `openai-codex/gpt-6-luna:max` |
-| `@plan` (system design, architecture) | `openai-codex/gpt-6-astra:high` |
-| `reviewer` outside task dispatch | `openai-codex/gpt-6-astra:high` |
-| `security-reviewer` outside task dispatch | `openai-codex/gpt-6-astra:max` |
+| `@plan` (system design, architecture) | `openai-codex/gpt-6-astra:medium` |
+| `reviewer` | `openai-codex/gpt-6-sol:xhigh` |
+| `security-reviewer` | `openai-codex/gpt-6-astra:medium` |
 | `@advisor` | `anthropic/claude-sonnet-5-5:medium` |
-| `@slow` (explicit thorough pass, hard problems) | `anthropic/claude-opus-5-5:xhigh` |
-| `@extreme` (rare unconstrained reasoning) | `anthropic/claude-opus-5-5:max` |
-| `@vision`, `designer` before task dispatch (visual and design work) | `anthropic/claude-opus-5-5:high` |
+| `@slow` (explicit thorough pass, hard problems) | `anthropic/claude-sonnet-5-5:high` |
+| `@extreme` (rare unconstrained reasoning) | `anthropic/claude-opus-5-5:xhigh` |
+| `@vision`, `designer` (visual and design work) | `anthropic/claude-opus-5-5:high` minimum |
 
-Opus medium orchestrates; raise effort with `@slow` or `@extreme` for hard
-problems, and to xhigh or max for design and visual-language work. Visual work
-goes to the owned `designer` agent (`agents/designer.md`), never to `task`.
-Luna max serves the cheap tier, including `tiny`; the local LFM selector is
-disabled to keep every configured chat role within the approved model set. Two
-of four Codex logins and one of three Anthropic logins authenticated in OMP when last
-counted; do not count disabled or missing logins as capacity. A configured role
-does not create an agent. Native OMP bundles `task`, `scout`, `sonic`,
+Sonnet medium orchestrates; use `@slow` or `@extreme` for harder problems.
+Visual work runs on Opus high or above, raising to xhigh or max for design
+and visual-language work. Delegate it to the owned `designer` agent
+(`agents/designer.md`), never to `task`. Luna max serves the cheap tier,
+including `tiny`; the local LFM selector is disabled to keep every configured
+chat role within the approved model set. All shared subscription accounts
+are authorized for any work. Native `auth.accountPolicies` gives priority 1
+to `phaedrus@r90.dev` for Anthropic and OpenAI Codex. Priority boosts eligible
+accounts; blocked-account and reserve rules still govern selection. It is not
+exclusive account pinning, proof of remaining quota, or a promise that each
+request will use that account. See native [policy resolution](https://raw.githubusercontent.com/can1357/oh-my-pi/main/packages/ai/src/auth/policy.ts)
+and [account ranking](https://raw.githubusercontent.com/can1357/oh-my-pi/main/packages/ai/src/auth/rank.ts).
+A configured
+role does not create an agent. Native OMP bundles `task`, `scout`, `sonic`,
 `reviewer`, and `security-reviewer`; this repo adds `designer`. Main uses the
 session model.
 
 For a new session:
 
 ```sh
-omp                         # ordinary work and orchestration: Opus 5.5 medium
-omp --model @plan           # system design, architecture: Astra high
-omp --model @slow           # hard problems, thorough pass: Opus 5.5 xhigh
+omp                         # ordinary work and orchestration: Sonnet 5.5 medium
+omp --model @plan           # system design, architecture: Astra medium
+omp --model @slow           # hard problems, thorough pass: Sonnet 5.5 high
 omp --slow                  # shorthand for @slow
-omp --model @extreme        # rare unconstrained reasoning: Opus 5.5 max
+omp --model @extreme        # rare unconstrained reasoning: Opus 5.5 xhigh
 omp --model @smol           # explicitly choose Luna max
 omp --model @vision         # visual inspection and design: Opus 5.5 high
 ```
@@ -765,27 +771,29 @@ project config, and one-run `--config` overlays can override the global default.
 
 Task dispatch selects an **agent**, not a direct model selector. Native
 precedence is `task.agentModelOverrides` → agent frontmatter → parent/default
-fallback. `extensions/subagent-inheritance` uses the supported
-`before_subagent_spawn` hook to select the current parent model and thinking
-level for ordinary `task` children; a `designer` child keeps the existing
-Opus 5.5 high minimum rather than downgrading an Opus max parent. An Opus
-parent below high is raised to high for `designer`; a non-Opus parent is
-refused. A task's `agent` can name a model tagged with `^` in the composer
-(`m1`, `m2`, …); that explicit model choice bypasses inheritance.
-`task.enableEffort` exposes per-item `effort: "lo" | "med" | "hi"`, which
-overrides inherited thinking on the selected model (mapped to its supported
-range). Omitted `effort` keeps the parent level except for the designer
-minimum; designer `lo` and `med` are refused before spawn. The hook applies
-to `task`, not eval `agent()` or direct role selection.
+fallback. Ordinary children retain their configured agent routes rather than
+being overwritten by the live parent's model and thinking.
+`extensions/subagent-inheritance` uses the supported `before_subagent_spawn`
+hook only to preserve the `designer` Opus 5.5 high minimum: a non-Opus parent
+or an Opus parent below high selects Opus high; Opus high/xhigh/max parents
+retain their thinking level. A task's `agent` can name a model tagged with
+`^` in the composer (`m1`, `m2`, …); that remains an explicit model choice.
+`task.enableEffort` exposes per-item `effort: "lo" | "med" | "hi"`, mapped
+to the selected model's supported range. Designer `lo` and `med` are refused
+before spawn. The hook applies to `task`, not eval `agent()` or direct role
+selection.
+Designer dispatch also resolves Opus credentials before spawn. Missing models,
+missing credentials, lookup failures, and lookups exceeding five seconds return
+an explicit block; otherwise native startup can silently select the authenticated
+parent before retry chains apply. This checks authentication, not remaining quota.
 
 The native task result already records the actual resolved model identity,
 thinking level, and fallback status (`resolvedModelIdentity`,
 `resolvedThinkingLevel`, `resolvedModelIsFallback` in
 `TaskToolDetails.results[]`); `task.showResolvedModelBadge` displays the
 resolved model and thinking on each task row. Read these rather than
-inferring the child model from its agent name. Ordinary task workers no longer
-implicitly switch to Sol max; choose `@task` explicitly in the parent to
-delegate on Sol max. Non-task routing retains the configured role defaults.
+inferring the child model from its agent name. Ordinary task workers use
+Sonnet 5.5 medium even when the parent is on a more expensive route.
 Git commit, rebase, push, and similar mechanical ship steps use `@smol`.
 
 Visual, motion, UX and communications work must start on Opus and stop on an
@@ -802,11 +810,14 @@ Select a non-Opus primary explicitly when cross-model recovery is appropriate.
 Do not use an extension that throws during startup as a substitute: OMP can
 isolate extension failures and continue.
 
-The role chains remain in `config.yml` for allowed non-Opus recovery. They
-retain approved subscription providers, with Grok last for non-advisor roles.
-The dedicated `vision` chain also remains Opus-only. Unlike an absent chain,
-an explicit empty model chain means no fallback candidates;
-there is no need to disable `retry.modelFallback` globally.
+The role chains remain in `config.yml` for allowed non-Opus recovery, using
+approved subscription providers. Grok is restricted to read-only `advisor`,
+`reviewer`, and `security-reviewer` recovery and must never enter a builder
+chain; `scout` shares the Luna/smol route without Grok. Gemini
+3.8 Flash is last where cross-model recovery is allowed. The dedicated
+`vision` chain also remains Opus-only. Unlike an absent chain, an explicit
+empty model chain means no fallback candidates; there is no need to disable
+`retry.modelFallback` globally.
 
 The guard is not a universal current-model veto: an Opus entered as a recovery
 hop from a non-Opus primary can still follow that original pinned chain.
@@ -833,15 +844,17 @@ Task quality and whole-task cost effects remain unmeasured.
 
 Existing sessions retain their selected model; deployment is not a retrofit
 of active fallback state. After installing, restart guarded work on an explicit
-Opus primary and verify the selected model before continuing. Pi's separate
-default/authentication policy is unchanged. Do not copy OMP OAuth tokens into Pi.
+Opus primary and verify the selected model before continuing. Pi now defaults
+to Sonnet 5.5 medium while preserving its native authentication stores and
+boundaries. Missing logins are reported, not replaced with the retired DeepSeek
+default. Do not copy OMP OAuth tokens into Pi.
 Exa search, approval mode, and the local title-model setting are unchanged.
 
 For outage verification, use the real OMP CLI with disposable HOME/agent state
 and a network-disabled synthetic provider extension, not live account exhaustion.
 Keep model fallback enabled and every recovery candidate available. Compare
 guarded Opus with a control that removes only its model-key guard; the control
-must actually reach the final OpenRouter candidate. Also walk a non-Opus
+must actually reach its final approved recovery candidate. Also walk a non-Opus
 recovery and a healthy Opus turn. Preserve the original error, attempted-model
 trace and exit status as PR evidence, then remove the disposable state.
 
@@ -850,7 +863,7 @@ exact catalog entry and supported thinking levels. After routing changes, deploy
 the changed owned components and inspect the effective settings:
 
 ```sh
-OMP_INSTALL_COMPONENTS="config guidance" ./install
+OMP_INSTALL_COMPONENTS=all ./install
 omp config get modelRoles --json
 omp config get cycleOrder --json
 omp config get task.agentModelOverrides --json

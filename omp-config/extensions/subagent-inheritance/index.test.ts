@@ -3,10 +3,13 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import registerSubagentInheritance from "./index.ts";
 
 type ParentModel = { provider: string; id: string };
-type SpawnHook = (event: { agent: string; invocationKind: "task" | "eval" }, ctx: { model?: ParentModel }) => unknown;
+type SpawnHook = (event: { agent: string; invocationKind: "task" | "eval" }, ctx: {
+	model?: ParentModel;
+	modelRegistry: { find: () => ParentModel | undefined; getApiKey: () => Promise<string | undefined> };
+}) => unknown;
 type ToolHook = (event: { toolName: string; input: Record<string, unknown> }) => unknown;
 
-function hooks() {
+function hooks(auth = async (): Promise<string | undefined> => "test-key", catalog = true) {
 	let level = "max";
 	let spawn: SpawnHook | undefined;
 	let toolCall: ToolHook | undefined;
@@ -22,7 +25,13 @@ function hooks() {
 		select(agent: string, parent: ParentModel | undefined, thinking: string, invocationKind: "task" | "eval" = "task") {
 			level = thinking;
 			if (!spawn) throw new Error("Subagent spawn hook was not registered");
-			return spawn({ agent, invocationKind }, { model: parent });
+			return spawn({ agent, invocationKind }, {
+				model: parent,
+				modelRegistry: {
+					find: () => catalog ? { provider: "anthropic", id: "claude-opus-5-5" } : undefined,
+					getApiKey: auth,
+				},
+			});
 		},
 		call(input: Record<string, unknown>, toolName = "task") {
 			if (!toolCall) throw new Error("Task tool-call guard was not registered");
@@ -31,27 +40,43 @@ function hooks() {
 	};
 }
 
-test("task agents inherit the live parent model and thinking, including designer at max", () => {
+test("ordinary task agents keep configured routes instead of inheriting an expensive parent", async () => {
 	const { select } = hooks();
-	expect(select("designer", { provider: "anthropic", id: "claude-opus-5-5" }, "max"))
-		.toEqual({ model: "anthropic/claude-opus-5-5:max" });
-	expect(select("task", { provider: "openai-codex", id: "gpt-6-sol" }, "high"))
-		.toMatchObject({ model: "openai-codex/gpt-6-sol:high" });
+	for (const agent of ["task", "reviewer", "security-reviewer", "scout", "sonic"]) {
+		expect(await select(agent, { provider: "openai-codex", id: "gpt-6-astra" }, "max")).toBeUndefined();
+	}
+	expect(await select("task", undefined, "max")).toBeUndefined();
 });
 
-test("an explicitly tagged task model and non-task dispatch keep their own selection", () => {
+test("an explicitly tagged task model and non-task dispatch keep their own selection", async () => {
 	const { select } = hooks();
 	const parent = { provider: "anthropic", id: "claude-opus-5-5" };
-	expect(select("m1", parent, "max")).toBeUndefined();
-	expect(select("reviewer", parent, "max", "eval")).toBeUndefined();
+	expect(await select("m1", parent, "max")).toBeUndefined();
+	expect(await select("reviewer", parent, "max", "eval")).toBeUndefined();
 });
 
-test("designer keeps the high visual minimum without downgrading an Opus max parent", () => {
+test("designer routes to Opus high from any parent and preserves higher Opus effort", async () => {
 	const { select } = hooks();
 	const opus = { provider: "anthropic", id: "claude-opus-5-5" };
-	expect(select("designer", opus, "medium")).toMatchObject({ model: "anthropic/claude-opus-5-5:high" });
-	expect(select("designer", { provider: "openai-codex", id: "gpt-6-sol" }, "max")).toMatchObject({ block: true });
-	expect(select("task", undefined, "max")).toMatchObject({ block: true });
+	expect(await select("designer", opus, "medium")).toEqual({ model: "anthropic/claude-opus-5-5:high" });
+	expect(await select("designer", opus, "xhigh")).toEqual({ model: "anthropic/claude-opus-5-5:xhigh" });
+	expect(await select("designer", opus, "max")).toEqual({ model: "anthropic/claude-opus-5-5:max" });
+	expect(await select("designer", { provider: "anthropic", id: "claude-sonnet-5-5" }, "medium"))
+		.toEqual({ model: "anthropic/claude-opus-5-5:high" });
+	expect(await select("designer", { provider: "openai-codex", id: "gpt-6-astra" }, "max"))
+		.toEqual({ model: "anthropic/claude-opus-5-5:high" });
+	expect(await select("designer", undefined, "max")).toEqual({ model: "anthropic/claude-opus-5-5:high" });
+});
+
+test("designer blocks missing catalog, absent auth and failed auth rather than using the parent", async () => {
+	const parent = { provider: "openai-codex", id: "gpt-6-astra" };
+	for (const guard of [
+		hooks(async () => undefined),
+		hooks(async () => { throw new Error("credential lookup failed"); }),
+		hooks(async () => "test-key", false),
+	]) {
+		expect(await guard.select("designer", parent, "medium")).toMatchObject({ block: true });
+	}
 });
 
 test("per-item low effort cannot lower designer below the visual minimum", () => {
