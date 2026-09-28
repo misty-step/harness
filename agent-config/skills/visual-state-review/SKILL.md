@@ -37,10 +37,10 @@ occurred. Say so in `notes` and `limitations`.
 
 ## Subtraction evidence for designed surfaces
 
-For each affected state, capture its before and after at the same group, viewport,
-theme, and scroll position. Mark those entries `phase: "before"` and
-`phase: "after"` in `states`. Add one record per pair to the top-level
-`subtraction` array:
+For each affected state, capture its before and after into distinct image files
+at the same group, viewport, theme, and scroll position. Mark those entries
+`phase: "before"` and `phase: "after"` in `states`. Add one record per pair to
+the top-level `subtraction` array:
 
 ```json
 {

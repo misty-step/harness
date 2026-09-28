@@ -155,6 +155,7 @@ test("US-044 missing or mismatched subtraction proof is not a completed matrix",
 		["no pairs", data => { data.subtraction = []; }, "no before/after pairs"],
 		["skipped baseline", data => { data.states[0]!.status = "skipped"; data.states[0]!.reason = "not reachable"; }, "must both be captured"],
 		["different viewport", data => { data.states[1]!.size = "1280x720"; }, "size"],
+		["same capture alias", data => { data.states[1]!.file = "./before.png"; }, "same file"],
 		["no retained content inventory", data => { data.subtraction[0]!.kept = []; }, "kept"],
 		["unobserved task", data => { data.subtraction[0]!.retained = []; }, "retained"],
 		["no safe cut unexplained", data => { data.subtraction[0]!.cut = []; }, "keptReason"],
@@ -184,4 +185,22 @@ test("US-044 malformed subtraction data cannot pass an ordinary gallery check", 
 	const result = run([manifest, "--check"]);
 	expect(result.code).toBe(1);
 	expect(result.err).toContain("subtraction: must be an array");
+});
+
+test("US-044 full-image links cannot become executable URLs", () => {
+	const root = dir();
+	const manifest = join(root, "manifest.json");
+	const data = pairedMap(root);
+	const filename = "javascript:alert(1).png";
+	writeFileSync(join(root, filename), "image");
+	data.states[1]!.file = filename;
+	writeFileSync(manifest, JSON.stringify(data));
+	const output = join(root, "index.html");
+	const result = run([manifest, "--out", output]);
+	expect(result.code).toBe(0);
+	const links = [...readFileSync(output, "utf8").matchAll(/href="([^"]+)"/g)].map(match => match[1]!);
+	const imageLink = links.find(link => link.includes("javascript"));
+	expect(imageLink).toBeDefined();
+	expect(imageLink).toMatch(/^\.\//);
+	expect(imageLink).not.toMatch(/^javascript:/i);
 });

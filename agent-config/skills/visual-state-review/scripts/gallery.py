@@ -13,6 +13,7 @@ import tempfile
 import zlib
 from pathlib import Path
 from typing import Any
+from urllib.parse import quote
 
 
 IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".webp", ".gif"}
@@ -121,6 +122,16 @@ def inspect(
             errors.append(f"{label}: states must have before and after phases")
         if before["status"] != "captured" or after["status"] != "captured":
             errors.append(f"{label}: before and after must both be captured")
+        before_file = resolve_file(manifest_path, before)
+        after_file = resolve_file(manifest_path, after)
+        same_file = os.path.realpath(before_file) == os.path.realpath(after_file)
+        if not same_file and before_file.exists() and after_file.exists():
+            same_file = os.path.samefile(before_file, after_file)
+        if same_file:
+            errors.append(
+                f"{label}: before and after must be different image files; "
+                f"{before_file} and {after_file} are the same file"
+            )
         for field in ("group", "size", "theme", "scroll"):
             if not before.get(field) or before[field] != after.get(field):
                 errors.append(f"{label}: before and after must match {field}")
@@ -211,8 +222,19 @@ def options_html(label: str, key: str, values: list[str]) -> str:
     )
 
 
-def card_html(manifest_path: Path, state: dict[str, Any]) -> str:
-    rel = os.path.relpath(resolve_file(manifest_path, state), manifest_path.parent)
+def image_url(manifest_path: Path, state: dict[str, Any] | None) -> str | None:
+    """Return a safe relative URL for a captured, existing image file, else None."""
+    if state is None or state.get("status") != "captured":
+        return None
+    path = resolve_file(manifest_path, state)
+    if not path.is_file() or path.suffix.lower() not in IMAGE_SUFFIXES:
+        return None
+    rel = Path(os.path.relpath(path, manifest_path.parent)).as_posix()
+    # "./" plus percent-encoding keeps a name like "javascript:x.png" a relative path.
+    return "./" + quote(rel, safe="/")
+
+
+def card_html(manifest_path: Path, state: dict[str, Any], pair_index: int | None = None) -> str:
     tags = [
         str(state.get("kind") or ""),
         str(state.get("theme") or ""),
@@ -222,11 +244,11 @@ def card_html(manifest_path: Path, state: dict[str, Any]) -> str:
         str(state.get("status") or ""),
     ]
     tag_line = " · ".join(t for t in tags if t)
-    img = ""
-    if state["status"] == "captured" and resolve_file(manifest_path, state).is_file():
+    url = image_url(manifest_path, state)
+    if url:
         img = (
-            f'      <img src="{html.escape(rel)}" '
-            f'alt="{html.escape(str(state["id"]))}">'
+            f'      <a class="shot" href="{html.escape(url)}" title="Open full capture">'
+            f'<img src="{html.escape(url)}" alt="{html.escape(str(state["id"]))}" loading="lazy"></a>'
         )
     else:
         reason = str(state.get("reason") or "not captured")
@@ -235,11 +257,16 @@ def card_html(manifest_path: Path, state: dict[str, Any]) -> str:
         f'data-{key}="{html.escape(str(state.get(key) or ""))}"'
         for key in ("id", "group", "size", "scroll", "theme", "kind", "phase", "status")
     )
+    pair_link = (
+        f'\n      <p class="tags"><a href="#pair-{pair_index + 1}">Compare pair {pair_index + 1}</a></p>'
+        if pair_index is not None
+        else ""
+    )
     return (
         f'    <article class="card" {attrs}>\n'
         f"{img}\n"
         f'      <p class="tags">{html.escape(tag_line)}</p>\n'
-        f'      <h2>{html.escape(str(state["id"]))}</h2>\n'
+        f'      <h2>{html.escape(str(state["id"]))}</h2>{pair_link}\n'
         "    </article>"
     )
 
@@ -258,33 +285,81 @@ def list_html(title: str, items: Any, empty: str) -> str:
     bullets = "\n".join(f"<li>{html.escape(str(item))}</li>" for item in items)
     return f"<h2>{html.escape(title)}</h2><ul>\n{bullets}\n</ul>"
 
-def subtraction_html(pairs: Any) -> str:
+def pair_indexes(pairs: Any) -> dict[str, int]:
+    indexes: dict[str, int] = {}
+    if not isinstance(pairs, list):
+        return indexes
+    for index, pair in enumerate(pairs):
+        if isinstance(pair, dict):
+            for key in ("before", "after"):
+                if isinstance(pair.get(key), str):
+                    indexes.setdefault(pair[key], index)
+    return indexes
+
+
+def pair_figure(manifest_path: Path, state_id: Any, state: dict[str, Any] | None, phase: str) -> str:
+    name = html.escape(str(state_id or ""))
+    url = image_url(manifest_path, state)
+    if url:
+        href = html.escape(url)
+        shot = f'<a href="{href}" title="Open full capture"><img src="{href}" alt="{phase}: {name}" loading="lazy"></a>'
+        caption = f'{phase} · <a href="{href}">{name}</a>'
+    else:
+        reason = "state not in manifest" if state is None else str(state.get("reason") or "not captured")
+        shot = f'<div class="missing">{html.escape(reason)}</div>'
+        caption = f"{phase} · {name}"
+    return f'<figure class="pair-shot">{shot}<figcaption>{caption}</figcaption></figure>'
+
+
+def detail_list(name: str, values: Any) -> str:
+    if not isinstance(values, list) or not values:
+        return ""
+    items = "".join(f"<li>{html.escape(str(value))}</li>" for value in values)
+    return f"<dt>{html.escape(name)}</dt><dd><ul>{items}</ul></dd>"
+
+
+def subtraction_html(manifest_path: Path, states: list[dict[str, Any]], pairs: Any) -> str:
     if not isinstance(pairs, list) or not pairs:
         return ""
-    rows = []
-    for pair in pairs:
+    by_id = {state["id"]: state for state in states}
+    sections = []
+    for index, pair in enumerate(pairs):
         if not isinstance(pair, dict):
             continue
-        label = f"{pair.get('before', '')} → {pair.get('after', '')}"
+        before_id, after_id = pair.get("before"), pair.get("after")
+        before = by_id.get(before_id) if isinstance(before_id, str) else None
+        after = by_id.get(after_id) if isinstance(after_id, str) else None
+        source = before or after or {}
+        context = " · ".join(
+            str(source.get(key) or "") for key in ("group", "size", "theme", "scroll") if source.get(key)
+        )
+        title = f"Pair {index + 1}" + (f": {context}" if context else "")
         details = []
+        if filled(pair.get("job")):
+            details.append(f"<dt>Job</dt><dd>{html.escape(pair['job'])}</dd>")
         for name, key in (("Kept", "kept"), ("Cut", "cut"), ("Deferred", "deferred"), ("Access", "access")):
-            values = pair.get(key)
-            if isinstance(values, list) and values:
-                details.append(f"{name}: {', '.join(str(value) for value in values)}")
-        if pair.get("keptReason"):
-            details.append(f"No safe cut: {pair['keptReason']}")
+            details.append(detail_list(name, pair.get(key)))
+        if filled(pair.get("keptReason")):
+            details.append(f"<dt>No safe cut</dt><dd>{html.escape(pair['keptReason'])}</dd>")
         retained = pair.get("retained")
         if isinstance(retained, list):
-            for item in retained:
-                if isinstance(item, dict):
-                    details.append(f"Retained: {item.get('action', '')} → {item.get('observed', '')}")
-        rows.append(
-            f"<li><strong>{html.escape(label)}</strong>: "
-            f"{html.escape(str(pair.get('job') or ''))}<br>"
-            + "<br>".join(html.escape(detail) for detail in details)
-            + "</li>"
+            rows = "".join(
+                f"<li><strong>{html.escape(str(item.get('action', '')))}</strong> → "
+                f"{html.escape(str(item.get('observed', '')))}</li>"
+                for item in retained
+                if isinstance(item, dict)
+            )
+            if rows:
+                details.append(f"<dt>Retained</dt><dd><ul>{rows}</ul></dd>")
+        sections.append(
+            f'<section class="pair" id="pair-{index + 1}">'
+            f"<h3>{html.escape(title)}</h3>"
+            f'<p class="tags">{html.escape(str(before_id or ""))} → {html.escape(str(after_id or ""))}</p>'
+            f'<div class="pair-shots">{pair_figure(manifest_path, before_id, before, "Before")}'
+            f'{pair_figure(manifest_path, after_id, after, "After")}</div>'
+            f"<dl>{''.join(details)}</dl></section>"
         )
-    return "<h2>Subtraction</h2><ul>\n" + "\n".join(rows) + "\n</ul>"
+    return '<section class="review"><h2>Subtraction</h2>\n' + "\n".join(sections) + "\n</section>"
 
 
 def render(manifest_path: Path, data: dict[str, Any]) -> str:
@@ -306,7 +381,9 @@ def render(manifest_path: Path, data: dict[str, Any]) -> str:
         )
         if part
     )
-    cards = "\n".join(card_html(manifest_path, state) for state in states)
+    pairs = data.get("subtraction")
+    paired = pair_indexes(pairs)
+    cards = "\n".join(card_html(manifest_path, state, paired.get(state["id"])) for state in states)
     return f"""<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -318,25 +395,45 @@ def render(manifest_path: Path, data: dict[str, Any]) -> str:
     body {{ margin: 0; font: 15px/1.45 ui-sans-serif, system-ui, sans-serif;
       background: #111; color: #e8e8e8; }}
     header, nav, .toolbar, main, footer {{ padding: 1rem 1.25rem; }}
+    header p, footer p, footer ul {{ max-width: 75ch; overflow-wrap: anywhere; }}
     header {{ border-bottom: 1px solid #2a2a2a; }}
     h1 {{ margin: 0 0 .4rem; font-size: 1.4rem; }}
     .meta, .tags {{ color: #9a9a9a; font-size: .85rem; }}
     a {{ color: #8ab4ff; }}
     .toolbar {{ display: flex; flex-wrap: wrap; gap: .75rem; align-items: end;
       border-bottom: 1px solid #2a2a2a; }}
+    .toolbar label {{ min-width: 0; max-width: 100%; }}
     input, select {{ background: #1c1c1c; color: inherit; border: 1px solid #333;
-      border-radius: 4px; padding: .35rem .5rem; }}
+      border-radius: 4px; padding: .35rem .5rem; max-width: 100%; }}
     .grid {{ display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
       gap: 1rem; padding: 1.25rem; }}
     .card {{ background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 8px;
       overflow: hidden; }}
+    .card a.shot {{ display: block; }}
     .card img, .missing {{ width: 100%; aspect-ratio: 16/10; object-fit: cover;
-      background: #000; display: block; }}
+      object-position: top; background: #000; display: block; }}
     .missing {{ display: grid; place-items: center; color: #c97; padding: 1rem; }}
     .card h2, .card .tags {{ margin: .4rem .75rem; }}
     .card h2 {{ font-size: .95rem; }}
     .hidden {{ display: none; }}
     footer section {{ margin-top: 1rem; }}
+    .pair {{ max-width: 72rem; margin: 1.5rem 0 2.5rem; }}
+    .pair h3 {{ margin: 0; font-size: 1.05rem; }}
+    .pair .tags {{ margin: .2rem 0 0; overflow-wrap: anywhere; }}
+    .pair-shots {{ display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: .75rem; margin: .75rem 0; }}
+    .pair-shot {{ margin: 0; background: #1a1a1a; border: 1px solid #2a2a2a;
+      border-radius: 8px; padding: .5rem; }}
+    .pair-shot img {{ display: block; width: auto; height: auto; max-width: 100%;
+      max-height: 85vh; margin: 0 auto; }}
+    .pair-shot .missing {{ aspect-ratio: auto; min-height: 6rem; }}
+    .pair-shot figcaption {{ margin-top: .4rem; color: #9a9a9a; font-size: .85rem;
+      overflow-wrap: anywhere; }}
+    .pair dl {{ max-width: 75ch; margin: 0; overflow-wrap: anywhere; }}
+    .pair dt {{ margin-top: .75rem; font-weight: 700; }}
+    .pair dd {{ margin: .2rem 0 0; }}
+    .pair dd ul {{ margin: 0; padding-left: 1.25rem; }}
+    .pair dd li + li {{ margin-top: .25rem; }}
   </style>
 </head>
 <body>
@@ -346,7 +443,7 @@ def render(manifest_path: Path, data: dict[str, Any]) -> str:
     <p>{html.escape(notes)}</p>
     <p class="meta">{html.escape(captured_at)} · {captured} / {len(states)} captured</p>
   </header>
-  <div class="toolbar">
+  <div class="toolbar" role="search" aria-label="Filter captures">
     <label>Search
       <input id="q" type="search" placeholder="Search state, group...">
     </label>
@@ -357,7 +454,7 @@ def render(manifest_path: Path, data: dict[str, Any]) -> str:
 {cards}
   </main>
   <footer>
-    {subtraction_html(data.get("subtraction"))}
+    {subtraction_html(manifest_path, states, pairs)}
     {list_html("Coverage", data.get("coverage"), "No coverage notes.")}
     {list_html("Limitations", data.get("limitations"), "No limitations recorded.")}
     {list_html("Findings", data.get("findings"), "No findings recorded.")}
