@@ -3,7 +3,7 @@
 Canonical checks: `./scripts/verify [all|shared|pi|omp|workspace]` from any cwd.
 `./scripts/check` is the fixed entry point (ADR-004): it runs the same command
 with the same arguments, and CI invokes it.
-Requires Git, Bun >=1.4.2, jq, a POSIX shell, and Python 3 for shared gallery checks. No bootstrap, provider credentials,
+Requires Git, Bun >=1.4.2, jq, a POSIX shell, and Python 3 for root scanner and shared gallery checks. No bootstrap, provider credentials,
 or installed harness is needed. Unit suites read working files; the installer
 check deliberately clones committed HEAD. Commit installer changes before using
 that evidence. Both source identity and dirty-tree status are reported.
@@ -45,6 +45,10 @@ owned directory. Remove only that directory once its process has ended.
   configuration and, when `LANDMARK_BIN` is supplied, replays a docs-only
   candidate race against the real binary. CI always supplies it from the
   pinned Landmark action. Offline local runs explicitly skip that replay.
+- `scripts/trufflehog-gate.test.ts` checks that the pre-push scanner admits only
+  the pinned unverified GitHub OAuth false positive from a public commit SHA
+  in a generated changelog link. Other commit links and findings, malformed
+  results, and scanner errors fail closed without printing candidate secrets.
 - Existing shared, pi and OMP suites exercise component logic.
 - `agent-config/skills/session-close/session-close.test.ts` exercises scoped lease
   ownership and stale/corrupt review (US-004); `agent-config/bin/ws.test.ts`
@@ -202,9 +206,13 @@ See the [MIS-177 postmortem](postmortems/2026-09-27-stale-protected-release.md).
 
 ## Git hook setup
 
-`./scripts/bootstrap` checks scanner availability and selects `.githooks` as the
-repository hook directory. It refuses a foreign local hooksPath rather than taking
-ownership silently. Pre-push scans outgoing commits with gitleaks and the worktree
-with trufflehog; neither check is bypassed for migration. Runtime installers do
-not configure Git hooks. Prose-only edits call for consistency review; changed
-deployed guidance also needs composition inspection, not a model run.
+`./scripts/bootstrap` checks Git, gitleaks, trufflehog, and Python 3, then
+selects `.githooks` as the repository hook directory. It refuses a foreign
+local hooksPath rather than taking ownership silently. Pre-push scans outgoing
+commits with gitleaks and the worktree with trufflehog. The sole TruffleHog
+exception is the pinned unverified GitHub OAuth false positive equal to the
+first 20 hex characters of one public full commit SHA in a generated
+`CHANGELOG.md` GitHub commit link; another SHA, line, detector, or value
+still blocks. Runtime installers do not configure Git hooks. Prose-only edits
+call for consistency review; changed deployed guidance also needs composition
+inspection, not a model run.

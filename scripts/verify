@@ -6,13 +6,9 @@ cd "$root"
 [ "$#" -le 1 ] || { echo 'Usage: scripts/verify [all|shared|pi|omp|workspace]' >&2; exit 1; }
 selection=${1:-all}
 case "$selection" in all|shared|pi|omp|workspace) ;; *) echo "Unknown selection: $selection" >&2; exit 1 ;; esac
-for tool in git bun jq; do
+for tool in git bun jq python3; do
   command -v "$tool" >/dev/null 2>&1 || { echo "$tool is required" >&2; exit 1; }
 done
-case "$selection" in all|shared)
-  command -v python3 >/dev/null 2>&1 || { echo "python3 is required for shared checks" >&2; exit 1; }
-  ;;
-esac
 mkdir -p "$HOME/.cache/tmp"
 work=$(mktemp -d "$HOME/.cache/tmp/harness-verify.XXXXXX")
 trap 'rm -rf -- "$work"' 0
@@ -26,7 +22,7 @@ fi
 for script in scripts/bootstrap scripts/check scripts/verify scripts/verify-installers .githooks/pre-push agent-config/install pi-config/install omp-config/install; do
   sh -n "$script"
 done
-bun test --max-concurrency=1 scripts/references.test.ts scripts/workspace-inventory.test.ts scripts/protected-release.test.ts
+bun test --max-concurrency=1 scripts/references.test.ts scripts/workspace-inventory.test.ts scripts/protected-release.test.ts scripts/trufflehog-gate.test.ts
 case "$selection" in all|shared) (cd agent-config && bun test --max-concurrency=1 bin/ skills/ system-one/ audio-sandbox/);; esac
 case "$selection" in all|shared) PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s agent-config/desktop-guard -p 'test_*.py';; esac
 case "$selection" in all|pi) (cd pi-config && bun test --max-concurrency=1 bin/ extensions/);; esac
