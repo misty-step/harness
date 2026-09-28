@@ -135,6 +135,7 @@ retry:
 task:
   maxRecursionDepth: 3
   showResolvedModelBadge: true
+  enableEffort: true
   enableLsp: true
   # Opt-in per task item (`isolated: true`). Workspaces are copy-on-write under
   # ~/.omp/wt (btrfs/reflink on this host) and removed when the child yields;
