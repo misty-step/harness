@@ -28,20 +28,21 @@ Visual, motion, UX and communications work must start on Opus and stop rather
 than change models on an outage. The configured Opus primary also fails closed
 in main sessions, at every effort. This does not repair a session that already
 fell back to another model. GPT-6 roles serve specific direct selections:
-`@task` is Sol max; `@smol`, `@commit`, `@advisor`, `scout`, and `sonic` map
-to Luna max; `@tiny` may use OMP's local model before Luna. OMP `task` tool
-children instead inherit the current parent's model and thinking unless a
-tagged model agent (`^` then `m1`, `m2`, …) or per-item `effort` overrides them.
-The `designer` child only runs when its parent is Opus 5.5 at high or above;
-switch the parent first rather than sending visual work to another model.
-Astra runs at high or above for system design, architecture, and code review:
-`@plan` and direct `reviewer` are Astra high, `security-reviewer` Astra max.
-Grok 4.7 is the last subscription link in every chain. Cerebras is retired
-(operator 2026-09-18: too expensive). Mechanical VCS and install-only deploys
-use `@smol`. Model selections and provider-failure chains live in `config.yml`;
-paid OpenRouter recovery comes last. Role routing does not switch the current
-session's selected model. Read the resolved model and thinking badge on each
-task result; the agent name alone does not identify what actually ran.
+`@task` is Sol max; `@smol`, `@commit`, `scout`, and `sonic` map to Luna max;
+`@advisor` is Sol medium; `@tiny` may use OMP's local model before Luna.
+OMP `task` tool children instead inherit the current parent's model and thinking
+unless a tagged model agent (`^` then `m1`, `m2`, …) or per-item `effort`
+overrides them. The `designer` child only runs when its parent is Opus 5.5 at
+high or above; switch the parent first rather than sending visual work to
+another model. Astra runs at high or above for system design, architecture,
+and code review: `@plan` and direct `reviewer` are Astra high,
+`security-reviewer` Astra max. Grok 4.7 is the last subscription link in every
+chain. Cerebras is retired (operator 2026-09-18: too expensive). Mechanical
+VCS and install-only deploys use `@smol`. Model selections and
+provider-failure chains live in `config.yml`; paid OpenRouter recovery comes
+last. Role routing does not switch the current session's selected model. Read
+the resolved model and thinking badge on each task result; the agent name
+alone does not identify what actually ran.
 
 Repository code, tests, and versioned docs own technical truth; work records
 track priorities, owners, and blockers. Delete unnecessary code, state, and
