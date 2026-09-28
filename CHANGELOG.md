@@ -1,3 +1,9 @@
+# [0.1.56](https://github.com/misty-step/harness/compare/v0.1.55...v0.1.56) (2026-09-28)
+<!-- landmark:protected-release previous=v0.1.55 source=b5ad12d6c47af486bfa6e2ddcdd30bba292e9225e0f4e613264299e0cbb1f9a8 -->
+
+### Features
+
+* **omp:** focus Steward on the task victory (#127) ([44595ea](https://github.com/misty-step/harness/commit/44595eab7f4c42e5b26d20b2487bed469b84ecfa))
 # [0.1.55](https://github.com/misty-step/harness/compare/v0.1.54...v0.1.55) (2026-09-28)
 <!-- landmark:protected-release previous=v0.1.54 source=74d939ac268852b8de599582b6d349c0d3678925d0586d8524aa66d563b79f19 -->
 
