@@ -1,3 +1,9 @@
+# [0.1.52](https://github.com/misty-step/harness/compare/v0.1.51...v0.1.52) (2026-09-28)
+<!-- landmark:protected-release previous=v0.1.51 source=1c95f206987ee19c839fa1d025252f09b33c4ea575b3d3eb79f7a4e1b81d58b9 -->
+
+### Bug Fixes
+
+* **gallery:** preserve optional capture kind in pairs (US-044) (#119) ([d21e5da](https://github.com/misty-step/harness/commit/d21e5daa244f2f0ed88bbaaffa0c4b3449c7a265))
 # [0.1.51](https://github.com/misty-step/harness/compare/v0.1.50...v0.1.51) (2026-09-28)
 <!-- landmark:protected-release previous=v0.1.50 source=22d1c4d0725ce13808e519d7133834936474d374aa9e6fd32d14c125782d3650 -->
 
