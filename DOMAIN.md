@@ -74,6 +74,11 @@ the Foundation Standard tooling. It does not own:
   unmanaged server or an oomd monitoring ancestor. Enforced at runtime by
   `agent-config/desktop-guard/desktop-guard.py`; the native owner-path walk is
   documented in `docs/desktop-memory-guard.md`.
+- **INV-010** A protected release candidate passes Landmark's own validation
+  on an up-to-date merge candidate before it can land (US-015). Enforced by
+  required `verify` in `.github/workflows/ci.yml`, its configuration/replay
+  regression in `scripts/protected-release.test.ts`, and GitHub ruleset
+  23779166's strict required-status-check policy with no bypass actors.
 
 ## Code map
 

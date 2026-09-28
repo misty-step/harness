@@ -17,9 +17,12 @@ run-scoped under `~/.cache/tmp` and removed on ordinary exit. Run:
 ./scripts/verify all
 ```
 
-CI uses one job, `./scripts/check all`, and a 15-minute timeout. No browser, Electron,
-model, cloud resource, or installed harness is needed. All scratch is run-scoped
-under `~/.cache/tmp` and removed on ordinary exit; interrupted runs may leave an
+CI uses one job, `./scripts/check all`, and a 15-minute timeout. Before that gate,
+the pinned Landmark action validates the prospective release candidate with
+`prepare-protected` and supplies its checksum-verified binary for the release
+race replay. CI therefore also needs access to GitHub release downloads.
+No browser, Electron, model, cloud resource, or installed harness is needed.
+All scratch is run-scoped under `~/.cache/tmp` and removed on ordinary exit; interrupted runs may leave an
 owned directory. Remove only that directory once its process has ended.
 
 ## Observable contracts
@@ -38,6 +41,10 @@ owned directory. Remove only that directory once its process has ended.
   worktrees to check external paths, nested repositories, dirty and prunable
   states, and non-destructive failure reporting while continuing past unreadable
   directories; it does not inspect or clean the host's worktrees.
+- `scripts/protected-release.test.ts` guards the required release validation
+  configuration and, when `LANDMARK_BIN` is supplied, replays a docs-only
+  candidate race against the real binary. CI always supplies it from the
+  pinned Landmark action. Offline local runs explicitly skip that replay.
 - Existing shared, pi and OMP suites exercise component logic.
 - `agent-config/skills/session-close/session-close.test.ts` exercises scoped lease
   ownership and stale/corrupt review (US-004); `agent-config/bin/ws.test.ts`
@@ -140,6 +147,51 @@ should take minutes; expensive matrices belong to owned nightly or weekly
 runs with notification and on-demand execution. This guidance does not install
 a scheduler or change this repository's CI. Keep required security and
 installer gates intact.
+
+## Protected release walk (US-015)
+
+The required `verify` job validates the prospective PR merge, not only the head
+branch, with the same pinned Landmark `prepare-protected` action used to create
+release candidates. This invokes the publisher's local candidate classifier.
+It may generate an uncommitted changelog in the disposable CI checkout; it
+cannot publish, push, or mutate the source checkout used by subsequent jobs.
+The original publish-time validation remains in place.
+
+The [default-branch ruleset](https://github.com/misty-step/harness/rules/23779166)
+must require `verify` with `strict_required_status_checks_policy: true` and no
+bypass actors. Without up-to-date checks, a base advance after successful CI
+can invalidate a release marker. Inspect the actual rules, rather than assuming
+workflow files configure them:
+
+```sh
+gh api repos/misty-step/harness/rulesets/23779166
+```
+
+For a bounded local race replay, use the checksum-verified binary from the
+Landmark release matching the action pin, then run:
+
+```sh
+LANDMARK_BIN=/absolute/path/to/landmark bun test --max-concurrency=1 scripts/protected-release.test.ts
+```
+
+The fixtures live under run-scoped `~/.cache/tmp` and are removed on exit. The
+replay rejects a stale docs-only candidate, then proves regeneration and the
+next tagged boundary. It does not pretend to publish a GitHub Release.
+
+For real-path acceptance, observe required `verify` on the fix PR, merge
+through protection, observe green `Verify and Release` on master, and follow
+the generated `landmark/release` PR through its own required check and merge.
+Read the resulting tag target and GitHub Release back through `gh`, confirming
+the target is the landed release commit. Dispatch the release workflow again
+and confirm the existing tag is unchanged and no duplicate release is created.
+Do not deploy either harness while doing this walk.
+
+If an unpublished stale candidate already landed, first confirm its claimed
+version has neither a remote tag nor a published release. Withdraw only that
+unpublished section in a verified repair PR. After it merges, let the normal
+release workflow prepare a replacement from the accumulated commits; never
+hand-edit fingerprints, move tags, skip publication errors, or bypass checks.
+See the [MIS-177 postmortem](postmortems/2026-09-27-stale-protected-release.md).
 
 ## Git hook setup
 
