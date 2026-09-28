@@ -88,7 +88,7 @@ test("US-006 skipped state requires a reason", () => {
 
 type PairManifest = {
 	title: string;
-	states: Array<{ id: string; file: string; group: string; size: string; theme: string; scroll: string; phase?: string; status: string; reason?: string }>;
+	states: Array<{ id: string; file: string; group: string; size: string; theme: string; scroll: string; kind?: string; phase?: string; status: string; reason?: string }>;
 	subtraction: Array<{
 		before: string; after: string; job: string; kept: string[]; cut: string[]; deferred: string[];
 		retained: Array<{ action: string; observed: string }>;
@@ -102,8 +102,8 @@ function pairedMap(root: string): PairManifest {
 	return {
 		title: "Map restraint",
 		states: [
-			{ id: "map-before", file: "before.png", group: "map", size: "390x844", theme: "light", scroll: "top", phase: "before", status: "captured" },
-			{ id: "map-after", file: "after.png", group: "map", size: "390x844", theme: "light", scroll: "top", phase: "after", status: "captured" },
+			{ id: "map-before", file: "before.png", group: "map", size: "390x844", theme: "light", scroll: "top", kind: "live", phase: "before", status: "captured" },
+			{ id: "map-after", file: "after.png", group: "map", size: "390x844", theme: "light", scroll: "top", kind: "live", phase: "after", status: "captured" },
 		],
 		subtraction: [{
 			before: "map-before",
@@ -155,6 +155,9 @@ test("US-044 missing or mismatched subtraction proof is not a completed matrix",
 		["no pairs", data => { data.subtraction = []; }, "no before/after pairs"],
 		["skipped baseline", data => { data.states[0]!.status = "skipped"; data.states[0]!.reason = "not reachable"; }, "must both be captured"],
 		["different viewport", data => { data.states[1]!.size = "1280x720"; }, "size"],
+		["different render source", data => { data.states[1]!.kind = "replay"; }, "kind"],
+		["missing render source", data => { delete data.states[0]!.kind; delete data.states[1]!.kind; }, "kind"],
+		["non-text viewport", data => { for (const state of data.states) Object.assign(state, { size: 1 }); }, "size"],
 		["same capture alias", data => { data.states[1]!.file = "./before.png"; }, "same file"],
 		["no retained content inventory", data => { data.subtraction[0]!.kept = []; }, "kept"],
 		["unobserved task", data => { data.subtraction[0]!.retained = []; }, "retained"],
