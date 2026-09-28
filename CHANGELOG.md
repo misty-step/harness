@@ -1,3 +1,9 @@
+# [0.1.58](https://github.com/misty-step/harness/compare/v0.1.57...v0.1.58) (2026-09-28)
+<!-- landmark:protected-release previous=v0.1.57 source=847b62bed6052669578a93e4b1cd811c5b9d85de1fd64c38e026aee4af67a50f -->
+
+### Bug Fixes
+
+* **omp:** reject retired model routes (#133) ([725d476](https://github.com/misty-step/harness/commit/725d476fbbb050fce540398ad6560ed117013ac5))
 # [0.1.57](https://github.com/misty-step/harness/compare/v0.1.56...v0.1.57) (2026-09-28)
 <!-- landmark:protected-release previous=v0.1.56 source=ddef4dbddf44ed04f11acf879538c5f9021783df1bcb0e41b25868426224e82b -->
 
