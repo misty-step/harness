@@ -2,7 +2,7 @@
 # Repository setup only: never deploy runtime configuration.
 set -eu
 root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
-for tool in git gitleaks trufflehog; do
+for tool in git gitleaks trufflehog python3; do
   command -v "$tool" >/dev/null 2>&1 || { echo "$tool is required" >&2; exit 1; }
 done
 [ "$(git -C "$root" rev-parse --show-toplevel)" = "$root" ] || {
