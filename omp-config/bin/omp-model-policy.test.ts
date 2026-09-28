@@ -24,12 +24,14 @@ function run(config?: string, env?: Record<string, string>) {
 type PolicyConfig = {
 	modelRoles: Record<string, unknown>;
 	retry: { fallbackChains: Record<string, unknown> };
+	task?: { agentModelOverrides: Record<string, unknown> };
 	providers?: Record<string, unknown>;
 };
 
 function smallConfig(): PolicyConfig {
 	return {
 		modelRoles: { default: "anthropic/claude-sonnet-5-5:medium", web: "web/exa" },
+		task: { agentModelOverrides: { worker: "@default" } },
 		retry: { fallbackChains: { "anthropic/claude-sonnet-5-5": [] } },
 	};
 }
@@ -48,6 +50,8 @@ test("US-014 source selectors stay within the approved model policy", () => {
 test("offline policy rejects stale, alias, malformed and disallowed routing selectors", () => {
 	const cases: Array<[string, (config: PolicyConfig) => void, string]> = [
 		["stale Sonnet role", config => { config.modelRoles.default = "anthropic/claude-sonnet-5:medium"; }, "unapproved model"],
+		["retired agent override", config => { config.task = { agentModelOverrides: { designer: "anthropic/claude-sonnet-5:medium" } }; }, "unapproved model"],
+		["unknown model role override", config => { config.task = { agentModelOverrides: { designer: "@unknown" } }; }, "does not resolve to a chat role"],
 		["fuzzy alias", config => { config.modelRoles.default = "sonnet"; }, "concrete model selector"],
 		["DeepSeek fallback", config => { config.retry.fallbackChains.default = ["openrouter/deepseek/deepseek-v4.1-flash:max"]; }, "concrete model selector"],
 		["unapproved model-key chain", config => { config.retry.fallbackChains["anthropic/claude-opus-5"] = []; }, "unapproved model"],
@@ -115,6 +119,15 @@ test("online probe includes model-key fallback selectors even when their chain i
 	const result = run(files.config, fakeOmp(files.root, "model-key"));
 	expect(result.exitCode).not.toBe(0);
 	expect(result.stderr.toString()).toContain("routed openai-codex/gpt-6-sol to a different provider/model");
+});
+
+test("online probe includes direct task model overrides", () => {
+	const config = smallConfig();
+	config.task!.agentModelOverrides.worker = "openai-codex/gpt-6-sol:medium";
+	const files = fixture(config);
+	const result = run(files.config, fakeOmp(files.root, "model-key"));
+	expect(result.exitCode).not.toBe(0);
+	expect(result.stderr.toString()).toContain("routed openai-codex/gpt-6-sol:medium to a different provider/model");
 });
 
 test("online probe rejects provider failure even if OMP exits cleanly", () => {

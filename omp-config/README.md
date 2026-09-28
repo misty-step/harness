@@ -704,9 +704,9 @@ to a different, retired model. Restart that process after a catalog upgrade.
 Before deploying model changes, run
 `bun omp-config/bin/omp-model-policy.ts --probe` from the repository root. Its
 offline mode (without `--probe`) rejects retired and unapproved chat selectors
-in every role and fallback, including model-key chains. The online mode
-additionally requires exact OMP catalog matches and successful provider
-responses with the requested model. It needs the workstation's existing
+in every role, task agent override, and fallback, including model-key chains.
+The online mode additionally requires exact OMP catalog matches and successful
+provider responses with the requested model. It needs the workstation's existing
 provider logins and is separate from the credential-free `./scripts/verify`
 gate. An installed config cannot update the in-memory catalog in already-running
 engineers; restart only after preserving each session and confirming it is idle

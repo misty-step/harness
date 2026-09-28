@@ -486,10 +486,10 @@ Criteria:
    SHALL keep the DeepSeek default and print the login instruction.
 6. WHEN configuration is deployed, THE SYSTEM SHALL preserve OAuth stores and
    the model already selected in existing sessions.
-7. WHEN OMP model routing is checked, THE SYSTEM SHALL reject every chat role or
-   fallback outside Opus 5.5, Sonnet 5.5, GPT-6, Grok 4.7, and Gemini 3.8
-   Flash; an online predeployment probe SHALL reject a selector not accepted
-   by its provider or resolved to a different model.
+7. WHEN OMP model routing is checked, THE SYSTEM SHALL reject every chat role,
+   task agent override, or fallback outside Opus 5.5, Sonnet 5.5, GPT-6,
+   Grok 4.7, and Gemini 3.8 Flash; an online predeployment probe SHALL reject
+   a selector not accepted by its provider or resolved to a different model.
 
 No-gos: no copying OAuth credentials between harnesses; no frontier model
 through OpenRouter as a default; no Pi default that is not authenticated; no

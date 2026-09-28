@@ -59,6 +59,21 @@ function configuredSelectors(config: unknown): Map<string, Model> {
 		if (!Array.isArray(chain)) throw new Error(`retry.fallbackChains.${key} must be an array`);
 		for (const [index, value] of chain.entries()) add(value, `retry.fallbackChains.${key}[${index}]`);
 	}
+	const task = root.task === undefined ? undefined : mapping(root.task, "task");
+	if (task?.agentModelOverrides !== undefined) {
+		const overrides = mapping(task.agentModelOverrides, "task.agentModelOverrides");
+		for (const [agent, value] of Object.entries(overrides)) {
+			if (!/^[a-z][a-z0-9-]*$/.test(agent)) throw new Error(`Invalid task agent override: ${agent}`);
+			if (typeof value === "string" && value.startsWith("@")) {
+				const role = value.slice(1);
+				if (!Object.hasOwn(roles, role) || role === "web") {
+					throw new Error(`task.agentModelOverrides.${agent} does not resolve to a chat role: ${value}`);
+				}
+			} else {
+				add(value, `task.agentModelOverrides.${agent}`);
+			}
+		}
+	}
 	if (root.providers !== undefined) {
 		const tinyModel = mapping(root.providers, "providers").tinyModel;
 		if (tinyModel !== undefined && tinyModel !== null && tinyModel !== "") {
