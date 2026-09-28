@@ -47,11 +47,13 @@ open decision — not vibes. Record what a further round would test before start
 
 ```
 intake → reference study → IA + journey maps → divergent boards → comparative critique
-→ recombine → clickable finalists → refine → decision capture → handoff → rendered QA → feedback
+→ recombine → clickable finalists → refine → subtract → decision capture → handoff
+→ rendered QA → feedback
 ```
 
-Do not skip critique, recombination, or rendered QA. A pile of initial images is not a loop.
-Full procedure, artifacts, and scale-down rules: [references/loop.md](references/loop.md).
+Do not skip critique, recombination, subtraction, or rendered QA. A pile of
+initial images is not a loop. Full procedure, artifacts, and scale-down rules:
+[references/loop.md](references/loop.md).
 
 ## Divergence rubric
 
@@ -130,8 +132,10 @@ Format and checklist: [references/handoff.md](references/handoff.md).
 ## Evidence and QA
 
 Every named UI state is captured and looked at — `skill://visual-state-review` is the
-procedure. Generated concept images and real browser screenshots must be distinguishable in
-the evidence manifest: [templates/evidence-manifest.json](templates/evidence-manifest.json).
+procedure. For a designed surface, pair before and after captures and record the
+task and required information that remain reachable; run `gallery.py --check
+--require-subtraction`. Generated concept images and real browser screenshots must
+be distinguishable in the evidence manifest: [templates/evidence-manifest.json](templates/evidence-manifest.json).
 No claim of functional proof from a screenshot alone.
 
 ## Principal touchpoints

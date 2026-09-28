@@ -76,19 +76,40 @@ restyle). Preserve the pre-revision version for the before/after record.
 - Before/after is required evidence: what the critique said, what changed, what it fixed.
 - Further rounds: only with new evidence or a named open decision.
 
-## 9. Decision capture — the spec
+## 9. Subtract — the content must earn its place
 
-Write or update the handoff artifacts: DESIGN.md-compatible spec, semantic tokens, states,
-motion, copy patterns, a11y constraints, implementation mapping, validation plan.
-See [handoff.md](handoff.md). Tokens alone do not stand in for product design.
+For each affected named state, write the primary user job and inventory the visible
+messages, rows, controls, and repeated facts. Decide **keep / cut / defer** for each:
+keep what the task needs now, cut repeated or unneeded material, and defer only
+secondary information behind a named, accessible action. A visually shorter screen
+is not better if the task becomes slower or a required status, warning, or concept
+disappears. When nothing can safely be cut, record why rather than invent a cut.
 
-## 10. Rendered QA — every named state
+Compare the actual rendered state before and after at the same viewport, theme, and
+scroll position. Walk the primary action and the route to deferred information,
+including keyboard and assistive access. Record what was removed, what stayed
+reachable, and what the interaction did. `skill://visual-state-review` owns the
+paired captures and `gallery.py --check --require-subtraction` checks that this
+evidence is present; it cannot judge the quality of the decision.
+
+- Exit: every affected state has a keep/cut/defer decision, paired captures, and
+  observed retained-task evidence. A missing or inaccessible required fact blocks
+  handoff, even if the word count fell.
+
+## 10. Decision capture — the spec
+
+Write or update the handoff artifacts: DESIGN.md-compatible spec, semantic tokens,
+states, motion, copy patterns, a11y constraints, implementation mapping, validation
+plan, and the subtraction decisions. See [handoff.md](handoff.md). Tokens alone do
+not stand in for product design.
+
+## 11. Rendered QA — every named state
 
 Run `skill://visual-state-review`: enumerate states, capture each, look at each. Desktop and
 mobile widths. Focus/keyboard pass, contrast, overflow, empty/error/loading where the surface
 has them, reduced-motion behavior. Generated images are never QA evidence.
 
-## 11. Feedback — close the loop
+## 12. Feedback — close the loop
 
 Record findings, limitations, and what a next round would test. Update the lineage. Hand off
 to implementation with the spec; keep the exploration artifacts (they are the rationale).

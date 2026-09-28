@@ -2,7 +2,7 @@
   "run": {
     "name": "<task or scenario name>",
     "date": "<ISO date>",
-    "loop": "divergence → critique → recombine → refine → QA",
+    "loop": "divergence → critique → recombine → refine → subtract → QA",
     "scenario": "<what the worked example is about; note if non-production>"
   },
   "items": [
