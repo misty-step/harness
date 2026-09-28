@@ -57,8 +57,7 @@ presentation; "behavioral" changes agent capability, model input, or data flow.
 
 | Component | Owner | Class | Installed by `./install` | Divergence |
 | --- | --- | --- | --- | --- |
-| `settings.json` | this repo | config | yes | Default model/thinking, editor padding, markdown, theme name, retry budget |
-| `settings.subscription.json` | this repo | config | yes, only when Pi's Anthropic and Codex logins are ready | Operator model policy: Opus 5.5 default at medium, GPT-6 Sol/Luna at max (ADR-011 amendment 2026-09-25) |
+| `settings.json` | this repo | config | yes | Sonnet 5.5 medium default; subscription recovery pins, Opus high for explicit visual selection; editor padding, markdown, theme name, retry budget (ADR-011 amendment 2026-09-28) |
 | `global/AGENTS.md` | this repo | behavioral | yes | Global `~/.pi/agent/AGENTS.md`: pi's intro plus shared sections spliced from `agent-config` |
 | `extensions/pi-chrome.ts` | this repo | aesthetic | yes | Session card, composer rail layout, live working state, footer |
 | `extensions/loc/` | this repo | behavioral (read-only) | yes | `/loc`, `/loc-trend`, LOC status row |
@@ -142,10 +141,14 @@ current model — never to a remembered position — so it cannot drift out of
 sync with what the session actually runs. It never touches a model the user
 chose, and never re-sends the user's prompt — a run that dies mid-turn may
 already have executed tools. The chain is the `CHAIN` constant in `index.ts`
-(`anthropic/claude-opus-5-5` → `openai-codex/gpt-6-sol` →
-`openai-codex/gpt-6-luna` → `openrouter/deepseek/deepseek-v4.1-flash` →
-`openrouter/inception/mercury-2.5`; the walk starts from the current model, so
-a DeepSeek session still advances only to Mercury); extend it there and redeploy. `decide.ts` is pure and bun-tested;
+(`anthropic/claude-sonnet-5-5` at medium → `openai-codex/gpt-6-sol` at xhigh →
+`openai-codex/gpt-6-luna` at max). Pi-native Anthropic and Codex logins are
+required; the installer reports missing logins without restoring a paid default.
+Opus is outside the automatic chain, so an explicit visual selection stays on
+Opus after failure. Grok is not a builder fallback. Pi 0.87.1 lacks the native
+Antigravity provider required for OMP's Gemini subscription tail, so its chain
+ends at Luna until an approved native subscription route exists.
+`decide.ts` is pure and bun-tested;
 `index.ts` is the harness-facing half. Removing the directory leaves stock
 retry + compaction recovery exactly intact.
 
@@ -505,9 +508,10 @@ loading is proved by a fresh session, not by file presence. `web_search`
 presence additionally requires `EXA_API_KEY` in the environment — an
 interactive-shell `pi` gets it from the `~/.bashrc` wrapper (pass entry
 `workstation/EXA_API_KEY`); a session started without the key degrades to no
-tool. `failover` needs no configuration or key: a fresh
-`openrouter/deepseek/deepseek-v4.1-flash` session is the proof that the
-extension loaded (it registers nothing visible).
+`web_search` tool. `failover` needs no configuration or key: a fresh
+`anthropic/claude-sonnet-5-5` session proves the extension loaded (it registers
+nothing visible). For explicit Opus visual work, the chain has no Opus link and
+leaves recovery on Opus rather than switching to a non-Opus route.
 `image-budget` is proved by reading one large image: the stored tool result is
 a JPEG an order of magnitude smaller, and the footer shows `img-budget N
 dropped` only when the request budget is actually crossed. Workspace Git hooks

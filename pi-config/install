@@ -73,21 +73,14 @@ has() {
 validate_config() {
   require_bun
   require_nonempty "$repo_dir/settings.json"
-  require_nonempty "$repo_dir/settings.subscription.json"
   bun "$repo_dir/bin/pi-merge-settings.ts" \
     --source "$repo_dir/settings.json" \
     --dest "$agent_dir/settings.json" \
     --check
-  bun "$repo_dir/bin/pi-merge-settings.ts" \
-    --source "$repo_dir/settings.subscription.json" \
-    --dest "$agent_dir/settings.json" \
-    --check
 }
 
-# The operator model policy (Opus 5.5 first, GPT-6 Sol/Luna at max) needs
-# Pi-native Anthropic and Codex logins; OMP tokens are never copied here.
-# Select it only when both are ready, so an unauthenticated default is
-# impossible.
+# Subscription routes require Pi-native logins; OMP tokens are never copied.
+# Missing logins are reported without restoring a retired paid default.
 subscriptions_ready() {
   command -v pi >/dev/null 2>&1 || return 1
   PI_CODING_AGENT_DIR="$agent_dir" pi auth check --provider anthropic --no-refresh >/dev/null 2>&1 || return 1
@@ -100,12 +93,9 @@ install_config() {
     --source "$repo_dir/settings.json" \
     --dest "$agent_dir/settings.json"
   if subscriptions_ready; then
-    bun "$repo_dir/bin/pi-merge-settings.ts" \
-      --source "$repo_dir/settings.subscription.json" \
-      --dest "$agent_dir/settings.json"
-    printf 'pi: Anthropic and Codex logins ready; default Opus 5.5 (model policy)\n'
+    printf 'pi: Anthropic and Codex logins ready; default Sonnet 5.5 medium (model policy)\n'
   else
-    printf 'pi: Anthropic/Codex logins not ready; default stays DeepSeek. Run /login for anthropic and openai-codex in pi, then ./install.\n'
+    printf 'pi: default Sonnet 5.5 medium installed; native logins missing. Run /login for anthropic and openai-codex in pi before use.\n'
   fi
 }
 

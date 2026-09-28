@@ -1,3 +1,10 @@
+## Unreleased
+
+### Changed
+
+* Route Pi through Sonnet 5.5 medium, Sol xhigh, and Luna max; retire the paid
+  DeepSeek/Mercury path and report unavailable native subscription logins.
+
 ## [0.0.7](https://github.com/misty-step/pi-config/compare/v0.0.6...v0.0.7) (2026-09-16)
 
 

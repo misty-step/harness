@@ -446,37 +446,41 @@ Evidence: `agent-config/bin/design-check.test.ts`,
 
 ## US-014 Use approved model routing and recovery
 
-Statement: When I start or delegate work in any harness, I want my model policy
-applied per role (Claude Opus 5.5 preferred and orchestrating, Opus required for
-visual, motion, UX and communications work, GPT-6 workhorse subagents with Sol and
-Luna at max except advisor recovery at Sol medium, Sonnet 5.5 medium for advisor,
-Astra at high or above for system design, architecture, and code review)
-with only approved subscription recovery, so routine work uses my preferred
-accounts without making login failure look like additional capacity.
+Statement: When I start or delegate work in any harness, I want the approved
+lower-spend model policy applied per role, with Sonnet 5.5 for routine work,
+Opus required for visual, motion, UX and communications work, and bounded
+subscription recovery, so ordinary work does not silently inherit premium
+reasoning or mistake an authorized account for available capacity.
 
 Criteria:
-1. WHEN a fresh OMP session selects the default role, THE SYSTEM SHALL resolve
-   Claude Opus 5.5 with medium reasoning on the Anthropic subscription;
-   `slow` SHALL resolve Opus xhigh and `extreme` Opus max.
-2. WHEN OMP resolves `vision` or the `designer` agent, THE SYSTEM SHALL select
-   Opus 5.5 at high or above, and the `vision` role's fallback chain SHALL
-   contain only Opus. IF a session starts on the configured Opus primary and
-   that provider fails, THEN THE SYSTEM SHALL stop after same-model recovery
-   rather than switch models, at every reasoning level.
-3. WHEN OMP resolves `task`, THE SYSTEM SHALL select GPT-6 Sol with max
-   reasoning; WHEN it resolves `smol` or `commit`, GPT-6 Luna with max reasoning;
-   WHEN it resolves `advisor`, Claude Sonnet 5.5 with medium reasoning; WHEN it
-   resolves `plan` or `reviewer`, GPT-6 Astra high; and `security-reviewer`,
-   Astra max.
-4. WHERE cross-model recovery is allowed, IF a selected provider fails, THEN
-   THE SYSTEM SHALL offer an approved subscription route from another provider.
-   Sol and Luna links SHALL use max reasoning except advisor recovery at Sol
-   medium. Advisor recovery SHALL try Sol medium, then Grok 4.7, then Gemini
-   3.8 Flash, with no other model; other role chains SHALL retain Grok 4.7
-   as their final link.
-5. WHEN the Pi installer runs, THE SYSTEM SHALL select Opus 5.5 as Pi's default
-   only if Pi-native Anthropic and Codex logins report ready, and otherwise
-   SHALL keep the DeepSeek default and print the login instruction.
+1. WHEN a fresh OMP session selects `default` or `task`, THE SYSTEM SHALL
+   resolve Claude Sonnet 5.5 medium; `slow` SHALL resolve Sonnet high and
+   `extreme` Opus 5.5 xhigh.
+2. WHEN OMP resolves `vision` or `designer`, THE SYSTEM SHALL select Opus 5.5
+   at high or above. A designer child of a non-Opus parent SHALL use Opus high;
+   a designer child of an Opus high/xhigh/max parent SHALL retain that level.
+   The vision fallback chain SHALL contain only Opus. IF a session starts on
+   the configured Opus primary and that provider fails, THEN THE SYSTEM SHALL
+   stop after same-model recovery rather than switch models, at every
+   reasoning level.
+3. WHEN OMP resolves `smol`, `tiny`, `commit`, `scout`, or `sonic`, THE SYSTEM
+   SHALL select GPT-6 Luna max; `advisor` SHALL select Sonnet 5.5 medium;
+   `plan` and `security-reviewer` SHALL select GPT-6 Astra medium; and
+   `reviewer` SHALL select GPT-6 Sol xhigh. Ordinary task children SHALL use
+   their configured agent routes rather than inherit the live parent's model
+   and thinking; explicit tagged model selections and per-item effort SHALL
+   remain available, except designer effort below high SHALL be rejected.
+4. WHERE cross-model recovery is allowed, THE SYSTEM SHALL use only approved
+   subscription routes, with Gemini 3.8 Flash last. Grok 4.7 SHALL be allowed
+   only as read-only advisory/review recovery (`advisor`, `reviewer`,
+   `security-reviewer`) and SHALL NOT occur in builder fallback chains.
+   All shared subscription accounts SHALL be authorized for any work;
+   native account-policy priority SHALL prefer eligible r90.dev Anthropic
+   and Codex accounts without bypassing blocked-account or reserve rules.
+   Authorization or priority SHALL NOT be treated as proof of available quota.
+5. WHEN the Pi installer runs, THE SYSTEM SHALL select Sonnet 5.5 medium as
+   Pi's default and report missing Pi-native logins rather than restore the
+   retired DeepSeek default.
 6. WHEN configuration is deployed, THE SYSTEM SHALL preserve OAuth stores and
    the model already selected in existing sessions.
 7. WHEN OMP model routing is checked, THE SYSTEM SHALL reject every chat role,
@@ -485,13 +489,14 @@ Criteria:
    a selector not accepted by its provider or resolved to a different model.
 
 No-gos: no copying OAuth credentials between harnesses; no frontier model
-through OpenRouter as a default; no Pi default that is not authenticated; no
-retired Sonnet or unapproved paid model fallback.
+through OpenRouter as a default; no unauthenticated route treated as usable
+capacity; no Grok builder fallback; no retired Sonnet or unapproved paid model
+fallback.
 
 Evidence: `omp-config/config.yml`, `omp-config/agents/designer.md`,
 `omp-config/bin/omp-merge-config.test.ts`, `omp-config/bin/omp-model-policy.test.ts`,
 `omp-config/global/AGENTS.md`, `omp-config/README.md`,
-`pi-config/settings.subscription.json`, `pi-config/install`,
+`pi-config/settings.json`, `pi-config/install`,
 `./scripts/verify all`, the online model-policy probe, fresh OMP role-selection
 and forced-outage smoke checks.
 

@@ -3,19 +3,12 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 type ParentModel = { provider: string; id: string };
 type Spawn = { agent: string; invocationKind: string };
 
-const taggedModelAgent = /^m[1-9]\d*$/;
-
-/** A tagged model is an explicit per-task selection; all ordinary agents inherit. */
+/** Ordinary agents keep configured routes; visual work stays on Opus at high or above. */
 function taskModelSelection(spawn: Spawn, parent: ParentModel | null | undefined, thinking: string | undefined) {
-	if (spawn.invocationKind !== "task" || taggedModelAgent.test(spawn.agent)) return;
-	if (!parent) return { block: true, reason: "Cannot inherit a task model without an active parent model." };
-	if (spawn.agent === "designer" && (parent.provider !== "anthropic" || !parent.id.startsWith("claude-opus-5-5"))) {
-		return { block: true, reason: "Designer requires an Opus 5.5 parent." };
-	}
-	const level = spawn.agent === "designer" && thinking !== "high" && thinking !== "xhigh" && thinking !== "max"
-		? "high"
-		: thinking;
-	return { model: `${parent.provider}/${parent.id}${level ? `:${level}` : ""}` };
+	if (spawn.invocationKind !== "task" || spawn.agent !== "designer") return;
+	const opusParent = parent?.provider === "anthropic" && parent.id === "claude-opus-5-5";
+	const level = opusParent && (thinking === "xhigh" || thinking === "max") ? thinking : "high";
+	return { model: `anthropic/claude-opus-5-5:${level}` };
 }
 
 function hasUnsafeDesignerEffort(item: unknown): boolean {

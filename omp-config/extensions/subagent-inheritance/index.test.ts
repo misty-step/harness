@@ -31,12 +31,12 @@ function hooks() {
 	};
 }
 
-test("task agents inherit the live parent model and thinking, including designer at max", () => {
+test("ordinary task agents keep configured routes instead of inheriting an expensive parent", () => {
 	const { select } = hooks();
-	expect(select("designer", { provider: "anthropic", id: "claude-opus-5-5" }, "max"))
-		.toEqual({ model: "anthropic/claude-opus-5-5:max" });
-	expect(select("task", { provider: "openai-codex", id: "gpt-6-sol" }, "high"))
-		.toMatchObject({ model: "openai-codex/gpt-6-sol:high" });
+	for (const agent of ["task", "reviewer", "security-reviewer", "scout", "sonic"]) {
+		expect(select(agent, { provider: "openai-codex", id: "gpt-6-astra" }, "max")).toBeUndefined();
+	}
+	expect(select("task", undefined, "max")).toBeUndefined();
 });
 
 test("an explicitly tagged task model and non-task dispatch keep their own selection", () => {
@@ -46,12 +46,17 @@ test("an explicitly tagged task model and non-task dispatch keep their own selec
 	expect(select("reviewer", parent, "max", "eval")).toBeUndefined();
 });
 
-test("designer keeps the high visual minimum without downgrading an Opus max parent", () => {
+test("designer routes to Opus high from any parent and preserves higher Opus effort", () => {
 	const { select } = hooks();
 	const opus = { provider: "anthropic", id: "claude-opus-5-5" };
-	expect(select("designer", opus, "medium")).toMatchObject({ model: "anthropic/claude-opus-5-5:high" });
-	expect(select("designer", { provider: "openai-codex", id: "gpt-6-sol" }, "max")).toMatchObject({ block: true });
-	expect(select("task", undefined, "max")).toMatchObject({ block: true });
+	expect(select("designer", opus, "medium")).toEqual({ model: "anthropic/claude-opus-5-5:high" });
+	expect(select("designer", opus, "xhigh")).toEqual({ model: "anthropic/claude-opus-5-5:xhigh" });
+	expect(select("designer", opus, "max")).toEqual({ model: "anthropic/claude-opus-5-5:max" });
+	expect(select("designer", { provider: "anthropic", id: "claude-sonnet-5-5" }, "medium"))
+		.toEqual({ model: "anthropic/claude-opus-5-5:high" });
+	expect(select("designer", { provider: "openai-codex", id: "gpt-6-astra" }, "max"))
+		.toEqual({ model: "anthropic/claude-opus-5-5:high" });
+	expect(select("designer", undefined, "max")).toEqual({ model: "anthropic/claude-opus-5-5:high" });
 });
 
 test("per-item low effort cannot lower designer below the visual minimum", () => {

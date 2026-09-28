@@ -26,23 +26,19 @@ import { modelKey, nextInChain, runError, summarize } from "./decide.ts";
 
 /**
  * The fallback chain, in order; a failure advances from the current model's
- * link. Operator model policy (2026-09-25): Opus 5.5 first, then GPT-6 Sol and
- * Luna at max, then the existing paid OpenRouter recovery. Grok is last in the
- * policy and Pi reaches it only through a paid API key, so it is not a link.
- * The subscription links apply once Pi-native Anthropic and Codex logins are
- * ready and `./install` selects the Opus startup default; until then startup
- * is DeepSeek flash and a failure advances to mercury. Every link must be a
- * model the session can resolve and authenticate, with a modelThinkingLevels
- * entry so a switch keeps posture. Cerebras is out of the fleet (operator
- * 2026-09-18: too expensive). Extend by editing this list and redeploying
- * (ADR-013).
+ * link. Operator model policy (2026-09-28): Sonnet 5.5 medium, then GPT-6 Sol
+ * xhigh and Luna max through Pi-native subscription logins. Paid
+ * DeepSeek/Mercury recovery is retired; missing authentication never opts
+ * into a paid route. Opus is deliberately outside this chain, so explicitly
+ * selected visual work cannot fall through to a non-Opus model. Grok is
+ * read-only recovery only and is not a builder link. Pi has no native
+ * Antigravity provider, so OMP's Gemini subscription tail is not available.
+ * Each link has a modelThinkingLevels entry in settings.json (ADR-011/013).
  */
 const CHAIN = [
-	"anthropic/claude-opus-5-5",
+	"anthropic/claude-sonnet-5-5",
 	"openai-codex/gpt-6-sol",
 	"openai-codex/gpt-6-luna",
-	"openrouter/deepseek/deepseek-v4.1-flash",
-	"openrouter/inception/mercury-2.5",
 ];
 
 export default function (pi: ExtensionAPI) {

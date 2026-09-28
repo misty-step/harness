@@ -1,12 +1,12 @@
 modelRoles:
-  default: anthropic/claude-opus-5-5:medium
-  slow: anthropic/claude-opus-5-5:xhigh
-  extreme: anthropic/claude-opus-5-5:max
-  plan: openai-codex/gpt-6-astra:high
+  default: anthropic/claude-sonnet-5-5:medium
+  slow: anthropic/claude-sonnet-5-5:high
+  extreme: anthropic/claude-opus-5-5:xhigh
+  plan: openai-codex/gpt-6-astra:medium
   advisor: anthropic/claude-sonnet-5-5:medium
-  task: openai-codex/gpt-6-sol:max
-  reviewer: openai-codex/gpt-6-astra:high
-  security-reviewer: openai-codex/gpt-6-astra:max
+  task: anthropic/claude-sonnet-5-5:medium
+  reviewer: openai-codex/gpt-6-sol:xhigh
+  security-reviewer: openai-codex/gpt-6-astra:medium
   vision: anthropic/claude-opus-5-5:high
   smol: openai-codex/gpt-6-luna:max
   tiny: openai-codex/gpt-6-luna:max
@@ -72,6 +72,17 @@ advisor:
 providers:
   webSearchOrder:
     - exa
+auth:
+  # Shared subscription pool; native usage/reserve checks still apply.
+  accountPolicies:
+    - provider: anthropic
+      account:
+        email: phaedrus@r90.dev
+      priority: 1
+    - provider: openai-codex
+      account:
+        email: phaedrus@r90.dev
+      priority: 1
 retry:
   fallbackChains:
     # Model keys outrank role chains, including a main session's `default`.
@@ -102,47 +113,41 @@ retry:
       - web/google
       - web/mojeek
       - web/public
+    # Builders never fall through to Grok. Cross-provider recovery uses the
+    # shared account pool above; Gemini is the final subscription route.
     default:
-      - openai-codex/gpt-6-sol:max
+      - openai-codex/gpt-6-sol:medium
       - openai-codex/gpt-6-luna:max
-      - anthropic/claude-opus-5-5:medium
-      - xai-oauth/grok-4.7:xhigh
+      - google-antigravity/gemini-3.8-flash:high
     task:
+      - openai-codex/gpt-6-sol:medium
       - openai-codex/gpt-6-luna:max
-      - anthropic/claude-opus-5-5:medium
-      - xai-oauth/grok-4.7:xhigh
+      - google-antigravity/gemini-3.8-flash:high
     plan:
-      - anthropic/claude-opus-5-5:high
-      - openai-codex/gpt-6-sol:max
-      - xai-oauth/grok-4.7:xhigh
+      - anthropic/claude-sonnet-5-5:medium
+      - google-antigravity/gemini-3.8-flash:high
     reviewer:
-      - anthropic/claude-opus-5-5:high
-      - openai-codex/gpt-6-sol:max
+      - anthropic/claude-sonnet-5-5:medium
       - xai-oauth/grok-4.7:xhigh
+      - google-antigravity/gemini-3.8-flash:high
     slow:
-      - openai-codex/gpt-6-astra:high
-      - openai-codex/gpt-6-sol:max
-      - xai-oauth/grok-4.7:xhigh
-    extreme:
-      - openai-codex/gpt-6-astra:max
-      - openai-codex/gpt-6-sol:max
-      - xai-oauth/grok-4.7:xhigh
+      - openai-codex/gpt-6-astra:medium
+      - google-antigravity/gemini-3.8-flash:high
+    extreme: []
     security-reviewer:
-      - anthropic/claude-opus-5-5:high
-      - openai-codex/gpt-6-sol:max
+      - anthropic/claude-sonnet-5-5:medium
       - xai-oauth/grok-4.7:xhigh
-    # Dedicated vision consumers also retain an Opus-only chain.
-    vision:
-      - anthropic/claude-opus-5-5:xhigh
+      - google-antigravity/gemini-3.8-flash:high
+    vision: []
     smol:
-      - anthropic/claude-opus-5-5:medium
-      - xai-oauth/grok-4.7:xhigh
+      - anthropic/claude-sonnet-5-5:medium
+      - google-antigravity/gemini-3.8-flash:high
     tiny:
-      - anthropic/claude-opus-5-5:medium
-      - xai-oauth/grok-4.7:xhigh
+      - anthropic/claude-sonnet-5-5:medium
+      - google-antigravity/gemini-3.8-flash:high
     commit:
-      - anthropic/claude-opus-5-5:medium
-      - xai-oauth/grok-4.7:xhigh
+      - anthropic/claude-sonnet-5-5:medium
+      - google-antigravity/gemini-3.8-flash:high
 task:
   maxRecursionDepth: 3
   showResolvedModelBadge: true
