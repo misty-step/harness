@@ -19,7 +19,7 @@ function finding(changes: Record<string, unknown> = {}) {
 	};
 }
 
-function run(rows: unknown[], exit = rows.length ? 183 : 0, changelog = `* release (${commitLink})\n`) {
+function run(rows: unknown[], exit = rows.length ? 183 : 0, changelog = `* release (${commitLink})\n`, scanError = false) {
 	const root = mkdtempSync(join(tmpdir(), "harness-trufflehog-gate-"));
 	roots.push(root);
 	const bin = join(root, "bin");
@@ -28,11 +28,26 @@ function run(rows: unknown[], exit = rows.length ? 183 : 0, changelog = `* relea
 	const reports = join(root, "reports.jsonl");
 	writeFileSync(reports, rows.map(row => typeof row === "string" ? row : JSON.stringify(row)).join("\n") + (rows.length ? "\n" : ""));
 	const scanner = join(bin, "trufflehog");
-	writeFileSync(scanner, '#!/bin/sh\ncat "$TRUFFLEHOG_FIXTURE"\nexit "$TRUFFLEHOG_EXIT"\n');
+	writeFileSync(scanner, `#!/bin/sh
+if [ "$TRUFFLEHOG_SCAN_ERROR" = "1" ]; then
+  case " $* " in
+    *" --fail-on-scan-errors "*) exit 1 ;;
+    *) exit 0 ;;
+  esac
+fi
+cat "$TRUFFLEHOG_FIXTURE"
+exit "$TRUFFLEHOG_EXIT"
+`);
 	chmodSync(scanner, 0o700);
 	const result = Bun.spawnSync(["python3", gate], {
 		cwd: root,
-		env: { ...process.env, PATH: `${bin}:${process.env.PATH}`, TRUFFLEHOG_FIXTURE: reports, TRUFFLEHOG_EXIT: String(exit) },
+		env: {
+			...process.env,
+			PATH: `${bin}:${process.env.PATH}`,
+			TRUFFLEHOG_FIXTURE: reports,
+			TRUFFLEHOG_EXIT: String(exit),
+			TRUFFLEHOG_SCAN_ERROR: scanError ? "1" : "0",
+		},
 		stdout: "pipe", stderr: "pipe",
 	});
 	return { code: result.exitCode, out: result.stdout.toString(), err: result.stderr.toString() };
@@ -90,4 +105,10 @@ test("scanner errors and malformed results fail closed", () => {
 		expect(result.err, name).not.toContain(raw);
 	}
 	expect(run([]).code).toBe(0);
+});
+
+test("a scanner read error cannot masquerade as a clean scan", () => {
+	const result = run([], 0, undefined, true);
+	expect(result.code).toBe(1);
+	expect(result.err).toContain("scan failed or returned unexpected output");
 });
