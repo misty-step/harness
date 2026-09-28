@@ -22,7 +22,7 @@
  * stock pi behavior (retry + compaction) intact.
  */
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
-import { modelKey, nextInChain, runError, summarize } from "./decide.ts";
+import { modelKey, nextInChain, policyKey, runError, summarize } from "./decide.ts";
 
 /**
  * The fallback chain, in order; a failure advances from the current model's
@@ -45,7 +45,7 @@ const approved = [...CHAIN, "anthropic/claude-opus-5-5", "openai-codex/gpt-6-ast
 const blockedRoute = "Model policy: select an approved subscription model and sign in with /login; paid startup fallback is disabled.";
 
 function allowsInference(ctx: ExtensionContext) {
-	if (approved.includes(modelKey(ctx.model))) return true;
+	if (approved.includes(policyKey(ctx.model))) return true;
 	ctx.ui.notify(blockedRoute, "error");
 	if (!ctx.hasUI) console.error(blockedRoute);
 	return false;
@@ -87,7 +87,7 @@ export default function (pi: ExtensionAPI) {
 		errorText = "";
 		if (!failed) return;
 		const from = modelKey(ctx.model);
-		const decision = nextInChain(CHAIN, from);
+		const decision = nextInChain(CHAIN, policyKey(ctx.model));
 		if (!decision) return;
 		if (decision.action === "exhausted") {
 			ctx.ui.notify(

@@ -63,6 +63,7 @@ presentation; "behavioral" changes agent capability, model input, or data flow.
 | `extensions/loc/` | this repo | behavioral (read-only) | yes | `/loc`, `/loc-trend`, LOC status row |
 | `extensions/web-search/` | this repo | behavioral | yes | `web_search` tool (Exa); registers nothing without `EXA_API_KEY` |
 | `extensions/failover/` | this repo | behavioral | yes | Subscription-only agent turns and forward recovery after stock retry; blocks native paid startup fallback (ADR-011/013) |
+| `extensions/accounts/` | this repo | behavioral | yes | Extra account slots `openai-codex-2`…`-4`: built-in login, refresh and streaming under their own `auth.json` keys; no shared OMP credentials (US-045, ADR-024) |
 | `extensions/image-budget/` | this repo | behavioral | yes | Inline-image ceiling: oldest images dropped over 15 MB per request; large images shrunk with ffmpeg at ingest (ADR-019) |
 | `extensions/openrouter-live/` | this repo | behavioral | yes | Live OpenRouter bridge: models the `pi.dev` mirror lacks are appended to `models.json`, additive-only, at session start (≥2 h) and `/models-live` (ADR-022) |
 | `extensions/continuation-nudge/` | this repo | behavioral | yes (component `continuation-nudge`; shared modules materialized) | Bounded Jev continuation nudge at agent settle: advisory, fail-open, max 2 per prompt, `JEV_NUDGE_MODE=off` disables. Review trigger: pi gains a native anti-premature-stop or continuation control, or nudges fire on completed work |
@@ -75,7 +76,7 @@ presentation; "behavioral" changes agent capability, model input, or data flow.
 | `extensions/herdr-agent-state.ts` | herdr (managed) | integration | no | Reports pane agent state to herdr |
 | `skills/omarchy`, `skills/diagnose-crash` | Omarchy (symlinks) | skills | no | Omarchy-owned agent skills |
 | `themes/omarchy-system.json` | Omarchy (generated) | generated | no | Theme regenerated on every theme change |
-| `auth.json` (except `openrouter`), `models-store.json`, `sessions/`, `trust.json`, `usage-outbox/` | pi (runtime) | runtime | no | Other credentials, sessions, state |
+| `auth.json` (except `openrouter`), `models-store.json`, `sessions/`, `trust.json`, `usage-outbox/` | pi (runtime) | runtime | no | Other credentials (including slot logins), sessions, state |
 
 ### Global guidance
 
@@ -471,8 +472,8 @@ failover became sticky (then revisit the once-per-session latch).
 
 Unset `PI_CONFIG_COMPONENTS` means `all`. Select a subset with a space-separated
 list: `config`, `guidance`, `pi-chrome`, `loc`, `web-search`, `failover`,
-`image-budget`, `openrouter-live`, `continuation-nudge`, `diff-review`,
-`audio-sandbox`, `pass-env`, `skills`, `openrouter-auth`.
+`accounts`, `image-budget`, `openrouter-live`, `continuation-nudge`,
+`diff-review`, `audio-sandbox`, `pass-env`, `skills`, `openrouter-auth`.
 
 `agent-config` must be checked out beside this repo (default
 `$repo_dir/../agent-config`; override with `AGENT_CONFIG_DIR`). `guidance`,
@@ -487,8 +488,8 @@ PI_CONFIG_COMPONENTS=openrouter-auth ./install  # only OpenRouter auth and the s
 
 Preflight validates bun, jq for `openrouter-auth`, source presence, settings,
 and the whole `agent-config` selection before any write. The `loc`,
-`web-search`, `failover`, and `image-budget` packages and every shared skill
-package are clean-replaced so obsolete files cannot survive.
+`web-search`, `failover`, `accounts`, and `image-budget` packages and every
+shared skill package are clean-replaced so obsolete files cannot survive.
 Restart pi after deploying.
 
 `openrouter-auth` requires jq and overlays only `auth.json.openrouter` (mode
