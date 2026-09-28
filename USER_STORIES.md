@@ -403,10 +403,12 @@ Criteria:
    keep, cut, or defer pass against the primary user job an exit condition before
    the spec handoff; a state with no safe cut SHALL record why.
 2. WHEN a design-surface subtraction is claimed verified, THE SYSTEM SHALL pair
-   before and after captures at matching viewport, theme, and scroll position,
-   record the removed or deferred content, and record observed evidence that the
-   primary task and required information remain reachable; `gallery.py --check
-   --require-subtraction` SHALL fail on a missing pair or retained-task evidence.
+   before and after captures at matching viewport, theme, scroll position, and
+   explicitly recorded render source (`kind`), with non-empty text for each;
+   record the removed or deferred content and observed evidence that the primary
+   task and required information remain reachable; `gallery.py --check
+   --require-subtraction` SHALL fail on missing or mismatched capture conditions,
+   a missing pair, or missing retained-task evidence.
 3. WHEN content is deferred, THE SYSTEM SHALL name and exercise its accessible
    route back; an overall word count or screenshot alone SHALL NOT prove that a
    required fact remains available.
