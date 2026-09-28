@@ -1,3 +1,9 @@
+# [0.1.51](https://github.com/misty-step/harness/compare/v0.1.50...v0.1.51) (2026-09-28)
+<!-- landmark:protected-release previous=v0.1.50 source=22d1c4d0725ce13808e519d7133834936474d374aa9e6fd32d14c125782d3650 -->
+
+### Bug Fixes
+
+* **gallery:** require matched capture provenance (US-044) (#117) ([301aaae](https://github.com/misty-step/harness/commit/301aaae004b3ad470805a99f44e0130bc7280e3c))
 # [0.1.50](https://github.com/misty-step/harness/compare/v0.1.49...v0.1.50) (2026-09-28)
 <!-- landmark:protected-release previous=v0.1.49 source=4d522a49e10abebe9629faa47dc8f4b05a3996678ec631f69c6f4da84365abf6 -->
 
