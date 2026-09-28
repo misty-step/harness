@@ -455,8 +455,9 @@ Evidence: `agent-config/bin/design-check.test.ts`,
 
 Statement: When I start or delegate work in any harness, I want my model policy
 applied per role (Claude Opus 5.5 preferred and orchestrating, Opus required for
-visual, motion, UX and communications work, GPT-6 workhorse subagents with Sol and Luna at max, Astra at
-high or above for system design, architecture, and code review, Grok 4.7 last)
+visual, motion, UX and communications work, GPT-6 workhorse subagents with Sol and
+Luna at max except advisor recovery at Sol medium, Sonnet 5.5 medium for advisor,
+Astra at high or above for system design, architecture, and code review)
 with subscription recovery before paid API routes, so routine work uses my
 preferred accounts without making login failure look like additional capacity.
 
@@ -470,13 +471,16 @@ Criteria:
    that provider fails, THEN THE SYSTEM SHALL stop after same-model recovery
    rather than switch models, at every reasoning level.
 3. WHEN OMP resolves `task`, THE SYSTEM SHALL select GPT-6 Sol with max
-   reasoning; WHEN it resolves `smol`, `commit`, or `advisor`, GPT-6 Luna with
-   max reasoning; WHEN it resolves `plan` or `reviewer`, GPT-6 Astra high; and
-   `security-reviewer`, Astra max.
+   reasoning; WHEN it resolves `smol` or `commit`, GPT-6 Luna with max reasoning;
+   WHEN it resolves `advisor`, Claude Sonnet 5.5 with medium reasoning; WHEN it
+   resolves `plan` or `reviewer`, GPT-6 Astra high; and `security-reviewer`,
+   Astra max.
 4. WHERE cross-model recovery is allowed, IF a selected provider fails, THEN
    THE SYSTEM SHALL offer a subscription route from another provider before a
-   paid OpenRouter route, with every Sol or Luna link at max reasoning and
-   Grok 4.7 only as the last subscription link.
+   paid OpenRouter route, with Sol and Luna links at max reasoning except
+   advisor recovery at Sol medium. Advisor recovery SHALL try Sol medium, then
+   Grok 4.7, then Gemini 3.8 Flash, with no other model; other role chains
+   SHALL retain Grok 4.7 as their last subscription link.
 5. WHEN the Pi installer runs, THE SYSTEM SHALL select Opus 5.5 as Pi's default
    only if Pi-native Anthropic and Codex logins report ready, and otherwise
    SHALL keep the DeepSeek default and print the login instruction.
