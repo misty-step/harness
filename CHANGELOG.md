@@ -1,3 +1,9 @@
+# [0.1.59](https://github.com/misty-step/harness/compare/v0.1.58...v0.1.59) (2026-09-28)
+<!-- landmark:protected-release previous=v0.1.58 source=76e74effe52f6ee1cd563dc2aa29082831cdf16f290bd6ced7289ea19708abe8 -->
+
+### Features
+
+* **routing:** lower subscription spend without downgrading visual work (#135) ([4d5378d](https://github.com/misty-step/harness/commit/4d5378d9fb5c0228dc74a9214a6ad5bb12f261cf))
 # [0.1.58](https://github.com/misty-step/harness/compare/v0.1.57...v0.1.58) (2026-09-28)
 <!-- landmark:protected-release previous=v0.1.57 source=847b62bed6052669578a93e4b1cd811c5b9d85de1fd64c38e026aee4af67a50f -->
 
