@@ -701,16 +701,18 @@ in an existing session. A running OMP process also retains its in-memory model
 catalog across binary updates: an old process can fuzzy-resolve a new model ID
 to a different, retired model. Restart that process after a catalog upgrade.
 
-Before deploying model changes, run
-`bun omp-config/bin/omp-model-policy.ts --probe` from the repository root. Its
-offline mode (without `--probe`) rejects retired and unapproved chat selectors
-in every role, task agent override, and fallback, including model-key chains.
-The online mode additionally requires exact OMP catalog matches and successful
-provider responses with the requested model. It needs the workstation's existing
-provider logins and is separate from the credential-free `./scripts/verify`
-gate. An installed config cannot update the in-memory catalog in already-running
-engineers; restart only after preserving each session and confirming it is idle
-or complete.
+For a model-routing deployment, run
+`OMP_MODEL_PROBE=1 OMP_INSTALL_COMPONENTS='config guidance' ./omp-config/install`
+from the repository root. Before writing live config, the installer overlays
+the source onto a disposable copy of the effective config and rejects retired
+or unapproved chat selectors in every role, task agent override, and fallback,
+including model-key chains. The online probe then requires an exact OMP catalog
+match and a successful provider response for each distinct selector and
+effort, including preserved foreign routes. Existing provider logins are
+required; offline `./scripts/verify` invokes the same policy without a
+network probe. An installed config cannot update the in-memory catalog in
+already-running engineers; restart only after preserving each session and
+confirming it is idle or complete.
 
 The `web` role is a search route rather than a chat model. Its recovery chain
 keeps the existing `web/*` search providers but drops older chat models; the

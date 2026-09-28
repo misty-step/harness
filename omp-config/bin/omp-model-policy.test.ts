@@ -1,5 +1,5 @@
 import { afterEach, expect, test } from "bun:test";
-import { chmodSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -84,15 +84,28 @@ function fakeOmp(root: string, mode: string): Record<string, string> {
 	writeFileSync(binary, `#!/usr/bin/env bun
 const model = {provider: "anthropic", id: "claude-sonnet-5-5", selector: "anthropic/claude-sonnet-5-5", kind: "chat", thinking: ["low", "medium", "high", "xhigh", "max"]};
 if (process.argv[2] === "models") {
-  const models = process.env.FAKE_OMP_MODE === "stale-catalog"
-    ? [{...model, id: "claude-3-5-sonnet-20241022", selector: "anthropic/claude-3-5-sonnet-20241022"}]
-    : process.env.FAKE_OMP_MODE === "model-key"
-      ? [model, {provider: "openai-codex", id: "gpt-6-sol", selector: "openai-codex/gpt-6-sol", kind: "chat", thinking: ["medium"]}]
-      : [model];
+  const models = process.env.FAKE_OMP_MODE === "effective-only"
+    ? [["anthropic", "claude-opus-5-5"], ["anthropic", "claude-sonnet-5-5"],
+       ["openai-codex", "gpt-6-astra"], ["openai-codex", "gpt-6-sol"],
+       ["openai-codex", "gpt-6-luna"], ["xai-oauth", "grok-4.7"],
+       ["google-antigravity", "gemini-3.8-flash"]].map(([provider, id]) => ({
+         provider, id, selector: provider + "/" + id, kind: "chat",
+         thinking: ["minimal", "low", "medium", "high", "xhigh", "max"],
+       }))
+    : process.env.FAKE_OMP_MODE === "stale-catalog"
+      ? [{...model, id: "claude-3-5-sonnet-20241022", selector: "anthropic/claude-3-5-sonnet-20241022"}]
+      : process.env.FAKE_OMP_MODE === "model-key"
+        ? [model, {provider: "openai-codex", id: "gpt-6-sol", selector: "openai-codex/gpt-6-sol", kind: "chat", thinking: ["medium"]}]
+        : [model];
   console.log(JSON.stringify({models}));
 } else {
-  const actual = process.env.FAKE_OMP_MODE === "wrong-provider"
-    ? {role: "assistant", provider: "openai-codex", model: "claude-sonnet-5-5", stopReason: "stop"}
+  const chosen = process.argv[process.argv.indexOf("--model") + 1];
+  const [provider, rest] = chosen.split("/");
+  const id = rest.split(":")[0];
+  const actual = process.env.FAKE_OMP_MODE === "effective-only"
+    ? {role: "assistant", provider, model: chosen === "anthropic/claude-sonnet-5-5:low" ? "claude-3-5-sonnet-20241022" : id, stopReason: "stop"}
+    : process.env.FAKE_OMP_MODE === "wrong-provider"
+      ? {role: "assistant", provider: "openai-codex", model: "claude-sonnet-5-5", stopReason: "stop"}
     : process.env.FAKE_OMP_MODE === "wrong-model"
       ? {role: "assistant", provider: "anthropic", model: "claude-3-5-sonnet-20241022", stopReason: "stop"}
       : {role: "assistant", provider: "anthropic", model: "claude-sonnet-5-5", stopReason: process.env.FAKE_OMP_MODE === "reject" ? "error" : "stop"};
@@ -144,4 +157,23 @@ test("online probe rejects provider failure even if OMP exits cleanly", () => {
 	const result = run(files.config, fakeOmp(files.root, "reject"));
 	expect(result.exitCode).not.toBe(0);
 	expect(result.stderr.toString()).toContain("did not complete anthropic/claude-sonnet-5-5:medium successfully");
+});
+
+test("installer probes preserved foreign selectors before changing the live config", () => {
+	const files = fixture({
+		modelRoles: { foreign: "anthropic/claude-sonnet-5-5:low" },
+		retry: { fallbackChains: {} },
+	});
+	const before = readFileSync(files.config, "utf8");
+	const result = Bun.spawnSync({
+		cmd: [join(import.meta.dir, "..", "install")],
+		stdout: "pipe", stderr: "pipe",
+		env: {
+			...process.env, ...fakeOmp(files.root, "effective-only"),
+			PI_CODING_AGENT_DIR: files.root, OMP_INSTALL_COMPONENTS: "config", OMP_MODEL_PROBE: "1",
+		},
+	});
+	expect(result.exitCode).not.toBe(0);
+	expect(result.stderr.toString()).toContain("routed anthropic/claude-sonnet-5-5:low to a different provider/model");
+	expect(readFileSync(files.config, "utf8")).toBe(before);
 });

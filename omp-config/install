@@ -84,7 +84,11 @@ validate_config() {
       cp "$agent_dir/config.yml" "$candidate/config.yml"
     fi
     bun "$repo_dir/bin/omp-merge-config.ts" --source "$repo_dir/config.yml" --dest "$candidate/config.yml"
-    bun "$repo_dir/bin/omp-model-policy.ts" --config "$candidate/config.yml"
+    case ${OMP_MODEL_PROBE-0} in
+      0) bun "$repo_dir/bin/omp-model-policy.ts" --config "$candidate/config.yml" ;;
+      1) bun "$repo_dir/bin/omp-model-policy.ts" --config "$candidate/config.yml" --probe ;;
+      *) echo 'OMP_MODEL_PROBE must be 0 or 1' >&2; exit 1 ;;
+    esac
   )
   require_base
   run_shared --check --bin openrouter-key.ts
