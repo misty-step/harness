@@ -33,9 +33,8 @@ WCAG contrast.
   reduced-motion behavior (what replaces the animation).
 - **Copy patterns**: voice rules plus concrete empty, loading, error, and success strings
   — with the rule that an action keeps one name through the whole flow.
-- **Subtraction decisions**: per affected state, its primary job, what was kept,
-  cut, or deferred (with the named route back), and why no cut was safe where
-  applicable. Link paired rendered captures and observed retained-task evidence.
+- **Subtraction**: link each screen's element list, cuts (or no-cut reason),
+  and before/after.
 - **Accessibility constraints**: contrast targets, focus order, keyboard model, hit
   targets, screen-reader notes for custom widgets, reduced-motion coverage.
 - **Implementation mapping**: which concept pieces map to which components/routes/files;

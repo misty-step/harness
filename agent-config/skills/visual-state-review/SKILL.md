@@ -35,40 +35,6 @@ guidance, not unbounded on the workstation.
 Replay and screenshots verify appearance. They do not prove backend operations
 occurred. Say so in `notes` and `limitations`.
 
-## Subtraction evidence for designed surfaces
-
-For each affected state, capture its before and after into distinct image files
-at the same group, viewport, theme, scroll position, and render source (`kind`).
-Both entries must record non-empty matching text for those fields; use the
-actual source, such as `live` or `replay`. Unpaired states can omit `kind`.
-Mark pair entries `phase: "before"` and `phase: "after"` in `states`. Add one
-record per pair to the top-level `subtraction` array:
-
-```json
-{
-  "before": "map-light-before",
-  "after": "map-light-after",
-  "job": "Inspect a goal and open a concept",
-  "kept": ["Goal and due status", "Complete linked concept list and statuses", "Focus and pause actions"],
-  "cut": ["Repeated chart labels"],
-  "deferred": [],
-  "retained": [
-    {"action": "Open a concept from the list", "observed": "The complete status list and target concept remain reachable"}
-  ]
-}
-```
-
-Inventory the content kept, cut, and deferred for each named state: `kept` is a
-non-empty list, while `cut` and `deferred` are explicit lists that may be empty.
-If nothing can safely be cut, use `keptReason` instead of a `cut` entry. For
-deferred content, supply `access` with each named action used to reveal it, and
-record the same action with its observed result in `retained`. The gate matches
-these action names, and refuses missing pairs, inventories, and observed tasks
-with `--require-subtraction`. It cannot judge whether the content should have
-been cut or whether the revealed information suffices. Walk the action and
-route back on the real interface, including keyboard and assistive access;
-note unavailable paths as limitations, never as proof.
-
 ## Organise and look
 
 Keep PNG artifacts out of Git. Default run directory:
@@ -77,7 +43,6 @@ Keep PNG artifacts out of Git. Default run directory:
 
 ```sh
 python3 path/to/scripts/gallery.py manifest.json --check
-python3 path/to/scripts/gallery.py manifest.json --check --require-subtraction  # designed surfaces
 python3 path/to/scripts/gallery.py manifest.json --out index.html
 ```
 

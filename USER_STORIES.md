@@ -394,31 +394,24 @@ Evidence: `agent-config/skills/design-studio/SKILL.md`,
 
 ## US-044 Subtract content before shipping a designed surface
 
-Statement: When agents design a UI, I want them to remove repeated or premature
-content without losing the task, so each screen shows what I need now and keeps
-the rest findable when I ask for it.
+Statement: When agents finish a UI design, I want every element on each screen
+challenged and unnecessary content removed, so I can see simpler screens
+without losing the primary task or required information.
 
 Criteria:
-1. WHEN a design direction is refined, THE SYSTEM SHALL make a state-by-state
-   keep, cut, or defer pass against the primary user job an exit condition before
-   the spec handoff; a state with no safe cut SHALL record why.
-2. WHEN a design-surface subtraction is claimed verified, THE SYSTEM SHALL pair
-   before and after captures at matching viewport, theme, scroll position, and
-   explicitly recorded render source (`kind`), with non-empty text for each;
-   record the removed or deferred content and observed evidence that the primary
-   task and required information remain reachable; `gallery.py --check
-   --require-subtraction` SHALL fail on missing or mismatched capture conditions,
-   a missing pair, or missing retained-task evidence.
-3. WHEN content is deferred, THE SYSTEM SHALL name and exercise its accessible
-   route back; an overall word count or screenshot alone SHALL NOT prove that a
-   required fact remains available.
+1. WHEN a design direction is refined, THE SYSTEM SHALL list every visible
+   element on each screen, cut elements that serve neither the primary task
+   nor required information, and say why if nothing can safely be cut.
+2. WHEN subtraction is claimed complete, THE SYSTEM SHALL show each affected
+   screen before and after and demonstrate that the primary task and required
+   information remain reachable.
 
 No-gos: no global word budget, automatic judgment of semantic redundancy, or
 hiding required safety, status, or accessibility information to meet a count.
 
 Evidence: `agent-config/skills/design-studio/references/loop.md`,
-`agent-config/skills/visual-state-review/SKILL.md`,
-`agent-config/skills/visual-state-review/scripts/gallery.test.ts`
+`agent-config/skills/design-studio/SKILL.md`,
+`agent-config/guidance/design-routing.md`
 
 ## Capability: Design-surface verification
 
