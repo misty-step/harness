@@ -1,3 +1,9 @@
+# [0.1.55](https://github.com/misty-step/harness/compare/v0.1.54...v0.1.55) (2026-09-28)
+<!-- landmark:protected-release previous=v0.1.54 source=74d939ac268852b8de599582b6d349c0d3678925d0586d8524aa66d563b79f19 -->
+
+### Bug Fixes
+
+* **omp:** inherit parent task model and thinking (US-014) (#126) ([7a88ce1](https://github.com/misty-step/harness/commit/7a88ce12bb7ec80664ddbd0e30c2ae4e656435aa))
 # [0.1.54](https://github.com/misty-step/harness/compare/v0.1.53...v0.1.54) (2026-09-28)
 <!-- landmark:protected-release previous=v0.1.53 source=c01af7a8d1fd885286b75f8c5e843ec308fd50c72394883ad85dd5a8e476526a -->
 
