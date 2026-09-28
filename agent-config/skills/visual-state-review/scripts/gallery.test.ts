@@ -150,13 +150,23 @@ test("US-044 a deferred route or a justified no-cut state can complete review", 
 	}
 });
 
+test("US-044 a pair without render-source metadata still completes review", () => {
+	const root = dir();
+	const manifest = join(root, "manifest.json");
+	const data = pairedMap(root);
+	for (const state of data.states) delete state.kind;
+	writeFileSync(manifest, JSON.stringify(data));
+	const result = run([manifest, "--check", "--require-subtraction"]);
+	expect(result.code).toBe(0);
+});
+
 test("US-044 missing or mismatched subtraction proof is not a completed matrix", () => {
 	const cases: [string, (data: PairManifest) => void, string][] = [
 		["no pairs", data => { data.subtraction = []; }, "no before/after pairs"],
 		["skipped baseline", data => { data.states[0]!.status = "skipped"; data.states[0]!.reason = "not reachable"; }, "must both be captured"],
 		["different viewport", data => { data.states[1]!.size = "1280x720"; }, "size"],
 		["different render source", data => { data.states[1]!.kind = "replay"; }, "kind"],
-		["missing render source", data => { delete data.states[0]!.kind; delete data.states[1]!.kind; }, "kind"],
+		["one-sided render source", data => { delete data.states[1]!.kind; }, "kind"],
 		["non-text viewport", data => { for (const state of data.states) Object.assign(state, { size: 1 }); }, "size"],
 		["same capture alias", data => { data.states[1]!.file = "./before.png"; }, "same file"],
 		["no retained content inventory", data => { data.subtraction[0]!.kept = []; }, "kept"],
