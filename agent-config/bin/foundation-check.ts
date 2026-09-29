@@ -1445,6 +1445,11 @@ async function github(path: string, token: string): Promise<unknown> {
 	return response.json();
 }
 const reviewer = (entry: Record<string, unknown>): string => (record(entry.user) && typeof entry.user.login === "string" ? entry.user.login : "");
+/** CodeRabbit writes release notes into the PR description as it reviews; that block is not the author's text and
+ *  must not stale an approval. Keep in step with `authored` in agent-review.ts. */
+function authoredDescription(body: unknown): string {
+	return (typeof body === "string" ? body : "").replace(/<!-- This is an auto-generated comment: [^\n]*? by coderabbit\.ai -->[\s\S]*?<!-- end of auto-generated comment: [^\n]*? by coderabbit\.ai -->/g, "").trimEnd();
+}
 /** Image formats the vision role reads natively; keep in step with `IMAGE_PATH` in agent-review.ts. */
 const inspectableImage = /\.(png|jpe?g|gif|webp)$/i;
 /** The changed paths, when the change is nothing but content no review surface can inspect: submodule bumps and non-image binaries. */
@@ -1560,7 +1565,7 @@ async function review(options: Options): Promise<Result> {
 	const currentBase = record(pull) && record(pull.base) && typeof pull.base.ref === "string" ? pull.base.ref : "";
 	const digest = (value: unknown) => createHash("sha256").update(typeof value === "string" ? value : "").digest("hex");
 	const mergeBase = spawnSync("git", ["merge-base", base, head], { cwd: options.repo, encoding: "utf8" }).stdout.trim();
-	const stale = judged !== null && (judged[1] !== currentBase || judged[2] !== mergeBase || judged[3] !== digest(pull.title) || judged[4] !== digest(pull.body));
+	const stale = judged !== null && (judged[1] !== currentBase || judged[2] !== mergeBase || judged[3] !== digest(pull.title) || judged[4] !== digest(authoredDescription(pull.body)));
 	const overruled = modelReview !== undefined && decision !== undefined && decision.index > modelReview.index && decision.entry.state !== "APPROVED";
 	const advisory: string[] = [];
 	const uninspectable = uninspectableOnly(options.repo, mergeBase, head);

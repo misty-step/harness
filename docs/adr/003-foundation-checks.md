@@ -184,8 +184,12 @@ effect with the catalog and checker change that cites ADR-006.
   recorded but the gate could not be re-run, because review events cannot
   trigger it and the old check result would keep standing. Its model processes
   run with `--no-tools` (an empty `--tools` list may read as unset) and no
-  session. r90group ordinary PRs never had an independent-approver check, since
-  the recorded-decision path returns first, and that is unchanged.
+  session. The description it binds to leaves out the release-notes block
+  CodeRabbit writes into it as it reviews (a review that voided itself whenever
+  CodeRabbit ran was observed on this repo's own PR); text an author hides inside
+  such a marker would escape the binding, which the description does not warrant
+  a stricter rule for. r90group ordinary PRs never had an independent-approver
+  check, since the recorded-decision path returns first, and that is unchanged.
 
   Content a text model cannot read: PNG, JPEG, GIF and WebP files (at most six
   of at most 5 MB) are read by the vision role (Opus, `anthropic/claude-opus-5-5`

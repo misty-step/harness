@@ -1275,6 +1275,9 @@ describe("foundation-check review gate (US-027)", () => {
 		expect(retargeted.output.errors.join("\n")).toContain("different base, merge base, title or description");
 		opened(base, head, "engineer", "Stories: US-001\n\nnow claims something else");
 		expect((await gate(repo)).status).toBe(1);
+		// CodeRabbit's release notes in the description are not the author's text: the approval still stands.
+		opened(base, head, "engineer", "Stories: US-001\n\n<!-- This is an auto-generated comment: release notes by coderabbit.ai -->\n## Summary by CodeRabbit\n<!-- end of auto-generated comment: release notes by coderabbit.ai -->\n");
+		expect((await gate(repo)).status).toBe(0);
 		opened(base, head, "engineer", "Stories: US-001");
 		pull = { ...pull, title: "feat: something else" };
 		expect((await gate(repo)).status).toBe(1);

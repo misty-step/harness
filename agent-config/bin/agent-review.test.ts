@@ -186,6 +186,19 @@ describe("agent-review posting", () => {
 		expect(posted("/reviews")[0].body).toMatchObject({ event: "REQUEST_CHANGES" });
 	});
 
+	test("release notes CodeRabbit writes into the description while the model runs do not void the review", async () => {
+		const notes = "\n\n<!-- This is an auto-generated comment: release notes by coderabbit.ai -->\n## Summary by CodeRabbit\n- things\n<!-- end of auto-generated comment: release notes by coderabbit.ai -->";
+		changeAfterModel = { body: `${pull.body}${notes}` };
+		const result = await run();
+		expect(result.status).toBe(0);
+		// What the approval binds to is the author's text alone, so the gate sees the same hash before and after the notes.
+		const digest = (value: string) => createHash("sha256").update(value).digest("hex");
+		expect((posted("/reviews")[0].body as { body: string }).body).toContain(`description=sha256:${digest("Stories: US-027")}`);
+		// An edit to the author's own text still voids it.
+		changeAfterModel = { body: `Stories: US-027 and more${notes}` };
+		expect((await run()).stderr).toContain("base, description or diff changed");
+	});
+
 	test("a blocking finding requests changes and never approves", async () => {
 		answer({ ...clean, overall_correctness: "incorrect", findings: [{ title: "data loss", body: "drops rows", priority: 0 }] });
 		const result = await run();
