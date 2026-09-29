@@ -57,3 +57,41 @@ is at its weekly limit.
 
 Slots resolve an API key only from their own stored credential, never from
 the environment, so an unsigned slot is skipped rather than counted twice.
+
+## Result, 2026-09-29
+
+After the operator signed the personal Anthropic account into the isolated
+broker (one credential), a single Anthropic Messages request to the gateway
+(`POST 127.0.0.1:18772/v1/messages`, `anthropic/claude-haiku-4-5-20251001`,
+16 max tokens) returned HTTP 200 with `ok`; no 400 and no extra-usage
+refusal. `omp token anthropic --list` still showed OMP's three accounts. The
+call was a plain HTTP request to the gateway, so a Pi session has not yet
+been run through it: the gateway re-issues the request with OMP's client, so Pi's request shape
+is not what Anthropic saw.
+
+Smallest follow-up (not built): an `anthropic-pool` provider in `accounts` whose
+member streams a Pi `openai-completions`/Messages request to the gateway with
+the gateway bearer, plus lifting the Anthropic refusal in `failover` for that
+provider only, then one real Pi turn as the gate. Restart after reboot:
+`systemctl --user start omp-anthropic3-broker omp-anthropic3-gateway` if the
+units are persisted; they were created with `systemd-run` and are transient,
+so recreate them with:
+
+```sh
+D=$HOME/.local/state/omp-anthropic3-broker; OMP=$(readlink -f $(which omp))
+systemd-run --user --unit=omp-anthropic3-broker --property=MemoryMax=768M \
+  --setenv=PI_CODING_AGENT_DIR=$D --working-directory=$D $OMP auth-broker serve --bind=127.0.0.1:18771
+systemd-run --user --unit=omp-anthropic3-gateway --property=MemoryMax=768M \
+  --setenv=PI_CODING_AGENT_DIR=$D --setenv=OMP_AUTH_BROKER_URL=http://localhost:18771 \
+  --working-directory=$D $OMP auth-gateway serve --bind=127.0.0.1:18772
+```
+
+Both read bearer tokens from `~/.omp/*.token`, files they created; never run
+`--regenerate`.
+
+Correction: the 200 was a raw HTTP call, not a Pi session, so the Pi verdict
+is still open. OMP's `agent.db` grew from 8417280 to 8531968 bytes after the
+sign-in, but OMP was running throughout and the broker's own store is a
+separate file; `omp token anthropic --list` shows the same three accounts
+seen before the test call. The pre-sign-in list was not captured, so this
+does not prove the store is unchanged.
