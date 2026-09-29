@@ -539,10 +539,12 @@ and forced-outage smoke checks.
 ## US-046 Launch engineers only on the ticket's model roster
 
 Statement: When I put a ranked model roster on a board item and Kaylee launches
-an OMP engineer for it, I want that engineer to run only on the roster and stop
-when the roster runs out, so the models I chose for the ticket are the only
-ones that work on it and recovery never lands on a model I did not name (extends
-US-014's approved routing).
+an OMP engineer for it, or an OMP engineer is launched on a single model with no
+ticket, I want that engineer's own session to run only on the roster (or that one model)
+and stop when it runs out, so recovery never lands on a model I did not name.
+Helper roles (scout, reviewer, advisor and the like) keep the primaries US-014
+gives them and can recover only onto the roster (extends US-014's approved
+routing).
 
 Criteria:
 1. WHEN a ticket has a roster and Kaylee launches an OMP engineer, THE SYSTEM
@@ -576,14 +578,24 @@ Criteria:
    unsupported effort or a duplicate entry, or the usage view is not ok or
    malformed, or the harness is not OMP, THEN THE SYSTEM SHALL refuse the
    launch with one plain sentence and write nothing.
+6. WHEN an OMP engineer is launched without a ticket, THE SYSTEM SHALL accept
+   `--model provider/model --thinking effort` and no `--item`, run the same
+   approved-model, effort, cash and ai-usage checks on that one route, refuse with
+   exit status 3 and write nothing when the route cannot launch, and otherwise
+   write the overlay and launch record under a synthetic `adhoc-` id with every
+   engineer chain empty so the engineer stops when its model fails; it SHALL
+   refuse `--item` together with `--model` or `--thinking`, neither, and a
+   `:effort` suffix on `--model`, call no board, and let `check --item adhoc-...`
+   judge a session against the recorded route with no board.
 
 No-gos: no cash routes (OpenRouter entries are never launched or used as
 recovery until a per-ticket cash cap exists, and a cash turn is never on the
 roster); no Pi enforcement yet; no gating in the board; no roster edits or model
-choice by the launcher. Not covered, and said so in `omp-config/README.md`: items
-without a roster, Pi lanes and any `omp` not launched through `launch`; agent
-definitions that pin their own model and the `find` judge's `model_usage` calls;
-prevention at spawn time (`check` detects afterwards).
+choice by the launcher. Not covered, and said so in `omp-config/README.md`: Pi
+lanes and any `omp` not launched through `omp-roster launch` (a ticketless item is
+covered only when launched with `--model` and `--thinking`); agent definitions that
+pin their own model and the `find` judge's `model_usage` calls; prevention at spawn
+time (`check` detects afterwards).
 
 Evidence: `omp-config/bin/omp-roster.test.ts`, `omp-config/bin/omp-roster.ts`,
 `omp-config/README.md`, `./scripts/verify omp`, and the forced-outage smoke
@@ -592,7 +604,12 @@ only, a Sol-only roster stopped with the usage-limit error, and
 `omp-roster check` was clean for both). A scout spawned by a Sonnet engineer on a
 Sol-then-Sonnet overlay (with `PI_CONFIG_FILES` exported and `--config` given the
 same file, `omp` 18.4.3) started on its Luna primary, and with Codex exhausted
-hopped to Sol and then Sonnet, never Gemini; `check` was clean.
+hopped to Sol and then Sonnet, never Gemini; `check` was clean. Without a ticket
+(same day, `omp` 18.4.3, Codex exhausted): `omp-roster launch --model
+openai-codex/gpt-6-sol --thinking medium` exited 3 and wrote nothing; a Sonnet
+launch answered on Sonnet only and `check --item adhoc-...` was clean; the same
+`omp -p --model openai-codex/gpt-6-sol` with no overlay hopped Sol to Luna to Gemini
+and `check` against a Sol-only record exited 4.
 
 ## Capability: Protected releases
 
