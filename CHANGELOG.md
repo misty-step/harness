@@ -1,3 +1,9 @@
+# [0.1.62](https://github.com/misty-step/harness/compare/v0.1.61...v0.1.62) (2026-09-29)
+<!-- landmark:protected-release previous=v0.1.61 source=f9e5ae1e808119318726d02b85435a5286309e9177af0a447d86860797c30d2f -->
+
+### Features
+
+* **guidance:** publish board review rounds (US-045) (#132) ([ece8005](https://github.com/misty-step/harness/commit/ece80056c49f0a0db8941508318731bd31587eac))
 # [0.1.61](https://github.com/misty-step/harness/compare/v0.1.60...v0.1.61) (2026-09-29)
 <!-- landmark:protected-release previous=v0.1.60 source=6c6a8a9bb42af9aa1ceb313e6332ea5529827faa37ead6cd4ecd400b15fc4096 -->
 
