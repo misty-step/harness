@@ -47,7 +47,7 @@ require_base() {
   }
 }
 
-components_all="config guidance pi-chrome loc web-search failover image-budget openrouter-live continuation-nudge diff-review audio-sandbox pass-env skills openrouter-auth"
+components_all="config guidance pi-chrome loc web-search failover accounts image-budget openrouter-live continuation-nudge diff-review audio-sandbox pass-env skills openrouter-auth"
 
 selected=${PI_CONFIG_COMPONENTS:-all}
 case "$selected" in
@@ -220,6 +220,22 @@ install_failover() {
   done
 }
 
+validate_accounts() {
+  for file in index.ts slots.ts slots.test.ts; do
+    require_nonempty "$repo_dir/extensions/accounts/$file"
+  done
+}
+
+install_accounts() {
+  # Pokayoke: clean-replace the owned package so obsolete files cannot survive.
+  # Slot logins live in auth.json under the slot ids and are never touched here.
+  rm -rf "$agent_dir/extensions/accounts"
+  install -d -m 700 "$agent_dir/extensions/accounts"
+  for file in index.ts slots.ts slots.test.ts; do
+    install -m 600 "$repo_dir/extensions/accounts/$file" "$agent_dir/extensions/accounts/$file"
+  done
+}
+
 validate_image_budget() {
   for file in budget.ts budget.test.ts compress.ts index.ts index.test.ts; do
     require_nonempty "$repo_dir/extensions/image-budget/$file"
@@ -321,6 +337,7 @@ if has pi-chrome; then validate_pi_chrome; fi
 if has loc; then validate_loc; fi
 if has web-search; then validate_web_search; fi
 if has failover; then validate_failover; fi
+if has accounts; then validate_accounts; fi
 if has image-budget; then validate_image_budget; fi
 if has openrouter-live; then validate_openrouter_live; fi
 if has continuation-nudge; then validate_continuation_nudge; fi
@@ -334,6 +351,7 @@ if has pi-chrome; then install_pi_chrome; fi
 if has loc; then install_loc; fi
 if has web-search; then install_web_search; fi
 if has failover; then install_failover; fi
+if has accounts; then install_accounts; fi
 if has image-budget; then install_image_budget; fi
 if has openrouter-live; then install_openrouter_live; fi
 if has continuation-nudge; then install_continuation_nudge; fi

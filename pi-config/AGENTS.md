@@ -19,6 +19,8 @@ through the sibling `agent-config`.
 - `extensions/failover/` — fallback chain: a run that dies on a link after
   stock retry + compaction recovery moves the session to the next link,
   strictly forward; chain lives in the extension source (ADR-011/013).
+- `extensions/accounts/` — extra account slots: built-in providers cloned under
+  their own ids (`openai-codex-2`…), each with its own Pi login (ADR-024).
 - `extensions/openrouter-live/` — live OpenRouter bridge: appended to
   `models.json` (additive-only, fail-closed) the models the `pi.dev` mirror
   lacks, so model launches land on the provider's schedule, not the

@@ -7,7 +7,16 @@
     "anthropic/claude-opus-5-5": "high",
     "openai-codex/gpt-6-astra": "medium",
     "openai-codex/gpt-6-sol": "xhigh",
-    "openai-codex/gpt-6-luna": "max"
+    "openai-codex/gpt-6-luna": "max",
+    "openai-codex-2/gpt-6-astra": "medium",
+    "openai-codex-2/gpt-6-sol": "xhigh",
+    "openai-codex-2/gpt-6-luna": "max",
+    "openai-codex-3/gpt-6-astra": "medium",
+    "openai-codex-3/gpt-6-sol": "xhigh",
+    "openai-codex-3/gpt-6-luna": "max",
+    "openai-codex-4/gpt-6-astra": "medium",
+    "openai-codex-4/gpt-6-sol": "xhigh",
+    "openai-codex-4/gpt-6-luna": "max"
   },
   "retry": {
     "enabled": true,

@@ -933,3 +933,30 @@ per-engineer memory isolation.
 
 Evidence: `agent-config/desktop-guard/`, `docs/desktop-memory-guard.md`,
 `docs/postmortems/2026-09-26-shared-terminal-oom.md`.
+
+## US-045 Sign Pi into more than one account per provider
+
+Statement: When one subscription account is exhausted or blocked, I want Pi to
+hold further accounts for the same provider, each signed in by me through Pi's
+own login, so I can switch accounts without a second harness's credentials.
+
+Criteria:
+1. WHEN the Pi installer deploys the `accounts` component, `/login` SHALL list
+   `OpenAI Codex (account 2)` through `(account 4)` beside the base provider,
+   and `--model openai-codex-2/<model>` SHALL resolve without a login instead
+   of failing as an unknown model.
+2. WHEN I sign in to a slot, THE SYSTEM SHALL store that login under the slot
+   id in Pi's `auth.json`, and every request on a slot model SHALL use the
+   slot's login, never the base provider's.
+3. WHEN the component is removed, THE SYSTEM SHALL leave the base providers and
+   their stored logins working as stock Pi.
+4. WHEN a slot model is selected, Pi's model policy SHALL approve exactly the
+   models it approves for the base provider, at the same thinking level, and
+   SHALL refuse unlisted look-alike provider ids.
+
+No-gos: no reading, copying, or refreshing another harness's stored tokens; no
+Claude Code or Google client impersonation added by this repository.
+
+Evidence: `pi-config/extensions/accounts/slots.test.ts`,
+`pi-config/docs/adr/024-extra-accounts-are-cloned-providers-with-pi-owned-logins.md`,
+and the isolated `/login` walk recorded in the PR.
