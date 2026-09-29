@@ -24,6 +24,7 @@ const OPUS: Entry = { provider: "anthropic", model: "claude-opus-5-5", effort: "
 const GROK: Entry = { provider: "xai-oauth", model: "grok-4.7", effort: "high" };
 const GEMINI: Entry = { provider: "google-antigravity", model: "gemini-3.8-flash", effort: "high" };
 const CASH: Entry = { provider: "openrouter", model: "deepseek/deepseek-v4.1-flash", effort: "medium" };
+const OLD_SOL: Entry = { provider: "openai-codex", model: "gpt-6-sol", effort: "medium" };
 
 // The overlay writes modelRoles for these four only. Helper roles keep their US-014 primaries
 // (also in config.yml, and checked against it below) and get roster-only recovery chains.
@@ -423,9 +424,35 @@ describe("omp-roster check (US-046)", () => {
 
 	// What `launch` writes beside its overlay for one launch, with a fixed time and digest so the tests
 	// do not depend on the clock.
-	const recorded = (dir: string, roster: Entry[], launchedAt: string, digest: string) =>
-		put(join(dir, "state", `K-test.${digest}.launch.json`), JSON.stringify({ item: "K-test", roster, roster_sha256: "unused", launch: selectorOf(roster[0]), overlay: join(dir, "state", `K-test.${digest}.yml`), launched_at: launchedAt }));
+	const recorded = (dir: string, roster: Entry[], launchedAt: string, digest: string, schemaVersion = 2) =>
+		put(join(dir, "state", `K-test.${digest}.launch.json`), JSON.stringify({ item: "K-test", roster, roster_sha256: "unused", launch: selectorOf(roster[0]), overlay: join(dir, "state", `K-test.${digest}.yml`), launched_at: launchedAt, ...(schemaVersion === 2 ? { schema_version: 2 } : {}) }));
 	const selectorOf = (entry: Entry) => `${entry.provider}/${entry.model}:${entry.effort}`;
+
+	test("US-046 checks retired Sol records and launch-era helper primaries without allowing new retired Sol launches", () => {
+		const dir = scratch("historical-sol");
+		recorded(dir, [OLD_SOL, SONNET], stamp(1), "aaaaaaaa", 1);
+		const main = jsonl(join(dir, "S-old.jsonl"), [asked(2), said(3, "openai-codex", "gpt-6-sol")]);
+		jsonl(join(dir, "S-old", "Reviewer.jsonl"), [init("reviewer", "reviewer"), said(4, "openai-codex", "gpt-6-sol")]);
+		jsonl(join(dir, "S-old", "Plan.jsonl"), [init("plan", "plan"), said(5, "openai-codex", "gpt-6-astra")]);
+		const historical = checkWith(dir, [OLD_SOL, SONNET], [], main);
+		expect(historical.exitCode).toBe(0);
+		expect(historical.stdout).toContain("2 helper turn(s) in 2 file(s)");
+		expect(historical.stdout).toContain("turns on the roster: 1");
+		expect(historical.stdout).not.toContain("roster changed");
+		const attempt = launch(boardAnswer([OLD_SOL]), usageView([row("openai-codex", "gpt-6-sol", "usable")]), "--json");
+		expect(attempt.exitCode).toBe(1);
+		expect(attempt.stderr).toContain("gpt-6-sol) is not on the approved model list");
+	});
+
+	test("US-046 a new record checks current primaries even for a Sonnet-only roster", () => {
+		const dir = scratch("current-primary");
+		recorded(dir, [SONNET], stamp(1), "bbbbbbbb");
+		const main = jsonl(join(dir, "S-new.jsonl"), [asked(2), said(3, "anthropic", "claude-sonnet-5-5")]);
+		jsonl(join(dir, "S-new", "Reviewer.jsonl"), [init("reviewer", "reviewer"), said(4, "openai-codex", "gpt-6-sol")]);
+		const run = checkWith(dir, [SONNET], [], main);
+		expect(run.exitCode).toBe(4);
+		expect(run.stdout).toContain("openai-codex/gpt-6-sol off roster: 1 turn(s)");
+	});
 
 	test("US-046 a cash route is never on the roster: turns and hops onto OpenRouter are violations even when the ticket names it", () => {
 		const dir = scratch("cash");
