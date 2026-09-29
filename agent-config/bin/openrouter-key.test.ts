@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 
 const launcher = join(import.meta.dir, "openrouter-key.ts");
-const r90Entry = "workstation/OPENROUTER_R90_HARNESS_API_KEY";
+const r90Entry = "workstation/OPENROUTER_R90_HARNESS_WORKSTATION_INFERENCE_API_KEY";
 const personalEntry = "workstation/OPENROUTER_OMP_HARNESS_API_KEY";
 const roots: string[] = [];
 
