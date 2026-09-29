@@ -180,7 +180,13 @@ effect with the catalog and checker change that cites ADR-006.
   `agent-review` also refuses to post if any of these changed during its own
   review, and refuses binary and submodule changes, whose contents the model
   cannot see. r90group ordinary PRs never had an independent-approver check,
-  since the recorded-decision path returns first, and that is unchanged.
+  since the recorded-decision path returns first, and that is unchanged. Known
+  limit: on a PR that trips one of the five designated-review triggers, the
+  designated approval and the independent review are the same App identity, so
+  that approval alone satisfies the gate and it cannot show a model review ran.
+  Those PRs stay the agent reviewer's own process (the operator-decision flow
+  above), which is where a real change in product direction is escalated;
+  `agent-review` is not what decides them.
 
 ## Enforcement by plan
 
