@@ -1,3 +1,9 @@
+# [0.1.64](https://github.com/misty-step/harness/compare/v0.1.63...v0.1.64) (2026-09-29)
+<!-- landmark:protected-release previous=v0.1.63 source=771dcb890158e3de96fc0f96a21ea1ccb2909817689e895c20586c7346a3bc88 -->
+
+### Features
+
+* **pi:** use only OpenAI, Grok and OpenRouter; refuse Anthropic (#145) ([4c14be0](https://github.com/misty-step/harness/commit/4c14be0c817255e4837952dfabbf6324cfca08ea))
 # [0.1.63](https://github.com/misty-step/harness/compare/v0.1.62...v0.1.63) (2026-09-29)
 <!-- landmark:protected-release previous=v0.1.62 source=050f57d67ea4f6c0e9b7e0ebeb08b44720c29e3958bc840bf55859f0f4cb3f38 -->
 
