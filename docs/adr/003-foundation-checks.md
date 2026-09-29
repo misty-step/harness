@@ -173,20 +173,17 @@ effect with the catalog and checker change that cites ADR-006.
   base, and a hash of the title and of the description the model judged
   (`agent-review-state:` line) and the gate, which re-runs on `edited`, refuses an
   App approval that names a different one. The diff is the head against the
-  merge base, so the head and merge base together cover it. On an ordinary PR
-  only an approval carrying that record counts, so a bare
-  App approval is not a model review; a designated-review trigger's
-  operator-decision approval has no record and is judged on the head alone.
-  `agent-review` also refuses to post if any of these changed during its own
-  review, and refuses binary and submodule changes, whose contents the model
-  cannot see. r90group ordinary PRs never had an independent-approver check,
-  since the recorded-decision path returns first, and that is unchanged. Known
-  limit: on a PR that trips one of the five designated-review triggers, the
-  designated approval and the independent review are the same App identity, so
-  that approval alone satisfies the gate and it cannot show a model review ran.
-  Those PRs stay the agent reviewer's own process (the operator-decision flow
-  above), which is where a real change in product direction is escalated;
-  `agent-review` is not what decides them.
+  merge base, so the head and merge base together cover it. Every PR, a
+  designated-review trigger included, needs that record: the App's designated
+  approval is its decision on the trigger and never stands in for the model
+  review, and the App's later change request overrules the record. A bare App
+  approval is not a model review. `agent-review` also refuses to post if any of
+  these changed during its own review, refuses binary and submodule changes,
+  whose contents the model cannot see, and exits 4 when the review is recorded
+  but the gate could not be re-run, because review events cannot trigger it and
+  the old check result would keep standing. r90group ordinary PRs never had an
+  independent-approver check, since the recorded-decision path returns first,
+  and that is unchanged.
 
 ## Enforcement by plan
 

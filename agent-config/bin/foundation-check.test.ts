@@ -1278,12 +1278,12 @@ describe("foundation-check review gate (US-027)", () => {
 		opened(base, head, "engineer", "Stories: US-001");
 		pull = { ...pull, title: "feat: something else" };
 		expect((await gate(repo)).status).toBe(1);
-		// On an ordinary PR a bare App approval is not a model review: only agent-review's record counts.
+		// A bare App approval is not a model review: only agent-review's record counts.
 		opened(base, head, "engineer", "Stories: US-001");
 		reviews = [said(agent, head)];
 		const bare = await gate(repo);
 		expect(bare.status).toBe(1);
-		expect(bare.output.errors.join("\n")).toContain("is not an agent-review record");
+		expect(bare.output.errors.join("\n")).toContain("FND-REV-001: needs an agent-review approval");
 	});
 
 	test("citation covers each mapped source story even when the review checkout stays at the base", async () => {
@@ -1375,7 +1375,7 @@ describe("foundation-check review gate (US-027)", () => {
 		const ledger = await gate(repo);
 		expect(ledger.output.reasons).toEqual(["invariants ledger: DOMAIN.md policy changes"]);
 		expect(ledger.output.errors.join("\n")).toContain("designated agent reviewer");
-		reviews = [said(agent, head)];
+		reviews = [recorded(agent, head), said(agent, head)];
 		expect((await gate(repo)).status).toBe(0);
 		const approvedBase = head;
 		const value = JSON.parse(readFileSync(join(repo, "foundation.json"), "utf8"));
@@ -1390,7 +1390,7 @@ describe("foundation-check review gate (US-027)", () => {
 		opened(approvedBase, dispositionHead);
 		reviews = [said("teammate", dispositionHead)];
 		expect((await gate(repo)).output.reasons).toEqual([`disposition approval: ${id} not_applicable`]);
-		reviews = [said(agent, dispositionHead)];
+		reviews = [recorded(agent, dispositionHead), said(agent, dispositionHead)];
 		expect((await gate(repo)).status).toBe(0);
 		put(repo, approval_ref, JSON.stringify({ ...decision, reason: "Mismatch" }));
 		commit(repo, "tamper record");
@@ -1435,7 +1435,10 @@ describe("foundation-check review gate (US-027)", () => {
 		expect((await gate(repo)).status).toBe(1);
 		reviews = [said(operator, head)];
 		expect((await gate(repo)).status).toBe(1);
+		// The designated approval alone is not a model review: FND-REV-001 still wants agent-review's record.
 		reviews = [said(agent, head)];
+		expect((await gate(repo)).output.errors.join("\n")).toContain("FND-REV-001");
+		reviews = [recorded(agent, head), said(agent, head)];
 		const approved = await gate(repo);
 		expect(approved.status).toBe(0);
 		expect(approved.output.approved_by).toBe(agent);
@@ -1480,13 +1483,13 @@ describe("foundation-check review gate (US-027)", () => {
 			reviews = [escalation, said(agent, head, "APPROVED", quoted)];
 			expect((await gate(repo)).status).toBe(1);
 		}
-		reviews = [escalation, said(agent, head, "APPROVED", resolved)];
+		reviews = [recorded(agent, head), escalation, said(agent, head, "APPROVED", resolved)];
 		expect((await gate(repo)).output.approved_by).toBe(agent);
 		// A second escalation needs a second recorded decision, even though the earlier approval still stands on GitHub.
 		reviews = [escalation, said(agent, head, "APPROVED", resolved), said(agent, head, "COMMENTED", marker)];
 		expect((await gate(repo)).status).toBe(1);
 		// A marker on an older commit does not carry over; the head still needs the agent reviewer's approval.
-		reviews = [said(agent, base, "COMMENTED", marker), said(agent, head)];
+		reviews = [said(agent, base, "COMMENTED", marker), recorded(agent, head), said(agent, head)];
 		expect((await gate(repo)).status).toBe(0);
 		const foreign = await gate(repo, "elsewhere/demo");
 		expect(foreign.status).toBe(1);

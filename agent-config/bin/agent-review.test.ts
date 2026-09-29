@@ -174,7 +174,7 @@ describe("agent-review posting", () => {
 		labelCreateStatus = 201;
 		labelAddStatus = 500;
 		const stuck = await run();
-		expect(stuck.status).toBe(0);
+		expect(stuck.status).toBe(4);
 		expect(stuck.stderr).toContain("the gate was not re-run");
 	});
 

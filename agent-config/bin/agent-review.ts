@@ -189,7 +189,8 @@ if (import.meta.main) {
 	try {
 		const result = await review(repo, pr);
 		console.log(`${result.posted} ${repo}#${pr} at ${result.head.slice(0, 12)} as ${APP_LOGIN}`);
-		process.exit(result.posted === "APPROVED" ? 0 : 1);
+		// A recorded review whose gate re-run failed leaves the old check result standing: fail loudly, never look done.
+		process.exit(!result.rerun ? 4 : result.posted === "APPROVED" ? 0 : 1);
 	} catch (error) {
 		console.error(`agent-review: ${(error as Error).message}`);
 		process.exit(3);

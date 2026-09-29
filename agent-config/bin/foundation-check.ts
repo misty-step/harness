@@ -1523,27 +1523,33 @@ async function review(options: Options): Promise<Result> {
 	reviews.forEach((entry, index) => {
 		if (own(entry) && (entry.state === "APPROVED" || entry.state === "CHANGES_REQUESTED" || entry.state === "DISMISSED")) decision = { entry, index };
 	});
-	// `agent-review` records the base, merge base, title and description its model judged. GitHub keeps an approval on a
-	// head after a retarget, an edit or a moved base, so an approval that names a different one no longer stands. (The
-	// diff is the head against the merge base, so head plus merge base cover it.) An App approval without the record,
-	// such as an operator-decision approval of a designated-review trigger, is judged on the head alone.
-	const reviewedState = typeof decision?.entry.body === "string" ? decision.entry.body.match(/^agent-review-state: base=(\S+) merge-base=([0-9a-f]{40}) title=sha256:([0-9a-f]{64}) description=sha256:([0-9a-f]{64})$/m) : null;
-	const currentBase = record(pull) && record(pull.base) && typeof pull.base.ref === "string" ? pull.base.ref : "";
-	const digest = (value: unknown) => createHash("sha256").update(typeof value === "string" ? value : "").digest("hex");
-	const mergeBase = spawnSync("git", ["merge-base", base, head], { cwd: options.repo, encoding: "utf8" }).stdout.trim();
-	const stale = reviewedState !== null && (reviewedState[1] !== currentBase || reviewedState[2] !== mergeBase || reviewedState[3] !== digest(pull.title) || reviewedState[4] !== digest(pull.body));
-	const approved = decision?.entry.state === "APPROVED" && decision.entry.commit_id === head && !stale;
-	if (stale) errors.push(`the agent reviewer's approval of head ${head.slice(0, 12)} judged a different base, merge base, title or description than the PR now has; run agent-review again`);
+	const approved = decision?.entry.state === "APPROVED" && decision.entry.commit_id === head;
 	if (reasons.length > 0 && escalation >= 0 && !(approved && decision!.index > escalation && states(decision!.entry, resolutionMarker))) {
 		errors.push(`escalated to the operator on head ${head.slice(0, 12)}; needs a later approving review from ${agent} that records the operator's decision and opens with "${resolutionMarker}" as its exact first line`);
 	} else if (reasons.length > 0 && !approved) errors.push(`needs an approving review from the designated agent reviewer ${agent} on head ${head.slice(0, 12)}`);
-	// FND-REV-001: on an organisation with a reviewer App, the independent review is that App's approval of this head,
-	// and for an ordinary PR it must be `agent-review`'s own (it carries the record above), so a bare App approval
-	// cannot stand in for a model review. Anyone else's approval does not count, and the App's latest change request
-	// stands, so a second approver cannot outvote the model review. GitHub authenticates the reviewer and head, not
-	// the judgement.
-	if (reasons.length === 0 && approved && reviewedState === null) errors.push(`FND-REV-001: the approval of ${agent} on head ${head.slice(0, 12)} is not an agent-review record; run agent-review --repo ${org}/${name} --pr ${options.pr}`);
-	else if (reasons.length === 0 && !approved) errors.push(`FND-REV-001: needs an approving review from the designated agent reviewer ${agent} on head ${head.slice(0, 12)} (run agent-review --repo ${org}/${name} --pr ${options.pr})`);
+	// FND-REV-001, for every PR: the independent review is a model review, which `agent-review` records as the App's
+	// review of this head carrying the base, merge base, title and description its model judged. A designated-review
+	// approval (above) is the App's decision on a trigger and never stands in for it. GitHub keeps an approval on a head
+	// after a retarget, an edit or a moved base, so a record naming a different one no longer stands (the diff is the head
+	// against the merge base, so head plus merge base cover it). Anyone else's approval does not count, and the App's
+	// later change request overrules the record, so a second approver cannot outvote the model review. GitHub
+	// authenticates the reviewer and head, not the judgement.
+	const recordOf = (entry: Record<string, unknown>) => (typeof entry.body === "string" ? entry.body.match(/^agent-review-state: base=(\S+) merge-base=([0-9a-f]{40}) title=sha256:([0-9a-f]{64}) description=sha256:([0-9a-f]{64})$/m) : null);
+	let modelReview: { entry: Record<string, unknown>; index: number } | undefined;
+	reviews.forEach((entry, index) => {
+		if (own(entry) && entry.commit_id === head && (entry.state === "APPROVED" || entry.state === "CHANGES_REQUESTED") && recordOf(entry)) modelReview = { entry, index };
+	});
+	const judged = modelReview ? recordOf(modelReview.entry) : null;
+	const currentBase = record(pull) && record(pull.base) && typeof pull.base.ref === "string" ? pull.base.ref : "";
+	const digest = (value: unknown) => createHash("sha256").update(typeof value === "string" ? value : "").digest("hex");
+	const mergeBase = spawnSync("git", ["merge-base", base, head], { cwd: options.repo, encoding: "utf8" }).stdout.trim();
+	const stale = judged !== null && (judged[1] !== currentBase || judged[2] !== mergeBase || judged[3] !== digest(pull.title) || judged[4] !== digest(pull.body));
+	const overruled = modelReview !== undefined && decision !== undefined && decision.index > modelReview.index && decision.entry.state !== "APPROVED";
+	if (modelReview?.entry.state !== "APPROVED" || stale || overruled) {
+		errors.push(stale
+			? `FND-REV-001: the agent reviewer's approval of head ${head.slice(0, 12)} judged a different base, merge base, title or description than the PR now has; run agent-review --repo ${org}/${name} --pr ${options.pr}`
+			: `FND-REV-001: needs an agent-review approval from the designated agent reviewer ${agent} on head ${head.slice(0, 12)} (run agent-review --repo ${org}/${name} --pr ${options.pr})`);
+	}
 	return { ok: errors.length === 0, errors, reasons, approved_by: errors.length === 0 ? agent : undefined };
 }
 function print(result: Result, json: boolean, command: Command): void {

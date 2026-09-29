@@ -834,10 +834,12 @@ Criteria:
    within 30 days; `baseline --revision SHA` SHALL add new obligation gaps,
    while ADR-005's three existing `ops:` keys remain their sole gaps.
 7. WHEN `foundation-check review` judges a PR, it SHALL require an
-   independent approval on its head for every change: where the organisation
-   has a reviewer App (misty-step) only that App's approval counts, and its
-   latest change request stands. The reviewing agent gives it after a model
-   review of the PR (`agent-review`; operator rule, 2026-09-28). An invariants-ledger
+   independent approval on its head for every change, designated-review
+   triggers included: where the organisation has a reviewer App (misty-step)
+   only that App's approval counts, it must carry `agent-review`'s record of the
+   base, merge base, title and description judged, and its latest change request
+   stands. The reviewing agent gives it after a model review of the PR
+   (`agent-review`; operator rule, 2026-09-28). An invariants-ledger
    edit or a new/changed `foundation-approval/1` disposition SHALL additionally
    require the designated reviewer, making five designated-review triggers.
    IF mapped source changes, the PR description SHALL cite every affected
