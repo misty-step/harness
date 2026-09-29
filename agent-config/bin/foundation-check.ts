@@ -1523,17 +1523,17 @@ async function review(options: Options): Promise<Result> {
 	reviews.forEach((entry, index) => {
 		if (own(entry) && (entry.state === "APPROVED" || entry.state === "CHANGES_REQUESTED" || entry.state === "DISMISSED")) decision = { entry, index };
 	});
-	// `agent-review` records the base, title and description its model judged. GitHub keeps an approval on a head after
-	// a retarget or an edit, so an approval that names a different base, title or description no longer stands. (Diff
-	// content is fixed by the head and merge base; a protected trunk cannot be rewritten under its ref.) An App
-	// approval without the record, such as an operator-decision approval of a designated-review trigger, is judged on
-	// the head alone.
-	const reviewedState = typeof decision?.entry.body === "string" ? decision.entry.body.match(/^agent-review-state: base=(\S+) title=sha256:([0-9a-f]{64}) description=sha256:([0-9a-f]{64})$/m) : null;
+	// `agent-review` records the base, merge base, title and description its model judged. GitHub keeps an approval on a
+	// head after a retarget, an edit or a moved base, so an approval that names a different one no longer stands. (The
+	// diff is the head against the merge base, so head plus merge base cover it.) An App approval without the record,
+	// such as an operator-decision approval of a designated-review trigger, is judged on the head alone.
+	const reviewedState = typeof decision?.entry.body === "string" ? decision.entry.body.match(/^agent-review-state: base=(\S+) merge-base=([0-9a-f]{40}) title=sha256:([0-9a-f]{64}) description=sha256:([0-9a-f]{64})$/m) : null;
 	const currentBase = record(pull) && record(pull.base) && typeof pull.base.ref === "string" ? pull.base.ref : "";
 	const digest = (value: unknown) => createHash("sha256").update(typeof value === "string" ? value : "").digest("hex");
-	const stale = reviewedState !== null && (reviewedState[1] !== currentBase || reviewedState[2] !== digest(pull.title) || reviewedState[3] !== digest(pull.body));
+	const mergeBase = spawnSync("git", ["merge-base", base, head], { cwd: options.repo, encoding: "utf8" }).stdout.trim();
+	const stale = reviewedState !== null && (reviewedState[1] !== currentBase || reviewedState[2] !== mergeBase || reviewedState[3] !== digest(pull.title) || reviewedState[4] !== digest(pull.body));
 	const approved = decision?.entry.state === "APPROVED" && decision.entry.commit_id === head && !stale;
-	if (stale) errors.push(`the agent reviewer's approval of head ${head.slice(0, 12)} judged a different base, title or description than the PR now has; run agent-review again`);
+	if (stale) errors.push(`the agent reviewer's approval of head ${head.slice(0, 12)} judged a different base, merge base, title or description than the PR now has; run agent-review again`);
 	if (reasons.length > 0 && escalation >= 0 && !(approved && decision!.index > escalation && states(decision!.entry, resolutionMarker))) {
 		errors.push(`escalated to the operator on head ${head.slice(0, 12)}; needs a later approving review from ${agent} that records the operator's decision and opens with "${resolutionMarker}" as its exact first line`);
 	} else if (reasons.length > 0 && !approved) errors.push(`needs an approving review from the designated agent reviewer ${agent} on head ${head.slice(0, 12)}`);

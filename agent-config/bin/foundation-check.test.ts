@@ -1173,6 +1173,7 @@ describe("foundation-check review gate (US-027)", () => {
 	let pull = { head: { sha: "" }, base: { sha: "", ref: "master" }, user: { login: "engineer" }, title: "docs: note", body: "" };
 	let reviews: { user: { login: string }; state: string; commit_id: string; body: string; submitted_at?: string }[] = [];
 	let comments: { user: { login: string }; body: string; created_at: string }[] = [];
+	let currentRepo = "";
 	let calls: string[] = [];
 	const server = Bun.serve({
 		port: 0,
@@ -1183,7 +1184,7 @@ describe("foundation-check review gate (US-027)", () => {
 			if (url.pathname.endsWith("/pulls/7")) return Response.json(pull);
 			if (url.pathname.endsWith("/pulls/7/reviews")) {
 				const digest = (value: string) => createHash("sha256").update(value).digest("hex");
-				const state = `agent-review: approved\nagent-review-state: base=${pull.base.ref} title=sha256:${digest(pull.title)} description=sha256:${digest(pull.body)}\n`;
+				const state = `agent-review: approved\nagent-review-state: base=${pull.base.ref} merge-base=${exec(currentRepo, ["merge-base", pull.base.sha, pull.head.sha])} title=sha256:${digest(pull.title)} description=sha256:${digest(pull.body)}\n`;
 				return Response.json(url.searchParams.get("page") === "1" ? reviews.map((entry) => (entry.body === "__RECORD__" ? { ...entry, body: state } : entry)) : []);
 			}
 			if (url.pathname.endsWith("/issues/7/comments")) return Response.json(url.searchParams.get("page") === "1" ? comments : []);
@@ -1196,6 +1197,7 @@ describe("foundation-check review gate (US-027)", () => {
 	const recorded = (login: string, commit: string) => said(login, commit, "APPROVED", "__RECORD__");
 	const opened = (base: string, head: string, author = "engineer", body = "") => { pull = { head: { sha: head }, base: { sha: base, ref: "master" }, user: { login: author }, title: "docs: note", body }; };
 	async function gate(repo: string, slug = "misty-step/demo") {
+		currentRepo = repo;
 		const child = Bun.spawn(["bun", script, "review", "--pr", "7", "--github-repo", slug, "--repo", repo, "--json"], {
 			cwd: repo, env: { ...process.env, GITHUB_TOKEN: "test-token", GITHUB_API_URL: server.url.origin }, stdout: "pipe", stderr: "pipe",
 		});
@@ -1258,7 +1260,11 @@ describe("foundation-check review gate (US-027)", () => {
 		put(repo, "notes.txt", "plain change\n");
 		commit(repo, "plain");
 		const head = exec(repo, ["rev-parse", "HEAD"]);
-		const judged = (ref: string, title: string, description: string) => `agent-review: approved ${head}\nagent-review-state: base=${ref} title=sha256:${createHash("sha256").update(title).digest("hex")} description=sha256:${createHash("sha256").update(description).digest("hex")}\n\nNo defects.`;
+		const judged = (ref: string, title: string, description: string, mergeBase = exec(repo, ["merge-base", base, head])) => `agent-review: approved ${head}\nagent-review-state: base=${ref} merge-base=${mergeBase} title=sha256:${createHash("sha256").update(title).digest("hex")} description=sha256:${createHash("sha256").update(description).digest("hex")}\n\nNo defects.`;
+		reviews = [said(agent, head, "APPROVED", judged("master", "docs: note", "Stories: US-001", "f".repeat(40)))];
+		opened(base, head, "engineer", "Stories: US-001");
+		// The base branch moved under the approval: the PR's diff is no longer the one the model judged.
+		expect((await gate(repo)).output.errors.join("\n")).toContain("different base, merge base, title or description");
 		reviews = [said(agent, head, "APPROVED", judged("master", "docs: note", "Stories: US-001"))];
 		opened(base, head, "engineer", "Stories: US-001");
 		expect((await gate(repo)).status).toBe(0);
@@ -1266,7 +1272,7 @@ describe("foundation-check review gate (US-027)", () => {
 		pull = { ...pull, base: { ...pull.base, ref: "release" } };
 		const retargeted = await gate(repo);
 		expect(retargeted.status).toBe(1);
-		expect(retargeted.output.errors.join("\n")).toContain("different base, title or description");
+		expect(retargeted.output.errors.join("\n")).toContain("different base, merge base, title or description");
 		opened(base, head, "engineer", "Stories: US-001\n\nnow claims something else");
 		expect((await gate(repo)).status).toBe(1);
 		opened(base, head, "engineer", "Stories: US-001");

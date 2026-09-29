@@ -123,20 +123,22 @@ async function installationToken(repo: string): Promise<string> {
 	return minted.token;
 }
 
-/** The base, title and description the model judged are recorded for the gate, which refuses an approval once any changes. */
-function body(verdict: Verdict, head: string, pull: Pull): string {
+/** The base, merge base, title and description the model judged are recorded for the gate, which refuses an approval once any changes. */
+function body(verdict: Verdict, head: string, pull: Pull, mergeBase: string): string {
 	const digest = (value: string) => createHash("sha256").update(value).digest("hex");
-	const state = `agent-review-state: base=${pull.base.ref} title=sha256:${digest(pull.title)} description=sha256:${digest(pull.body ?? "")}`;
+	const state = `agent-review-state: base=${pull.base.ref} merge-base=${mergeBase} title=sha256:${digest(pull.title)} description=sha256:${digest(pull.body ?? "")}`;
 	const lines = [`${passes(verdict) ? "agent-review: approved" : "agent-review: changes requested"} ${head}`, state, "", `Reviewer: ${MODEL} (${THINKING}), a fresh session that saw the PR title, description and diff only.`, "", verdict.explanation.trim()];
 	for (const finding of verdict.findings) lines.push("", `- **P${finding.priority}** ${finding.title}: ${finding.body.trim()}`);
 	return lines.join("\n").slice(0, 60_000);
 }
 
-type Pull = { state: string; title: string; body: string | null; user: { login: string }; head: { sha: string }; base: { ref: string } };
-const readPull = async (repo: string, number: number, token: string): Promise<{ pull: Pull; diff: string }> => {
+type Pull = { state: string; title: string; body: string | null; user: { login: string }; head: { sha: string }; base: { ref: string; sha: string } };
+const readPull = async (repo: string, number: number, token: string): Promise<{ pull: Pull; diff: string; mergeBase: string }> => {
 	const pull: Pull = await (await api(`/repos/${repo}/pulls/${number}`, token)).json();
 	const diff = await (await api(`/repos/${repo}/pulls/${number}`, token, { accept: "application/vnd.github.v3.diff" })).text();
-	return { pull, diff };
+	// The diff is head against merge base, so the merge base is what a moving base branch changes under an approval.
+	const compared: { merge_base_commit: { sha: string } } = await (await api(`/repos/${repo}/compare/${pull.base.sha}...${pull.head.sha}`, token)).json();
+	return { pull, diff, mergeBase: compared.merge_base_commit.sha };
 };
 
 export async function review(repo: string, number: number): Promise<{ posted: "APPROVED" | "CHANGES_REQUESTED"; head: string; rerun: boolean }> {
@@ -144,7 +146,7 @@ export async function review(repo: string, number: number): Promise<{ posted: "A
 	if (!org || !name || extra !== undefined) throw new Error("--repo must be OWNER/NAME");
 	if (org !== ORG) throw new Error(`the reviewer App is installed on ${ORG} only; ${org} has no designated agent reviewer (ADR-003)`);
 	const token = await installationToken(repo);
-	const { pull, diff } = await readPull(repo, number, token);
+	const { pull, diff, mergeBase } = await readPull(repo, number, token);
 	if (pull.state !== "open") throw new Error(`pull request ${number} is ${pull.state}`);
 	if (pull.user.login === APP_LOGIN) throw new Error(`${APP_LOGIN} authored this PR and cannot review it`);
 	const head = pull.head.sha;
@@ -159,9 +161,9 @@ export async function review(repo: string, number: number): Promise<{ posted: "A
 	// something else, and GitHub keeps an approval on a head whatever its base or diff became.
 	const now = await readPull(repo, number, token);
 	if (now.pull.head.sha !== head) throw new Error(`the head moved from ${head.slice(0, 12)} to ${now.pull.head.sha.slice(0, 12)} during review; nothing was posted`);
-	if (now.pull.base.ref !== pull.base.ref || now.pull.title !== pull.title || (now.pull.body ?? "") !== (pull.body ?? "") || now.diff !== diff) throw new Error("the base, description or diff changed during review; nothing was posted");
+	if (now.pull.base.ref !== pull.base.ref || now.mergeBase !== mergeBase || now.pull.title !== pull.title || (now.pull.body ?? "") !== (pull.body ?? "") || now.diff !== diff) throw new Error("the base, description or diff changed during review; nothing was posted");
 	const event = passes(verdict) ? "APPROVE" : "REQUEST_CHANGES";
-	await api(`/repos/${repo}/pulls/${number}/reviews`, token, { method: "POST", body: { commit_id: head, event, body: body(verdict, head, pull) } });
+	await api(`/repos/${repo}/pulls/${number}/reviews`, token, { method: "POST", body: { commit_id: head, event, body: body(verdict, head, pull, mergeBase) } });
 	// Review events cannot trigger pull_request_target, so a label round trip re-runs the base branch's gate. The review
 	// is already recorded, so a failure here is reported, not thrown: toggle the label by hand to re-run the gate.
 	let rerun = true;

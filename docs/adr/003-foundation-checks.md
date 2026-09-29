@@ -169,12 +169,12 @@ effect with the catalog and checker change that cites ADR-006.
   2026-09-29), so it never gates. r90group has no reviewer App and free-plan
   private repositories cannot enforce rules, so its checks stay advisory and
   `agent-review` refuses it. GitHub keeps an approval on a head after the PR is
-  retargeted or edited, so the review records the base and a hash of the title
-  and of the description the model judged (`agent-review-state:` line) and the
-  gate, which re-runs on `edited`, refuses an App approval that names a different
-  base, title or description. The diff is fixed by the head and merge base (a
-  protected trunk cannot be rewritten under its ref), so the head check covers
-  it. On an ordinary PR only an approval carrying that record counts, so a bare
+  retargeted, edited or its base moved, so the review records the base, the merge
+  base, and a hash of the title and of the description the model judged
+  (`agent-review-state:` line) and the gate, which re-runs on `edited`, refuses an
+  App approval that names a different one. The diff is the head against the
+  merge base, so the head and merge base together cover it. On an ordinary PR
+  only an approval carrying that record counts, so a bare
   App approval is not a model review; a designated-review trigger's
   operator-decision approval has no record and is judged on the head alone.
   `agent-review` also refuses to post if any of these changed during its own

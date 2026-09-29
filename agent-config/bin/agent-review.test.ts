@@ -13,7 +13,8 @@ const omp = join(dir, "omp");
 writeFileSync(omp, `#!/bin/sh\ncat > "${dir}/prompt.txt"\necho "$@" > "${dir}/argv.txt"\ncat "${dir}/answer.txt"\nexit $(cat "${dir}/exit.txt")\n`);
 chmodSync(omp, 0o755);
 
-type Pull = { state: string; title: string; body: string; user: { login: string }; head: { sha: string }; base: { ref: string } };
+type Pull = { state: string; title: string; body: string; user: { login: string }; head: { sha: string }; base: { ref: string; sha: string } };
+let mergeBaseAfterModel: string | undefined;
 let pull: Pull;
 let headAfterModel: string | undefined;
 let diff = "";
@@ -49,6 +50,7 @@ const server = Bun.serve({
 			pullReads++;
 			return Response.json(pullReads >= 2 ? { ...pull, ...changeAfterModel, ...(headAfterModel ? { head: { sha: headAfterModel } } : {}) } : pull);
 		}
+		if (url.pathname.includes("/compare/")) return Response.json({ merge_base_commit: { sha: pullReads >= 2 && mergeBaseAfterModel ? mergeBaseAfterModel : "c".repeat(40) } });
 		if (request.method === "POST" && url.pathname.endsWith("/demo/labels")) return new Response("{}", { status: labelCreateStatus });
 		if (request.method === "POST" && url.pathname.endsWith("/issues/7/labels")) return new Response("{}", { status: labelAddStatus });
 		if (request.method === "POST" || request.method === "DELETE") return Response.json({});
@@ -71,7 +73,8 @@ const clean = { overall_correctness: "correct", explanation: "Small, tested, and
 const posted = (suffix: string) => calls.filter((call) => call.method !== "GET" && call.path.endsWith(suffix));
 
 beforeEach(() => {
-	pull = { state: "open", title: "docs: note", body: "Stories: US-027", user: { login: "moomooskycow" }, head: { sha: "a".repeat(40) }, base: { ref: "master" } };
+	pull = { state: "open", title: "docs: note", body: "Stories: US-027", user: { login: "moomooskycow" }, head: { sha: "a".repeat(40) }, base: { ref: "master", sha: "9".repeat(40) } };
+	mergeBaseAfterModel = undefined;
 	headAfterModel = undefined;
 	changeAfterModel = undefined;
 	diffAfterModel = undefined;
@@ -108,9 +111,9 @@ describe("agent-review posting", () => {
 		expect(review.body).toMatchObject({ commit_id: "a".repeat(40), event: "APPROVE" });
 		const text = (review.body as { body: string }).body.split("\n");
 		expect(text[0]).toBe(`agent-review: approved ${"a".repeat(40)}`);
-		// The base, title and description the model judged are recorded for the gate to compare.
+		// The base, merge base, title and description the model judged are recorded for the gate to compare.
 		const digest = (value: string) => createHash("sha256").update(value).digest("hex");
-		expect(text[1]).toBe(`agent-review-state: base=master title=sha256:${digest("docs: note")} description=sha256:${digest("Stories: US-027")}`);
+		expect(text[1]).toBe(`agent-review-state: base=master merge-base=${"c".repeat(40)} title=sha256:${digest("docs: note")} description=sha256:${digest("Stories: US-027")}`);
 		// Add, then remove, so the base branch's foundation-review gate sees labeled and unlabeled.
 		expect(posted("/issues/7/labels")).toHaveLength(1);
 		expect(calls.some((call) => call.method === "DELETE" && call.path.endsWith("/labels/agent-reviewed"))).toBe(true);
@@ -146,6 +149,9 @@ describe("agent-review posting", () => {
 		expect((await run()).stderr).toContain("base, description or diff changed");
 		changeAfterModel = undefined;
 		diffAfterModel = "diff --git a/README.md b/README.md\n+something else\n";
+		expect((await run()).stderr).toContain("base, description or diff changed");
+		diffAfterModel = undefined;
+		mergeBaseAfterModel = "d".repeat(40);
 		expect((await run()).stderr).toContain("base, description or diff changed");
 		expect(posted("/reviews")).toHaveLength(0);
 	});
