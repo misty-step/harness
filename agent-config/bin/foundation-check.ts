@@ -1382,22 +1382,6 @@ const reviewerRegistry: Record<string, Reviewer> = {
 	"misty-step": { app: "kaylee-agent[bot]" },
 	"r90group": { recorded: "moomooskycow" },
 };
-/**
- * Model reviewers whose completed review, reported as a commit status on the PR head, stands for FND-REV-001's
- * independent review when no one else approved (operator rule, 2026-09-28: model review plus green CI is the gate;
- * no human approval). The registry lives here for the same reason as the designated reviewer: a repository cannot
- * name its own reviewer. A status counts only from its named creator, so a workflow's own `GITHUB_TOKEN` status
- * cannot stand in for it, and only with the `completed` description: CodeRabbit also reports success with
- * "Review rate limited" or "Review skipped: ..." when it reviewed nothing (49 of 119 recent merged heads in
- * linejam, scry, sploot and harness, 2026-09-29). r90group is absent: its recorded decision (above) covers every PR.
- */
-const modelReviewerRegistry: Record<string, { context: string; creator: string; completed: string }[]> = {
-	"misty-step": [{ context: "CodeRabbit", creator: "coderabbitai[bot]", completed: "Review completed" }],
-};
-/** Seconds to wait for a model reviewer that is still working, 0 (the default) to judge at once. */
-const waitSeconds = Number(process.env.FOUNDATION_REVIEW_WAIT_SECONDS ?? 0);
-const absentGraceSeconds = 120;
-const pollSeconds = Number(process.env.FOUNDATION_REVIEW_POLL_SECONDS ?? 15);
 const approvalMarker = "foundation-review: approved";
 const escalationMarker = "foundation-escalation: product-direction";
 const resolutionMarker = "foundation-escalation: resolved";
@@ -1543,44 +1527,30 @@ async function review(options: Options): Promise<Result> {
 	if (reasons.length > 0 && escalation >= 0 && !(approved && decision!.index > escalation && states(decision!.entry, resolutionMarker))) {
 		errors.push(`escalated to the operator on head ${head.slice(0, 12)}; needs a later approving review from ${agent} that records the operator's decision and opens with "${resolutionMarker}" as its exact first line`);
 	} else if (reasons.length > 0 && !approved) errors.push(`needs an approving review from the designated agent reviewer ${agent} on head ${head.slice(0, 12)}`);
-	// GitHub authenticates the reviewer and head, but not the substance of the review against constitution, ledger and story.
-	const latest = new Map<string, Record<string, unknown>>();
-	for (const entry of reviews) if (reviewer(entry) && ["APPROVED", "CHANGES_REQUESTED", "DISMISSED"].includes(String(entry.state))) latest.set(reviewer(entry), entry);
-	const independent = [...latest.values()].find((entry) => reviewer(entry) !== author && entry.state === "APPROVED" && entry.commit_id === head);
-	// With no independent approval, a passing model review status on the head stands for it (registry above). It may still be
-	// running when this job starts, so wait for it up to FOUNDATION_REVIEW_WAIT_SECONDS; a status that never appears stops the
-	// wait after a short grace, so a repository without the reviewer does not hold a runner.
-	let model: string | undefined;
-	const modelReviewers = modelReviewerRegistry[org] ?? [];
-	let modelState = "absent";
-	let modelNote = "";
-	if (!independent && modelReviewers.length > 0) {
-		if (!Number.isFinite(waitSeconds) || waitSeconds < 0) throw new Error("FOUNDATION_REVIEW_WAIT_SECONDS must be a non-negative number");
-		if (!Number.isFinite(pollSeconds) || pollSeconds <= 0) throw new Error("FOUNDATION_REVIEW_POLL_SECONDS must be a positive number");
-		const started = Date.now();
-		for (;;) {
-			// Statuses list newest first, so a context's first entry is its current state whoever posted it: a newer
-			// failure from anyone else must not resurrect an older success from the reviewer.
-			const statuses = await list(`commits/${head}/statuses`);
-			for (const { context, creator, completed } of modelReviewers) {
-				const current = statuses.find((entry) => entry.context === context);
-				const posted = current && record(current.creator) && current.creator.login === creator && typeof current.state === "string";
-				modelNote = typeof current?.description === "string" ? current.description : "";
-				// A reviewer that is rate limited or skips a PR still reports success, so state alone proves no review happened.
-				modelState = !current ? "absent" : !posted ? "untrusted" : current.state === "success" && modelNote !== completed ? "unreviewed" : String(current.state);
-				if (modelState === "success") { model = context; break; }
-			}
-			const elapsed = (Date.now() - started) / 1000;
-			const remaining = waitSeconds - elapsed;
-			if (model || ["failure", "error", "untrusted", "unreviewed"].includes(modelState) || remaining <= 0 || (modelState === "absent" && elapsed >= absentGraceSeconds)) break;
-			await Bun.sleep(Math.min(pollSeconds, remaining) * 1000);
-		}
+	// FND-REV-001, for every PR: the independent review is a model review, which `agent-review` records as the App's
+	// review of this head carrying the base, merge base, title and description its model judged. A designated-review
+	// approval (above) is the App's decision on a trigger and never stands in for it. GitHub keeps an approval on a head
+	// after a retarget, an edit or a moved base, so a record naming a different one no longer stands (the diff is the head
+	// against the merge base, so head plus merge base cover it). Anyone else's approval does not count, and the App's
+	// later change request overrules the record, so a second approver cannot outvote the model review. GitHub
+	// authenticates the reviewer and head, not the judgement.
+	const recordOf = (entry: Record<string, unknown>) => (typeof entry.body === "string" ? entry.body.match(/^agent-review-state: base=(\S+) merge-base=([0-9a-f]{40}) title=sha256:([0-9a-f]{64}) description=sha256:([0-9a-f]{64})$/m) : null);
+	let modelReview: { entry: Record<string, unknown>; index: number } | undefined;
+	reviews.forEach((entry, index) => {
+		if (own(entry) && entry.commit_id === head && (entry.state === "APPROVED" || entry.state === "CHANGES_REQUESTED") && recordOf(entry)) modelReview = { entry, index };
+	});
+	const judged = modelReview ? recordOf(modelReview.entry) : null;
+	const currentBase = record(pull) && record(pull.base) && typeof pull.base.ref === "string" ? pull.base.ref : "";
+	const digest = (value: unknown) => createHash("sha256").update(typeof value === "string" ? value : "").digest("hex");
+	const mergeBase = spawnSync("git", ["merge-base", base, head], { cwd: options.repo, encoding: "utf8" }).stdout.trim();
+	const stale = judged !== null && (judged[1] !== currentBase || judged[2] !== mergeBase || judged[3] !== digest(pull.title) || judged[4] !== digest(pull.body));
+	const overruled = modelReview !== undefined && decision !== undefined && decision.index > modelReview.index && decision.entry.state !== "APPROVED";
+	if (modelReview?.entry.state !== "APPROVED" || stale || overruled) {
+		errors.push(stale
+			? `FND-REV-001: the agent reviewer's approval of head ${head.slice(0, 12)} judged a different base, merge base, title or description than the PR now has; run agent-review --repo ${org}/${name} --pr ${options.pr}`
+			: `FND-REV-001: needs an agent-review approval from the designated agent reviewer ${agent} on head ${head.slice(0, 12)} (run agent-review --repo ${org}/${name} --pr ${options.pr})`);
 	}
-	if (!independent && !model) {
-		const names = modelReviewers.map(({ context }) => context).join(", ");
-		errors.push(`FND-REV-001: needs an approving review on head ${head.slice(0, 12)} from someone other than ${author}${names ? `, or a completed ${names} review (status ${modelState}${modelNote ? `: ${modelNote}` : ""}; comment "@coderabbitai review" to request one)` : ""}`);
-	}
-	return { ok: errors.length === 0, errors, reasons, approved_by: errors.length === 0 ? (reasons.length > 0 ? agent : independent ? reviewer(independent) : `${model} (model review)`) : undefined };
+	return { ok: errors.length === 0, errors, reasons, approved_by: errors.length === 0 ? agent : undefined };
 }
 function print(result: Result, json: boolean, command: Command): void {
 	if (json) { console.log(JSON.stringify(result)); return; }

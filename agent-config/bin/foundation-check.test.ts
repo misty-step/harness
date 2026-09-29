@@ -1170,11 +1170,10 @@ describe("foundation-check review gate (US-027)", () => {
 	const operator = "moomooskycow";
 	const marker = "foundation-escalation: product-direction";
 	const resolved = "foundation-escalation: resolved\r\nOperator decided on 2026-09-25 to keep the quoted rebrand:\r\n~~~\r\nRebrand the landing page\r\n~~~\r\n";
-	let pull = { head: { sha: "" }, base: { sha: "" }, user: { login: "engineer" }, body: "" };
+	let pull = { head: { sha: "" }, base: { sha: "", ref: "master" }, user: { login: "engineer" }, title: "docs: note", body: "" };
 	let reviews: { user: { login: string }; state: string; commit_id: string; body: string; submitted_at?: string }[] = [];
-	let statuses: { context: string; state: string; description: string; creator: { login: string } }[] = [];
-	let onStatuses = () => {};
 	let comments: { user: { login: string }; body: string; created_at: string }[] = [];
+	let currentRepo = "";
 	let calls: string[] = [];
 	const server = Bun.serve({
 		port: 0,
@@ -1183,16 +1182,22 @@ describe("foundation-check review gate (US-027)", () => {
 			calls.push(url.pathname);
 			if (request.headers.get("authorization") !== "Bearer test-token") return new Response("unauthorized", { status: 401 });
 			if (url.pathname.endsWith("/pulls/7")) return Response.json(pull);
-			if (url.pathname.endsWith("/pulls/7/reviews")) return Response.json(url.searchParams.get("page") === "1" ? reviews : []);
+			if (url.pathname.endsWith("/pulls/7/reviews")) {
+				const digest = (value: string) => createHash("sha256").update(value).digest("hex");
+				const state = `agent-review: approved\nagent-review-state: base=${pull.base.ref} merge-base=${exec(currentRepo, ["merge-base", pull.base.sha, pull.head.sha])} title=sha256:${digest(pull.title)} description=sha256:${digest(pull.body)}\n`;
+				return Response.json(url.searchParams.get("page") === "1" ? reviews.map((entry) => (entry.body === "__RECORD__" ? { ...entry, body: state } : entry)) : []);
+			}
 			if (url.pathname.endsWith("/issues/7/comments")) return Response.json(url.searchParams.get("page") === "1" ? comments : []);
-			if (url.pathname.endsWith("/statuses")) { onStatuses(); return Response.json(url.searchParams.get("page") === "1" ? statuses : []); }
 			return new Response("missing", { status: 404 });
 		},
 	});
 	afterAll(() => server.stop(true));
 	const said = (login: string, commit: string, state = "APPROVED", body = "") => ({ user: { login }, state, commit_id: commit, body });
-	const opened = (base: string, head: string, author = "engineer", body = "") => { pull = { head: { sha: head }, base: { sha: base }, user: { login: author }, body }; };
+	// An approval carrying agent-review's record of whatever the PR currently is, filled in when the gate asks.
+	const recorded = (login: string, commit: string) => said(login, commit, "APPROVED", "__RECORD__");
+	const opened = (base: string, head: string, author = "engineer", body = "") => { pull = { head: { sha: head }, base: { sha: base, ref: "master" }, user: { login: author }, title: "docs: note", body }; };
 	async function gate(repo: string, slug = "misty-step/demo") {
+		currentRepo = repo;
 		const child = Bun.spawn(["bun", script, "review", "--pr", "7", "--github-repo", slug, "--repo", repo, "--json"], {
 			cwd: repo, env: { ...process.env, GITHUB_TOKEN: "test-token", GITHUB_API_URL: server.url.origin }, stdout: "pipe", stderr: "pipe",
 		});
@@ -1219,7 +1224,7 @@ describe("foundation-check review gate (US-027)", () => {
 		expect(result.output.reasons).toEqual(["surfaces: foundation.json stops declaring an application (ADR-005)"]);
 	});
 
-	test("ordinary PRs need independent review and mapped source citations, not a designated-review trigger", async () => {
+	test("ordinary PRs need the agent reviewer's approval and mapped source citations, not a designated-review trigger", async () => {
 		const repo = fixture("gate-quiet");
 		const base = exec(repo, ["rev-parse", "HEAD"]);
 		put(repo, "src/nested/journey.ts", "export const result = 2;\n");
@@ -1233,99 +1238,53 @@ describe("foundation-check review gate (US-027)", () => {
 		opened(base, head, "engineer", "Stories: US-001");
 		reviews = [said("engineer", head)];
 		expect((await gate(repo)).output.errors.join("\n")).toContain("FND-REV-001");
-		reviews = [said("teammate", base)];
-		expect((await gate(repo)).status).toBe(1);
+		// Another person's approval never stands in for the agent reviewer's, and a wrong-commit approval is stale.
 		reviews = [said("teammate", head)];
+		expect((await gate(repo)).output.errors.join("\n")).toContain("FND-REV-001");
+		reviews = [said(agent, base)];
+		expect((await gate(repo)).status).toBe(1);
+		// The agent reviewer's latest change request stands even when a second person approves.
+		reviews = [recorded(agent, head), said(agent, head, "CHANGES_REQUESTED"), said("teammate", head)];
+		expect((await gate(repo)).status).toBe(1);
+		reviews = [said(agent, head, "CHANGES_REQUESTED"), recorded(agent, head)];
 		const result = await gate(repo);
 		expect(result.status).toBe(0);
 		expect(result.output.reasons).toEqual([]);
-		expect(result.output.approved_by).toBe("teammate");
+		expect(result.output.approved_by).toBe(agent);
 		expect(calls.some((path) => path.endsWith("/reviews"))).toBe(true);
 	});
 
-	test("a passing model review status stands in for a second approver, only from its named creator and only while current", async () => {
-		const repo = fixture("gate-model");
+	test("an agent-review approval stands only while the PR's base and description are those the model judged", async () => {
+		const repo = fixture("gate-state");
 		const base = exec(repo, ["rev-parse", "HEAD"]);
 		put(repo, "notes.txt", "plain change\n");
 		commit(repo, "plain");
 		const head = exec(repo, ["rev-parse", "HEAD"]);
-		opened(base, head, "operator-account");
-		reviews = [];
-		const status = (state: string, creator = "coderabbitai[bot]", context = "CodeRabbit", description = state === "success" ? "Review completed" : "Review in progress") => ({ context, state, description, creator: { login: creator } });
-		try {
-			// Statuses list newest first: an older success never outlives a newer failure.
-			for (const [label, list] of [
-				["none", []], ["pending", [status("pending")]], ["failed", [status("failure"), status("success")]],
-				["forged creator", [status("success", "github-actions[bot]")]], ["other context", [status("success", "coderabbitai[bot]", "lint")]],
-				["newer status from someone else", [status("pending", "github-actions[bot]"), status("success")]],
-				["rate limited", [status("success", "coderabbitai[bot]", "CodeRabbit", "Review rate limited")]],
-				["skipped", [status("success", "coderabbitai[bot]", "CodeRabbit", "Review skipped: bot user not eligible for review")]],
-			] as const) {
-				statuses = [...list];
-				const result = await gate(repo);
-				expect(result.status, label).toBe(1);
-				expect(result.output.errors.join("\n"), label).toContain("FND-REV-001");
-			}
-			statuses = [status("success"), status("pending")];
-			const passed = await gate(repo);
-			expect(passed.status).toBe(0);
-			expect(passed.output.approved_by).toBe("CodeRabbit (model review)");
-			// r90group has no model reviewer registered; its recorded decision is the only route there.
-			comments = [];
-			expect((await gate(repo, "r90group/demo")).status).toBe(1);
-			// A model review never satisfies a designated-review trigger: the agent reviewer still has to approve.
-			put(repo, "USER_STORIES.md", "# Stories\n");
-			commit(repo, "placeholder without stories");
-			const placeholder = exec(repo, ["rev-parse", "HEAD"]);
-			put(repo, "USER_STORIES.md", `# Stories\n\n${liveStory}`);
-			commit(repo, "first stories");
-			opened(placeholder, exec(repo, ["rev-parse", "HEAD"]), "operator-account");
-			expect((await gate(repo)).output.errors.join("\n")).toContain("designated agent reviewer");
-		} finally {
-			statuses = [];
-		}
+		const judged = (ref: string, title: string, description: string, mergeBase = exec(repo, ["merge-base", base, head])) => `agent-review: approved ${head}\nagent-review-state: base=${ref} merge-base=${mergeBase} title=sha256:${createHash("sha256").update(title).digest("hex")} description=sha256:${createHash("sha256").update(description).digest("hex")}\n\nNo defects.`;
+		reviews = [said(agent, head, "APPROVED", judged("master", "docs: note", "Stories: US-001", "f".repeat(40)))];
+		opened(base, head, "engineer", "Stories: US-001");
+		// The base branch moved under the approval: the PR's diff is no longer the one the model judged.
+		expect((await gate(repo)).output.errors.join("\n")).toContain("different base, merge base, title or description");
+		reviews = [said(agent, head, "APPROVED", judged("master", "docs: note", "Stories: US-001"))];
+		opened(base, head, "engineer", "Stories: US-001");
+		expect((await gate(repo)).status).toBe(0);
+		// Retargeted, or the title or description edited after the approval: GitHub keeps the approval, the gate does not.
+		pull = { ...pull, base: { ...pull.base, ref: "release" } };
+		const retargeted = await gate(repo);
+		expect(retargeted.status).toBe(1);
+		expect(retargeted.output.errors.join("\n")).toContain("different base, merge base, title or description");
+		opened(base, head, "engineer", "Stories: US-001\n\nnow claims something else");
+		expect((await gate(repo)).status).toBe(1);
+		opened(base, head, "engineer", "Stories: US-001");
+		pull = { ...pull, title: "feat: something else" };
+		expect((await gate(repo)).status).toBe(1);
+		// A bare App approval is not a model review: only agent-review's record counts.
+		opened(base, head, "engineer", "Stories: US-001");
+		reviews = [said(agent, head)];
+		const bare = await gate(repo);
+		expect(bare.status).toBe(1);
+		expect(bare.output.errors.join("\n")).toContain("FND-REV-001: needs an agent-review approval");
 	});
-
-	test("the gate waits for a model reviewer that is still working, up to its limit", async () => {
-		const repo = fixture("gate-model-wait");
-		const base = exec(repo, ["rev-parse", "HEAD"]);
-		put(repo, "notes.txt", "plain change\n");
-		commit(repo, "plain");
-		opened(base, exec(repo, ["rev-parse", "HEAD"]), "operator-account");
-		reviews = [];
-		const pending = { context: "CodeRabbit", state: "pending", description: "Review in progress", creator: { login: "coderabbitai[bot]" } };
-		process.env.FOUNDATION_REVIEW_WAIT_SECONDS = "5";
-		process.env.FOUNDATION_REVIEW_POLL_SECONDS = "1";
-		try {
-			statuses = [pending];
-			// Finishes on the third poll.
-			let polls = 0;
-			onStatuses = () => { if (++polls === 3) statuses = [{ ...pending, state: "success", description: "Review completed" }, pending]; };
-			expect((await gate(repo)).status).toBe(0);
-			expect(polls).toBe(3);
-			// A poll interval longer than the wait still gets one last poll at the deadline, not a give-up before it.
-			process.env.FOUNDATION_REVIEW_WAIT_SECONDS = "2";
-			process.env.FOUNDATION_REVIEW_POLL_SECONDS = "10";
-			statuses = [pending];
-			polls = 0;
-			onStatuses = () => { if (++polls === 2) statuses = [{ ...pending, state: "success", description: "Review completed" }, pending]; };
-			expect((await gate(repo)).status).toBe(0);
-			expect(polls).toBe(2);
-			process.env.FOUNDATION_REVIEW_WAIT_SECONDS = "5";
-			process.env.FOUNDATION_REVIEW_POLL_SECONDS = "1";
-			// Never finishes: gives up at the limit rather than hanging.
-			statuses = [pending];
-			onStatuses = () => {};
-			const started = Date.now();
-			expect((await gate(repo)).status).toBe(1);
-			expect(Date.now() - started).toBeLessThan(12_000);
-		} finally {
-			delete process.env.FOUNDATION_REVIEW_WAIT_SECONDS;
-			delete process.env.FOUNDATION_REVIEW_POLL_SECONDS;
-			statuses = [];
-			onStatuses = () => {};
-		}
-	}, 30_000);
 
 	test("citation covers each mapped source story even when the review checkout stays at the base", async () => {
 		const repo = fixture("gate-citation");
@@ -1336,7 +1295,7 @@ describe("foundation-check review gate (US-027)", () => {
 		put(repo, "src/nested/journey.ts", "export const result = 4;\n");
 		commit(repo, "mapped source");
 		const head = exec(repo, ["rev-parse", "HEAD"]);
-		reviews = [said("teammate", head)];
+		reviews = [recorded(agent, head)];
 		opened(base, head, "engineer", "Stories: US-001");
 		exec(repo, ["checkout", "-q", base]); // review runs from the trusted base, not PR files
 		expect((await gate(repo)).output.errors.join("\n")).toContain("must cite mapped source story US-004");
@@ -1353,7 +1312,7 @@ describe("foundation-check review gate (US-027)", () => {
 		put(repo, "features/journey.md", feature.replace("Source: src/**", "Source: lib/**"));
 		commit(repo, "move map away from changed source");
 		const head = exec(repo, ["rev-parse", "HEAD"]);
-		reviews = [said("teammate", head)];
+		reviews = [recorded(agent, head)];
 		opened(base, head);
 		expect((await gate(repo)).output.errors.join("\n")).toContain("must cite mapped source story US-001");
 		opened(base, head, "engineer", "Stories: US-001");
@@ -1361,13 +1320,13 @@ describe("foundation-check review gate (US-027)", () => {
 		put(repo, "USER_STORIES.md", `# Stories\n\n${liveStory.replace("show the result", "display the result")}${retiredStory}${headingRetiredStory}`);
 		commit(repo, "edit story criterion");
 		const storyHead = exec(repo, ["rev-parse", "HEAD"]);
-		reviews = [said("teammate", storyHead)];
+		reviews = [recorded(agent, storyHead)];
 		opened(head, storyHead);
 		expect((await gate(repo)).status).toBe(0);
 		put(repo, "features/journey.md", `${readFileSync(join(repo, "features/journey.md"), "utf8")}\nClarified journey.\n`);
 		commit(repo, "clarify feature guidance");
 		const featureHead = exec(repo, ["rev-parse", "HEAD"]);
-		reviews = [said("teammate", featureHead)];
+		reviews = [recorded(agent, featureHead)];
 		opened(storyHead, featureHead);
 		expect((await gate(repo)).status).toBe(0);
 	});
@@ -1379,7 +1338,7 @@ describe("foundation-check review gate (US-027)", () => {
 		exec(repo, ["rm", "features/journey.md"]);
 		commit(repo, "remove map while changing source");
 		const head = exec(repo, ["rev-parse", "HEAD"]);
-		reviews = [said("teammate", head)];
+		reviews = [recorded(agent, head)];
 		opened(base, head);
 		exec(repo, ["checkout", "-q", base]);
 		expect((await gate(repo)).output.errors.join("\n")).toContain("must cite mapped source story US-001");
@@ -1397,7 +1356,7 @@ describe("foundation-check review gate (US-027)", () => {
 		put(repo, "features/journey.md", feature.replace("Source: src/**", "Source: lib/**"));
 		commit(repo, "rename mapped source and remap feature");
 		const head = exec(repo, ["rev-parse", "HEAD"]);
-		reviews = [said("teammate", head)];
+		reviews = [recorded(agent, head)];
 		opened(base, head);
 		exec(repo, ["checkout", "-q", base]);
 		expect((await gate(repo)).output.errors.join("\n")).toContain("must cite mapped source story US-001");
@@ -1416,7 +1375,7 @@ describe("foundation-check review gate (US-027)", () => {
 		const ledger = await gate(repo);
 		expect(ledger.output.reasons).toEqual(["invariants ledger: DOMAIN.md policy changes"]);
 		expect(ledger.output.errors.join("\n")).toContain("designated agent reviewer");
-		reviews = [said(agent, head)];
+		reviews = [recorded(agent, head), said(agent, head)];
 		expect((await gate(repo)).status).toBe(0);
 		const approvedBase = head;
 		const value = JSON.parse(readFileSync(join(repo, "foundation.json"), "utf8"));
@@ -1431,7 +1390,7 @@ describe("foundation-check review gate (US-027)", () => {
 		opened(approvedBase, dispositionHead);
 		reviews = [said("teammate", dispositionHead)];
 		expect((await gate(repo)).output.reasons).toEqual([`disposition approval: ${id} not_applicable`]);
-		reviews = [said(agent, dispositionHead)];
+		reviews = [recorded(agent, dispositionHead), said(agent, dispositionHead)];
 		expect((await gate(repo)).status).toBe(0);
 		put(repo, approval_ref, JSON.stringify({ ...decision, reason: "Mismatch" }));
 		commit(repo, "tamper record");
@@ -1476,7 +1435,10 @@ describe("foundation-check review gate (US-027)", () => {
 		expect((await gate(repo)).status).toBe(1);
 		reviews = [said(operator, head)];
 		expect((await gate(repo)).status).toBe(1);
+		// The designated approval alone is not a model review: FND-REV-001 still wants agent-review's record.
 		reviews = [said(agent, head)];
+		expect((await gate(repo)).output.errors.join("\n")).toContain("FND-REV-001");
+		reviews = [recorded(agent, head), said(agent, head)];
 		const approved = await gate(repo);
 		expect(approved.status).toBe(0);
 		expect(approved.output.approved_by).toBe(agent);
@@ -1521,13 +1483,13 @@ describe("foundation-check review gate (US-027)", () => {
 			reviews = [escalation, said(agent, head, "APPROVED", quoted)];
 			expect((await gate(repo)).status).toBe(1);
 		}
-		reviews = [escalation, said(agent, head, "APPROVED", resolved)];
+		reviews = [recorded(agent, head), escalation, said(agent, head, "APPROVED", resolved)];
 		expect((await gate(repo)).output.approved_by).toBe(agent);
 		// A second escalation needs a second recorded decision, even though the earlier approval still stands on GitHub.
 		reviews = [escalation, said(agent, head, "APPROVED", resolved), said(agent, head, "COMMENTED", marker)];
 		expect((await gate(repo)).status).toBe(1);
 		// A marker on an older commit does not carry over; the head still needs the agent reviewer's approval.
-		reviews = [said(agent, base, "COMMENTED", marker), said(agent, head)];
+		reviews = [said(agent, base, "COMMENTED", marker), recorded(agent, head), said(agent, head)];
 		expect((await gate(repo)).status).toBe(0);
 		const foreign = await gate(repo, "elsewhere/demo");
 		expect(foreign.status).toBe(1);
