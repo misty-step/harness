@@ -690,12 +690,14 @@ do not maintain another skill copy in omp-config or install it globally.
 
 ### Model routing (US-014)
 
-OMP follows the operator's lower-spend model policy (US-014, 2026-09-28):
-Sonnet 5.5 medium handles ordinary work and orchestration; visual work stays
-on Opus at high or above. Ordinary `task` children use their configured agent
-routes rather than the live parent's model. Grok 4.7 is allowed only for read-only advisory/review
-recovery, never as a builder fallback. Gemini 3.8 Flash is the last resort
-where cross-model recovery is allowed; Opus has none. Native roles and provider-failure
+OMP follows the operator's lower-spend model policy (US-014, updated
+2026-09-29): Sonnet 5.5 medium handles ordinary work and orchestration;
+GPT-6.1 Sol high or xhigh handles Codex work, with Astra only by explicit
+selection. Visual work stays on Opus at high or above. Ordinary `task`
+children use their configured agent routes rather than the live parent's model.
+Grok 4.7 is allowed only for read-only advisory/review recovery, never as a
+builder fallback. Gemini 3.8 Flash is the last resort where cross-model
+recovery is allowed; Opus has none. Native roles and provider-failure
 chains live in `config.yml`; changing them does not switch the selected model
 in an existing session. A running OMP process also retains its in-memory model
 catalog across binary updates: an old process can fuzzy-resolve a new model ID
@@ -724,9 +726,9 @@ policy check rejects any chat selector added back to that chain.
 | `@task` | `anthropic/claude-sonnet-5-5:medium` |
 | `@smol`, `@commit`; `scout` and `sonic` | `openai-codex/gpt-6-luna:max` |
 | `@tiny` | configured `openai-codex/gpt-6-luna:max` |
-| `@plan` (system design, architecture) | `openai-codex/gpt-6-astra:medium` |
-| `reviewer` | `openai-codex/gpt-6-sol:xhigh` |
-| `security-reviewer` | `openai-codex/gpt-6-astra:medium` |
+| `@plan` (system design, architecture) | `openai-codex/gpt-6.1-sol:xhigh` |
+| `reviewer` | `openai-codex/gpt-6.1-sol:xhigh` |
+| `security-reviewer` | `openai-codex/gpt-6.1-sol:xhigh` |
 | `@advisor` | `anthropic/claude-sonnet-5-5:medium` |
 | `@slow` (explicit thorough pass, hard problems) | `anthropic/claude-sonnet-5-5:high` |
 | `@extreme` (rare unconstrained reasoning) | `anthropic/claude-opus-5-5:xhigh` |
@@ -753,7 +755,7 @@ For a new session:
 
 ```sh
 omp                         # ordinary work and orchestration: Sonnet 5.5 medium
-omp --model @plan           # system design, architecture: Astra medium
+omp --model @plan           # system design, architecture: GPT-6.1 Sol xhigh
 omp --model @slow           # hard problems, thorough pass: Sonnet 5.5 high
 omp --slow                  # shorthand for @slow
 omp --model @extreme        # rare unconstrained reasoning: Opus 5.5 xhigh
@@ -858,8 +860,9 @@ must actually reach its final approved recovery candidate. Also walk a non-Opus
 recovery and a healthy Opus turn. Preserve the original error, attempted-model
 trace and exit status as PR evidence, then remove the disposable state.
 
-Use `omp models find anthropic/claude-opus-5-5 --json` to inspect the
-exact catalog entry and supported thinking levels. After routing changes, deploy
+Use `omp models find openai-codex/gpt-6.1-sol --json` to confirm the
+native catalog entry and supported high/xhigh/max levels before routing changes.
+After routing changes, deploy
 the changed owned components and inspect the effective settings:
 
 ```sh
@@ -1071,9 +1074,9 @@ always a violation.
 Helper roles. The overlay writes `modelRoles` only for `default`, `slow`, `task`
 and `extreme`. `advisor`, `plan`, `reviewer`, `security-reviewer`, `smol`,
 `tiny` and `commit` keep the primaries `config.yml` gives them (US-014: the
-reviewer stays a different family from the author): advisor Sonnet 5.5, plan and
-security-reviewer Astra, reviewer Sol, smol, tiny and commit Luna. The `scout`
-and `sonic` agents resolve through `smol`, the reviewers through their own
+reviewer stays a different family from the author): advisor Sonnet 5.5, plan,
+reviewer and security-reviewer GPT-6.1 Sol xhigh; smol, tiny and commit Luna.
+The `scout` and `sonic` agents resolve through `smol`, the reviewers through their own
 roles. Only their recovery changes: the overlay writes
 `retry.fallbackChains.<role>` for each helper role as the whole roster in rank
 order, minus the role's own primary model (empty when nothing remains), so a

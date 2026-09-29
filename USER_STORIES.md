@@ -496,8 +496,8 @@ Criteria:
    reasoning level.
 3. WHEN OMP resolves `smol`, `tiny`, `commit`, `scout`, or `sonic`, THE SYSTEM
    SHALL select GPT-6 Luna max; `advisor` SHALL select Sonnet 5.5 medium;
-   `plan` and `security-reviewer` SHALL select GPT-6 Astra medium; and
-   `reviewer` SHALL select GPT-6 Sol xhigh. Ordinary task children SHALL use
+   `plan`, `security-reviewer` and `reviewer` SHALL select GPT-6.1 Sol xhigh.
+   Astra SHALL require explicit selection. Ordinary task children SHALL use
    their configured agent routes rather than inherit the live parent's model
    and thinking; explicit tagged model selections and per-item effort SHALL
    remain available, except designer effort below high SHALL be rejected.

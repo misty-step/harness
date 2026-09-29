@@ -5,6 +5,14 @@
   "modelThinkingLevels": {
     "openai-pool/gpt-6-astra": "xhigh",
     "openai-pool/gpt-6.1-sol": "xhigh",
+    "openai-codex/gpt-6-astra": "xhigh",
+    "openai-codex/gpt-6.1-sol": "xhigh",
+    "openai-codex-2/gpt-6-astra": "xhigh",
+    "openai-codex-2/gpt-6.1-sol": "xhigh",
+    "openai-codex-3/gpt-6-astra": "xhigh",
+    "openai-codex-3/gpt-6.1-sol": "xhigh",
+    "openai-codex-4/gpt-6-astra": "xhigh",
+    "openai-codex-4/gpt-6.1-sol": "xhigh",
     "openai-pool/gpt-6-luna": "max"
   },
   "retry": {

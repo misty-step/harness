@@ -73,10 +73,24 @@ has() {
 validate_config() {
   require_bun
   require_nonempty "$repo_dir/settings.json"
+  supports_default_model || {
+    echo 'Pi must list openai-pool/gpt-6.1-sol; upgrade Pi to 0.99.1 or newer before installing this default.' >&2
+    exit 1
+  }
   bun "$repo_dir/bin/pi-merge-settings.ts" \
     --source "$repo_dir/settings.json" \
     --dest "$agent_dir/settings.json" \
     --check
+}
+
+# Pool and slot providers clone Pi's bundled Codex catalog, not the separately
+# refreshed pi.dev overlay. Refuse a binary that cannot resolve this default.
+supports_default_model() {
+  command -v pi >/dev/null 2>&1 || return 0
+  listed=$(PI_CODING_AGENT_DIR="$agent_dir" pi --no-extensions \
+    --extension "$repo_dir/extensions/accounts/index.ts" \
+    --list-models openai-pool/gpt-6.1-sol 2>/dev/null) || return 1
+  printf '%s\n' "$listed" | grep -Eq '^openai-pool[[:space:]]+gpt-6\.1-sol[[:space:]]'
 }
 
 # Subscription routes require Pi-native logins; OMP tokens are never copied.

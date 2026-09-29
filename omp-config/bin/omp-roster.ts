@@ -26,7 +26,7 @@ export const approvedModels: Record<string, {
 	"anthropic/claude-opus-5-5": { efforts: LOW_TO_MAX, usage: { provider: "anthropic", model: "opus" } },
 	"anthropic/claude-sonnet-5-5": { efforts: LOW_TO_MAX, usage: { provider: "anthropic", model: "sonnet" } },
 	"openai-codex/gpt-6-astra": { efforts: LOW_TO_MAX, usage: { provider: "openai-codex", model: "gpt-6-astra" } },
-	"openai-codex/gpt-6-sol": { efforts: LOW_TO_MAX, usage: { provider: "openai-codex", model: "gpt-6-sol" } },
+	"openai-codex/gpt-6.1-sol": { efforts: ["high", "xhigh", "max"], usage: { provider: "openai-codex", model: "gpt-6.1-sol" } },
 	"openai-codex/gpt-6-luna": { efforts: LOW_TO_MAX, usage: { provider: "openai-codex", model: "gpt-6-luna" } },
 	"xai-oauth/grok-4.7": { efforts: ["minimal", "low", "medium", "high", "xhigh"], usage: { provider: "xai", model: "grok" } },
 	"google-antigravity/gemini-3.8-flash": { efforts: ["minimal", "low", "medium", "high"], usage: null },
@@ -45,9 +45,9 @@ const PINNED_ROLES = ["default", "slow", "task", "extreme"];
 // vision has no fallback and web search is not a chat model.
 const HELPER_PRIMARIES: Record<string, string> = {
 	advisor: "anthropic/claude-sonnet-5-5",
-	plan: "openai-codex/gpt-6-astra",
-	reviewer: "openai-codex/gpt-6-sol",
-	"security-reviewer": "openai-codex/gpt-6-astra",
+	plan: "openai-codex/gpt-6.1-sol",
+	reviewer: "openai-codex/gpt-6.1-sol",
+	"security-reviewer": "openai-codex/gpt-6.1-sol",
 	smol: "openai-codex/gpt-6-luna",
 	tiny: "openai-codex/gpt-6-luna",
 	commit: "openai-codex/gpt-6-luna",
