@@ -1,3 +1,9 @@
+# [0.1.73](https://github.com/misty-step/harness/compare/v0.1.72...v0.1.73) (2026-09-29)
+<!-- landmark:protected-release previous=v0.1.72 source=b3062869a142d821f9bd65b58bd32c7d1a75215385ca6a3c4e5fc1b14d43919b -->
+
+### Features
+
+* **foundation:** a registered model reviewer's passing status satisfies FND-REV-001 (US-027) (#164) ([e1cd424](https://github.com/misty-step/harness/commit/e1cd424ea6e108d29d5854efb7d4cd24bd39e94a))
 # [0.1.72](https://github.com/misty-step/harness/compare/v0.1.71...v0.1.72) (2026-09-29)
 <!-- landmark:protected-release previous=v0.1.71 source=67d2ac98c5186c7472dbc2ca635df63dfeb0c70135a2a75c14f2a0310c95f783 -->
 
