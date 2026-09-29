@@ -1,3 +1,9 @@
+# [0.1.68](https://github.com/misty-step/harness/compare/v0.1.67...v0.1.68) (2026-09-29)
+<!-- landmark:protected-release previous=v0.1.67 source=e4b16182a0f587d8258d792a14116da71983a911bba2732739ae5d80804c2ea5 -->
+
+### Features
+
+* **omp-config:** launch OMP engineers only on the ticket's model roster (US-046, US-014) (#155) ([0c5fc6e](https://github.com/misty-step/harness/commit/0c5fc6e19020267a8075f60a040b948012cf2aa3))
 # [0.1.67](https://github.com/misty-step/harness/compare/v0.1.66...v0.1.67) (2026-09-29)
 <!-- landmark:protected-release previous=v0.1.66 source=0922cdd0d1d33fc37b346833187c99fed127e2bc5085918c0ec59017b164bd9b -->
 
