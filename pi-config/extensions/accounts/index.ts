@@ -29,7 +29,15 @@ export default function accounts(pi: ExtensionAPI) {
 	const builtins = builtinProviders();
 	const store = fileStore(join(process.env.PI_CODING_AGENT_DIR ?? join(homedir(), ".pi", "agent"), "account-pool.json"));
 	let session: ExtensionContext | undefined;
-	pi.on("session_start", (_event, ctx) => { session = ctx; });
+	pi.on("session_start", async (_event, ctx) => {
+		session = ctx;
+		// Startup sometimes resolves the settings default before extension
+		// providers exist and lands on the best authenticated model, Anthropic.
+		// Pi never uses Anthropic (ADR-025), so take the default from the pool.
+		if (ctx.model && ctx.model.provider !== "anthropic") return;
+		const model = ctx.modelRegistry.find("openai-pool", "gpt-6-astra");
+		if (model) await pi.setModel(model);
+	});
 
 	const find = (id: string) => builtins.find((provider) => provider.id === id);
 	// Fail closed per slot and pool: a renamed or removed base provider drops
