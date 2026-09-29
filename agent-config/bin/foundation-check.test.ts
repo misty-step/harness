@@ -1170,7 +1170,7 @@ describe("foundation-check review gate (US-027)", () => {
 	const operator = "moomooskycow";
 	const marker = "foundation-escalation: product-direction";
 	const resolved = "foundation-escalation: resolved\r\nOperator decided on 2026-09-25 to keep the quoted rebrand:\r\n~~~\r\nRebrand the landing page\r\n~~~\r\n";
-	let pull = { head: { sha: "" }, base: { sha: "" }, user: { login: "engineer" }, body: "" };
+	let pull = { head: { sha: "" }, base: { sha: "", ref: "master" }, user: { login: "engineer" }, body: "" };
 	let reviews: { user: { login: string }; state: string; commit_id: string; body: string; submitted_at?: string }[] = [];
 	let comments: { user: { login: string }; body: string; created_at: string }[] = [];
 	let calls: string[] = [];
@@ -1188,7 +1188,7 @@ describe("foundation-check review gate (US-027)", () => {
 	});
 	afterAll(() => server.stop(true));
 	const said = (login: string, commit: string, state = "APPROVED", body = "") => ({ user: { login }, state, commit_id: commit, body });
-	const opened = (base: string, head: string, author = "engineer", body = "") => { pull = { head: { sha: head }, base: { sha: base }, user: { login: author }, body }; };
+	const opened = (base: string, head: string, author = "engineer", body = "") => { pull = { head: { sha: head }, base: { sha: base, ref: "master" }, user: { login: author }, body }; };
 	async function gate(repo: string, slug = "misty-step/demo") {
 		const child = Bun.spawn(["bun", script, "review", "--pr", "7", "--github-repo", slug, "--repo", repo, "--json"], {
 			cwd: repo, env: { ...process.env, GITHUB_TOKEN: "test-token", GITHUB_API_URL: server.url.origin }, stdout: "pipe", stderr: "pipe",
@@ -1244,6 +1244,28 @@ describe("foundation-check review gate (US-027)", () => {
 		expect(result.output.reasons).toEqual([]);
 		expect(result.output.approved_by).toBe(agent);
 		expect(calls.some((path) => path.endsWith("/reviews"))).toBe(true);
+	});
+
+	test("an agent-review approval stands only while the PR's base and description are those the model judged", async () => {
+		const repo = fixture("gate-state");
+		const base = exec(repo, ["rev-parse", "HEAD"]);
+		put(repo, "notes.txt", "plain change\n");
+		commit(repo, "plain");
+		const head = exec(repo, ["rev-parse", "HEAD"]);
+		const judged = (ref: string, description: string) => `agent-review: approved ${head}\nagent-review-state: base=${ref} description=sha256:${createHash("sha256").update(description).digest("hex")}\n\nNo defects.`;
+		reviews = [said(agent, head, "APPROVED", judged("master", "Stories: US-001"))];
+		opened(base, head, "engineer", "Stories: US-001");
+		expect((await gate(repo)).status).toBe(0);
+		// Retargeted, or the description edited after the approval: GitHub keeps the approval, the gate does not.
+		pull = { ...pull, base: { ...pull.base, ref: "release" } };
+		const retargeted = await gate(repo);
+		expect(retargeted.status).toBe(1);
+		expect(retargeted.output.errors.join("\n")).toContain("different base or description");
+		opened(base, head, "engineer", "Stories: US-001\n\nnow claims something else");
+		expect((await gate(repo)).status).toBe(1);
+		// A designated-reviewer approval without the record (an operator decision) is judged on the head alone.
+		reviews = [said(agent, head)];
+		expect((await gate(repo)).status).toBe(0);
 	});
 
 	test("citation covers each mapped source story even when the review checkout stays at the base", async () => {

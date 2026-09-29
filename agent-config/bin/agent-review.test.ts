@@ -1,5 +1,5 @@
 import { afterAll, beforeEach, describe, expect, test } from "bun:test";
-import { createVerify, generateKeyPairSync } from "node:crypto";
+import { createHash, createVerify, generateKeyPairSync } from "node:crypto";
 import { chmodSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -106,7 +106,10 @@ describe("agent-review posting", () => {
 		expect(result.stdout).toContain("APPROVED misty-step/demo#7");
 		const [review] = posted("/reviews");
 		expect(review.body).toMatchObject({ commit_id: "a".repeat(40), event: "APPROVE" });
-		expect((review.body as { body: string }).body.split("\n")[0]).toBe(`agent-review: approved ${"a".repeat(40)}`);
+		const text = (review.body as { body: string }).body.split("\n");
+		expect(text[0]).toBe(`agent-review: approved ${"a".repeat(40)}`);
+		// The base and description the model judged are recorded for the gate to compare.
+		expect(text[1]).toBe(`agent-review-state: base=master description=sha256:${createHash("sha256").update("Stories: US-027").digest("hex")}`);
 		// Add, then remove, so the base branch's foundation-review gate sees labeled and unlabeled.
 		expect(posted("/issues/7/labels")).toHaveLength(1);
 		expect(calls.some((call) => call.method === "DELETE" && call.path.endsWith("/labels/agent-reviewed"))).toBe(true);
@@ -176,6 +179,12 @@ describe("agent-review posting", () => {
 		expect((await run()).stderr).toContain("is closed");
 		pull.state = "open";
 		expect((await run({ AGENT_REVIEW_MAX_DIFF_BYTES: "10" })).stderr).toContain("split the change");
+		// A binary change shows only that a path changed: the model cannot judge what it now contains.
+		diff = "diff --git a/logo.png b/logo.png\nBinary files a/logo.png and b/logo.png differ\n";
+		expect((await run()).stderr).toContain("cannot inspect");
+		diff = "diff --git a/vendor b/vendor\n-Subproject commit aaa\n+Subproject commit bbb\n";
+		expect((await run()).stderr).toContain("cannot inspect");
+		diff = "diff --git a/README.md b/README.md\n+hello\n";
 		const other = await run({}, "r90group/demo");
 		expect(other.status).toBe(3);
 		expect(other.stderr).toContain("no designated agent reviewer");

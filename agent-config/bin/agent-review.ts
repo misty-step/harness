@@ -24,7 +24,7 @@
  * Residual: the model reads untrusted PR text. The prompt fences the diff and the verdict must be a strict JSON
  * object, but a persuasive diff can still sway a model; the review is a judgement, not a proof.
  */
-import { createSign } from "node:crypto";
+import { createHash, createSign } from "node:crypto";
 import { spawn } from "node:child_process";
 import { readFileSync } from "node:fs";
 
@@ -123,8 +123,10 @@ async function installationToken(repo: string): Promise<string> {
 	return minted.token;
 }
 
-function body(verdict: Verdict, head: string): string {
-	const lines = [`${passes(verdict) ? "agent-review: approved" : "agent-review: changes requested"} ${head}`, "", `Reviewer: ${MODEL} (${THINKING}), a fresh session that saw the PR title, description and diff only.`, "", verdict.explanation.trim()];
+/** The base and description the model judged are recorded for the gate, which refuses an approval once either changes. */
+function body(verdict: Verdict, head: string, pull: Pull): string {
+	const state = `agent-review-state: base=${pull.base.ref} description=sha256:${createHash("sha256").update(pull.body ?? "").digest("hex")}`;
+	const lines = [`${passes(verdict) ? "agent-review: approved" : "agent-review: changes requested"} ${head}`, state, "", `Reviewer: ${MODEL} (${THINKING}), a fresh session that saw the PR title, description and diff only.`, "", verdict.explanation.trim()];
 	for (const finding of verdict.findings) lines.push("", `- **P${finding.priority}** ${finding.title}: ${finding.body.trim()}`);
 	return lines.join("\n").slice(0, 60_000);
 }
@@ -146,6 +148,8 @@ export async function review(repo: string, number: number): Promise<{ posted: "A
 	if (pull.user.login === APP_LOGIN) throw new Error(`${APP_LOGIN} authored this PR and cannot review it`);
 	const head = pull.head.sha;
 	if (Buffer.byteLength(diff) > MAX_DIFF_BYTES) throw new Error(`the diff is ${Buffer.byteLength(diff)} bytes, over the ${MAX_DIFF_BYTES} limit; split the change (a partial diff is not a review)`);
+	// A binary or submodule change shows only that a path changed, not what it now contains: the model cannot judge it.
+	if (/^(Binary files .* differ|GIT binary patch|[-+]Subproject commit )/m.test(diff)) throw new Error("the diff has a binary or submodule change whose contents the model cannot inspect; nothing was posted");
 	// The label the re-run needs must exist before any review is recorded, or a missing label would leave an approval
 	// that never reaches the gate. 422 means it already exists.
 	await api(`/repos/${repo}/labels`, token, { method: "POST", body: { name: RERUN_LABEL, color: "ededed", description: "agent-review recorded a review; re-runs foundation-review" }, tolerate: [422] });
@@ -156,7 +160,7 @@ export async function review(repo: string, number: number): Promise<{ posted: "A
 	if (now.pull.head.sha !== head) throw new Error(`the head moved from ${head.slice(0, 12)} to ${now.pull.head.sha.slice(0, 12)} during review; nothing was posted`);
 	if (now.pull.base.ref !== pull.base.ref || now.pull.title !== pull.title || (now.pull.body ?? "") !== (pull.body ?? "") || now.diff !== diff) throw new Error("the base, description or diff changed during review; nothing was posted");
 	const event = passes(verdict) ? "APPROVE" : "REQUEST_CHANGES";
-	await api(`/repos/${repo}/pulls/${number}/reviews`, token, { method: "POST", body: { commit_id: head, event, body: body(verdict, head) } });
+	await api(`/repos/${repo}/pulls/${number}/reviews`, token, { method: "POST", body: { commit_id: head, event, body: body(verdict, head, pull) } });
 	// Review events cannot trigger pull_request_target, so a label round trip re-runs the base branch's gate. The review
 	// is already recorded, so a failure here is reported, not thrown: toggle the label by hand to re-run the gate.
 	let rerun = true;
