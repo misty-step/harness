@@ -1334,6 +1334,23 @@ describe("foundation-check review gate (US-027)", () => {
 		const submodule = await gate(repo);
 		expect(submodule.status).toBe(0);
 		expect((submodule.output as { advisory?: string[] }).advisory?.join("\n")).toContain("vendor/lib");
+		// A file that replaces a gitlink is ordinary text, so it needs the model review, and a dismissed record never revives an approval.
+		exec(repo, ["reset", "-q", "--hard", base]);
+		exec(repo, ["update-index", "--add", "--cacheinfo", `160000,${"a".repeat(40)},vendor/lib`]);
+		exec(repo, ["commit", "-qm", "gitlink"]);
+		const gitlink = exec(repo, ["rev-parse", "HEAD"]);
+		exec(repo, ["rm", "-q", "--cached", "vendor/lib"]);
+		put(repo, "vendor/lib", "now an ordinary file\n");
+		exec(repo, ["add", "vendor/lib"]);
+		exec(repo, ["commit", "-qm", "gitlink becomes a file"]);
+		const replaced = exec(repo, ["rev-parse", "HEAD"]);
+		opened(gitlink, replaced);
+		reviews = [];
+		expect((await gate(repo)).output.errors.join("\n")).toContain("FND-REV-001");
+		reviews = [recorded(agent, replaced), { ...recorded(agent, replaced), state: "DISMISSED" }];
+		expect((await gate(repo)).status).toBe(1);
+		reviews = [recorded(agent, replaced)];
+		expect((await gate(repo)).status).toBe(0);
 	});
 
 	test("citation covers each mapped source story even when the review checkout stays at the base", async () => {

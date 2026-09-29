@@ -3,7 +3,7 @@ import { createHash, createVerify, generateKeyPairSync } from "node:crypto";
 import { chmodSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { parseVerdict, passes } from "./agent-review.ts";
+import { classifyDiff, parseVerdict, passes } from "./agent-review.ts";
 
 const script = join(import.meta.dir, "agent-review.ts");
 const { publicKey, privateKey } = generateKeyPairSync("rsa", { modulusLength: 2048 });
@@ -101,6 +101,35 @@ beforeEach(() => {
 	calls = [];
 	pullReads = 0;
 	answer(clean);
+});
+
+describe("agent-review classification", () => {
+	test("quoted git paths are decoded, and a header nothing can read is never dropped", () => {
+		const quoted = classifyDiff('diff --git "a/docs/caf\\303\\251.png" "b/docs/caf\\303\\251.png"\nnew file mode 100644\nBinary files /dev/null and "b/docs/caf\\303\\251.png" differ\n');
+		expect(quoted.images).toEqual([{ path: "docs/café.png", removed: false }]);
+		expect(classifyDiff('diff --git "a/x\\303\\251.woff" "b/x\\303\\251.woff"\nBinary files a and b differ\n').other).toEqual(["x\u00e9.woff"]);
+		expect(classifyDiff("diff --git something unreadable\n+text\n").other).toEqual(["diff --git something unreadable"]);
+	});
+
+	test("a gitlink pointer at head has no review surface; one a file replaces, or that is removed, is text", () => {
+		expect(classifyDiff("diff --git a/vendor b/vendor\nindex 1..2 160000\n-Subproject commit aaa\n+Subproject commit bbb\n").other).toEqual(["vendor"]);
+		expect(classifyDiff("diff --git a/vendor b/vendor\ndeleted file mode 160000\n-Subproject commit aaa\n").text).toEqual(["vendor"]);
+		expect(classifyDiff("diff --git a/vendor b/vendor\nold mode 160000\nnew mode 100644\n-Subproject commit aaa\n+plain text\n").text).toEqual(["vendor"]);
+	});
+});
+
+describe("agent-review vision limit", () => {
+	test("a vision inspection over the limit is refused, never cut short", async () => {
+		const png = Buffer.from("\x89PNG-long");
+		diff = "diff --git a/docs/wall.png b/docs/wall.png\nnew file mode 100644\nBinary files /dev/null and b/docs/wall.png differ\n";
+		imageFiles = [{ filename: "docs/wall.png", sha: "e".repeat(40), status: "added" }];
+		imageBlobs = { ["e".repeat(40)]: { content: png.toString("base64"), size: png.length } };
+		writeFileSync(join(dir, "vision.txt"), "x".repeat(20_001));
+		const result = await run();
+		expect(result.status).toBe(3);
+		expect(result.stderr).toContain("a partial account is not a review");
+		expect(posted("/reviews")).toHaveLength(0);
+	});
 });
 
 describe("agent-review verdicts", () => {

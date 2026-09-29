@@ -1459,8 +1459,9 @@ function uninspectableOnly(repo: string, mergeBase: string, head: string): strin
 	const raw = diff("--raw");
 	const submodules = new Set<string>();
 	for (let index = 0; index + 1 < raw.length; index += 2) {
-		const [before, after] = raw[index].split(" ");
-		if (before?.slice(1) === "160000" || after === "160000") submodules.add(raw[index + 1]);
+		const after = raw[index].split(" ")[1];
+		// Only a pointer at head has no review surface; a gitlink that a file replaces, or that is removed, shows reviewable text.
+		if (after === "160000") submodules.add(raw[index + 1]);
 	}
 	const paths = stats.map(([, , path]) => path);
 	const blind = stats.filter(([added, deleted, path]) => submodules.has(path) || (added === "-" && deleted === "-" && !inspectableImage.test(path))).map(([, , path]) => path);
@@ -1559,7 +1560,7 @@ async function review(options: Options): Promise<Result> {
 	// outvote the model review. GitHub authenticates the reviewer and head, not the judgement.
 	let modelReview: { entry: Record<string, unknown>; index: number } | undefined;
 	reviews.forEach((entry, index) => {
-		if (own(entry) && entry.commit_id === head && (entry.state === "APPROVED" || entry.state === "CHANGES_REQUESTED") && recordOf(entry)) modelReview = { entry, index };
+		if (own(entry) && entry.commit_id === head && (entry.state === "APPROVED" || entry.state === "CHANGES_REQUESTED" || entry.state === "DISMISSED") && recordOf(entry)) modelReview = { entry, index };
 	});
 	const judged = modelReview ? recordOf(modelReview.entry) : null;
 	const currentBase = record(pull) && record(pull.base) && typeof pull.base.ref === "string" ? pull.base.ref : "";
