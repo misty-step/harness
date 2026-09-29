@@ -125,8 +125,9 @@ export function classifyDiff(diff: string): { text: string[]; images: { path: st
 		if (!match) { parts.other.push(block.split("\n", 1)[0]); continue; }
 		const removed = /^deleted file mode /m.test(block);
 		const path = unquotePath(removed ? match[1] : match[2]).replace(/^[ab]\//, "");
-		// A pointer at head is what has no review surface; a gitlink that a file replaces shows its text and is reviewable.
-		if (/^\+Subproject commit /m.test(block)) parts.other.push(path);
+		// Only a real gitlink (mode 160000 at head) is a pointer with no review surface; ordinary text that happens to read
+		// "Subproject commit", or a gitlink that a file replaces, is reviewable text. A pure rename carries no new content.
+		if (/^\+Subproject commit /m.test(block) && /^(index \S+ 160000|new file mode 160000|new mode 160000)$/m.test(block)) parts.other.push(path);
 		else if (/^(Binary files .* differ|GIT binary patch)$/m.test(block)) (IMAGE_PATH.test(path) ? parts.images.push({ path, removed }) : parts.other.push(path));
 		else parts.text.push(path);
 	}

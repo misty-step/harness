@@ -1328,6 +1328,10 @@ describe("foundation-check review gate (US-027)", () => {
 		expect(advisory.status).toBe(0);
 		expect(advisory.output.advisory?.join("\n")).toContain("font.woff");
 		expect(advisory.output.approved_by).toBe("no reviewable content");
+		// Being spared an approval never erases the App's explicit no on this head.
+		reviews = [{ ...recorded(agent, opaque), state: "CHANGES_REQUESTED" }];
+		expect((await gate(repo)).status).toBe(1);
+		reviews = [];
 		// The same file beside a reviewable change spares nothing: the model review is required for the whole PR.
 		put(repo, "notes.txt", "three\n");
 		const mixed = at("font and text");

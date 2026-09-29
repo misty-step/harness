@@ -1574,7 +1574,10 @@ async function review(options: Options): Promise<Result> {
 	if (uninspectable.length > 0) {
 		// No native review surface reads a submodule bump or a non-image binary, so the model review cannot be required of a
 		// PR that is nothing else. It is reported, never hidden, and a PR that mixes it with reviewable content is not spared.
-		advisory.push(`FND-REV-001 not required: every changed path is content no review surface can inspect (${uninspectable.join(", ")})`);
+		// Being spared an approval does not erase the App's explicit no: a current-head change request still stands.
+		if (modelReview?.entry.state === "CHANGES_REQUESTED" || overruled || (decision?.entry.state === "CHANGES_REQUESTED" && decision.entry.commit_id === head)) {
+			errors.push(`FND-REV-001: the agent reviewer requested changes on head ${head.slice(0, 12)}, and that stands although no approval is required for content nothing can inspect`);
+		} else advisory.push(`FND-REV-001 not required: every changed path is content no review surface can inspect (${uninspectable.join(", ")})`);
 	} else if (modelReview?.entry.state !== "APPROVED" || stale || overruled) {
 		errors.push(stale
 			? `FND-REV-001: the agent reviewer's approval of head ${head.slice(0, 12)} judged a different base, merge base, title or description than the PR now has; run agent-review --repo ${org}/${name} --pr ${options.pr}`

@@ -118,6 +118,9 @@ describe("agent-review classification", () => {
 		expect(classifyDiff("diff --git a/vendor b/vendor\nindex 1..2 160000\n-Subproject commit aaa\n+Subproject commit bbb\n").other).toEqual(["vendor"]);
 		expect(classifyDiff("diff --git a/vendor b/vendor\ndeleted file mode 160000\n-Subproject commit aaa\n").text).toEqual(["vendor"]);
 		expect(classifyDiff("diff --git a/vendor b/vendor\nold mode 160000\nnew mode 100644\n-Subproject commit aaa\n+plain text\n").text).toEqual(["vendor"]);
+		// Ordinary text that reads like a pointer is text, and a pure rename brings no new content to inspect.
+		expect(classifyDiff("diff --git a/NOTES.md b/NOTES.md\nindex 1..2 100644\n+Subproject commit ccc\n").text).toEqual(["NOTES.md"]);
+		expect(classifyDiff("diff --git a/a.txt b/b.txt\nsimilarity index 100%\nrename from a.txt\nrename to b.txt\n").text).toEqual(["b.txt"]);
 	});
 });
 
@@ -293,7 +296,7 @@ describe("agent-review posting", () => {
 		pull.state = "open";
 		expect((await run({ AGENT_REVIEW_MAX_DIFF_BYTES: "10" })).stderr).toContain("split the change");
 		// Content no review surface can inspect is refused, not approved on trust: a submodule bump stands for the rest.
-		diff = "diff --git a/vendor b/vendor\n-Subproject commit aaa\n+Subproject commit bbb\n";
+		diff = "diff --git a/vendor b/vendor\nindex 1..2 160000\n-Subproject commit aaa\n+Subproject commit bbb\n";
 		const only = await run();
 		expect(only.status).toBe(5);
 		expect(only.stderr).toContain("no review surface can inspect");
