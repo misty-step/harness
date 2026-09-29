@@ -123,9 +123,10 @@ async function installationToken(repo: string): Promise<string> {
 	return minted.token;
 }
 
-/** The base and description the model judged are recorded for the gate, which refuses an approval once either changes. */
+/** The base, title and description the model judged are recorded for the gate, which refuses an approval once any changes. */
 function body(verdict: Verdict, head: string, pull: Pull): string {
-	const state = `agent-review-state: base=${pull.base.ref} description=sha256:${createHash("sha256").update(pull.body ?? "").digest("hex")}`;
+	const digest = (value: string) => createHash("sha256").update(value).digest("hex");
+	const state = `agent-review-state: base=${pull.base.ref} title=sha256:${digest(pull.title)} description=sha256:${digest(pull.body ?? "")}`;
 	const lines = [`${passes(verdict) ? "agent-review: approved" : "agent-review: changes requested"} ${head}`, state, "", `Reviewer: ${MODEL} (${THINKING}), a fresh session that saw the PR title, description and diff only.`, "", verdict.explanation.trim()];
 	for (const finding of verdict.findings) lines.push("", `- **P${finding.priority}** ${finding.title}: ${finding.body.trim()}`);
 	return lines.join("\n").slice(0, 60_000);

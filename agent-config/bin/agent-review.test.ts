@@ -108,8 +108,9 @@ describe("agent-review posting", () => {
 		expect(review.body).toMatchObject({ commit_id: "a".repeat(40), event: "APPROVE" });
 		const text = (review.body as { body: string }).body.split("\n");
 		expect(text[0]).toBe(`agent-review: approved ${"a".repeat(40)}`);
-		// The base and description the model judged are recorded for the gate to compare.
-		expect(text[1]).toBe(`agent-review-state: base=master description=sha256:${createHash("sha256").update("Stories: US-027").digest("hex")}`);
+		// The base, title and description the model judged are recorded for the gate to compare.
+		const digest = (value: string) => createHash("sha256").update(value).digest("hex");
+		expect(text[1]).toBe(`agent-review-state: base=master title=sha256:${digest("docs: note")} description=sha256:${digest("Stories: US-027")}`);
 		// Add, then remove, so the base branch's foundation-review gate sees labeled and unlabeled.
 		expect(posted("/issues/7/labels")).toHaveLength(1);
 		expect(calls.some((call) => call.method === "DELETE" && call.path.endsWith("/labels/agent-reviewed"))).toBe(true);
