@@ -57,13 +57,13 @@ presentation; "behavioral" changes agent capability, model input, or data flow.
 
 | Component | Owner | Class | Installed by `./install` | Divergence |
 | --- | --- | --- | --- | --- |
-| `settings.json` | this repo | config | yes | GPT-6 Astra medium default (ADR-025); Codex account slots mirror the base Codex thinking levels (ADR-024); editor padding, markdown, theme name, retry budget (ADR-011 amendment 2026-09-28) |
+| `settings.json` | this repo | config | yes | GPT-6 Astra medium default (ADR-025); default and chain run through `openai-pool`/`xai-pool` (ADR-026); editor padding, markdown, theme name, retry budget (ADR-011 amendment 2026-09-28) |
 | `global/AGENTS.md` | this repo | behavioral | yes | Global `~/.pi/agent/AGENTS.md`: pi's intro plus shared sections spliced from `agent-config` |
 | `extensions/pi-chrome.ts` | this repo | aesthetic | yes | Session card, composer rail layout, live working state, footer |
 | `extensions/loc/` | this repo | behavioral (read-only) | yes | `/loc`, `/loc-trend`, LOC status row |
 | `extensions/web-search/` | this repo | behavioral | yes | `web_search` tool (Exa); registers nothing without `EXA_API_KEY` |
 | `extensions/failover/` | this repo | behavioral | yes | Subscription-only agent turns and forward recovery after stock retry; blocks native paid startup fallback (ADR-011/013) |
-| `extensions/accounts/` | this repo | behavioral | yes | Extra account slots `openai-codex-2`…`-4`: built-in login, refresh and streaming under their own `auth.json` keys; no shared OMP credentials (US-045, ADR-024) |
+| `extensions/accounts/` | this repo | behavioral | yes | Extra account slots (`openai-codex-2`…`-4`, `xai-2`, `openrouter-2`): built-in login, refresh and streaming under their own `auth.json` keys, plus `openai-pool`/`xai-pool`/`openrouter-pool` that balance a request across a provider's accounts, block one at its usage limit until reset and share that state in `account-pool.json`; `/pool` lists them; no shared OMP credentials (US-045, ADR-024/026) |
 | `extensions/image-budget/` | this repo | behavioral | yes | Inline-image ceiling: oldest images dropped over 15 MB per request; large images shrunk with ffmpeg at ingest (ADR-019) |
 | `extensions/openrouter-live/` | this repo | behavioral | yes | Live OpenRouter bridge: models the `pi.dev` mirror lacks are appended to `models.json`, additive-only, at session start (≥2 h) and `/models-live` (ADR-022) |
 | `extensions/continuation-nudge/` | this repo | behavioral | yes (component `continuation-nudge`; shared modules materialized) | Bounded Jev continuation nudge at agent settle: advisory, fail-open, max 2 per prompt, `JEV_NUDGE_MODE=off` disables. Review trigger: pi gains a native anti-premature-stop or continuation control, or nudges fire on completed work |
@@ -76,7 +76,7 @@ presentation; "behavioral" changes agent capability, model input, or data flow.
 | `extensions/herdr-agent-state.ts` | herdr (managed) | integration | no | Reports pane agent state to herdr |
 | `skills/omarchy`, `skills/diagnose-crash` | Omarchy (symlinks) | skills | no | Omarchy-owned agent skills |
 | `themes/omarchy-system.json` | Omarchy (generated) | generated | no | Theme regenerated on every theme change |
-| `auth.json` (except `openrouter`), `models-store.json`, `sessions/`, `trust.json`, `usage-outbox/` | pi (runtime) | runtime | no | Other credentials (including slot logins), sessions, state |
+| `auth.json` (except `openrouter`), `account-pool.json`, `models-store.json`, `sessions/`, `trust.json`, `usage-outbox/` | pi (runtime) | runtime | no | Other credentials (including slot logins), sessions, state |
 
 ### Global guidance
 
@@ -493,7 +493,7 @@ Restart pi after deploying.
 `openrouter-auth` requires jq and overlays only `auth.json.openrouter` (mode
 0600), preserving every other provider and rejecting malformed or symlinked
 auth files before any write. The command is
-`!openrouter-key --personal workstation/OPENROUTER_API_KEY_MIRRODIN_PI`.
+`!openrouter-key --personal workstation/OPENROUTER_MISTY_STEP_HARNESS_WORKSTATION_RECOVERY_API_KEY`.
 R90 checkouts (including Git linked worktrees) use
 `workstation/OPENROUTER_R90_HARNESS_API_KEY`; all other directories use the Pi
 personal entry. A missing/invalid entry emits a deliberately invalid token so

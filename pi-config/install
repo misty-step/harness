@@ -121,9 +121,9 @@ install_openrouter_auth() {
   temp=$(mktemp "$agent_dir/.auth.json.XXXXXX")
   trap 'rm -f -- "$temp"' 0 1 2 15
   if [ -f "$target" ]; then
-    jq '.openrouter = {type:"api_key",key:"!openrouter-key --personal workstation/OPENROUTER_API_KEY_MIRRODIN_PI"}' "$target" > "$temp"
+    jq '.openrouter = {type:"api_key",key:"!openrouter-key --personal workstation/OPENROUTER_MISTY_STEP_HARNESS_WORKSTATION_RECOVERY_API_KEY"}' "$target" > "$temp"
   else
-    printf '{}\n' | jq '.openrouter = {type:"api_key",key:"!openrouter-key --personal workstation/OPENROUTER_API_KEY_MIRRODIN_PI"}' > "$temp"
+    printf '{}\n' | jq '.openrouter = {type:"api_key",key:"!openrouter-key --personal workstation/OPENROUTER_MISTY_STEP_HARNESS_WORKSTATION_RECOVERY_API_KEY"}' > "$temp"
   fi
   chmod 600 "$temp"
   mv -- "$temp" "$target"
@@ -220,7 +220,7 @@ install_failover() {
 }
 
 validate_accounts() {
-  for file in index.ts slots.ts slots.test.ts; do
+  for file in index.ts pool.ts pool.test.ts slots.ts slots.test.ts; do
     require_nonempty "$repo_dir/extensions/accounts/$file"
   done
 }
@@ -230,7 +230,7 @@ install_accounts() {
   # Slot logins live in auth.json under the slot ids and are never touched here.
   rm -rf "$agent_dir/extensions/accounts"
   install -d -m 700 "$agent_dir/extensions/accounts"
-  for file in index.ts slots.ts slots.test.ts; do
+  for file in index.ts pool.ts pool.test.ts slots.ts slots.test.ts; do
     install -m 600 "$repo_dir/extensions/accounts/$file" "$agent_dir/extensions/accounts/$file"
   done
 }

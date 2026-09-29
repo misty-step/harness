@@ -987,9 +987,23 @@ Criteria:
    models it approves for the base provider, at the same thinking level, and
    SHALL refuse unlisted look-alike provider ids.
 
+5. WHEN I select a pool model (`openai-pool/…`, `xai-pool/…`,
+   `openrouter-pool/…`), THE SYSTEM SHALL serve the request from one signed-in
+   account of that provider, keep it for the session while usable, and start
+   other sessions on the least recently used account.
+6. WHEN an account fails on a usage or rate limit before producing output,
+   THE SYSTEM SHALL block it until the reset the provider states (else a
+   conservative default), share that block with every Pi session, and serve
+   the same request from the next account; other failures SHALL surface
+   unchanged, and with every account blocked or signed out the request SHALL
+   fail with that reason.
+7. WHEN an API-key slot has no stored key, THE SYSTEM SHALL treat it as signed
+   out rather than read the base provider's environment key.
+
 No-gos: no reading, copying, or refreshing another harness's stored tokens; no
 Claude Code or Google client impersonation added by this repository.
 
 Evidence: `pi-config/extensions/accounts/slots.test.ts`,
+`pi-config/extensions/accounts/pool.test.ts`, `pi-config/docs/adr/026-pool-accounts-behind-one-provider-with-shared-blocks.md`,
 `pi-config/docs/adr/024-extra-accounts-are-cloned-providers-with-pi-owned-logins.md`,
 and the isolated `/login` walk recorded in the PR.
