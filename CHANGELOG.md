@@ -1,3 +1,9 @@
+# [0.1.66](https://github.com/misty-step/harness/compare/v0.1.65...v0.1.66) (2026-09-29)
+<!-- landmark:protected-release previous=v0.1.65 source=4a8f24295881301c1d6db8e6cf5e3eb98d8061278d8676914fa18980696cc48a -->
+
+### Bug Fixes
+
+* **pi:** start on the pool when startup resolves Anthropic (US-045) (#149) ([69cc3cb](https://github.com/misty-step/harness/commit/69cc3cbfbfd6cfe3552edb2969d5ca1fc671b014))
 # [0.1.65](https://github.com/misty-step/harness/compare/v0.1.64...v0.1.65) (2026-09-29)
 <!-- landmark:protected-release previous=v0.1.64 source=1f808cd23337971c5fdf2e3ce8fb33bf890d7348a12c553b2bab2629e584f21d -->
 
