@@ -20,6 +20,10 @@ let diff = "";
 let calls: { method: string; path: string; body: unknown }[] = [];
 let authorized = true;
 let pullReads = 0;
+let changeAfterModel: Partial<Pull> | undefined;
+let diffAfterModel: string | undefined;
+let labelCreateStatus = 201;
+let labelAddStatus = 200;
 
 const server = Bun.serve({
 	port: 0,
@@ -39,11 +43,14 @@ const server = Bun.serve({
 		}
 		if (bearer !== "install-token") return new Response("unauthorized", { status: 401 });
 		if (url.pathname.endsWith("/pulls/7") && request.method === "GET") {
-			if (request.headers.get("accept")?.includes("diff")) return new Response(diff);
+			// Reads before the model runs come first; anything after it sees what changed in the meantime.
+			const after = pullReads >= 2;
+			if (request.headers.get("accept")?.includes("diff")) return new Response(after && diffAfterModel !== undefined ? diffAfterModel : diff);
 			pullReads++;
-			// The first read is before the model runs, the second after it.
-			return Response.json(pullReads >= 2 && headAfterModel ? { ...pull, head: { sha: headAfterModel } } : pull);
+			return Response.json(pullReads >= 2 ? { ...pull, ...changeAfterModel, ...(headAfterModel ? { head: { sha: headAfterModel } } : {}) } : pull);
 		}
+		if (request.method === "POST" && url.pathname.endsWith("/demo/labels")) return new Response("{}", { status: labelCreateStatus });
+		if (request.method === "POST" && url.pathname.endsWith("/issues/7/labels")) return new Response("{}", { status: labelAddStatus });
 		if (request.method === "POST" || request.method === "DELETE") return Response.json({});
 		return new Response("missing", { status: 404 });
 	},
@@ -66,6 +73,10 @@ const posted = (suffix: string) => calls.filter((call) => call.method !== "GET" 
 beforeEach(() => {
 	pull = { state: "open", title: "docs: note", body: "Stories: US-027", user: { login: "moomooskycow" }, head: { sha: "a".repeat(40) }, base: { ref: "master" } };
 	headAfterModel = undefined;
+	changeAfterModel = undefined;
+	diffAfterModel = undefined;
+	labelCreateStatus = 201;
+	labelAddStatus = 200;
 	diff = "diff --git a/README.md b/README.md\n+hello\n";
 	calls = [];
 	pullReads = 0;
@@ -97,7 +108,7 @@ describe("agent-review posting", () => {
 		expect(review.body).toMatchObject({ commit_id: "a".repeat(40), event: "APPROVE" });
 		expect((review.body as { body: string }).body.split("\n")[0]).toBe(`agent-review: approved ${"a".repeat(40)}`);
 		// Add, then remove, so the base branch's foundation-review gate sees labeled and unlabeled.
-		expect(posted("/labels")).toHaveLength(1);
+		expect(posted("/issues/7/labels")).toHaveLength(1);
 		expect(calls.some((call) => call.method === "DELETE" && call.path.endsWith("/labels/agent-reviewed"))).toBe(true);
 		// The model gets the diff fenced as untrusted data, no tools, and no session.
 		const prompt = readFileSync(join(dir, "prompt.txt"), "utf8");
@@ -113,7 +124,7 @@ describe("agent-review posting", () => {
 		expect(posted("/reviews")[0].body).toMatchObject({ event: "REQUEST_CHANGES" });
 	});
 
-	test("nothing is posted when the model fails, answers unusably, or the head moves during review", async () => {
+	test("nothing is posted when the model fails, answers unusably, or the PR changes during review", async () => {
 		answer("", 1);
 		expect((await run()).status).toBe(3);
 		answer("looks good to me");
@@ -123,7 +134,38 @@ describe("agent-review posting", () => {
 		const moved = await run();
 		expect(moved.status).toBe(3);
 		expect(moved.stderr).toContain("head moved");
+		headAfterModel = undefined;
+		// A retarget or description edit keeps the head but changes what was reviewed; GitHub would keep the approval.
+		changeAfterModel = { base: { ref: "release" } };
+		expect((await run()).stderr).toContain("base, description or diff changed");
+		changeAfterModel = { body: "Stories: US-999" };
+		expect((await run()).stderr).toContain("base, description or diff changed");
+		changeAfterModel = undefined;
+		diffAfterModel = "diff --git a/README.md b/README.md\n+something else\n";
+		expect((await run()).stderr).toContain("base, description or diff changed");
 		expect(posted("/reviews")).toHaveLength(0);
+	});
+
+	test("the re-run label exists before any review is recorded, and a label failure never leaves a silent approval", async () => {
+		const okay = await run();
+		expect(okay.status).toBe(0);
+		const order = calls.filter((call) => call.method === "POST").map((call) => call.path.split("/").slice(-2).join("/"));
+		expect(order.indexOf("demo/labels")).toBeGreaterThanOrEqual(0);
+		expect(order.indexOf("demo/labels")).toBeLessThan(order.indexOf("7/reviews"));
+		// The label cannot be created: nothing is reviewed at all.
+		calls = [];
+		labelCreateStatus = 403;
+		expect((await run()).status).toBe(3);
+		expect(posted("/reviews")).toHaveLength(0);
+		// An existing label answers 422 and is fine.
+		labelCreateStatus = 422;
+		expect((await run()).status).toBe(0);
+		// The review is recorded but the toggle fails: the operator is told to re-run the gate by hand.
+		labelCreateStatus = 201;
+		labelAddStatus = 500;
+		const stuck = await run();
+		expect(stuck.status).toBe(0);
+		expect(stuck.stderr).toContain("the gate was not re-run");
 	});
 
 	test("refuses a PR the App authored, a closed PR, an oversized diff, and any org but misty-step", async () => {

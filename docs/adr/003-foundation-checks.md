@@ -168,7 +168,12 @@ effect with the catalog and checker change that cites ADR-006.
   reviewed nothing (rate limited or skipped on 49 of 119 recent merged heads,
   2026-09-29), so it never gates. r90group has no reviewer App and free-plan
   private repositories cannot enforce rules, so its checks stay advisory and
-  `agent-review` refuses it.
+  `agent-review` refuses it. Residual: GitHub keeps an approval on a head after
+  the PR is retargeted or its description edited. `agent-review` refuses to post
+  if the head, base, description or diff changed during its own review, but the
+  gate cannot see a change made after the approval; the label re-run only
+  re-reads the head, so such a change (which needs write access) needs a fresh
+  `agent-review`.
 
 ## Enforcement by plan
 

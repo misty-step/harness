@@ -102,13 +102,13 @@ function runModel(text: string): Promise<string> {
 	return promise;
 }
 
-async function api(path: string, token: string, init: { method?: string; body?: unknown; accept?: string } = {}) {
+async function api(path: string, token: string, init: { method?: string; body?: unknown; accept?: string; tolerate?: number[] } = {}) {
 	const response = await fetch(`${API}${path}`, {
 		method: init.method ?? "GET",
 		headers: { Authorization: `Bearer ${token}`, Accept: init.accept ?? "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28", "User-Agent": "agent-review", ...(init.body ? { "Content-Type": "application/json" } : {}) },
 		body: init.body ? JSON.stringify(init.body) : undefined,
 	});
-	if (!response.ok) throw new Error(`GitHub API ${init.method ?? "GET"} ${path}: HTTP ${response.status} ${(await response.text()).slice(0, 200)}`);
+	if (!response.ok && !init.tolerate?.includes(response.status)) throw new Error(`GitHub API ${init.method ?? "GET"} ${path}: HTTP ${response.status} ${(await response.text()).slice(0, 200)}`);
 	return response;
 }
 
@@ -129,27 +129,45 @@ function body(verdict: Verdict, head: string): string {
 	return lines.join("\n").slice(0, 60_000);
 }
 
-export async function review(repo: string, number: number): Promise<{ posted: "APPROVED" | "CHANGES_REQUESTED"; head: string }> {
+type Pull = { state: string; title: string; body: string | null; user: { login: string }; head: { sha: string }; base: { ref: string } };
+const readPull = async (repo: string, number: number, token: string): Promise<{ pull: Pull; diff: string }> => {
+	const pull: Pull = await (await api(`/repos/${repo}/pulls/${number}`, token)).json();
+	const diff = await (await api(`/repos/${repo}/pulls/${number}`, token, { accept: "application/vnd.github.v3.diff" })).text();
+	return { pull, diff };
+};
+
+export async function review(repo: string, number: number): Promise<{ posted: "APPROVED" | "CHANGES_REQUESTED"; head: string; rerun: boolean }> {
 	const [org, name, extra] = repo.split("/");
 	if (!org || !name || extra !== undefined) throw new Error("--repo must be OWNER/NAME");
 	if (org !== ORG) throw new Error(`the reviewer App is installed on ${ORG} only; ${org} has no designated agent reviewer (ADR-003)`);
 	const token = await installationToken(repo);
-	const pull: { state: string; title: string; body: string | null; user: { login: string }; head: { sha: string }; base: { ref: string } } = await (await api(`/repos/${repo}/pulls/${number}`, token)).json();
+	const { pull, diff } = await readPull(repo, number, token);
 	if (pull.state !== "open") throw new Error(`pull request ${number} is ${pull.state}`);
 	if (pull.user.login === APP_LOGIN) throw new Error(`${APP_LOGIN} authored this PR and cannot review it`);
 	const head = pull.head.sha;
-	const diff = await (await api(`/repos/${repo}/pulls/${number}`, token, { accept: "application/vnd.github.v3.diff" })).text();
 	if (Buffer.byteLength(diff) > MAX_DIFF_BYTES) throw new Error(`the diff is ${Buffer.byteLength(diff)} bytes, over the ${MAX_DIFF_BYTES} limit; split the change (a partial diff is not a review)`);
+	// The label the re-run needs must exist before any review is recorded, or a missing label would leave an approval
+	// that never reaches the gate. 422 means it already exists.
+	await api(`/repos/${repo}/labels`, token, { method: "POST", body: { name: RERUN_LABEL, color: "ededed", description: "agent-review recorded a review; re-runs foundation-review" }, tolerate: [422] });
 	const verdict = parseVerdict(await runModel(prompt({ title: pull.title, body: pull.body ?? "", base: pull.base.ref, head }, diff)));
-	// The model takes minutes; a push during that time makes this verdict about a different commit.
-	const current: { head: { sha: string } } = await (await api(`/repos/${repo}/pulls/${number}`, token)).json();
-	if (current.head.sha !== head) throw new Error(`the head moved from ${head.slice(0, 12)} to ${current.head.sha.slice(0, 12)} during review; nothing was posted`);
+	// The model takes minutes. A push, a retarget or a description edit during that time makes the verdict about
+	// something else, and GitHub keeps an approval on a head whatever its base or diff became.
+	const now = await readPull(repo, number, token);
+	if (now.pull.head.sha !== head) throw new Error(`the head moved from ${head.slice(0, 12)} to ${now.pull.head.sha.slice(0, 12)} during review; nothing was posted`);
+	if (now.pull.base.ref !== pull.base.ref || now.pull.title !== pull.title || (now.pull.body ?? "") !== (pull.body ?? "") || now.diff !== diff) throw new Error("the base, description or diff changed during review; nothing was posted");
 	const event = passes(verdict) ? "APPROVE" : "REQUEST_CHANGES";
 	await api(`/repos/${repo}/pulls/${number}/reviews`, token, { method: "POST", body: { commit_id: head, event, body: body(verdict, head) } });
-	// Review events cannot trigger pull_request_target, so a label round trip re-runs the base branch's gate.
-	await api(`/repos/${repo}/issues/${number}/labels`, token, { method: "POST", body: { labels: [RERUN_LABEL] } });
-	await api(`/repos/${repo}/issues/${number}/labels/${RERUN_LABEL}`, token, { method: "DELETE" });
-	return { posted: event === "APPROVE" ? "APPROVED" : "CHANGES_REQUESTED", head };
+	// Review events cannot trigger pull_request_target, so a label round trip re-runs the base branch's gate. The review
+	// is already recorded, so a failure here is reported, not thrown: toggle the label by hand to re-run the gate.
+	let rerun = true;
+	try {
+		await api(`/repos/${repo}/issues/${number}/labels`, token, { method: "POST", body: { labels: [RERUN_LABEL] } });
+		await api(`/repos/${repo}/issues/${number}/labels/${RERUN_LABEL}`, token, { method: "DELETE" });
+	} catch (error) {
+		rerun = false;
+		console.error(`agent-review: the review is recorded but the gate was not re-run (${(error as Error).message}); toggle the ${RERUN_LABEL} label`);
+	}
+	return { posted: event === "APPROVE" ? "APPROVED" : "CHANGES_REQUESTED", head, rerun };
 }
 
 if (import.meta.main) {
