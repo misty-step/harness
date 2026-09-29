@@ -37,7 +37,7 @@ prompt is: how can I pokayoke this so this kind of error never happens again?
 | `skills/` | Moved to `agent-config`: portable skill packages, clean-replaced when selected |
 | `../.githooks/pre-push` | Root scanners; wired by `../scripts/bootstrap`, not runtime deployment |
 | `extensions/loc/` | Session-resident LOC status and commands |
-| `extensions/credentials/` | Full pass-name inventory by default; opt-in discovery pointer; targeted hint appended to a failed bash call whose output is an auth failure and names a matching entry. No injected turns (MIS-161, US-019) |
+| `extensions/credentials/` | Names-only pass inventory at agent start by default; opt-in discovery pointer. Neither agent prose nor tool results inject credential reminders (MIS-161, US-019) |
 
 `config.yml` selects the Omarchy-generated `omarchy-system` theme for both
 terminal background modes. On this workstation,

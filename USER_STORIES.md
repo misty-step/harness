@@ -639,8 +639,9 @@ Criteria:
    THE SYSTEM SHALL inject a stable discovery pointer without listing pass
    entries in the startup prompt.
 2. WHEN an authentication failure or unavailable-credential claim occurs,
-   THE SYSTEM SHALL retain targeted credential reminders in either mode, with
-   at most one claim follow-up per matching entry and one for unmatched claims.
+   THE SYSTEM SHALL leave tool results and assistant turns uninterrupted;
+   the startup inventory or discovery pointer and standing guidance SHALL
+   remain available for the agent to consult.
 3. WHEN the experiment is not selected, THE SYSTEM SHALL retain the full
    inventory behavior; a later environment change SHALL NOT change the mode
    of an already loaded extension.
