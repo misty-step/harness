@@ -92,9 +92,9 @@ install_config() {
     --source "$repo_dir/settings.json" \
     --dest "$agent_dir/settings.json"
   if subscriptions_ready; then
-    printf 'pi: Codex login ready; default GPT-6 Astra medium (model policy)\n'
+    printf 'pi: Codex login ready; default GPT-6.1 Sol xhigh (model policy)\n'
   else
-    printf 'pi: default GPT-6 Astra medium installed; Codex login missing. Run /login for openai-codex in pi before use.\n'
+    printf 'pi: default GPT-6.1 Sol xhigh installed; Codex login missing. Run /login for openai-codex in pi before use.\n'
   fi
 }
 

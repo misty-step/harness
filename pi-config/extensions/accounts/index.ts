@@ -35,7 +35,7 @@ export default function accounts(pi: ExtensionAPI) {
 		// providers exist and lands on the best authenticated model, Anthropic.
 		// Pi never uses Anthropic (ADR-025), so take the default from the pool.
 		if (ctx.model && ctx.model.provider !== "anthropic") return;
-		const model = ctx.modelRegistry.find("openai-pool", "gpt-6-astra");
+		const model = ctx.modelRegistry.find("openai-pool", "gpt-6.1-sol");
 		if (model) await pi.setModel(model);
 	});
 

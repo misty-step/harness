@@ -1,10 +1,10 @@
 {
   "theme": "omarchy-system",
   "defaultProvider": "openai-pool",
-  "defaultModel": "gpt-6-astra",
+  "defaultModel": "gpt-6.1-sol",
   "modelThinkingLevels": {
-    "openai-pool/gpt-6-astra": "medium",
-    "openai-pool/gpt-6-sol": "xhigh",
+    "openai-pool/gpt-6-astra": "xhigh",
+    "openai-pool/gpt-6.1-sol": "xhigh",
     "openai-pool/gpt-6-luna": "max"
   },
   "retry": {

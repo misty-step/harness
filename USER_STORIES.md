@@ -510,7 +510,7 @@ Criteria:
    native account-policy priority SHALL prefer eligible r90.dev Anthropic
    and Codex accounts without bypassing blocked-account or reserve rules.
    Authorization or priority SHALL NOT be treated as proof of available quota.
-5. WHEN the Pi installer runs, THE SYSTEM SHALL select GPT-6 Astra medium as
+5. WHEN the Pi installer runs, THE SYSTEM SHALL select GPT-6.1 Sol xhigh as
    Pi's default and report a missing Pi-native Codex login rather than restore
    the retired DeepSeek default. Pi SHALL use only OpenAI Codex, xAI and
    OpenRouter routes: any Anthropic model, direct or through OpenRouter,
