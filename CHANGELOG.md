@@ -1,3 +1,9 @@
+# [0.1.71](https://github.com/misty-step/harness/compare/v0.1.70...v0.1.71) (2026-09-29)
+<!-- landmark:protected-release previous=v0.1.70 source=ce15f27345a50edcf2bee34ca89a574423093a24e9c8e3b3168a0890c2425239 -->
+
+### Features
+
+* **guidance:** publish review rounds with glass review publish (US-045) ([f811936](https://github.com/misty-step/harness/commit/f811936aaca326444c82afcc89fcb4ff85b75082))
 # [0.1.70](https://github.com/misty-step/harness/compare/v0.1.69...v0.1.70) (2026-09-29)
 <!-- landmark:protected-release previous=v0.1.69 source=3c66f7442e16e399e67cae8455bcb97b6a4c719943d123ac6c6151debe9b7ffb -->
 
