@@ -1383,14 +1383,16 @@ const reviewerRegistry: Record<string, Reviewer> = {
 	"r90group": { recorded: "moomooskycow" },
 };
 /**
- * Model reviewers whose passing commit status on the PR head stands for FND-REV-001's independent review when no
- * one else approved (operator rule, 2026-09-28: model review plus green CI is the gate; no human approval). The
- * registry lives here for the same reason as the designated reviewer: a repository cannot name its own reviewer.
- * A status counts only from its named creator, so a workflow's own `GITHUB_TOKEN` status cannot stand in for it.
- * r90group is absent: its recorded decision (above) already covers every PR.
+ * Model reviewers whose completed review, reported as a commit status on the PR head, stands for FND-REV-001's
+ * independent review when no one else approved (operator rule, 2026-09-28: model review plus green CI is the gate;
+ * no human approval). The registry lives here for the same reason as the designated reviewer: a repository cannot
+ * name its own reviewer. A status counts only from its named creator, so a workflow's own `GITHUB_TOKEN` status
+ * cannot stand in for it, and only with the `completed` description: CodeRabbit also reports success with
+ * "Review rate limited" or "Review skipped: ..." when it reviewed nothing (49 of 119 recent merged heads in
+ * linejam, scry, sploot and harness, 2026-09-29). r90group is absent: its recorded decision (above) covers every PR.
  */
-const modelReviewerRegistry: Record<string, { context: string; creator: string }[]> = {
-	"misty-step": [{ context: "CodeRabbit", creator: "coderabbitai[bot]" }],
+const modelReviewerRegistry: Record<string, { context: string; creator: string; completed: string }[]> = {
+	"misty-step": [{ context: "CodeRabbit", creator: "coderabbitai[bot]", completed: "Review completed" }],
 };
 /** Seconds to wait for a model reviewer that is still working, 0 (the default) to judge at once. */
 const waitSeconds = Number(process.env.FOUNDATION_REVIEW_WAIT_SECONDS ?? 0);
@@ -1551,6 +1553,7 @@ async function review(options: Options): Promise<Result> {
 	let model: string | undefined;
 	const modelReviewers = modelReviewerRegistry[org] ?? [];
 	let modelState = "absent";
+	let modelNote = "";
 	if (!independent && modelReviewers.length > 0) {
 		if (!Number.isFinite(waitSeconds) || waitSeconds < 0) throw new Error("FOUNDATION_REVIEW_WAIT_SECONDS must be a non-negative number");
 		if (!Number.isFinite(pollSeconds) || pollSeconds <= 0) throw new Error("FOUNDATION_REVIEW_POLL_SECONDS must be a positive number");
@@ -1559,20 +1562,23 @@ async function review(options: Options): Promise<Result> {
 			// Statuses list newest first, so a context's first entry is its current state whoever posted it: a newer
 			// failure from anyone else must not resurrect an older success from the reviewer.
 			const statuses = await list(`commits/${head}/statuses`);
-			for (const { context, creator } of modelReviewers) {
+			for (const { context, creator, completed } of modelReviewers) {
 				const current = statuses.find((entry) => entry.context === context);
-				modelState = current && record(current.creator) && current.creator.login === creator && typeof current.state === "string" ? current.state : current ? "untrusted" : "absent";
+				const posted = current && record(current.creator) && current.creator.login === creator && typeof current.state === "string";
+				modelNote = typeof current?.description === "string" ? current.description : "";
+				// A reviewer that is rate limited or skips a PR still reports success, so state alone proves no review happened.
+				modelState = !current ? "absent" : !posted ? "untrusted" : current.state === "success" && modelNote !== completed ? "unreviewed" : String(current.state);
 				if (modelState === "success") { model = context; break; }
 			}
 			const elapsed = (Date.now() - started) / 1000;
 			const remaining = waitSeconds - elapsed;
-			if (model || modelState === "failure" || modelState === "error" || modelState === "untrusted" || remaining <= 0 || (modelState === "absent" && elapsed >= absentGraceSeconds)) break;
+			if (model || ["failure", "error", "untrusted", "unreviewed"].includes(modelState) || remaining <= 0 || (modelState === "absent" && elapsed >= absentGraceSeconds)) break;
 			await Bun.sleep(Math.min(pollSeconds, remaining) * 1000);
 		}
 	}
 	if (!independent && !model) {
 		const names = modelReviewers.map(({ context }) => context).join(", ");
-		errors.push(`FND-REV-001: needs an approving review on head ${head.slice(0, 12)} from someone other than ${author}${names ? `, or a passing ${names} review status (${modelState})` : ""}`);
+		errors.push(`FND-REV-001: needs an approving review on head ${head.slice(0, 12)} from someone other than ${author}${names ? `, or a completed ${names} review (status ${modelState}${modelNote ? `: ${modelNote}` : ""}; comment "@coderabbitai review" to request one)` : ""}`);
 	}
 	return { ok: errors.length === 0, errors, reasons, approved_by: errors.length === 0 ? (reasons.length > 0 ? agent : independent ? reviewer(independent) : `${model} (model review)`) : undefined };
 }

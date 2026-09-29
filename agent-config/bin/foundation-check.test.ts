@@ -1172,7 +1172,7 @@ describe("foundation-check review gate (US-027)", () => {
 	const resolved = "foundation-escalation: resolved\r\nOperator decided on 2026-09-25 to keep the quoted rebrand:\r\n~~~\r\nRebrand the landing page\r\n~~~\r\n";
 	let pull = { head: { sha: "" }, base: { sha: "" }, user: { login: "engineer" }, body: "" };
 	let reviews: { user: { login: string }; state: string; commit_id: string; body: string; submitted_at?: string }[] = [];
-	let statuses: { context: string; state: string; creator: { login: string } }[] = [];
+	let statuses: { context: string; state: string; description: string; creator: { login: string } }[] = [];
 	let onStatuses = () => {};
 	let comments: { user: { login: string }; body: string; created_at: string }[] = [];
 	let calls: string[] = [];
@@ -1251,13 +1251,15 @@ describe("foundation-check review gate (US-027)", () => {
 		const head = exec(repo, ["rev-parse", "HEAD"]);
 		opened(base, head, "operator-account");
 		reviews = [];
-		const status = (state: string, creator = "coderabbitai[bot]", context = "CodeRabbit") => ({ context, state, creator: { login: creator } });
+		const status = (state: string, creator = "coderabbitai[bot]", context = "CodeRabbit", description = state === "success" ? "Review completed" : "Review in progress") => ({ context, state, description, creator: { login: creator } });
 		try {
 			// Statuses list newest first: an older success never outlives a newer failure.
 			for (const [label, list] of [
 				["none", []], ["pending", [status("pending")]], ["failed", [status("failure"), status("success")]],
 				["forged creator", [status("success", "github-actions[bot]")]], ["other context", [status("success", "coderabbitai[bot]", "lint")]],
 				["newer status from someone else", [status("pending", "github-actions[bot]"), status("success")]],
+				["rate limited", [status("success", "coderabbitai[bot]", "CodeRabbit", "Review rate limited")]],
+				["skipped", [status("success", "coderabbitai[bot]", "CodeRabbit", "Review skipped: bot user not eligible for review")]],
 			] as const) {
 				statuses = [...list];
 				const result = await gate(repo);
@@ -1291,14 +1293,14 @@ describe("foundation-check review gate (US-027)", () => {
 		commit(repo, "plain");
 		opened(base, exec(repo, ["rev-parse", "HEAD"]), "operator-account");
 		reviews = [];
-		const pending = { context: "CodeRabbit", state: "pending", creator: { login: "coderabbitai[bot]" } };
+		const pending = { context: "CodeRabbit", state: "pending", description: "Review in progress", creator: { login: "coderabbitai[bot]" } };
 		process.env.FOUNDATION_REVIEW_WAIT_SECONDS = "5";
 		process.env.FOUNDATION_REVIEW_POLL_SECONDS = "1";
 		try {
 			statuses = [pending];
 			// Finishes on the third poll.
 			let polls = 0;
-			onStatuses = () => { if (++polls === 3) statuses = [{ ...pending, state: "success" }, pending]; };
+			onStatuses = () => { if (++polls === 3) statuses = [{ ...pending, state: "success", description: "Review completed" }, pending]; };
 			expect((await gate(repo)).status).toBe(0);
 			expect(polls).toBe(3);
 			// Never finishes: gives up at the limit rather than hanging.

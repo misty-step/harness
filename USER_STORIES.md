@@ -837,7 +837,7 @@ Criteria:
    independent approval on its head for every change: an approving review from
    someone other than the author, or, where the organisation registers a model
    reviewer in the pinned checker (misty-step: CodeRabbit), that reviewer's
-   passing commit status on the head, so an agent PR needs no second human
+   completed-review status on the head (not a rate-limited or skipped one), so an agent PR needs no second human
    account (operator rule, 2026-09-28). An invariants-ledger
    edit or a new/changed `foundation-approval/1` disposition SHALL additionally
    require the designated reviewer, making five designated-review triggers.

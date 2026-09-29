@@ -149,10 +149,16 @@ effect with the catalog and checker change that cites ADR-006.
   2026-09-28: model review plus green CI is the gate; no human approval gates a
   pull request. Agents author under the operator's account, so an approval "from
   someone other than the author" (FND-REV-001) needed a second account. The
-  pinned checker now also accepts the passing commit status of a model reviewer
-  it registers per organisation (misty-step: context `CodeRabbit` created by
-  `coderabbitai[bot]`); a status from any other creator, a failed or pending
-  one, or a stale success behind a newer failure does not count. It never
+  pinned checker now also accepts the completed review of a model reviewer it
+  registers per organisation: on misty-step, commit status context `CodeRabbit`
+  created by `coderabbitai[bot]`, state `success` and description exactly
+  `Review completed`. CodeRabbit also reports `success` with `Review rate limited`
+  or `Review skipped: ...` when it reviewed nothing (49 of 119 recent merged
+  heads in linejam, scry, sploot and harness, 2026-09-29), so state alone would
+  make the gate vacuous; those heads still need an approving review from
+  someone else (`kaylee-agent[bot]` counts) or a `@coderabbitai review` comment
+  once the limit clears. A status from any other creator, a failed or pending
+  one, or a stale success behind a newer status does not count. It never
   satisfies a designated-review trigger, which still needs the agent reviewer's
   approval. The gate waits (`FOUNDATION_REVIEW_WAIT_SECONDS`, 600 in the
   template) for a reviewer still working, and stops after 120 seconds if no
