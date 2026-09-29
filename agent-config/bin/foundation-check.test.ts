@@ -1303,6 +1303,16 @@ describe("foundation-check review gate (US-027)", () => {
 			onStatuses = () => { if (++polls === 3) statuses = [{ ...pending, state: "success", description: "Review completed" }, pending]; };
 			expect((await gate(repo)).status).toBe(0);
 			expect(polls).toBe(3);
+			// A poll interval longer than the wait still gets one last poll at the deadline, not a give-up before it.
+			process.env.FOUNDATION_REVIEW_WAIT_SECONDS = "2";
+			process.env.FOUNDATION_REVIEW_POLL_SECONDS = "10";
+			statuses = [pending];
+			polls = 0;
+			onStatuses = () => { if (++polls === 2) statuses = [{ ...pending, state: "success", description: "Review completed" }, pending]; };
+			expect((await gate(repo)).status).toBe(0);
+			expect(polls).toBe(2);
+			process.env.FOUNDATION_REVIEW_WAIT_SECONDS = "5";
+			process.env.FOUNDATION_REVIEW_POLL_SECONDS = "1";
 			// Never finishes: gives up at the limit rather than hanging.
 			statuses = [pending];
 			onStatuses = () => {};
