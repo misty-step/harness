@@ -1,3 +1,9 @@
+# [0.1.67](https://github.com/misty-step/harness/compare/v0.1.66...v0.1.67) (2026-09-29)
+<!-- landmark:protected-release previous=v0.1.66 source=0922cdd0d1d33fc37b346833187c99fed127e2bc5085918c0ec59017b164bd9b -->
+
+### Bug Fixes
+
+* **openrouter:** point the R90 launcher entry at the existing pass key (#151) ([461b37c](https://github.com/misty-step/harness/commit/461b37cc056281d579b44c12bb3fcf15e34f669d))
 # [0.1.66](https://github.com/misty-step/harness/compare/v0.1.65...v0.1.66) (2026-09-29)
 <!-- landmark:protected-release previous=v0.1.65 source=4a8f24295881301c1d6db8e6cf5e3eb98d8061278d8676914fa18980696cc48a -->
 
