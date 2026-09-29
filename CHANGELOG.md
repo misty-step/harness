@@ -1,3 +1,9 @@
+# [0.1.65](https://github.com/misty-step/harness/compare/v0.1.64...v0.1.65) (2026-09-29)
+<!-- landmark:protected-release previous=v0.1.64 source=1f808cd23337971c5fdf2e3ce8fb33bf890d7348a12c553b2bab2629e584f21d -->
+
+### Features
+
+* **pi:** balance accounts per provider with shared blocks (US-045) (#147) ([5f585e4](https://github.com/misty-step/harness/commit/5f585e44a89e355a1a188f0cfb8ea5db18020f0a))
 # [0.1.64](https://github.com/misty-step/harness/compare/v0.1.63...v0.1.64) (2026-09-29)
 <!-- landmark:protected-release previous=v0.1.63 source=771dcb890158e3de96fc0f96a21ea1ccb2909817689e895c20586c7346a3bc88 -->
 
