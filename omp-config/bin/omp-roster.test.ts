@@ -12,6 +12,8 @@ let counter = 0;
 beforeAll(() => {
 	root = mkdtempSync(join(tmpdir(), "omp-roster-test-"));
 	mkdirSync(join(root, "deploy"));
+	mkdirSync(join(root, "bin"));
+	writeFileSync(join(root, "bin", "herdr"), '#!/bin/sh\n[ "$*" = "agent list" ] || exit 2\nif [ -n "$HERDR_TEST_AGENTS" ]; then cat "$HERDR_TEST_AGENTS"; else printf \'%s\\n\' \'{"result":{"agents":[]}}\'; fi\n', { mode: 0o755 });
 	cli = join(root, "deploy", "omp-roster");
 	copyFileSync(join(import.meta.dir, "omp-roster.ts"), cli);
 });
@@ -68,9 +70,11 @@ const usageView = (rollup: unknown[], patch: object = {}) => ({ schema_version: 
 type Result = { exitCode: number; stdout: string; stderr: string };
 // umask 0: a file that ends up 0600 got that mode from the CLI, not from the ambient umask.
 function invoke(args: string[], env: Record<string, string> = {}): Result {
+	const inherited = { ...process.env };
+	delete inherited.OMP_ROSTER_ENGINEER_LIMIT;
 	const result = Bun.spawnSync({
 		cmd: ["sh", "-c", 'umask 0; exec "$@"', "sh", process.execPath, cli, ...args],
-		env: { ...process.env, HOME: root, XDG_STATE_HOME: join(root, "xdg"), ...env },
+		env: { ...inherited, HOME: root, XDG_STATE_HOME: join(root, "xdg"), ...env, PATH: `${join(root, "bin")}:${env.PATH ?? process.env.PATH}` },
 		stdout: "pipe",
 		stderr: "pipe",
 	});
@@ -94,6 +98,56 @@ const launched = (result: Result & { state: string }) => {
 };
 
 describe("omp-roster launch (US-046)", () => {
+	test("US-047 refuses at or above the working-engineer limit before writing, and admits one below", () => {
+		const dir = scratch("fleet");
+		const agentsFile = join(dir, "agents.json");
+		const ticket = put(join(dir, "ticket.json"), JSON.stringify(boardAnswer([SONNET])));
+		const usage = put(join(dir, "usage.json"), JSON.stringify(usageView([row("anthropic", "sonnet", "usable")])));
+		const working = Array.from({ length: 9 }, (_, index) => ({
+			name: index === 0 ? null : `engineer-${index + 1}`,
+			pane_id: `w${index + 1}:p1`, workspace_id: `w${index + 1}`, agent_status: "working",
+		}));
+		const settled = ["idle", "done", "blocked", "unknown"].map((agent_status) => ({ name: agent_status, pane_id: "w0:p1", agent_status }));
+		const args = ["launch", "--item", "K-test", "--ticket-json", ticket, "--usage-json", usage, "--json"];
+		const env = { HERDR_TEST_AGENTS: agentsFile };
+		for (const [limit, count] of [[8, 8], [8, 9], [2, 2]]) {
+			put(agentsFile, JSON.stringify({ result: { agents: [...working.slice(0, count), ...settled] } }));
+			const state = join(dir, `refused-${limit}-${count}`);
+			const refused = invoke([...args, "--state-dir", state], { ...env, ...(limit === 8 ? {} : { OMP_ROSTER_ENGINEER_LIMIT: String(limit) }) });
+			expect([refused.exitCode, refused.stdout]).toEqual([5, ""]);
+			expect(refused.stderr).toBe(`omp-roster: working-engineer limit reached (${count}/${limit}); working: ${working.slice(0, count).map((agent) => agent.name ?? agent.pane_id).join(", ")}; queue work on the board.\n`);
+			expect(existsSync(state)).toBe(false);
+		}
+		put(agentsFile, JSON.stringify({ result: { agents: [...working.slice(0, 7), ...settled] } }));
+		const state = join(dir, "admitted");
+		const admitted = invoke([...args, "--state-dir", state], env);
+		expect([admitted.exitCode, admitted.stderr]).toEqual([0, ""]);
+		expect(existsSync(JSON.parse(admitted.stdout).overlay)).toBe(true);
+	});
+	test("US-047 fails closed on invalid limits or unreadable Herdr state for ticketless launches", () => {
+		const dir = scratch("fleet-unreadable");
+		const state = join(dir, "state");
+		const agents = join(dir, "agents.json");
+		const args = ["launch", "--model", "anthropic/claude-sonnet-5-5", "--thinking", "medium", "--state-dir", state];
+		for (const limit of ["0", "-1", "1.5", "", "9007199254740992"]) {
+			const refused = invoke(args, { OMP_ROSTER_ENGINEER_LIMIT: limit });
+			expect([refused.exitCode, refused.stdout]).toEqual([1, ""]);
+			expect(refused.stderr).toContain("OMP_ROSTER_ENGINEER_LIMIT must be a positive safe integer.");
+		}
+		for (const doc of ["not JSON", "{}", '{"result":{"agents":[{"agent_status":"new-status"}]}}', '{"result":{"agents":[{"agent_status":"working"}]}}']) {
+			put(agents, doc);
+			const refused = invoke(args, { HERDR_TEST_AGENTS: agents });
+			expect([refused.exitCode, refused.stdout]).toEqual([1, ""]);
+			expect(refused.stderr).toContain("Cannot read the Herdr agents:");
+			expect(refused.stderr.trim().split("\n")).toHaveLength(1);
+		}
+		put(agents, JSON.stringify({ result: { agents: Array.from({ length: 8 }, (_, i) => ({ name: `engineer-${i + 1}`, agent_status: "working" })) } }));
+		const full = invoke(args, { HERDR_TEST_AGENTS: agents });
+		expect([full.exitCode, full.stdout]).toEqual([5, ""]);
+		expect(existsSync(state)).toBe(false);
+	});
+
+
 	test("US-046 launches the first usable entry, reports what it skipped, and writes a roster-only overlay", () => {
 		const usage = usageView([
 			row("anthropic", "sonnet", "blocked", null, "pi"),
@@ -336,7 +390,7 @@ describe("omp-roster launch (US-046)", () => {
 		fake("board", "query items --item K-test --json", `cat "${bin}/answer.json"`);
 		fake("ai-usage", "dispatch --json", `cat "${bin}/usage.json"`);
 		const xdg = join(bin, "state-home");
-		const env = { PATH: `${bin}:${process.env.PATH}`, XDG_STATE_HOME: xdg };
+		const env = { PATH: `${bin}:${process.env.PATH}`, XDG_STATE_HOME: xdg, OMP_ROSTER_BOARD_BIN: "board" };
 
 		const out = JSON.parse(invoke(["launch", "--item", "K-test", "--json"], env).stdout);
 		expect(out.launch.selector).toBe("anthropic/claude-sonnet-5-5:medium");

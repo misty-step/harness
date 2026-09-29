@@ -56,6 +56,7 @@ const VERDICTS: Record<string, true> = { usable: true, low: true, exhausted: tru
 const ADVISOR_FILE = "__advisor";
 const EXHAUSTED = 3;
 const OFF_ROSTER = 4;
+const FLEET_FULL = 5;
 const READ_TIMEOUT_MS = 15_000;
 
 // `check` also excuses the designer (`vision` role) on Opus 5.5, which the subagent-inheritance
@@ -81,7 +82,7 @@ const USAGE = `Usage:
   omp-roster launch --item ID [--ticket-json FILE] [--usage-json FILE] [--state-dir DIR] [--harness omp] [--json]
   omp-roster launch --model provider/model --thinking effort [--usage-json FILE] [--state-dir DIR] [--json]
   omp-roster check --item ID --session DIR|FILE... [--ticket-json FILE] [--state-dir DIR] [--since ISO]
-Exit: 0 done, 1 refused or unreadable input, 2 usage, 3 roster exhausted, 4 turns off the roster or the roster changed`;
+Exit: 0 done, 1 refused or unreadable input, 2 usage, 3 roster exhausted, 4 turns off the roster or the roster changed, 5 working-engineer limit reached`;
 
 class CliError extends Error {
 	constructor(message: string, readonly exitCode = 1) {
@@ -134,6 +135,33 @@ function capture(name: string, args: string[]): { json: unknown; stderr: string;
 	catch { /* not JSON: the caller reports stderr */ }
 	return { json, stderr: plain(result.stderr.toString().trim().split("\n").at(-1) ?? ""), exitCode: result.exitCode ?? -1 };
 }
+// Session-wide: no workspace filter, no exclusion for the calling engineer.
+function enforceEngineerLimit(): void {
+	const configured = process.env.OMP_ROSTER_ENGINEER_LIMIT ?? "8";
+	if (!/^[1-9][0-9]*$/.test(configured) || !Number.isSafeInteger(Number(configured))) {
+		throw new CliError("OMP_ROSTER_ENGINEER_LIMIT must be a positive safe integer.");
+	}
+	const limit = Number(configured);
+	const answer = capture("herdr", ["agent", "list"]);
+	const result = isRecord(answer.json) ? answer.json.result : undefined;
+	if (answer.exitCode !== 0 || !isRecord(result) || !Array.isArray(result.agents)) {
+		throw new CliError(`Cannot read the Herdr agents: ${answer.stderr || "unrecognised agent list"}.`);
+	}
+	const working: string[] = [];
+	for (const agent of result.agents) {
+		if (!isRecord(agent) || !["working", "idle", "done", "blocked", "unknown"].includes(agent.agent_status as string)) {
+			throw new CliError("Cannot read the Herdr agents: unrecognised agent status.");
+		}
+		if (agent.agent_status !== "working") continue;
+		const name = plainOrNull(agent.name) ?? plainOrNull(agent.pane_id);
+		if (!name) throw new CliError("Cannot read the Herdr agents: a working agent has no name or pane id.");
+		working.push(name);
+	}
+	if (working.length >= limit) {
+		throw new CliError(`working-engineer limit reached (${working.length}/${limit}); working: ${working.join(", ")}; queue work on the board.`, FLEET_FULL);
+	}
+}
+
 
 // The board's answer document. With --ticket-json a file may hold that document or, for fixtures,
 // just the ticket. Returns the ticket, or null when the item has none.
@@ -351,6 +379,7 @@ function launchCommand(options: LaunchOptions & { item?: string; model?: string;
 		if (options["ticket-json"] !== undefined) throw new CliError("--ticket-json goes with --item; a launch with --model reads no ticket.", 2);
 		({ item, roster } = adhocRoster(options.model, options.thinking));
 	}
+	enforceEngineerLimit();
 	const { rows, freshness } = usageView(options["usage-json"]);
 	const sha = rosterSha(roster);
 	const skipped: Skip[] = [];
