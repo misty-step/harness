@@ -1,3 +1,9 @@
+# [0.1.63](https://github.com/misty-step/harness/compare/v0.1.62...v0.1.63) (2026-09-29)
+<!-- landmark:protected-release previous=v0.1.62 source=050f57d67ea4f6c0e9b7e0ebeb08b44720c29e3958bc840bf55859f0f4cb3f38 -->
+
+### Bug Fixes
+
+* **omp:** make credential awareness non-interrupting (MIS-161) ([0251673](https://github.com/misty-step/harness/commit/025167356a36a0753e6d28617563e09ae1e1f69e))
 # [0.1.62](https://github.com/misty-step/harness/compare/v0.1.61...v0.1.62) (2026-09-29)
 <!-- landmark:protected-release previous=v0.1.61 source=f9e5ae1e808119318726d02b85435a5286309e9177af0a447d86860797c30d2f -->
 
