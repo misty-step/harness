@@ -57,3 +57,22 @@ is at its weekly limit.
 
 Slots resolve an API key only from their own stored credential, never from
 the environment, so an unsigned slot is skipped rather than counted twice.
+
+## Result, 2026-09-29
+
+After the operator signed the personal Anthropic account into the isolated
+broker (one credential), a single Anthropic Messages request to the gateway
+(`POST 127.0.0.1:18772/v1/messages`, `anthropic/claude-haiku-4-5-20251001`,
+16 max tokens) returned HTTP 200 with `ok`; no 400 and no extra-usage
+refusal. `omp token anthropic --list` still showed OMP's three accounts. The
+call was a plain HTTP request to the gateway, so a Pi session has not yet
+been run through it: the gateway re-issues the request with OMP's client, so Pi's request shape
+is not what Anthropic saw.
+
+Smallest follow-up (not built): an `anthropic-pool` provider in `accounts` whose
+member streams a Pi `openai-completions`/Messages request to the gateway with
+the gateway bearer, plus lifting the Anthropic refusal in `failover` for that
+provider only, then one real Pi turn as the gate. Restart after reboot:
+`systemctl --user start omp-anthropic3-broker omp-anthropic3-gateway` if the
+units are persisted; they were created with `systemd-run` and are transient,
+so recreate them with the commands in this ADR's setup section.
