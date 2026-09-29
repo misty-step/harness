@@ -1,3 +1,9 @@
+# [0.1.75](https://github.com/misty-step/harness/compare/v0.1.74...v0.1.75) (2026-09-29)
+<!-- landmark:protected-release previous=v0.1.74 source=6f0aeede4ef884bd678146f673eb8d5d3720107902bb5cec4309feb2df2d831d -->
+
+### Features
+
+* **foundation:** the reviewing agent approves as kaylee-agent[bot]; CodeRabbit is advisory (US-027) (#169) ([d57543b](https://github.com/misty-step/harness/commit/d57543b157c7e301a6f2f0a36fa628633c05ad0f))
 # [0.1.74](https://github.com/misty-step/harness/compare/v0.1.73...v0.1.74) (2026-09-29)
 <!-- landmark:protected-release previous=v0.1.73 source=a394c2135e68f14c28dd9284c928edb2188b343806b9065d99a64d86cbc4c124 -->
 
