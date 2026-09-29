@@ -83,6 +83,35 @@ Evidence: `scripts/references.test.ts`,
 `agent-config/guidance/communication-and-verification.md`;
 disposable Pi and OMP installer smoke.
 
+## US-045 Open the exact review round from the board
+
+Statement: When an agent hands me work to review, I want the board to open that
+exact round and keep earlier rounds distinct, so I can review the right page
+without searching folders or exposing private text.
+
+Criteria:
+1. WHEN Pi or OMP composes global guidance, THE SYSTEM SHALL instruct every
+   agent handing Phaedrus work to review to publish each round as its own file
+   under `~/review` and never overwrite a published round.
+2. WHEN an agent registers a review round, THE SYSTEM SHALL direct it to use
+   `board review publish --item <board item id> --page <file under ~/review>`
+   with one specific page, never a folder.
+3. THE SYSTEM SHALL explain that publishing links the board item to the exact
+   page and marks earlier rounds old.
+4. THE SYSTEM SHALL require agents to keep private text, including pile words,
+   out of review pages and keep R90 data in R90's own tools.
+5. THE SYSTEM SHALL define `~/review` as storage only, with no index pages.
+6. IF the work has no board item yet, THEN THE SYSTEM SHALL instruct the agent
+   to ask Kaylee to add one first, then publish onto it.
+
+No-gos: no private text in review pages, folder links, overwritten rounds, or
+review index pages. The board owns publication and history; this story owns
+the shared instructions.
+
+Evidence: `agent-config/guidance/communication-and-verification.md`,
+`scripts/verify-installers`; inspect both consumers' composed guidance in
+disposable directories.
+
 ## US-023 Keep verification cadence useful
 
 Statement: When I plan repository checks, I want fast, risk-relevant pull
