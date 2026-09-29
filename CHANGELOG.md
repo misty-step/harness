@@ -1,3 +1,9 @@
+# [0.1.74](https://github.com/misty-step/harness/compare/v0.1.73...v0.1.74) (2026-09-29)
+<!-- landmark:protected-release previous=v0.1.73 source=a394c2135e68f14c28dd9284c928edb2188b343806b9065d99a64d86cbc4c124 -->
+
+### Features
+
+* **omp-roster:** enforce working-engineer fleet limit (US-047) (#170) ([a9406db](https://github.com/misty-step/harness/commit/a9406db07dca50fd25221ffc37464703b64356e1))
 # [0.1.73](https://github.com/misty-step/harness/compare/v0.1.72...v0.1.73) (2026-09-29)
 <!-- landmark:protected-release previous=v0.1.72 source=b3062869a142d821f9bd65b58bd32c7d1a75215385ca6a3c4e5fc1b14d43919b -->
 
