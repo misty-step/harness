@@ -63,6 +63,19 @@ owned directory. Remove only that directory once its process has ended.
 - `omp-config/bin/omp-task-usage.test.ts` checks price-weighted whole-tree cost,
   failed-task inclusion, unknown/unpriced evidence, split-task worker ownership,
   scope escape, malformed archives and content-free reporting (US-018).
+- `omp-config/bin/omp-roster.test.ts` runs a lone copy of the launcher against
+  fixture ticket and usage views, fake `board` and `ai-usage` commands, and
+  synthetic session files: first-usable launch with skip reasons, verdict and
+  degraded reporting, the printed `export` and arguments, exit 3 with nothing
+  written on an exhausted roster, exact roster-only overlay chains for the
+  engineer and helper roles (with a guard over every role and model-keyed chain
+  of the real `config.yml`), one overlay and one launch record per launch, refusals
+  of bad tickets and usage views, and off-roster turn and fallback reporting
+  judged per session file from its own launch record (a relaunch, two rosters, a
+  subagent with its session, roster changed, an unreadable board, `--since`, a
+  file with nothing judged, a half-written last line) with helper and designer turns on their approved
+  primaries, cash routes and prompt text handled (US-046). It makes no model
+  call; the forced-outage walk against real OMP is a recorded manual smoke.
 - `omp-config/extensions/credentials/credentials.test.ts` checks stable opt-in
   context, names-only default inventory, and no tool/prose-triggered interruption
   with a synthetic pass store (US-019). The [token-efficiency procedure](token-efficiency.md)
