@@ -20,10 +20,11 @@ state); let the code that owns the concern own the concern.
   delay is deliberately twice the stock 1 s (delays 2 s / 4 s / 8 s
   instead of 1 s / 2 s / 4 s), giving a Cerebras stockout 429 window a real
   chance to recover before the chain leaves.
-- `extensions/failover/` now walks `CHAIN`, an ordered constant in `index.ts`
-  (currently `openrouter/deepseek/deepseek-v4.1-flash` →
-  `openrouter/inception/mercury-2.5`; extend by editing the list and
-  redeploying). When a run that settled died on link
+- `extensions/failover/` walks `CHAIN`, an ordered constant in `index.ts`
+  (at this decision, `openrouter/deepseek/deepseek-v4.1-flash` →
+  `openrouter/inception/mercury-2.5`; the current subscription route is recorded
+  in the 2026-09-28 amendment below). Extend by editing the list and
+  redeploying. When a run that settled died on link
   *i*, the session moves to link *i+1*, warns, and waits for the user to
   re-send (ADR-011's no-resend rule stands). Strictly forward: one link per
   failed run, no flapping, no automatic return; a failure on the last link
@@ -56,3 +57,10 @@ only way to land on an earlier link is an explicit user selection (which
 resumes the walk forward from that link). The repo now owns
 `deepseek-v4.1-flash`'s `xhigh` thinking pin in `settings.json` (it had been
 a foreign live key — the ledger hole this closes).
+
+*Amended 2026-09-28:* the startup route and ordered chain now follow lower-spend
+subscription routing: Sonnet 5.5 medium → GPT-6 Sol xhigh → GPT-6 Luna max.
+The former paid DeepSeek/Mercury tail is retired; failures on explicitly
+selected Opus remain on Opus because it is not a chain member. See ADR-011's
+2026-09-28 amendment for the Pi-native authentication constraint and the
+unavailable Antigravity/Gemini subscription route.

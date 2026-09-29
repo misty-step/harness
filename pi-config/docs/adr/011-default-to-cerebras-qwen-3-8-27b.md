@@ -36,3 +36,22 @@ merges `settings.subscription.json` (default Opus 5.5 medium) only when
 the installer prints the login instruction. The chain gains the subscription
 links ahead of the paid ones; Grok is omitted because pi reaches it only with
 a paid API key.
+
+*Amended 2026-09-28:* lower-spend subscription routing replaces both the Opus
+startup default and the unauthenticated DeepSeek/Mercury route. `settings.json`
+now selects Sonnet 5.5 medium unconditionally, followed by Sol xhigh and Luna
+max on terminal model failure. The separate subscription overlay is removed;
+missing Pi-native Anthropic or Codex logins produce an installer instruction,
+not a paid default. Explicit Opus selection uses high thinking and has no
+cross-model recovery, preserving visual work on Opus. Grok is excluded from
+builder recovery. Pi 0.87.1 has no native Antigravity provider, so OMP's Gemini
+Flash subscription tail cannot be mirrored here without inventing a provider
+or switching to paid inference; Pi's chain ends at Luna. OMP credentials remain
+separate and are never copied into Pi.
+The failover extension also closes Pi's native unauthenticated-default escape:
+an input handler consumes prompts on unapproved model selections, and a
+provider-request handler aborts extension-originated turns before transport.
+Native compaction and branch summaries use separate cancellation hooks because
+their requests bypass the agent payload hook; plain navigation stays available.
+Thrown extension errors are not a guard because Pi catches them. The guard
+does not delete credentials or model catalog entries; it restricts agent turns.

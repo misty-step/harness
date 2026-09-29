@@ -3,14 +3,12 @@
 Before writing production UI code for anything with real design surface — a new surface, a
 reimagining, a flow change, or focused component/motion work — load `skill://design-studio`
 and run its loop: divergent named concepts across multiple dimensions, comparative critique,
-recombination, a state-by-state keep/cut/defer pass, then a spec handoff. Pair rendered
-before and after states with observed retained-task evidence (`gallery.py --check
---require-subtraction`); do not trade away required information for a lower word count.
-Do not present cosmetic-only changes as design work.
-One-line copy/color/size fixes do not need the loop; say plainly what changed.
-Design exploration never changes a live product or a locked requirement by itself.
-Generated mockups propose layout, typography, and hierarchy for breadth; UX, accessibility,
-and behavior need real HTML and rendered-state QA (`skill://visual-state-review`).
+recombination, then a short final subtraction pass cutting what does not earn its place. Show
+before and after before the spec handoff without trading away required information. One-line
+copy/color/size fixes do not need the loop; say plainly what changed. Design exploration never
+changes a live product or locked requirement by itself. Generated mockups propose layout,
+typography, and hierarchy for breadth; UX, accessibility, and behavior need real HTML and
+rendered-state QA (`skill://visual-state-review`).
 
 Before a design-surface change is called done, run the checks exercised in the design-toolkit
 trial. Deterministic copy checks: `bun ~/.local/bin/design-check <surface paths>` — the

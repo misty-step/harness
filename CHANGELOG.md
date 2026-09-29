@@ -1,3 +1,39 @@
+# [0.1.61](https://github.com/misty-step/harness/compare/v0.1.60...v0.1.61) (2026-09-29)
+<!-- landmark:protected-release previous=v0.1.60 source=6c6a8a9bb42af9aa1ceb313e6332ea5529827faa37ead6cd4ecd400b15fc4096 -->
+
+### Features
+
+* **pi:** add extra account slots for OpenAI Codex (US-045) (#140) ([6e284b7](https://github.com/misty-step/harness/commit/6e284b750b276a09dd1cebe34bca5cf4143d180b))
+# [0.1.60](https://github.com/misty-step/harness/compare/v0.1.59...v0.1.60) (2026-09-28)
+<!-- landmark:protected-release previous=v0.1.59 source=37685f53c109e73a2e8f9f0ccd90fc5a7452a1769d731c0562985257568dcdff -->
+
+### Features
+
+* **guidance:** codify taste, strategic design, and agile delivery (US-041) (#137) ([02a2d69](https://github.com/misty-step/harness/commit/02a2d69b228ba9d8d583129464f9f798681870a6))
+# [0.1.59](https://github.com/misty-step/harness/compare/v0.1.58...v0.1.59) (2026-09-28)
+<!-- landmark:protected-release previous=v0.1.58 source=76e74effe52f6ee1cd563dc2aa29082831cdf16f290bd6ced7289ea19708abe8 -->
+
+### Features
+
+* **routing:** lower subscription spend without downgrading visual work (#135) ([4d5378d](https://github.com/misty-step/harness/commit/4d5378d9fb5c0228dc74a9214a6ad5bb12f261cf))
+# [0.1.58](https://github.com/misty-step/harness/compare/v0.1.57...v0.1.58) (2026-09-28)
+<!-- landmark:protected-release previous=v0.1.57 source=847b62bed6052669578a93e4b1cd811c5b9d85de1fd64c38e026aee4af67a50f -->
+
+### Bug Fixes
+
+* **omp:** reject retired model routes (#133) ([725d476](https://github.com/misty-step/harness/commit/725d476fbbb050fce540398ad6560ed117013ac5))
+# [0.1.57](https://github.com/misty-step/harness/compare/v0.1.56...v0.1.57) (2026-09-28)
+<!-- landmark:protected-release previous=v0.1.56 source=ddef4dbddf44ed04f11acf879538c5f9021783df1bcb0e41b25868426224e82b -->
+
+### Bug Fixes
+
+* **harness:** narrow subtraction and keep visual floor (US-044, US-014) (#130) ([27280a9](https://github.com/misty-step/harness/commit/27280a984cf1bcf24af23bbacf21d33313c63021))
+# [0.1.56](https://github.com/misty-step/harness/compare/v0.1.55...v0.1.56) (2026-09-28)
+<!-- landmark:protected-release previous=v0.1.55 source=b5ad12d6c47af486bfa6e2ddcdd30bba292e9225e0f4e613264299e0cbb1f9a8 -->
+
+### Features
+
+* **omp:** focus Steward on the task victory (#127) ([44595ea](https://github.com/misty-step/harness/commit/44595eab7f4c42e5b26d20b2487bed469b84ecfa))
 # [0.1.55](https://github.com/misty-step/harness/compare/v0.1.54...v0.1.55) (2026-09-28)
 <!-- landmark:protected-release previous=v0.1.54 source=74d939ac268852b8de599582b6d349c0d3678925d0586d8524aa66d563b79f19 -->
 

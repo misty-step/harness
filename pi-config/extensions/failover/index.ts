@@ -21,33 +21,71 @@
  * user chose that is outside the chain. Removing this directory leaves
  * stock pi behavior (retry + compaction) intact.
  */
-import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { modelKey, nextInChain, runError, summarize } from "./decide.ts";
 
 /**
  * The fallback chain, in order; a failure advances from the current model's
- * link. Operator model policy (2026-09-25): Opus 5.5 first, then GPT-6 Sol and
- * Luna at max, then the existing paid OpenRouter recovery. Grok is last in the
- * policy and Pi reaches it only through a paid API key, so it is not a link.
- * The subscription links apply once Pi-native Anthropic and Codex logins are
- * ready and `./install` selects the Opus startup default; until then startup
- * is DeepSeek flash and a failure advances to mercury. Every link must be a
- * model the session can resolve and authenticate, with a modelThinkingLevels
- * entry so a switch keeps posture. Cerebras is out of the fleet (operator
- * 2026-09-18: too expensive). Extend by editing this list and redeploying
- * (ADR-013).
+ * link. Operator model policy (2026-09-28): Sonnet 5.5 medium, then GPT-6 Sol
+ * xhigh and Luna max through Pi-native subscription logins. Paid
+ * DeepSeek/Mercury recovery is retired; missing authentication never opts
+ * into a paid route. Opus is deliberately outside this chain, so explicitly
+ * selected visual work cannot fall through to a non-Opus model. Grok is
+ * read-only recovery only and is not a builder link. Pi has no native
+ * Antigravity provider, so OMP's Gemini subscription tail is not available.
+ * Each link has a modelThinkingLevels entry in settings.json (ADR-011/013).
  */
 const CHAIN = [
-	"anthropic/claude-opus-5-5",
+	"anthropic/claude-sonnet-5-5",
 	"openai-codex/gpt-6-sol",
 	"openai-codex/gpt-6-luna",
-	"openrouter/deepseek/deepseek-v4.1-flash",
-	"openrouter/inception/mercury-2.5",
 ];
+
+const subscription = [...CHAIN, "anthropic/claude-opus-5-5", "openai-codex/gpt-6-astra"];
+/**
+ * Extra Codex logins from extensions/accounts (ADR-024) run the same approved
+ * models. Listed rather than pattern-matched, so an unlisted or custom
+ * provider id stays refused. Slots sit outside CHAIN: a failure on a slot the
+ * user chose does not move the session.
+ */
+const ACCOUNT_SLOTS = ["openai-codex-2", "openai-codex-3", "openai-codex-4"];
+const approved = [
+	...subscription,
+	...subscription
+		.filter((key) => key.startsWith("openai-codex/"))
+		.flatMap((key) => ACCOUNT_SLOTS.map((slot) => `${slot}/${key.slice("openai-codex/".length)}`)),
+];
+const blockedRoute = "Model policy: select an approved subscription model and sign in with /login; paid startup fallback is disabled.";
+
+function allowsInference(ctx: ExtensionContext) {
+	if (approved.includes(modelKey(ctx.model))) return true;
+	ctx.ui.notify(blockedRoute, "error");
+	if (!ctx.hasUI) console.error(blockedRoute);
+	return false;
+}
 
 export default function (pi: ExtensionAPI) {
 	let hadError = false;
 	let errorText = "";
+
+	// Pi may skip an unauthenticated default and pick any authenticated
+	// provider. Consume input before that implicit selection can spend.
+	pi.on("input", (_event, ctx) => {
+		if (allowsInference(ctx)) return;
+		return { action: "handled" };
+	});
+	// Extension-originated agent requests also carry the native abort signal.
+	// Throwing here would fail open: Pi catches provider-hook exceptions.
+	pi.on("before_provider_request", (_event, ctx) => {
+		if (!allowsInference(ctx)) ctx.abort();
+	});
+	// Native summaries bypass both input and the agent payload hook.
+	pi.on("session_before_compact", (_event, ctx) => {
+		if (!allowsInference(ctx)) return { cancel: true };
+	});
+	pi.on("session_before_tree", (event, ctx) => {
+		if (event.preparation.userWantsSummary && !allowsInference(ctx)) return { cancel: true };
+	});
 
 	pi.on("agent_end", async (event) => {
 		const error = runError((event as { messages?: unknown })?.messages);

@@ -46,6 +46,7 @@ function overlay(source: Yaml, live: Yaml): Yaml {
 function pruneRetiredKeys(source: Yaml, merged: Yaml): void {
 	// Retire only these owned leaves; other live-only config remains foreign.
 	const paths = [
+		["providers", "tinyModel"],
 		["modelRoles", "designer"],
 		["task", "agentModelOverrides", "designer"],
 		["retry", "fallbackChains", "slow"],
