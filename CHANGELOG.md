@@ -1,3 +1,9 @@
+# [0.1.61](https://github.com/misty-step/harness/compare/v0.1.60...v0.1.61) (2026-09-29)
+<!-- landmark:protected-release previous=v0.1.60 source=6c6a8a9bb42af9aa1ceb313e6332ea5529827faa37ead6cd4ecd400b15fc4096 -->
+
+### Features
+
+* **pi:** add extra account slots for OpenAI Codex (US-045) (#140) ([6e284b7](https://github.com/misty-step/harness/commit/6e284b750b276a09dd1cebe34bca5cf4143d180b))
 # [0.1.60](https://github.com/misty-step/harness/compare/v0.1.59...v0.1.60) (2026-09-28)
 <!-- landmark:protected-release previous=v0.1.59 source=37685f53c109e73a2e8f9f0ccd90fc5a7452a1769d731c0562985257568dcdff -->
 
