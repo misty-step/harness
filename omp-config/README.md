@@ -901,10 +901,17 @@ only that roster and stops it when the roster runs out. It extends the
 approved routing of US-014, makes no model call, and installs as the single
 file `~/.local/bin/omp-roster`, like `omp-grievances`.
 
+A launch with no ticket goes through the same tool: `--model provider/model
+--thinking effort` (no `--item`) builds a one-entry roster, so the engineer stops
+when that model fails instead of hopping to Gemini. See "Launch without a
+ticket" below.
+
 ```sh
 omp-roster launch --item K-20260929-example --json
 omp-roster launch --item K-20260929-example    # prints: export PI_CONFIG_FILES=…, then --model … --thinking … --config …
+omp-roster launch --model anthropic/claude-sonnet-5-5 --thinking medium --json   # no ticket: one route
 omp-roster check --item K-20260929-example --session ~/.omp/agent/sessions/<cwd>/<session>.jsonl
+omp-roster check --item adhoc-anthropic-claude-sonnet-5-5-20260929T190130Z --session <dir>   # id from the launch
 ```
 
 `launch [--ticket-json FILE] [--usage-json FILE] [--state-dir DIR] [--harness omp] [--json]`:
@@ -1034,6 +1041,33 @@ no engineer session file, or a line that is not JSON, must not pass); 2 usage
 error; 3 roster exhausted; 4 a turn or fallback switch left the roster, or the
 roster changed since launch.
 
+Launch without a ticket. `launch --model provider/model --thinking effort
+[--usage-json FILE] [--state-dir DIR] [--json]` (no `--item`) makes a roster of that
+one entry and runs the ticketed path on it: the approved-model, effort, cash-route
+and ai-usage checks, exit 3 with the reason and nothing written when the route is
+exhausted, blocked, unknown or a cash route, and otherwise the same overlay, launch
+record, `PI_CONFIG_FILES` line and `--json` shape (`launch`, `overlay`, `record`,
+`env`, `args`, `usage`). No board call is made. The launch gets a synthetic id
+`adhoc-<provider>-<model>-<yyyymmddThhmmssZ>` (the model's slash becomes a dash, so
+it names files safely), which is what `check --item` takes. With one route, the
+engineer's chains and the model's own chain are empty, so the engineer stops with
+the provider's error when its model fails. A helper keeps its US-014 primary and can
+recover only onto that one route (for a Sonnet launch, the Luna, Sol and Astra
+helpers may hop to Sonnet and never to Gemini or Grok). Refused with a plain sentence
+and nothing written: `--item` together with `--model` or `--thinking` (exit 2);
+neither `--item` nor `--model` with `--thinking` (exit 2); `--model` with a `:effort`
+suffix or without a provider (exit 2, give the effort with `--thinking`); an
+unapproved model or an effort it lacks (exit 1); `--ticket-json` (exit 2, it goes
+with `--item`). A board item id cannot start with `adhoc-`.
+
+`check --item adhoc-…` reads only the launch records for that id from the state dir
+and refuses with a plain sentence when there is none; it reads no board (a fake
+`board` that fails on any call is part of the test), reports no `roster changed`
+finding because there is no board roster, and judges as usual: each file against
+the newest record at or before its start (a file before every record against the
+earliest, and the report says so), `--since`, helper and designer primaries, cash
+always a violation.
+
 Helper roles. The overlay writes `modelRoles` only for `default`, `slow`, `task`
 and `extreme`. `advisor`, `plan`, `reviewer`, `security-reviewer`, `smol`,
 `tiny` and `commit` keep the primaries `config.yml` gives them (US-014: the
@@ -1060,13 +1094,14 @@ hop onto the roster. Without Opus on the roster the designer stays on its
 Opus-only route and `check` does not flag it.
 
 What the guarantee does not cover. It holds for an engineer launched through
-`omp-roster launch` on a ticket that has a roster, with the printed arguments and
-`PI_CONFIG_FILES` exported. It does not hold for:
+`omp-roster launch`, with a ticket's roster or with `--model`, and with the printed
+arguments and `PI_CONFIG_FILES` exported. It does not hold for:
 
-- an item with no ticket or no roster, a Pi lane, and any `omp` not launched
-  through `launch` (including one an engineer starts without inheriting the
-  environment): those still use the deployed `config.yml` chains, whose builder
-  chains end at Gemini 3.8 Flash;
+- a Pi lane, and any `omp` not launched through `omp-roster launch` (including one
+  an engineer starts without inheriting the environment): those still use the
+  deployed `config.yml` chains, whose builder chains end at Gemini 3.8 Flash. An
+  item with no ticket is covered only if it is launched with `--model` and
+  `--thinking`; a bare `omp` on it is not;
 - a model key that is not on the roster: OMP consults model keys before role
   keys, so a model-keyed chain in `config.yml` (today only Opus 5.5, `[]`) or in a
   project's `.omp/config.yml` would still apply; this is why the guard above
@@ -1091,6 +1126,17 @@ overlay spawning a scout, with `PI_CONFIG_FILES` exported and `--config` given t
 same file) put the scout on its Luna primary; Codex was exhausted, so it hopped to
 Sol and then Sonnet, never Gemini, and `check` was clean. The chain precedence
 above is the behavior of that version: re-run the smoke after an OMP upgrade.
+
+Launch without a ticket, same day and version. `omp-roster launch --model
+openai-codex/gpt-6-sol --thinking medium` exited 3 ("exhausted, 5h 0%, weekly 53%;
+resets 2026-09-29T19:42:20Z") and wrote nothing. `launch --model
+anthropic/claude-sonnet-5-5 --thinking medium --json` wrote an overlay and a launch
+record, and `omp -p` with its arguments and `PI_CONFIG_FILES` answered on Sonnet
+only; `check --item adhoc-anthropic-claude-sonnet-5-5-<time>` was clean. The
+contrast control, `omp -p --model openai-codex/gpt-6-sol` with no overlay, hopped
+Sol to Luna to Gemini 3.8 Flash (`model_change` records with
+`resolvedModelIsFallback: true`), and `check` against a Sol-only launch record
+exited 4 with two off-roster turns and two off-roster switches.
 
 ### Evaluations are work records
 

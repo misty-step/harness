@@ -74,8 +74,11 @@ owned directory. Remove only that directory once its process has ended.
   judged per session file from its own launch record (a relaunch, two rosters, a
   subagent with its session, roster changed, an unreadable board, `--since`, a
   file with nothing judged, a half-written last line) with helper and designer turns on their approved
-  primaries, cash routes and prompt text handled (US-046). It makes no model
-  call; the forced-outage walk against real OMP is a recorded manual smoke.
+  primaries, cash routes and prompt text handled, and a launch without a ticket
+  (`--model` and `--thinking`: refusals, exit 3 with nothing written, a one-route
+  overlay and record, `check` on an `adhoc-` id, with a `board` that fails if run)
+  (US-046). It makes no model call; the forced-outage walk against real OMP is a
+  recorded manual smoke.
 - `omp-config/extensions/credentials/credentials.test.ts` checks stable opt-in
   context, names-only default inventory, and no tool/prose-triggered interruption
   with a synthetic pass store (US-019). The [token-efficiency procedure](token-efficiency.md)

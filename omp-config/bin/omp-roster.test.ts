@@ -732,3 +732,197 @@ describe("omp-roster check (US-046)", () => {
 		}
 	});
 });
+
+describe("omp-roster without a ticket (US-046)", () => {
+	const solUsable = usageView([row("openai-codex", "gpt-6-sol", "usable"), row("anthropic", "sonnet", "usable")]);
+	const usageFile = (dir: string, view: unknown) => put(join(dir, "usage.json"), JSON.stringify(view));
+	// A `board` that fails the test if anything runs it: a launch with --model reads no board.
+	const noBoard = (dir: string) => {
+		const bin = join(dir, "bin");
+		mkdirSync(bin, { recursive: true });
+		writeFileSync(join(bin, "board"), `#!/bin/sh\necho "board was run: $*" > "${dir}/board-was-run"\nexit 1\n`, { mode: 0o755 });
+		return { PATH: `${bin}:${process.env.PATH}` };
+	};
+	const adhoc = (dir: string, args: string[], view: unknown = solUsable) =>
+		invoke(["launch", ...args, "--usage-json", usageFile(dir, view), "--state-dir", join(dir, "state")], noBoard(dir));
+
+	test("US-046 a launch with --model and --thinking writes a one-route overlay under a synthetic id and reads no board", () => {
+		const dir = scratch("adhoc");
+		const before = Date.now();
+		const run = adhoc(dir, ["--model", "anthropic/claude-sonnet-5-5", "--thinking", "medium", "--json"]);
+		expect([run.exitCode, run.stderr]).toEqual([0, ""]);
+		const out = JSON.parse(run.stdout);
+		expect(out.item).toMatch(/^adhoc-anthropic-claude-sonnet-5-5-\d{8}T\d{6}Z$/);
+		expect(out.launch).toEqual({ provider: "anthropic", model: "claude-sonnet-5-5", effort: "medium", selector: "anthropic/claude-sonnet-5-5:medium", verdict: "usable" });
+		expect(out.args).toEqual(["--model", "anthropic/claude-sonnet-5-5", "--thinking", "medium", "--config", out.overlay]);
+		expect(out.env).toEqual({ PI_CONFIG_FILES: out.overlay });
+		expect(out.skipped).toEqual([]);
+		expect(out.usage).toEqual({ degraded: false, degraded_reason: null, oldest_observation: null, stale_after_seconds: null });
+		expect(out.overlay).toMatch(new RegExp(`^${join(dir, "state", out.item)}\\.[0-9a-f]{8}\\.yml$`));
+
+		// One route: the engineer's chains and the launch model's own are empty, so that model failing stops it. A
+		// helper keeps its primary and may recover only onto this one route (empty when the primary is that model).
+		const sonnet = "anthropic/claude-sonnet-5-5:medium";
+		expect(Bun.YAML.parse(readFileSync(out.overlay, "utf8"))).toEqual({
+			modelRoles: pinnedTo(sonnet),
+			retry: { fallbackChains: { "anthropic/claude-sonnet-5-5": [], ...chainsOf([], [sonnet]) } },
+		});
+		const record = JSON.parse(readFileSync(out.record, "utf8"));
+		expect(record).toMatchObject({ item: out.item, roster: [{ provider: "anthropic", model: "claude-sonnet-5-5", effort: "medium" }], launch: sonnet, overlay: out.overlay });
+		expect(Date.parse(record.launched_at)).toBeGreaterThanOrEqual(before);
+		expect(readdirSync(join(dir, "state")).sort()).toEqual([basename(out.overlay), basename(out.record), `${out.item}.launch.json`].sort());
+		expect(existsSync(join(dir, "board-was-run"))).toBe(false);
+	});
+
+	test("US-046 a launch without --item prints the export line and arguments, and warns on a low route", () => {
+		const dir = scratch("adhoc-plain");
+		const run = adhoc(dir, ["--model", "openai-codex/gpt-6-sol", "--thinking", "xhigh"], usageView([row("openai-codex", "gpt-6-sol", "low")]));
+		expect(run.exitCode).toBe(0);
+		const [exportLine, argsLine] = run.stdout.trim().split("\n");
+		const overlay = exportLine.replace("export PI_CONFIG_FILES=", "");
+		expect(overlay).toMatch(/\/adhoc-openai-codex-gpt-6-sol-\d{8}T\d{6}Z\.[0-9a-f]{8}\.yml$/);
+		expect(argsLine).toBe(`--model openai-codex/gpt-6-sol --thinking xhigh --config ${overlay}`);
+		expect(run.stderr).toBe("warning: openai-codex/gpt-6-sol:xhigh is low on capacity and may run out soon\n");
+	});
+
+	test("US-046 a route that cannot launch exits 3 with the reason and writes nothing", () => {
+		const cases: [string, string, unknown, RegExp][] = [
+			["exhausted", "openai-codex/gpt-6-sol", usageView([row("openai-codex", "gpt-6-sol", "exhausted", "2026-09-29T19:42:20Z")]), /exhausted, exhausted in the fixture; resets 2026-09-29T19:42:20Z/],
+			["blocked", "openai-codex/gpt-6-sol", usageView([row("openai-codex", "gpt-6-sol", "blocked")]), /blocked, blocked in the fixture/],
+			["unknown", "openai-codex/gpt-6-sol", usageView([row("openai-codex", "gpt-6-sol", "unknown")]), /unknown, unknown in the fixture/],
+			["no row", "openai-codex/gpt-6-sol", usageView([row("anthropic", "sonnet", "usable")]), /ai-usage has no omp row for openai-codex\/gpt-6-sol/],
+			["a model with no ai-usage row at all", "google-antigravity/gemini-3.8-flash", solUsable, /ai-usage has no row for google-antigravity\/gemini-3.8-flash/],
+			["a cash route", "openrouter/deepseek/deepseek-v4.1-flash", solUsable, /cash route: a per-ticket cash cap is not built yet/],
+		];
+		for (const [name, model, view, sentence] of cases) {
+			const dir = scratch("adhoc-exhausted");
+			const run = adhoc(dir, ["--model", model, "--thinking", "medium"], view);
+			expect([name, run.exitCode, run.stdout]).toEqual([name, 3, ""]);
+			expect([name, run.stderr]).toEqual([name, expect.stringMatching(/roster exhausted for adhoc-/)]);
+			expect([name, run.stderr]).toEqual([name, expect.stringMatching(sentence)]);
+			expect([name, existsSync(join(dir, "state"))]).toEqual([name, false]);
+		}
+		const dir = scratch("adhoc-exhausted-json");
+		const json = adhoc(dir, ["--model", "openai-codex/gpt-6-sol", "--thinking", "medium", "--json"], usageView([row("openai-codex", "gpt-6-sol", "exhausted")]));
+		expect(json.exitCode).toBe(3);
+		expect(JSON.parse(json.stdout)).toMatchObject({ launch: null, skipped: [{ selector: "openai-codex/gpt-6-sol:medium", verdict: "exhausted" }] });
+	});
+
+	test("US-046 a launch without a ticket refuses flags that do not fit, an unapproved model and an effort suffix, and writes nothing", () => {
+		const dir = scratch("adhoc-refused");
+		const ticket = put(join(dir, "t.json"), JSON.stringify(boardAnswer([SOL])));
+		const cases: [string, string[], number, RegExp][] = [
+			["--item with --model", ["--item", "K-test", "--model", "openai-codex/gpt-6-sol", "--thinking", "medium"], 2, /do not give --model or --thinking with it/],
+			["--item with --thinking", ["--item", "K-test", "--thinking", "medium"], 2, /do not give --model or --thinking with it/],
+			["neither --item nor --model", [], 2, /needs both --model provider\/model and --thinking effort/],
+			["--model alone", ["--model", "openai-codex/gpt-6-sol"], 2, /needs both --model provider\/model and --thinking effort/],
+			["--thinking alone", ["--thinking", "medium"], 2, /needs both --model provider\/model and --thinking effort/],
+			["an effort suffix", ["--model", "openai-codex/gpt-6-sol:medium", "--thinking", "medium"], 2, /no effort suffix; give the effort with --thinking, not openai-codex\/gpt-6-sol:medium/],
+			["a model without a provider", ["--model", "gpt-6-sol", "--thinking", "medium"], 2, /--model needs provider\/model, not gpt-6-sol/],
+			["an unapproved model", ["--model", "anthropic/claude-haiku-4", "--thinking", "low"], 1, /anthropic\/claude-haiku-4\) is not on the approved model list/],
+			["an effort the model lacks", ["--model", "google-antigravity/gemini-3.8-flash", "--thinking", "xhigh"], 1, /effort xhigh, which google-antigravity\/gemini-3.8-flash does not support/],
+			["--ticket-json", ["--model", "openai-codex/gpt-6-sol", "--thinking", "medium", "--ticket-json", ticket], 2, /--ticket-json goes with --item/],
+			["a board item named for a launch without a ticket", ["--item", "adhoc-anything"], 2, /cannot start with "adhoc-"/],
+		];
+		for (const [name, args, code, sentence] of cases) {
+			const run = adhoc(dir, args);
+			expect([name, run.exitCode, run.stdout]).toEqual([name, code, ""]);
+			expect([name, run.stderr]).toEqual([name, expect.stringMatching(sentence)]);
+			expect([name, existsSync(join(dir, "state"))]).toEqual([name, false]);
+		}
+		expect(existsSync(join(dir, "board-was-run"))).toBe(false);
+	});
+
+	describe("check", () => {
+		// Sessions are stamped from one base time; launch runs a moment after it, so every post-launch stamp is
+		// at least ten seconds later and no test races the clock.
+		const base = Date.now();
+		const iso = (offsetMs: number) => new Date(base + offsetMs).toISOString();
+		let seq = 0;
+		const said = (at: string, provider: string, model: string) =>
+			({ type: "message", id: `a${++seq}`, parentId: null, timestamp: at, message: { role: "assistant", provider, model, stopReason: "stop", content: [] } });
+		const switched = (at: string, model: string) => ({ type: "model_change", id: `c${++seq}`, parentId: null, timestamp: at, model, resolvedModelIsFallback: true });
+		const opened = (at: string) => ({ type: "session", id: `s${++seq}`, timestamp: at });
+		const jsonl = (path: string, records: unknown[]) => put(path, `${records.map((record) => JSON.stringify(record)).join("\n")}\n`);
+		const launchedOn = (dir: string, model: string, effort: string) => {
+			const run = adhoc(dir, ["--model", model, "--thinking", effort, "--json"]);
+			expect(run.exitCode).toBe(0);
+			return JSON.parse(run.stdout) as { item: string; record: string };
+		};
+		const checkAdhoc = (dir: string, item: string, ...args: string[]) =>
+			invoke(["check", "--item", item, "--state-dir", join(dir, "state"), ...args], noBoard(dir));
+
+		test("US-046 check on an adhoc id judges against the recorded one-route roster, with no board and no roster-changed finding", () => {
+			const dir = scratch("adhoc-check");
+			const { item, record } = launchedOn(dir, "anthropic/claude-sonnet-5-5", "medium");
+			const clean = jsonl(join(dir, "sessions", "Clean.jsonl"), [opened(iso(10_000)), said(iso(11_000), "anthropic", "claude-sonnet-5-5"), said(iso(12_000), "anthropic", "claude-sonnet-5-5")]);
+			const ok = checkAdhoc(dir, item, "--session", clean);
+			expect([ok.exitCode, ok.stderr]).toEqual([0, ""]);
+			expect(ok.stdout).toContain("launch records: 1");
+			expect(ok.stdout).toContain(`judged against launch record ${record} (launched `);
+			expect(ok.stdout).toContain("roster: 1 anthropic/claude-sonnet-5-5:medium");
+			expect(ok.stdout).toContain("turns on the roster: 2");
+			expect(ok.stdout).not.toContain("roster changed");
+			expect(ok.stdout).toContain("clean: every checked turn ran on the roster");
+
+			// A hop off the one route is a violation, in the turns and in the switch record.
+			const hopped = jsonl(join(dir, "sessions", "Hopped.jsonl"), [
+				opened(iso(10_000)), said(iso(11_000), "openai-codex", "gpt-6-sol"), switched(iso(11_500), "openai-codex/gpt-6-luna"), said(iso(12_000), "openai-codex", "gpt-6-luna"),
+			]);
+			const bad = checkAdhoc(dir, item, "--session", hopped);
+			expect(bad.exitCode).toBe(4);
+			expect(bad.stdout).toContain(`${hopped} openai-codex/gpt-6-sol off roster: 1 turn(s)`);
+			expect(bad.stdout).toContain("switched to openai-codex/gpt-6-luna (off roster)");
+			expect(bad.stdout).toContain("NOT CLEAN: 2 turn(s) and 1 fallback switch(es) off the roster.");
+			expect(existsSync(join(dir, "board-was-run"))).toBe(false);
+		});
+
+		test("US-046 check on an adhoc id keeps the designer exemption, the cash rule, --since and the earliest-record fallback", () => {
+			const dir = scratch("adhoc-check-rules");
+			const { item } = launchedOn(dir, "anthropic/claude-sonnet-5-5", "medium");
+			const main = jsonl(join(dir, "sessions", "Main.jsonl"), [opened(iso(10_000)), said(iso(11_000), "anthropic", "claude-sonnet-5-5")]);
+			jsonl(join(dir, "sessions", "Main", "Designer.jsonl"), [
+				{ type: "session_init", id: "i1", timestamp: iso(11_100), agent: "designer", modelRole: "vision" }, said(iso(11_200), "anthropic", "claude-opus-5-5"),
+			]);
+			jsonl(join(dir, "sessions", "Main", "Scout.jsonl"), [
+				{ type: "session_init", id: "i2", timestamp: iso(11_100), agent: "scout", modelRole: "smol" }, said(iso(11_200), "openai-codex", "gpt-6-luna"),
+			]);
+			const ok = checkAdhoc(dir, item, "--session", main);
+			expect(ok.exitCode).toBe(0);
+			expect(ok.stdout).toContain("2 helper turn(s) in 2 file(s) ran on their role's approved primary");
+
+			// A session that started before the launch is judged against the earliest record, and the report says why.
+			const early = jsonl(join(dir, "sessions", "Early.jsonl"), [opened(iso(-3_600_000)), said(iso(-3_500_000), "anthropic", "claude-sonnet-5-5")]);
+			const older = checkAdhoc(dir, item, "--session", early);
+			expect(older.exitCode).toBe(0);
+			expect(older.stdout).toContain("judged against the earliest launch record");
+			expect(older.stdout).toContain("because no record is at or before this file started");
+
+			const cash = jsonl(join(dir, "sessions", "Cash.jsonl"), [
+				opened(iso(10_000)), switched(iso(20_000), "openrouter/deepseek/deepseek-v4.1-flash"), said(iso(30_000), "openrouter", "deepseek/deepseek-v4.1-flash"),
+			]);
+			const spent = checkAdhoc(dir, item, "--session", cash);
+			expect(spent.exitCode).toBe(4);
+			expect(spent.stdout).toContain("switched to openrouter/deepseek/deepseek-v4.1-flash (off roster)");
+			expect(spent.stdout).toContain("NOT CLEAN: 1 turn(s) and 1 fallback switch(es) off the roster.");
+			const narrowed = checkAdhoc(dir, item, "--session", cash, "--since", iso(25_000));
+			expect(narrowed.exitCode).toBe(4);
+			expect(narrowed.stdout).toContain("fallback switches: 0");
+			expect(narrowed.stdout).toContain("openrouter/deepseek/deepseek-v4.1-flash off roster: 1 turn(s)");
+		});
+
+		test("US-046 check on an adhoc id with no record or with a ticket file is refused with one sentence, and no board is run", () => {
+			const dir = scratch("adhoc-check-refused");
+			const { item } = launchedOn(dir, "anthropic/claude-sonnet-5-5", "medium");
+			const session = jsonl(join(dir, "sessions", "S.jsonl"), [opened(iso(10_000)), said(iso(11_000), "anthropic", "claude-sonnet-5-5")]);
+			const other = checkAdhoc(dir, "adhoc-anthropic-claude-sonnet-5-5-20200101T000000Z", "--session", session);
+			expect([other.exitCode, other.stdout]).toEqual([1, ""]);
+			expect(other.stderr).toMatch(/^omp-roster: No launch record for adhoc-anthropic-claude-sonnet-5-5-20200101T000000Z in /);
+			expect(other.stderr.trim().split("\n").length).toBe(1);
+			const ticket = checkAdhoc(dir, item, "--session", session, "--ticket-json", put(join(dir, "t.json"), "{}"));
+			expect([ticket.exitCode, ticket.stdout]).toEqual([2, ""]);
+			expect(ticket.stderr).toContain("an adhoc- launch reads no ticket");
+			expect(existsSync(join(dir, "board-was-run"))).toBe(false);
+		});
+	});
+});

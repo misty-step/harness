@@ -71,6 +71,7 @@ type CheckOptions = { "ticket-json"?: string; "state-dir"?: string; since?: stri
 
 const USAGE = `Usage:
   omp-roster launch --item ID [--ticket-json FILE] [--usage-json FILE] [--state-dir DIR] [--harness omp] [--json]
+  omp-roster launch --model provider/model --thinking effort [--usage-json FILE] [--state-dir DIR] [--json]
   omp-roster check --item ID --session DIR|FILE... [--ticket-json FILE] [--state-dir DIR] [--since ISO]
 Exit: 0 done, 1 refused or unreadable input, 2 usage, 3 roster exhausted, 4 turns off the roster or the roster changed`;
 
@@ -292,11 +293,41 @@ function launchRecords(dir: string, item: string): LaunchRecord[] {
 	return readdirSync(dir).filter((file) => name.test(file)).sort().map((file) => readLaunchRecord(join(dir, file), item)).sort((a, b) => a.at - b.at);
 }
 
-function launchCommand(item: string, options: LaunchOptions): number {
+// A launch without a ticket has no board roster, so its synthetic id says so and `check` reads no board.
+const ADHOC_PREFIX = "adhoc-";
+
+function adhocRoster(model: string | undefined, thinking: string | undefined): { item: string; roster: Entry[] } {
+	if (model === undefined || thinking === undefined) {
+		throw new CliError(`A launch without --item needs both --model provider/model and --thinking effort.\n${USAGE}`, 2);
+	}
+	if (model.includes(":")) throw new CliError(`--model takes provider/model with no effort suffix; give the effort with --thinking, not ${plain(model)}.`, 2);
+	const slash = model.indexOf("/");
+	if (slash <= 0 || slash === model.length - 1) throw new CliError(`--model needs provider/model, not ${plain(model)}.`, 2);
+	const entry = { provider: model.slice(0, slash), model: model.slice(slash + 1), effort: thinking };
+	const roster = rosterOf({ roster: [entry] }, "the --model launch");
+	const stamp = new Date().toISOString().replace(/[-:]/g, "").replace(/\.\d+Z$/, "Z");
+	const item = `${ADHOC_PREFIX}${entry.provider}-${entry.model.replaceAll("/", "-")}-${stamp}`;
+	if (!/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/.test(item)) throw new CliError(`Cannot name a launch for ${plain(model)}.`);
+	return { item, roster };
+}
+
+function launchCommand(options: LaunchOptions & { item?: string; model?: string; thinking?: string }): number {
 	if ((options.harness ?? "omp") !== "omp") {
 		throw new CliError("Only --harness omp enforces a ticket roster; Pi enforcement is a later slice.");
 	}
-	const roster = rosterOf(ticketOf(item, options["ticket-json"]), item);
+	let item: string;
+	let roster: Entry[];
+	if (options.item !== undefined) {
+		if (options.model !== undefined || options.thinking !== undefined) {
+			throw new CliError("--item takes its model from the ticket's roster; do not give --model or --thinking with it.", 2);
+		}
+		item = itemOf(options.item);
+		if (item.startsWith(ADHOC_PREFIX)) throw new CliError(`Board item ids cannot start with "${ADHOC_PREFIX}": that prefix names a launch without a ticket.`, 2);
+		roster = rosterOf(ticketOf(item, options["ticket-json"]), item);
+	} else {
+		if (options["ticket-json"] !== undefined) throw new CliError("--ticket-json goes with --item; a launch with --model reads no ticket.", 2);
+		({ item, roster } = adhocRoster(options.model, options.thinking));
+	}
 	const { rows, freshness } = usageView(options["usage-json"]);
 	const sha = rosterSha(roster);
 	const skipped: Skip[] = [];
@@ -422,10 +453,15 @@ function checkCommand(item: string, paths: string[], options: CheckOptions): num
 	const since = options.since ?? null;
 	if (since !== null && Number.isNaN(Date.parse(since))) throw new CliError(`--since needs an ISO-8601 time, not ${plain(since)}.`, 2);
 	const sinceMs = since === null ? null : Date.parse(since);
+	const adhoc = item.startsWith(ADHOC_PREFIX);
+	if (adhoc && options["ticket-json"] !== undefined) throw new CliError("--ticket-json goes with a board item; an adhoc- launch reads no ticket.", 2);
 	const launches = launchRecords(stateDir(options["state-dir"]), item);
+	if (adhoc && launches.length === 0) {
+		throw new CliError(`No launch record for ${item} in ${stateDir(options["state-dir"])}: a launch without a ticket is checked only against what \`omp-roster launch --model\` recorded.`);
+	}
 	let current: Entry[] | null = null;
 	let unreadable = "";
-	try { current = rosterOf(ticketOf(item, options["ticket-json"]), item); }
+	try { if (!adhoc) current = rosterOf(ticketOf(item, options["ticket-json"]), item); }
 	catch (error) {
 		// With a launch record the engineer's roster is known, so a board that cannot answer is a
 		// finding, not a reason to stop. Without one there is nothing to judge against.
@@ -459,7 +495,7 @@ function checkCommand(item: string, paths: string[], options: CheckOptions): num
 			const heading = record
 				? `judged against launch record ${record.path} (launched ${record.launched_at}; roster: ${rosterText(roster)})`
 				: used
-					? `judged against the earliest launch record ${used.path} because the board's roster could not be read (roster: ${rosterText(roster)})`
+					? `judged against the earliest launch record ${used.path} because ${adhoc ? "no record is at or before this file started" : "the board's roster could not be read"} (roster: ${rosterText(roster)})`
 					: "judged against the ticket's current roster (no launch record at or before these files started)";
 			basis = { heading, roster, position, record, files: [] };
 			bases.set(id, basis);
@@ -480,8 +516,9 @@ function checkCommand(item: string, paths: string[], options: CheckOptions): num
 	for (const entry of plan) if (entry.start !== null && (newest === null || entry.start >= (newest.start as number))) newest = entry;
 	const reference = newest?.basis ?? basisFor(null);
 
+	// A launch without a ticket has no board roster to have changed.
 	let changedLine: string | null = null;
-	if (launches.length > 0) {
+	if (launches.length > 0 && !adhoc) {
 		if (current === null) changedLine = `roster changed since launch: the board's roster could not be read (${unreadable})`;
 		else if (newest?.basis.record && rosterSha(newest.basis.record.roster) !== rosterSha(current)) {
 			changedLine = `roster changed since launch: the board now has roster_sha256 ${rosterSha(current)}`;
@@ -595,11 +632,12 @@ function run(argv: string[]): number {
 			options: {
 				item: { type: "string" }, "ticket-json": { type: "string" }, "usage-json": { type: "string" },
 				"state-dir": { type: "string" }, harness: { type: "string" }, json: { type: "boolean" }, help: { type: "boolean", short: "h" },
+				model: { type: "string" }, thinking: { type: "string" },
 			},
 			strict: true,
 		});
 		if (values.help) { console.log(USAGE); return 0; }
-		return launchCommand(itemOf(values.item), values);
+		return launchCommand(values);
 	}
 	if (command === "check") {
 		const { values, positionals } = parseArgs({
