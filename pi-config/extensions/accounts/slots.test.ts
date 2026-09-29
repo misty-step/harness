@@ -24,8 +24,8 @@ test("a slot's models resolve to the slot's own login while requests are built a
 	expect(built).toEqual(["openai-codex", "openai-codex"]);
 });
 
-test("US-045 an API-key slot resolves only its own stored key, never the base's ambient key", async () => {
-	const base = { id: "openrouter", name: "OpenRouter", auth: { apiKey: { name: "k", resolve: async () => ({ auth: { apiKey: "ambient" } }) } }, getModels: () => [] } as unknown as Provider;
+test("US-045 an API-key slot (even of a provider that also offers OAuth) resolves only its own stored key, never the base's ambient key", async () => {
+	const base = { id: "openrouter", name: "OpenRouter", auth: { oauth: {}, apiKey: { name: "k", resolve: async () => ({ auth: { apiKey: "ambient" } }) } }, getModels: () => [] } as unknown as Provider;
 	const slot = cloneProvider(base, "openrouter-2");
 	const resolve = slot.auth.apiKey!.resolve;
 	expect(await resolve({ credential: undefined } as never)).toBeUndefined();

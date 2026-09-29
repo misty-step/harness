@@ -28,7 +28,7 @@ export function poolMembers(baseId: string): string[] {
  * are built as the base provider, because pi-ai keys protocol handling such as
  * Codex tool-call ids on the provider id; the credential is already resolved
  * by then. The slot lists the catalog bundled with the installed Pi release.
- * An API-key slot resolves only its own stored key, never the ambient
+ * A slot resolves an API key only from its own stored credential, never the ambient
  * environment the base reads, so it cannot double-count the base account.
  */
 export function cloneProvider(base: Provider, id: string): Provider {
@@ -39,7 +39,8 @@ export function cloneProvider(base: Provider, id: string): Provider {
 		...base,
 		id,
 		name: `${base.name} (account ${suffix})`,
-		auth: base.auth.oauth || !apiKey ? base.auth : {
+		auth: !apiKey ? base.auth : {
+			...base.auth,
 			apiKey: {
 				...apiKey,
 				resolve: async ({ credential }) => credential?.key
