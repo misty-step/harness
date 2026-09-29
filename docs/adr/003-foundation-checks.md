@@ -183,7 +183,10 @@ effect with the catalog and checker change that cites ADR-006.
   but the gate could not be re-run, because review events cannot trigger it and
   the old check result would keep standing. r90group ordinary PRs never had an
   independent-approver check, since the recorded-decision path returns first,
-  and that is unchanged.
+  and that is unchanged. Known limit, open: a PR that changes a binary file or a
+  submodule has no supported review path, because `agent-review` cannot see its
+  contents and the gate accepts no other approver; it blocks until the operator
+  decides how such content is to be reviewed (fail-closed by choice).
 
 ## Enforcement by plan
 
