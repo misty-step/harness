@@ -22,6 +22,7 @@ permissions:
 jobs:
   foundation-review:
     runs-on: ubuntu-24.04
+    timeout-minutes: 10
     env:
       HARNESS_SHA: "0000000000000000000000000000000000000000"
       BUN_URL: https://github.com/oven-sh/bun/releases/download/bun-v1.4.2/bun-linux-x64-baseline.zip

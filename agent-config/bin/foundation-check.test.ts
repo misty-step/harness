@@ -1216,7 +1216,7 @@ describe("foundation-check review gate (US-027)", () => {
 		expect(result.output.reasons).toEqual(["surfaces: foundation.json stops declaring an application (ADR-005)"]);
 	});
 
-	test("ordinary PRs need independent review and mapped source citations, not a designated-review trigger", async () => {
+	test("ordinary PRs need the agent reviewer's approval and mapped source citations, not a designated-review trigger", async () => {
 		const repo = fixture("gate-quiet");
 		const base = exec(repo, ["rev-parse", "HEAD"]);
 		put(repo, "src/nested/journey.ts", "export const result = 2;\n");
@@ -1230,13 +1230,19 @@ describe("foundation-check review gate (US-027)", () => {
 		opened(base, head, "engineer", "Stories: US-001");
 		reviews = [said("engineer", head)];
 		expect((await gate(repo)).output.errors.join("\n")).toContain("FND-REV-001");
-		reviews = [said("teammate", base)];
-		expect((await gate(repo)).status).toBe(1);
+		// Another person's approval never stands in for the agent reviewer's, and a wrong-commit approval is stale.
 		reviews = [said("teammate", head)];
+		expect((await gate(repo)).output.errors.join("\n")).toContain("FND-REV-001");
+		reviews = [said(agent, base)];
+		expect((await gate(repo)).status).toBe(1);
+		// The agent reviewer's latest change request stands even when a second person approves.
+		reviews = [said(agent, head), said(agent, head, "CHANGES_REQUESTED"), said("teammate", head)];
+		expect((await gate(repo)).status).toBe(1);
+		reviews = [said(agent, head, "CHANGES_REQUESTED"), said(agent, head)];
 		const result = await gate(repo);
 		expect(result.status).toBe(0);
 		expect(result.output.reasons).toEqual([]);
-		expect(result.output.approved_by).toBe("teammate");
+		expect(result.output.approved_by).toBe(agent);
 		expect(calls.some((path) => path.endsWith("/reviews"))).toBe(true);
 	});
 
@@ -1249,7 +1255,7 @@ describe("foundation-check review gate (US-027)", () => {
 		put(repo, "src/nested/journey.ts", "export const result = 4;\n");
 		commit(repo, "mapped source");
 		const head = exec(repo, ["rev-parse", "HEAD"]);
-		reviews = [said("teammate", head)];
+		reviews = [said(agent, head)];
 		opened(base, head, "engineer", "Stories: US-001");
 		exec(repo, ["checkout", "-q", base]); // review runs from the trusted base, not PR files
 		expect((await gate(repo)).output.errors.join("\n")).toContain("must cite mapped source story US-004");
@@ -1266,7 +1272,7 @@ describe("foundation-check review gate (US-027)", () => {
 		put(repo, "features/journey.md", feature.replace("Source: src/**", "Source: lib/**"));
 		commit(repo, "move map away from changed source");
 		const head = exec(repo, ["rev-parse", "HEAD"]);
-		reviews = [said("teammate", head)];
+		reviews = [said(agent, head)];
 		opened(base, head);
 		expect((await gate(repo)).output.errors.join("\n")).toContain("must cite mapped source story US-001");
 		opened(base, head, "engineer", "Stories: US-001");
@@ -1274,13 +1280,13 @@ describe("foundation-check review gate (US-027)", () => {
 		put(repo, "USER_STORIES.md", `# Stories\n\n${liveStory.replace("show the result", "display the result")}${retiredStory}${headingRetiredStory}`);
 		commit(repo, "edit story criterion");
 		const storyHead = exec(repo, ["rev-parse", "HEAD"]);
-		reviews = [said("teammate", storyHead)];
+		reviews = [said(agent, storyHead)];
 		opened(head, storyHead);
 		expect((await gate(repo)).status).toBe(0);
 		put(repo, "features/journey.md", `${readFileSync(join(repo, "features/journey.md"), "utf8")}\nClarified journey.\n`);
 		commit(repo, "clarify feature guidance");
 		const featureHead = exec(repo, ["rev-parse", "HEAD"]);
-		reviews = [said("teammate", featureHead)];
+		reviews = [said(agent, featureHead)];
 		opened(storyHead, featureHead);
 		expect((await gate(repo)).status).toBe(0);
 	});
@@ -1292,7 +1298,7 @@ describe("foundation-check review gate (US-027)", () => {
 		exec(repo, ["rm", "features/journey.md"]);
 		commit(repo, "remove map while changing source");
 		const head = exec(repo, ["rev-parse", "HEAD"]);
-		reviews = [said("teammate", head)];
+		reviews = [said(agent, head)];
 		opened(base, head);
 		exec(repo, ["checkout", "-q", base]);
 		expect((await gate(repo)).output.errors.join("\n")).toContain("must cite mapped source story US-001");
@@ -1310,7 +1316,7 @@ describe("foundation-check review gate (US-027)", () => {
 		put(repo, "features/journey.md", feature.replace("Source: src/**", "Source: lib/**"));
 		commit(repo, "rename mapped source and remap feature");
 		const head = exec(repo, ["rev-parse", "HEAD"]);
-		reviews = [said("teammate", head)];
+		reviews = [said(agent, head)];
 		opened(base, head);
 		exec(repo, ["checkout", "-q", base]);
 		expect((await gate(repo)).output.errors.join("\n")).toContain("must cite mapped source story US-001");

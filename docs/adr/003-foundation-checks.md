@@ -153,17 +153,18 @@ effect with the catalog and checker change that cites ADR-006.
   reviewing agent runs `agent-review --repo misty-step/NAME --pr N`
   (`agent-config/bin/agent-review.ts`, under `pass-env` with
   `KAYLEE_GITHUB_APP_ID` and `KAYLEE_GITHUB_APP_PEM`). A fresh model session
-  (Sol, no tools, no session) sees the diff only and returns a JSON verdict; the
+  (Sol, no tools, no session) sees the PR title, description and diff only and returns a JSON verdict; the
   App approves the exact head when it is `correct` with no priority 0 or 1
   finding, else requests changes, then toggles the `agent-reviewed` label so the
   base branch's `foundation-review` re-runs. A model failure, an unusable
   verdict, an oversized diff (a partial diff is not a review), a head that moved
   during the review, or a PR the App authored posts nothing: no approval is ever
-  a fallback. The checker needed no change, because an approving review from the
-  App on the head already satisfies FND-REV-001. What the gate trusts is that
-  approval, and so the reviewer's judgement of the diff alone; a persuasive diff
-  can sway a model, and the approval says nothing about code the diff does not
-  show. CodeRabbit is advisory everywhere: it reports `success` even when it
+  a fallback. In an organisation with a reviewer App, FND-REV-001 now counts only
+  that App's approval of the head: another person's approval does not, and the
+  App's latest change request stands. What the gate trusts is that approval, and
+  so the reviewer's judgement of the title, description and diff alone; a
+  persuasive PR can sway a model, and the approval says nothing about code the
+  diff does not show. CodeRabbit is advisory everywhere: it reports `success` even when it
   reviewed nothing (rate limited or skipped on 49 of 119 recent merged heads,
   2026-09-29), so it never gates. r90group has no reviewer App and free-plan
   private repositories cannot enforce rules, so its checks stay advisory and

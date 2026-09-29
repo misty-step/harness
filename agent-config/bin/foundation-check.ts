@@ -1527,12 +1527,11 @@ async function review(options: Options): Promise<Result> {
 	if (reasons.length > 0 && escalation >= 0 && !(approved && decision!.index > escalation && states(decision!.entry, resolutionMarker))) {
 		errors.push(`escalated to the operator on head ${head.slice(0, 12)}; needs a later approving review from ${agent} that records the operator's decision and opens with "${resolutionMarker}" as its exact first line`);
 	} else if (reasons.length > 0 && !approved) errors.push(`needs an approving review from the designated agent reviewer ${agent} on head ${head.slice(0, 12)}`);
-	// GitHub authenticates the reviewer and head, but not the substance of the review against constitution, ledger and story.
-	const latest = new Map<string, Record<string, unknown>>();
-	for (const entry of reviews) if (reviewer(entry) && ["APPROVED", "CHANGES_REQUESTED", "DISMISSED"].includes(String(entry.state))) latest.set(reviewer(entry), entry);
-	const independent = [...latest.values()].find((entry) => reviewer(entry) !== author && entry.state === "APPROVED" && entry.commit_id === head);
-	if (!independent) errors.push(`FND-REV-001: needs an approving review on head ${head.slice(0, 12)} from someone other than ${author}`);
-	return { ok: errors.length === 0, errors, reasons, approved_by: errors.length === 0 ? (reasons.length > 0 ? agent : reviewer(independent!)) : undefined };
+	// FND-REV-001: on an organisation with a reviewer App, the independent review is that App's approval of this head
+	// (`agent-review`, ADR-003). Anyone else's approval does not count, and the App's latest change request stands, so a
+	// second approver cannot outvote the model review. GitHub authenticates the reviewer and head, not the judgement.
+	if (reasons.length === 0 && !approved) errors.push(`FND-REV-001: needs an approving review from the designated agent reviewer ${agent} on head ${head.slice(0, 12)} (run agent-review --repo ${org}/${name} --pr ${options.pr})`);
+	return { ok: errors.length === 0, errors, reasons, approved_by: errors.length === 0 ? agent : undefined };
 }
 function print(result: Result, json: boolean, command: Command): void {
 	if (json) { console.log(JSON.stringify(result)); return; }

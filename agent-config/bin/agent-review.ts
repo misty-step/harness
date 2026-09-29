@@ -11,7 +11,7 @@
  *   agent-review --repo misty-step/NAME --pr N
  *
  * 1. Reads the PR head and diff through the App's installation token.
- * 2. Runs a fresh model process (`omp -p`, no session, no tools) on the diff alone and asks for a JSON verdict.
+ * 2. Runs a fresh model process (`omp -p`, no session, no tools) on the PR title, description and diff, and asks for a JSON verdict.
  * 3. Approves the exact head SHA when the verdict is `correct` with no priority 0 or 1 finding; otherwise
  *    requests changes. An unusable verdict, an oversized diff, a moved head, or a model outage posts nothing:
  *    no approval is ever a fallback.
@@ -124,7 +124,7 @@ async function installationToken(repo: string): Promise<string> {
 }
 
 function body(verdict: Verdict, head: string): string {
-	const lines = [`${passes(verdict) ? "agent-review: approved" : "agent-review: changes requested"} ${head}`, "", `Reviewer: ${MODEL} (${THINKING}), a fresh session that saw the diff only.`, "", verdict.explanation.trim()];
+	const lines = [`${passes(verdict) ? "agent-review: approved" : "agent-review: changes requested"} ${head}`, "", `Reviewer: ${MODEL} (${THINKING}), a fresh session that saw the PR title, description and diff only.`, "", verdict.explanation.trim()];
 	for (const finding of verdict.findings) lines.push("", `- **P${finding.priority}** ${finding.title}: ${finding.body.trim()}`);
 	return lines.join("\n").slice(0, 60_000);
 }
