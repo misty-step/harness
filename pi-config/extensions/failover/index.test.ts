@@ -28,10 +28,11 @@ test("US-014 refuses unapproved prompts and summaries while preserving approved 
 		expect(handlers.input({ text: "x", source: "interactive" }, ctx)).toEqual({ action: "handled" });
 	}
 	for (const model of [
-		{ provider: "openai-pool", id: "gpt-6-astra" },
+		{ provider: "openai-pool", id: "gpt-6.1-sol" },
 		{ provider: "xai-pool", id: "grok-4.7" },
 		{ provider: "openrouter-pool", id: "~openai/gpt-astra-latest" },
 		{ provider: "openai-codex", id: "gpt-6-astra" },
+		{ provider: "openai-codex", id: "gpt-6.1-sol" },
 		{ provider: "xai", id: "grok-4.7" },
 		{ provider: "openrouter", id: "~openai/gpt-astra-latest" },
 	]) {
@@ -41,8 +42,10 @@ test("US-014 refuses unapproved prompts and summaries while preserving approved 
 	}
 	// US-045: a listed account slot runs its base's approved models; a custom
 	// provider that merely looks like a slot stays refused.
-	ctx.model = { provider: "openai-codex-2", id: "gpt-6-sol" };
+	ctx.model = { provider: "openai-codex-2", id: "gpt-6.1-sol" };
 	expect(handlers.input({ text: "Build the feature", source: "interactive" }, ctx)).toBeUndefined();
-	ctx.model = { provider: "openai-codex-9", id: "gpt-6-sol" };
+	ctx.model = { provider: "openai-codex-9", id: "gpt-6.1-sol" };
+	expect(handlers.input({ text: "Build the feature", source: "interactive" }, ctx)).toEqual({ action: "handled" });
+	ctx.model = { provider: "openai-codex", id: "gpt-6-sol" };
 	expect(handlers.input({ text: "Build the feature", source: "interactive" }, ctx)).toEqual({ action: "handled" });
 });

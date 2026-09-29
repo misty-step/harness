@@ -16,7 +16,7 @@ or authority. Honor explicit review stops.
 Infer routine details from context and evidence. Skills inform judgment, not
 scope; preserve existing functionality and avoid unrelated churn.
 
-Model policy (operator, 2026-09-28), approved subscription routes only:
+Model policy (operator, 2026-09-29), approved subscription routes only:
 Sonnet 5.5 medium handles ordinary work and orchestration (`default` and
 `@task`); `@slow` selects Sonnet high and `@extreme` Opus 5.5 xhigh.
 Anything visual goes to Opus: `vision` and the `designer` agent at high,
@@ -27,10 +27,10 @@ fail closed during an Anthropic outage. Visual, motion, UX and communications
 work must start on Opus and stop rather than change models on an outage.
 The configured Opus primary also fails closed in main sessions, at every
 effort. This does not repair a session that already fell back to another
-model. Direct selections use `@plan` and `security-reviewer` at Astra medium,
-`reviewer` at Sol xhigh, `@advisor` at Sonnet 5.5 medium, and `@smol`,
-`@tiny`, `@commit`, `scout`, and `sonic` at Luna max. Ordinary OMP `task`
-tool children use their configured agent model and thinking, not the live
+model. Direct selections use `@plan`, `reviewer` and `security-reviewer`
+at GPT-6.1 Sol xhigh; Astra requires explicit selection. `@advisor` uses Sonnet
+5.5 medium; `@smol`, `@tiny`, `@commit`, `scout`, and `sonic` use Luna max.
+Ordinary OMP `task` children use their configured agent model and thinking, not the live
 parent's selection; tagged model agents (`^` then `m1`, `m2`, …) and per-item
 `effort` remain explicit overrides. `designer` retains an Opus 5.5 high
 minimum: non-Opus parents and Opus parents below high select Opus high;

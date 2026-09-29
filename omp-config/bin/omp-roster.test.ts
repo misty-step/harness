@@ -18,21 +18,22 @@ beforeAll(() => {
 afterAll(() => rmSync(root, { recursive: true, force: true }));
 
 type Entry = { provider: string; model: string; effort: string };
-const SOL: Entry = { provider: "openai-codex", model: "gpt-6-sol", effort: "medium" };
+const SOL: Entry = { provider: "openai-codex", model: "gpt-6.1-sol", effort: "high" };
 const SONNET: Entry = { provider: "anthropic", model: "claude-sonnet-5-5", effort: "medium" };
 const OPUS: Entry = { provider: "anthropic", model: "claude-opus-5-5", effort: "xhigh" };
 const GROK: Entry = { provider: "xai-oauth", model: "grok-4.7", effort: "high" };
 const GEMINI: Entry = { provider: "google-antigravity", model: "gemini-3.8-flash", effort: "high" };
 const CASH: Entry = { provider: "openrouter", model: "deepseek/deepseek-v4.1-flash", effort: "medium" };
+const OLD_SOL: Entry = { provider: "openai-codex", model: "gpt-6-sol", effort: "medium" };
 
 // The overlay writes modelRoles for these four only. Helper roles keep their US-014 primaries
 // (also in config.yml, and checked against it below) and get roster-only recovery chains.
 const ENGINEER = ["default", "slow", "task", "extreme"];
 const PRIMARY: Record<string, string> = {
 	advisor: "anthropic/claude-sonnet-5-5",
-	plan: "openai-codex/gpt-6-astra",
-	reviewer: "openai-codex/gpt-6-sol",
-	"security-reviewer": "openai-codex/gpt-6-astra",
+	plan: "openai-codex/gpt-6.1-sol",
+	reviewer: "openai-codex/gpt-6.1-sol",
+	"security-reviewer": "openai-codex/gpt-6.1-sol",
 	smol: "openai-codex/gpt-6-luna",
 	tiny: "openai-codex/gpt-6-luna",
 	commit: "openai-codex/gpt-6-luna",
@@ -96,7 +97,7 @@ describe("omp-roster launch (US-046)", () => {
 	test("US-046 launches the first usable entry, reports what it skipped, and writes a roster-only overlay", () => {
 		const usage = usageView([
 			row("anthropic", "sonnet", "blocked", null, "pi"),
-			row("openai-codex", "gpt-6-sol", "exhausted", "2026-09-29T19:42:20Z"),
+			row("openai-codex", "gpt-6.1-sol", "exhausted", "2026-09-29T19:42:20Z"),
 			row("openrouter", "metered", "usable", null, "any"),
 			row("xai", "grok", "unknown", null, "any"),
 			row("anthropic", "sonnet", "usable"),
@@ -114,14 +115,14 @@ describe("omp-roster launch (US-046)", () => {
 		expect(out.env).toEqual({ PI_CONFIG_FILES: overlay });
 		expect(out.args).toEqual(["--model", "anthropic/claude-sonnet-5-5", "--thinking", "medium", "--config", overlay]);
 		expect(out.skipped).toEqual([
-			{ selector: "openai-codex/gpt-6-sol:medium", verdict: "exhausted", reason: "exhausted in the fixture", next_reset: "2026-09-29T19:42:20Z" },
+			{ selector: "openai-codex/gpt-6.1-sol:high", verdict: "exhausted", reason: "exhausted in the fixture", next_reset: "2026-09-29T19:42:20Z" },
 			{ selector: "openrouter/deepseek/deepseek-v4.1-flash:medium", verdict: null, reason: "cash route: a per-ticket cash cap is not built yet", next_reset: null },
 			{ selector: "xai-oauth/grok-4.7:high", verdict: "unknown", reason: "unknown in the fixture", next_reset: null },
 		]);
 		expect(out.roster_sha256).toMatch(/^[0-9a-f]{64}$/);
 
 		const sonnet = "anthropic/claude-sonnet-5-5:medium";
-		const sol = "openai-codex/gpt-6-sol:medium";
+		const sol = "openai-codex/gpt-6.1-sol:high";
 		const grok = "xai-oauth/grok-4.7:high";
 		const opus = "anthropic/claude-opus-5-5:xhigh";
 		const notSonnet = [sol, grok, opus];
@@ -129,7 +130,7 @@ describe("omp-roster launch (US-046)", () => {
 			modelRoles: pinnedTo(sonnet),
 			retry: {
 				fallbackChains: {
-					"openai-codex/gpt-6-sol": [grok, sonnet, opus],
+					"openai-codex/gpt-6.1-sol": [grok, sonnet, opus],
 					"xai-oauth/grok-4.7": [sol, sonnet, opus],
 					"anthropic/claude-sonnet-5-5": [sol, grok, opus],
 					"anthropic/claude-opus-5-5": [sol, grok, sonnet],
@@ -142,20 +143,20 @@ describe("omp-roster launch (US-046)", () => {
 	});
 
 	test("US-046 only usable and low routes launch; blocked, exhausted, unknown and unlisted routes are skipped", () => {
-		const solUsable = row("openai-codex", "gpt-6-sol", "usable");
+		const solUsable = row("openai-codex", "gpt-6.1-sol", "usable");
 		const cases: [string, Entry[], unknown[], string][] = [
 			["usable", [SONNET, SOL], [row("anthropic", "sonnet", "usable"), solUsable], "claude-sonnet-5-5"],
 			["low", [SONNET, SOL], [row("anthropic", "sonnet", "low"), solUsable], "claude-sonnet-5-5"],
-			["exhausted", [SONNET, SOL], [row("anthropic", "sonnet", "exhausted"), solUsable], "gpt-6-sol"],
-			["blocked", [SONNET, SOL], [row("anthropic", "sonnet", "blocked"), solUsable], "gpt-6-sol"],
-			["unknown", [SONNET, SOL], [row("anthropic", "sonnet", "unknown"), solUsable], "gpt-6-sol"],
-			["only a Pi row", [SONNET, SOL], [row("anthropic", "sonnet", "usable", null, "pi"), solUsable], "gpt-6-sol"],
+			["exhausted", [SONNET, SOL], [row("anthropic", "sonnet", "exhausted"), solUsable], "gpt-6.1-sol"],
+			["blocked", [SONNET, SOL], [row("anthropic", "sonnet", "blocked"), solUsable], "gpt-6.1-sol"],
+			["unknown", [SONNET, SOL], [row("anthropic", "sonnet", "unknown"), solUsable], "gpt-6.1-sol"],
+			["only a Pi row", [SONNET, SOL], [row("anthropic", "sonnet", "usable", null, "pi"), solUsable], "gpt-6.1-sol"],
 			["an any-harness row", [GROK, SOL], [row("xai", "grok", "usable", null, "any"), solUsable], "grok-4.7"],
-			["an omp row over a usable any row", [SONNET, SOL], [row("anthropic", "sonnet", "exhausted"), row("anthropic", "sonnet", "usable", null, "any"), solUsable], "gpt-6-sol"],
+			["an omp row over a usable any row", [SONNET, SOL], [row("anthropic", "sonnet", "exhausted"), row("anthropic", "sonnet", "usable", null, "any"), solUsable], "gpt-6.1-sol"],
 			["an omp row over an exhausted any row", [SONNET, SOL], [row("anthropic", "sonnet", "usable"), row("anthropic", "sonnet", "exhausted", null, "any"), solUsable], "claude-sonnet-5-5"],
-			["two omp rows, the blocked one first", [SONNET, SOL], [row("anthropic", "sonnet", "blocked"), row("anthropic", "sonnet", "usable"), solUsable], "gpt-6-sol"],
-			["two omp rows, the blocked one last", [SONNET, SOL], [row("anthropic", "sonnet", "usable"), row("anthropic", "sonnet", "blocked"), solUsable], "gpt-6-sol"],
-			["no ai-usage row for Gemini", [GEMINI, SOL], [solUsable], "gpt-6-sol"],
+			["two omp rows, the blocked one first", [SONNET, SOL], [row("anthropic", "sonnet", "blocked"), row("anthropic", "sonnet", "usable"), solUsable], "gpt-6.1-sol"],
+			["two omp rows, the blocked one last", [SONNET, SOL], [row("anthropic", "sonnet", "usable"), row("anthropic", "sonnet", "blocked"), solUsable], "gpt-6.1-sol"],
+			["no ai-usage row for Gemini", [GEMINI, SOL], [solUsable], "gpt-6.1-sol"],
 		];
 		for (const [name, roster, rollup, model] of cases) {
 			const run = launch(boardAnswer(roster), usageView(rollup), "--json");
@@ -186,7 +187,7 @@ describe("omp-roster launch (US-046)", () => {
 		const state = join(dir, "state dir's");
 		const run = invoke([
 			"launch", "--item", "K-test", "--ticket-json", put(join(dir, "t.json"), JSON.stringify(boardAnswer([SOL, SONNET]))),
-			"--usage-json", put(join(dir, "u.json"), JSON.stringify(usageView([row("openai-codex", "gpt-6-sol", "exhausted"), row("anthropic", "sonnet", "usable")]))),
+			"--usage-json", put(join(dir, "u.json"), JSON.stringify(usageView([row("openai-codex", "gpt-6.1-sol", "exhausted"), row("anthropic", "sonnet", "usable")]))),
 			"--state-dir", state,
 		]);
 		expect(run.exitCode).toBe(0);
@@ -197,14 +198,14 @@ describe("omp-roster launch (US-046)", () => {
 			`--model anthropic/claude-sonnet-5-5 --thinking medium --config ${quoted}`,
 			"",
 		]);
-		expect(run.stderr).toBe("skipped openai-codex/gpt-6-sol:medium: exhausted, exhausted in the fixture; reset time unknown\n");
+		expect(run.stderr).toBe("skipped openai-codex/gpt-6.1-sol:high: exhausted, exhausted in the fixture; reset time unknown\n");
 	});
 
 	test("US-046 an exhausted roster prints no JSON without --json, and a relative XDG_STATE_HOME is ignored", () => {
 		const dir = scratch("exhausted");
 		const ticket = put(join(dir, "t.json"), JSON.stringify(boardAnswer([SOL])));
-		const exhausted = put(join(dir, "u.json"), JSON.stringify(usageView([row("openai-codex", "gpt-6-sol", "exhausted")])));
-		const usable = put(join(dir, "u2.json"), JSON.stringify(usageView([row("openai-codex", "gpt-6-sol", "usable")])));
+		const exhausted = put(join(dir, "u.json"), JSON.stringify(usageView([row("openai-codex", "gpt-6.1-sol", "exhausted")])));
+		const usable = put(join(dir, "u2.json"), JSON.stringify(usageView([row("openai-codex", "gpt-6.1-sol", "usable")])));
 		const none = invoke(["launch", "--item", "K-test", "--ticket-json", ticket, "--usage-json", exhausted]);
 		expect([none.exitCode, none.stdout]).toEqual([3, ""]);
 
@@ -223,7 +224,7 @@ describe("omp-roster launch (US-046)", () => {
 	test("US-046 launch writes one overlay and one record per launch, keeps a copy of the latest, and a relaunch leaves earlier files alone", () => {
 		const dir = scratch("record");
 		const state = join(dir, "state");
-		const usage = put(join(dir, "u.json"), JSON.stringify(usageView([row("openai-codex", "gpt-6-sol", "usable"), row("anthropic", "sonnet", "usable")])));
+		const usage = put(join(dir, "u.json"), JSON.stringify(usageView([row("openai-codex", "gpt-6.1-sol", "usable"), row("anthropic", "sonnet", "usable")])));
 		const go = (roster: Entry[]) => {
 			const run = invoke(["launch", "--item", "K-test", "--ticket-json", put(join(dir, "t.json"), JSON.stringify(boardAnswer(roster))), "--usage-json", usage, "--state-dir", state, "--json"]);
 			expect(run.exitCode).toBe(0);
@@ -236,7 +237,7 @@ describe("omp-roster launch (US-046)", () => {
 		const kept = readFileSync(first.overlay, "utf8");
 		const record = JSON.parse(readFileSync(first.record, "utf8"));
 		expect(first.record).toBe(join(state, `K-test.${digestOf(first.overlay)}.launch.json`));
-		expect(record).toMatchObject({ item: "K-test", roster: [SOL, SONNET], roster_sha256: first.roster_sha256, launch: "openai-codex/gpt-6-sol:medium", overlay: first.overlay });
+		expect(record).toMatchObject({ item: "K-test", roster: [SOL, SONNET], roster_sha256: first.roster_sha256, launch: "openai-codex/gpt-6.1-sol:high", overlay: first.overlay });
 		expect(Date.parse(record.launched_at)).toBeGreaterThanOrEqual(before);
 		expect(statSync(first.record).mode & 0o777).toBe(0o600);
 		expect(readFileSync(latest, "utf8")).toBe(readFileSync(first.record, "utf8"));
@@ -264,12 +265,12 @@ describe("omp-roster launch (US-046)", () => {
 	});
 
 	test("US-046 an exhausted roster exits 3 with every reason and reset, and writes nothing", () => {
-		const usage = usageView([row("openai-codex", "gpt-6-sol", "exhausted", "2026-09-29T19:42:20Z")]);
+		const usage = usageView([row("openai-codex", "gpt-6.1-sol", "exhausted", "2026-09-29T19:42:20Z")]);
 		const run = launch(boardAnswer([SOL, CASH]), usage, "--json");
 
 		expect(run.exitCode).toBe(3);
 		expect(run.stderr).toContain("roster exhausted for K-test");
-		expect(run.stderr).toContain("openai-codex/gpt-6-sol:medium: exhausted, exhausted in the fixture; resets 2026-09-29T19:42:20Z");
+		expect(run.stderr).toContain("openai-codex/gpt-6.1-sol:high: exhausted, exhausted in the fixture; resets 2026-09-29T19:42:20Z");
 		expect(run.stderr).toContain("openrouter/deepseek/deepseek-v4.1-flash:medium: cash route: a per-ticket cash cap is not built yet");
 		expect(JSON.parse(run.stdout)).toMatchObject({ item: "K-test", launch: null, skipped: [{ verdict: "exhausted" }, { verdict: null }] });
 		expect(existsSync(run.state)).toBe(false);
@@ -293,7 +294,7 @@ describe("omp-roster launch (US-046)", () => {
 		expect(chains).toEqual({ [opus]: [], ...chainsOf([], [`${opus}:xhigh`, `${opus}:max`]) });
 	});
 
-	const healthy = usageView([row("openai-codex", "gpt-6-sol", "usable"), row("anthropic", "sonnet", "usable")]);
+	const healthy = usageView([row("openai-codex", "gpt-6.1-sol", "usable"), row("anthropic", "sonnet", "usable")]);
 	const refusals: [string, unknown, unknown, string[], RegExp][] = [
 		["a null ticket", null, healthy, [], /no ticket/],
 		["an item without a ticket", boardAnswer(null), healthy, [], /K-test has no ticket/],
@@ -305,8 +306,8 @@ describe("omp-roster launch (US-046)", () => {
 		["a duplicate entry", boardAnswer([SOL, SONNET, SOL]), healthy, [], /entries 1 and 3 are the same model and effort/],
 		["another harness", boardAnswer([SOL]), healthy, ["--harness", "pi"], /Pi enforcement is a later slice/],
 		["a usage view that is not ok", boardAnswer([SOL]), usageView([], { ok: false, error: "status is stale" }), [], /not ok: status is stale/],
-		["a usage view with an unknown verdict", boardAnswer([SOL]), usageView([row("openai-codex", "gpt-6-sol", "great")]), [], /unrecognised shape/],
-		["a usage view without routes", boardAnswer([SOL]), { ok: true, rollup: [row("openai-codex", "gpt-6-sol", "usable")], coverage: [] }, [], /unrecognised shape/],
+		["a usage view with an unknown verdict", boardAnswer([SOL]), usageView([row("openai-codex", "gpt-6.1-sol", "great")]), [], /unrecognised shape/],
+		["a usage view without routes", boardAnswer([SOL]), { ok: true, rollup: [row("openai-codex", "gpt-6.1-sol", "usable")], coverage: [] }, [], /unrecognised shape/],
 	];
 	test("US-046 refuses bad tickets, harnesses and usage views with one plain sentence and no overlay", () => {
 		for (const [name, ticket, usage, extra, sentence] of refusals) {
@@ -329,7 +330,7 @@ describe("omp-roster launch (US-046)", () => {
 	test("US-046 reads the board and ai-usage by their real commands and defaults the overlay under the state home", () => {
 		const bin = scratch("bin");
 		put(join(bin, "answer.json"), JSON.stringify(boardAnswer([SOL, SONNET])));
-		put(join(bin, "usage.json"), JSON.stringify(usageView([row("openai-codex", "gpt-6-sol", "exhausted"), row("anthropic", "sonnet", "usable")])));
+		put(join(bin, "usage.json"), JSON.stringify(usageView([row("openai-codex", "gpt-6.1-sol", "exhausted"), row("anthropic", "sonnet", "usable")])));
 		const fake = (name: string, expected: string, body: string) =>
 			writeFileSync(join(bin, name), `#!/bin/sh\n[ "$*" = "${expected}" ] || { echo "unexpected arguments: $*" >&2; exit 2; }\n${body}\n`, { mode: 0o755 });
 		fake("board", "query items --item K-test --json", `cat "${bin}/answer.json"`);
@@ -347,7 +348,7 @@ describe("omp-roster launch (US-046)", () => {
 		expect(missing.stderr).toContain("The board could not read K-test: No read answer was found.");
 
 		// A live answer must be the board's document; a bare ticket shape is only for fixtures.
-		fake("board", "query items --item K-test --json", `echo '{"roster":[{"provider":"openai-codex","model":"gpt-6-sol","effort":"medium"}]}'`);
+		fake("board", "query items --item K-test --json", `echo '{"roster":[{"provider":"openai-codex","model":"gpt-6.1-sol","effort":"high"}]}'`);
 		const bare = invoke(["launch", "--item", "K-test"], env);
 		expect([bare.exitCode, bare.stderr.trim()]).toEqual([1, "omp-roster: The board's answer for K-test is not ready."]);
 
@@ -385,10 +386,10 @@ describe("omp-roster launch (US-046)", () => {
 			retry: { fallbackChains: Record<string, string[]> };
 			task: { agentModelOverrides: Record<string, string> };
 		};
-		const run = launch(boardAnswer([SOL, SONNET]), usageView([row("openai-codex", "gpt-6-sol", "exhausted"), row("anthropic", "sonnet", "usable")]), "--json");
+		const run = launch(boardAnswer([SOL, SONNET]), usageView([row("openai-codex", "gpt-6.1-sol", "exhausted"), row("anthropic", "sonnet", "usable")]), "--json");
 		launched(run);
 		const overlay = Bun.YAML.parse(readFileSync(JSON.parse(run.stdout).overlay, "utf8")) as { modelRoles: Record<string, string>; retry: { fallbackChains: Record<string, string[]> } };
-		const sol = "openai-codex/gpt-6-sol:medium";
+		const sol = "openai-codex/gpt-6.1-sol:high";
 		const sonnet = "anthropic/claude-sonnet-5-5:medium";
 		const expected = chainsOf([sol], [sol, sonnet]) as Record<string, string[]>;
 
@@ -445,14 +446,40 @@ describe("omp-roster check (US-046)", () => {
 
 	// What `launch` writes beside its overlay for one launch, with a fixed time and digest so the tests
 	// do not depend on the clock.
-	const recorded = (dir: string, roster: Entry[], launchedAt: string, digest: string) =>
-		put(join(dir, "state", `K-test.${digest}.launch.json`), JSON.stringify({ item: "K-test", roster, roster_sha256: "unused", launch: selectorOf(roster[0]), overlay: join(dir, "state", `K-test.${digest}.yml`), launched_at: launchedAt }));
+	const recorded = (dir: string, roster: Entry[], launchedAt: string, digest: string, schemaVersion = 2) =>
+		put(join(dir, "state", `K-test.${digest}.launch.json`), JSON.stringify({ item: "K-test", roster, roster_sha256: "unused", launch: selectorOf(roster[0]), overlay: join(dir, "state", `K-test.${digest}.yml`), launched_at: launchedAt, ...(schemaVersion === 2 ? { schema_version: 2 } : {}) }));
 	const selectorOf = (entry: Entry) => `${entry.provider}/${entry.model}:${entry.effort}`;
+
+	test("US-046 checks retired Sol records and launch-era helper primaries without allowing new retired Sol launches", () => {
+		const dir = scratch("historical-sol");
+		recorded(dir, [OLD_SOL, SONNET], stamp(1), "aaaaaaaa", 1);
+		const main = jsonl(join(dir, "S-old.jsonl"), [asked(2), said(3, "openai-codex", "gpt-6-sol")]);
+		jsonl(join(dir, "S-old", "Reviewer.jsonl"), [init("reviewer", "reviewer"), said(4, "openai-codex", "gpt-6-sol")]);
+		jsonl(join(dir, "S-old", "Plan.jsonl"), [init("plan", "plan"), said(5, "openai-codex", "gpt-6-astra")]);
+		const historical = checkWith(dir, [OLD_SOL, SONNET], [], main);
+		expect(historical.exitCode).toBe(0);
+		expect(historical.stdout).toContain("2 helper turn(s) in 2 file(s)");
+		expect(historical.stdout).toContain("turns on the roster: 1");
+		expect(historical.stdout).not.toContain("roster changed");
+		const attempt = launch(boardAnswer([OLD_SOL]), usageView([row("openai-codex", "gpt-6-sol", "usable")]), "--json");
+		expect(attempt.exitCode).toBe(1);
+		expect(attempt.stderr).toContain("gpt-6-sol) is not on the approved model list");
+	});
+
+	test("US-046 a new record checks current primaries even for a Sonnet-only roster", () => {
+		const dir = scratch("current-primary");
+		recorded(dir, [SONNET], stamp(1), "bbbbbbbb");
+		const main = jsonl(join(dir, "S-new.jsonl"), [asked(2), said(3, "anthropic", "claude-sonnet-5-5")]);
+		jsonl(join(dir, "S-new", "Reviewer.jsonl"), [init("reviewer", "reviewer"), said(4, "openai-codex", "gpt-6-sol")]);
+		const run = checkWith(dir, [SONNET], [], main);
+		expect(run.exitCode).toBe(4);
+		expect(run.stdout).toContain("openai-codex/gpt-6-sol off roster: 1 turn(s)");
+	});
 
 	test("US-046 a cash route is never on the roster: turns and hops onto OpenRouter are violations even when the ticket names it", () => {
 		const dir = scratch("cash");
 		const session = jsonl(join(dir, "S6.jsonl"), [
-			asked(1), said(2, "openai-codex", "gpt-6-sol"),
+			asked(1), said(2, "openai-codex", "gpt-6.1-sol"),
 			switched(3, "openrouter/deepseek/deepseek-v4.1-flash", true), said(4, "openrouter", "deepseek/deepseek-v4.1-flash"), said(5, "openrouter", "deepseek/deepseek-v4.1-flash"),
 		]);
 		const run = checkWith(dir, [SOL, CASH], [], session);
@@ -487,13 +514,13 @@ describe("omp-roster check (US-046)", () => {
 
 	test("US-046 a fallback switch off the roster fails the check on its own, and a turn with no provider or model is off the roster", () => {
 		const dir = scratch("switch-only");
-		const session = jsonl(join(dir, "S10.jsonl"), [asked(1), said(2, "openai-codex", "gpt-6-sol"), switched(3, "google-antigravity/gemini-3.8-flash", true)]);
+		const session = jsonl(join(dir, "S10.jsonl"), [asked(1), said(2, "openai-codex", "gpt-6.1-sol"), switched(3, "google-antigravity/gemini-3.8-flash", true)]);
 		const run = checkWith(dir, [SOL, SONNET], [], session);
 		expect(run.exitCode).toBe(4);
 		expect(run.stdout).toContain("NOT CLEAN: 0 turn(s) and 1 fallback switch(es) off the roster.");
 
 		const bare = scratch("no-model");
-		const anonymous = jsonl(join(bare, "S11.jsonl"), [{ type: "message", id: "m0", parentId: null, timestamp: stamp(2), message: { role: "assistant", model: "gpt-6-sol" } }]);
+		const anonymous = jsonl(join(bare, "S11.jsonl"), [{ type: "message", id: "m0", parentId: null, timestamp: stamp(2), message: { role: "assistant", model: "gpt-6.1-sol" } }]);
 		const failed = check(bare, anonymous);
 		expect(failed.exitCode).toBe(4);
 		expect(failed.stdout).toContain("(no provider and model recorded) off roster: 1 turn(s)");
@@ -505,15 +532,15 @@ describe("omp-roster check (US-046)", () => {
 	test("US-046 with a launch record check judges against the roster as launched and says when the ticket has changed; --since overrides the time", () => {
 		const dir = scratch("record");
 		const record = recorded(dir, [SOL, SONNET], stamp(5), "aaaaaaaa");
-		const session = jsonl(join(dir, "S12.jsonl"), [asked(6), said(7, "openai-codex", "gpt-6-sol"), said(8, "anthropic", "claude-sonnet-5-5")]);
+		const session = jsonl(join(dir, "S12.jsonl"), [asked(6), said(7, "openai-codex", "gpt-6.1-sol"), said(8, "anthropic", "claude-sonnet-5-5")]);
 		const run = checkWith(dir, [SOL, SONNET], [], session);
 		expect(run.exitCode).toBe(0);
 		expect(run.stdout).toContain("launch records: 1");
-		expect(run.stdout).toContain(`judged against launch record ${record} (launched ${stamp(5)}; roster: 1 openai-codex/gpt-6-sol:medium, 2 anthropic/claude-sonnet-5-5:medium): 1 file(s)\n  ${session}\n`);
+		expect(run.stdout).toContain(`judged against launch record ${record} (launched ${stamp(5)}; roster: 1 openai-codex/gpt-6.1-sol:high, 2 anthropic/claude-sonnet-5-5:medium): 1 file(s)\n  ${session}\n`);
 		expect(run.stdout).toContain("turns on the roster: 2");
 
 		// --since replaces the launch time; a bad one is a usage error.
-		const mixed = jsonl(join(dir, "S12b.jsonl"), [asked(6), said(7, "google-antigravity", "gemini-3.8-flash"), said(8, "openai-codex", "gpt-6-sol")]);
+		const mixed = jsonl(join(dir, "S12b.jsonl"), [asked(6), said(7, "google-antigravity", "gemini-3.8-flash"), said(8, "openai-codex", "gpt-6.1-sol")]);
 		const late = checkWith(dir, [SOL, SONNET], ["--since", stamp(8)], mixed);
 		expect(late.exitCode).toBe(0);
 		expect(late.stdout).toContain(`judging records at or after ${stamp(8)}; 1 earlier record(s) not judged`);
@@ -528,7 +555,7 @@ describe("omp-roster check (US-046)", () => {
 		const grok = jsonl(join(dir, "S13.jsonl"), [asked(6), said(7, "anthropic", "claude-sonnet-5-5"), said(8, "xai-oauth", "grok-4.7")]);
 		const changed = checkWith(dir, [SOL, SONNET, GROK], [], grok);
 		expect(changed.exitCode).toBe(4);
-		expect(changed.stdout).toContain("roster: 1 openai-codex/gpt-6-sol:medium, 2 anthropic/claude-sonnet-5-5:medium\n");
+		expect(changed.stdout).toContain("roster: 1 openai-codex/gpt-6.1-sol:high, 2 anthropic/claude-sonnet-5-5:medium\n");
 		expect(changed.stdout).toContain("roster changed since launch: the board now has roster_sha256");
 		expect(changed.stdout).toContain("NOT CLEAN: the roster changed since launch; 1 turn(s) and 0 fallback switch(es) off the roster.");
 
@@ -553,9 +580,9 @@ describe("omp-roster check (US-046)", () => {
 		const dir = scratch("relaunch");
 		const first = recorded(dir, [SOL, SONNET], stamp(3), "bbbbbbbb");
 		const second = recorded(dir, SONNET_ONLY, stamp(20), "aaaaaaaa");
-		const old = jsonl(join(dir, "sessions", "S20.jsonl"), [asked(4), said(5, "openai-codex", "gpt-6-sol"), said(6, "google-antigravity", "gemini-3.8-flash")]);
+		const old = jsonl(join(dir, "sessions", "S20.jsonl"), [asked(4), said(5, "openai-codex", "gpt-6.1-sol"), said(6, "google-antigravity", "gemini-3.8-flash")]);
 		// Started after the relaunch, but it belongs to the session that started before it.
-		const worker = jsonl(join(dir, "sessions", "S20", "Worker.jsonl"), [said(22, "openai-codex", "gpt-6-sol")]);
+		const worker = jsonl(join(dir, "sessions", "S20", "Worker.jsonl"), [said(22, "openai-codex", "gpt-6.1-sol")]);
 		const fresh = jsonl(join(dir, "sessions", "S21.jsonl"), [asked(21), said(22, "anthropic", "claude-sonnet-5-5")]);
 
 		const run = checkWith(dir, SONNET_ONLY, [], join(dir, "sessions"));
@@ -567,7 +594,7 @@ describe("omp-roster check (US-046)", () => {
 		expect(lines.slice(secondAt, secondAt + 2)).toEqual([expect.stringContaining(": 1 file(s)"), `  ${fresh}`]);
 		expect(run.stdout).toContain(`${old} google-antigravity/gemini-3.8-flash off roster: 1 turn(s)`);
 		expect(run.stdout).toContain("turns off the roster: 1");
-		expect(lines).toContain(modelLine("openai-codex/gpt-6-sol", 1, 2));
+		expect(lines).toContain(modelLine("openai-codex/gpt-6.1-sol", 1, 2));
 		expect(lines).toContain(modelLine("anthropic/claude-sonnet-5-5", 1, 1));
 		// The board holds the newest session's roster, so nothing changed.
 		expect(run.stdout).not.toContain("roster changed");
@@ -578,7 +605,7 @@ describe("omp-roster check (US-046)", () => {
 		const dir = scratch("two-rosters");
 		recorded(dir, [SOL], stamp(2), "bbbbbbbb");
 		recorded(dir, SONNET_ONLY, stamp(10), "aaaaaaaa");
-		const solSession = jsonl(join(dir, "sessions", "Sa.jsonl"), [asked(3), said(4, "openai-codex", "gpt-6-sol")]);
+		const solSession = jsonl(join(dir, "sessions", "Sa.jsonl"), [asked(3), said(4, "openai-codex", "gpt-6.1-sol")]);
 		jsonl(join(dir, "sessions", "Sb.jsonl"), [asked(11), said(12, "anthropic", "claude-sonnet-5-5")]);
 		const clean = checkWith(dir, SONNET_ONLY, [], join(dir, "sessions"));
 		expect(clean.exitCode).toBe(0);
@@ -605,7 +632,7 @@ describe("omp-roster check (US-046)", () => {
 	test("US-046 a launched file with assistant turns and none judged is not clean", () => {
 		const dir = scratch("nothing-judged");
 		recorded(dir, [SOL, SONNET], stamp(2), "aaaaaaaa");
-		const session = jsonl(join(dir, "S23.jsonl"), [asked(3), said(4, "openai-codex", "gpt-6-sol"), said(5, "anthropic", "claude-sonnet-5-5")]);
+		const session = jsonl(join(dir, "S23.jsonl"), [asked(3), said(4, "openai-codex", "gpt-6.1-sol"), said(5, "anthropic", "claude-sonnet-5-5")]);
 		jsonl(join(dir, "S24.jsonl"), [asked(3)]);
 		const run = checkWith(dir, [SOL, SONNET], ["--since", stamp(30)], join(dir, "S23.jsonl"), join(dir, "S24.jsonl"));
 		expect(run.exitCode).toBe(4);
@@ -618,7 +645,7 @@ describe("omp-roster check (US-046)", () => {
 	test("US-046 with a launch record a board that cannot give the roster is a finding and every turn is still judged; without one it stops", () => {
 		const dir = scratch("board-down");
 		recorded(dir, [SOL, SONNET], stamp(2), "aaaaaaaa");
-		const session = jsonl(join(dir, "S30.jsonl"), [asked(3), said(4, "openai-codex", "gpt-6-sol"), said(5, "google-antigravity", "gemini-3.8-flash")]);
+		const session = jsonl(join(dir, "S30.jsonl"), [asked(3), said(4, "openai-codex", "gpt-6.1-sol"), said(5, "google-antigravity", "gemini-3.8-flash")]);
 		const before = jsonl(join(dir, "S31.jsonl"), [asked(1), said(2, "anthropic", "claude-sonnet-5-5")]);
 		const cases: [string, string, string][] = [
 			["a ticket that cannot be read", join(dir, "missing.json"), "Cannot read the ticket file"],
@@ -656,7 +683,7 @@ describe("omp-roster check (US-046)", () => {
 	test("US-046 reports off-roster turns and fallbacks in subagent files, counts advisor turns as helpers, and never prints prompts", () => {
 		const dir = scratch("check");
 		const main = jsonl(join(dir, "S1.jsonl"), [
-			asked(1), switched(1, "openai-codex/gpt-6-sol", false), said(2, "openai-codex", "gpt-6-sol"),
+			asked(1), switched(1, "openai-codex/gpt-6.1-sol", false), said(2, "openai-codex", "gpt-6.1-sol"),
 			switched(3, "anthropic/claude-sonnet-5-5", true), said(4, "anthropic", "claude-sonnet-5-5"), said(5, "anthropic", "claude-sonnet-5-5"),
 		]);
 		const worker = jsonl(join(dir, "S1", "Worker.jsonl"), [
@@ -683,7 +710,7 @@ describe("omp-roster check (US-046)", () => {
 		const main = jsonl(join(dir, "S3.jsonl"), [asked(1), said(2, "anthropic", "claude-sonnet-5-5")]);
 		jsonl(join(dir, "S3", "Scout.jsonl"), [init("scout", "smol"), said(3, "openai-codex", "gpt-6-luna"), said(4, "openai-codex", "gpt-6-luna")]);
 		jsonl(join(dir, "S3", "Sonic.jsonl"), [init("sonic", "smol"), said(5, "openai-codex", "gpt-6-luna")]);
-		jsonl(join(dir, "S3", "Reviewer.jsonl"), [init("reviewer", "reviewer"), said(6, "openai-codex", "gpt-6-sol"), said(7, "openai-codex", "gpt-6-astra")]);
+		jsonl(join(dir, "S3", "Reviewer.jsonl"), [init("reviewer", "reviewer"), said(6, "openai-codex", "gpt-6.1-sol"), said(7, "openai-codex", "gpt-6-astra")]);
 		jsonl(join(dir, "S3", "__advisor.steward.jsonl"), [said(8, "anthropic", "claude-sonnet-5-5")]);
 
 		// Luna and the advisor's Sonnet are the helpers' primaries; Astra is not the reviewer's.
@@ -709,7 +736,7 @@ describe("omp-roster check (US-046)", () => {
 			switched(4, "google-antigravity/gemini-3.8-flash", true), said(5, "google-antigravity", "gemini-3.8-flash"),
 		]);
 		const advisor = jsonl(join(dir, "S5", "__advisor.steward.jsonl"), [said(6, "anthropic", "claude-sonnet-5-5"), switched(7, "xai-oauth/grok-4.7", true)]);
-		jsonl(join(dir, "S5", "Reviewer.jsonl"), [init("reviewer", "reviewer"), said(8, "openai-codex", "gpt-6-sol"), switched(9, "anthropic/claude-sonnet-5-5", true), said(10, "anthropic", "claude-sonnet-5-5")]);
+		jsonl(join(dir, "S5", "Reviewer.jsonl"), [init("reviewer", "reviewer"), said(8, "openai-codex", "gpt-6.1-sol"), switched(9, "anthropic/claude-sonnet-5-5", true), said(10, "anthropic", "claude-sonnet-5-5")]);
 
 		const run = check(dir, main);
 		expect(run.exitCode).toBe(4);
@@ -723,14 +750,14 @@ describe("omp-roster check (US-046)", () => {
 	test("US-046 a session that stayed on the roster, hops included, is clean and names the roster launch used", () => {
 		const dir = scratch("clean");
 		const session = jsonl(join(dir, "S2.jsonl"), [
-			asked(1), said(2, "openai-codex", "gpt-6-sol"), switched(3, "anthropic/claude-sonnet-5-5", true), said(4, "anthropic", "claude-sonnet-5-5"),
+			asked(1), said(2, "openai-codex", "gpt-6.1-sol"), switched(3, "anthropic/claude-sonnet-5-5", true), said(4, "anthropic", "claude-sonnet-5-5"),
 		]);
 		const run = check(dir, session);
 		expect(run.exitCode).toBe(0);
 		expect(run.stdout).toContain("clean: every checked turn ran on the roster or on a helper's approved primary.");
 		expect(run.stdout).toContain("fallback switches: 1");
 		// Launch and check must agree on the roster's identity so a later edit to the ticket is visible.
-		const usage = usageView([row("openai-codex", "gpt-6-sol", "usable"), row("anthropic", "sonnet", "usable")]);
+		const usage = usageView([row("openai-codex", "gpt-6.1-sol", "usable"), row("anthropic", "sonnet", "usable")]);
 		expect(run.stdout).toContain(`roster_sha256: ${launched(launch(boardAnswer([SOL, SONNET]), usage, "--json")).roster_sha256}`);
 		expect(run.stdout).not.toContain(launched(launch(boardAnswer([SONNET, SOL]), usage, "--json")).roster_sha256);
 	});
@@ -756,7 +783,7 @@ describe("omp-roster check (US-046)", () => {
 });
 
 describe("omp-roster without a ticket (US-046)", () => {
-	const solUsable = usageView([row("openai-codex", "gpt-6-sol", "usable"), row("anthropic", "sonnet", "usable")]);
+	const solUsable = usageView([row("openai-codex", "gpt-6.1-sol", "usable"), row("anthropic", "sonnet", "usable")]);
 	const usageFile = (dir: string, view: unknown) => put(join(dir, "usage.json"), JSON.stringify(view));
 	// A `board` that fails the test if anything runs it: a launch with --model reads no board.
 	const noBoard = (dir: string) => {
@@ -798,52 +825,54 @@ describe("omp-roster without a ticket (US-046)", () => {
 
 	test("US-046 a launch without --item prints the export line and arguments, and warns on a low route", () => {
 		const dir = scratch("adhoc-plain");
-		const run = adhoc(dir, ["--model", "openai-codex/gpt-6-sol", "--thinking", "xhigh"], usageView([row("openai-codex", "gpt-6-sol", "low")]));
+		const run = adhoc(dir, ["--model", "openai-codex/gpt-6.1-sol", "--thinking", "xhigh"], usageView([row("openai-codex", "gpt-6.1-sol", "low")]));
 		expect(run.exitCode).toBe(0);
 		const [exportLine, argsLine] = run.stdout.trim().split("\n");
 		const overlay = exportLine.replace("export PI_CONFIG_FILES=", "");
-		expect(overlay).toMatch(/\/adhoc-openai-codex-gpt-6-sol-\d{8}T\d{6}Z\.[0-9a-f]{8}\.yml$/);
-		expect(argsLine).toBe(`--model openai-codex/gpt-6-sol --thinking xhigh --config ${overlay}`);
-		expect(run.stderr).toBe("warning: openai-codex/gpt-6-sol:xhigh is low on capacity and may run out soon\n");
+		expect(overlay).toMatch(/\/adhoc-openai-codex-gpt-6\.1-sol-\d{8}T\d{6}Z\.[0-9a-f]{8}\.yml$/);
+		expect(argsLine).toBe(`--model openai-codex/gpt-6.1-sol --thinking xhigh --config ${overlay}`);
+		expect(run.stderr).toBe("warning: openai-codex/gpt-6.1-sol:xhigh is low on capacity and may run out soon\n");
 	});
 
 	test("US-046 a route that cannot launch exits 3 with the reason and writes nothing", () => {
 		const cases: [string, string, unknown, RegExp][] = [
-			["exhausted", "openai-codex/gpt-6-sol", usageView([row("openai-codex", "gpt-6-sol", "exhausted", "2026-09-29T19:42:20Z")]), /exhausted, exhausted in the fixture; resets 2026-09-29T19:42:20Z/],
-			["blocked", "openai-codex/gpt-6-sol", usageView([row("openai-codex", "gpt-6-sol", "blocked")]), /blocked, blocked in the fixture/],
-			["unknown", "openai-codex/gpt-6-sol", usageView([row("openai-codex", "gpt-6-sol", "unknown")]), /unknown, unknown in the fixture/],
-			["no row", "openai-codex/gpt-6-sol", usageView([row("anthropic", "sonnet", "usable")]), /ai-usage has no omp row for openai-codex\/gpt-6-sol/],
+			["exhausted", "openai-codex/gpt-6.1-sol", usageView([row("openai-codex", "gpt-6.1-sol", "exhausted", "2026-09-29T19:42:20Z")]), /exhausted, exhausted in the fixture; resets 2026-09-29T19:42:20Z/],
+			["blocked", "openai-codex/gpt-6.1-sol", usageView([row("openai-codex", "gpt-6.1-sol", "blocked")]), /blocked, blocked in the fixture/],
+			["unknown", "openai-codex/gpt-6.1-sol", usageView([row("openai-codex", "gpt-6.1-sol", "unknown")]), /unknown, unknown in the fixture/],
+			["no row", "openai-codex/gpt-6.1-sol", usageView([row("anthropic", "sonnet", "usable")]), /ai-usage has no omp row for openai-codex\/gpt-6\.1-sol/],
 			["a model with no ai-usage row at all", "google-antigravity/gemini-3.8-flash", solUsable, /ai-usage has no row for google-antigravity\/gemini-3.8-flash/],
 			["a cash route", "openrouter/deepseek/deepseek-v4.1-flash", solUsable, /cash route: a per-ticket cash cap is not built yet/],
 		];
 		for (const [name, model, view, sentence] of cases) {
 			const dir = scratch("adhoc-exhausted");
-			const run = adhoc(dir, ["--model", model, "--thinking", "medium"], view);
+			const run = adhoc(dir, ["--model", model, "--thinking", model === "openai-codex/gpt-6.1-sol" ? "high" : "medium"], view);
 			expect([name, run.exitCode, run.stdout]).toEqual([name, 3, ""]);
 			expect([name, run.stderr]).toEqual([name, expect.stringMatching(/roster exhausted for adhoc-/)]);
 			expect([name, run.stderr]).toEqual([name, expect.stringMatching(sentence)]);
 			expect([name, existsSync(join(dir, "state"))]).toEqual([name, false]);
 		}
 		const dir = scratch("adhoc-exhausted-json");
-		const json = adhoc(dir, ["--model", "openai-codex/gpt-6-sol", "--thinking", "medium", "--json"], usageView([row("openai-codex", "gpt-6-sol", "exhausted")]));
+		const json = adhoc(dir, ["--model", "openai-codex/gpt-6.1-sol", "--thinking", "high", "--json"], usageView([row("openai-codex", "gpt-6.1-sol", "exhausted")]));
 		expect(json.exitCode).toBe(3);
-		expect(JSON.parse(json.stdout)).toMatchObject({ launch: null, skipped: [{ selector: "openai-codex/gpt-6-sol:medium", verdict: "exhausted" }] });
+		expect(JSON.parse(json.stdout)).toMatchObject({ launch: null, skipped: [{ selector: "openai-codex/gpt-6.1-sol:high", verdict: "exhausted" }] });
 	});
 
 	test("US-046 a launch without a ticket refuses flags that do not fit, an unapproved model and an effort suffix, and writes nothing", () => {
 		const dir = scratch("adhoc-refused");
 		const ticket = put(join(dir, "t.json"), JSON.stringify(boardAnswer([SOL])));
 		const cases: [string, string[], number, RegExp][] = [
-			["--item with --model", ["--item", "K-test", "--model", "openai-codex/gpt-6-sol", "--thinking", "medium"], 2, /do not give --model or --thinking with it/],
+			["--item with --model", ["--item", "K-test", "--model", "openai-codex/gpt-6.1-sol", "--thinking", "medium"], 2, /do not give --model or --thinking with it/],
 			["--item with --thinking", ["--item", "K-test", "--thinking", "medium"], 2, /do not give --model or --thinking with it/],
 			["neither --item nor --model", [], 2, /needs both --model provider\/model and --thinking effort/],
-			["--model alone", ["--model", "openai-codex/gpt-6-sol"], 2, /needs both --model provider\/model and --thinking effort/],
+			["--model alone", ["--model", "openai-codex/gpt-6.1-sol"], 2, /needs both --model provider\/model and --thinking effort/],
 			["--thinking alone", ["--thinking", "medium"], 2, /needs both --model provider\/model and --thinking effort/],
-			["an effort suffix", ["--model", "openai-codex/gpt-6-sol:medium", "--thinking", "medium"], 2, /no effort suffix; give the effort with --thinking, not openai-codex\/gpt-6-sol:medium/],
-			["a model without a provider", ["--model", "gpt-6-sol", "--thinking", "medium"], 2, /--model needs provider\/model, not gpt-6-sol/],
+			["an effort suffix", ["--model", "openai-codex/gpt-6.1-sol:high", "--thinking", "high"], 2, /no effort suffix; give the effort with --thinking, not openai-codex\/gpt-6\.1-sol:high/],
+			["a model without a provider", ["--model", "gpt-6.1-sol", "--thinking", "high"], 2, /--model needs provider\/model, not gpt-6\.1-sol/],
+			["retired Sol", ["--model", "openai-codex/gpt-6-sol", "--thinking", "high"], 1, /gpt-6-sol\) is not on the approved model list/],
+			["Sol below high", ["--model", "openai-codex/gpt-6.1-sol", "--thinking", "medium"], 1, /effort medium, which openai-codex\/gpt-6\.1-sol does not support/],
 			["an unapproved model", ["--model", "anthropic/claude-haiku-4", "--thinking", "low"], 1, /anthropic\/claude-haiku-4\) is not on the approved model list/],
 			["an effort the model lacks", ["--model", "google-antigravity/gemini-3.8-flash", "--thinking", "xhigh"], 1, /effort xhigh, which google-antigravity\/gemini-3.8-flash does not support/],
-			["--ticket-json", ["--model", "openai-codex/gpt-6-sol", "--thinking", "medium", "--ticket-json", ticket], 2, /--ticket-json goes with --item/],
+			["--ticket-json", ["--model", "openai-codex/gpt-6.1-sol", "--thinking", "medium", "--ticket-json", ticket], 2, /--ticket-json goes with --item/],
 			["a board item named for a launch without a ticket", ["--item", "adhoc-anything"], 2, /cannot start with "adhoc-"/],
 		];
 		for (const [name, args, code, sentence] of cases) {
@@ -889,11 +918,11 @@ describe("omp-roster without a ticket (US-046)", () => {
 
 			// A hop off the one route is a violation, in the turns and in the switch record.
 			const hopped = jsonl(join(dir, "sessions", "Hopped.jsonl"), [
-				opened(iso(10_000)), said(iso(11_000), "openai-codex", "gpt-6-sol"), switched(iso(11_500), "openai-codex/gpt-6-luna"), said(iso(12_000), "openai-codex", "gpt-6-luna"),
+				opened(iso(10_000)), said(iso(11_000), "openai-codex", "gpt-6.1-sol"), switched(iso(11_500), "openai-codex/gpt-6-luna"), said(iso(12_000), "openai-codex", "gpt-6-luna"),
 			]);
 			const bad = checkAdhoc(dir, item, "--session", hopped);
 			expect(bad.exitCode).toBe(4);
-			expect(bad.stdout).toContain(`${hopped} openai-codex/gpt-6-sol off roster: 1 turn(s)`);
+			expect(bad.stdout).toContain(`${hopped} openai-codex/gpt-6.1-sol off roster: 1 turn(s)`);
 			expect(bad.stdout).toContain("switched to openai-codex/gpt-6-luna (off roster)");
 			expect(bad.stdout).toContain("NOT CLEAN: 2 turn(s) and 1 fallback switch(es) off the roster.");
 			expect(existsSync(join(dir, "board-was-run"))).toBe(false);
