@@ -57,7 +57,7 @@ presentation; "behavioral" changes agent capability, model input, or data flow.
 
 | Component | Owner | Class | Installed by `./install` | Divergence |
 | --- | --- | --- | --- | --- |
-| `settings.json` | this repo | config | yes | Sonnet 5.5 medium default; subscription recovery pins, Opus high for explicit visual selection; Codex account slots mirror the base Codex thinking levels (ADR-024); editor padding, markdown, theme name, retry budget (ADR-011 amendment 2026-09-28) |
+| `settings.json` | this repo | config | yes | GPT-6 Astra medium default (ADR-025); Codex account slots mirror the base Codex thinking levels (ADR-024); editor padding, markdown, theme name, retry budget (ADR-011 amendment 2026-09-28) |
 | `global/AGENTS.md` | this repo | behavioral | yes | Global `~/.pi/agent/AGENTS.md`: pi's intro plus shared sections spliced from `agent-config` |
 | `extensions/pi-chrome.ts` | this repo | aesthetic | yes | Session card, composer rail layout, live working state, footer |
 | `extensions/loc/` | this repo | behavioral (read-only) | yes | `/loc`, `/loc-trend`, LOC status row |
@@ -142,13 +142,11 @@ current model — never to a remembered position — so it cannot drift out of
 sync with what the session actually runs. It never automatically switches a
 model outside the chain and never re-sends the user's prompt — a run that dies
 mid-turn may already have executed tools. The chain is the `CHAIN` constant in `index.ts`
-(`anthropic/claude-sonnet-5-5` at medium → `openai-codex/gpt-6-sol` at xhigh →
-`openai-codex/gpt-6-luna` at max). Pi-native Anthropic and Codex logins are
-required; the installer reports missing logins without restoring a paid default.
-Opus is outside the automatic chain, so an explicit visual selection stays on
-Opus after failure. Grok is not a builder fallback. Pi 0.87.1 lacks the native
-Antigravity provider required for OMP's Gemini subscription tail, so its chain
-ends at Luna until an approved native subscription route exists.
+(`openai-codex/gpt-6-astra` at medium → `gpt-6-sol` at xhigh → `gpt-6-luna`
+at max → `xai/grok-4.7`). Pi uses only OpenAI, Grok and OpenRouter: Anthropic
+models, direct or through OpenRouter, are refused (ADR-025). The Pi-native
+Codex login is required; the installer reports a missing login without
+restoring a paid default.
 Pi can otherwise skip an unauthenticated default and select an available paid
 provider. The extension consumes input on unapproved selections before a turn
 starts, with a native request-abort backstop for extension-originated turns.
@@ -518,9 +516,8 @@ presence additionally requires `EXA_API_KEY` in the environment — an
 interactive-shell `pi` gets it from the `~/.bashrc` wrapper (pass entry
 `workstation/EXA_API_KEY`); a session started without the key degrades to no
 `web_search` tool. `failover` needs no configuration or key: a fresh
-`anthropic/claude-sonnet-5-5` session proves the extension loaded (it registers
-nothing visible). For explicit Opus visual work, the chain has no Opus link and
-leaves recovery on Opus rather than switching to a non-Opus route.
+`openai-codex/gpt-6-astra` session proves the extension loaded (it registers
+nothing visible); an `anthropic/*` selection is refused before inference.
 `image-budget` is proved by reading one large image: the stored tool result is
 a JPEG an order of magnitude smaller, and the footer shows `img-budget N
 dropped` only when the request budget is actually crossed. Workspace Git hooks

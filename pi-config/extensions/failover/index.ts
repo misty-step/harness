@@ -26,39 +26,42 @@ import { modelKey, nextInChain, runError, summarize } from "./decide.ts";
 
 /**
  * The fallback chain, in order; a failure advances from the current model's
- * link. Operator model policy (2026-09-28): Sonnet 5.5 medium, then GPT-6 Sol
- * xhigh and Luna max through Pi-native subscription logins. Paid
+ * link. Operator decision 2026-09-28: Pi uses only OpenAI, Grok and
+ * OpenRouter, never Anthropic. GPT-6 Astra medium, then Sol xhigh and Luna
+ * max, then Grok 4.7, all through Pi-native subscription logins. Paid
  * DeepSeek/Mercury recovery is retired; missing authentication never opts
- * into a paid route. Opus is deliberately outside this chain, so explicitly
- * selected visual work cannot fall through to a non-Opus model. Grok is
- * read-only recovery only and is not a builder link. Pi has no native
- * Antigravity provider, so OMP's Gemini subscription tail is not available.
- * Each link has a modelThinkingLevels entry in settings.json (ADR-011/013).
+ * into a paid route. Each link has a modelThinkingLevels entry in
+ * settings.json where it needs one (ADR-011/013/025).
  */
 const CHAIN = [
-	"anthropic/claude-sonnet-5-5",
+	"openai-codex/gpt-6-astra",
 	"openai-codex/gpt-6-sol",
 	"openai-codex/gpt-6-luna",
+	"xai/grok-4.7",
 ];
 
-const subscription = [...CHAIN, "anthropic/claude-opus-5-5", "openai-codex/gpt-6-astra"];
 /**
- * Extra Codex logins from extensions/accounts (ADR-024) run the same approved
- * models. Listed rather than pattern-matched, so an unlisted or custom
- * provider id stays refused. Slots sit outside CHAIN: a failure on a slot the
- * user chose does not move the session.
+ * Approved routes. Codex slots from extensions/accounts (ADR-024) run the same
+ * GPT-6 models; they are listed rather than pattern-matched, so an unlisted or
+ * custom provider id stays refused. xAI and OpenRouter are approved for any
+ * model except Anthropic's, which OpenRouter would bill as paid API tokens.
  */
-const ACCOUNT_SLOTS = ["openai-codex-2", "openai-codex-3", "openai-codex-4"];
-const approved = [
-	...subscription,
-	...subscription
-		.filter((key) => key.startsWith("openai-codex/"))
-		.flatMap((key) => ACCOUNT_SLOTS.map((slot) => `${slot}/${key.slice("openai-codex/".length)}`)),
-];
-const blockedRoute = "Model policy: select an approved subscription model and sign in with /login; paid startup fallback is disabled.";
+const CODEX_PROVIDERS = ["openai-codex", "openai-codex-2", "openai-codex-3", "openai-codex-4"];
+const CODEX_MODELS = ["gpt-6-astra", "gpt-6-sol", "gpt-6-luna"];
+const anthropicModel = /(^|\/)~?anthropic\//;
+
+function approved(model: ExtensionContext["model"]) {
+	const provider = model?.provider ?? "";
+	const id = model?.id ?? "";
+	if (CODEX_PROVIDERS.includes(provider)) return CODEX_MODELS.includes(id);
+	if (provider === "xai") return id !== "";
+	if (provider === "openrouter") return id !== "" && !anthropicModel.test(id);
+	return false;
+}
+const blockedRoute = "Model policy: Pi uses only OpenAI, Grok and OpenRouter (never Anthropic); select one and sign in with /login.";
 
 function allowsInference(ctx: ExtensionContext) {
-	if (approved.includes(modelKey(ctx.model))) return true;
+	if (approved(ctx.model)) return true;
 	ctx.ui.notify(blockedRoute, "error");
 	if (!ctx.hasUI) console.error(blockedRoute);
 	return false;

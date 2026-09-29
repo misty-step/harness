@@ -504,16 +504,19 @@ Criteria:
 4. WHERE cross-model recovery is allowed, THE SYSTEM SHALL use only approved
    subscription routes, with Gemini 3.8 Flash last. Grok 4.7 SHALL be allowed
    only as read-only advisory/review recovery (`advisor`, `reviewer`,
-   `security-reviewer`) and SHALL NOT occur in builder fallback chains.
+   `security-reviewer`) and SHALL NOT occur in OMP builder fallback chains;
+   Pi's chain ends at Grok 4.7 (criterion 5).
    All shared subscription accounts SHALL be authorized for any work;
    native account-policy priority SHALL prefer eligible r90.dev Anthropic
    and Codex accounts without bypassing blocked-account or reserve rules.
    Authorization or priority SHALL NOT be treated as proof of available quota.
-5. WHEN the Pi installer runs, THE SYSTEM SHALL select Sonnet 5.5 medium as
-   Pi's default and report missing Pi-native logins rather than restore the
-   retired DeepSeek default. If native startup selects an unapproved model
-   after login loss, agent prompts, provider requests, compaction and branch
-   summaries SHALL be refused before paid inference.
+5. WHEN the Pi installer runs, THE SYSTEM SHALL select GPT-6 Astra medium as
+   Pi's default and report a missing Pi-native Codex login rather than restore
+   the retired DeepSeek default. Pi SHALL use only OpenAI Codex, xAI and
+   OpenRouter routes: any Anthropic model, direct or through OpenRouter,
+   SHALL be refused before inference. If native startup selects an unapproved
+   model after login loss, agent prompts, provider requests, compaction and
+   branch summaries SHALL be refused before paid inference.
 6. WHEN configuration is deployed, THE SYSTEM SHALL preserve OAuth stores and
    the model already selected in existing sessions.
 7. WHEN OMP model routing is checked, THE SYSTEM SHALL reject every chat role,

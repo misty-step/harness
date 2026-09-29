@@ -83,7 +83,6 @@ validate_config() {
 # Missing logins are reported without restoring a retired paid default.
 subscriptions_ready() {
   command -v pi >/dev/null 2>&1 || return 1
-  PI_CODING_AGENT_DIR="$agent_dir" pi auth check --provider anthropic --no-refresh >/dev/null 2>&1 || return 1
   PI_CODING_AGENT_DIR="$agent_dir" pi auth check --provider openai-codex --no-refresh >/dev/null 2>&1
 }
 
@@ -93,9 +92,9 @@ install_config() {
     --source "$repo_dir/settings.json" \
     --dest "$agent_dir/settings.json"
   if subscriptions_ready; then
-    printf 'pi: Anthropic and Codex logins ready; default Sonnet 5.5 medium (model policy)\n'
+    printf 'pi: Codex login ready; default GPT-6 Astra medium (model policy)\n'
   else
-    printf 'pi: default Sonnet 5.5 medium installed; native logins missing. Run /login for anthropic and openai-codex in pi before use.\n'
+    printf 'pi: default GPT-6 Astra medium installed; Codex login missing. Run /login for openai-codex in pi before use.\n'
   fi
 }
 

@@ -1,10 +1,8 @@
 {
   "theme": "omarchy-system",
-  "defaultProvider": "anthropic",
-  "defaultModel": "claude-sonnet-5-5",
+  "defaultProvider": "openai-codex",
+  "defaultModel": "gpt-6-astra",
   "modelThinkingLevels": {
-    "anthropic/claude-sonnet-5-5": "medium",
-    "anthropic/claude-opus-5-5": "high",
     "openai-codex/gpt-6-astra": "medium",
     "openai-codex/gpt-6-sol": "xhigh",
     "openai-codex/gpt-6-luna": "max",
