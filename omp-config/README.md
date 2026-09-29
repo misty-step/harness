@@ -24,6 +24,7 @@ prompt is: how can I pokayoke this so this kind of error never happens again?
 | `install` | Ownership-aware deployment into `$(omp config path)` |
 | `bin/omp-merge-config.ts` | Overlay source-owned YAML keys and remove retired owned keys while preserving foreign config entries |
 | `bin/omp-grievances.ts` | Manual grievance inbox CLI |
+| `bin/omp-roster.ts` | Launch an OMP engineer only on a board ticket's model roster and check a session stayed on it (US-046); installed as `~/.local/bin/omp-roster` |
 | `bin/pass-env.ts` | Moved to `agent-config`: pass-backed launcher, installed as `~/.local/bin/pass-env` |
 | `bin/design-check.ts` | Moved to `agent-config`: player-surface copy checker, installed as `~/.local/bin/design-check` |
 | `bin/tmp-health.py`, `references/dev-exec.md` | Opt-in workstation execution limits, pressure notifications, and rollback workflow |
@@ -60,11 +61,11 @@ arguments (including `--check`); use `../scripts/verify omp` for isolated checks
 
 Preflight validates every selected input, then writes. Unset selection means
 `all`: owned config overlay, guidance, MCP, scopes, agents, skills, themes,
-extensions, `omp-grievances`, `pass-env`, `openrouter-key`, `design-check`,
-`foundation-check`, and `ws`. It does not delete foreign skills or agents and
-does not import live secrets into this checkout. Skills, shared guidance
-sections, and those shared launchers deploy from the sibling `agent-config`
-checkout (default `$repo_dir/../agent-config`; override with
+extensions, `omp-grievances`, `omp-roster`, `pass-env`, `openrouter-key`,
+`design-check`, `foundation-check`, and `ws`. It does not delete foreign skills
+or agents and does not import live secrets into this checkout. Skills, shared
+guidance sections, and those shared launchers deploy from the sibling
+`agent-config` checkout (default `$repo_dir/../agent-config`; override with
 `AGENT_CONFIG_DIR`); the installer fails closed when it is missing.
 
 ```sh
@@ -889,6 +890,207 @@ provider integration, not a scheduler or an autonomous delivery service.
 `advisor.syncBacklog: "off"` setting avoids waiting for catch-up while preserving
 background review and ordinary advice delivery. Print-mode can still drain a
 final review. Subagents are unadvised unless they opt in.
+
+### Ticket rosters (US-046)
+
+A board item can carry a ranked model roster on its ticket (`ticket.roster`:
+`provider`, `model` and `effort`, best first). Left alone, the role chains in
+`config.yml` recover a failing model onto models the ticket never named, ending
+at Gemini 3.8 Flash. `omp-roster` gives an OMP engineer launched for a ticket
+only that roster and stops it when the roster runs out. It extends the
+approved routing of US-014, makes no model call, and installs as the single
+file `~/.local/bin/omp-roster`, like `omp-grievances`.
+
+```sh
+omp-roster launch --item K-20260929-example --json
+omp-roster launch --item K-20260929-example    # prints: export PI_CONFIG_FILES=…, then --model … --thinking … --config …
+omp-roster check --item K-20260929-example --session ~/.omp/agent/sessions/<cwd>/<session>.jsonl
+```
+
+`launch [--ticket-json FILE] [--usage-json FILE] [--state-dir DIR] [--harness omp] [--json]`:
+
+1. Roster: `board query items --item ID --json` (`data.value.ticket.roster`).
+   `--ticket-json FILE` replaces the board call with a file holding the
+   board's answer document or just the ticket. The board's read socket lags its
+   writes by about a second, so a `launch` straight after a roster edit can read
+   the roster it just replaced: compare the `roster_sha256` it reports with the
+   roster you wrote.
+2. Refusal (exit 1, one plain sentence, nothing written): no ticket or an empty
+   roster; an entry outside the approved model list (`approvedModels` in
+   `bin/omp-roster.ts`, the table `bin/omp-model-policy.ts` holds `config.yml`
+   to) or asking for an effort that model lacks; the same model and effort
+   twice; a usage view that is not ok or has an unrecognised shape; `--harness`
+   other than `omp` (Pi enforcement is a later slice); an overlay path holding a
+   colon (`PI_CONFIG_FILES` is a colon-separated list).
+3. Usability comes from `ai-usage dispatch --json` (or `--usage-json`): the rows
+   for the entry's model on harness `omp`, else the harness `any` rows. When
+   several rows name the route, every one must be `usable` or `low`. `usable`
+   and `low` can launch; `exhausted`, `blocked`, `unknown` and a missing row are
+   skipped with the row's reason and `next_reset`. ai-usage names differ:
+   `claude-opus-5-5` is `anthropic/opus`, `claude-sonnet-5-5` is
+   `anthropic/sonnet`, `xai-oauth/grok-4.7` is `xai/grok`, and
+   `openai-codex/gpt-6-*` keep their ids. Gemini has no row, so it is never
+   launched but can be a recovery hop. `openrouter/*` entries are cash routes: a
+   roster may name them, but they are never launched or used as recovery until
+   a per-ticket cash cap exists, and `check` never counts a turn on one as on
+   the roster.
+4. The first launchable entry in rank order wins. If none is launchable,
+   `launch` exits 3 with "roster exhausted", each entry's skip reason and reset
+   time on stderr, and writes nothing; with `--json` stdout also carries
+   `{item, launch: null, skipped, roster_sha256}`, without it stdout is empty.
+5. Otherwise it writes, in `<state-dir>` (default `$XDG_STATE_HOME/omp-roster/`
+   when that is an absolute path, else `~/.local/state/omp-roster/`; files mode
+   0600, written atomically):
+   - `<item>.<digest>.yml`, the overlay. The digest is the first 8 hex digits of
+     the overlay's own SHA-256, which covers the roster and the launch entry, so
+     a relaunch that changes either writes a new file and never rewrites the one
+     a running session reads. Old overlays are kept.
+   - `<item>.<digest>.launch.json`, the launch record, with the same digest as its
+     overlay: the roster as launched, `roster_sha256`, the launch selector, the
+     overlay path and `launched_at` (ISO). One per launch, so `check` can judge
+     each session against its own launch. A relaunch with the same roster and
+     launch entry has the same digest and keeps the first record: its earlier
+     `launched_at` judges the same roster.
+   - `<item>.launch.json`, a copy of the newest launch's record, for people.
+     `check` does not read it.
+
+   The overlay sets `modelRoles.default|slow|task|extreme` to the launch entry
+   (`provider/model:effort`) and `retry.fallbackChains` for each roster model, for
+   those four roles and for each helper role (see Helper roles below). Each
+   engineer chain names only the other roster models in rank order, never the
+   model itself and never a cash route, so a hop cannot leave the roster. A
+   single-model roster gets empty engineer chains, and OMP stops with the provider's
+   error. `retry.modelFallback` stays on. `roster_sha256` hashes the roster as
+   compact JSON (entries in rank order, keys `provider`, `model`, `effort`) and
+   is recorded in the overlay's header comment.
+6. Output. Plain: a line `export PI_CONFIG_FILES=OVERLAY`, then `--model
+   provider/model --thinking effort --config OVERLAY`, with `skipped` reasons and
+   warnings on stderr. The dispatcher exports the variable in the engineer's
+   environment so any `omp` the engineer starts from its shell reads the same
+   overlay. `--json` prints `{item, launch, overlay, record, env, args, skipped,
+   roster_sha256, usage}`: `launch` carries the entry's `verdict` (`usable` or
+   `low`), `env` is `{"PI_CONFIG_FILES": OVERLAY}`, and `usage` is `{degraded,
+   degraded_reason, oldest_observation, stale_after_seconds}` from the ai-usage
+   view and the launch row (`degraded` is true when either says so). `skipped`
+   covers only the entries ranked above the launch entry. A `low` verdict and a
+   degraded reading are also printed as `warning:` lines on stderr. Launching does
+   not act on either: the roster guarantee does not depend on them.
+
+`check --item ID --session DIR|FILE... [--ticket-json FILE] [--state-dir DIR] [--since ISO]`
+(`--session` repeatable) reads OMP session JSONL. A file brings its sibling
+subagent directory along; a directory is searched recursively.
+
+- Each session file is judged against the launch that started it, not the
+  ticket as it is now. `check` reads every `<item>.<digest>.launch.json` in the
+  state dir and gives a file the record with the greatest `launched_at` at or
+  before the file's first timestamp. A subagent file (scout, reviewer, advisor,
+  task agent) takes the start of its session file, the outermost `X.jsonl` whose
+  sibling directory `X/` holds it, and the file's own start only when that
+  session file is not among the paths. The report names which record judged
+  which files, with each record's roster, so a relaunch (or two near-simultaneous
+  launches) never changes what an earlier session is judged against. A file that
+  started before every record, or whose start cannot be read, is judged against
+  the ticket's current roster and the report says so; pass a session file or
+  `--since` to keep older sessions in the same directory out.
+- Only records at or after the chosen launch's `launched_at` are judged. If the
+  board's roster now hashes differently from the record chosen for the newest
+  session file, it says `roster changed since launch` and exits 4 even when every
+  turn was on the roster. If the board cannot give the roster at all (unreadable,
+  invalid, or no ticket) and any launch record exists, that is the same finding:
+  every turn is still judged against the records (a file from before every record
+  against the earliest one) and the per-turn findings are printed. Without a
+  launch record an unreadable roster is an error (exit 1). A file judged against a
+  record that has assistant turns of which none was judged (`--since` later than
+  all of them) makes the check exit 4 with `nothing was judged in FILE`, not pass.
+- `--since ISO` replaces the record's `launched_at` as the time floor for every
+  file (which record judges a file is unchanged). A record with no readable
+  timestamp is judged, not skipped. With no launch record at all it says so and
+  judges every record against the ticket's current roster, and the reported
+  `roster_sha256` is only worth comparing with the one `launch` printed.
+- The board's read socket follows its store by about a second, so a `check` run
+  within two seconds of a roster edit can still see the old roster; a later
+  `check` catches the change because the launch record persists.
+- It reports every assistant turn on a model outside the roster and every
+  `model_change` with `resolvedModelIsFallback: true`, each with its roster
+  position or "off roster". A fallback switch to a model off the roster is a
+  violation in any file, helper files included. A cash (`openrouter`) turn or hop
+  is always off the roster, even when the ticket names it.
+- A turn in a helper file that ran on that role's approved primary (see Helper
+  roles) is counted as a helper turn and not judged. A helper file is
+  `__advisor*` (role `advisor`) or a subagent file whose `session_init` record
+  carries a helper `modelRole` (a scout or sonic reports `smol`, a reviewer
+  `reviewer`). The designer (`session_init` agent `designer` or `modelRole`
+  `vision`) is treated as a helper whose primary is `anthropic/claude-opus-5-5`,
+  the model the subagent-inheritance extension forces on it. Every other turn,
+  including a task agent's or the main session's, is judged against the roster,
+  and a helper turn on neither its primary nor the roster is a violation.
+- A last line with no trailing newline (a session still being written) is
+  skipped; a corrupt line elsewhere, or a directory with no engineer file (only
+  helper files), is an error, not a pass.
+- It prints files, timestamps, models and positions, never prompt text.
+
+Exit codes: 0 launched or clean; 1 refused, or unreadable input (a `check` with
+no engineer session file, or a line that is not JSON, must not pass); 2 usage
+error; 3 roster exhausted; 4 a turn or fallback switch left the roster, or the
+roster changed since launch.
+
+Helper roles. The overlay writes `modelRoles` only for `default`, `slow`, `task`
+and `extreme`. `advisor`, `plan`, `reviewer`, `security-reviewer`, `smol`,
+`tiny` and `commit` keep the primaries `config.yml` gives them (US-014: the
+reviewer stays a different family from the author): advisor Sonnet 5.5, plan and
+security-reviewer Astra, reviewer Sol, smol, tiny and commit Luna. The `scout`
+and `sonic` agents resolve through `smol`, the reviewers through their own
+roles. Only their recovery changes: the overlay writes
+`retry.fallbackChains.<role>` for each helper role as the whole roster in rank
+order, minus the role's own primary model (empty when nothing remains), so a
+helper whose primary fails hops only onto a roster model, never onto Gemini or
+Grok. `HELPER_PRIMARIES` in `bin/omp-roster.ts` is the table the chains use;
+`omp-roster.test.ts` holds it to `config.yml` and fails if any role of the real
+`config.yml` with a chat-model chain, or an `agentModelOverrides` target, lacks a
+roster-only chain in the overlay, or if any model-keyed chain (`provider/model`
+or `provider/*`) in `config.yml` is not `[]`, so a later config entry cannot
+reopen the hole.
+
+Designer and Opus. `vision` is deliberately untouched: its `config.yml` chain is
+empty and the designer agent uses it. OMP chains are keyed by model, and a model
+key outranks a role key, so a roster that names Opus is authoritative for the
+whole ticket: the overlay's `anthropic/claude-opus-5-5` chain (the rest of the
+roster) applies to every Opus turn, a designer's included, and the designer may
+hop onto the roster. Without Opus on the roster the designer stays on its
+Opus-only route and `check` does not flag it.
+
+What the guarantee does not cover. It holds for an engineer launched through
+`omp-roster launch` on a ticket that has a roster, with the printed arguments and
+`PI_CONFIG_FILES` exported. It does not hold for:
+
+- an item with no ticket or no roster, a Pi lane, and any `omp` not launched
+  through `launch` (including one an engineer starts without inheriting the
+  environment): those still use the deployed `config.yml` chains, whose builder
+  chains end at Gemini 3.8 Flash;
+- a model key that is not on the roster: OMP consults model keys before role
+  keys, so a model-keyed chain in `config.yml` (today only Opus 5.5, `[]`) or in a
+  project's `.omp/config.yml` would still apply; this is why the guard above
+  requires them to be empty;
+- agent definitions that pin their own model in frontmatter (for example a
+  repo's `.omp/agents/*.md`), the `find` judge's `model_usage` calls, and other
+  model-kind roles: these are outside both the overlay and `check`, which reads
+  assistant turns and `model_change` records only;
+- `check` itself, which detects after the fact. A roster guard extension on
+  `before_subagent_spawn` (the hook `subagent-inheritance` already uses to block)
+  would prevent off-roster spawns instead; it is not built.
+
+Nothing enforces the roster unless the dispatcher runs `omp-roster launch` and
+passes the printed arguments and environment.
+
+Forced-outage observation (2026-09-29, `omp` 18.4.3, Codex exhausted): a
+Sol-then-Sonnet roster launched Sonnet; `omp -p --model openai-codex/gpt-6-sol
+--config OVERLAY` then hopped to Sonnet only, while a Sol-only overlay stopped
+with the usage-limit error. `check` was clean for both and flagged the unguarded
+run that hopped to Luna and Gemini. A second run (a Sonnet engineer on that
+overlay spawning a scout, with `PI_CONFIG_FILES` exported and `--config` given the
+same file) put the scout on its Luna primary; Codex was exhausted, so it hopped to
+Sol and then Sonnet, never Gemini, and `check` was clean. The chain precedence
+above is the behavior of that version: re-run the smoke after an OMP upgrade.
 
 ### Evaluations are work records
 

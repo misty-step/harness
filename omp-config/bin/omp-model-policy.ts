@@ -4,17 +4,10 @@ import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
+import { approvedModels } from "./omp-roster.ts";
 
-// Pin concrete catalog IDs: accepting a prefix here would let a typo resolve fuzzily.
-const supported: Record<string, readonly string[]> = {
-	"anthropic/claude-opus-5-5": ["low", "medium", "high", "xhigh", "max"],
-	"anthropic/claude-sonnet-5-5": ["low", "medium", "high", "xhigh", "max"],
-	"openai-codex/gpt-6-astra": ["low", "medium", "high", "xhigh", "max"],
-	"openai-codex/gpt-6-sol": ["low", "medium", "high", "xhigh", "max"],
-	"openai-codex/gpt-6-luna": ["low", "medium", "high", "xhigh", "max"],
-	"xai-oauth/grok-4.7": ["minimal", "low", "medium", "high", "xhigh"],
-	"google-antigravity/gemini-3.8-flash": ["minimal", "low", "medium", "high"],
-};
+// The approved-model table lives in omp-roster.ts: that launcher deploys as one file, so it
+// cannot import from here.
 
 type Model = { provider: string; id: string; effort?: string };
 type Selection = { selector: string; model: Model };
@@ -31,7 +24,7 @@ function selector(value: unknown, location: string): Selection {
 	const match = /^([a-z0-9-]+)\/([a-z0-9][a-z0-9.-]*)(?::([a-z]+))?$/.exec(value);
 	if (!match) throw new Error(`${location} must be a concrete model selector`);
 	const [, provider, id, effort] = match;
-	const levels = supported[`${provider}/${id}`];
+	const levels = approvedModels[`${provider}/${id}`]?.efforts;
 	if (!levels) throw new Error(`${location} selects an unapproved model: ${provider}/${id}`);
 	if (effort && !levels.includes(effort)) throw new Error(`${location} has unsupported effort: ${effort}`);
 	return { selector: value, model: { provider, id, ...(effort ? { effort } : {}) } };

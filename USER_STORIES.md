@@ -536,6 +536,64 @@ Evidence: `omp-config/config.yml`, `omp-config/agents/designer.md`,
 `./scripts/verify all`, the online model-policy probe, fresh OMP role-selection
 and forced-outage smoke checks.
 
+## US-046 Launch engineers only on the ticket's model roster
+
+Statement: When I put a ranked model roster on a board item and Kaylee launches
+an OMP engineer for it, I want that engineer to run only on the roster and stop
+when the roster runs out, so the models I chose for the ticket are the only
+ones that work on it and recovery never lands on a model I did not name (extends
+US-014's approved routing).
+
+Criteria:
+1. WHEN a ticket has a roster and Kaylee launches an OMP engineer, THE SYSTEM
+   SHALL launch it on the first roster entry whose ai-usage verdict is `usable`
+   or `low`, and SHALL refuse with exit status 3 and write no launch overlay
+   when no entry qualifies, naming each entry's skip reason and reset time.
+2. IF the launched model fails, or the approved primary of a helper the
+   engineer spawns (scout, sonic, reviewer, security-reviewer, plan, smol, tiny,
+   commit or the advisor sidecar) fails, THEN THE SYSTEM SHALL switch that call
+   only to models on the roster, in rank order, and SHALL stop with the
+   provider's error when the roster runs out. Helpers keep their US-014
+   primaries; only their recovery is restricted. The `vision` role, which the
+   designer agent uses, keeps its own Opus-only route unless the roster names Opus.
+3. WHEN a session is checked against its ticket, THE SYSTEM SHALL judge each
+   session file against the launch record of the newest launch that started at
+   or before it (a subagent file with its session), from launch time on, exit
+   with status 4 when the ticket's roster has changed since that launch or the
+   board cannot give it (while still judging every turn), report every assistant
+   turn on a model outside the roster and every fallback switch to a model
+   outside the roster, in any file including scout, reviewer and advisor files,
+   and exit with status 4 when there is one, or when a launched file has turns and
+   none was judged; a helper turn on its role's US-014 primary, and a designer
+   turn on Opus 5.5, SHALL be counted as helper turns, not violations, and a cash
+   route SHALL never count as on the roster. A roster that names Opus governs
+   every Opus turn, the designer's included.
+4. WHEN launching, THE SYSTEM SHALL give the engineer's environment the same
+   overlay (`PI_CONFIG_FILES`) so nested `omp` runs inherit the roster, write one
+   overlay file per launch so a running session's file is never rewritten, and
+   report the launch route's `low` and degraded state instead of hiding them.
+5. IF the ticket has no roster, an empty roster, an unapproved model, an
+   unsupported effort or a duplicate entry, or the usage view is not ok or
+   malformed, or the harness is not OMP, THEN THE SYSTEM SHALL refuse the
+   launch with one plain sentence and write nothing.
+
+No-gos: no cash routes (OpenRouter entries are never launched or used as
+recovery until a per-ticket cash cap exists, and a cash turn is never on the
+roster); no Pi enforcement yet; no gating in the board; no roster edits or model
+choice by the launcher. Not covered, and said so in `omp-config/README.md`: items
+without a roster, Pi lanes and any `omp` not launched through `launch`; agent
+definitions that pin their own model and the `find` judge's `model_usage` calls;
+prevention at spawn time (`check` detects afterwards).
+
+Evidence: `omp-config/bin/omp-roster.test.ts`, `omp-config/bin/omp-roster.ts`,
+`omp-config/README.md`, `./scripts/verify omp`, and the forced-outage smoke
+recorded in the PR (Codex exhausted: a Sol-then-Sonnet roster hopped to Sonnet
+only, a Sol-only roster stopped with the usage-limit error, and
+`omp-roster check` was clean for both). A scout spawned by a Sonnet engineer on a
+Sol-then-Sonnet overlay (with `PI_CONFIG_FILES` exported and `--config` given the
+same file, `omp` 18.4.3) started on its Luna primary, and with Codex exhausted
+hopped to Sol and then Sonnet, never Gemini; `check` was clean.
+
 ## Capability: Protected releases
 
 ## US-015 Publish verified harness releases

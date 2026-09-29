@@ -280,8 +280,10 @@ install_audio_sandbox() {
 
 install_cli() {
   require_nonempty "$repo_dir/bin/omp-grievances.ts"
+  require_nonempty "$repo_dir/bin/omp-roster.ts"
   install -d -m 700 "$HOME/.local/bin"
   install -m 700 "$repo_dir/bin/omp-grievances.ts" "$HOME/.local/bin/omp-grievances"
+  install -m 700 "$repo_dir/bin/omp-roster.ts" "$HOME/.local/bin/omp-roster"
 }
 
 if [ "${OMP_INSTALL_GUIDANCE_ONLY+x}" = x ]; then
@@ -309,6 +311,7 @@ for component do
       validate_themes
       validate_audio_sandbox
       require_nonempty "$repo_dir/bin/omp-grievances.ts"
+      require_nonempty "$repo_dir/bin/omp-roster.ts"
       ;;
     guidance) validate_guidance ;;
     config) validate_config ;;
