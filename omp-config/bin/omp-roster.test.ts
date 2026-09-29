@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { chmodSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, dirname, join } from "node:path";
 
@@ -356,6 +356,28 @@ describe("omp-roster launch (US-046)", () => {
 		fake("ai-usage", "dispatch --json", `echo '{"ok":false,"error":"status is stale"}'; exit 1`);
 		const stale = invoke(["launch", "--item", "K-test"], env);
 		expect([stale.exitCode, stale.stderr.trim()]).toEqual([1, "omp-roster: The ai-usage view is not ok: status is stale."]);
+	});
+
+	test("US-046 reads the roster from glass once it is installed, from board before, and from OMP_ROSTER_BOARD_BIN over both", () => {
+		const bin = scratch("bin");
+		const usage = usageView([row("anthropic", "sonnet", "usable"), row("anthropic", "opus", "usable")]);
+		put(join(bin, "usage.json"), JSON.stringify(usage));
+		put(join(bin, "ai-usage"), `#!/bin/sh\ncat "${bin}/usage.json"\n`);
+		chmodSync(join(bin, "ai-usage"), 0o755);
+		const program = (name: string, model: string) => {
+			put(join(bin, name), `#!/bin/sh\ncat <<'EOF'\n${JSON.stringify(boardAnswer([{ provider: "anthropic", model, effort: "medium" }]))}\nEOF\n`);
+			chmodSync(join(bin, name), 0o755);
+		};
+		// A closed PATH, so a real glass or board on the host cannot decide the outcome.
+		const env: Record<string, string> = { PATH: `${bin}:/usr/bin:/bin`, XDG_STATE_HOME: join(bin, "state-home"), HOME: join(bin, "home") };
+		const launched = () => JSON.parse(invoke(["launch", "--item", "K-test", "--json"], env).stdout).launch.model;
+		program("board", "claude-sonnet-5-5");
+		expect(launched()).toBe("claude-sonnet-5-5");
+		program("glass", "claude-opus-5-5");
+		expect(launched()).toBe("claude-opus-5-5");
+		program("other-board", "claude-sonnet-5-5");
+		env.OMP_ROSTER_BOARD_BIN = "other-board";
+		expect(launched()).toBe("claude-sonnet-5-5");
 	});
 
 	test("US-046 every role of the real config.yml with a chat-model chain is recovered only onto the roster, so no helper can reach Gemini or Grok", () => {

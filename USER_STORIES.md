@@ -94,7 +94,7 @@ Criteria:
    agent handing Phaedrus work to review to publish each round as its own file
    under `~/review` and never overwrite a published round.
 2. WHEN an agent registers a review round, THE SYSTEM SHALL direct it to use
-   `board review publish --item <board item id> --page <file under ~/review>`
+   `glass review publish --item <board item id> --page <file under ~/review>`
    with one specific page, never a folder.
 3. THE SYSTEM SHALL explain that publishing links the board item to the exact
    page and marks earlier rounds old.
