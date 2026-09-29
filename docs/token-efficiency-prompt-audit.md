@@ -44,7 +44,7 @@ These are measured tokenizer counts from the parent, not estimates from characte
 - The OMP source has the marker at line 40; pi's source is a short intro ending with the marker at line 9. Repo-local AGENTS files add to these global files, as both intros state.
 - `effective-verification.md` is not named by either installer. The corresponding `agent-config/candidates/effective-verification/SKILL.md` is explicitly outside automatic skill deployment. It is not part of the measured default prompt baseline.
 - OMP defaults `OMP_INSTALL_COMPONENTS` to `all`; the `all` path installs guidance, `--skill all`, and all extension directories. Pi defaults `PI_CONFIG_COMPONENTS` to `all`; it selects the same seven guidance sections and `--skill all`. Skill **availability** is deployed separately from global guidance; actual skill invocation/loading follows the native harness and is bounded as upstream behavior.
-- OMP's `extensions/credentials/index.ts` uses the native `before_agent_start` event to append the inventory. The same extension adds matching-entry advice only on auth-looking bash results and matching unavailable-credential claims. Pi has the shared static `credentials.md` guidance but no corresponding credentials extension in the inspected installer selection.
+- OMP's `extensions/credentials/index.ts` uses the native `before_agent_start` event to append the inventory. The same extension adds matching-entry advice only on failed bash calls with auth-failure output (the former assistant-claim follow-up was removed). Pi has the shared static `credentials.md` guidance but no corresponding credentials extension in the inspected installer selection.
 
 ## Complete nonblank source-line audit
 

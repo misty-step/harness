@@ -3,18 +3,19 @@ import { execFileSync } from "node:child_process";
 
 /**
  * Credential awareness. Agents keep concluding a credential is unavailable
- * without looking in the pass store. Three structural checks, names only
- * (nothing is ever decrypted):
+ * without looking in the pass store. Two structural aids, names only
+ * (nothing is ever decrypted), both driven by facts rather than by guessing
+ * intent from the agent's prose:
  *
  * 1. Every agent start: the system prompt lists pass entry names (or an opt-in discovery pointer).
- * 2. Every bash result that looks like an auth failure: the entries matching
- *    the command or output are appended to the result.
- * 3. Every assistant message that claims a credential is missing: a follow-up
- *    names the matching entries, once per service per session.
+ * 2. A bash call that failed (isError) with auth-failure output: the entries matching the
+ *    command or output are appended to that result. Nothing is appended when none match.
+ *
+ * There is deliberately no follow-up turn: an injected message costs the agent a turn even when it
+ * said nothing wrong (MIS-161 false positives).
  */
 
 const MARKER = "## Credential inventory (pass)";
-const REMINDER_TYPE = "credentials/reminder";
 const ON_DEMAND_SECTION = [
 	MARKER,
 	"",
@@ -64,13 +65,6 @@ export function isAuthFailure(text: string): boolean {
 	return AUTH_FAILURE.test(text);
 }
 
-const UNAVAILABLE_CLAIM =
-	/\b(no|without|missing|lacks?|lacking)\b[^.\n]{0,50}\b(credentials?|tokens?|keys?|secrets?|dsn|auth)\b|\b(credentials?|tokens?|keys?|secrets?|dsn|auth)\b[^.\n]{0,50}\b(unavailable|not available|(was|were|is|are)n['’]t available|not found|not configured|missing)\b/i;
-
-export function claimsUnavailable(text: string): boolean {
-	return UNAVAILABLE_CLAIM.test(text);
-}
-
 export function inventorySection(entries: readonly string[]): string {
 	return [
 		MARKER,
@@ -86,14 +80,8 @@ export function inventorySection(entries: readonly string[]): string {
 	].join("\n");
 }
 
-export function reminder(entries: readonly string[], context: "result" | "claim"): string {
-	const lead =
-		context === "result"
-			? "Credential check: this looks like an authentication failure."
-			: "Credential check: you said a credential is unavailable.";
-	return entries.length > 0
-		? `${lead} Matching pass entries: ${entries.join(", ")}. Bind with \`pass-env run -e NAME=<entry> -- <command>\`; if the stored value is rejected, say which entry failed rather than that none exists.`
-		: `${lead} Run \`pass-env list <service>\` and check native logins before concluding it is unavailable.`;
+export function reminder(entries: readonly string[]): string {
+	return `Credential check: this looks like an authentication failure. Matching pass entries: ${entries.join(", ")}. Bind with \`pass-env run -e NAME=<entry> -- <command>\`; if the stored value is rejected, say which entry failed rather than that none exists.`;
 }
 
 function textOf(content: unknown): string {
@@ -106,8 +94,6 @@ function textOf(content: unknown): string {
 export default function registerCredentialsExtension(pi: ExtensionAPI): void {
 	let inventory: string[] | null = null;
 	const entries = () => (inventory ??= loadInventory());
-	const reminded = new Set<string>();
-	let remindedWithoutMatch = false;
 	// Pin the experiment for this extension instance; do not rewrite a live prefix mid-session.
 	const onDemand = process.env.OMP_CREDENTIAL_CONTEXT === "on-demand";
 
@@ -119,33 +105,12 @@ export default function registerCredentialsExtension(pi: ExtensionAPI): void {
 	});
 
 	pi.on("tool_result", (event) => {
-		if (event.toolName !== "bash") return;
+		if (event.toolName !== "bash" || !event.isError) return;
 		const output = textOf(event.content);
 		if (!isAuthFailure(output)) return;
 		const command = typeof event.input.command === "string" ? event.input.command : "";
 		const matches = matchEntries(`${command}\n${output}`, entries());
-		return {
-			content: [...event.content, { type: "text", text: reminder(matches, "result") }],
-		};
-	});
-
-	pi.on("message_end", (event) => {
-		const message = event.message as { role?: string; content?: unknown };
-		if (message.role !== "assistant") return;
-		const text = textOf(message.content);
-		if (!claimsUnavailable(text)) return;
-		const matches = matchEntries(text, entries());
-		const pending = matches.filter((entry) => !reminded.has(entry));
-		if (matches.length > 0) {
-			if (pending.length === 0) return;
-		} else {
-			if (remindedWithoutMatch) return;
-			remindedWithoutMatch = true;
-		}
-		for (const entry of pending) reminded.add(entry);
-		pi.sendMessage(
-			{ customType: REMINDER_TYPE, content: reminder(pending, "claim"), display: true },
-			{ deliverAs: "followUp", triggerTurn: true },
-		);
+		if (matches.length === 0) return;
+		return { content: [...event.content, { type: "text", text: reminder(matches) }] };
 	});
 }
