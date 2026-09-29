@@ -57,7 +57,7 @@ presentation; "behavioral" changes agent capability, model input, or data flow.
 
 | Component | Owner | Class | Installed by `./install` | Divergence |
 | --- | --- | --- | --- | --- |
-| `settings.json` | this repo | config | yes | GPT-6 Astra medium default (ADR-025); default and chain run through `openai-pool`/`xai-pool` (ADR-026); editor padding, markdown, theme name, retry budget (ADR-011 amendment 2026-09-28) |
+| `settings.json` | this repo | config | yes | GPT-6.1 Sol xhigh default (US-014); default and chain run through `openai-pool`/`xai-pool` (ADR-026); editor padding, markdown, theme name, retry budget (ADR-011 amendment 2026-09-28) |
 | `global/AGENTS.md` | this repo | behavioral | yes | Global `~/.pi/agent/AGENTS.md`: pi's intro plus shared sections spliced from `agent-config` |
 | `extensions/pi-chrome.ts` | this repo | aesthetic | yes | Session card, composer rail layout, live working state, footer |
 | `extensions/loc/` | this repo | behavioral (read-only) | yes | `/loc`, `/loc-trend`, LOC status row |
@@ -142,9 +142,10 @@ current model — never to a remembered position — so it cannot drift out of
 sync with what the session actually runs. It never automatically switches a
 model outside the chain and never re-sends the user's prompt — a run that dies
 mid-turn may already have executed tools. The chain is the `CHAIN` constant in `index.ts`
-(`openai-codex/gpt-6-astra` at medium → `gpt-6-sol` at xhigh → `gpt-6-luna`
-at max → `xai/grok-4.7`). Pi uses only OpenAI, Grok and OpenRouter: Anthropic
-models, direct or through OpenRouter, are refused (ADR-025). The Pi-native
+(`openai-pool/gpt-6.1-sol` at xhigh → `gpt-6-luna` at max →
+`xai-pool/grok-4.7`). Astra remains available by explicit selection only. Pi uses
+only OpenAI, Grok and OpenRouter: Anthropic models, direct or through OpenRouter,
+are refused (ADR-025). The Pi-native
 Codex login is required; the installer reports a missing login without
 restoring a paid default.
 Pi can otherwise skip an unauthenticated default and select an available paid
@@ -152,7 +153,7 @@ provider. The extension consumes input on unapproved selections before a turn
 starts, with a native request-abort backstop for extension-originated turns.
 Native compaction and summarized tree navigation are cancelled on those
 selections too; navigation without a summary remains available.
-Only the subscription chain plus explicit Opus/Astra selections may run;
+Only approved Codex models, xAI and non-Anthropic OpenRouter routes may run;
 credentials and model catalogs remain untouched. Headless refusals print the
 login instruction to stderr. Removing the extension removes this protection.
 `decide.ts` is pure and bun-tested;
@@ -516,7 +517,7 @@ presence additionally requires `EXA_API_KEY` in the environment — an
 interactive-shell `pi` gets it from the `~/.bashrc` wrapper (pass entry
 `workstation/EXA_API_KEY`); a session started without the key degrades to no
 `web_search` tool. `failover` needs no configuration or key: a fresh
-`openai-codex/gpt-6-astra` session proves the extension loaded (it registers
+`openai-pool/gpt-6.1-sol` session proves the extension loaded (it registers
 nothing visible); an `anthropic/*` selection is refused before inference.
 `image-budget` is proved by reading one large image: the stored tool result is
 a JPEG an order of magnitude smaller, and the footer shows `img-budget N

@@ -496,8 +496,8 @@ Criteria:
    reasoning level.
 3. WHEN OMP resolves `smol`, `tiny`, `commit`, `scout`, or `sonic`, THE SYSTEM
    SHALL select GPT-6 Luna max; `advisor` SHALL select Sonnet 5.5 medium;
-   `plan` and `security-reviewer` SHALL select GPT-6 Astra medium; and
-   `reviewer` SHALL select GPT-6 Sol xhigh. Ordinary task children SHALL use
+   `plan`, `security-reviewer` and `reviewer` SHALL select GPT-6.1 Sol xhigh.
+   Astra SHALL require explicit selection. Ordinary task children SHALL use
    their configured agent routes rather than inherit the live parent's model
    and thinking; explicit tagged model selections and per-item effort SHALL
    remain available, except designer effort below high SHALL be rejected.
@@ -510,7 +510,7 @@ Criteria:
    native account-policy priority SHALL prefer eligible r90.dev Anthropic
    and Codex accounts without bypassing blocked-account or reserve rules.
    Authorization or priority SHALL NOT be treated as proof of available quota.
-5. WHEN the Pi installer runs, THE SYSTEM SHALL select GPT-6 Astra medium as
+5. WHEN the Pi installer runs, THE SYSTEM SHALL select GPT-6.1 Sol xhigh as
    Pi's default and report a missing Pi-native Codex login rather than restore
    the retired DeepSeek default. Pi SHALL use only OpenAI Codex, xAI and
    OpenRouter routes: any Anthropic model, direct or through OpenRouter,
@@ -834,7 +834,11 @@ Criteria:
    within 30 days; `baseline --revision SHA` SHALL add new obligation gaps,
    while ADR-005's three existing `ops:` keys remain their sole gaps.
 7. WHEN `foundation-check review` judges a PR, it SHALL require an
-   independent approval on its head for every change. An invariants-ledger
+   independent approval on its head for every change: an approving review from
+   someone other than the author, or, where the organisation registers a model
+   reviewer in the pinned checker (misty-step: CodeRabbit), that reviewer's
+   completed-review status on the head (not a rate-limited or skipped one), so an agent PR needs no second human
+   account (operator rule, 2026-09-28). An invariants-ledger
    edit or a new/changed `foundation-approval/1` disposition SHALL additionally
    require the designated reviewer, making five designated-review triggers.
    IF mapped source changes, the PR description SHALL cite every affected

@@ -1,3 +1,9 @@
+# [0.1.72](https://github.com/misty-step/harness/compare/v0.1.71...v0.1.72) (2026-09-29)
+<!-- landmark:protected-release previous=v0.1.71 source=67d2ac98c5186c7472dbc2ca635df63dfeb0c70135a2a75c14f2a0310c95f783 -->
+
+### Features
+
+* **harness:** route Codex seats to GPT-6.1 Sol (#162) ([fd483f6](https://github.com/misty-step/harness/commit/fd483f627146cb74717d56f5200573a6094a0b2d))
 # [0.1.71](https://github.com/misty-step/harness/compare/v0.1.70...v0.1.71) (2026-09-29)
 <!-- landmark:protected-release previous=v0.1.70 source=ce15f27345a50edcf2bee34ca89a574423093a24e9c8e3b3168a0890c2425239 -->
 

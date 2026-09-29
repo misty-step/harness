@@ -19,3 +19,11 @@ decision, while OMP's chains are unchanged.
 
 A later slice restores Anthropic to Pi only through OMP's subscription OAuth
 mechanism, at the operator's decision.
+
+Amended 2026-09-29 (US-014): GPT-6.1 Sol xhigh replaces Astra medium as
+Pi's default and the first link of its pool-based recovery chain. Astra stays
+selectable explicitly at xhigh but is no longer a default or recovery link;
+GPT-6 Sol is retired from Pi's approved routes. Luna max and Grok remain the
+later links, and the Anthropic refusal is unchanged. Pi 0.99.1's native
+Codex catalog contains `gpt-6.1-sol`; `pi update --models` alone on 0.87.1
+did not add it to the pooled provider's bundled model list.
