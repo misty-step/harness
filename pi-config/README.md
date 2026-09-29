@@ -495,7 +495,7 @@ Restart pi after deploying.
 auth files before any write. The command is
 `!openrouter-key --personal workstation/OPENROUTER_MISTY_STEP_HARNESS_WORKSTATION_RECOVERY_API_KEY`.
 R90 checkouts (including Git linked worktrees) use
-`workstation/OPENROUTER_R90_HARNESS_API_KEY`; all other directories use the Pi
+`workstation/OPENROUTER_R90_HARNESS_WORKSTATION_INFERENCE_API_KEY`; all other directories use the Pi
 personal entry. A missing/invalid entry emits a deliberately invalid token so
 Pi's ambient `OPENROUTER_API_KEY` cannot take over. Restart Pi on account
 changes; verify usage from fresh sessions rather than inferring from file

@@ -97,7 +97,7 @@ this repository.
 
 OpenRouter auth (US-028): `models.yml` resolves `openrouter-key --personal
 workstation/OPENROUTER_OMP_HARNESS_API_KEY` on first use. The shared launcher
-chooses `workstation/OPENROUTER_R90_HARNESS_API_KEY` when the process directory
+chooses `workstation/OPENROUTER_R90_HARNESS_WORKSTATION_INFERENCE_API_KEY` when the process directory
 or its Git common directory is under `~/development/r90group` (linked
 worktrees included). A failed pass lookup, damaged Git metadata or timeout
 emits a fixed invalid token rather than exiting without a key: OMP omits

@@ -6,7 +6,7 @@ Kaylee approved R90 billing for R90 work in OMP and Pi. The Pi installer owns
 only `.openrouter` in the live `auth.json`, preserving other providers. It
 installs `openrouter-key` from `agent-config`, shared with OMP: R90 directories
 and linked worktrees with Git common directories under `~/development/r90group`
-choose `workstation/OPENROUTER_R90_HARNESS_API_KEY`, while other directories use
+choose `workstation/OPENROUTER_R90_HARNESS_WORKSTATION_INFERENCE_API_KEY`, while other directories use
 Pi's existing `workstation/OPENROUTER_MISTY_STEP_HARNESS_WORKSTATION_RECOVERY_API_KEY`.
 
 Pi caches command credentials per process. On a missing or malformed pass entry,

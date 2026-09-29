@@ -780,7 +780,7 @@ Misty Step sessions are billed.
 Criteria:
 1. WHEN a fresh OMP or Pi session runs from `~/development/r90group` or a
    descendant, OR from a linked worktree whose Git common directory is there,
-   THE SYSTEM SHALL resolve `workstation/OPENROUTER_R90_HARNESS_API_KEY`; from
+   THE SYSTEM SHALL resolve `workstation/OPENROUTER_R90_HARNESS_WORKSTATION_INFERENCE_API_KEY`; from
    other directories it SHALL resolve that harness's existing personal entry.
    A real request from each harness and each account class SHALL show usage on
    the selected OpenRouter key, not on the other account's key.
