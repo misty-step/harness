@@ -919,6 +919,25 @@ omp-roster check --item adhoc-anthropic-claude-sonnet-5-5-20260929T190130Z --ses
 
 `launch [--ticket-json FILE] [--usage-json FILE] [--state-dir DIR] [--harness omp] [--json]`:
 
+Fleet admission (US-047): after validating the requested roster, before reading
+usage or writing any overlay, `launch` reads `herdr agent list` for the entire
+current session. Every `agent_status: working` counts, across workspaces and
+including the caller; `idle`, `done`, `blocked` and `unknown` do not count.
+`OMP_ROSTER_ENGINEER_LIMIT` is the sole limit setting, a positive integer,
+default **8**. There is no override flag. At or above the limit, exit **5**,
+empty stdout (including `--json`), no files written, and one stderr line:
+
+```text
+omp-roster: working-engineer limit reached (8/8); working: engineer-a, engineer-b, ...; queue work on the board.
+```
+
+Unnamed working agents use their pane ids. Unreadable Herdr state or an invalid
+limit refuses with exit 1 and no files written. Below the limit, normal roster
+and usage admission continues. This is a snapshot gate, not a reservation or
+spawn transaction: simultaneous dispatches below the limit can both pass, and
+an overlay does not reserve a future slot. It neither closes agents nor changes
+Herdr or the board.
+
 1. Roster: `<board program> query items --item ID --json` (`data.value.ticket.roster`).
    The program is `glass` when it is installed (the board's name after its one-time
    cutover, ADR 0004 of the board repository), else `board`, and
