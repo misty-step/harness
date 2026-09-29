@@ -145,30 +145,29 @@ effect with the catalog and checker change that cites ADR-006.
   - `kaylee-agent` could not serve r90group: it is private to misty-step, and its
     organization-level permissions would apply to all of r90group whatever
     repositories were selected.
-- **Independent review by model reviewer (2026-09-29).** Operator rule of
+- **Independent review by the agent reviewer (2026-09-29).** Operator rule of
   2026-09-28: model review plus green CI is the gate; no human approval gates a
-  pull request. Agents author under the operator's account, so an approval "from
-  someone other than the author" (FND-REV-001) needed a second account. The
-  pinned checker now also accepts the completed review of a model reviewer it
-  registers per organisation: on misty-step, commit status context `CodeRabbit`
-  created by `coderabbitai[bot]`, state `success` and description exactly
-  `Review completed`. CodeRabbit also reports `success` with `Review rate limited`
-  or `Review skipped: ...` when it reviewed nothing (49 of 119 recent merged
-  heads in linejam, scry, sploot and harness, 2026-09-29), so state alone would
-  make the gate vacuous; those heads still need an approving review from
-  someone else (`kaylee-agent[bot]` counts) or a `@coderabbitai review` comment
-  once the limit clears. A status from any other creator, a failed or pending
-  one, or a stale success behind a newer status does not count. It never
-  satisfies a designated-review trigger, which still needs the agent reviewer's
-  approval. The gate waits (`FOUNDATION_REVIEW_WAIT_SECONDS`, 600 in the
-  template) for a reviewer still working, and stops after 120 seconds if no
-  status ever appears. r90group registers none: its recorded decision already
-  covers every PR. Residual: a commit status cannot trigger `pull_request_target`,
-  so a reviewer that changes its status on the same head after the gate ran does
-  not re-run it; toggle the re-run label before merging. CodeRabbit publishes its
-  result as a commit status on misty-step PR heads (observed 2026-09-29), not a
-  check run. Branch rules and rulesets in both organisations require no
-  approving review; this gate was the only place a second approver was demanded.
+  pull request. Agents author under the operator's account, so FND-REV-001's
+  approval "from someone other than the author" needs another identity. On
+  misty-step that identity is the designated reviewer `kaylee-agent[bot]`: the
+  reviewing agent runs `agent-review --repo misty-step/NAME --pr N`
+  (`agent-config/bin/agent-review.ts`, under `pass-env` with
+  `KAYLEE_GITHUB_APP_ID` and `KAYLEE_GITHUB_APP_PEM`). A fresh model session
+  (Sol, no tools, no session) sees the diff only and returns a JSON verdict; the
+  App approves the exact head when it is `correct` with no priority 0 or 1
+  finding, else requests changes, then toggles the `agent-reviewed` label so the
+  base branch's `foundation-review` re-runs. A model failure, an unusable
+  verdict, an oversized diff (a partial diff is not a review), a head that moved
+  during the review, or a PR the App authored posts nothing: no approval is ever
+  a fallback. The checker needed no change, because an approving review from the
+  App on the head already satisfies FND-REV-001. What the gate trusts is that
+  approval, and so the reviewer's judgement of the diff alone; a persuasive diff
+  can sway a model, and the approval says nothing about code the diff does not
+  show. CodeRabbit is advisory everywhere: it reports `success` even when it
+  reviewed nothing (rate limited or skipped on 49 of 119 recent merged heads,
+  2026-09-29), so it never gates. r90group has no reviewer App and free-plan
+  private repositories cannot enforce rules, so its checks stay advisory and
+  `agent-review` refuses it.
 
 ## Enforcement by plan
 

@@ -136,7 +136,7 @@ there the decision is a review or comment from `moomooskycow` whose first line i
 `foundation-review: approved <head sha>` (ADR-003, Designated reviewers). After that reviewer's
 `foundation-escalation: product-direction` review on the head, only its later
 approval recording the operator's decision and opening with
-`foundation-escalation: resolved` as its exact first line counts; approvals from the operator's shared account never do. Every other PR needs one independent approval on its head, which a registered model reviewer's completed review also gives (misty-step: commit status `CodeRabbit` with description `Review completed`; a rate-limited or skipped one does not count); the workflow waits up to `FOUNDATION_REVIEW_WAIT_SECONDS` for a reviewer still working. Copy
+`foundation-escalation: resolved` as its exact first line counts; approvals from the operator's shared account never do. Every other PR needs one independent approval on its head. On misty-step the reviewing agent gives it with `agent-review --repo misty-step/NAME --pr N` (a fresh model session reads the diff and, when it finds no priority 0 or 1 defect, the `kaylee-agent[bot]` App approves the exact head; run it under `pass-env` with `KAYLEE_GITHUB_APP_ID` and `KAYLEE_GITHUB_APP_PEM`). CodeRabbit is advisory. Copy
 [`skills/foundation/foundation-review.yml`](skills/foundation/foundation-review.yml)
 into a repository's workflows and pin the same harness revision as its
 `foundation` job. It runs on `pull_request_target`, so the base branch's copy of

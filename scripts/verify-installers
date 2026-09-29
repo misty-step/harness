@@ -88,6 +88,9 @@ for consumer in pi omp; do
   rm -f "$home/dirty.html"
   check "$consumer foundation-check bytes" cmp -s "$work/source/agent-config/bin/foundation-check.ts" "$home/.local/bin/foundation-check"
   check "$consumer foundation-check executable" test -x "$home/.local/bin/foundation-check"
+  check "$consumer agent-review bytes" cmp -s "$work/source/agent-config/bin/agent-review.ts" "$home/.local/bin/agent-review"
+  check "$consumer agent-review executable" test -x "$home/.local/bin/agent-review"
+  check "$consumer agent-review runs" sh -c "bun '$home/.local/bin/agent-review' --help 2>&1 | grep -q 'usage: agent-review'"
   # The deployed checker must resolve the catalog and story checker from the
   # installed skills, then fail closed on a repository with no adoption record.
   git init --quiet "$home/bare-repo"

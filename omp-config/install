@@ -173,11 +173,11 @@ install_skill() {
 
 validate_shared() {
   require_base
-  run_shared --check --skill all --bin pass-env.ts --bin openrouter-key.ts --bin design-check.ts --bin foundation-check.ts --bin ws.ts
+  run_shared --check --skill all --bin pass-env.ts --bin openrouter-key.ts --bin design-check.ts --bin foundation-check.ts --bin agent-review.ts --bin ws.ts
 }
 
 install_shared() {
-  run_shared --skill all --bin pass-env.ts --bin openrouter-key.ts --bin design-check.ts --bin foundation-check.ts --bin ws.ts
+  run_shared --skill all --bin pass-env.ts --bin openrouter-key.ts --bin design-check.ts --bin foundation-check.ts --bin agent-review.ts --bin ws.ts
 }
 
 validate_secrets() {
