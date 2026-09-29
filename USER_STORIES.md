@@ -611,6 +611,36 @@ launch answered on Sonnet only and `check --item adhoc-...` was clean; the same
 `omp -p --model openai-codex/gpt-6-sol` with no overlay hopped Sol to Luna to Gemini
 and `check` against a Sol-only record exited 4.
 
+## US-047 Queue engineer work when the fleet is full
+
+Statement: When ideas create more work than the engineer fleet should run at
+once, I want the launch tool to refuse another working engineer at the fleet
+limit, so dispatch queues work on the board instead of consuming more usage.
+
+Criteria:
+1. WHEN `omp-roster launch` prepares a ticketed or ticketless engineer, THE
+   SYSTEM SHALL count every Herdr agent whose `agent_status` is `working`
+   across the current session, including other workspaces and the caller,
+   excluding `idle`, `done`, `blocked` and `unknown`.
+2. WHEN that count is at or above the configured limit, THE SYSTEM SHALL exit
+   5, emit one stderr line naming the working engineers (pane id for an unnamed
+   engineer) and directing the caller to queue work on the board, leave stdout
+   empty and write no overlay or launch record.
+3. WHERE `OMP_ROSTER_ENGINEER_LIMIT` is configured, THE SYSTEM SHALL use that
+   positive integer as its sole limit setting, default to 8 when absent, and
+   offer no override flag.
+4. WHEN the count is below the limit, THE SYSTEM SHALL retain the roster and
+   usage admission checks of US-046 and write the launch artifacts when they
+   pass; unreadable Herdr state or an invalid limit SHALL refuse with exit 1
+   and no artifacts.
+
+No-gos: no changes to Herdr or Kaylee's tools, no closing agents, no reservation
+or spawn transaction. The tool checks a live snapshot before writing; it cannot
+reserve a slot for a later start or prevent simultaneous below-limit dispatches.
+
+Evidence: `omp-config/bin/omp-roster.test.ts`, `omp-config/bin/omp-roster.ts`,
+`omp-config/README.md`, `./scripts/check omp`, and the live CLI walk in the PR.
+
 ## Capability: Protected releases
 
 ## US-015 Publish verified harness releases

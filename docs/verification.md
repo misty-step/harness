@@ -64,7 +64,7 @@ owned directory. Remove only that directory once its process has ended.
   failed-task inclusion, unknown/unpriced evidence, split-task worker ownership,
   scope escape, malformed archives and content-free reporting (US-018).
 - `omp-config/bin/omp-roster.test.ts` runs a lone copy of the launcher against
-  fixture ticket and usage views, fake `board` and `ai-usage` commands, and
+  fixture ticket and usage views, fake `board`, `ai-usage` and `herdr` commands, and
   synthetic session files: first-usable launch with skip reasons, verdict and
   degraded reporting, the printed `export` and arguments, exit 3 with nothing
   written on an exhausted roster, exact roster-only overlay chains for the
@@ -79,6 +79,10 @@ owned directory. Remove only that directory once its process has ended.
   overlay and record, `check` on an `adhoc-` id, with a `board` that fails if run)
   (US-046). It makes no model call; the forced-outage walk against real OMP is a
   recorded manual smoke.
+  US-047 adds the session-wide working-engineer admission boundary: default
+  8 refuses at 8 and above with exit 5, empty stdout and no artifacts; 7 working
+  engineers plus settled agents succeeds; a configured limit, unnamed agents,
+  ticketless launches, malformed Herdr replies and invalid limits are covered.
 - `omp-config/extensions/credentials/credentials.test.ts` checks stable opt-in
   context, names-only default inventory, and no tool/prose-triggered interruption
   with a synthetic pass store (US-019). The [token-efficiency procedure](token-efficiency.md)
