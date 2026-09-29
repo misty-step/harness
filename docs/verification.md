@@ -64,10 +64,10 @@ owned directory. Remove only that directory once its process has ended.
   failed-task inclusion, unknown/unpriced evidence, split-task worker ownership,
   scope escape, malformed archives and content-free reporting (US-018).
 - `omp-config/extensions/credentials/credentials.test.ts` checks stable opt-in
-  credential context and recovery deduplication with a synthetic names-only store
-  (US-019). The [token-efficiency procedure](token-efficiency.md) records the
-  native pre-dispatch smoke and the separate task-quality promotion gates; unit
-  assertions are not evidence of model quality or production cache savings.
+  context, names-only default inventory, and no tool/prose-triggered interruption
+  with a synthetic pass store (US-019). The [token-efficiency procedure](token-efficiency.md)
+  records the native pre-dispatch smoke and separate quality promotion gates;
+  unit assertions are not evidence of model quality or production cache savings.
 - `agent-config/audio-sandbox/audio-sandbox.test.ts` checks the agent audio
   contract (US-026): Claude Code settings keep foreign keys, the OMP dotenv block
   yields the exact contract and an unterminated block fails closed, the routing

@@ -37,7 +37,7 @@ prompt is: how can I pokayoke this so this kind of error never happens again?
 | `skills/` | Moved to `agent-config`: portable skill packages, clean-replaced when selected |
 | `../.githooks/pre-push` | Root scanners; wired by `../scripts/bootstrap`, not runtime deployment |
 | `extensions/loc/` | Session-resident LOC status and commands |
-| `extensions/credentials/` | Full pass-name inventory by default; opt-in discovery pointer; targeted auth-failure and deduplicated unavailable-credential reminders (MIS-161, US-019) |
+| `extensions/credentials/` | Names-only pass inventory at agent start by default; opt-in discovery pointer. Neither agent prose nor tool results inject credential reminders (MIS-161, US-019) |
 
 `config.yml` selects the Omarchy-generated `omarchy-system` theme for both
 terminal background modes. On this workstation,
@@ -414,9 +414,8 @@ credential or call a model. Other harnesses use their own import/read mechanism.
 After deploying the source extension, `OMP_CREDENTIAL_CONTEXT=on-demand omp`
 uses a compact discovery pointer instead of listing every pass entry at startup.
 This experiment is off by default and fixed for each extension instance. Unset
-the variable and start a fresh session to restore the full inventory. Targeted
-authentication recovery remains enabled in both modes; repeated claims about
-an already-reminded entry do not schedule a second generic follow-up.
+the variable and start a fresh session to restore the full inventory. The
+extension does not react to tool results or assistant prose or inject turns.
 
 `bun bin/omp-task-usage.ts --sessions DIR --manifest FILE` reads explicitly
 selected local task trees and reports separate input/output/cache costs, including
