@@ -101,9 +101,23 @@ function readJson(path: string, what: string): unknown {
 
 // Run a host CLI the way Kaylee's dispatch_routes.py finds ai-usage: PATH first, then ~/.local/bin.
 // The parsed stdout is null when it is not JSON.
-function capture(name: string, args: string[]): { json: unknown; stderr: string; exitCode: number } {
+function locate(name: string): string | null {
+	if (name.includes("/")) return existsSync(name) ? name : null;
 	const fallback = join(homedir(), ".local", "bin", name);
-	const binary = Bun.which(name) ?? (existsSync(fallback) ? fallback : null);
+	return Bun.which(name) ?? (existsSync(fallback) ? fallback : null);
+}
+
+// The board program is named Glass after its one-time cutover (ADR 0004 of the board repository) and
+// `board` before it, with no alias in between. Take `glass` when it is installed, else `board`, so the
+// launcher needs no change at the moment of the cutover; OMP_ROSTER_BOARD_BIN overrides both.
+export function boardProgram(env: Record<string, string | undefined> = process.env): string {
+	const chosen = env.OMP_ROSTER_BOARD_BIN?.trim();
+	if (chosen) return chosen;
+	return locate("glass") ? "glass" : "board";
+}
+
+function capture(name: string, args: string[]): { json: unknown; stderr: string; exitCode: number } {
+	const binary = locate(name);
 	if (!binary) throw new CliError(`${name} is not on PATH or in ~/.local/bin.`);
 	const result = Bun.spawnSync({ cmd: [binary, ...args], stdout: "pipe", stderr: "pipe", timeout: READ_TIMEOUT_MS });
 	if (result.exitedDueToTimeout) throw new CliError(`${name} did not answer within ${READ_TIMEOUT_MS / 1000} seconds.`);
@@ -121,7 +135,7 @@ function ticketOf(item: string, file: string | undefined): unknown {
 		doc = readJson(file, "ticket file");
 		if (!isRecord(doc) || !("data" in doc)) return doc;
 	} else {
-		const answer = capture("board", ["query", "items", "--item", item, "--json"]);
+		const answer = capture(boardProgram(), ["query", "items", "--item", item, "--json"]);
 		doc = answer.json;
 		if (answer.exitCode !== 0 || !isRecord(doc)) {
 			throw new CliError(`The board could not read ${item}: ${(isRecord(doc) && plainOrNull(doc.error)) || answer.stderr || "no answer"}.`);

@@ -916,7 +916,11 @@ omp-roster check --item adhoc-anthropic-claude-sonnet-5-5-20260929T190130Z --ses
 
 `launch [--ticket-json FILE] [--usage-json FILE] [--state-dir DIR] [--harness omp] [--json]`:
 
-1. Roster: `board query items --item ID --json` (`data.value.ticket.roster`).
+1. Roster: `<board program> query items --item ID --json` (`data.value.ticket.roster`).
+   The program is `glass` when it is installed (the board's name after its one-time
+   cutover, ADR 0004 of the board repository), else `board`, and
+   `OMP_ROSTER_BOARD_BIN` overrides both, so the launcher needs no change at the
+   cutover.
    `--ticket-json FILE` replaces the board call with a file holding the
    board's answer document or just the ticket. The board's read socket lags its
    writes by about a second, so a `launch` straight after a roster edit can read
