@@ -50,6 +50,8 @@ test("US-014 source selectors stay within the approved model policy", () => {
 test("offline policy rejects stale, alias, malformed and disallowed routing selectors", () => {
 	const cases: Array<[string, (config: PolicyConfig) => void, string]> = [
 		["stale Sonnet role", config => { config.modelRoles.default = "anthropic/claude-sonnet-5:medium"; }, "unapproved model"],
+		["retired Sol role", config => { config.modelRoles.default = "openai-codex/gpt-6-sol:xhigh"; }, "unapproved model"],
+		["Sol below high", config => { config.modelRoles.default = "openai-codex/gpt-6.1-sol:medium"; }, "unsupported effort"],
 		["retired agent override", config => { config.task = { agentModelOverrides: { designer: "anthropic/claude-sonnet-5:medium" } }; }, "unapproved model"],
 		["unknown model role override", config => { config.task = { agentModelOverrides: { designer: "@unknown" } }; }, "does not resolve to a chat role"],
 		["fuzzy alias", config => { config.modelRoles.default = "sonnet"; }, "concrete model selector"],
@@ -86,7 +88,7 @@ const model = {provider: "anthropic", id: "claude-sonnet-5-5", selector: "anthro
 if (process.argv[2] === "models") {
   const models = process.env.FAKE_OMP_MODE === "effective-only"
     ? [["anthropic", "claude-opus-5-5"], ["anthropic", "claude-sonnet-5-5"],
-       ["openai-codex", "gpt-6-astra"], ["openai-codex", "gpt-6-sol"],
+       ["openai-codex", "gpt-6-astra"], ["openai-codex", "gpt-6.1-sol"],
        ["openai-codex", "gpt-6-luna"], ["xai-oauth", "grok-4.7"],
        ["google-antigravity", "gemini-3.8-flash"]].map(([provider, id]) => ({
          provider, id, selector: provider + "/" + id, kind: "chat",
@@ -95,7 +97,7 @@ if (process.argv[2] === "models") {
     : process.env.FAKE_OMP_MODE === "stale-catalog"
       ? [{...model, id: "claude-3-5-sonnet-20241022", selector: "anthropic/claude-3-5-sonnet-20241022"}]
       : process.env.FAKE_OMP_MODE === "model-key"
-        ? [model, {provider: "openai-codex", id: "gpt-6-sol", selector: "openai-codex/gpt-6-sol", kind: "chat", thinking: ["medium"]}]
+        ? [model, {provider: "openai-codex", id: "gpt-6.1-sol", selector: "openai-codex/gpt-6.1-sol", kind: "chat", thinking: ["high"]}]
         : [model];
   console.log(JSON.stringify({models}));
 } else {
@@ -136,20 +138,20 @@ test("online probe rejects mismatches in provider or model ID independently", ()
 
 test("online probe includes model-key fallback selectors even when their chain is empty", () => {
 	const config = smallConfig();
-	config.retry.fallbackChains["openai-codex/gpt-6-sol"] = [];
+	config.retry.fallbackChains["openai-codex/gpt-6.1-sol"] = [];
 	const files = fixture(config);
 	const result = run(files.config, fakeOmp(files.root, "model-key"));
 	expect(result.exitCode).not.toBe(0);
-	expect(result.stderr.toString()).toContain("routed openai-codex/gpt-6-sol to a different provider/model");
+	expect(result.stderr.toString()).toContain("routed openai-codex/gpt-6.1-sol to a different provider/model");
 });
 
 test("online probe includes direct task model overrides", () => {
 	const config = smallConfig();
-	config.task!.agentModelOverrides.worker = "openai-codex/gpt-6-sol:medium";
+	config.task!.agentModelOverrides.worker = "openai-codex/gpt-6.1-sol:high";
 	const files = fixture(config);
 	const result = run(files.config, fakeOmp(files.root, "model-key"));
 	expect(result.exitCode).not.toBe(0);
-	expect(result.stderr.toString()).toContain("routed openai-codex/gpt-6-sol:medium to a different provider/model");
+	expect(result.stderr.toString()).toContain("routed openai-codex/gpt-6.1-sol:high to a different provider/model");
 });
 
 test("online probe rejects provider failure even if OMP exits cleanly", () => {
