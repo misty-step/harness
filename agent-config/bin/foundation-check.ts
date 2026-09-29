@@ -1445,6 +1445,22 @@ async function github(path: string, token: string): Promise<unknown> {
 	return response.json();
 }
 const reviewer = (entry: Record<string, unknown>): string => (record(entry.user) && typeof entry.user.login === "string" ? entry.user.login : "");
+/** Image formats the vision role reads natively; keep in step with `IMAGE_PATH` in agent-review.ts. */
+const inspectableImage = /\.(png|jpe?g|gif|webp)$/i;
+/** The changed paths, when the change is nothing but content no review surface can inspect: submodule bumps and non-image binaries. */
+function uninspectableOnly(repo: string, mergeBase: string, head: string): string[] {
+	const diff = (kind: string) => spawnSync("git", ["diff", kind, "-z", "--no-renames", mergeBase, head], { cwd: repo, encoding: "utf8", maxBuffer: 64 * 1024 * 1024 }).stdout.split("\0");
+	const stats = diff("--numstat").filter(Boolean).map((line) => line.split("\t"));
+	const raw = diff("--raw");
+	const submodules = new Set<string>();
+	for (let index = 0; index + 1 < raw.length; index += 2) {
+		const [before, after] = raw[index].split(" ");
+		if (before?.slice(1) === "160000" || after === "160000") submodules.add(raw[index + 1]);
+	}
+	const paths = stats.map(([, , path]) => path);
+	const blind = stats.filter(([added, deleted, path]) => submodules.has(path) || (added === "-" && deleted === "-" && !inspectableImage.test(path))).map(([, , path]) => path);
+	return paths.length > 0 && blind.length === paths.length ? blind : [];
+}
 async function review(options: Options): Promise<Result> {
 	const [org, name, extra] = (options.githubRepo ?? process.env.GITHUB_REPOSITORY ?? "").split("/");
 	if (!org || !name || extra !== undefined) throw new Error("review needs --github-repo OWNER/NAME or GITHUB_REPOSITORY");
@@ -1517,24 +1533,25 @@ async function review(options: Options): Promise<Result> {
 	reviews.forEach((entry, index) => {
 		if (own(entry) && entry.commit_id === head && (entry.state === "COMMENTED" || entry.state === "CHANGES_REQUESTED") && says(entry, escalationMarker)) escalation = index;
 	});
+	// FND-REV-001, for every PR: the independent review is a model review, which `agent-review` records as the App's
+	// review of this head carrying the base, merge base, title and description its model judged. That record and the
+	// designated approval below are separate streams from the same identity: a review carrying the record is the
+	// model review and never the designated decision on a trigger, or one automatic approval would satisfy both.
+	const recordOf = (entry: Record<string, unknown>) => (typeof entry.body === "string" ? entry.body.match(/^agent-review-state: base=(\S+) merge-base=([0-9a-f]{40}) title=sha256:([0-9a-f]{64}) description=sha256:([0-9a-f]{64})$/m) : null);
 	// Reviews arrive in submission order. As on GitHub, each reviewer's latest approval, change request or
 	// dismissal stands; comments do not change it.
 	let decision: { entry: Record<string, unknown>; index: number } | undefined;
 	reviews.forEach((entry, index) => {
-		if (own(entry) && (entry.state === "APPROVED" || entry.state === "CHANGES_REQUESTED" || entry.state === "DISMISSED")) decision = { entry, index };
+		if (own(entry) && !recordOf(entry) && (entry.state === "APPROVED" || entry.state === "CHANGES_REQUESTED" || entry.state === "DISMISSED")) decision = { entry, index };
 	});
 	const approved = decision?.entry.state === "APPROVED" && decision.entry.commit_id === head;
 	if (reasons.length > 0 && escalation >= 0 && !(approved && decision!.index > escalation && states(decision!.entry, resolutionMarker))) {
 		errors.push(`escalated to the operator on head ${head.slice(0, 12)}; needs a later approving review from ${agent} that records the operator's decision and opens with "${resolutionMarker}" as its exact first line`);
-	} else if (reasons.length > 0 && !approved) errors.push(`needs an approving review from the designated agent reviewer ${agent} on head ${head.slice(0, 12)}`);
-	// FND-REV-001, for every PR: the independent review is a model review, which `agent-review` records as the App's
-	// review of this head carrying the base, merge base, title and description its model judged. A designated-review
-	// approval (above) is the App's decision on a trigger and never stands in for it. GitHub keeps an approval on a head
-	// after a retarget, an edit or a moved base, so a record naming a different one no longer stands (the diff is the head
-	// against the merge base, so head plus merge base cover it). Anyone else's approval does not count, and the App's
-	// later change request overrules the record, so a second approver cannot outvote the model review. GitHub
-	// authenticates the reviewer and head, not the judgement.
-	const recordOf = (entry: Record<string, unknown>) => (typeof entry.body === "string" ? entry.body.match(/^agent-review-state: base=(\S+) merge-base=([0-9a-f]{40}) title=sha256:([0-9a-f]{64}) description=sha256:([0-9a-f]{64})$/m) : null);
+	} else if (reasons.length > 0 && !approved) errors.push(`needs an approving review from the designated agent reviewer ${agent} on head ${head.slice(0, 12)}, other than agent-review's own record`);
+	// GitHub keeps an approval on a head after a retarget, an edit or a moved base, so a record naming a different one
+	// no longer stands (the diff is the head against the merge base, so head plus merge base cover it). Anyone else's
+	// approval does not count, and the App's later change request overrules the record, so a second approver cannot
+	// outvote the model review. GitHub authenticates the reviewer and head, not the judgement.
 	let modelReview: { entry: Record<string, unknown>; index: number } | undefined;
 	reviews.forEach((entry, index) => {
 		if (own(entry) && entry.commit_id === head && (entry.state === "APPROVED" || entry.state === "CHANGES_REQUESTED") && recordOf(entry)) modelReview = { entry, index };
@@ -1545,12 +1562,18 @@ async function review(options: Options): Promise<Result> {
 	const mergeBase = spawnSync("git", ["merge-base", base, head], { cwd: options.repo, encoding: "utf8" }).stdout.trim();
 	const stale = judged !== null && (judged[1] !== currentBase || judged[2] !== mergeBase || judged[3] !== digest(pull.title) || judged[4] !== digest(pull.body));
 	const overruled = modelReview !== undefined && decision !== undefined && decision.index > modelReview.index && decision.entry.state !== "APPROVED";
-	if (modelReview?.entry.state !== "APPROVED" || stale || overruled) {
+	const advisory: string[] = [];
+	const uninspectable = uninspectableOnly(options.repo, mergeBase, head);
+	if (uninspectable.length > 0) {
+		// No native review surface reads a submodule bump or a non-image binary, so the model review cannot be required of a
+		// PR that is nothing else. It is reported, never hidden, and a PR that mixes it with reviewable content is not spared.
+		advisory.push(`FND-REV-001 not required: every changed path is content no review surface can inspect (${uninspectable.join(", ")})`);
+	} else if (modelReview?.entry.state !== "APPROVED" || stale || overruled) {
 		errors.push(stale
 			? `FND-REV-001: the agent reviewer's approval of head ${head.slice(0, 12)} judged a different base, merge base, title or description than the PR now has; run agent-review --repo ${org}/${name} --pr ${options.pr}`
 			: `FND-REV-001: needs an agent-review approval from the designated agent reviewer ${agent} on head ${head.slice(0, 12)} (run agent-review --repo ${org}/${name} --pr ${options.pr})`);
 	}
-	return { ok: errors.length === 0, errors, reasons, approved_by: errors.length === 0 ? agent : undefined };
+	return { ok: errors.length === 0, errors, reasons, advisory, approved_by: errors.length === 0 ? (advisory.length > 0 && !approved ? "no reviewable content" : agent) : undefined };
 }
 function print(result: Result, json: boolean, command: Command): void {
 	if (json) { console.log(JSON.stringify(result)); return; }

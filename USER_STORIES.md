@@ -868,10 +868,16 @@ Criteria:
    triggers included: where the organisation has a reviewer App (misty-step)
    only that App's approval counts, it must carry `agent-review`'s record of the
    base, merge base, title and description judged, and its latest change request
-   stands. The reviewing agent gives it after a model review of the PR
-   (`agent-review`; operator rule, 2026-09-28). An invariants-ledger
+   stands. The reviewing agent gives it after a model review of the PR, in which
+   image content is read by the vision role (`agent-review`; operator rule,
+   2026-09-28). An invariants-ledger
    edit or a new/changed `foundation-approval/1` disposition SHALL additionally
-   require the designated reviewer, making five designated-review triggers.
+   require the designated reviewer, whose decision is separate from that record
+   and which the record never satisfies, making five designated-review triggers.
+   IF every changed path is a submodule bump or a non-image binary, which no
+   review surface can inspect, THEN THE SYSTEM SHALL report the model review as
+   advisory instead of requiring it, and a PR that mixes such content with
+   reviewable changes SHALL still require it.
    IF mapped source changes, the PR description SHALL cite every affected
    live story id computed from the candidate git objects.
 

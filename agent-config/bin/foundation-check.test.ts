@@ -1286,6 +1286,53 @@ describe("foundation-check review gate (US-027)", () => {
 		expect(bare.output.errors.join("\n")).toContain("FND-REV-001: needs an agent-review approval");
 	});
 
+	test("a stale head or a defect fails the model review; a change nothing can inspect is advisory, never a way to skip review of anything else", async () => {
+		const repo = fixture("gate-inspectable");
+		const base = exec(repo, ["rev-parse", "HEAD"]);
+		const at = (message: string) => { commit(repo, message); const head = exec(repo, ["rev-parse", "HEAD"]); opened(base, head); return head; };
+		// A text change moves the head: the approval of the earlier head stands for nothing.
+		put(repo, "notes.txt", "one\n");
+		const first = at("text");
+		reviews = [recorded(agent, first)];
+		expect((await gate(repo)).status).toBe(0);
+		put(repo, "notes.txt", "two\n");
+		const second = at("text again");
+		expect((await gate(repo)).output.errors.join("\n")).toContain("FND-REV-001");
+		// The model review found a real defect: its change request is the App's latest word on the head.
+		reviews = [recorded(agent, second), said(agent, second, "CHANGES_REQUESTED", "agent-review: changes requested\nagent-review-state: base=master merge-base=" + exec(repo, ["merge-base", base, second]) + " title=sha256:" + "0".repeat(64) + " description=sha256:" + "0".repeat(64))];
+		expect((await gate(repo)).status).toBe(1);
+		// A binary image is inspectable through the vision role, so it needs the model review like text does.
+		exec(repo, ["reset", "-q", "--hard", base]);
+		writeFileSync(join(repo, "logo.png"), Buffer.from([0x89, 0x50, 0x4e, 0x47, 0, 1, 2, 0, 3]));
+		const image = at("image");
+		reviews = [];
+		expect((await gate(repo)).status).toBe(1);
+		reviews = [recorded(agent, image)];
+		expect((await gate(repo)).status).toBe(0);
+		// A binary no surface can read, alone, is advisory: nothing could review it, and the gate says so.
+		exec(repo, ["reset", "-q", "--hard", base]);
+		writeFileSync(join(repo, "font.woff"), Buffer.from([0, 1, 0, 0, 0, 9, 0]));
+		const opaque = at("font");
+		reviews = [];
+		const advisory = await gate(repo) as { status: number | null; output: { errors: string[]; advisory?: string[]; approved_by?: string } };
+		expect(advisory.status).toBe(0);
+		expect(advisory.output.advisory?.join("\n")).toContain("font.woff");
+		expect(advisory.output.approved_by).toBe("no reviewable content");
+		// The same file beside a reviewable change spares nothing: the model review is required for the whole PR.
+		put(repo, "notes.txt", "three\n");
+		const mixed = at("font and text");
+		expect(mixed).not.toBe(opaque);
+		expect((await gate(repo)).output.errors.join("\n")).toContain("FND-REV-001");
+		// A submodule bump is the same kind of content: alone it is advisory.
+		exec(repo, ["reset", "-q", "--hard", base]);
+		exec(repo, ["update-index", "--add", "--cacheinfo", `160000,${"a".repeat(40)},vendor/lib`]);
+		exec(repo, ["commit", "-qm", "submodule"]);
+		opened(base, exec(repo, ["rev-parse", "HEAD"]));
+		const submodule = await gate(repo);
+		expect(submodule.status).toBe(0);
+		expect((submodule.output as { advisory?: string[] }).advisory?.join("\n")).toContain("vendor/lib");
+	});
+
 	test("citation covers each mapped source story even when the review checkout stays at the base", async () => {
 		const repo = fixture("gate-citation");
 		put(repo, "USER_STORIES.md", `# Stories\n\n${liveStory}\n${otherStory}`);
@@ -1375,6 +1422,14 @@ describe("foundation-check review gate (US-027)", () => {
 		const ledger = await gate(repo);
 		expect(ledger.output.reasons).toEqual(["invariants ledger: DOMAIN.md policy changes"]);
 		expect(ledger.output.errors.join("\n")).toContain("designated agent reviewer");
+		// agent-review's own approval is the model review, never the designated decision: it cannot satisfy a trigger alone.
+		reviews = [recorded(agent, head)];
+		const modelOnly = await gate(repo);
+		expect(modelOnly.status).toBe(1);
+		expect(modelOnly.output.errors.join("\n")).toContain("other than agent-review's own record");
+		// Nor does the designated decision satisfy the model review; a designated change request overrules a passing record.
+		reviews = [recorded(agent, head), said(agent, head, "CHANGES_REQUESTED")];
+		expect((await gate(repo)).status).toBe(1);
 		reviews = [recorded(agent, head), said(agent, head)];
 		expect((await gate(repo)).status).toBe(0);
 		const approvedBase = head;

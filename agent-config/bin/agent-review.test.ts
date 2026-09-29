@@ -10,11 +10,21 @@ const { publicKey, privateKey } = generateKeyPairSync("rsa", { modulusLength: 20
 const dir = mkdtempSync(join(process.env.TMPDIR ?? tmpdir(), "agent-review-"));
 // A stand-in for `omp -p`: records what it was asked and answers with the scripted output.
 const omp = join(dir, "omp");
-writeFileSync(omp, `#!/bin/sh\ncat > "${dir}/prompt.txt"\necho "$@" > "${dir}/argv.txt"\ncat "${dir}/answer.txt"\nexit $(cat "${dir}/exit.txt")\n`);
+writeFileSync(omp, [
+	"#!/bin/sh",
+	`printf '%s\\n' "$(printf '%s ' "$@" | tr '\\n' ' ')" >> "${dir}/argv.txt"`,
+	// A call with an attachment is the vision process: keep what it was handed, answer from vision.txt.
+	`for a in "$@"; do case "$a" in @*) cp "\${a#@}" "${dir}/attached.bin"; cat "${dir}/vision.txt"; exit $(cat "${dir}/vision-exit.txt");; esac; done`,
+	`cat > "${dir}/prompt.txt"`,
+	`cat "${dir}/answer.txt"`,
+	`exit $(cat "${dir}/exit.txt")`,
+].join("\n") + "\n");
 chmodSync(omp, 0o755);
 
 type Pull = { state: string; title: string; body: string; user: { login: string }; head: { sha: string }; base: { ref: string; sha: string } };
 let mergeBaseAfterModel: string | undefined;
+let imageFiles: { filename: string; sha: string; status: string }[] = [];
+let imageBlobs: Record<string, { content: string; size: number }> = {};
 let pull: Pull;
 let headAfterModel: string | undefined;
 let diff = "";
@@ -51,6 +61,8 @@ const server = Bun.serve({
 			return Response.json(pullReads >= 2 ? { ...pull, ...changeAfterModel, ...(headAfterModel ? { head: { sha: headAfterModel } } : {}) } : pull);
 		}
 		if (url.pathname.includes("/compare/")) return Response.json({ merge_base_commit: { sha: pullReads >= 2 && mergeBaseAfterModel ? mergeBaseAfterModel : "c".repeat(40) } });
+		if (request.method === "GET" && url.pathname.endsWith("/pulls/7/files")) return Response.json(url.searchParams.get("page") === "1" ? imageFiles : []);
+		if (request.method === "GET" && url.pathname.includes("/git/blobs/")) return Response.json(imageBlobs[url.pathname.split("/").pop() ?? ""] ?? { content: "", size: 0 });
 		if (request.method === "POST" && url.pathname.endsWith("/demo/labels")) return new Response("{}", { status: labelCreateStatus });
 		if (request.method === "POST" && url.pathname.endsWith("/issues/7/labels")) return new Response("{}", { status: labelAddStatus });
 		if (request.method === "POST" || request.method === "DELETE") return Response.json({});
@@ -73,6 +85,11 @@ const clean = { overall_correctness: "correct", explanation: "Small, tested, and
 const posted = (suffix: string) => calls.filter((call) => call.method !== "GET" && call.path.endsWith(suffix));
 
 beforeEach(() => {
+	writeFileSync(join(dir, "argv.txt"), "");
+	writeFileSync(join(dir, "vision.txt"), "an image");
+	writeFileSync(join(dir, "vision-exit.txt"), "0");
+	imageFiles = [];
+	imageBlobs = {};
 	pull = { state: "open", title: "docs: note", body: "Stories: US-027", user: { login: "moomooskycow" }, head: { sha: "a".repeat(40) }, base: { ref: "master", sha: "9".repeat(40) } };
 	mergeBaseAfterModel = undefined;
 	headAfterModel = undefined;
@@ -121,7 +138,52 @@ describe("agent-review posting", () => {
 		const prompt = readFileSync(join(dir, "prompt.txt"), "utf8");
 		expect(prompt).toContain("<diff>\ndiff --git a/README.md");
 		expect(prompt).toContain("untrusted data");
-		expect(readFileSync(join(dir, "argv.txt"), "utf8")).toContain("--no-session");
+		const argv = readFileSync(join(dir, "argv.txt"), "utf8");
+		expect(argv).toContain("--no-session");
+		// Tools are off by an explicit flag, never an empty list that could read as unset.
+		expect(argv).toContain("--no-tools");
+		expect(argv).not.toContain("--tools");
+	});
+
+	test("image content is read by a separate no-tools vision process and judged by the reviewer", async () => {
+		const png = Buffer.from("\x89PNG-test-image-bytes");
+		diff = "diff --git a/docs/logo.png b/docs/logo.png\nnew file mode 100644\nBinary files /dev/null and b/docs/logo.png differ\ndiff --git a/README.md b/README.md\n+logo\n";
+		imageFiles = [{ filename: "docs/logo.png", sha: "b".repeat(40), status: "added" }];
+		imageBlobs = { ["b".repeat(40)]: { content: png.toString("base64"), size: png.length } };
+		writeFileSync(join(dir, "vision.txt"), "A logo. Legible text: ACME. Nothing sensitive.");
+		const result = await run();
+		expect(result.status).toBe(0);
+		const calls = readFileSync(join(dir, "argv.txt"), "utf8").trim().split("\n");
+		expect(calls).toHaveLength(2);
+		// Both processes run with tools off, and the vision one got the file as an attachment on the vision model.
+		for (const line of calls) expect(line).toContain("--no-tools");
+		expect(calls[0]).toContain("anthropic/claude-opus-5-5");
+		expect(calls[0]).toMatch(/@\S+image-0\.png/);
+		expect(readFileSync(join(dir, "attached.bin"))).toEqual(png);
+		// The reviewer judges the image through the vision inspection, and the review says so.
+		expect(readFileSync(join(dir, "prompt.txt"), "utf8")).toContain('<image path="docs/logo.png">\nA logo. Legible text: ACME.');
+		expect((posted("/reviews")[0].body as { body: string }).body).toContain("inspection of docs/logo.png");
+		// A failing vision process posts nothing, and a deleted image needs no inspection.
+		calls.length = 0;
+		writeFileSync(join(dir, "vision-exit.txt"), "1");
+		expect((await run()).status).toBe(3);
+		writeFileSync(join(dir, "vision-exit.txt"), "0");
+		expect(posted("/reviews")).toHaveLength(1);
+		diff = "diff --git a/old.png b/old.png\ndeleted file mode 100644\nBinary files a/old.png and /dev/null differ\n";
+		imageFiles = [];
+		expect((await run()).status).toBe(0);
+	});
+
+	test("a defect in the image is a finding the gate can act on", async () => {
+		const png = Buffer.from("\x89PNG-leak");
+		diff = "diff --git a/docs/screen.png b/docs/screen.png\nnew file mode 100644\nBinary files /dev/null and b/docs/screen.png differ\n";
+		imageFiles = [{ filename: "docs/screen.png", sha: "d".repeat(40), status: "added" }];
+		imageBlobs = { ["d".repeat(40)]: { content: png.toString("base64"), size: png.length } };
+		writeFileSync(join(dir, "vision.txt"), "A terminal screenshot. Legible text: a line that starts with a secret-key label followed by a long token. Looks like a live credential.");
+		answer({ ...clean, overall_correctness: "incorrect", findings: [{ title: "credential in image", body: "screenshot shows an API key", priority: 0 }] });
+		const result = await run();
+		expect(result.status).toBe(1);
+		expect(posted("/reviews")[0].body).toMatchObject({ event: "REQUEST_CHANGES" });
 	});
 
 	test("a blocking finding requests changes and never approves", async () => {
@@ -186,11 +248,15 @@ describe("agent-review posting", () => {
 		expect((await run()).stderr).toContain("is closed");
 		pull.state = "open";
 		expect((await run({ AGENT_REVIEW_MAX_DIFF_BYTES: "10" })).stderr).toContain("split the change");
-		// A binary change shows only that a path changed: the model cannot judge what it now contains.
-		diff = "diff --git a/logo.png b/logo.png\nBinary files a/logo.png and b/logo.png differ\n";
-		expect((await run()).stderr).toContain("cannot inspect");
+		// Content no review surface can inspect is refused, not approved on trust: a submodule bump stands for the rest.
 		diff = "diff --git a/vendor b/vendor\n-Subproject commit aaa\n+Subproject commit bbb\n";
-		expect((await run()).stderr).toContain("cannot inspect");
+		const only = await run();
+		expect(only.status).toBe(5);
+		expect(only.stderr).toContain("no review surface can inspect");
+		diff = "diff --git a/font.woff b/font.woff\nBinary files a/font.woff and b/font.woff differ\ndiff --git a/README.md b/README.md\n+hello\n";
+		const mixed = await run();
+		expect(mixed.status).toBe(3);
+		expect(mixed.stderr).toContain("split the PR");
 		diff = "diff --git a/README.md b/README.md\n+hello\n";
 		const other = await run({}, "r90group/demo");
 		expect(other.status).toBe(3);

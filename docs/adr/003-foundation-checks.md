@@ -174,19 +174,32 @@ effect with the catalog and checker change that cites ADR-006.
   (`agent-review-state:` line) and the gate, which re-runs on `edited`, refuses an
   App approval that names a different one. The diff is the head against the
   merge base, so the head and merge base together cover it. Every PR, a
-  designated-review trigger included, needs that record: the App's designated
-  approval is its decision on the trigger and never stands in for the model
-  review, and the App's later change request overrules the record. A bare App
-  approval is not a model review. `agent-review` also refuses to post if any of
-  these changed during its own review, refuses binary and submodule changes,
-  whose contents the model cannot see, and exits 4 when the review is recorded
-  but the gate could not be re-run, because review events cannot trigger it and
-  the old check result would keep standing. r90group ordinary PRs never had an
-  independent-approver check, since the recorded-decision path returns first,
-  and that is unchanged. Known limit, open: a PR that changes a binary file or a
-  submodule has no supported review path, because `agent-review` cannot see its
-  contents and the gate accepts no other approver; it blocks until the operator
-  decides how such content is to be reviewed (fail-closed by choice).
+  designated-review trigger included, needs that record. The record and the
+  designated approval are two streams from one identity: a review carrying the
+  record is the model review and never the designated decision (or one automatic
+  approval would satisfy both), a designated approval never stands in for the
+  model review, and the App's later change request overrules the record. A bare
+  App approval is not a model review. `agent-review` also refuses to post if any
+  of these changed during its own review, and exits 4 when the review is
+  recorded but the gate could not be re-run, because review events cannot
+  trigger it and the old check result would keep standing. Its model processes
+  run with `--no-tools` (an empty `--tools` list may read as unset) and no
+  session. r90group ordinary PRs never had an independent-approver check, since
+  the recorded-decision path returns first, and that is unchanged.
+
+  Content a text model cannot read: PNG, JPEG, GIF and WebP files (at most six
+  of at most 5 MB) are read by the vision role (Opus, `anthropic/claude-opus-5-5`
+  high) in a separate no-tools process on the attached file, and its written
+  inspection reaches the reviewer as untrusted data; a vision failure posts
+  nothing, and the review body names the images inspected. A submodule bump or
+  any other binary (fonts, archives, wasm) has no native review surface. When
+  every changed path is such content the gate reports FND-REV-001 as advisory
+  rather than blocking, because nothing could review it and `agent-review`
+  refuses with exit 5; a PR that mixes it with reviewable content gets no such
+  relief (`agent-review` refuses with exit 3 and asks for a split), so adding a
+  font to a PR cannot skip the review of the rest. The cost is that a binary-only
+  PR of these kinds merges unreviewed but visibly so (an `advisory:` line), and
+  splitting is the price of a mixed one.
 
 ## Enforcement by plan
 
