@@ -1,3 +1,9 @@
+# [0.1.70](https://github.com/misty-step/harness/compare/v0.1.69...v0.1.70) (2026-09-29)
+<!-- landmark:protected-release previous=v0.1.69 source=3c66f7442e16e399e67cae8455bcb97b6a4c719943d123ac6c6151debe9b7ffb -->
+
+### Features
+
+* **omp-config:** omp-roster reads the board as glass once installed, else board (US-046) (#160) ([654a744](https://github.com/misty-step/harness/commit/654a74466db9e1b2dc938163e65069684f4d2302))
 # [0.1.69](https://github.com/misty-step/harness/compare/v0.1.68...v0.1.69) (2026-09-29)
 <!-- landmark:protected-release previous=v0.1.68 source=64e3188ac444c687cdbbc034ceb96fd64780202aecc2f603bf3a0ae20cdf469d -->
 
