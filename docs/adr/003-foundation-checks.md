@@ -145,6 +145,24 @@ effect with the catalog and checker change that cites ADR-006.
   - `kaylee-agent` could not serve r90group: it is private to misty-step, and its
     organization-level permissions would apply to all of r90group whatever
     repositories were selected.
+- **Independent review by model reviewer (2026-09-29).** Operator rule of
+  2026-09-28: model review plus green CI is the gate; no human approval gates a
+  pull request. Agents author under the operator's account, so an approval "from
+  someone other than the author" (FND-REV-001) needed a second account. The
+  pinned checker now also accepts the passing commit status of a model reviewer
+  it registers per organisation (misty-step: context `CodeRabbit` created by
+  `coderabbitai[bot]`); a status from any other creator, a failed or pending
+  one, or a stale success behind a newer failure does not count. It never
+  satisfies a designated-review trigger, which still needs the agent reviewer's
+  approval. The gate waits (`FOUNDATION_REVIEW_WAIT_SECONDS`, 600 in the
+  template) for a reviewer still working, and stops after 120 seconds if no
+  status ever appears. r90group registers none: its recorded decision already
+  covers every PR. Residual: a commit status cannot trigger `pull_request_target`,
+  so a reviewer that changes its status on the same head after the gate ran does
+  not re-run it; toggle the re-run label before merging. CodeRabbit publishes its
+  result as a commit status on misty-step PR heads (observed 2026-09-29), not a
+  check run. Branch rules and rulesets in both organisations require no
+  approving review; this gate was the only place a second approver was demanded.
 
 ## Enforcement by plan
 

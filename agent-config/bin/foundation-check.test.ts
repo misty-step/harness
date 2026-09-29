@@ -1172,6 +1172,8 @@ describe("foundation-check review gate (US-027)", () => {
 	const resolved = "foundation-escalation: resolved\r\nOperator decided on 2026-09-25 to keep the quoted rebrand:\r\n~~~\r\nRebrand the landing page\r\n~~~\r\n";
 	let pull = { head: { sha: "" }, base: { sha: "" }, user: { login: "engineer" }, body: "" };
 	let reviews: { user: { login: string }; state: string; commit_id: string; body: string; submitted_at?: string }[] = [];
+	let statuses: { context: string; state: string; creator: { login: string } }[] = [];
+	let onStatuses = () => {};
 	let comments: { user: { login: string }; body: string; created_at: string }[] = [];
 	let calls: string[] = [];
 	const server = Bun.serve({
@@ -1183,6 +1185,7 @@ describe("foundation-check review gate (US-027)", () => {
 			if (url.pathname.endsWith("/pulls/7")) return Response.json(pull);
 			if (url.pathname.endsWith("/pulls/7/reviews")) return Response.json(url.searchParams.get("page") === "1" ? reviews : []);
 			if (url.pathname.endsWith("/issues/7/comments")) return Response.json(url.searchParams.get("page") === "1" ? comments : []);
+			if (url.pathname.endsWith("/statuses")) { onStatuses(); return Response.json(url.searchParams.get("page") === "1" ? statuses : []); }
 			return new Response("missing", { status: 404 });
 		},
 	});
@@ -1239,6 +1242,78 @@ describe("foundation-check review gate (US-027)", () => {
 		expect(result.output.approved_by).toBe("teammate");
 		expect(calls.some((path) => path.endsWith("/reviews"))).toBe(true);
 	});
+
+	test("a passing model review status stands in for a second approver, only from its named creator and only while current", async () => {
+		const repo = fixture("gate-model");
+		const base = exec(repo, ["rev-parse", "HEAD"]);
+		put(repo, "notes.txt", "plain change\n");
+		commit(repo, "plain");
+		const head = exec(repo, ["rev-parse", "HEAD"]);
+		opened(base, head, "operator-account");
+		reviews = [];
+		const status = (state: string, creator = "coderabbitai[bot]", context = "CodeRabbit") => ({ context, state, creator: { login: creator } });
+		try {
+			// Statuses list newest first: an older success never outlives a newer failure.
+			for (const [label, list] of [
+				["none", []], ["pending", [status("pending")]], ["failed", [status("failure"), status("success")]],
+				["forged creator", [status("success", "github-actions[bot]")]], ["other context", [status("success", "coderabbitai[bot]", "lint")]],
+				["newer status from someone else", [status("pending", "github-actions[bot]"), status("success")]],
+			] as const) {
+				statuses = [...list];
+				const result = await gate(repo);
+				expect(result.status, label).toBe(1);
+				expect(result.output.errors.join("\n"), label).toContain("FND-REV-001");
+			}
+			statuses = [status("success"), status("pending")];
+			const passed = await gate(repo);
+			expect(passed.status).toBe(0);
+			expect(passed.output.approved_by).toBe("CodeRabbit (model review)");
+			// r90group has no model reviewer registered; its recorded decision is the only route there.
+			comments = [];
+			expect((await gate(repo, "r90group/demo")).status).toBe(1);
+			// A model review never satisfies a designated-review trigger: the agent reviewer still has to approve.
+			put(repo, "USER_STORIES.md", "# Stories\n");
+			commit(repo, "placeholder without stories");
+			const placeholder = exec(repo, ["rev-parse", "HEAD"]);
+			put(repo, "USER_STORIES.md", `# Stories\n\n${liveStory}`);
+			commit(repo, "first stories");
+			opened(placeholder, exec(repo, ["rev-parse", "HEAD"]), "operator-account");
+			expect((await gate(repo)).output.errors.join("\n")).toContain("designated agent reviewer");
+		} finally {
+			statuses = [];
+		}
+	});
+
+	test("the gate waits for a model reviewer that is still working, up to its limit", async () => {
+		const repo = fixture("gate-model-wait");
+		const base = exec(repo, ["rev-parse", "HEAD"]);
+		put(repo, "notes.txt", "plain change\n");
+		commit(repo, "plain");
+		opened(base, exec(repo, ["rev-parse", "HEAD"]), "operator-account");
+		reviews = [];
+		const pending = { context: "CodeRabbit", state: "pending", creator: { login: "coderabbitai[bot]" } };
+		process.env.FOUNDATION_REVIEW_WAIT_SECONDS = "5";
+		process.env.FOUNDATION_REVIEW_POLL_SECONDS = "1";
+		try {
+			statuses = [pending];
+			// Finishes on the third poll.
+			let polls = 0;
+			onStatuses = () => { if (++polls === 3) statuses = [{ ...pending, state: "success" }, pending]; };
+			expect((await gate(repo)).status).toBe(0);
+			expect(polls).toBe(3);
+			// Never finishes: gives up at the limit rather than hanging.
+			statuses = [pending];
+			onStatuses = () => {};
+			const started = Date.now();
+			expect((await gate(repo)).status).toBe(1);
+			expect(Date.now() - started).toBeLessThan(12_000);
+		} finally {
+			delete process.env.FOUNDATION_REVIEW_WAIT_SECONDS;
+			delete process.env.FOUNDATION_REVIEW_POLL_SECONDS;
+			statuses = [];
+			onStatuses = () => {};
+		}
+	}, 30_000);
 
 	test("citation covers each mapped source story even when the review checkout stays at the base", async () => {
 		const repo = fixture("gate-citation");
