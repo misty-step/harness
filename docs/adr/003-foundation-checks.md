@@ -193,9 +193,12 @@ effect with the catalog and checker change that cites ADR-006.
 
   Content a text model cannot read: PNG, JPEG, GIF and WebP files (at most six
   of at most 5 MB) are read by the vision role (Opus, `anthropic/claude-opus-5-5`
-  high) in a separate no-tools process on the attached file, and its written
-  inspection reaches the reviewer as untrusted data; a vision failure posts
-  nothing, and the review body names the images inspected. A submodule bump or
+  high) in a separate no-tools process on the attached file, fetched from the
+  reviewed head commit itself (never a listing of the PR, which a push could
+  change mid-review), and its written inspection reaches the reviewer as
+  untrusted data; a vision failure, or an inspection over 20,000 characters
+  (never cut short), posts nothing, and the review body names the images
+  inspected. A submodule bump or
   any other binary (fonts, archives, wasm) has no native review surface. When
   every changed path is such content the gate reports FND-REV-001 as advisory
   rather than blocking, because nothing could review it and `agent-review`

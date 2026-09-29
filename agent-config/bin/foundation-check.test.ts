@@ -1312,6 +1312,13 @@ describe("foundation-check review gate (US-027)", () => {
 		expect((await gate(repo)).status).toBe(1);
 		reviews = [recorded(agent, image)];
 		expect((await gate(repo)).status).toBe(0);
+		// Git keeps a tab in a path literal under -z: an image named with one is still an image, not opaque content.
+		exec(repo, ["reset", "-q", "--hard", base]);
+		mkdirSync(join(repo, "docs"), { recursive: true });
+		writeFileSync(join(repo, "docs/logo\tprivate.png"), Buffer.from([0x89, 0x50, 0x4e, 0x47, 0, 4, 5, 0, 6]));
+		at("tab-named image");
+		reviews = [];
+		expect((await gate(repo)).output.errors.join("\n")).toContain("FND-REV-001");
 		// A binary no surface can read, alone, is advisory: nothing could review it, and the gate says so.
 		exec(repo, ["reset", "-q", "--hard", base]);
 		writeFileSync(join(repo, "font.woff"), Buffer.from([0, 1, 0, 0, 0, 9, 0]));

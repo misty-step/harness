@@ -1455,7 +1455,8 @@ const inspectableImage = /\.(png|jpe?g|gif|webp)$/i;
 /** The changed paths, when the change is nothing but content no review surface can inspect: submodule bumps and non-image binaries. */
 function uninspectableOnly(repo: string, mergeBase: string, head: string): string[] {
 	const diff = (kind: string) => spawnSync("git", ["diff", kind, "-z", "--no-renames", mergeBase, head], { cwd: repo, encoding: "utf8", maxBuffer: 64 * 1024 * 1024 }).stdout.split("\0");
-	const stats = diff("--numstat").filter(Boolean).map((line) => line.split("\t"));
+	// A path may contain tabs, and -z leaves them literal: only the first two tabs delimit the counts.
+	const stats = diff("--numstat").filter(Boolean).map((line) => { const [added, deleted, ...path] = line.split("\t"); return [added, deleted, path.join("\t")]; });
 	const raw = diff("--raw");
 	const submodules = new Set<string>();
 	for (let index = 0; index + 1 < raw.length; index += 2) {
