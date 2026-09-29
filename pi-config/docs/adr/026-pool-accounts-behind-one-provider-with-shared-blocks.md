@@ -36,3 +36,11 @@ operator; a slot without a login is skipped.
 The personal OpenRouter command key moved to a pass entry that exists
 (`OPENROUTER_MISTY_STEP_HARNESS_WORKSTATION_RECOVERY_API_KEY`); the previous name
 was absent from the store and every OpenRouter call returned 401.
+
+*Amended 2026-09-29:* Pi's startup sometimes resolves the settings default
+before extension providers exist and lands on Anthropic (4 of 15 fresh
+sessions; 0 of 15 with the base `openai-codex` default). The failover guard
+refused those sessions, which was safe but broke the default. `accounts` now
+switches a session that starts on Anthropic, or on no model, to
+`openai-pool/gpt-6-astra` at `session_start` (25 of 25 fresh sessions
+after).
