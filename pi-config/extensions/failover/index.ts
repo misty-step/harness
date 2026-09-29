@@ -34,28 +34,31 @@ import { modelKey, nextInChain, runError, summarize } from "./decide.ts";
  * settings.json where it needs one (ADR-011/013/025).
  */
 const CHAIN = [
-	"openai-codex/gpt-6-astra",
-	"openai-codex/gpt-6-sol",
-	"openai-codex/gpt-6-luna",
-	"xai/grok-4.7",
+	"openai-pool/gpt-6-astra",
+	"openai-pool/gpt-6-sol",
+	"openai-pool/gpt-6-luna",
+	"xai-pool/grok-4.7",
 ];
 
 /**
- * Approved routes. Codex slots from extensions/accounts (ADR-024) run the same
- * GPT-6 models; they are listed rather than pattern-matched, so an unlisted or
- * custom provider id stays refused. xAI and OpenRouter are approved for any
- * model except Anthropic's, which OpenRouter would bill as paid API tokens.
+ * Approved routes: the pools and account slots from extensions/accounts
+ * (ADR-024/026) plus the base providers. Matched by an exact id pattern, so a
+ * custom provider that merely looks like a slot stays refused. Codex runs the
+ * GPT-6 trio; xAI any model; OpenRouter any model except Anthropic's, which it
+ * bills as paid API tokens.
  */
-const CODEX_PROVIDERS = ["openai-codex", "openai-codex-2", "openai-codex-3", "openai-codex-4"];
+const CODEX_PROVIDER = /^(openai-pool|openai-codex(-[2-4])?)$/;
 const CODEX_MODELS = ["gpt-6-astra", "gpt-6-sol", "gpt-6-luna"];
+const XAI_PROVIDER = /^(xai-pool|xai(-2)?)$/;
+const OPENROUTER_PROVIDER = /^(openrouter-pool|openrouter(-2)?)$/;
 const anthropicModel = /(^|\/)~?anthropic\//;
 
 function approved(model: ExtensionContext["model"]) {
 	const provider = model?.provider ?? "";
 	const id = model?.id ?? "";
-	if (CODEX_PROVIDERS.includes(provider)) return CODEX_MODELS.includes(id);
-	if (provider === "xai") return id !== "";
-	if (provider === "openrouter") return id !== "" && !anthropicModel.test(id);
+	if (CODEX_PROVIDER.test(provider)) return CODEX_MODELS.includes(id);
+	if (XAI_PROVIDER.test(provider)) return id !== "";
+	if (OPENROUTER_PROVIDER.test(provider)) return id !== "" && !anthropicModel.test(id);
 	return false;
 }
 const blockedRoute = "Model policy: Pi uses only OpenAI, Grok and OpenRouter (never Anthropic); select one and sign in with /login.";

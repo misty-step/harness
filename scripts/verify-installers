@@ -109,7 +109,7 @@ for consumer in pi omp; do
   if [ "$consumer" = pi ]; then
     # US-028: Pi replaces only its OpenRouter mapping, retaining foreign auth.
     check "pi OpenRouter auth mapping and foreign credential" \
-      jq -e '.synthetic == "auth sentinel" and .anthropic == {type:"api_key",key:"synthetic-foreign"} and .openrouter == {type:"api_key",key:"!openrouter-key --personal workstation/OPENROUTER_API_KEY_MIRRODIN_PI"}' "$agent/auth.json"
+      jq -e '.synthetic == "auth sentinel" and .anthropic == {type:"api_key",key:"synthetic-foreign"} and .openrouter == {type:"api_key",key:"!openrouter-key --personal workstation/OPENROUTER_MISTY_STEP_HARNESS_WORKSTATION_RECOVERY_API_KEY"}' "$agent/auth.json"
     check "pi auth permissions" test "$(stat -c %a "$agent/auth.json")" = 600
   else
     check "omp auth untouched" cmp -s "$work/expected-auth" "$agent/auth.json"
