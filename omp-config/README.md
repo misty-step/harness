@@ -415,8 +415,7 @@ After deploying the source extension, `OMP_CREDENTIAL_CONTEXT=on-demand omp`
 uses a compact discovery pointer instead of listing every pass entry at startup.
 This experiment is off by default and fixed for each extension instance. Unset
 the variable and start a fresh session to restore the full inventory. The
-auth-failure hint on failed bash results remains enabled in both modes. The
-extension never reacts to assistant prose and never injects a turn.
+extension does not react to tool results or assistant prose or inject turns.
 
 `bun bin/omp-task-usage.ts --sessions DIR --manifest FILE` reads explicitly
 selected local task trees and reports separate input/output/cache costs, including
