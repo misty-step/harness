@@ -1,0 +1,11 @@
+PARKED / UNFINISHED — exact preserved harness changes, not landed.
+
+Branch: parked/harness-semantic-credentials-models-and-close-20260930
+Snapshot: 16ce1351eb66cdc505902194d83d11beb7a1848f (unchanged preservation commit and tree).
+Original base: e0c4565264a760930c7c97f91995f45079a54ee1 on phaedrus/story-driven-qa-cadence.
+Scope: all 41 modified/untracked files preserved from the canonical checkout, including semantic judgment, credential/key handling, model configuration, shared doctrine, session-close, installers and Pi/OMP extensions.
+Reason: the original engineering session is gone. Kaylee, relaying Phaedrus, explicitly authorized preserving and pushing the exact snapshot and returning canonical to clean master on 2026-09-30.
+Owner: Kaylee routes this parked work to the next engineer; the preservation session owns this snapshot publication, not implementation completion.
+Status: unmerged, undeployed, no new PR or completion claim. Earlier landing-close and two-rule doctrine work landed separately in PR176 and PR178; this snapshot contains competing session-close changes that must be reconciled with current master. No implementation acceptance is claimed for the parked changes.
+Resume: create an owner-scoped task checkout from this parked branch; register the worktree lease and landing record. Read the preservation diff against the original base, establish the intended outcomes, and reconcile with current origin/master without discarding the preserved intent. Run the normal meaningful checks and user/owner-path smoke verification, obtain exact-head model review and green CI, then merge through the normal PR path, install affected OMP/Pi targets and verify production behavior. Update the relevant existing tracker and PR with evidence before claiming completion; remove only the resumed engineer's finished task resources.
+Retrieve note after cloning: git fetch origin refs/notes/parked-harness-resume:refs/notes/parked-harness-resume; git notes --ref=refs/notes/parked-harness-resume show origin/parked/harness-semantic-credentials-models-and-close-20260930
