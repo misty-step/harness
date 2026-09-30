@@ -152,7 +152,7 @@ function enforceEngineerLimit(): void {
 		if (!isRecord(agent) || !["working", "idle", "done", "blocked", "unknown"].includes(agent.agent_status as string)) {
 			throw new CliError("Cannot read the Herdr agents: unrecognised agent status.");
 		}
-		if (agent.agent_status !== "working") continue;
+		if (agent.agent !== "omp" || agent.agent_status !== "working") continue;
 		const name = plainOrNull(agent.name) ?? plainOrNull(agent.pane_id);
 		if (!name) throw new CliError("Cannot read the Herdr agents: a working agent has no name or pane id.");
 		working.push(name);
