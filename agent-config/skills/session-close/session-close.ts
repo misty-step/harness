@@ -1,8 +1,8 @@
 #!/usr/bin/env bun
 /** Owner-scoped leases and landing evidence. Never destroys a Git resource. */
 
-import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, readdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { createHash, randomUUID } from "node:crypto";
+import { existsSync, mkdirSync, readdirSync, readFileSync, realpathSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { basename, isAbsolute, join, resolve } from "node:path";
 
@@ -11,11 +11,11 @@ type Lease = { kind: Kind; target: string; owner?: string; created?: string; exp
 type LeaseState = { own: Lease[]; foreign: Lease[]; needsReview: Lease[] };
 type Landing = {
 	owner: string; commonDir: string; canonical: string; target: string; branch: string | null;
-	head: string; created: string; updated: string; defaultBranch?: string; defaultCheckout?: boolean; parked?: { note: string; at: string };
+	head: string; previousHeads?: string[]; created: string; updated: string; defaultBranch?: string; defaultCheckout?: boolean; parked?: { note: string; at: string };
 };
 type Worktree = { target: string; head: string; branch: string | null };
 type Repository = { commonDir: string; canonical: string; target: string; branch: string | null; head: string; defaultBranch?: string };
-type PullRequest = { state: "OPEN" | "CLOSED" | "MERGED"; headRefOid: string; baseRefName: string; mergeCommit: { oid: string } | null };
+type PullRequest = { number: number; state: "OPEN" | "CLOSED" | "MERGED"; headRefOid: string; baseRefName: string; mergeCommit: { oid: string } | null };
 type LandingReport = Landing & { status: "landed" | "blocked" | "parked"; verification: "verified" | "unverified"; blockers: string[] };
 
 const oidPattern = /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/;
@@ -194,6 +194,7 @@ function parseLanding(raw: string, name: string): Landing | string {
 	if (v.defaultBranch !== undefined && (typeof v.defaultBranch !== "string" || !v.defaultBranch || /[\0\r\n]/.test(v.defaultBranch))) return `${name}: invalid defaultBranch`;
 	if (v.defaultCheckout !== undefined && typeof v.defaultCheckout !== "boolean") return `${name}: invalid defaultCheckout`;
 	if (typeof v.head !== "string" || !oidPattern.test(v.head)) return `${name}: invalid head`;
+	if (v.previousHeads !== undefined && (!Array.isArray(v.previousHeads) || !v.previousHeads.every((head) => typeof head === "string" && oidPattern.test(head)))) return `${name}: invalid previousHeads`;
 	for (const field of ["created", "updated"]) {
 		if (typeof v[field] !== "string" || !Number.isFinite(Date.parse(v[field] as string))) return `${name}: invalid ${field}`;
 	}
@@ -204,7 +205,7 @@ function parseLanding(raw: string, name: string): Landing | string {
 		if (typeof p.note !== "string" || !p.note.trim() || typeof p.at !== "string" || !Number.isFinite(Date.parse(p.at))) return `${name}: invalid parking note or date`;
 		parked = { note: p.note, at: p.at };
 	}
-	return { owner: v.owner, commonDir: v.commonDir as string, canonical: v.canonical as string, target: v.target as string, branch: v.branch as string | null, head: v.head, created: v.created as string, updated: v.updated as string, ...(typeof v.defaultBranch === "string" ? { defaultBranch: v.defaultBranch } : {}), ...(typeof v.defaultCheckout === "boolean" ? { defaultCheckout: v.defaultCheckout } : {}), ...(parked ? { parked } : {}) };
+	return { owner: v.owner, commonDir: v.commonDir as string, canonical: v.canonical as string, target: v.target as string, branch: v.branch as string | null, head: v.head, ...(Array.isArray(v.previousHeads) ? { previousHeads: v.previousHeads as string[] } : {}), created: v.created as string, updated: v.updated as string, ...(typeof v.defaultBranch === "string" ? { defaultBranch: v.defaultBranch } : {}), ...(typeof v.defaultCheckout === "boolean" ? { defaultCheckout: v.defaultCheckout } : {}), ...(parked ? { parked } : {}) };
 }
 
 function listLandings(dir: string): { landings: Landing[]; errors: string[] } {
@@ -224,7 +225,21 @@ function listLandings(dir: string): { landings: Landing[]; errors: string[] } {
 
 function saveLanding(dir: string, landing: Landing): void {
 	mkdirSync(join(dir, "landings"), { recursive: true, mode: 0o700 });
-	writeFileSync(landingFile(dir, landing), `${JSON.stringify(landing, null, 2)}\n`, { mode: 0o600 });
+	const path = landingFile(dir, landing);
+	const temporary = `${path}.${randomUUID()}.tmp`;
+	try {
+		writeFileSync(temporary, `${JSON.stringify(landing, null, 2)}\n`, { mode: 0o600, flag: "wx" });
+		renameSync(temporary, path);
+	} finally { rmSync(temporary, { force: true }); }
+}
+
+function rememberHead(landing: Landing, head: string): void {
+	if (landing.head === head) return;
+	if (!ancestor(landing.commonDir, landing.head, head)) {
+		landing.previousHeads = [...new Set([...(landing.previousHeads ?? []), landing.head])];
+	}
+	landing.head = head;
+	landing.updated = new Date().toISOString();
 }
 
 function register(dir: string, landings: Landing[], repo: Repository, who: string): Landing {
@@ -232,7 +247,7 @@ function register(dir: string, landings: Landing[], repo: Repository, who: strin
 	const now = new Date().toISOString();
 	if (existing) {
 		if (existing.head !== repo.head || existing.canonical !== repo.canonical) {
-			existing.head = repo.head;
+			rememberHead(existing, repo.head);
 			existing.canonical = repo.canonical;
 			existing.updated = now;
 			saveLanding(dir, existing);
@@ -340,8 +355,8 @@ function remoteBranch(repo: FreshRepository, branch: string): boolean {
 	return true;
 }
 
-function ancestor(repo: FreshRepository, head: string): boolean {
-	const result = git(repo.commonDir, ["merge-base", "--is-ancestor", head, repo.defaultHead], [1, 128]);
+function ancestor(commonDir: string, head: string, descendant: string): boolean {
+	const result = git(commonDir, ["merge-base", "--is-ancestor", head, descendant], [1, 128]);
 	if (result.code === 128) {
 		if (/not a valid (?:commit|object) name|bad object/i.test(result.err)) return false;
 		throw new Error(`git merge-base failed: ${result.err.trim()}`);
@@ -352,15 +367,25 @@ function ancestor(repo: FreshRepository, head: string): boolean {
 function pullRequests(repo: FreshRepository, branch: string): PullRequest[] {
 	const cached = repo.prs.get(branch);
 	if (cached) return cached;
-	const value = parseJSON(command(["gh", "pr", "list", "--state", "all", "--head", branch, "--limit", "1000", "--json", "state,headRefOid,baseRefName,mergeCommit"], repo.canonical).out, "gh pr list");
+	const value = parseJSON(command(["gh", "pr", "list", "--state", "all", "--head", branch, "--limit", "1000", "--json", "number,state,headRefOid,baseRefName,mergeCommit"], repo.canonical).out, "gh pr list");
 	if (!Array.isArray(value) || value.length >= 1000) throw new Error("gh pr list: malformed or incomplete PR response");
 	for (const item of value) {
-		if (!item || typeof item !== "object" || !["OPEN", "CLOSED", "MERGED"].includes(item.state) || typeof item.headRefOid !== "string" || !oidPattern.test(item.headRefOid) || typeof item.baseRefName !== "string" || !item.baseRefName ||
+		if (!item || typeof item !== "object" || !Number.isSafeInteger(item.number) || item.number < 1 || !["OPEN", "CLOSED", "MERGED"].includes(item.state) || typeof item.headRefOid !== "string" || !oidPattern.test(item.headRefOid) || typeof item.baseRefName !== "string" || !item.baseRefName ||
 			(item.mergeCommit !== null && (!item.mergeCommit || typeof item.mergeCommit !== "object" || typeof item.mergeCommit.oid !== "string" || !oidPattern.test(item.mergeCommit.oid))) ||
 			(item.state === "MERGED" && item.mergeCommit === null)) throw new Error("gh pr list: malformed PR facts");
 	}
 	repo.prs.set(branch, value);
 	return value;
+}
+
+function mergedPRContains(repo: FreshRepository, pr: PullRequest, head: string): boolean {
+	if (pr.state !== "MERGED" || pr.baseRefName !== repo.defaultBranch || !pr.mergeCommit || !ancestor(repo.commonDir, pr.mergeCommit.oid, repo.defaultHead)) return false;
+	if (pr.headRefOid === head) return true;
+	if (git(repo.commonDir, ["cat-file", "-e", `${pr.headRefOid}^{commit}`], [1, 128]).code === 0) return ancestor(repo.commonDir, head, pr.headRefOid);
+	// GitHub retains PR heads after branch deletion, including remote update-branch commits.
+	git(repo.commonDir, ["fetch", "--no-tags", "origin", `refs/pull/${pr.number}/head`]);
+	const fetched = git(repo.commonDir, ["rev-parse", "--verify", "FETCH_HEAD^{commit}"]).out.trim();
+	return fetched === pr.headRefOid && ancestor(repo.commonDir, head, fetched);
 }
 
 function landingFacts(landing: Landing, repo: FreshRepository, related: Landing[]): string[] {
@@ -384,8 +409,10 @@ function landingFacts(landing: Landing, repo: FreshRepository, related: Landing[
 			if (item.branch && item.branch !== repo.defaultBranch && (item.target === landing.target || item.head === landing.head)) prs.push(...pullRequests(repo, item.branch));
 		}
 	}
-	if (!ancestor(repo, landing.head) && !prs.some((pr) => pr.state === "MERGED" && pr.headRefOid === landing.head && pr.baseRefName === repo.defaultBranch && pr.mergeCommit && ancestor(repo, pr.mergeCommit.oid))) {
-		blockers.push(`recorded HEAD is not merged into fetched origin/${repo.defaultBranch}: ${landing.head}`);
+	for (const head of new Set([landing.head, ...(landing.previousHeads ?? [])])) {
+		if (!ancestor(repo.commonDir, head, repo.defaultHead) && !prs.some((pr) => mergedPRContains(repo, pr, head))) {
+			blockers.push(`recorded HEAD is not merged into fetched origin/${repo.defaultBranch}: ${head}`);
+		}
 	}
 	return blockers;
 }
@@ -433,7 +460,7 @@ function check(dir: string, json: boolean, repoPath: string, explicitRepo: boole
 	for (const landing of mine) {
 		if (landing.parked || !existsSync(landing.commonDir)) continue;
 		const head = landing.branch ? localHead(landing.commonDir, landing.branch) : worktrees(landing.commonDir).find((tree) => tree.target === landing.target)?.head;
-		if (head && head !== landing.head) { landing.head = head; landing.updated = new Date().toISOString(); saveLanding(dir, landing); }
+		if (head && head !== landing.head) { rememberHead(landing, head); saveLanding(dir, landing); }
 	}
 	const ownLandings: LandingReport[] = mine.map((landing) => {
 		if (landing.parked) return { ...landing, status: "parked", verification: "unverified", blockers: retainedFacts(landing) };

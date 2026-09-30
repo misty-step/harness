@@ -286,10 +286,11 @@ Criteria:
    on that fetched default head. Remaining owned linked worktrees, local/origin
    feature branches, open branch PRs or unmerged HEADs SHALL block.
    WHEN squash/rebase merge proof is used, THE SYSTEM SHALL require a merged PR
-   matching the recorded HEAD and a merge commit contained in the fresh default;
-   direct merge proof SHALL require recorded-HEAD ancestry. WHEN the local branch
-   still exists, THE SYSTEM SHALL refresh its recorded HEAD so an old PR cannot
-   certify a later branch lifetime or new commits.
+   whose final HEAD contains the recorded work and whose merge commit is in the
+   fresh default, fetching retained PR refs when needed; direct merge proof
+   SHALL require recorded-HEAD ancestry. WHEN local tips advance, THE SYSTEM
+   SHALL refresh them and retain divergent prior tips as independent obligations,
+   so branch reuse/rewriting cannot erase abandoned work.
 4. WHEN owned deterministic landing facts or live leases remain unresolved,
    `check` SHALL exit 2; WHEN all owned work is landed or explicitly parked and
    no other owned live leases block, it SHALL exit 0. Foreign records SHALL be

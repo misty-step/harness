@@ -94,13 +94,14 @@ dirty current/owned/canonical checkouts, remaining local/origin feature branches
 an open branch PR or a retained owned linked worktree (including detached) block.
 Parked records retain and report unfinished state rather than proving landing.
 
-Direct merges/no-PR landings require the recorded HEAD to be an ancestor of the
-fresh default head. Squash/rebase proof requires a merged PR whose head matches
-the recorded HEAD and whose merge commit is an ancestor of the fresh default.
-An old PR from a different branch lifetime is not proof. While the local branch
-exists, its current HEAD refreshes the record so later commits cannot inherit
-old proof. Worktree checks are scoped to recorded owned paths/branches, not
-unrelated foreign worktrees.
+Direct merges/no-PR landings require recorded-HEAD ancestry in the fresh default.
+Squash/rebase proof requires a merged PR whose final head contains the recorded
+work and whose merge commit is in the fresh default. Missing final-head objects
+are fetched from GitHub's retained PR ref, so remote `update-branch` commits do
+not strand a valid landing. Local tips refresh while branches exist; divergent
+previous tips remain independent obligations rather than disappearing on branch
+reuse or rewriting. Records are replaced atomically to avoid torn writes.
+Worktree checks cover recorded owned paths/branches, not unrelated foreign trees.
 
 `check` exits 2 for unresolved deterministic landing facts or blocking owned
 live leases, 1 for corrupt storage or an unparked record's command/authentication

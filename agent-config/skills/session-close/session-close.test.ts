@@ -102,7 +102,7 @@ test("unknown lease kind and unknown drop target are rejected", () => {
 });
 
 type Fixture = { root: string; leases: string; main: string; origin: string; outside: string; ghState: string; env: Record<string, string> };
-type PR = { state: string; headRefOid: string; baseRefName: string; mergeCommit: { oid: string } | null };
+type PR = { number?: number; state: string; headRefOid: string; baseRefName: string; mergeCommit: { oid: string } | null };
 type GhState = { prs?: Record<string, PR[]>; repo?: unknown; raw?: string; fail?: number };
 const gitEnv = {
 	GIT_CONFIG_NOSYSTEM: "1", GIT_CONFIG_GLOBAL: "/dev/null", GIT_TERMINAL_PROMPT: "0",
@@ -146,7 +146,7 @@ if (args[0] === "repo" && args[1] === "view") {
 	console.log(JSON.stringify(state.repo ?? { defaultBranchRef: { name: "main" } }));
 } else if (args[0] === "pr" && args[1] === "list" && args[args.indexOf("--state") + 1] === "all") {
 	const head = args[args.indexOf("--head") + 1];
-	console.log(JSON.stringify(state.prs?.[head] ?? []));
+	console.log(JSON.stringify((state.prs?.[head] ?? []).map((pr, index) => ({ number: index + 1, ...pr }))));
 } else { console.error("unsupported gh protocol"); process.exit(1); }
 `, { mode: 0o700 });
 	return { root, leases, origin, main, outside, ghState, env: { ...gitEnv, PATH: `${bin}:${process.env.PATH}`, SESSION_CLOSE_TEST_GH_STATE: ghState } };
@@ -308,6 +308,50 @@ test("squash proof requires the recorded branch lifetime, default base, and land
 	}
 	ghState(f, { prs: { feature: [valid] } });
 	expect(cli(f, ["check"]).code).toBe(0);
+});
+
+test("US-004 remotely advanced PR head certifies recorded work after squash and branch deletion", () => {
+	const f = fixture();
+	const work = feature(f);
+	expect(cli(f, ["track"], work.tree).code).toBe(0);
+	const publisher = join(f.root, "publisher");
+	gitAt(f.root, ["clone", f.origin, publisher]);
+	gitAt(publisher, ["checkout", "feature"]);
+	writeFileSync(join(publisher, "bot.txt"), "remote update-branch or bot commit\n");
+	gitAt(publisher, ["add", "bot.txt"]);
+	gitAt(publisher, ["commit", "-m", "remote head advances"]);
+	const remoteHead = gitAt(publisher, ["rev-parse", "HEAD"]);
+	gitAt(publisher, ["push", "origin", "feature"]);
+	gitAt(publisher, ["push", "origin", `${remoteHead}:refs/pull/7/head`]);
+	gitAt(f.main, ["merge", "--squash", "feature"]);
+	writeFileSync(join(f.main, "bot.txt"), "remote update-branch or bot commit\n");
+	gitAt(f.main, ["add", "bot.txt"]);
+	gitAt(f.main, ["commit", "-m", "squash remote PR head"]);
+	gitAt(f.main, ["push", "origin", "main"]);
+	const squash = gitAt(f.main, ["rev-parse", "HEAD"]);
+	removeFeature(f, work.tree);
+	ghState(f, { prs: { feature: [{ number: 7, state: "MERGED", headRefOid: remoteHead, baseRefName: "main", mergeCommit: { oid: squash } }] } });
+	const result = cli(f, ["--json", "check"]);
+	expect(result.code, result.err || result.out).toBe(0);
+	expect(JSON.parse(result.out).ownLandings.find((item: { branch: string }) => item.branch === "feature").status).toBe("landed");
+});
+
+test("US-004 branch-name reuse cannot discard an abandoned divergent head", () => {
+	const f = fixture();
+	const work = feature(f);
+	expect(cli(f, ["track"], work.tree).code).toBe(0);
+	gitAt(work.tree, ["checkout", "--detach"]);
+	gitAt(f.main, ["branch", "-D", "feature"]);
+	gitAt(work.tree, ["checkout", "-b", "feature", "main"]);
+	writeFileSync(join(work.tree, "replacement.txt"), "different branch lifetime\n");
+	gitAt(work.tree, ["add", "replacement.txt"]);
+	gitAt(work.tree, ["commit", "-m", "replacement work"]);
+	expect(cli(f, ["track"], work.tree).code).toBe(0);
+	mergeFeature(f);
+	removeFeature(f, work.tree);
+	const result = cli(f, ["--json", "check"]);
+	expect(result.code, result.err || result.out).toBe(2);
+	expect(JSON.parse(result.out).blockers).toContain(`recorded HEAD is not merged into fetched origin/main: ${work.head}`);
 });
 
 test("latest local branch tip is persisted after original worktree loss and cannot reuse older PR proof", () => {
