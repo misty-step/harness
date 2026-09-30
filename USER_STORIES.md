@@ -661,9 +661,10 @@ limit, so dispatch queues work on the board instead of consuming more usage.
 
 Criteria:
 1. WHEN `omp-roster launch` prepares a ticketed or ticketless engineer, THE
-   SYSTEM SHALL count every Herdr agent whose `agent_status` is `working`
-   across the current session, including other workspaces and the caller,
-   excluding `idle`, `done`, `blocked` and `unknown`.
+   SYSTEM SHALL count every Herdr agent whose `agent` is `omp` and
+   `agent_status` is `working` across the current session, including other
+   workspaces and the caller, excluding other agent kinds (including Kaylee's
+   Hermes window), `idle`, `done`, `blocked` and `unknown`.
 2. WHEN that count is at or above the configured limit, THE SYSTEM SHALL exit
    5, emit one stderr line naming the working engineers (pane id for an unnamed
    engineer) and directing the caller to queue work on the board, leave stdout
