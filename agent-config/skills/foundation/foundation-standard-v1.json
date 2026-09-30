@@ -1,7 +1,7 @@
 {
   "schema": "foundation-standard/1",
   "id": "misty-step.foundation",
-  "version": "1.5.0",
+  "version": "1.6.0",
   "principles": [
     {
       "id": "FND-P-APPLICABILITY",
@@ -190,8 +190,8 @@
       "applies_when": "The repository is an application: it changes a live system (surface deployed) or ships something people run (surfaces ui, cli or api).",
       "required_evidence": [
         "Every push to the default branch that passes the gate deploys to production automatically, whether the trunk is named main, master or otherwise: a deploy or release job waits on the gate, runs with no manual step, and a failed gate stops it.",
-        "The gate is strong enough to ship at 5pm on a Friday: CI, automated tests of the core journeys, story walks and agentic QA run before shipping, and a readback or smoke check verifies the shipped candidate.",
-        "Rollback or recovery of a bad release is exercised, and recent default-branch history shows green commits reaching production without hand steps.",
+        "Small, independently shippable slices pass CI, automated tests of the core journeys, agent walks of every user story and rigorous agentic QA in a production-like environment with representative, privacy-safe production-like data; a readback or smoke check verifies the shipped candidate.",
+        "Release health checks automatically roll a bad release back to the last healthy version with compatible data recovery; a recorded drill proves rollback, and recent default-branch history shows green commits reaching production without hand steps.",
         "For a multi-tenant application, the deploy reaches every tenant in its complete registry; the receipt reads back every non-excluded tenant after deploy.",
         "Any tenant excluded from the multi-tenant rollout is explicitly named in the adoption record with a non-empty reason; an exclusion is a reviewable record change, not an implicit deploy filter.",
         "Before deployment, migrations run for each non-excluded tenant, remain backward-compatible with the still-running code (expand/contract), and a failed tenant migration stops the rollout.",

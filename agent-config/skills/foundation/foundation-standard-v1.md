@@ -1,7 +1,7 @@
 # Foundation Standard
 
 **Standard:** `misty-step.foundation`
-**Version:** `1.5.0`
+**Version:** `1.6.0`
 **Catalog:** [`foundation-standard-v1.json`](foundation-standard-v1.json)
 
 The adjacent JSON catalog is the **single normative source for structured obligation fields**: applicability, required evidence, exception authority, approved defaults, dispositions, and required decision fields. This document is the human-readable rationale and operating guidance keyed by those IDs; it does not restate a second normative copy. The Foundation skill is an assessment and repair procedure that reads the catalog and this guidance, not another policy source.
@@ -236,11 +236,15 @@ The repository supplies a complete tenant registry and a command or workflow
 that reports every tenant's deployed revision and migration level, even for
 excluded tenants. The receipt reads back each non-excluded tenant's production
 state after deploy; file checks cannot prove actual fan-out or migration safety.
-The gate is strong enough to ship at 5pm on a Friday: CI, automated tests of
-the core journeys, story walks and agentic QA, then a readback or smoke check.
-Rollback is exercised, not described. A manual promotion, a dispatch-only
-workflow, or a deploy that does not wait on the gate is not continuous
-deployment (ADR-005).
+Continuous deployment is a foundation of every app, not an optional ticket.
+Small, independently shippable slices pass rigorous verification in a
+production-like QA environment with representative, privacy-safe production-like
+data; agents walk every user story before shipping. Production fidelity grants
+no permission to copy private data. Read back or smoke-check the shipped
+candidate. Release health checks automatically roll a bad release back to the
+last healthy version with compatible data recovery, and a recorded drill proves
+that path. A manual promotion, a dispatch-only workflow, or a deploy that does
+not wait on the gate is not continuous deployment (ADR-005, ADR-007).
 
 ### FND-ALR-001 — Loud production alerting
 

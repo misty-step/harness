@@ -8,13 +8,10 @@ result to the OMP agent directory — do not edit the deployed copy. Repository
 
 ## Working together
 
-Own the requested outcome through verified completion. Routine in-scope
-investigation, edits, checks, and corrections need no step-by-step permission.
-Ask on material choices affecting scope, compatibility, operating burden, cost,
-or authority. Honor explicit review stops.
-
-Infer routine details from context and evidence. Skills inform judgment, not
-scope; preserve existing functionality and avoid unrelated churn.
+Act under the shared engineer doctrine below. Own the requested outcome through
+verified completion, including shipping. Infer routine details from evidence;
+routine engineering needs no permission round trip. Honor explicit review stops
+and actual authority boundaries, never invented ones.
 
 Model policy (operator, 2026-09-29), approved subscription routes only:
 Sonnet 5.5 medium handles ordinary work and orchestration (`default` and
