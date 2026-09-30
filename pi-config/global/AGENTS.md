@@ -1,9 +1,8 @@
 # Pi global guidance
 
-Loads into every pi session on this machine, in every repository. `./install`
-composes this file with shared sections from
-`agent-config` and deploys the
-result to `~/.pi/agent/AGENTS.md` — do not edit the deployed copy. Repository
-`AGENTS.md` files add to this, never replace it.
+Edit source in the harness repository. `pi-config/install` composes this intro
+with shared `agent-config/guidance` into `~/.pi/agent/AGENTS.md`.
+Repository `AGENTS.md` adds local context. Pi-native settings and logins own
+runtime configuration; `README.md` records its owned and foreign components.
 
 <!-- shared guidance: agent-config -->

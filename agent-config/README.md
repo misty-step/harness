@@ -20,7 +20,7 @@ harness repo. When in doubt, leave it in the harness.
 | `skills/` | Portable skill packages, clean-replaced when selected |
 | `skills/test-audit/` | Shared authoring gate and focused test audit; subsystem campaign is opt-in (US-021) |
 | `skills/story-qa/` | Curated user-story walks by agents on the real product surface (US-022) |
-| `skills/check-cadence/` | Risk-based PR/nightly/weekly check selection without losing owned gates (US-023) |
+| `skills/story-qa/check-cadence.md` | Risk-based PR/nightly/weekly check selection without losing owned gates (US-023) |
 | `guidance/*.md` | Shared global-guidance sections, spliced at the harness marker |
 | `bin/pass-env.ts` | Standalone pass-backed environment launcher |
 | `bin/openrouter-key.ts` | Shared OMP/Pi key resolver: R90 checkout or Git-common-dir gets the R90 pass entry; other directories use `--personal` (US-028) |
@@ -214,8 +214,7 @@ all fail closed.
 ./install --check --agent-dir DIR \
   --skill all \
   --bin pass-env.ts \
-  --guidance pokayoke --guidance communication-and-verification --guidance host-resources --guidance credentials \
-  --guidance user-stories --guidance foundations --guidance session-close --guidance design-routing \
+  --guidance engineering --guidance workstation \
   --guidance-source ../pi-config/global/AGENTS.md
 ```
 
@@ -240,23 +239,24 @@ Shared guidance sections may reference shared primitives and vehicles deployed a
 
 | Harness | Skills | Guidance | Launcher | Audio sandbox |
 | --- | --- | --- | --- | --- |
-| `pi-config` | all | pokayoke, communication-and-verification, host-resources, user-stories, foundations, session-close, design-routing | `pass-env`, `design-check`, `foundation-check`, `ws` | component `audio-sandbox` |
-| `omp-config` | all | pokayoke, communication-and-verification, host-resources, user-stories, foundations, session-close, design-routing | `pass-env`, `design-check`, `foundation-check`, `ws` | component `audio-sandbox` |
+| `pi-config` | all | engineering, workstation | `pass-env`, `design-check`, `foundation-check`, `ws` | component `audio-sandbox` |
+| `omp-config` | all | engineering, workstation | `pass-env`, `design-check`, `foundation-check`, `ws` | component `audio-sandbox` |
 
-`omp-config`'s own guidance file adds Working together (including model roles),
-Execution environments (exe.dev vehicle), and Authority
-and operations. `pi-config`'s file is title and intro only.
+OMP's intro carries its routing/tracker discovery facts; its `OPERATIONS.md`
+holds on-demand details. Pi's file is title and intro. Component `AGENTS.md`
+files are maintainer instructions, separate from these generated globals.
 
-`test-audit` owns test authoring, consolidation, and pruning decisions for both
-harnesses; it avoids repeated verification of the same contract. Shared
-guidance requires adversarial self-review of every change and invokes
-`story-qa` for affected user-facing story walks before done. Docs-only and
-internal changes get proportionate owner-path checks, not artificial browser
-walks. `check-cadence` guides fast PR checks and owned nightly/weekly coverage.
-The shared guidance routes all three; it does not schedule a run. Their scope
-is distinct from `verification-infrastructure`, which creates repository-owned
-runnable verification. The `effective-verification` candidate below judges
-test and execution evidence; it is not deployed.
+`test-audit` owns independent test contracts. `story-qa` owns actual affected
+journeys, check cadence and repairs to a missing runnable path. The short
+`engineering-operations` skill owns kickoff, resources, durable handoffs and
+review/landing procedures. `agent-design` carries post-training agent-system
+facts. `sachstand` owns status and decision briefs; `pokayoke` retains the
+incident template. Skills load at their relevant decision, rather than adding
+their procedures to every session.
+
+The installer retires `agent-ergonomics`, `capture`, `decide`, `check-cadence`
+and `verification-infrastructure` after migrating their useful content.
+`effective-verification` remains an undeployed source candidate.
 
 ## Semantic-quality source candidate
 

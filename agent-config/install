@@ -234,11 +234,19 @@ if [ "$check" = 1 ]; then
 fi
 
 if [ -n "$agent_dir" ] && { [ "$desktop_guard" = 0 ] || [ "$agent_selection" = 1 ]; }; then
-  for retired in dev-exec; do
-    rm -rf -- "$agent_dir/skills/$retired"
-  done
+  rm -rf -- "$agent_dir/skills/dev-exec"
 fi
-for name in $skill_list; do install_skill "$name"; done
+for name in $skill_list; do
+  install_skill "$name"
+  case "$name" in
+    engineering-operations)
+      rm -rf -- "$agent_dir/skills/agent-ergonomics" "$agent_dir/skills/capture" ;;
+    sachstand)
+      rm -rf -- "$agent_dir/skills/decide" ;;
+    story-qa)
+      rm -rf -- "$agent_dir/skills/check-cadence" "$agent_dir/skills/verification-infrastructure" ;;
+  esac
+done
 for name in $bins; do install_bin "$name"; done
 if [ -n "$guidance" ]; then install_guidance; fi
 if [ "$audio_sandbox" = 1 ]; then bun "$repo_dir/audio-sandbox/install.ts" host --home "$home_dir"; fi

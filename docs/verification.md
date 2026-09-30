@@ -204,7 +204,7 @@ requires agents to adversarially review their own work and, for user-facing
 changes, manually walk affected request and story criteria through the actual
 end-user surface before calling the work done. Docs-only and internal changes
 get proportionate owner-path checks; recurring runs rotate broader curated
-walks. The [`check-cadence` skill](../agent-config/skills/check-cadence/SKILL.md)
+walks. Its [check-cadence reference](../agent-config/skills/story-qa/check-cadence.md)
 tiers repository checks by measured cost and delayed-detection risk: PR feedback
 should take minutes; expensive matrices belong to owned nightly or weekly
 runs with notification and on-demand execution. This guidance does not install

@@ -155,14 +155,8 @@ run_shared() {
   if has audio-sandbox; then set -- "$@" --audio-sandbox; fi
   if has guidance; then
     set -- "$@" \
-      --guidance pokayoke \
-      --guidance communication-and-verification \
-      --guidance host-resources \
-      --guidance credentials \
-      --guidance user-stories \
-      --guidance foundations \
-      --guidance session-close \
-      --guidance design-routing \
+      --guidance engineering \
+      --guidance workstation \
       --guidance-source "$repo_dir/global/AGENTS.md"
   fi
   [ $# -gt 0 ] || return 0

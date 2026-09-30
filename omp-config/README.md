@@ -75,7 +75,7 @@ OMP_INSTALL_COMPONENTS=agents ./install
 OMP_INSTALL_COMPONENTS=secrets ./install
 OMP_INSTALL_COMPONENTS=mcp ./install
 OMP_INSTALL_COMPONENTS=audio-sandbox ./install
-OMP_INSTALL_COMPONENTS="guidance mcp scopes skill:capture" ./install
+OMP_INSTALL_COMPONENTS="guidance mcp scopes skill:engineering-operations" ./install
 ```
 
 Supported components are `guidance`, `config`, `mcp`, `scopes`, `agents`,
@@ -430,7 +430,7 @@ No live deployment or task-quality parity is implied by the offline checks.
 ## Linear
 
 Use the [official Linear MCP server](https://linear.app/docs/mcp) for access and
-the existing `/skill:capture` for capture judgment. The connector is not a
+the shared `/skill:engineering-operations` for durable capture and handoff judgment. The connector is not a
 scheduler, authorization to start work, or a second system-documentation store.
 
 `workspace-mcp.json` owns `https://mcp.linear.app/mcp`. `install` deploys it only
@@ -507,19 +507,16 @@ font licenses. The external `frontend-design` and `show-me` packages stay verbat
 
 ## Skills and agents
 
-Twelve homebrew skills are explicitly invoked:
+Shared skills load on demand; distinct entrypoints include:
 
 | Command | Outcome |
 | --- | --- |
 | `/skill:foundation` | Recommend a coherent project direction and practical transition without changing the project |
-| `/skill:agent-ergonomics` | Synthesize grounded findings into prioritized improvements in the project's existing backlog and roadmap |
-| `/skill:verification-infrastructure` | Create or repair repository-owned runnable verification and its discoverable skill, preserving existing interfaces |
+| `/skill:agent-design` | Design agent skills, tools, context and caching from post-training facts |
+| `/skill:engineering-operations` | Use workstation facts, scoped kickoff, durable handoffs and the normal review/landing path |
 | `/skill:story-qa` | Walk a curated set of root user stories through the real product surface and report outcomes and gaps |
-| `/skill:check-cadence` | Tier checks into fast PR feedback and owned nightly/weekly runs without dropping meaningful gates |
-| `/skill:capture` | Save durable findings to project notes, or the required tracker, without duplicating or claiming work |
 | `/skill:pokayoke` | Make a class of error impossible (shape, type, ownership, missing affordance, or a failing-closed check) instead of warning about it |
-| `/skill:decide` | Synthesize current context, tradeoffs, and candidate paths into an executive decision brief |
-| `/skill:sachstand` | Orient the operator as chief executive: status verdict, verified progress, critical context, and the decisions that need them |
+| `/skill:sachstand` | Give a concise status or decision brief with facts, tradeoffs, recommendation and next action |
 | `/skill:user-stories` | Draft, extend, or reconcile a repository's root user stories |
 | `/skill:visual-state-review` | Capture every named UI state as screenshots, organise them, and look before claiming frontend work verified |
 | `/skill:design-studio` | Run the divergent-concepts → critique → recombine → handoff loop for real UI/UX design work before production code |
@@ -530,14 +527,12 @@ to act. Read-only requests remain read-only. These skills are owned by
 `agent-config` and deployed through its contract; this repo no longer carries a
 `skills/` directory.
 
-The automatically routed `test-audit` skill (US-021) gates new tests and
-supports focused pruning; its whole-subsystem campaign requires commissioned
-scope. `story-qa` (US-022) guides actual agent interaction with the user
-surface, and `check-cadence` (US-023) guides risk-based PR and scheduled check
-selection. Neither automatically installs a product scheduler. These are
-distinct from `verification-infrastructure`, which creates runnable
-verification capability, and the not-yet-deployed `effective-verification`
-candidate, which judges evidence and completion claims.
+`test-audit` (US-021) owns independent test contracts and focused pruning;
+whole-subsystem campaigns retain commissioned scope. `story-qa` (US-022)
+owns real product walks, with on-demand check-cadence (US-023), authoring and
+runtime references for missing verification capability. These skills reuse
+the product's working paths. `effective-verification` remains an undeployed
+source candidate for judging completion evidence.
 
 `authenticated-commands` is a portable homebrew skill for API tokens,
 authenticated scripts, pass entries, `.env.pass`, and migrated project execution.
@@ -555,27 +550,17 @@ keeps older links valid without redefining the standard. Invoke
 select the model separately. Backlog changes and implementation remain separately
 authorized work.
 
-Use `/skill:agent-ergonomics [optional scope or focus]` to consider the project
-from the agent driver's seat: accurate understanding and effective control at
-the least total cost. By default, it synthesizes and prioritizes grounded findings
-into the existing backlog and roadmap, reconciling work rather than duplicating
-it. Documentation supports those improvements only where needed. Existing scope
-and authority govern writes; otherwise it proposes updates. Use `review-only` for
-no writes.
-Repeated use should converge, not accumulate instructions or speculative work.
+Use `/skill:agent-design` when building or changing an agent. Its short entrypoint
+links progressive disclosure and provider prompt-caching facts to source docs.
+`engineering-operations` absorbs durable capture and agent-driver improvements;
+`sachstand` absorbs decision briefs. The installer removes the five retired
+entrypoints so fresh sessions discover one current path.
 
 Use `/skill:pokayoke [optional error class or incident]` after a defect,
 incident, or near-miss. The outcome is a mechanism that makes that class of
 error impossible—not a warning, comment, or extra instruction layer. A reminder
 is not pokayoke. The postmortem template in `skill://pokayoke` requires the same close.
 
-Use `/skill:decide [optional fork, question, or decision topic]` to request a
-dense, high-context executive brief in ASD-STE100 style when facing a technical
-decision point. It is read-only analysis. It leads with facts, root causes,
-invariants, viable candidate paths, and a structured tradeoff matrix across
-reversibility, blast radius, effort, operational cost, and primary risk. It
-states a clear technical recommendation with an explicit decision boundary, and
-ends with the exact next action to take upon approval.
 
 Use `/skill:sachstand [optional scope: session, repo, initiative, or portfolio] [quiet]`
 for a sixty-second orientation. It is read-only. It opens by naming the project,
@@ -583,7 +568,7 @@ the task, and the repository, branch, and worktree, so briefs from parallel
 sessions are distinguishable. Then it gives a verdict, verified outcomes, open and
 blocked work, critical context, each needed decision with its missing
 information, and what happens next without input. A decision that needs
-deeper analysis is handed to `/skill:decide`. Unless `quiet` is given, it also
+deeper analysis stays in `/skill:sachstand` with the decision topic. Unless `quiet` is given, it also
 speaks a one-minute version with Gemini 3.8 Flash-Lite TTS (about $0.01) through
 `pass-env` and `GEMINI_API_KEY`, and saves the audio under `~/.cache/tts-play/`.
 
@@ -610,18 +595,14 @@ does not replace them. Todoist is owned by Daybook and is not shipped here.
 From the product checkout, invoke:
 
 ```text
-/skill:verification-infrastructure
+/skill:story-qa
 ```
 
-The [authoring skill](../agent-config/skills/verification-infrastructure/SKILL.md) discovers
-existing setup, fixtures, smoke commands, CI, and specialized skills before
-creating anything. It establishes or repairs a capability; it does not require
-a new CLI, a particular browser vendor, or a uniform receipt schema. Keep a
-sufficient existing skill rather than generating a competing one.
-Its [runtime](../agent-config/skills/verification-infrastructure/runtime.md) and
-[journey](../agent-config/skills/verification-infrastructure/journeys.md) references are read
-when those concerns are in scope, not as a mandatory packet. Selected skill
-installation copies the complete package, including these adjacent references.
+For a missing runnable path, load its [authoring reference](../agent-config/skills/story-qa/authoring.md):
+discover existing setup, fixtures, smoke commands and CI before creating anything.
+The [runtime reference](../agent-config/skills/story-qa/runtime.md) carries launch,
+doctor, drive, evidence and cleanup facts. Installing the complete package keeps
+those references available on demand.
 
 `foundation` assesses whether a fresh agent can exercise the core outcome,
 distinguish success from failure, and clean up. It recommends missing capability
@@ -639,7 +620,7 @@ or activate factory work.
 To deploy only this capability and its guidance:
 
 ```sh
-OMP_INSTALL_COMPONENTS="guidance skill:foundation skill:verification-infrastructure" ./install
+OMP_INSTALL_COMPONENTS="guidance skill:foundation skill:story-qa skill:engineering-operations" ./install
 ```
 
 Start a fresh OMP session after installation to discover the new slash command.

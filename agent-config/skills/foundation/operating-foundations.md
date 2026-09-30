@@ -28,7 +28,7 @@ approved `foundation/extensions/` record, never a quiet edit.
 
 When hosting choices matter, compare local, edge-native, and persistent Linux execution; a hybrid must remove more work than its boundary adds. This is a design preference, not another compliance obligation.
 
-Treat missing or unreliable verification as a development constraint and recommend the smallest repair. Creating verification infrastructure requires a separately commissioned verification-infrastructure pass; do not hide that scope inside the implementation being assessed.
+Treat missing or unreliable verification as a development constraint and recommend the smallest repair. Creating that capability is a separately commissioned pass (`skill://story-qa/authoring.md`), not hidden scope inside the assessment.
 
 Recommend the smallest repair that closes the consequential gap. Implementation,
 service provisioning, recurring execution, and publication remain separately

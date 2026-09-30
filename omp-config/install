@@ -45,7 +45,7 @@ run_shared() {
   "$base_dir/install" $mode --agent-dir "$agent_dir" "$@"
 }
 
-guidance_files='AGENTS.md WATCHDOG.md WATCHDOG.yml'
+guidance_files='AGENTS.md OPERATIONS.md WATCHDOG.md WATCHDOG.yml'
 
 validate_guidance() {
   for file in $guidance_files; do
@@ -54,18 +54,18 @@ validate_guidance() {
   require_base
   run_shared --check \
     --bin design-check.ts \
-    --guidance pokayoke --guidance communication-and-verification --guidance host-resources --guidance credentials --guidance user-stories --guidance foundations --guidance session-close --guidance design-routing \
+    --guidance engineering --guidance workstation \
     --guidance-source "$repo_dir/global/AGENTS.md"
 }
 install_guidance() {
   install -d -m 700 "$agent_dir"
-  for file in WATCHDOG.md WATCHDOG.yml; do
+  for file in OPERATIONS.md WATCHDOG.md WATCHDOG.yml; do
     install -m 600 "$repo_dir/global/$file" "$agent_dir/$file"
   done
   rm -f -- "$agent_dir/RULES.md"
   run_shared \
     --bin design-check.ts \
-    --guidance pokayoke --guidance communication-and-verification --guidance host-resources --guidance credentials --guidance user-stories --guidance foundations --guidance session-close --guidance design-routing \
+    --guidance engineering --guidance workstation \
     --guidance-source "$repo_dir/global/AGENTS.md"
 }
 validate_config() {

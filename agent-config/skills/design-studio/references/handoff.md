@@ -1,56 +1,29 @@
-# Handoff — what the design loop owes implementation
+# Buildable design handoff
 
-The loop is not done when it looks good. It is done when someone (human or agent) can build
-it without guessing. Produce or update these, in the product's existing format when one
-exists; otherwise use a DESIGN.md-compatible file (`design-md` skill owns the spec format
-and its CLI — lint before shipping). Where the design-md CLI or skill is absent (fresh
-Pi/OMP consumer installs), run the bundled minimal fallback `../scripts/check_design_md.py`
-instead and record the reduced coverage — it checks structure only, not the full schema or
-WCAG contrast.
+Use the product's existing spec format or DESIGN.md-compatible output. Include
+the user job, navigation/content decisions, semantic palette/tokens, spacing and
+breakpoints, typography roles/scale/licensing/availability/fallback, depth/shape,
+component variants/states, icons/media sources/crops/alt text, copy for meaningful
+states, motion purpose/timing/easing/triggers/reduced-motion replacement,
+accessibility constraints, and component/route/file implementation mapping.
+An action keeps one name through its flow. Tokens alone do not specify the product.
 
-## Spec file (DESIGN.md or compatible)
+State what collapses/hides/reflows and where; define keyboard/focus order, hit
+targets, contrast, and screen-reader behavior for custom widgets. Link lineage,
+rejected options, critique-driven refinement, and each screen's subtraction
+before/after (including no-cut reasons). Name the explored and untouched scope.
 
-- Overview: what this is, for whom, the job it serves — two or three sentences.
-- Colors: named palette with semantic roles (not just hex lists).
-- Typography: families with roles, scale, weights, line-heights, and **licensing and
-  availability** (what happens if the font cannot load).
-- Layout and spacing: grid, spacing scale, density rules, breakpoints.
-- Elevation and shape: depth model, radii, borders — or an explicit "flat, none".
-- Components: per component, its states and variants as separate entries.
-- Do's and don'ts: the decisions this design makes that future work must not quietly undo.
+## Validators and rendered checks
 
-## Beyond tokens (tokens alone do not stand in for product design)
+Use the `design-md` CLI when present. Fresh Pi/OMP installs may lack that host
+skill; bundled [check_design_md.py](../scripts/check_design_md.py) validates
+minimal structure only, not full schema or WCAG contrast. Report reduced coverage.
+Map named states to `skill://visual-state-review` and interaction acceptance.
 
-- **Navigation and journey decisions**: the chosen content model and why; entry → core
-  action → success/failure exits; where search sits; what is a page vs a panel.
-- **Component states**: default, hover, focus-visible, active, disabled, loading, empty,
-  error, success — for every interactive unit that has them.
-- **Responsive rules**: what collapses, what hides, what reflows, at which widths; minimum
-  supported viewport.
-- **Iconography and media treatment**: icon family/source and stroke rules; image aspect
-  ratios, crops, fallbacks, alt-text rules.
-- **Motion spec**: per named moment — duration, easing, purpose, trigger, and the
-  reduced-motion behavior (what replaces the animation).
-- **Copy patterns**: voice rules plus concrete empty, loading, error, and success strings
-  — with the rule that an action keeps one name through the whole flow.
-- **Subtraction**: link each screen's element list, cuts (or no-cut reason),
-  and before/after.
-- **Accessibility constraints**: contrast targets, focus order, keyboard model, hit
-  targets, screen-reader notes for custom widgets, reduced-motion coverage.
-- **Implementation mapping**: which concept pieces map to which components/routes/files;
-  what is net-new vs. a modification of existing code; dependencies (fonts, icons, libs).
-- **Validation plan**: the named UI states to capture (`skill://visual-state-review`),
-  interaction tests to run, and the acceptance conditions a reviewer can check.
+`skill://visual-state-review` owns deterministic player-copy checks, axe-core
+and the optional Impeccable detector alongside the captured-state review.
 
-## Lineage
-
-Keep the concept boards, critiques, rejected options, and the synthesis note next to the
-spec (or linked from it). The rationale is part of the deliverable: it is what prevents the
-next iteration from re-litigating settled decisions or resurrecting rejected ones by
-accident.
-
-## Scope honesty
-
-If the loop covered a subset of the product surface, say exactly what was explored and what
-was not. "Refined direction for the projects explorer; settings and onboarding untouched"
-is a handoff; implying the whole product was designed is not.
+Marks are 16-first: design at 16px, observe light/dark/browser-tab backgrounds,
+and ship the optical variant before acceptance. Generated mockups and actual
+screenshots stay distinguishable in the evidence manifest. Capture appearance
+and exercise behavior separately.

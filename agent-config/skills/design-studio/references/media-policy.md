@@ -1,24 +1,10 @@
-# Media policy — generated images inside the design loop
+# Generated media
 
-Generated images buy **breadth cheaply** — above all as software-interface mockups. They
-never replace structural thinking, real HTML, or rendered-state QA. This policy is
-provider-neutral: access is a separate question from quality, cost, latency, and availability.
-
-## What generation is for
-
-- **Software-screen mockups for early exploration**: IA and layout proposals, navigation and
-  content-model sketches, typography studies, component and content-hierarchy compositions,
-  visual language, and iterative reference-conditioned edits of a mockup. Include exact
-  labels and copy when the evaluation target is legibility or IA — and record that mode.
-  Radical variants must still be recognizable, useful software, not decorative dioramas.
-- Reference-image edits and multi-screen coherence studies when the backend supports edits.
-- Moodboards, styleframes, and palette/material studies as optional supporting artifacts.
-
-A mockup is a **visual proposal**: it may propose exact text and layout; rendered UI on the
-actual stack must verify them. Generated images are never proof of UX, accessibility,
-behavior, or final UI, and screenshots of raster mockups are not interaction evidence.
-Critique generated mockups like any artifact — they often show cloned rows, invented charts,
-and low-contrast details; graft what serves the job and rebuild the good parts in HTML.
+Use software-screen mockups for cheap breadth: layout/content models, type,
+hierarchy, visual language, exact-label exploration, and supported reference edits.
+Moodboards are supporting artifacts. Raster proposals do not prove UX,
+accessibility, behavior, or final UI; rebuild promising pieces in the real stack
+and inspect labels, cloned rows, invented charts, and contrast.
 
 ## Evaluated evidence (2026-09-19, dated)
 
@@ -51,67 +37,33 @@ Treat this section as dated evidence, not policy constants. Re-resolve exact mod
 prices from official sources at use time, and version this section when a newer evaluation
 lands instead of overwriting silently.
 
-## Provider-neutral selection
+## Choose and run
 
-Judge separately, and never collapse into "the one we have credentials for":
+Resolve current model IDs, capabilities, access, and official prices at use time.
+Evaluate layout/text fidelity, edit adherence, coherence, cost, and latency
+separately; available credentials are not a quality recommendation. Matched,
+repeated task comparisons support stage-specific choices, not a universal winner.
+Label unevaluated selection provisional and retain failures as well as successes.
 
-1. **Access** — which backends this session/profile is actually authorized to use.
-2. **Quality (task-specific)** — layout fidelity, exact text/typography, reference
-   adherence, radical composition, edit consistency, multi-screen coherence.
-3. **Cost** — per-image pricing from official sources at time of use; distinguish
-   estimated cost from returned charges and reserves.
-4. **Latency and reliability** — observed per-call times; retry behavior; failure modes.
+Current-profile adapters/native tools own credential resolution; another
+profile's OAuth is not implied. Record confirmed provider/model, settings,
+prompt, hash, latency, and cost for each artifact. Separate returned charges,
+estimates, and reserves for subscription paths without billing.
 
-Survey the current credible contenders (e.g. OpenAI/ChatGPT image generation — API model vs
-consumer feature are different products; Google Gemini image models; Microsoft MAI; xAI
-Imagine; other current SOTA). Resolve exact model IDs, capabilities, and prices from
-official sources at use time — never from memory or marketing. Community sentiment and
-independent benchmarks guide the shortlist; matched, repeated design-task evaluations
-decide per-stage recommendations. Prefer blind comparison; record all outputs and failures,
-not just the best sample. Until an evaluation is incorporated for your task, selection is
-**provisional** and must be labeled as such. Recommend by design stage (breadth vs
-label-critical mockup vs edit) rather than declaring a universal winner.
+Bundled [imagine.py](../scripts/imagine.py) supports an xAI batch path:
 
-## Access rules (Hermes and beyond)
+- Jobs JSON supplies `id`, `prompt`, aspect/resolution, optional model override,
+  and `price_usd`; alternatively provide `--price-per-image`.
+- Price evidence is required; unknown pricing exits 3. The adapter caps retries
+  at two per job and writes `<id>.provenance.json` sidecars.
+- Default cap is $3 per substantial round (`--budget-usd` or
+  `DESIGN_STUDIO_BUDGET_USD` overrides it). Size the batch against current prices.
 
-- Use only backends the current profile is authorized for. In Hermes profiles, an
-  authenticated adapter may exist (e.g. an authorized xAI resolver); a native image tool
-  may also be available. Credential availability is **not** a quality recommendation.
-- Never print, copy, or export credentials; resolve them inside the runtime's own helper.
-- Never borrow another profile's credentials without authority. No specialist assumes an
-  OAuth provider exists — verify access first, record what was verified.
-- Record per artifact: provider, model (as returned/confirmed by the API), settings,
-  prompt, file hash, latency, and cost accounting (estimate vs returned vs reserve, labeled).
+Compare outputs in a contact sheet, critique, and graft what serves the job.
+Blocked access/quota/outage can still permit text/diagram/HTML exploration;
+report actual attempts, never invented images or charges.
 
-## Workflow
-
-1. Write a jobs file (JSON list) — one job per mockup artifact, with `id`, `prompt`,
-   aspect/resolution, optional model override, and `price_usd` (price evidence for the cap).
-2. Run the batch through an adapter with the budget cap enforced and bounded retries (max 2
-   per job). The bundled adapter [../scripts/imagine.py](../scripts/imagine.py) is one
-   practical backend (xAI path); add adapters per the evaluation findings — do not hardwire
-   a default. It requires caller-supplied price evidence (`--price-per-image` or per-job
-   `price_usd`), enforces the cap against it, and fails closed (exit 3) when price is unknown.
-3. Each artifact gets a provenance sidecar (`<id>.provenance.json`). Keep generated images
-   and their provenance together.
-4. Build a contact sheet (simple HTML grid from the sidecars) for comparison.
-5. Critique the artifacts; graft only what serves the job.
-
-## Budget and accounting
-
-- Default exploratory cap: **$3.00 per substantial round** (adapter default; override with
-  `--budget-usd` or `DESIGN_STUDIO_BUDGET_USD`). Size the batch to the cap using current
-  official pricing recorded at use time.
-- Distinguish **returned charges** (provider reports an amount), **estimates** (labeled
-  arithmetic), and **reserves** (subscription paths that return no billing — carry an
-  explicit per-image upper bound). Never fabricate costs or usage.
-- If generation is blocked (access, quota, outage), record the exact attempts and continue
-  with text/diagram/HTML breadth — do not stall the loop and do not invent results.
-
-## Handling
-
-- Do not commit binary outputs into repositories. Keep run artifacts in the declared
-  durable location for the task (e.g. a reports directory), with the evidence manifest
-  distinguishing generated images from real browser screenshots.
-- Prompts must not contain secrets or sensitive product data. Do not use brand logos or
-  named people's likenesses; anonymous figures only.
+Keep media and provenance together in the task's retained artifact location,
+outside Git. The evidence manifest distinguishes generated images from real
+screenshots. Prompts contain no secrets or sensitive product data; use anonymous
+figures rather than named likenesses and avoid brand logos.

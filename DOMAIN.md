@@ -96,7 +96,7 @@ the Foundation Standard tooling. It does not own:
   Foreign resources are informational and never cleanup targets.
   `unenforced`: exact-head model review, green required CI, deployment
   to actual targets, production sanity and PR/relevant-ticket evidence remain
-  engineer judgment under `agent-config/guidance/session-close.md`. Parking is
+  engineer judgment under `agent-config/skills/session-close/SKILL.md`. Parking is
   reported as unfinished and does not waive live non-worktree leases.
 
 ## Code map
