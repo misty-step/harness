@@ -1,3 +1,9 @@
+# [0.1.77](https://github.com/misty-step/harness/compare/v0.1.76...v0.1.77) (2026-09-30)
+<!-- landmark:protected-release previous=v0.1.76 source=23dec38646816841755391cda0f6d84821d670e7eff62e3eb4a2fda3c3cc7496 -->
+
+### Features
+
+* **session-close:** require landed or explicitly parked sessions (US-004) (#176) ([0a4696e](https://github.com/misty-step/harness/commit/0a4696e25484c806075c06a89eb58a69184999ce))
 # [0.1.76](https://github.com/misty-step/harness/compare/v0.1.75...v0.1.76) (2026-09-30)
 <!-- landmark:protected-release previous=v0.1.75 source=fc533d19453227ba6df2ad426227f9f18bff6856c66e0ced08e485dbcd3a3628 -->
 
