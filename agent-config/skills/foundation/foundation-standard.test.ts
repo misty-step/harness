@@ -33,6 +33,10 @@ describe("Foundation Standard v1", () => {
 		const standard = readFileSync(standardPath, "utf8");
 		expect(catalog.schema).toBe("foundation-standard/1");
 		expect(catalog.id).toBe("misty-step.foundation");
+		expect(catalog.version).toMatch(/^\d+\.\d+\.\d+$/);
+		expect(standard.match(/^\*\*Version:\*\* `([^`]+)`$/m)?.[1]).toBe(catalog.version);
+		const readme = readFileSync(join(root, "../../../README.md"), "utf8");
+		expect(readme.match(/Catalog \[([^\]]+)\]\(agent-config\/skills\/foundation\/foundation-standard-v1\.json\)/)?.[1]).toBe(catalog.version);
 		expect(catalog.dispositions).toEqual([
 			"satisfied",
 			"pending",

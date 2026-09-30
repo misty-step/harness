@@ -247,9 +247,11 @@ data restoration, and a recorded drill proves that path. A manual promotion,
 a dispatch-only workflow, or a deploy that does not wait on the gate is not
 continuous deployment (ADR-005, ADR-007).
 Evidence follows the shipped surface: hosted apps use runtime health signals;
-artifact-only apps smoke-check the installed artifact and automatically restore
-the last healthy distribution or update target on failure. QA exercises
-representative inputs and state, not an invented database or health endpoint.
+artifact-only apps smoke-check the installed artifact and automatically revert
+the release-channel or updater pointer to the last healthy artifact on failure,
+without claiming to replace copies already installed outside that channel.
+QA exercises representative inputs and state, not an invented database or health
+endpoint.
 
 ### FND-ALR-001 — Loud production alerting
 
