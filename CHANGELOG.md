@@ -1,3 +1,9 @@
+# [0.1.78](https://github.com/misty-step/harness/compare/v0.1.77...v0.1.78) (2026-09-30)
+<!-- landmark:protected-release previous=v0.1.77 source=3b1432168b89359a826525319f3a40b7cfe1854ec3e7af3d0d898c24018208e2 -->
+
+### Bug Fixes
+
+* **omp-roster:** count only working OMP engineers (US-047) (#179) ([82d1424](https://github.com/misty-step/harness/commit/82d1424755dd1d73b56712541f405dd3af053719))
 # [0.1.77](https://github.com/misty-step/harness/compare/v0.1.76...v0.1.77) (2026-09-30)
 <!-- landmark:protected-release previous=v0.1.76 source=23dec38646816841755391cda0f6d84821d670e7eff62e3eb4a2fda3c3cc7496 -->
 
