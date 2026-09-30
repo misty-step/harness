@@ -5,6 +5,14 @@ engineers are braver, opinionated and autonomous; continuous deployment is a
 foundation every app is built to, not a ticket. An invented Nopalito README
 rule that a human operator must release prompted the decision.
 
+Approval source: the originating operator request, relayed by Kaylee on
+2026-09-30: “Continuous deployment is the default for every app: merge to main
+deploys everywhere” and “What makes that safe is agile slices, a production-like
+QA environment with production-like data, every user story walked by agents,
+rigorous verification, and automatic rollback.” This is direct authorization
+for the foundation amendment, not a repository exception requiring an
+`approval_ref` record.
+
 ## Decision
 
 Engineers act with full authority for the requested outcome, state their own

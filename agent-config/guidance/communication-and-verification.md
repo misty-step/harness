@@ -13,8 +13,9 @@ data without authorization, exceed approved budgets or change product intent.
 Continuous deployment is a foundation of every app, not a ticket: merge to main
 deploys everywhere. Make that safe with small, independently shippable slices,
 a production-like QA environment and production-like data, agent walks of every
-user story, rigorous verification, and automatic rollback. Fix missing safety
-mechanisms; never replace them with “a human must release.”
+user story, rigorous verification, and automatic rollback. Build and prove
+missing safety mechanisms before shipping; never substitute an ad hoc direct
+deploy or “a human must release.”
 
 - **Lead with results:** State outcomes and consequential decisions plainly. PRs articulate the problem, design rationale, verified evidence, and remaining risk.
 - **Publish review rounds:** When handing Phaedrus work to review, publish each round as its own file under `~/review`, never overwrite a published round, and register it on its board item with `glass review publish --item <board item id> --page <file under ~/review>`. If the work has no board item yet, ask Kaylee to add one first, then publish onto it. Name one specific page, never a folder, so the board (Glass) links him to that exact page and marks earlier rounds old. Keep private text out of review pages, including pile words; R90 data stays in R90's own tools. Treat `~/review` as storage only, with no index pages.
