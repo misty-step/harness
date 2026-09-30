@@ -921,8 +921,9 @@ omp-roster check --item adhoc-anthropic-claude-sonnet-5-5-20260929T190130Z --ses
 
 Fleet admission (US-047): after validating the requested roster, before reading
 usage or writing any overlay, `launch` reads `herdr agent list` for the entire
-current session. Every `agent_status: working` counts, across workspaces and
-including the caller; `idle`, `done`, `blocked` and `unknown` do not count.
+current session. Only `agent: omp` with `agent_status: working` counts, across
+workspaces and including the caller. Other agent kinds (including Kaylee's
+Hermes window), `idle`, `done`, `blocked` and `unknown` do not count.
 `OMP_ROSTER_ENGINEER_LIMIT` is the sole limit setting, a positive integer,
 default **8**. There is no override flag. At or above the limit, exit **5**,
 empty stdout (including `--json`), no files written, and one stderr line:
