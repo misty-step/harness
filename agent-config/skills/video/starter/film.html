@@ -1,0 +1,16 @@
+<!doctype html><html><head><meta charset="utf-8"><link rel="stylesheet" href="shared.css">
+<script src="vendor/gsap.min.js"></script><script src="vendor/CustomEase.min.js"></script><script src="vendor/SplitText.min.js"></script><script src="vendor/MotionPathPlugin.min.js"></script>
+</head><body><div id="stage"><div id="rule"></div></div>
+<script src="shared.js"></script>
+<script src="scenes/_manifest.js"></script>
+<script>
+(async () => {
+  await window.__ready;
+  FILM.rule = document.getElementById('rule');
+  gsap.registerPlugin(CustomEase, SplitText, MotionPathPlugin); gsap.config({ force3D: false });
+  gsap.set(FILM.rule, { opacity: 0, x: 0, y: 0, width: 10 });
+  const ctx = { tl: FILM.tl, FILM, stage: document.getElementById('stage') };
+  for (const n of Object.keys(FILM.scenes).map(Number).sort((a, b) => a - b)) FILM.scenes[n].build(ctx);
+  FILM.tl.time(0, false); await FILM.sync(0); window.__built = true;
+})();
+</script></body></html>
