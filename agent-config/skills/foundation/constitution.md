@@ -62,10 +62,12 @@
   production-like QA environment with representative, privacy-safe
   production-like data, where agents walk every user story.
   Each tenant's migrations run first and stay compatible with the running code,
-  and every deployed tenant's version is read back.
+  every deployed tenant's version is read back, and any excluded tenant is named
+  with a reason.
 - **A bad release rolls back automatically; investigate after recovery, and practise the rollback.**
-  Release health checks trigger rollback to the last healthy version, including
-  compatible data recovery. A recorded rollback drill proves the way back works.
+  Release health checks trigger rollback to the last healthy version without
+  losing accepted writes or requiring destructive data restoration.
+  A recorded rollback drill proves the way back works.
 
 ## Watch it run, and learn from every failure
 

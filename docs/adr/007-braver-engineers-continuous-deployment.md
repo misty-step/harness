@@ -18,7 +18,8 @@ Merge to the default branch deploys everywhere. Small independently shippable
 slices, production-like QA with representative privacy-safe production-like
 data, agent walks of every user story and rigorous verification make this safe.
 Release health checks automatically roll a bad release back to the last healthy
-version with compatible data recovery; a recorded drill proves that path.
+version without losing accepted writes or requiring destructive data restoration;
+a recorded drill proves that path.
 Missing safety mechanisms are engineering work, not a reason to invent a human
 release ritual.
 

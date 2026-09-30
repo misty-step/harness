@@ -242,9 +242,10 @@ production-like QA environment with representative, privacy-safe production-like
 data; agents walk every user story before shipping. Production fidelity grants
 no permission to copy private data. Read back or smoke-check the shipped
 candidate. Release health checks automatically roll a bad release back to the
-last healthy version with compatible data recovery, and a recorded drill proves
-that path. A manual promotion, a dispatch-only workflow, or a deploy that does
-not wait on the gate is not continuous deployment (ADR-005, ADR-007).
+last healthy version without losing accepted writes or requiring destructive
+data restoration, and a recorded drill proves that path. A manual promotion,
+a dispatch-only workflow, or a deploy that does not wait on the gate is not
+continuous deployment (ADR-005, ADR-007).
 
 ### FND-ALR-001 — Loud production alerting
 

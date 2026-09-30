@@ -55,10 +55,13 @@ describe("Foundation Standard v1", () => {
 		expect(catalog.exception_policy.not_applicable_requires).toContain("approval_ref");
 		expect(catalog.exception_policy.exception_requires).toContain("approval_ref");
 		expect(catalog.exception_policy.approval_record_schema).toBe("foundation-approval/1");
+		// The rationale must not duplicate the catalog's normative field sections.
+		expect(standard).not.toContain("**Applies when:**");
+		expect(standard).not.toContain("**Evidence:**");
+		expect(standard).not.toContain("**Exception authority:**");
 		expect(catalog.approved_defaults.map((item: { id: string }) => item.id)).toEqual([
 			"FND-DEF-SENTRY-001",
 			"FND-DEF-ACTIVITY-001",
 		]);
 	});
-
 });
