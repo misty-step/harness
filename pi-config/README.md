@@ -83,7 +83,7 @@ presentation; "behavioral" changes agent capability, model input, or data flow.
 **`global/AGENTS.md` — behavioral.** Deploys `~/.pi/agent/AGENTS.md`, the file
 pi concatenates into every session in every repository (ADR-012). The file is
 composed at install time: pi's title and intro, then `agent-config`'s shared
-sections — pokayoke, communication and verification, host resources, user stories, session close, and design routing —
+sections — engineering principles and workstation facts —
 spliced at the marker line (ADR-021). The shared sections carry the conventions
 every session inherits; the intro is pi's own. `./install` overwrites the
 deployed copy, and the file tells agents not to hand-edit it.
