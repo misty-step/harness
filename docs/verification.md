@@ -34,6 +34,9 @@ owned directory. Remove only that directory once its process has ended.
   routes (US-021–US-023), and rejects missing or out-of-package skill references,
   including legacy backticked `references/` paths. Regression fixtures reproduce
   the original defect and package escapes.
+  Existing Markdown links in the foundation skill and operating pointer are
+  checked for resolvable targets (US-024); this does not prove their wording,
+  that a removed link survives, or semantic subordination to the standard.
   This is a CI guard, not a live installer preflight or general Markdown/network
   crawler: external web availability, anchors, native `skill://` discovery, and
   arbitrary prose/code paths need semantic review.

@@ -6,6 +6,9 @@ we work on in both orgs." This record adds three obligations to the Foundation
 Standard catalog (version 1.4.0) and to `foundation-check`. It amends ADR-003's
 enforcement (these three take no exception) and builds on ADR-004's `surfaces`
 and `deployed` runbook. Rollout waves are a separate proposal.
+Amended by [ADR-007](007-braver-engineers-continuous-deployment.md) on 2026-09-30:
+production-like QA/data, agent walks of every story and automatic rollback
+strengthen the release safety evidence in catalog 1.6.0.
 
 ## Context
 
