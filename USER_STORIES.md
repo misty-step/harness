@@ -257,27 +257,68 @@ Evidence: `agent-config/bin/ws.test.ts`
 
 ## Capability: Session close
 
-## US-004 Close session-owned host resources
+## US-004 Close owned landing work and session resources
 
-Statement: When I finish a session that created worktrees or non-standing VMs,
-I want a check scoped to my own live leases, so unrelated sessions can continue
-and stale resources receive deliberate review.
+Statement: When I close an engineering session, including inherited repository
+work, I want an owner-scoped gate that accepts only landed or explicitly parked
+work, so unfinished changes cannot be called done, unrelated sessions continue,
+and stale resources receive deliberate review. Operator-authorized intent
+extension (2026-09-30): the original lease-only contract now includes landing.
 
 Criteria:
-1. WHEN a local worktree or non-standing exe.dev VM is created in-session,
-   THE SYSTEM SHALL record an owner-scoped lease in the same turn.
-2. WHEN the caller owns live leases, `session-close.ts check` SHALL exit 2;
-   WHEN only foreign leases remain, THE SYSTEM SHALL exit 0 and print them.
-3. WHEN an expired, orphaned, or legacy ownerless lease exists,
-   `session-close.ts review` SHALL list it and exit 3 without deleting it.
-4. IF a lease file is corrupt, THEN `session-close.ts` SHALL exit 1 without
-   treating the store as clean.
-5. WHEN a lease is dropped by target, THE SYSTEM SHALL print its recorded owner.
+1. WHEN repository work begins, THE ENGINEER SHALL run
+   `session-close.ts track [--repo PATH]` before switching branches or deleting
+   worktrees, including inherited worktrees; WHEN `check` runs in Git, THE SYSTEM
+   SHALL auto-track as a safety net and preserve existing parked status.
+2. WHEN a local worktree or non-standing exe.dev VM is created in-session,
+   THE SYSTEM SHALL record an owner-scoped lease in the same turn; `ws up`
+   SHALL lease its task worktree and `ws init` SHALL preserve a standing VM.
+   WHEN expired, orphaned or legacy ownerless leases exist, `review` SHALL list
+   them and exit 3 without deleting resources; expiry SHALL NOT erase owned
+   landing obligations. WHEN a lease is dropped, THE SYSTEM SHALL print its
+   recorded owner. `ws down` SHALL retain its ownership and pulled-evidence gate.
+   WHEN `leases --json` runs, THE SYSTEM SHALL provide read-only introspection
+   with `leases`, `own`, `foreign` and `needsReview`, without Git checks or
+   auto-tracking.
+3. WHEN `check` runs, THE SYSTEM SHALL evaluate all unparked owned landing records
+   after the original worktree disappears, fetch the authoritative origin
+   default, and require clean owned/current checkouts plus a canonical checkout
+   on that fetched default head. Remaining owned linked worktrees, local/origin
+   feature branches, open branch PRs or unmerged HEADs SHALL block.
+   WHEN squash/rebase merge proof is used, THE SYSTEM SHALL require a merged PR
+   matching the recorded HEAD and a merge commit contained in the fresh default;
+   direct merge proof SHALL require recorded-HEAD ancestry. WHEN the local branch
+   still exists, THE SYSTEM SHALL refresh its recorded HEAD so an old PR cannot
+   certify a later branch lifetime or new commits.
+4. WHEN owned deterministic landing facts or live leases remain unresolved,
+   `check` SHALL exit 2; WHEN all owned work is landed or explicitly parked and
+   no other owned live leases block, it SHALL exit 0. Foreign records SHALL be
+   informational and SHALL NOT be mutated or deleted.
+   IF storage is malformed, or unparked work has malformed API data, failed
+   GitHub authentication/commands or an unknown authoritative default, THEN
+   THE SYSTEM SHALL fail closed with exit 1 rather than treating work as landed.
+5. WHEN `park --repo PATH --note TEXT` is used, THE SYSTEM SHALL retain the owned
+   landing records, meaningful resume note and matching owned worktree leases;
+   live non-worktree leases SHALL still block. THE ENGINEER SHALL report
+   **parked/unfinished**, reason, owner, resume steps, retained resources and
+   PR/ticket status, never done. `unpark --repo PATH` SHALL resume the obligation.
+6. WHEN the engineer is about to yield, THE ENGINEER SHALL run `check`. Done
+   SHALL additionally mean
+   merged through green required CI and exact-head model review, deployed to
+   actual targets with production sanity evidence, feature branches deleted,
+   own worktree removed and default canonical checkout clean/up-to-date.
+   THE ENGINEER SHALL update the PR and relevant existing ticket's status,
+   context and evidence using project routing: Habitat where used, Linear for
+   Misty Step/personal work. These judgment facts remain doctrine, not checker
+   assertions.
 
-No-gos: no destruction of unleased or standing VMs; no global scan of other
-sessions' worktrees; no network in the unit check.
+No-gos: no parallel close tool, automatic Git/resource deletion, global cleanup
+of other sessions' worktrees or destruction of unleased/standing VMs; no Habitat
+mandate for projects without it and no invented ticket prerequisite. Unit
+fixtures SHALL avoid live network; the owner-path walk uses real Git/GitHub.
 
-Evidence: `agent-config/skills/session-close/session-close.test.ts`
+Evidence: `agent-config/skills/session-close/session-close.test.ts`,
+`agent-config/guidance/session-close.md`, `docs/verification.md`.
 
 ## Capability: Semantic Review
 
