@@ -1,3 +1,9 @@
+# [0.1.76](https://github.com/misty-step/harness/compare/v0.1.75...v0.1.76) (2026-09-30)
+<!-- landmark:protected-release previous=v0.1.75 source=fc533d19453227ba6df2ad426227f9f18bff6856c66e0ced08e485dbcd3a3628 -->
+
+### Features
+
+* **doctrine:** braver engineers and safe continuous deployment (#174) ([e48d880](https://github.com/misty-step/harness/commit/e48d88069c9331aad89a8121c9b2ff76cc4261d2))
 # [0.1.75](https://github.com/misty-step/harness/compare/v0.1.74...v0.1.75) (2026-09-29)
 <!-- landmark:protected-release previous=v0.1.74 source=6f0aeede4ef884bd678146f673eb8d5d3720107902bb5cec4309feb2df2d831d -->
 
