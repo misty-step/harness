@@ -5,7 +5,7 @@ OpenRouter Decisions call.
 
 ## Auth and model
 
-- Prefer `OPENROUTER_API_KEY`. Hermes plugins require it.
+- Jev-only callers require a dedicated `JEV_OPENROUTER_API_KEY`; generic `OPENROUTER_API_KEY` remains for chat and must never be a Decisions fallback. Hermes plugins require their own dedicated binding.
 - Pin `typesafe/jev-1.13` until an eval on our cases says to bump.
 - `TYPESAFE_API_KEY` is the harness engine's direct-API fallback, not a Hermes plugin credential.
 - On timeout, 429, or 5xx: fail open. An outage must not stop work.
@@ -25,12 +25,14 @@ Glance UI that picks a layout from a catalog is `json-render-jev`.
 ## Harness diff review (OMP / Pi)
 
 `agent-config/system-one/engine.ts` deploys into each harness's `diff-review`
-extension.
+extension. Installed OMP/Pi reviews use their own pass-backed, $0.50/day key;
+the standalone CLI and semantic evaluation use the separate
+`JEV_OPENROUTER_API_KEY` binding in the repository's `.env.pass`.
 
-- Missing both keys: report disabled. Do not fabricate scores. Do not fail the turn.
+- Missing dedicated key: report disabled. Do not fabricate scores or charge a generic chat key.
 - Active credential, unmasked disk secret, or authority escalation in a diff: hard block (US-005).
 - Taste, strategy, pokayoke, verification: block only when probability clears the threshold **and** confidence ≥ 0.70. Otherwise warn.
-- Untracked files are in scope unless explicitly disabled. Oversize diffs chunk by file/hunk in parallel.
+- Automatic turn-end review considers changed diffs up to 20,000 characters; larger ones require explicit `/diff-review`, which covers every chunk with at most two concurrent requests.
 
 ```sh
 pass-env run -f .env.pass -- bun omp-config/bin/omp-diff-review.ts

@@ -97,6 +97,7 @@ run_shared() {
       --guidance host-resources \
       --guidance credentials \
       --guidance user-stories \
+      --guidance foundations \
       --guidance session-close \
       --guidance design-routing \
       --guidance-source "$repo_dir/global/AGENTS.md"
@@ -202,7 +203,7 @@ install_openrouter_live() {
 }
 
 validate_continuation_nudge() {
-  for file in index.ts decide.ts index.test.ts decide.test.ts; do
+  for file in index.ts decide.ts jev.env.pass index.test.ts decide.test.ts; do
     require_nonempty "$repo_dir/extensions/continuation-nudge/$file"
   done
   # The repo ships monorepo-only shims for the shared modules; the installed
@@ -218,7 +219,7 @@ install_continuation_nudge() {
   # shims so the deployed package loads self-contained.
   rm -rf "$agent_dir/extensions/continuation-nudge"
   install -d -m 700 "$agent_dir/extensions/continuation-nudge"
-  for file in index.ts decide.ts index.test.ts decide.test.ts; do
+  for file in index.ts decide.ts jev.env.pass index.test.ts decide.test.ts; do
     install -m 600 "$repo_dir/extensions/continuation-nudge/$file" "$agent_dir/extensions/continuation-nudge/$file"
   done
   install -m 600 "$base_dir/system-one/continuation.ts" "$agent_dir/extensions/continuation-nudge/continuation.ts"
@@ -226,9 +227,12 @@ install_continuation_nudge() {
 }
 
 validate_diff_review() {
-  for file in index.ts engine.ts diff-review.test.ts; do
+  require_base
+  for file in index.ts engine.ts jev-key.ts jev.env.pass diff-review.test.ts; do
     require_nonempty "$repo_dir/extensions/diff-review/$file"
   done
+  require_nonempty "$base_dir/system-one/engine.ts"
+  require_nonempty "$base_dir/system-one/jev-key.ts"
 }
 
 install_diff_review() {
@@ -238,6 +242,8 @@ install_diff_review() {
   install -m 600 "$repo_dir/extensions/diff-review/index.ts" "$agent_dir/extensions/diff-review/index.ts"
   install -m 600 "$repo_dir/extensions/diff-review/diff-review.test.ts" "$agent_dir/extensions/diff-review/diff-review.test.ts"
   install -m 600 "$base_dir/system-one/engine.ts" "$agent_dir/extensions/diff-review/engine.ts"
+  install -m 600 "$base_dir/system-one/jev-key.ts" "$agent_dir/extensions/diff-review/jev-key.ts"
+  install -m 600 "$repo_dir/extensions/diff-review/jev.env.pass" "$agent_dir/extensions/diff-review/jev.env.pass"
 }
 
 if has config; then validate_config; fi

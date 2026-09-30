@@ -132,7 +132,7 @@ Options:
 		if (!verdict.enabled) {
 			console.log(`\x1b[33m⚠ ${verdict.summary}\x1b[0m\n`);
 			console.log(
-				`To enable live System One evaluations, export OPENROUTER_API_KEY (or TYPESAFE_API_KEY), or pass --provider heuristic for offline evaluation.\n`,
+				`To enable live System One evaluations, export JEV_OPENROUTER_API_KEY (or TYPESAFE_API_KEY), or pass --provider heuristic for offline evaluation.\n`,
 			);
 			process.exit(0);
 		}
@@ -161,6 +161,8 @@ Options:
 			console.log(`\x1b[32m✔ Clean: Diff satisfies all harness principles.\x1b[0m\n`);
 		} else if (verdict.passed) {
 			console.log(`\x1b[33m✔ Passed with warnings.\x1b[0m\n`);
+		} else if (verdict.warnings.some((warning) => warning.rule === "provider_error")) {
+			console.log(`\x1b[31m✖ Incomplete: Jev failed on at least one chunk; no pass.\x1b[0m\n`);
 		} else {
 			console.log(`\x1b[31m✖ Failed: Fix violations before committing or merging.\x1b[0m\n`);
 		}

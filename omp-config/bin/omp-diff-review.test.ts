@@ -167,33 +167,35 @@ describe("Diff Review - Rule Battery Violations", () => {
 	});
 
 describe("Diff Review - Providers & Resolution", () => {
-	test("resolveProvider returns null when uncredentialed (does not fabricate verdicts)", () => {
-		const prevTypeSafe = process.env.TYPESAFE_API_KEY;
-		const prevOpenRouter = process.env.OPENROUTER_API_KEY;
-		delete process.env.TYPESAFE_API_KEY;
-		delete process.env.OPENROUTER_API_KEY;
-
-		const provider = resolveProvider();
-		expect(provider).toBeNull();
-
-		if (prevTypeSafe) process.env.TYPESAFE_API_KEY = prevTypeSafe;
-		if (prevOpenRouter) process.env.OPENROUTER_API_KEY = prevOpenRouter;
+	test("generic OpenRouter credentials cannot fund Jev when the dedicated key is absent", () => {
+		const previous = {
+			typeSafe: process.env.TYPESAFE_API_KEY,
+			dedicated: process.env.JEV_OPENROUTER_API_KEY,
+			generic: process.env.OPENROUTER_API_KEY,
+		};
+		try {
+			delete process.env.TYPESAFE_API_KEY;
+			delete process.env.JEV_OPENROUTER_API_KEY;
+			process.env.OPENROUTER_API_KEY = ["generic", "chat", "fixture"].join("-");
+			expect(resolveProvider()).toBeNull();
+		} finally {
+			for (const [name, value] of [
+				["TYPESAFE_API_KEY", previous.typeSafe],
+				["JEV_OPENROUTER_API_KEY", previous.dedicated],
+				["OPENROUTER_API_KEY", previous.generic],
+			] as const) {
+				if (value === undefined) delete process.env[name];
+				else process.env[name] = value;
+			}
+		}
 	});
 
 	test("evaluateDiff handles uncredentialed state gracefully without fabricating answers", async () => {
-		const prevTypeSafe = process.env.TYPESAFE_API_KEY;
-		const prevOpenRouter = process.env.OPENROUTER_API_KEY;
-		delete process.env.TYPESAFE_API_KEY;
-		delete process.env.OPENROUTER_API_KEY;
-
 		const verdict = await evaluateDiff("+const x = 1;", { provider: null });
 		expect(verdict.enabled).toBe(false);
 		expect(verdict.passed).toBe(true);
 		expect(verdict.blocks.length).toBe(0);
 		expect(verdict.summary).toContain("Diff review disabled");
-
-		if (prevTypeSafe) process.env.TYPESAFE_API_KEY = prevTypeSafe;
-		if (prevOpenRouter) process.env.OPENROUTER_API_KEY = prevOpenRouter;
 	});
 
 	test("forced heuristic returns HeuristicEngine explicitly", () => {
@@ -212,20 +214,35 @@ describe("Diff Review - Providers & Resolution", () => {
 		expect(p.name).toBe("openrouter");
 	});
 
-	test("resolveProvider prioritizes OpenRouter when OPENROUTER_API_KEY is present", () => {
-		const prevTypeSafe = process.env.TYPESAFE_API_KEY;
-		const prevOpenRouter = process.env.OPENROUTER_API_KEY;
-		delete process.env.TYPESAFE_API_KEY;
-		process.env.OPENROUTER_API_KEY = "sk-or-test-key";
-
-		const provider = resolveProvider();
-		expect(provider).not.toBeNull();
-		expect(provider?.name).toBe("openrouter");
-
-		if (prevTypeSafe) process.env.TYPESAFE_API_KEY = prevTypeSafe;
-		else delete process.env.TYPESAFE_API_KEY;
-		if (prevOpenRouter) process.env.OPENROUTER_API_KEY = prevOpenRouter;
-		else delete process.env.OPENROUTER_API_KEY;
+	test("resolveProvider sends the dedicated Jev key, never the generic chat key", async () => {
+		const previous = {
+			typeSafe: process.env.TYPESAFE_API_KEY,
+			dedicated: process.env.JEV_OPENROUTER_API_KEY,
+			generic: process.env.OPENROUTER_API_KEY,
+			fetch: globalThis.fetch,
+		};
+		try {
+			delete process.env.TYPESAFE_API_KEY;
+			process.env.JEV_OPENROUTER_API_KEY = ["dedicated", "jev", "fixture"].join("-");
+			process.env.OPENROUTER_API_KEY = ["generic", "chat", "fixture"].join("-");
+			globalThis.fetch = async (_input, init) => {
+				expect(new Headers(init?.headers).get("Authorization")).toBe(`Bearer ${["dedicated", "jev", "fixture"].join("-")}`);
+				return new Response(JSON.stringify({ model: "typesafe/jev-1.13", answers: {} }), { status: 200 });
+			};
+			const provider = resolveProvider();
+			expect(provider).toBeInstanceOf(OpenRouterJevProvider);
+			expect(await provider!.evaluate("test", {})).toEqual({});
+		} finally {
+			globalThis.fetch = previous.fetch;
+			for (const [name, value] of [
+				["TYPESAFE_API_KEY", previous.typeSafe],
+				["JEV_OPENROUTER_API_KEY", previous.dedicated],
+				["OPENROUTER_API_KEY", previous.generic],
+			] as const) {
+				if (value === undefined) delete process.env[name];
+				else process.env[name] = value;
+			}
+		}
 	});
 
 	test("parses recorded OpenRouter / TypeSafe System One response fixture correctly", async () => {
@@ -383,7 +400,55 @@ diff --git a/src/two.ts b/src/two.ts
 		expect(verdict.summary).toContain("across 4 chunk(s)");
 	});
 
-	test("getGitDiff includes untracked files by default and excludes them when disabled", () => {
+	test("evaluates every chunk with at most two Jev calls in flight", async () => {
+		const diff = ["one", "two", "three", "four"]
+			.map((name) => `diff --git a/src/${name}.ts b/src/${name}.ts
+--- a/src/${name}.ts
++++ b/src/${name}.ts
+@@ -0,0 +1 @@
++export const ${name} = true;
+`)
+			.join("");
+		const release = Promise.withResolvers<void>();
+		let active = 0;
+		let peak = 0;
+		let calls = 0;
+		const provider = {
+			name: "fixture" as const,
+			async evaluate() {
+				calls++;
+				peak = Math.max(peak, ++active);
+				await release.promise;
+				active--;
+				return {};
+			},
+		};
+		const review = evaluateDiff(diff, { provider, chunkSize: 200 });
+		await Promise.resolve();
+		expect(calls).toBe(2);
+		release.resolve();
+		const verdict = await review;
+		expect(calls).toBe(4);
+		expect(peak).toBe(2);
+		expect(verdict.summary).toContain("across 4 chunk(s)");
+	});
+
+	test("does not pass a diff when the Jev provider rejects a chunk", async () => {
+		const provider = {
+			name: "fixture" as const,
+			async evaluate() {
+				throw new Error("quota exceeded");
+			},
+		};
+		const verdict = await evaluateDiff("+export const answer = 42;\n", { provider });
+		expect(verdict.passed).toBe(false);
+		expect(verdict.clean).toBe(false);
+		expect(verdict.blocks).toHaveLength(0);
+		expect(verdict.warnings.map((warning) => warning.rule)).toContain("provider_error");
+		expect(verdict.summary).toContain("Review INCOMPLETE");
+	});
+
+	test("getGitDiff preserves file identity with mnemonic prefixes and untracked files", () => {
 		const { mkdtempSync, rmSync, writeFileSync } = require("node:fs");
 		const { tmpdir } = require("node:os");
 		const { join } = require("node:path");
@@ -394,6 +459,7 @@ diff --git a/src/two.ts b/src/two.ts
 			spawnSync("git", ["init"], { cwd: tmp });
 			spawnSync("git", ["config", "user.email", "test@example.com"], { cwd: tmp });
 			spawnSync("git", ["config", "user.name", "Test User"], { cwd: tmp });
+			spawnSync("git", ["config", "diff.mnemonicPrefix", "true"], { cwd: tmp });
 
 			writeFileSync(join(tmp, "tracked.txt"), "line 1\n");
 			spawnSync("git", ["add", "tracked.txt"], { cwd: tmp });
@@ -408,6 +474,8 @@ diff --git a/src/two.ts b/src/two.ts
 			expect(fullDiff).toContain("line 2");
 			expect(fullDiff).toContain("untracked.txt");
 			expect(fullDiff).toContain("brand new untracked content");
+			expect(parseDiffStats(fullDiff).filesChanged).toBe(2);
+			expect(splitDiffIntoFiles(fullDiff).map((file) => file.path)).toEqual(["tracked.txt", "untracked.txt"]);
 
 			// 2. includeUntracked: false sees only tracked
 			const trackedOnly = getGitDiff({ cwd: tmp, includeUntracked: false });

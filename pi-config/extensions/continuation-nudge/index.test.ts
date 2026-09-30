@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { NUDGE_MESSAGE } from "./continuation.ts";
@@ -108,6 +108,8 @@ const ENV_KEYS = [
 	"PI_CODING_AGENT_DIR",
 	"OPENROUTER_API_KEY",
 	"TYPESAFE_API_KEY",
+	"PASS_ENV_BIN",
+	"JEV_OPENROUTER_API_KEY",
 	"JEV_NUDGE_MODE",
 	"JEV_NUDGE_MAX",
 	"JEV_NUDGE_MIN_CONF",
@@ -131,6 +133,7 @@ beforeEach(() => {
 	}
 	agentDir = mkdtempSync(join(scratchRoot(), "continuation-nudge-"));
 	process.env.PI_CODING_AGENT_DIR = agentDir;
+	process.env.PASS_ENV_BIN = join(agentDir, "missing-pass-env");
 });
 
 afterEach(() => {
@@ -288,9 +291,10 @@ describe("suppression", () => {
 		expect(existsSync(join(agentDir, "continuation-nudge.jsonl"))).toBe(false);
 	});
 
-	test("skips without a key and never falls back to TYPESAFE_API_KEY", async () => {
-		process.env.TYPESAFE_API_KEY = "typesafe-direct-key-must-not-be-used";
-		const harness = makeHarness([user("request"), assistant("answer")], { providerAuth: false });
+	test("ignores generic chat and TypeSafe credentials when the dedicated binding is absent", async () => {
+		process.env.OPENROUTER_API_KEY = ["generic", "chat", "fixture"].join("-");
+		process.env.TYPESAFE_API_KEY = ["typesafe", "fixture"].join("-");
+		const harness = makeHarness([user("request"), assistant("answer")]);
 		await settle(harness);
 		expect(harness.messages).toHaveLength(0);
 		expect(statusFile()?.mode).toBe("no-key");
@@ -366,6 +370,9 @@ describe("fail-open and redaction", () => {
 	});
 
 	test("an answer without confidence ends like stock: missing-confidence, no nudge", async () => {
+		const launcher = join(agentDir, "pass-env");
+		writeFileSync(launcher, "#!/bin/sh\nprintf '%s\\n' 'dedicated-fixture-key'\n", { mode: 0o700 });
+		process.env.PASS_ENV_BIN = launcher;
 		const originalFetch = globalThis.fetch;
 		globalThis.fetch = (async () =>
 			new Response(
@@ -444,12 +451,15 @@ describe("session lifecycle and command", () => {
 		expect(report).toContain("last decision:");
 	});
 
-	test("the command never prints a resolved key value", async () => {
+	test("the command reports the dedicated source but never prints its key", async () => {
+		const launcher = join(agentDir, "pass-env");
+		writeFileSync(launcher, "#!/bin/sh\nprintf '%s\\n' 'dedicated-fixture-key'\n", { mode: 0o700 });
+		process.env.PASS_ENV_BIN = launcher;
 		const harness = makeHarness([user("request"), assistant("answer")]);
 		await harness.listeners.get("session_start")?.({ reason: "startup" }, harness.ctx);
 		await harness.commands.get("continuation")?.handler("", harness.ctx);
 		const report = harness.messages[0].message.content as string;
-		expect(report).not.toContain("test-key");
-		expect(report).toContain("key resolved: yes (modelRegistry)");
+		expect(report).not.toContain("dedicated-fixture-key");
+		expect(report).toContain("key resolved: yes (pass-env)");
 	});
 });

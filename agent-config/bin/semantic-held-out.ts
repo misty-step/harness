@@ -69,7 +69,7 @@ function parseArgs(args: string[]): CliOptions {
 }
 
 function providerFromEnvironment(): SystemOneProvider | null {
-  const key = process.env.OPENROUTER_API_KEY?.trim();
+  const key = process.env.JEV_OPENROUTER_API_KEY?.trim();
   return key ? new OpenRouterJevProvider(key, REQUESTED_MODEL) : null;
 }
 

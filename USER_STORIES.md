@@ -173,9 +173,10 @@ invariants using a System One decision model, so violations and credential leaks
 intercepted before commit without token or latency waste.
 
 Criteria:
-1. WHEN diff review runs with neither `OPENROUTER_API_KEY` nor `TYPESAFE_API_KEY`
-   configured, THE SYSTEM SHALL report disabled-uncredentialed status without
-   fabricating confidence scores or failing live turns.
+1. WHEN the standalone reviewer lacks provider credentials or an installed OMP
+   or Pi extension lacks its dedicated pass-backed review key, THE SYSTEM
+   SHALL report disabled-uncredentialed status without fabricating confidence
+   scores or failing live turns.
 2. WHEN evaluating diffs via OpenRouter (`typesafe/jev-1.13`) or TypeSafe direct,
    THE SYSTEM SHALL encode queries to the native System One API schema
    (`map<string, Question>` with Noul, Choice, and Score).
@@ -190,13 +191,27 @@ Criteria:
    `MOCK_SYSTEM_ONE=1`).
 7. WHEN reviewing working tree diffs, THE SYSTEM SHALL include untracked files
    by default unless explicitly disabled.
-8. WHEN a diff exceeds context limits, THE SYSTEM SHALL chunk changes by file
-   and hunk boundaries, evaluating chunks in parallel without truncation.
+8. WHEN a working diff exceeds 20,000 characters, THE INSTALLED OMP AND PI
+   turn-end extensions SHALL defer it visibly as requiring manual review, without
+   issuing a partial automatic judgment or marking it clean. Unchanged reviewed
+   diffs SHALL NOT be rejudged on later turns.
+9. WHEN an explicit review evaluates a diff beyond context limits, THE SYSTEM
+   SHALL chunk changes by file and hunk boundaries without truncation, evaluating
+   no more than two chunks concurrently.
+10. IF the provider fails on any diff chunk, THE SYSTEM SHALL report an
+    incomplete review and SHALL NOT pass the diff as reviewed.
+11. WHEN OMP or Pi runs automatic or explicit diff review, THE EXTENSION SHALL
+    use only its dedicated, spending-capped Jev pass binding, never an ambient
+    model credential or the shared utility key; missing pass access SHALL fail
+    closed for review without blocking the agent turn.
+12. WHEN an installed diff review calls Jev, THE EXTENSION SHALL record its
+    process ID and cumulative attempted/HTTP-2xx request counts without storing
+    diff content or credentials, so later issuer usage can be investigated.
 
 No-gos: no fabricated probability or confidence numbers in live sessions; no
 live credential storage on disk; no uncredentialed blocking of interactive turns;
 no silent truncation of multi-file diffs.
-Evidence: `omp-config/bin/omp-diff-review.test.ts`, `omp-config/extensions/diff-review/diff-review.test.ts`, `pi-config/extensions/diff-review/diff-review.test.ts`
+Evidence: `agent-config/system-one/jev-key.test.ts`, `omp-config/bin/omp-diff-review.test.ts`, `omp-config/extensions/diff-review/diff-review.test.ts`, `pi-config/extensions/diff-review/diff-review.test.ts`
 
 ## US-010 Bounded continuation nudge
 

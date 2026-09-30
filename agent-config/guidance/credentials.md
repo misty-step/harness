@@ -23,8 +23,9 @@ Look in this order, and name what you checked if anything is still missing:
 A value found only in step 3 or 4 is a gap to close. Copy it into pass from
 stdin (`pass insert -m workstation/NAME`; never through the transcript or
 command arguments), add the name to the workstation inventory, and reference it
-from the project's committed `.env.pass`. Every misty-step repo should end with
-a committed `.env.pass` that names exactly the entries it needs.
+from the project's committed `.env.pass`. A repository whose setup, check, walk
+or release needs a credential commits an `.env.pass` naming exactly those
+entries; it is the repository's only list of secret names (harness ADR-004).
 
 Worker and platform secrets can't be read back once set. Never rotate a
 credential just because you can't find it: rotation breaks every consumer

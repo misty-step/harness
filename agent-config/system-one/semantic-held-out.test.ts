@@ -127,8 +127,10 @@ describe("semantic quality held-out fixture", () => {
     expect(report.unavailable).toEqual([]);
   });
 
-  test("CLI reports unavailable without inventing metrics when provider credentials are absent", () => {
-    const { OPENROUTER_API_KEY: _discarded, ...environment } = process.env;
+  test("CLI leaves held-out metrics unavailable when only a generic chat credential exists", () => {
+    const environment = { ...process.env };
+    delete environment.JEV_OPENROUTER_API_KEY;
+    environment.OPENROUTER_API_KEY = ["generic", "chat", "fixture"].join("-");
     const cli = join(import.meta.dir, "..", "bin", "semantic-held-out.ts");
     const result = spawnSync(
       "bun",

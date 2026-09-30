@@ -123,7 +123,7 @@ describe("semantic-check CLI", () => {
         encoding: "utf8",
         env: {
           ...(globalThis as unknown as { process: { env: Record<string, string | undefined> } }).process.env,
-          OPENROUTER_API_KEY: "",
+          JEV_OPENROUTER_API_KEY: "",
         },
       },
     );

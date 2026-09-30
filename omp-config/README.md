@@ -38,6 +38,7 @@ prompt is: how can I pokayoke this so this kind of error never happens again?
 | `../.githooks/pre-push` | Root scanners; wired by `../scripts/bootstrap`, not runtime deployment |
 | `extensions/loc/` | Session-resident LOC status and commands |
 | `extensions/credentials/` | Full pass-name inventory by default; opt-in discovery pointer; targeted auth-failure and deduplicated unavailable-credential reminders (MIS-161, US-019) |
+| `extensions/diff-review/` | Automatic one-chunk Jev review and explicit full-diff review (US-005) |
 
 `config.yml` selects the Omarchy-generated `omarchy-system` theme for both
 terminal background modes. On this workstation,
@@ -47,6 +48,24 @@ terminal background modes. On this workstation,
 The installer preserves that generated file but does not generate or ship it.
 On a host without this hook and generator, select an installed theme before
 deploying config.
+
+Automatic diff review runs at turn end only for changed working diffs of at
+most 20,000 characters (one Jev request). Larger diffs display
+`diff: manual review required` in the TUI or emit a single stderr warning
+per changed diff in headless runs; neither is a clean verdict. Run
+`/diff-review` explicitly to cover every chunk, with at most two requests
+in flight. Both paths use the dedicated names-only `jev.env.pass` binding
+beside the installed extension, resolved via `pass-env` at runtime:
+`workstation/OPENROUTER_MISTY_STEP_HARNESS_WORKSTATION_DIFF_REVIEW_API_KEY`
+($0.50/day issuer cap). Ambient OpenRouter/TypeSafe keys and the paused shared
+utility key are not fallback credentials. Missing pass access reports
+`diff: no-key`; provider errors report an incomplete review, never a pass.
+
+`~/.omp/agent/diff-review.jsonl` records each review's PID, key source, model,
+and cumulative attempted/HTTP-2xx Jev calls for that process, without diff
+content or credentials. Issuer key usage remains the billing authority.
+Sessions started before this deployment retain their loaded extension until
+restart; their older records may lack PID and counters.
 
 ## Install
 
@@ -74,12 +93,16 @@ OMP_INSTALL_COMPONENTS=agents ./install
 OMP_INSTALL_COMPONENTS=secrets ./install
 OMP_INSTALL_COMPONENTS=mcp ./install
 OMP_INSTALL_COMPONENTS="guidance mcp scopes skill:capture" ./install
+OMP_INSTALL_COMPONENTS=diff-review ./install
 ```
 
 Supported components are `guidance`, `config`, `mcp`, `scopes`, `agents`,
-`secrets`, and `skill:<source-directory-name>`. `all` cannot be combined with another
-component. Empty, unknown, missing-skill, invalid-name, and invalid YAML
-selections fail before any writes. The retired `OMP_INSTALL_GUIDANCE_ONLY`
+`secrets`, `diff-review`, and `skill:<source-directory-name>`. `diff-review`
+updates only that extension, its shared engine/key resolver, and its owned
+names-only `jev.env.pass` binding; config, auth, and other extensions remain
+unchanged. `all` cannot be combined with another component. Empty, unknown,
+invalid-name, and invalid YAML selections fail before any writes. The retired
+`OMP_INSTALL_GUIDANCE_ONLY`
 variable fails with migration instructions rather than silently triggering a
 full install.
 

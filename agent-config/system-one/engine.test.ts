@@ -133,9 +133,11 @@ describe("provider failure classification", () => {
 				status: 429,
 			})) as unknown as typeof fetch;
 		try {
-			await expect(
-				new OpenRouterJevProvider("test-key").evaluate("state", { continuation: CHOICE_QUESTION }),
-			).rejects.toMatchObject({ name: "SystemOneProviderError", kind: "quota", status: 429 });
+			const provider = new OpenRouterJevProvider("test-key");
+			await expect(provider.evaluate("state", { continuation: CHOICE_QUESTION }))
+				.rejects.toMatchObject({ name: "SystemOneProviderError", kind: "quota", status: 429 });
+			expect(provider.requestsAttempted).toBe(1);
+			expect(provider.responses2xx).toBe(0);
 		} finally {
 			globalThis.fetch = original;
 		}

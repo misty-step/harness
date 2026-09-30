@@ -16,12 +16,9 @@
  * and a previous nudge with zero tool results after it is suppressed without
  * calling Jev at all.
  *
- * Resolution order is OpenRouter-only (the operator override for this task;
- * there is no TypeSafe-direct fallback):
- *   1. pi's native registry auth for provider `openrouter`
- *   2. `auth.json` in the agent dir (`openrouter.key`)
- *   3. `OPENROUTER_API_KEY` in the environment
- * Nothing resolved: skip silently, status shows `no-key`.
+ * Jev uses only this package's pass-backed, daily-capped credential.
+ * Pi's model registry, auth.json and ambient chat credentials never fund a
+ * Decisions call. Missing binding: skip silently, status shows `no-key`.
  *
  * Files (agent dir): `continuation-nudge-status.json` (load evidence) and
  * `continuation-nudge.jsonl` (decision records, rotated at 256 KB to 500
@@ -34,6 +31,7 @@
  */
 
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
+import { spawn } from "node:child_process";
 import { mkdirSync, readFileSync, statSync, writeFileSync, appendFileSync, existsSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
@@ -64,6 +62,9 @@ const CALL_TIMEOUT_MS = 8000;
 const MAX_DEFAULT = 2;
 const MIN_CONFIDENCE_DEFAULT = 0.5;
 const JEV_MODEL = "typesafe/jev-1.13";
+const JEV_ENV_PASS = new URL("jev.env.pass", import.meta.url).pathname;
+const KEY_CACHE_MS = 5 * 60_000;
+let cachedKey: { launcher: string; at: number; result: Promise<KeyResolution | null> } | undefined;
 
 export type NudgeMode = "on" | "off";
 export type ContinuationStatusMode = "on" | "off" | "no-key";
@@ -104,36 +105,45 @@ export interface KeyResolution {
 }
 
 /**
- * Resolve the OpenRouter key. Order: native registry, agent-dir auth.json,
- * environment. The key value is returned for the provider only; callers log
- * the source name, never the key.
+ * Resolve only the dedicated Jev binding through pass-env. Do not fall back to
+ * pi's model registry, auth.json, or ambient OPENROUTER_API_KEY.
  */
-export async function resolveOpenRouterKey(
-	ctx: ExtensionContext,
+export function resolveOpenRouterKey(
+	_ctx: ExtensionContext,
 	env: NodeJS.ProcessEnv = process.env,
 ): Promise<KeyResolution | null> {
-	try {
-		const auth = await ctx.modelRegistry?.getProviderAuth?.("openrouter");
-		const key = (auth as { auth?: { apiKey?: unknown } } | undefined)?.auth?.apiKey;
-		if (typeof key === "string" && key.trim()) return { key, source: "modelRegistry" };
-	} catch {
-		// fail open to the next source
+	const localLauncher = join(homedir(), ".local/bin/pass-env");
+	const launcher = env.PASS_ENV_BIN ?? (existsSync(localLauncher) ? localLauncher : "pass-env");
+	if (cachedKey?.launcher === launcher && Date.now() - cachedKey.at < KEY_CACHE_MS) {
+		return cachedKey.result;
 	}
-
-	try {
-		const authPath = join(resolveAgentDir(env), "auth.json");
-		if (existsSync(authPath)) {
-			const parsed = JSON.parse(readFileSync(authPath, "utf8")) as { openrouter?: { key?: unknown } };
-			const key = parsed?.openrouter?.key;
-			if (typeof key === "string" && key.trim()) return { key, source: "auth.json" };
-		}
-	} catch {
-		// fail open to the environment
-	}
-
-	const envKey = (env.OPENROUTER_API_KEY ?? "").trim();
-	if (envKey) return { key: envKey, source: "OPENROUTER_API_KEY" };
-	return null;
+	const result = new Promise<KeyResolution | null>((resolve) => {
+		const childEnv = { ...env };
+		delete childEnv.OPENROUTER_API_KEY;
+		delete childEnv.TYPESAFE_API_KEY;
+		delete childEnv.JEV_OPENROUTER_API_KEY;
+		const child = spawn(launcher, ["run", "-f", JEV_ENV_PASS, "--", "printenv", "JEV_OPENROUTER_API_KEY"], {
+			env: childEnv,
+			stdio: ["ignore", "pipe", "ignore"],
+		});
+		let output = "";
+		const timer = setTimeout(() => child.kill(), 15_000);
+		child.stdout.on("data", (chunk: Buffer) => {
+			output += chunk.toString();
+			if (output.length > 4096) child.kill();
+		});
+		child.on("error", () => {
+			clearTimeout(timer);
+			resolve(null);
+		});
+		child.on("close", (code) => {
+			clearTimeout(timer);
+			const key = output.trimEnd();
+			resolve(code === 0 && key.length > 0 && key.length <= 4096 ? { key, source: "pass-env" } : null);
+		});
+	});
+	cachedKey = { launcher, at: Date.now(), result };
+	return result;
 }
 
 export interface ResolvedProvider {

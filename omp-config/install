@@ -2,6 +2,11 @@
 set -eu
 umask 077
 
+if [ "${OMP_CONFIG_COMPONENTS+x}" = x ]; then
+  echo 'OMP_CONFIG_COMPONENTS is not an installer selector; use OMP_INSTALL_COMPONENTS' >&2
+  exit 1
+fi
+
 repo_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 agent_dir=${PI_CODING_AGENT_DIR:-$(omp config path)}
 development_root=${OMP_DEVELOPMENT_ROOT:-$HOME/development}
@@ -54,7 +59,7 @@ validate_guidance() {
   require_base
   run_shared --check \
     --bin design-check.ts \
-    --guidance pokayoke --guidance communication-and-verification --guidance host-resources --guidance credentials --guidance user-stories --guidance session-close --guidance design-routing \
+    --guidance pokayoke --guidance communication-and-verification --guidance host-resources --guidance credentials --guidance user-stories --guidance foundations --guidance session-close --guidance design-routing \
     --guidance-source "$repo_dir/global/AGENTS.md"
 }
 install_guidance() {
@@ -65,7 +70,7 @@ install_guidance() {
   rm -f -- "$agent_dir/RULES.md"
   run_shared \
     --bin design-check.ts \
-    --guidance pokayoke --guidance communication-and-verification --guidance host-resources --guidance credentials --guidance user-stories --guidance session-close --guidance design-routing \
+    --guidance pokayoke --guidance communication-and-verification --guidance host-resources --guidance credentials --guidance user-stories --guidance foundations --guidance session-close --guidance design-routing \
     --guidance-source "$repo_dir/global/AGENTS.md"
 }
 validate_config() {
@@ -206,6 +211,26 @@ install_themes() {
   done
 }
 
+validate_diff_review() {
+  require_base
+  for file in index.ts engine.ts jev-key.ts diff-review.test.ts jev.env.pass; do
+    require_nonempty "$repo_dir/extensions/diff-review/$file"
+  done
+  require_nonempty "$base_dir/system-one/engine.ts"
+  require_nonempty "$base_dir/system-one/jev-key.ts"
+}
+
+install_diff_review() {
+  install -d -m 700 "$agent_dir/extensions/diff-review"
+  rm -f -- "$agent_dir/extensions/diff-review/jev-key.test.ts"
+  for file in "$repo_dir"/extensions/diff-review/*.ts; do
+    install -m 600 "$file" "$agent_dir/extensions/diff-review/${file##*/}"
+  done
+  install -m 600 "$base_dir/system-one/engine.ts" "$agent_dir/extensions/diff-review/engine.ts"
+  install -m 600 "$base_dir/system-one/jev-key.ts" "$agent_dir/extensions/diff-review/jev-key.ts"
+  install -m 600 "$repo_dir/extensions/diff-review/jev.env.pass" "$agent_dir/extensions/diff-review/jev.env.pass"
+}
+
 install_extensions() {
   rm -f "$agent_dir/extensions/evidence-packet.ts"
   rm -rf -- "$agent_dir/extensions/executive"
@@ -220,9 +245,12 @@ install_extensions() {
       install -m 700 "$ext_entry" "$agent_dir/extensions/$ext_name/${ext_entry##*/}"
     done
   done
-  # Canonical System One shared engine deployment
-  if [ -d "$agent_dir/extensions/diff-review" ] && [ -f "$base_dir/system-one/engine.ts" ]; then
+  rm -f -- "$agent_dir/extensions/diff-review/jev-key.test.ts"
+  # Canonical shared review engine and pass-backed key resolver.
+  if [ -d "$agent_dir/extensions/diff-review" ]; then
     install -m 600 "$base_dir/system-one/engine.ts" "$agent_dir/extensions/diff-review/engine.ts"
+    install -m 600 "$base_dir/system-one/jev-key.ts" "$agent_dir/extensions/diff-review/jev-key.ts"
+    install -m 600 "$repo_dir/extensions/diff-review/jev.env.pass" "$agent_dir/extensions/diff-review/jev.env.pass"
   fi
   # LOC status hooks are a per-checkout convenience; the monorepo root owns
   # hook installation, so this installer documents the recipe instead of
@@ -261,6 +289,7 @@ for component do
       validate_shared
       validate_agents
       validate_themes
+      validate_diff_review
       require_nonempty "$repo_dir/bin/omp-grievances.ts"
       ;;
     guidance) validate_guidance ;;
@@ -269,6 +298,7 @@ for component do
     scopes) validate_scopes ;;
     agents) validate_agents ;;
     secrets) validate_secrets ;;
+    diff-review) validate_diff_review ;;
     skill:*) validate_skill "${component#skill:}" ;;
     *)
       printf 'Unknown install component: %s\n' "$component" >&2
@@ -286,6 +316,7 @@ if [ "$1" != all ]; then
       scopes) install_scopes ;;
       agents) install_agents ;;
       secrets) install_secrets ;;
+      diff-review) install_diff_review ;;
       skill:*) install_skill "${component#skill:}" ;;
     esac
   done

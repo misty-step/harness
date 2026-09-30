@@ -567,6 +567,9 @@ export class OpenRouterJevProvider implements SystemOneProvider {
 	readonly name = "openrouter" as const;
 	readonly requestedModel: string;
 	readonly resolvedModels = new Set<string>();
+	/** Cumulative requests from this provider instance for per-process audit records. */
+	requestsAttempted = 0;
+	responses2xx = 0;
 
 	constructor(
 		private apiKey: string,
@@ -591,6 +594,7 @@ export class OpenRouterJevProvider implements SystemOneProvider {
 		const timer = setTimeout(() => controller.abort(), timeoutMs);
 
 		try {
+			this.requestsAttempted++;
 			const res = await fetch(this.endpoint, {
 				method: "POST",
 				headers: {
@@ -602,6 +606,7 @@ export class OpenRouterJevProvider implements SystemOneProvider {
 				body: JSON.stringify(payload),
 				signal: controller.signal,
 			});
+			if (res.ok) this.responses2xx++;
 
 			if (!res.ok) {
 				const errorText = await res.text();
@@ -813,8 +818,8 @@ export function resolveProvider(forced?: string): SystemOneProvider | null {
 		if (key) return new TypeSafeJevProvider(key);
 	}
 
-	if (forced === "openrouter" || (!forced && process.env.OPENROUTER_API_KEY)) {
-		const key = process.env.OPENROUTER_API_KEY;
+	if (forced === "openrouter" || (!forced && process.env.JEV_OPENROUTER_API_KEY)) {
+		const key = process.env.JEV_OPENROUTER_API_KEY;
 		if (key) {
 			const model = process.env.OPENROUTER_JEV_MODEL || "typesafe/jev-1.13";
 			return new OpenRouterJevProvider(key, model);
@@ -1163,7 +1168,7 @@ export async function evaluateDiff(
 			blocks: [],
 			warnings: [],
 			summary:
-				"Diff review disabled: neither OPENROUTER_API_KEY nor TYPESAFE_API_KEY is configured for System One evaluation.",
+				"Diff review disabled: neither JEV_OPENROUTER_API_KEY nor TYPESAFE_API_KEY is configured for System One evaluation.",
 		};
 	}
 
@@ -1179,14 +1184,21 @@ export async function evaluateDiff(
 		(options.batteryName ? BATTERIES[options.batteryName] ?? HARNESS_BATTERY : HARNESS_BATTERY);
 	const start = Date.now();
 
-	const chunkResults = await Promise.all(
-		chunks.map(async (chunk) => {
-			const chunkBattery = options.battery ? options.battery : routeBatteryForChunk(battery, chunk.paths);
-			try {
-				const answers = await provider.evaluate(chunk.diff, chunkBattery, options.timeoutMs);
-				return { chunk, answers, error: null };
-			} catch (err) {
-				return { chunk, answers: null, error: err };
+	const chunkResults: Array<{ chunk: DiffChunk; answers: Record<string, Answer> | null; error: unknown }> =
+		new Array(chunks.length);
+	let nextChunk = 0;
+	await Promise.all(
+		Array.from({ length: Math.min(2, chunks.length) }, async () => {
+			while (nextChunk < chunks.length) {
+				const index = nextChunk++;
+				const chunk = chunks[index];
+				const chunkBattery = options.battery ? options.battery : routeBatteryForChunk(battery, chunk.paths);
+				try {
+					const answers = await provider.evaluate(chunk.diff, chunkBattery, options.timeoutMs);
+					chunkResults[index] = { chunk, answers, error: null };
+				} catch (error) {
+					chunkResults[index] = { chunk, answers: null, error };
+				}
 			}
 		}),
 	);
@@ -1194,9 +1206,11 @@ export async function evaluateDiff(
 	const latencyMs = Date.now() - start;
 	const blocks: RuleFinding[] = [];
 	const warnings: RuleFinding[] = [];
+	let failedChunks = 0;
 
 	for (const res of chunkResults) {
 		if (res.error) {
+			failedChunks++;
 			warnings.push({
 				rule: "provider_error",
 				category: "verification",
@@ -1224,14 +1238,16 @@ export async function evaluateDiff(
 		}
 	}
 
-	const passed = blocks.length === 0;
-	const clean = blocks.length === 0 && warnings.length === 0;
+	const passed = blocks.length === 0 && failedChunks === 0;
+	const clean = passed && warnings.length === 0;
 	const chunkInfo = chunks.length > 1 ? ` across ${chunks.length} chunk(s)` : "";
-	const summary = clean
-		? `Review PASSED cleanly (${latencyMs}ms, ${provider.name}${chunkInfo}).`
-		: passed
-			? `Review PASSED with ${warnings.length} warning(s) (${latencyMs}ms, ${provider.name}${chunkInfo}).`
-			: `Review BLOCKED by ${blocks.length} rule violation(s) (${latencyMs}ms, ${provider.name}${chunkInfo}).`;
+	const summary = failedChunks > 0
+		? `Review INCOMPLETE: provider failed on ${failedChunks} chunk(s) (${latencyMs}ms, ${provider.name}${chunkInfo}).`
+		: clean
+			? `Review PASSED cleanly (${latencyMs}ms, ${provider.name}${chunkInfo}).`
+			: passed
+				? `Review PASSED with ${warnings.length} warning(s) (${latencyMs}ms, ${provider.name}${chunkInfo}).`
+				: `Review BLOCKED by ${blocks.length} rule violation(s) (${latencyMs}ms, ${provider.name}${chunkInfo}).`;
 
 	return {
 		passed,
@@ -1245,6 +1261,9 @@ export async function evaluateDiff(
 		summary,
 	};
 }
+
+// Git's mnemonic/custom prefixes otherwise erase file identity from our diff parsers.
+const CANONICAL_DIFF_CONFIG = ["-c", "diff.mnemonicPrefix=false", "-c", "diff.srcPrefix=a/", "-c", "diff.dstPrefix=b/"] as const;
 
 /**
  * Fetch git diff from repository (including untracked files by default).
@@ -1276,7 +1295,7 @@ export function getGitDiff(options: {
 	if (options.staged) {
 		args = ["diff", "--cached"];
 	} else if (options.commit) {
-		return spawnSync("git", ["show", options.commit], { encoding: "utf8", cwd: options.cwd }).stdout ?? "";
+		return spawnSync("git", [...CANONICAL_DIFF_CONFIG, "show", options.commit], { encoding: "utf8", cwd: options.cwd }).stdout ?? "";
 	} else if (hasRange && rangeTokens && Array.isArray(options.range)) {
 		args = ["log", "-p", ...rangeTokens];
 	} else if (hasRange && rangeTokens) {
@@ -1289,7 +1308,7 @@ export function getGitDiff(options: {
 		args.push("--", options.path);
 	}
 
-	const res = spawnSync("git", args, { encoding: "utf8", cwd: options.cwd });
+	const res = spawnSync("git", [...CANONICAL_DIFF_CONFIG, ...args], { encoding: "utf8", cwd: options.cwd });
 	let diff = res.stdout ?? "";
 
 	if (options.includeUntracked !== false && !options.staged && !options.commit && !hasRange) {
@@ -1304,7 +1323,7 @@ export function getGitDiff(options: {
 			.filter((f) => f.length > 0);
 
 		for (const file of untrackedFiles) {
-			const fileDiff = spawnSync("git", ["diff", "--no-index", "--", "/dev/null", file], {
+			const fileDiff = spawnSync("git", [...CANONICAL_DIFF_CONFIG, "diff", "--no-index", "--", "/dev/null", file], {
 				encoding: "utf8",
 				cwd: options.cwd,
 			});

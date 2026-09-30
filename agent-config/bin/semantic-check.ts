@@ -177,7 +177,7 @@ function readFixture(path: string): FixtureProvider {
 
 function resolveSemanticProvider(options: CliOptions): SystemOneProvider | null {
   if (options.fixture) return readFixture(resolve(options.fixture));
-  const key = process.env.OPENROUTER_API_KEY?.trim();
+  const key = process.env.JEV_OPENROUTER_API_KEY?.trim();
   return key ? new OpenRouterJevProvider(key, REQUESTED_MODEL) : null;
 }
 

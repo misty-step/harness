@@ -1,4 +1,8 @@
 import { describe, expect, test } from "bun:test";
+import { spawnSync } from "node:child_process";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import registerDiffReviewExtension, { checkDiffReview } from "./index.ts";
 
@@ -48,5 +52,77 @@ describe("Diff Review Extension Lifecycle", () => {
 
 		listeners.get("session_shutdown")?.({}, mockCtx);
 		expect(statuses.get("diff-review")).toBeUndefined();
+	});
+
+	test("defers oversized automatic reviews but permits a complete manual review", async () => {
+		const previousCwd = process.cwd();
+		const previousMock = process.env.MOCK_SYSTEM_ONE;
+		const previousAgentDir = process.env.PI_CODING_AGENT_DIR;
+		const dir = mkdtempSync(join(tmpdir(), "omp-diff-review-"));
+		const agentDir = mkdtempSync(join(tmpdir(), "omp-review-log-"));
+		const statuses: string[] = [];
+		const reports: string[] = [];
+		const commands = new Map<string, { handler: (args: string, ctx: ExtensionContext) => Promise<void> }>();
+		const pi = {
+			registerCommand: (name: string, command: { handler: (args: string, ctx: ExtensionContext) => Promise<void> }) => {
+				commands.set(name, command);
+			},
+			on: () => {},
+			sendMessage: (message: { content: string }) => reports.push(message.content),
+		} as unknown as ExtensionAPI;
+		const ctx = {
+			hasUI: true,
+			ui: {
+				setStatus: (_key: string, status: string | undefined) => statuses.push(status ?? ""),
+				notify: () => {},
+			},
+		} as unknown as ExtensionContext;
+		const file = join(dir, "change.ts");
+		try {
+			spawnSync("git", ["init", "-q", dir], { stdio: "pipe" });
+			spawnSync("git", ["-C", dir, "-c", "user.name=Test", "-c", "user.email=test@example.com", "commit", "-q", "--allow-empty", "-m", "initial"], { stdio: "pipe" });
+			process.chdir(dir);
+			process.env.MOCK_SYSTEM_ONE = "1";
+			process.env.PI_CODING_AGENT_DIR = agentDir;
+			registerDiffReviewExtension(pi);
+
+			writeFileSync(file, `export const data = "${"x".repeat(21_000)}";\n`);
+			const headlessWarnings: string[] = [];
+			const previousError = console.error;
+			console.error = (message: unknown) => { headlessWarnings.push(String(message)); };
+			try {
+				const headless = { ...ctx, hasUI: false } as ExtensionContext;
+				expect(await checkDiffReview(headless)).toBeNull();
+				expect(await checkDiffReview(headless)).toBeNull();
+			} finally {
+				console.error = previousError;
+			}
+			expect(headlessWarnings).toEqual(["diff-review: manual review required; run /diff-review to cover the full working diff"]);
+			expect(await checkDiffReview(ctx)).toBeNull();
+			expect(statuses.at(-1)).toBe("diff: manual review required");
+
+			await commands.get("diff-review")!.handler("", ctx);
+			expect(reports.at(-1)).toContain("System One Diff Review (heuristic");
+			const manualStatus = statuses.at(-1);
+			expect(await checkDiffReview(ctx)).toBeNull();
+			expect(statuses.at(-1)).toBe(manualStatus);
+
+			writeFileSync(file, "export const data = 1;\n");
+			expect(await checkDiffReview(ctx)).not.toBeNull();
+			expect(statuses.at(-1)).not.toBe("diff: manual review required");
+			const log = join(agentDir, "diff-review.jsonl");
+			const reviews = readFileSync(log, "utf8").trim().split("\n").length;
+			expect(JSON.parse(readFileSync(log, "utf8").trim().split("\n").at(-1)!).pid).toBe(process.pid);
+			expect(await checkDiffReview(ctx)).toBeNull();
+			expect(readFileSync(log, "utf8").trim().split("\n")).toHaveLength(reviews);
+		} finally {
+			process.chdir(previousCwd);
+			if (previousMock === undefined) delete process.env.MOCK_SYSTEM_ONE;
+			else process.env.MOCK_SYSTEM_ONE = previousMock;
+			if (previousAgentDir === undefined) delete process.env.PI_CODING_AGENT_DIR;
+			else process.env.PI_CODING_AGENT_DIR = previousAgentDir;
+			rmSync(dir, { recursive: true, force: true });
+			rmSync(agentDir, { recursive: true, force: true });
+		}
 	});
 });

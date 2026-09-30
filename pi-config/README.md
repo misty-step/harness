@@ -175,6 +175,23 @@ replaces same-id entries through pi's own merge, the overlay needs no cleanup
 once `pi.dev` catches up. Removing the directory restores stock behavior: pi
 sees OpenRouter models on the mirror's schedule.
 
+**`diff-review/` — behavioral.** On turn end, a changed working diff of at
+most 20,000 characters gets one automatic Jev decision. Unchanged reviewed
+diffs reuse their status; larger diffs display `diff: manual review required`
+in the TUI or emit one stderr warning per changed diff in headless runs,
+instead of a partial or clean verdict. `/diff-review` explicitly covers every
+chunk with at most two concurrent requests. Both paths resolve the dedicated
+names-only `jev.env.pass` binding through `pass-env` at runtime:
+`workstation/OPENROUTER_MISTY_STEP_HARNESS_WORKSTATION_DIFF_REVIEW_API_KEY`
+($0.50/day issuer cap), not Pi's ambient key or the paused shared utility key.
+The installer deploys only this binding and the self-contained shared review
+modules; missing pass access reports `diff: no-key`, and provider errors leave
+the review incomplete, not passed.
+The content-free `~/.pi/agent/diff-review.jsonl` records each review's PID,
+key source, model, and cumulative attempted/HTTP-2xx Jev calls for that
+process. Issuer key usage remains the billing authority; sessions started
+before deployment keep their older loaded extension until restart.
+
 **`continuation-nudge/` — behavioral, installed.** Owns the
 anti-premature-stop nudge (US-010). On `agent_settled` it asks one byte-frozen
 Choice question through the OpenRouter Decisions API (`typesafe/jev-1.13`;
@@ -194,6 +211,11 @@ files live in the agent dir (`continuation-nudge-status.json`,
 (component `continuation-nudge`) and materializes the real shared
 `continuation.ts` and `engine.ts` over the repo shims, exactly like
 `diff-review/engine.ts`, so the installed package loads self-contained.
+
+The nudge reads only its own names-only `jev.env.pass` binding through
+`pass-env`: `workstation/OPENROUTER_MISTY_STEP_HARNESS_PI_NUDGE_API_KEY`
+($0.25/day issuer cap). The model registry, Pi `auth.json`, and ambient chat
+key never fund the Decisions call; a missing dedicated entry yields `no-key`.
 
 **Shared primitives — `agent-config`.** Skill packages, guidance sections, and
 the `pass-env` launcher live once in the base and deploy through its single
