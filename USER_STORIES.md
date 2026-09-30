@@ -49,7 +49,7 @@ commands in a portable skill.
 Evidence: `scripts/references.test.ts`,
 `agent-config/skills/test-audit/SKILL.md`,
 `agent-config/skills/test-audit/CAMPAIGN.md`,
-`agent-config/guidance/communication-and-verification.md`,
+`agent-config/guidance/engineering.md`,
 `./scripts/verify all`; working-tree disposable installer smoke for both consumers.
 
 ## US-022 Review work and walk product stories as an agent
@@ -80,7 +80,7 @@ universal receipt format, or scheduler created by installing a skill.
 
 Evidence: `scripts/references.test.ts`,
 `agent-config/skills/story-qa/SKILL.md`,
-`agent-config/guidance/communication-and-verification.md`;
+`agent-config/guidance/engineering.md`;
 disposable Pi and OMP installer smoke.
 
 ## US-045 Open the exact review round from the board
@@ -90,25 +90,24 @@ exact round and keep earlier rounds distinct, so I can review the right page
 without searching folders or exposing private text.
 
 Criteria:
-1. WHEN Pi or OMP composes global guidance, THE SYSTEM SHALL instruct every
-   agent handing Phaedrus work to review to publish each round as its own file
-   under `~/review` and never overwrite a published round.
-2. WHEN an agent registers a review round, THE SYSTEM SHALL direct it to use
-   `glass review publish --item <board item id> --page <file under ~/review>`
-   with one specific page, never a folder.
-3. THE SYSTEM SHALL explain that publishing links the board item to the exact
-   page and marks earlier rounds old.
-4. THE SYSTEM SHALL require agents to keep private text, including pile words,
-   out of review pages and keep R90 data in R90's own tools.
-5. THE SYSTEM SHALL define `~/review` as storage only, with no index pages.
-6. IF the work has no board item yet, THEN THE SYSTEM SHALL instruct the agent
-   to ask Kaylee to add one first, then publish onto it.
+1. WHEN Pi or OMP composes global guidance, THE SYSTEM SHALL route review
+   handoffs to the on-demand `engineering-operations` skill.
+2. WHEN that skill is loaded for a handoff, THE SYSTEM SHALL direct each round
+   to its own file under `~/review` and register one exact page with
+   `glass review publish --item <board item id> --page <file under ~/review>`.
+3. THE SYSTEM SHALL explain that publication links that page on the board and
+   marks earlier rounds old.
+4. THE SYSTEM SHALL keep private context, including pile words, in its owning
+   tools, with R90 data in R90 tools and review pages containing public evidence.
+5. THE SYSTEM SHALL define `~/review` as storage for distinct rounds.
+6. IF the work has no board item, THEN THE SYSTEM SHALL direct the agent to ask
+   Kaylee to add one before registering the review.
 
 No-gos: no private text in review pages, folder links, overwritten rounds, or
 review index pages. The board owns publication and history; this story owns
 the shared instructions.
 
-Evidence: `agent-config/guidance/communication-and-verification.md`,
+Evidence: `agent-config/skills/engineering-operations/review.md`,
 `scripts/verify-installers`; inspect both consumers' composed guidance in
 disposable directories.
 
@@ -120,7 +119,7 @@ means something without rerunning an expensive full suite each time.
 
 Criteria:
 1. WHEN Pi or OMP installs shared skills, THE SYSTEM SHALL provide
-   `check-cadence` and route CI tiering decisions to it from composed guidance.
+   `story-qa/check-cadence.md` and route CI tiering decisions through `story-qa`.
 2. WHEN proposing a check moved off PR, THE SYSTEM SHALL require its independent
    contract, delayed-detection risk, scheduled trigger, owner, and failure
    response; IF those are missing, THEN THE SYSTEM SHALL leave the gate intact.
@@ -133,8 +132,8 @@ No-gos: no implicit deletion of required gates, unapproved recurring spend, or
 CI change to Habitat or Tach in this harness PR.
 
 Evidence: `scripts/references.test.ts`,
-`agent-config/skills/check-cadence/SKILL.md`,
-`agent-config/guidance/communication-and-verification.md`;
+`agent-config/skills/story-qa/check-cadence.md`,
+`agent-config/guidance/engineering.md`;
 disposable Pi and OMP installer smoke.
 
 ## US-024 Enforce repository foundations with required checks
@@ -225,7 +224,7 @@ Criteria:
 
 No-gos: no automatic additional VM or model-credential transfer.
 
-Evidence: `agent-config/guidance/host-resources.md`,
+Evidence: `agent-config/guidance/workstation.md`,
 `omp-config/global/AGENTS.md`
 
 ## US-025 Work in an owned exe.dev project workspace
@@ -319,7 +318,7 @@ mandate for projects without it and no invented ticket prerequisite. Unit
 fixtures SHALL avoid live network; the owner-path walk uses real Git/GitHub.
 
 Evidence: `agent-config/skills/session-close/session-close.test.ts`,
-`agent-config/guidance/session-close.md`, `docs/verification.md`.
+`agent-config/skills/session-close/SKILL.md`, `docs/verification.md`.
 
 ## Capability: Semantic Review
 
@@ -460,8 +459,7 @@ Evidence: `agent-config/skills/design-studio/SKILL.md`,
 `agent-config/skills/design-studio/references/media-policy.md`,
 `agent-config/skills/design-studio/references/handoff.md`,
 `agent-config/skills/design-studio/scripts/check_design_md.test.ts`,
-`agent-config/skills/design-studio/scripts/imagine.test.ts`,
-`agent-config/guidance/design-routing.md`
+`agent-config/skills/design-studio/scripts/imagine.test.ts`.
 
 ## US-044 Subtract content before shipping a designed surface
 
@@ -481,8 +479,7 @@ No-gos: no global word budget, automatic judgment of semantic redundancy, or
 hiding required safety, status, or accessibility information to meet a count.
 
 Evidence: `agent-config/skills/design-studio/references/loop.md`,
-`agent-config/skills/design-studio/SKILL.md`,
-`agent-config/guidance/design-routing.md`
+`agent-config/skills/design-studio/SKILL.md`.
 
 ## Capability: Design-surface verification
 
@@ -510,7 +507,7 @@ network from the check itself; API-route and other backend code stays out of
 the scoped surface list.
 
 Evidence: `agent-config/bin/design-check.test.ts`,
-`agent-config/guidance/design-routing.md`,
+`agent-config/skills/visual-state-review/SKILL.md`,
 `docs/adr/002-design-toolkit-trial.md`
 
 ## Capability: Model routing
@@ -1024,16 +1021,14 @@ foundations every project keeps, stated once in a short constitution, so its
 work implements, maintains and improves them without me restating them.
 
 Criteria:
-1. WHEN Pi or OMP installs shared guidance, THE SYSTEM SHALL compose a
-   foundations section that names the constitution as
-   `skill://foundation/constitution.md` and as a path, relative to the
-   deployed `AGENTS.md`, that resolves to the deployed constitution.
+1. WHEN Pi or OMP installs shared guidance, THE SYSTEM SHALL name the
+   constitution as `skill://foundation/constitution.md` and as a path, relative
+   to deployed `AGENTS.md`, that resolves to the deployed constitution.
 2. WHEN Pi or OMP installs shared skills, THE SYSTEM SHALL deploy the
    constitution with the `foundation` skill, and every relative link in that
    package SHALL resolve inside it.
-3. WHEN the composed guidance is deployed, THE SYSTEM SHALL equal the harness
-   intro plus every selected section, including foundations, in the declared
-   order.
+3. WHEN composed guidance is deployed, THE SYSTEM SHALL equal the harness
+   intro plus every selected section in the declared order.
 
 No-gos: no catalog obligations restated in guidance; no authoring
 instructions in the constitution (they live in the skill's authoring notes);
@@ -1159,3 +1154,34 @@ Evidence: `pi-config/extensions/accounts/slots.test.ts`,
 `pi-config/extensions/accounts/pool.test.ts`, `pi-config/docs/adr/026-pool-accounts-behind-one-provider-with-shared-blocks.md`,
 `pi-config/docs/adr/024-extra-accounts-are-cloned-providers-with-pi-owned-logins.md`,
 and the isolated `/login` walk recorded in the PR.
+
+## US-048 Carry lean, useful agent guidance
+
+Statement: When I start engineering work, I want positive principles and local
+facts in a small global prompt, with procedures available on demand, so agents
+spend context on the task rather than repeated rules.
+
+Criteria:
+1. WHEN Pi or OMP composes global guidance, THE SYSTEM SHALL carry positive
+   engineering principles and operational discovery facts; the commissioned
+   OMP subtraction SHALL reduce the 2026-09-30 baseline of 3,907 words to at most
+   800 words, excluding the separately discovered skill index.
+2. WHEN a relevant procedure is needed, THE SYSTEM SHALL provide its commands,
+   paths, credential locations and review/landing facts through on-demand skills
+   or the harness-specific reference, while configuration owns enforced policy.
+3. WHEN an agent builds or changes an agent, THE SYSTEM SHALL provide a short
+   `agent-design` skill with source-linked progressive disclosure, prompt-cache,
+   tool/context, authored-message and positive-guidance facts.
+4. WHEN skills are consolidated, THE SYSTEM SHALL migrate current callers,
+   remove retired owned packages and preserve foreign packages and executable
+   contracts.
+5. WHEN verifying this subtraction, THE ENGINEER SHALL replay the same five
+   authentic recent engineer first turns before and after, report word counts
+   and scope/delivery regressions, and distinguish planning proof from execution.
+
+No-gos: no code/config permission changes or new message templates; Kaylee's
+existing Hermes operating skill remains outside this operator-approved
+harness-only slice.
+
+Evidence: `docs/lean-agent-guidance.md`, `scripts/verify-installers`,
+`agent-config/bin/install.test.ts`; installed OMP/Pi guidance and skill reads.

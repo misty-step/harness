@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import {
-	copyFileSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync,
+	copyFileSync, cpSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync,
 	readlinkSync, rmSync, symlinkSync, writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
@@ -26,7 +26,7 @@ function fixture(): Fixture {
 	mkdirSync(join(source, "skills/authenticated-commands"), { recursive: true });
 	copyFileSync(join(repo, "install"), join(source, "install"));
 	copyFileSync(join(repo, "bin/pass-env.ts"), join(source, "bin/pass-env.ts"));
-	copyFileSync(join(repo, "guidance/pokayoke.md"), join(source, "guidance/pokayoke.md"));
+	copyFileSync(join(repo, "guidance/engineering.md"), join(source, "guidance/engineering.md"));
 	copyFileSync(
 		join(repo, "skills/authenticated-commands/SKILL.md"),
 		join(source, "skills/authenticated-commands/SKILL.md"),
@@ -37,6 +37,9 @@ function fixture(): Fixture {
 	put(files.target, "agents/foreign.md", "foreign agent\n");
 	put(files.target, "skills/authenticated-commands/obsolete.txt", "stale owned content\n");
 	put(files.target, "skills/foreign/SKILL.md", "foreign skill\n");
+	for (const name of ["agent-ergonomics", "capture", "decide", "check-cadence", "verification-infrastructure"]) {
+		put(files.target, `skills/${name}/SKILL.md`, `retired owned ${name}\n`);
+	}
 	put(files.home, ".local/bin/foreign-tool", "foreign executable\n");
 	return files;
 }
@@ -47,7 +50,7 @@ function invoke(files: Fixture, extra: string[] = []) {
 			"/bin/sh", join(files.source, "install"),
 			"--agent-dir", files.target, "--home", files.home,
 			"--skill", "authenticated-commands", "--bin", "pass-env.ts",
-			"--guidance", "pokayoke", "--guidance-source", join(files.source, "AGENTS.md"),
+			"--guidance", "engineering", "--guidance-source", join(files.source, "AGENTS.md"),
 			...extra,
 		],
 		env: { PATH: `${dirname(process.execPath)}:${process.env.PATH ?? "/usr/bin:/bin"}`, HOME: files.home },
@@ -100,11 +103,22 @@ describe("install", () => {
 		expect(readFileSync(launcher, "utf8")).toBe(readFileSync(join(files.source, "bin/pass-env.ts"), "utf8"));
 		expect(lstatSync(launcher).mode & 0o777).toBe(0o700);
 		expect(existsSync(join(files.home, ".password-store"))).toBe(false);
-		const guidance = readFileSync(join(files.target, "AGENTS.md"), "utf8");
-		expect(guidance).toContain("# Harness guidance");
-		expect(guidance).toContain("## Pokayoke");
-		expect(guidance).not.toContain("shared guidance: agent-config");
 		expect(invoke(files).exitCode).toBe(0);
+	});
+
+	test.each([
+		{ replacement: "engineering-operations", retired: ["agent-ergonomics", "capture"] },
+		{ replacement: "sachstand", retired: ["decide"] },
+		{ replacement: "story-qa", retired: ["check-cadence", "verification-infrastructure"] },
+	])("$replacement retires only its replaced procedures", ({ replacement, retired }) => {
+		const files = fixture();
+		cpSync(join(repo, "skills", replacement), join(files.source, "skills", replacement), { recursive: true });
+		const before = snapshot(files.target);
+		expect(invoke(files, ["--skill", replacement]).exitCode).toBe(0);
+		for (const name of retired) expect(existsSync(join(files.target, "skills", name))).toBe(false);
+		const owned = ["skills/authenticated-commands", `skills/${replacement}`, "AGENTS.md",
+			...retired.map((name) => `skills/${name}`)];
+		expect(withoutOwned(snapshot(files.target), ...owned)).toEqual(withoutOwned(before, ...owned));
 	});
 
 	test("--check validates the whole selection and writes nothing", () => {

@@ -1,0 +1,7 @@
+## Workstation facts
+
+- Credentials: native `gh`, `wrangler`, `linear` and `ssh exe.dev` logins; pass via `pass-env list [prefix]` and the names-only `~/.config/pass-env/workstation.env.pass`; project `.env.pass` and ignored environment files; existing consumers such as `~/.hermes/profiles/*/.env`. `skill://authenticated-commands` owns discovery and migration. Run secrets with `pass-env run -f .env.pass -- cmd` or `pass-env run -e NAME=workstation/ENTRY -- cmd`.
+- Portable heavy execution: `ws` in the project's owned `<project>-ws` exe.dev VM. Agent sessions and model credentials stay local. Native desktop/GPU or data-constrained heavy work uses `desktop-guard run -- cmd`; bounded inspection can stay local. Scratch lives in run-scoped `TMPDIR` under `~/.cache/tmp`; `/tmp` is RAM-backed. `engineering-operations` has the resource and fleet details.
+- Audio plays into silent `agent-sandbox`; default `pw-record` or `parecord` records its monitor. Hand audio over as files for the operator to play.
+- Review pages live in `~/review`. `engineering-operations` explains publishing a distinct round to its exact board item with `glass review publish` and keeping private context in its owning tools.
+- Resource ownership: `git worktree list --porcelain` shows existing checkouts. Register inherited work with `session-close.ts track`; `session-close.ts add` leases a created worktree or non-standing VM. `ws up` leases remote task worktrees. `skill://session-close` owns parking, evidence retrieval and cleanup.

@@ -1,41 +1,21 @@
 ---
 name: pokayoke
-description: Make a class of error impossible instead of warning about it.
+description: Close an error class structurally after a defect, incident, or near-miss.
 disable-model-invocation: true
-argument-hint: "[optional error class or incident]"
+argument-hint: "[error class or incident]"
 ---
 
 # Pokayoke
 
-Pokayoke is error-proofing: a structural change that makes a specific class of
-mistake impossible. A comment, warning, checklist, or reminder is not pokayoke.
+Remove the affordance that permits the whole class of error, not just its latest
+instance. Prefer shape/type, single ownership, removal of a dangerous operation,
+or a check that rejects the mistake before it completes. A warning or reminder
+does not make the error impossible.
 
-After a defect, incident, or near-miss, ask:
+Deliver the error class, simplest mechanism, evidence that the original mistake
+path is closed, and residual failures still possible. Stay within the
+commissioned repair; error-proofing is not a second framework or portfolio rollout.
 
-> how can I pokayoke this so this kind of error never happens again
-
-The object is the *class* of error, not the latest instance. Prefer the cheapest
-mechanism that removes the affordance:
-
-- Shape or type, so the wrong value cannot be represented
-- Ownership, so the wrong writer cannot reach the state
-- Absence, so the dangerous operation does not exist
-- An executable check that fails closed before the mistake can complete
-
-Do not add a parallel instruction layer over a system that still permits the
-failure. If a reminder is the only available control, say so; do not call it
-pokayoke.
-
-This authors or selects the mechanism. It does not authorize unrelated cleanup,
-a portfolio rollout, or a second framework. Honor existing scope and write
-authority; without write authority, propose the pokayoke instead.
-
-Deliver the error class, the mechanism, proof that the original mistake path is
-closed, and any residual class that remains possible.
-
-A user-story criterion enforced by a fail-closed check is a pokayoke; cite the
-story id where the check runs.
-
-A written postmortem uses [postmortem-template.md](postmortem-template.md), the
-single copy. A repository keeps its real postmortems in `docs/postmortems/`,
-not a copy of the template (harness ADR-004).
+Use the canonical [postmortem-template.md](postmortem-template.md) for an incident.
+Real postmortems live in the owning repository's `docs/postmortems/`, not copied
+templates (ADR-004). Link the structural fix and meaningful regression evidence.
