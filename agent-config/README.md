@@ -334,6 +334,22 @@ The installer retires `agent-ergonomics`, `capture`, `decide`, `check-cadence`
 and `verification-infrastructure` after migrating their useful content.
 `effective-verification` remains an undeployed source candidate.
 
+### Official TypeSafe skill
+
+`skills/typesafe-ai/` is the complete, unmodified MIT-licensed package from
+[`typesafe-ai/skills`](https://github.com/typesafe-ai/skills/tree/65a39f393687675ce170e6094757de20370365b9/skills/typesafe-ai),
+pinned at `65a39f393687675ce170e6094757de20370365b9` (`SKILL.md` and `LICENSE`).
+The [official installation guide](https://docs.typesafe.ai/agent-skill.md) supports
+copying that entire directory. Both harness installers select it through
+`--skill all`; no registry install or duplicate copy is needed.
+
+`system-one` remains a thin fleet companion: OpenRouter Decisions, credential
+separation, and deployed consumers. Upstream owns primitive/question/confidence
+guidance. Refresh by replacing the entire upstream directory, retaining its
+license, updating this pin, and reviewing the companion against current docs.
+The official SDKs (`@typesafe-ai/sdk` on npm and `typesafe-sdk` on PyPI) are
+clients, not the agent skill; no SDK dependency is needed for this adoption.
+
 ## Semantic-quality source candidate
 
 The semantic-quality files are not selected by either installer. Candidate skills

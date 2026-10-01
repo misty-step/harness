@@ -14,4 +14,6 @@ Repository code and versioned docs own technical truth. `USER_STORIES.md` owns u
 
 Load the relevant procedure as the task reaches it: `engineering-operations` for kickoff, resources and shipping; `authenticated-commands` for credentials; `test-audit` for tests; `story-qa` for acceptance, check cadence or a missing runnable journey; `design-studio` and `visual-state-review` for UI; `session-close` for landing and leases. `agent-design` covers agent architecture.
 
+For typed semantic judgments, load the official `typesafe-ai` skill and the `system-one` fleet companion. Jev supplies decisions, not prose; our calls use OpenRouter.
+
 Ship through the repository's normal model-review, CI and continuous-deployment path. Finish with live sanity evidence and the owner-scoped session-close check; explicitly parked work carries a reason, owner and concrete resume steps.
