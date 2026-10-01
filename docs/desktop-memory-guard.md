@@ -10,28 +10,37 @@ visibility and literal `omp --resume=...` reconstruction remain unchanged.
 ```text
 user@UID.service
 ├── app.slice                         unchanged desktop, Herdr and old engineers
-├── omp.slice                         unlimited memory, zero-swap parent
+├── omp.slice                         unlimited memory, zero-swap, ungrouped OOM
 │   ├── omp-engineer-<nonce>.scope     4 GiB, zero swap, group-OOM kill
 │   └── omp-engineer-<nonce>.scope     another admitted engineer and descendants
 └── dev.slice/dev-exec.slice           separately owned heavy-job budget
 ```
 
-Startup is serialized from live inspection through authenticated, verified scope
-registration. Each populated cage keeps its independent 4-GiB containment even
-when idle or the native root exits but helpers remain. Potential capacity and
-legacy RSS/PSS remain diagnostic in this immediate advisory cutover; they are
-not a global reservation. Existing legacy processes remain unbounded until
-natural exit. The separate diagnostic-subtraction change removes this bookkeeping.
+Interactive-engineer startup serializes containment inspection through
+authenticated, verified scope registration. Each populated cage keeps its
+independent 4-GiB bound even when idle or the native root exits but helpers remain.
+Only actual cgroup controls, own membership and live oomd monitoring are mandatory.
+There is no process-wide `/proc` walk, ancestry/RSS/PSS/smaps inspection,
+`legacy.json` or heavy-job inventory in this path. Existing uncaged processes
+remain untouched and unbounded until natural exit.
 
 Memory capacity is advisory, per Phaedrus's decision: below the 20-GiB available
-memory guideline or above the potential 36-GiB fleet guideline, warn and launch
-anyway. Warnings appear on stderr and in `omp-roster launch --json`; Glass gets
-an advisory item. Missing/busy publication never blocks startup.
+memory guideline or above the measured 36-GiB fleet guideline, warn and launch
+anyway. Missing `MemAvailable` also warns rather than denying startup.
+Warnings appear on stderr and in `omp-roster launch --json`; Glass updates its
+existing open advisory with actual warning measurements. Missing/busy publication
+never denies startup. Potential full-leaf capacity is not a reservation or warning.
 The owned parent has `MemoryMax=infinity`; actual per-engineer 4-GiB, zero-swap,
 group-OOM controls and live oomd exclusion remain mandatory containment.
 Explicit `engineer-cage` refresh raises an existing populated parent in place
 through `systemctl --user set-property --runtime omp.slice MemoryMax=infinity`,
 without restarting a slice, Herdr or an engineer, or moving any existing PID.
+
+Native print (`-p`/`--print`), every explicit `--mode`, help/version/export/profile
+alias creation, registered management roots and aliases, and stdin pipes/cron run
+directly in their caller's cgroup. Root dispatch honors leading flag values and
+`--`; print-looking prompt data cannot evade interactive containment. This
+classification follows native OMP semantics, not named-caller exemptions.
 
 From the reviewed harness revision:
 
@@ -45,15 +54,26 @@ This closes MIS-203's source-compatible-but-not-deployed updater mismatch.
 OMP_INSTALL_COMPONENTS=cli ./omp-config/install           # stage only
 OMP_INSTALL_COMPONENTS=engineer-cage ./omp-config/install # explicit activation
 omp-roster memory --json                                 # live, no reservation
-omp --version                                           # real admitted launch
+omp --version                                           # native administrative execution
 ```
 
-Default installation stages the CLI but never activates a previously uncaged
-host. Explicit activation validates owned launchers, retains the native ELF,
-installs/starts only the empty `omp.slice`, and replaces the stable entrypoint.
-It does not move existing PIDs, restart Herdr, change oomd, or kill engineers.
-Work continues in existing sessions; their next natural direct/new/continued/
-resumed launch enters the cage. Do not force migration by restarting them.
+Default installation and `cli` staging leave live units and the stable entrypoint
+unchanged; they never activate a previously uncaged host. Explicit activation
+validates owned launchers, retains the native ELF, installs the canonical
+unlimited `omp.slice` source unit, reloads the user manager and starts the slice
+if needed. It then applies
+`systemctl --user set-property --runtime omp.slice MemoryMax=infinity` before
+read-only memory inspection and replacement of the stable entrypoint.
+
+The same explicit `engineer-cage` command refreshes an already active 36-GiB
+parent in place, including when populated. `start` does not restart an active
+slice, and `set-property` raises only its live memory cap; existing engineer
+scopes and their 4-GiB/zero-swap/group-OOM controls stay unchanged. The canonical
+source unit persists infinity across reboot; the runtime property is convergence,
+not a separate policy. Do not stop/restart the slice or move PIDs to migrate it.
+Activation does not restart Herdr, change oomd or kill engineers. Work continues
+in existing sessions; their next natural direct/new/continued/resumed launch
+enters the cage. Do not force migration by restarting them.
 
 Memory warnings never cause wrapper exit 75 or roster exit 6. Inspection/setup
 and containment failures remain errors; failed native readiness still fails.
@@ -64,7 +84,7 @@ Keep the retained ELF directory out of ordinary PATH. Native OMP 18.4.9 updates
 resolve the target through `which("omp")`; only a mutating `omp update` child
 receives that directory first in PATH, protecting the stable wrapper. Read-only
 `update --check` retains ordinary PATH. The Workbench updater accepts the exact
-owned wrapper/retained-ELF layout and invokes the stable, admitted entrypoint.
+owned wrapper/retained-ELF layout and invokes the stable native entrypoint.
 Binary/catalog changes still take effect in engineers only on natural relaunch.
 
 On a killed native child (exit 137), the outer wrapper survives outside the
@@ -90,6 +110,13 @@ was used, and boundary fixtures cannot override real launches.
 The original Herdr server/client and Hyprland PID/start/cgroup identities stayed
 unchanged; surviving original engineers were not moved. Raw transcripts and
 process inventory remain private.
+
+The intermediate 20-GiB-floor policy still imposed a 36-GiB fleet cap and
+full-cage reservations, blocking additional engineers despite about 46 GiB
+`MemAvailable`. Reviewed PR196 deployed advisory guidance at 17:29 CDT on
+2026-10-01 without restarting consumers. Two fresh native launches reached
+readiness at 17:30 with distinct 4-GiB/zero-swap/group-OOM leaves and visible
+Glass warnings. Surviving baseline process start times and cgroups were unchanged.
 
 This is resource containment, not a same-user security boundary. External
 daemons and deliberate cgroup escape need independent limits. Keep the approved

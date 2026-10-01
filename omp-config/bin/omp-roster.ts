@@ -3,7 +3,7 @@
 // model roster, then check that its session stayed on it.
 //
 // The TypeScript CLI imports only Node and Bun built-ins. Its installed sibling
-// `omp-engineer` owns memory inspection and launch-time reservations; the approved
+// `omp-engineer` owns advisory memory guidance and verified containment; the approved
 // model table remains here for omp-model-policy.ts and the copied CLI alike.
 
 import { createHash, randomBytes } from "node:crypto";
@@ -77,14 +77,14 @@ type Skip = { selector: string; verdict: string | null; reason: string; next_res
 type Freshness = { degraded: boolean; degraded_reason: string | null; oldest_observation: string | null; stale_after_seconds: number | null };
 type LaunchOptions = { harness?: string; json?: boolean; "ticket-json"?: string; "usage-json"?: string; "state-dir"?: string; "memory-json"?: string };
 type CheckOptions = { "ticket-json"?: string; "state-dir"?: string; since?: string };
-type MemorySnapshot = Record<string, unknown> & { schema_version: 1; ok: true; activated: boolean; admitted: boolean; reservation: false; reasons: string[]; warnings: string[] };
+type MemorySnapshot = Record<string, unknown> & { schema_version: 1; ok: true; activated: boolean; admitted: boolean; reservation: false; warnings: string[] };
 
 const USAGE = `Usage:
   omp-roster launch --item ID [--ticket-json FILE] [--usage-json FILE] [--memory-json FILE] [--state-dir DIR] [--harness omp] [--json]
   omp-roster launch --model provider/model --thinking effort [--usage-json FILE] [--memory-json FILE] [--state-dir DIR] [--json]
   omp-roster memory [--json] [--memory-json FILE]
   omp-roster check --item ID --session DIR|FILE... [--ticket-json FILE] [--state-dir DIR] [--since ISO]
-Memory fixtures are read-only preflight; the actual omp launch always rechecks live admission under lock.
+Memory fixtures are read-only guidance; the actual engineer launch rechecks live containment under lock.
 Exit: 0 done, 1 refused or unreadable input, 2 usage, 3 roster exhausted, 4 turns off the roster or the roster changed, 5 working-engineer limit reached`;
 
 class CliError extends Error {
@@ -145,9 +145,8 @@ function memorySnapshot(file?: string): MemorySnapshot {
 	const doc = answer.json;
 	if (answer.exitCode !== 0 || !isRecord(doc) || doc.schema_version !== 1 || doc.ok !== true
 		|| typeof doc.activated !== "boolean"
-		|| typeof doc.admitted !== "boolean" || doc.reservation !== false || !Array.isArray(doc.reasons)
-		|| !Array.isArray(doc.warnings) || !doc.warnings.every((warning) => typeof warning === "string")
-		|| !doc.reasons.every((reason) => typeof reason === "string")) {
+		|| typeof doc.admitted !== "boolean" || doc.reservation !== false
+		|| !Array.isArray(doc.warnings) || !doc.warnings.every((warning) => typeof warning === "string")) {
 		throw new CliError(`Cannot inspect launch memory: ${(isRecord(doc) && plainOrNull(doc.error)) || answer.stderr || "unrecognised memory snapshot"}.`);
 	}
 	return doc as MemorySnapshot;

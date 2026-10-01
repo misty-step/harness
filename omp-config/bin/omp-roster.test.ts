@@ -5,7 +5,7 @@ import { basename, dirname, join } from "node:path";
 
 // The deployed cohort is the copied TypeScript CLI plus the Python admission owner.
 // Tests use explicit inert measurements; neither PATH mocks nor fixture environment
-// variables can bypass the real omp launcher's live reservation transaction.
+// variables can bypass the real omp launcher's verified containment transaction.
 let root = "";
 let cli = "";
 let counter = 0;
@@ -17,10 +17,9 @@ function memoryFixture(available = 128 * 1024 ** 3) {
 		({ path, memory_max, memory_swap_max, memory_high: null, current_bytes: 0, oom_group: 0, populated: false });
 	return {
 		schema_version: 1, uid: 1000, user_root: root, current_group: `${root}/app.slice/fixture.scope`,
-		available_bytes: available, fleet: { ...group(`${root}/omp.slice`, 36 * 1024 ** 3, 0), slice: "-.slice" },
+		available_bytes: available, fleet: { ...group(`${root}/omp.slice`, null, 0), slice: "-.slice" },
 		ancestors: ["/user.slice", "/user.slice/user-1000.slice", root].map((path) => group(path)),
-		monitored: [`${root}/app.slice`], scopes: [], processes: [], legacy_groups: [],
-		heavy: { path: `${root}/dev.slice/dev-exec.slice`, current_bytes: 0, jobs: [] },
+		monitored: [`${root}/app.slice`], scopes: [],
 		captured_at: "2026-10-01T00:00:00+00:00",
 	};
 }
@@ -120,7 +119,7 @@ const launched = (result: Result & { state: string }) => {
 
 describe("omp-roster memory admission", () => {
 	test("below-floor guidance warns in launch JSON while preserving overlay and record creation", () => {
-		const dir = scratch("memory-refusal");
+		const dir = scratch("memory-warning");
 		const state = join(dir, "state");
 		const file = put(join(dir, "memory.json"), JSON.stringify(memoryFixture(20 * 1024 ** 3 - 1)));
 		const snapshot = invoke(["memory", "--json", "--memory-json", file]);

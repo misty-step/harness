@@ -1118,32 +1118,38 @@ Criteria:
 7. WHEN OMP engineer caging is explicitly activated, THE SYSTEM SHALL serialize
    live inspection through verified native startup and retain each leaf's
    independent 4-GiB containment while descendants remain.
-8. WHEN memory is below the 20-GiB guideline or potential fleet demand exceeds
+8. WHEN available memory is below the 20-GiB guideline or measured fleet memory exceeds
    its advisory guideline, THE SYSTEM SHALL warn in stderr, launch JSON and
    Glass, then launch anyway. Memory capacity SHALL NOT refuse a wrapper or
    roster launch, and no opt-out flag SHALL be required. An unavailable warning
    sink SHALL NOT prevent startup; verified containment remains mandatory.
-9. WHEN native OMP starts, THE SYSTEM SHALL verify effective 4-GiB memory,
+9. WHEN an interactive native OMP engineer starts, THE SYSTEM SHALL verify effective 4-GiB memory,
    zero swap, group-OOM and actual membership outside every live oomd-monitored
    ancestor, while preserving argv, cwd, environment, PTY and session identity.
 10. WHEN a caged engineer is killed, THE SYSTEM SHALL restore sane terminal
     state and discard stale query input before returning to the shell, without
-    replaying the interrupted tool or leaving a descendant's slot unreserved.
+    replaying the interrupted tool or releasing the surviving leaf's containment.
 11. WHEN the rollout is activated, THE SYSTEM SHALL preserve running Herdr and
-    existing engineers; only their natural exits/restarts migrate them, and the
-    memory snapshot SHALL identify the remaining uncaged processes.
+    existing engineers; only their natural exits/restarts migrate them.
+    Mandatory inspection SHALL NOT enumerate legacy processes, ancestry,
+    RSS/PSS/smaps or heavy jobs; unavailable capacity guidance SHALL only warn.
 12. WHEN the native binary updates or Herdr restores a saved engineer, THE
     SYSTEM SHALL retain the caged entrypoint; staging on an unactivated host
     SHALL preserve the native executable and leave active units unchanged.
 13. WHEN an installed Workbench updater has not accepted the versioned cage
     layout, explicit activation SHALL refuse before changing the entrypoint or
     live units; source-only updater changes SHALL NOT count as compatibility.
+14. WHEN OMP is used for native print, explicit modes, management roots/aliases,
+    help/version/export/profile alias creation or non-TTY stdin, THE SYSTEM SHALL
+    execute the native binary in the caller's cgroup without engineer inspection.
+    Native argument value boundaries and end-of-options SHALL be preserved;
+    print-shaped prompt data SHALL NOT bypass interactive containment.
 
 No-gos: no Herdr fork, privileged changes, global oomd tuning, automatic live
 cutover, or claim of protection from arbitrary same-user cgroup escapes or a
 kernel OOM selecting the Herdr server itself. A shared fleet cap is not
 per-engineer memory isolation. Transitional uncaged engineers remain unbounded
-until their natural restart; measured admission does not retroactively cap them.
+until their natural restart; advisory guidance does not retroactively cap them.
 
 Evidence: `agent-config/desktop-guard/`, `omp-config/bin/omp-engineer.py`,
 `omp-config/bin/test_omp_engineer.py`, `omp-config/bin/omp-roster.test.ts`,
