@@ -14,12 +14,14 @@ before commit/PR. Obtain the independent PR model review separately:
 pass-env run \
   -e KAYLEE_GITHUB_APP_ID=workstation/KAYLEE_GITHUB_APP_ID \
   -e KAYLEE_GITHUB_APP_PEM=workstation/KAYLEE_GITHUB_APP_PEM -- \
-  bun ~/development/misty-step/harness/agent-config/bin/agent-review.ts --repo misty-step/NAME --pr N --author-model AUTHOR_PROVIDER/AUTHOR_MODEL
+  bun ~/development/misty-step/harness/agent-config/bin/agent-review.ts --repo misty-step/NAME --pr N
 ```
 
-`--author-model` (or `AGENT_REVIEW_AUTHOR_MODEL`) identifies the model that
-actually authored the change, not an initial roster entry. The dispatcher
-derives a cross-family reviewer; there is no reviewer-model lookup step.
+The launcher defaults to Sonnet 5.5 high; that is cross-family for an OpenAI
+author, not an Anthropic author. The reviewing agent selects an approved model
+from a different family with `AGENT_REVIEW_MODEL` and `AGENT_REVIEW_THINKING`
+before launch when needed. The current source has no author-model dispatcher;
+do not pass an unsupported `--author-model` flag and assume it enforces independence.
 Reviewer failure stops review: no model fallback is allowed and an incomplete
 review cannot satisfy the merge decision.
 
