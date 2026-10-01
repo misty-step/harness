@@ -1,34 +1,23 @@
 ---
 name: system-one
-description: Use TypeSafe Jev for typed semantic decisions, not prose generation.
-version: 0.2.0
+description: Use the official TypeSafe skill with the fleet's OpenRouter credentials and deployed Jev integrations.
+version: 0.3.0
 license: MIT
 ---
 
-# System One
+# Fleet Jev integration
 
-Jev supplies typed probabilities. Code owns deterministic rules, arithmetic,
-control flow, credentials, and side effects. Use it for a semantic judgment
-that code cannot express, or to replace classify-and-parse generation; candidate
-messages, trees, and plans are authored elsewhere.
+Read `skill://typesafe-ai` for TypeSafe's official judgment design, primitives,
+confidence, and live documentation. That upstream skill owns the programming
+model; this companion owns only our fleet wiring.
 
-Live API source: https://docs.typesafe.ai/llms.txt. Follow only relevant primitive
-and cookbook pages (append `.md` to doc paths); unreachable docs are a missing
-prerequisite, not a reason to invent request fields.
+All fleet Jev calls go through OpenRouter Decisions, not chat completions or
+the direct TypeSafe endpoint shown in upstream examples. Read
+[references/fleet.md](references/fleet.md) for credentials, the pinned model,
+and existing OMP/Pi/Hermes consumers. Reuse those paths rather than installing
+a second copy with `npx skills add`.
 
-Name the software outcome and what stays deterministic. Before writing criteria,
-read [references/questions.md](references/questions.md). Give each independent
-judgment one question, batch independent questions against the same state, and
-keep complete meaning in `instructions` rather than IDs. Put questions together;
-weights and thresholds belong in code.
-
-Reuse deployed wiring; [references/fleet.md](references/fleet.md) holds auth,
-model, and harness/Hermes differences. Choice/Score confidence is distribution
-uncertainty, not workflow correctness; Noul has no confidence field. Low
-confidence needs an explicit fallback, not a pretend middle score.
-
-Exercise a live decision on real state and its timeout/low-confidence path,
-record elapsed time, and tune thresholds against our cases. Retain a usable
-default when Jev is down; a Hermes advisory judgment never becomes a tool veto.
-Report the docs used and observed answers (`id`, type, value, confidence where
-present), without secrets in state.
+Exercise the actual decision path, record the resolved model, elapsed time,
+typed answers and confidence where present, and keep credentials out of state.
+Service failure leaves the caller's explicit usable default; advisory decisions
+never authorize side effects or veto tools.
