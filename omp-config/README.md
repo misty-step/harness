@@ -25,6 +25,7 @@ prompt is: how can I pokayoke this so this kind of error never happens again?
 | `bin/omp-merge-config.ts` | Overlay source-owned YAML keys and remove retired owned keys while preserving foreign config entries |
 | `bin/omp-grievances.ts` | Manual grievance inbox CLI |
 | `bin/omp-roster.ts` | Launch an OMP engineer only on a board ticket's model roster and check a session stayed on it (US-046); installed as `~/.local/bin/omp-roster` |
+| `bin/omp-engineer.py`, `units/omp.slice` | Serialized live memory admission and per-engineer containment (US-043); explicit `engineer-cage` activation |
 | `bin/pass-env.ts` | Moved to `agent-config`: pass-backed launcher, installed as `~/.local/bin/pass-env` |
 | `bin/design-check.ts` | Moved to `agent-config`: player-surface copy checker, installed as `~/.local/bin/design-check` |
 | `bin/tmp-health.py`, `references/dev-exec.md` | Opt-in workstation execution limits, pressure notifications, and rollback workflow |
@@ -56,13 +57,14 @@ Repository setup and releases belong to the root. `./install` rejects positional
 arguments (including `--check`); use `../scripts/verify omp` for isolated checks.
 
 ```sh
-./install   # requires jq, bun, and omp
+./install   # requires jq, bun, Python 3, and omp
 ```
 
 Preflight validates every selected input, then writes. Unset selection means
 `all`: owned config overlay, guidance, MCP, scopes, agents, skills, themes,
-extensions, `omp-grievances`, `omp-roster`, `pass-env`, `openrouter-key`,
-`design-check`, `foundation-check`, and `ws`. It does not delete foreign skills
+extensions, `omp-grievances`, `omp-roster`, `omp-engineer`, `pass-env`, `openrouter-key`,
+`design-check`, `foundation-check`, and `ws`. Staging the cage CLI does not activate
+it on an unactivated host. It does not delete foreign skills
 or agents and does not import live secrets into this checkout. Skills, shared
 guidance sections, and those shared launchers deploy from the sibling
 `agent-config` checkout (default `$repo_dir/../agent-config`; override with
@@ -75,15 +77,37 @@ OMP_INSTALL_COMPONENTS=agents ./install
 OMP_INSTALL_COMPONENTS=secrets ./install
 OMP_INSTALL_COMPONENTS=mcp ./install
 OMP_INSTALL_COMPONENTS=audio-sandbox ./install
+OMP_INSTALL_COMPONENTS=cli ./install             # stage/refresh owned OMP launchers
+OMP_INSTALL_COMPONENTS=engineer-cage ./install   # explicit live rolling activation
 OMP_INSTALL_COMPONENTS="guidance mcp scopes skill:engineering-operations" ./install
 ```
 
 Supported components are `guidance`, `config`, `mcp`, `scopes`, `agents`,
-`secrets`, `audio-sandbox`, and `skill:<source-directory-name>`. `all` cannot be combined with another
-component. Empty, unknown, missing-skill, invalid-name, and invalid YAML
+`secrets`, `audio-sandbox`, `cli`, `engineer-cage`, and `skill:<source-directory-name>`.
+`all` cannot be combined with another component. Empty, unknown, missing-skill, invalid-name, and invalid YAML
 selections fail before any writes. The retired `OMP_INSTALL_GUIDANCE_ONLY`
 variable fails with migration instructions rather than silently triggering a
 full install.
+
+`engineer-cage` retains the owned native ELF at `~/.local/lib/omp-engineer/omp`
+and makes `~/.local/bin/omp` the relative `omp-engineer` symlink. Every new,
+direct, continued or resumed invocation passes live admission and enters a
+verified 4-GiB, zero-swap, group-OOM scope below the standalone 36-GiB
+`omp.slice`. Existing processes stay in their original cgroups until natural
+exit; activation does not restart Herdr or any engineer. Never prepend the
+retained native directory to ordinary shells or call that ELF directly.
+An installed Workbench updater must advertise `harness-engineer-cage-v1` through
+its inert `omp-install-layouts` query before explicit activation writes anything.
+Deploy that reviewed consumer first; source-only compatibility is insufficient.
+
+`omp-roster memory --json` is read-only preflight, not a reservation. Actual
+`omp` launch serializes inspection through verified scope registration, counts
+idle/lingering populated cages at their full limits, measures uncaged engineers
+and mixed legacy groups, and protects desktop/heavy-job headroom. Refusal exits
+75. Native arguments, cwd, environment, stdio and exit status are preserved.
+Only a mutating native `omp update` receives an updater-local PATH pointing at
+the retained ELF; normal/nested/resumed launches and `update --check` do not.
+See the [rolling activation and recovery runbook](../docs/desktop-memory-guard.md).
 
 Owned skill packages are replaced, not overlaid, so obsolete files cannot
 survive inside a selected package. Foreign packages in the live skills or
@@ -906,8 +930,8 @@ A board item can carry a ranked model roster on its ticket (`ticket.roster`:
 `config.yml` recover a failing model onto models the ticket never named, ending
 at Gemini 3.8 Flash. `omp-roster` gives an OMP engineer launched for a ticket
 only that roster and stops it when the roster runs out. It extends the
-approved routing of US-014, makes no model call, and installs as the single
-file `~/.local/bin/omp-roster`, like `omp-grievances`.
+approved routing of US-014 and makes no model call. The installed
+`~/.local/bin/omp-roster` uses the sibling `omp-engineer` for memory preflight.
 
 A launch with no ticket goes through the same tool: `--model provider/model
 --thinking effort` (no `--item`) builds a one-entry roster, so the engineer stops
@@ -943,6 +967,14 @@ and usage admission continues. This is a snapshot gate, not a reservation or
 spawn transaction: simultaneous dispatches below the limit can both pass, and
 an overlay does not reserve a future slot. It neither closes agents nor changes
 Herdr or the board.
+
+Memory admission (US-043) follows the working-status gate, before usage or
+overlay/record writes. `omp-roster memory --json` prints live measurements and
+reasons; an unsafe launch exits **6** with empty stdout and no files written.
+`--memory-json FILE` supplies a read-only measurement fixture for isolated checks,
+not a real-launch override. The final `omp` entrypoint always reinspects live
+state under its lock; a successful roster preflight never reserves capacity.
+
 
 1. Roster: `<board program> query items --item ID --json` (`data.value.ticket.roster`).
    The program is `glass` when it is installed (the board's name after its one-time

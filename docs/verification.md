@@ -104,8 +104,9 @@ owned directory. Remove only that directory once its process has ended.
 - `omp-config/bin/omp-task-usage.test.ts` checks price-weighted whole-tree cost,
   failed-task inclusion, unknown/unpriced evidence, split-task worker ownership,
   scope escape, malformed archives and content-free reporting (US-018).
-- `omp-config/bin/omp-roster.test.ts` runs a lone copy of the launcher against
-  fixture ticket and usage views, fake `board`, `ai-usage` and `herdr` commands, and
+- `omp-config/bin/omp-roster.test.ts` runs an isolated installed-layout copy of
+  the launcher and sibling memory helper against fixture ticket/usage/memory
+  views, fake `board`, `ai-usage` and `herdr` commands, and
   synthetic session files: first-usable launch with skip reasons, verdict and
   degraded reporting, the printed `export` and arguments, exit 3 with nothing
   written on an exhausted roster, exact roster-only overlay chains for the
@@ -124,6 +125,19 @@ owned directory. Remove only that directory once its process has ended.
   8 refuses at 8 and above with exit 5, empty stdout and no artifacts; 7 working
   engineers plus settled agents succeeds; a configured limit, unnamed agents,
   ticketless launches, malformed Herdr replies and invalid limits are covered.
+- `omp-config/bin/test_omp_engineer.py` covers measured legacy accounting,
+  full populated-scope reservations (including lingering helpers), physical and
+  ancestor headroom refusal, hierarchy/oomd failures, serialized admission,
+  updater-local PATH isolation and foreground-only terminal recovery. Fake-proc
+  cases retain orphan memory in deleted cgroups and refuse opaque native roots
+  without blocking on unrelated protected daemons. Roster memory refusal leaves
+  stdout and artifacts empty. Fixtures are not real-launch overrides.
+  Unit and installer gates do not activate user units or prove native loading.
+  Live US-043 proof uses native Herdr fresh/exact-session resumed engineers,
+  actual kernel leaf controls and Bash child membership, queued-response/owned
+  SIGKILL recovery followed by unrepaired same-pane resume, and stable-entrypoint
+  refusal under real protected-headroom demand. Keep process/session evidence
+  private and never kill a working engineer to repeat it.
 - Reviewer-family acceptance (US-014, US-046; operator rule 2026-09-30) uses a
   real OMP process with a network-disabled synthetic provider. Preserve the
   JSONL transcript, provider attempts and active child config readback.

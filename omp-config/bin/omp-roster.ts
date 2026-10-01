@@ -2,9 +2,9 @@
 // omp-roster (US-046, extending US-014): launch an OMP engineer only on a board ticket's ranked
 // model roster, then check that its session stayed on it.
 //
-// `omp-config/install` copies this one file to ~/.local/bin, so it imports only Node and Bun
-// built-ins. omp-model-policy.ts imports the approved-model table below for that reason: one
-// table, and the deployed launcher stays a single file.
+// The TypeScript CLI imports only Node and Bun built-ins. Its installed sibling
+// `omp-engineer` owns memory inspection and launch-time reservations; the approved
+// model table remains here for omp-model-policy.ts and the copied CLI alike.
 
 import { createHash, randomBytes } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
@@ -57,6 +57,7 @@ const ADVISOR_FILE = "__advisor";
 const EXHAUSTED = 3;
 const OFF_ROSTER = 4;
 const FLEET_FULL = 5;
+const MEMORY_REFUSED = 6;
 const READ_TIMEOUT_MS = 15_000;
 
 // `check` also excuses the designer (`vision` role) on Opus 5.5, which the subagent-inheritance
@@ -75,14 +76,17 @@ type Entry = { provider: string; model: string; effort: string };
 type UsageRow = { harness?: unknown; provider?: unknown; model?: unknown; verdict: string; reason?: unknown; next_reset?: unknown; degraded?: unknown };
 type Skip = { selector: string; verdict: string | null; reason: string; next_reset: string | null };
 type Freshness = { degraded: boolean; degraded_reason: string | null; oldest_observation: string | null; stale_after_seconds: number | null };
-type LaunchOptions = { harness?: string; json?: boolean; "ticket-json"?: string; "usage-json"?: string; "state-dir"?: string };
+type LaunchOptions = { harness?: string; json?: boolean; "ticket-json"?: string; "usage-json"?: string; "state-dir"?: string; "memory-json"?: string };
 type CheckOptions = { "ticket-json"?: string; "state-dir"?: string; since?: string };
+type MemorySnapshot = Record<string, unknown> & { schema_version: 1; ok: true; admitted: boolean; reservation: false; reasons: string[] };
 
 const USAGE = `Usage:
-  omp-roster launch --item ID [--ticket-json FILE] [--usage-json FILE] [--state-dir DIR] [--harness omp] [--json]
-  omp-roster launch --model provider/model --thinking effort [--usage-json FILE] [--state-dir DIR] [--json]
+  omp-roster launch --item ID [--ticket-json FILE] [--usage-json FILE] [--memory-json FILE] [--state-dir DIR] [--harness omp] [--json]
+  omp-roster launch --model provider/model --thinking effort [--usage-json FILE] [--memory-json FILE] [--state-dir DIR] [--json]
+  omp-roster memory [--json] [--memory-json FILE]
   omp-roster check --item ID --session DIR|FILE... [--ticket-json FILE] [--state-dir DIR] [--since ISO]
-Exit: 0 done, 1 refused or unreadable input, 2 usage, 3 roster exhausted, 4 turns off the roster or the roster changed, 5 working-engineer limit reached`;
+Memory fixtures are read-only preflight; the actual omp launch always rechecks live admission under lock.
+Exit: 0 done, 1 refused or unreadable input, 2 usage, 3 roster exhausted, 4 turns off the roster or the roster changed, 5 working-engineer limit reached, 6 memory admission refused`;
 
 class CliError extends Error {
 	constructor(message: string, readonly exitCode = 1) {
@@ -134,6 +138,29 @@ function capture(name: string, args: string[]): { json: unknown; stderr: string;
 	try { json = JSON.parse(result.stdout.toString()); }
 	catch { /* not JSON: the caller reports stderr */ }
 	return { json, stderr: plain(result.stderr.toString().trim().split("\n").at(-1) ?? ""), exitCode: result.exitCode ?? -1 };
+}
+
+function memorySnapshot(file?: string): MemorySnapshot {
+	const core = join(dirname(resolve(process.argv[1] ?? import.meta.path)), "omp-engineer");
+	const answer = capture(core, ["memory", "--json", ...(file ? ["--fixture", resolve(file)] : [])]);
+	const doc = answer.json;
+	if (answer.exitCode !== 0 || !isRecord(doc) || doc.schema_version !== 1 || doc.ok !== true
+		|| typeof doc.admitted !== "boolean" || doc.reservation !== false || !Array.isArray(doc.reasons)
+		|| !doc.reasons.every((reason) => typeof reason === "string")) {
+		throw new CliError(`Cannot inspect launch memory: ${(isRecord(doc) && plainOrNull(doc.error)) || answer.stderr || "unrecognised memory snapshot"}.`);
+	}
+	return doc as MemorySnapshot;
+}
+
+function memoryCommand(options: { json?: boolean; "memory-json"?: string }): number {
+	const snapshot = memorySnapshot(options["memory-json"]);
+	if (options.json) console.log(JSON.stringify(snapshot, null, 2));
+	else {
+		console.log(`memory admission: ${snapshot.admitted ? "available" : "refused"} (preflight only, no reservation)`);
+		for (const reason of snapshot.reasons) console.log(`  ${plain(reason)}`);
+		if (typeof snapshot.coverage === "string") console.log(snapshot.coverage);
+	}
+	return 0;
 }
 // Session-wide: no workspace filter, no exclusion for the calling engineer.
 function enforceEngineerLimit(): void {
@@ -380,6 +407,8 @@ function launchCommand(options: LaunchOptions & { item?: string; model?: string;
 		({ item, roster } = adhocRoster(options.model, options.thinking));
 	}
 	enforceEngineerLimit();
+	const memory = memorySnapshot(options["memory-json"]);
+	if (!memory.admitted) throw new CliError(`memory admission refused: ${memory.reasons.map(plain).join("; ")}.`, MEMORY_REFUSED);
 	const { rows, freshness } = usageView(options["usage-json"]);
 	const sha = rosterSha(roster);
 	const skipped: Skip[] = [];
@@ -426,7 +455,7 @@ function launchCommand(options: LaunchOptions & { item?: string; model?: string;
 	if (options.json) {
 		const usage = { ...freshness, degraded: freshness.degraded || route.degraded !== null, degraded_reason: degraded };
 		console.log(JSON.stringify({
-			item, launch: { ...launch, selector: plain(selector(launch)), verdict: route.verdict }, overlay, record, env, args, skipped, roster_sha256: sha, usage,
+			item, launch: { ...launch, selector: plain(selector(launch)), verdict: route.verdict }, overlay, record, env, args, skipped, roster_sha256: sha, usage, memory,
 		}, null, 2));
 	} else {
 		for (const skip of skipped) console.error(`skipped ${skipLine(skip)}`);
@@ -684,7 +713,7 @@ function run(argv: string[]): number {
 		const { values } = parseArgs({
 			args,
 			options: {
-				item: { type: "string" }, "ticket-json": { type: "string" }, "usage-json": { type: "string" },
+				item: { type: "string" }, "ticket-json": { type: "string" }, "usage-json": { type: "string" }, "memory-json": { type: "string" },
 				"state-dir": { type: "string" }, harness: { type: "string" }, json: { type: "boolean" }, help: { type: "boolean", short: "h" },
 				model: { type: "string" }, thinking: { type: "string" },
 			},
@@ -692,6 +721,15 @@ function run(argv: string[]): number {
 		});
 		if (values.help) { console.log(USAGE); return 0; }
 		return launchCommand(values);
+	}
+	if (command === "memory") {
+		const { values } = parseArgs({
+			args,
+			options: { json: { type: "boolean" }, "memory-json": { type: "string" }, help: { type: "boolean", short: "h" } },
+			strict: true,
+		});
+		if (values.help) { console.log(USAGE); return 0; }
+		return memoryCommand(values);
 	}
 	if (command === "check") {
 		const { values, positionals } = parseArgs({

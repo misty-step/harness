@@ -1,6 +1,104 @@
 # Native desktop memory guard (US-043)
 
-## Boundary and ownership
+## Rolling OMP engineer containment — active path
+
+The approved rollout does not move or restart Herdr. New OMP launches use the
+stable `~/.local/bin/omp -> omp-engineer` entrypoint; the retained native ELF is
+`~/.local/lib/omp-engineer/omp`. Native Herdr discovery, session hooks, Glass
+visibility and literal `omp --resume=...` reconstruction remain unchanged.
+
+```text
+user@UID.service
+├── app.slice                         unchanged desktop, Herdr and old engineers
+├── omp.slice                         standalone 36-GiB, zero-swap aggregate
+│   ├── omp-engineer-<nonce>.scope     4 GiB, zero swap, group-OOM kill
+│   └── omp-engineer-<nonce>.scope     another admitted engineer and descendants
+└── dev.slice/dev-exec.slice           separately owned heavy-job budget
+```
+
+Admission is serialized from live inspection through authenticated, verified
+scope registration. Populated cages reserve their full 4 GiB even when idle or
+the native root exits but helpers remain. Uncaged roots, their descendants and
+retained mixed legacy cgroups are measured once by RSS (PSS is also reported),
+not assigned fictitious 4-GiB reservations. Deleted cgroup annotations retain
+canonical membership until the last task exits. Their future growth is still
+unbounded until natural exit; this rolling deployment is not retroactive safety.
+
+The fleet ceiling covers existing measured memory plus full live cages and the
+new reservation. Physical `MemAvailable` must additionally cover unused cage
+headroom, unused approved 16-GiB heavy-job capacity and a 16-GiB desktop reserve.
+Already charged memory is not subtracted twice. Effective ancestors, actual
+cgroup controls and live oomd monitoring are inspected; incomplete hierarchy,
+an oomd-covered cage or incompatible active heavy-job limits fail closed.
+Inactive obsolete heavy-job configuration is not a live reservation.
+
+From the reviewed harness revision:
+
+First deploy the reviewed Workbench `host-update` item, when installed, and
+require `workbench-host-update omp-install-layouts` to advertise
+`harness-engineer-cage-v1`. The explicit activation preflight refuses an old,
+malformed or incompatible installed consumer before entrypoint/live-unit writes.
+This closes MIS-203's source-compatible-but-not-deployed updater mismatch.
+
+```sh
+OMP_INSTALL_COMPONENTS=cli ./omp-config/install           # stage only
+OMP_INSTALL_COMPONENTS=engineer-cage ./omp-config/install # explicit activation
+omp-roster memory --json                                 # live, no reservation
+omp --version                                           # real admitted launch
+```
+
+Default installation stages the CLI but never activates a previously uncaged
+host. Explicit activation validates owned launchers, retains the native ELF,
+installs/starts only the empty `omp.slice`, and replaces the stable entrypoint.
+It does not move existing PIDs, restart Herdr, change oomd, or kill engineers.
+Work continues in existing sessions; their next natural direct/new/continued/
+resumed launch enters the cage. Do not force migration by restarting them.
+
+Every native argument uses real admission; direct `omp` refusal exits 75 before
+native execution. Roster preflight exits 6 before overlay/record writes.
+Read-only fixture inputs cannot override actual launch. A preflight success is
+not a reservation. Nested OMP/helpers inherit the verified existing leaf rather
+than escaping it or reserving another independent cage.
+
+Keep the retained ELF directory out of ordinary PATH. Native OMP 18.4.9 updates
+resolve the target through `which("omp")`; only a mutating `omp update` child
+receives that directory first in PATH, protecting the stable wrapper. Read-only
+`update --check` retains ordinary PATH. The Workbench updater accepts the exact
+owned wrapper/retained-ELF layout and invokes the stable, admitted entrypoint.
+Binary/catalog changes still take effect in engineers only on natural relaunch.
+
+On a killed native child (exit 137), the outer wrapper survives outside the
+leaf. While it still owns the foreground terminal, it flushes queued input,
+restores canonical/echo/signal modes, resets terminal UI modes and flushes late
+responses before returning 137 to the shell. It never resets a terminal owned
+by a different foreground job. Relaunch the exact saved session using native
+Herdr `agent start ... -- omp-arguments` or `omp --resume=<path>`; do not replay a
+pending allocator/tool call or paste raw terminal-query responses into the shell.
+
+Observed rollout proof (OMP 18.4.9 / Herdr 0.9.1): native fresh and exact-session
+resumed engineers were discoverable in Herdr and Glass and executed real Bash
+inside verified 4-GiB/zero-swap/group-OOM scopes. After queued terminal-response
+bytes and SIGKILL of only a completed owned probe, the shell reported 137 with
+canonical/echo/signals restored; same-pane resume and another real Bash command
+succeeded without manual PTY repair. With three naturally populated cages,
+47.7 GB available could not cover 50.6 GB protected headroom: real `omp --version`
+refused 75 with no new scope. No physical exhaustion or fixture was used.
+The original Herdr server/client and Hyprland PID/start/cgroup identities stayed
+unchanged; surviving original engineers were not moved. Raw transcripts and
+process inventory remain private.
+
+This is resource containment, not a same-user security boundary. External
+daemons and deliberate cgroup escape need independent limits. Keep the approved
+wrapper in every ordinary launch path; do not invoke the retained ELF directly.
+Rollback requires the prior reviewed launcher/unit contract and reconciliation
+with its updater, after owned cages naturally finish. Never stop a populated
+shared slice or remove the memory helper while roster callers still require it.
+
+## Optional whole-Herdr boundary — separate disruptive cutover
+
+The following pre-existing `desktop-guard` service path is not this rolling
+rollout and is not activated by `engineer-cage`. It requires a separately chosen
+interruption; never use its server-stop steps to migrate working engineers.
 
 Herdr remains the unmodified upstream binary. A systemd **user** service owns the
 server before it creates any pane. New shells, explicit-command panes and native

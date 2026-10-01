@@ -1132,13 +1132,39 @@ Criteria:
 6. WHEN cutover is requested, THE SYSTEM SHALL provide explicit operator-owned
    activation and rollback steps that reconcile existing limits without
    silently restarting a running fleet.
+7. WHEN OMP engineer caging is explicitly activated, THE SYSTEM SHALL admit
+   every fresh, direct, continued and resumed engineer before native startup,
+   reserve each live leaf's full 4-GiB ceiling under a serialized launch
+   transaction, and retain that reservation while any descendant remains.
+8. WHEN admission would exceed the 36-GiB engineer budget or consume the
+   16-GiB desktop and 16-GiB heavy-job headroom, THE SYSTEM SHALL refuse before
+   starting native OMP; idle engineers, subagents and uncaged descendant memory
+   SHALL count, independently of the working-engineer usage limit.
+9. WHEN native OMP starts, THE SYSTEM SHALL verify effective 4-GiB memory,
+   zero swap, group-OOM and actual membership outside every live oomd-monitored
+   ancestor, while preserving argv, cwd, environment, PTY and session identity.
+10. WHEN a caged engineer is killed, THE SYSTEM SHALL restore sane terminal
+    state and discard stale query input before returning to the shell, without
+    replaying the interrupted tool or leaving a descendant's slot unreserved.
+11. WHEN the rollout is activated, THE SYSTEM SHALL preserve running Herdr and
+    existing engineers; only their natural exits/restarts migrate them, and the
+    memory snapshot SHALL identify the remaining uncaged processes.
+12. WHEN the native binary updates or Herdr restores a saved engineer, THE
+    SYSTEM SHALL retain the caged entrypoint; staging on an unactivated host
+    SHALL preserve the native executable and leave active units unchanged.
+13. WHEN an installed Workbench updater has not accepted the versioned cage
+    layout, explicit activation SHALL refuse before changing the entrypoint or
+    live units; source-only updater changes SHALL NOT count as compatibility.
 
 No-gos: no Herdr fork, privileged changes, global oomd tuning, automatic live
 cutover, or claim of protection from arbitrary same-user cgroup escapes or a
 kernel OOM selecting the Herdr server itself. A shared fleet cap is not
-per-engineer memory isolation.
+per-engineer memory isolation. Transitional uncaged engineers remain unbounded
+until their natural restart; measured admission does not retroactively cap them.
 
-Evidence: `agent-config/desktop-guard/`, `docs/desktop-memory-guard.md`,
+Evidence: `agent-config/desktop-guard/`, `omp-config/bin/omp-engineer.py`,
+`omp-config/bin/test_omp_engineer.py`, `omp-config/bin/omp-roster.test.ts`,
+`docs/desktop-memory-guard.md`, and
 `docs/postmortems/2026-09-26-shared-terminal-oom.md`.
 
 ## US-045 Sign Pi into more than one account per provider

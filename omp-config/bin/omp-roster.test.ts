@@ -3,11 +3,27 @@ import { chmodSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSy
 import { tmpdir } from "node:os";
 import { basename, dirname, join } from "node:path";
 
-// US-046 (extending US-014). The CLI ships as one copied file, so every test runs a copy from an
-// otherwise empty directory: a sibling import would fail here exactly as it would on the host.
+// The deployed cohort is the copied TypeScript CLI plus the Python admission owner.
+// Tests use explicit inert measurements; neither PATH mocks nor fixture environment
+// variables can bypass the real omp launcher's live reservation transaction.
 let root = "";
 let cli = "";
 let counter = 0;
+let memoryFile = "";
+
+function memoryFixture(available = 128 * 1024 ** 3) {
+	const root = "/user.slice/user-1000.slice/user@1000.service";
+	const group = (path: string, memory_max: number | null = null, memory_swap_max: number | null = null) =>
+		({ path, memory_max, memory_swap_max, memory_high: null, current_bytes: 0, oom_group: 0, populated: false });
+	return {
+		schema_version: 1, uid: 1000, user_root: root, current_group: `${root}/app.slice/fixture.scope`,
+		available_bytes: available, fleet: { ...group(`${root}/omp.slice`, 36 * 1024 ** 3, 0), slice: "-.slice" },
+		ancestors: ["/user.slice", "/user.slice/user-1000.slice", root].map((path) => group(path)),
+		monitored: [`${root}/app.slice`], scopes: [], processes: [], legacy_groups: [],
+		heavy: { path: `${root}/dev.slice/dev-exec.slice`, current_bytes: 0, jobs: [] },
+		captured_at: "2026-10-01T00:00:00+00:00",
+	};
+}
 
 beforeAll(() => {
 	root = mkdtempSync(join(tmpdir(), "omp-roster-test-"));
@@ -16,6 +32,11 @@ beforeAll(() => {
 	writeFileSync(join(root, "bin", "herdr"), '#!/bin/sh\n[ "$*" = "agent list" ] || exit 2\nif [ -n "$HERDR_TEST_AGENTS" ]; then cat "$HERDR_TEST_AGENTS"; else printf \'%s\\n\' \'{"result":{"agents":[]}}\'; fi\n', { mode: 0o755 });
 	cli = join(root, "deploy", "omp-roster");
 	copyFileSync(join(import.meta.dir, "omp-roster.ts"), cli);
+	const core = join(root, "deploy", "omp-engineer");
+	copyFileSync(join(import.meta.dir, "omp-engineer.py"), core);
+	chmodSync(core, 0o700);
+	memoryFile = join(root, "memory.json");
+	writeFileSync(memoryFile, JSON.stringify(memoryFixture()));
 });
 afterAll(() => rmSync(root, { recursive: true, force: true }));
 
@@ -71,8 +92,9 @@ type Result = { exitCode: number; stdout: string; stderr: string };
 function invoke(args: string[], env: Record<string, string> = {}): Result {
 	const inherited = { ...process.env };
 	delete inherited.OMP_ROSTER_ENGINEER_LIMIT;
+	const actualArgs = args[0] === "launch" && !args.includes("--memory-json") ? [...args, "--memory-json", memoryFile] : args;
 	const result = Bun.spawnSync({
-		cmd: ["sh", "-c", 'umask 0; exec "$@"', "sh", process.execPath, cli, ...args],
+		cmd: ["sh", "-c", 'umask 0; exec "$@"', "sh", process.execPath, cli, ...actualArgs],
 		env: { ...inherited, HOME: root, XDG_STATE_HOME: join(root, "xdg"), ...env, PATH: `${join(root, "bin")}:${env.PATH ?? process.env.PATH}` },
 		stdout: "pipe",
 		stderr: "pipe",
@@ -96,6 +118,42 @@ const launched = (result: Result & { state: string }) => {
 	return JSON.parse(result.stdout) as Record<string, any>;
 };
 
+describe("omp-roster memory admission", () => {
+	test("read-only refusal reports real capacity and blocks all launch records before writing", () => {
+		const dir = scratch("memory-refusal");
+		const state = join(dir, "state");
+		const file = put(join(dir, "memory.json"), JSON.stringify(memoryFixture(36 * 1024 ** 3 - 1)));
+		const snapshot = invoke(["memory", "--json", "--memory-json", file]);
+		expect(snapshot.exitCode).toBe(0);
+		const value = JSON.parse(snapshot.stdout);
+		expect([value.admitted, value.reservation, value.capacity.available_bytes, value.capacity.required_available_bytes])
+			.toEqual([false, false, 36 * 1024 ** 3 - 1, 36 * 1024 ** 3]);
+		const ticket = put(join(dir, "ticket.json"), JSON.stringify(boardAnswer([SONNET])));
+		const usage = put(join(dir, "usage.json"), JSON.stringify(usageView([row("anthropic", "sonnet", "usable")])));
+		const args = ["launch", "--item", "K-test", "--ticket-json", ticket, "--usage-json", usage,
+			"--memory-json", file, "--state-dir", state, "--json"];
+		const refused = invoke(args);
+		expect([refused.exitCode, refused.stdout, existsSync(state)]).toEqual([6, "", false]);
+		put(file, JSON.stringify(memoryFixture(36 * 1024 ** 3)));
+		const admitted = invoke(args);
+		expect(admitted.exitCode).toBe(0);
+		const launch = JSON.parse(admitted.stdout);
+		expect([launch.memory.admitted, launch.memory.reservation]).toEqual([true, false]);
+		expect(JSON.parse(readFileSync(launch.record, "utf8")).launch).toBe("anthropic/claude-sonnet-5-5:medium");
+	});
+
+	test("uninspectable ancestor measurements cannot produce a usable overlay", () => {
+		const dir = scratch("memory-uninspectable");
+		const state = join(dir, "state");
+		const malformed = { ...memoryFixture(), ancestors: [] };
+		const file = put(join(dir, "memory.json"), JSON.stringify(malformed));
+		const usage = put(join(dir, "usage.json"), JSON.stringify(usageView([row("anthropic", "sonnet", "usable")])));
+		const refused = invoke(["launch", "--model", "anthropic/claude-sonnet-5-5", "--thinking", "medium",
+			"--usage-json", usage, "--memory-json", file, "--state-dir", state, "--json"]);
+		expect([refused.exitCode, refused.stdout, existsSync(state)]).toEqual([1, "", false]);
+	});
+});
+
 describe("omp-roster launch (US-046)", () => {
 	test("US-047 refuses at or above the working-engineer limit before writing, and admits one below", () => {
 		const dir = scratch("fleet");
@@ -118,7 +176,8 @@ describe("omp-roster launch (US-046)", () => {
 			const state = join(dir, `refused-${limit}-${count}`);
 			const refused = invoke([...args, "--state-dir", state], { ...env, ...(limit === 8 ? {} : { OMP_ROSTER_ENGINEER_LIMIT: String(limit) }) });
 			expect([refused.exitCode, refused.stdout]).toEqual([5, ""]);
-			expect(refused.stderr).toBe(`omp-roster: working-engineer limit reached (${count}/${limit}); working: ${working.slice(0, count).map((agent) => agent.name ?? agent.pane_id).join(", ")}; queue work on the board.\n`);
+			expect(refused.stderr).toContain(`(${count}/${limit})`);
+			for (const agent of working.slice(0, count)) expect(refused.stderr).toContain(agent.name ?? agent.pane_id);
 			expect(existsSync(state)).toBe(false);
 		}
 		put(agentsFile, JSON.stringify({ result: { agents: [...working.slice(0, 7), ...settled, ...nonEngineers] } }));

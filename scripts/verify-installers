@@ -40,6 +40,9 @@ for consumer in pi omp; do
   if [ "$consumer" = omp ]; then
     mkdir -p "$agent/extensions/continuation-nudge"
     printf 'retired extension\n' > "$agent/extensions/continuation-nudge/index.ts"
+    mkdir -p "$home/.local/bin"
+    printf 'foreign native executable sentinel\n' > "$work/expected-native"
+    cp "$work/expected-native" "$home/.local/bin/omp"
   fi
   if env -i PATH="$PATH" HOME="$home" TMPDIR="$work" \
     PI_CODING_AGENT_DIR="$agent" OMP_DEVELOPMENT_ROOT="$home/development" \
@@ -116,6 +119,30 @@ for consumer in pi omp; do
     check "pi auth permissions" test "$(stat -c %a "$agent/auth.json")" = 600
   else
     check "omp auth untouched" cmp -s "$work/expected-auth" "$agent/auth.json"
+    check "omp default install preserves native entrypoint" cmp -s "$work/expected-native" "$home/.local/bin/omp"
+    check "omp default install does not activate memory units" test ! -e "$home/.config/systemd/user/omp.slice"
+    check "omp engineer launcher bytes" cmp -s "$work/source/omp-config/bin/omp-engineer.py" "$home/.local/bin/omp-engineer"
+    check "omp engineer launcher executable" test -x "$home/.local/bin/omp-engineer"
+    check "omp engineer launcher installed load" "$home/.local/bin/omp-engineer" --help
+    # MIS-203: an installed updater must accept the new layout before live
+    # activation writes anything. The virgin-host/native sentinels stay intact.
+    printf '#!/bin/sh\nexit 2\n' > "$home/.local/bin/workbench-host-update"
+    chmod 700 "$home/.local/bin/workbench-host-update"
+    if env -i PATH="$PATH" HOME="$home" TMPDIR="$work" PI_CODING_AGENT_DIR="$agent" \
+      OMP_INSTALL_COMPONENTS=engineer-cage \
+      "$work/source/omp-config/install" >"$work/omp-layout.log" 2>&1; then
+      printf 'FAIL omp cage refuses an incompatible installed updater\n' >&2
+      failures=$((failures + 1))
+    elif grep -q 'Workbench does not support harness-engineer-cage-v1' "$work/omp-layout.log" \
+      && cmp -s "$work/expected-native" "$home/.local/bin/omp" \
+      && [ ! -e "$home/.local/lib/omp-engineer/omp" ] \
+      && [ ! -e "$home/.config/systemd/user/omp.slice" ]; then
+      printf 'PASS omp cage refuses incompatible updater before live writes\n'
+    else
+      printf 'FAIL omp cage incompatible-updater refusal before live writes\n' >&2
+      cat "$work/omp-layout.log" >&2
+      failures=$((failures + 1))
+    fi
     check "omp OpenRouter auth override" \
       env -i PATH="$PATH" HOME="$home" AGENT="$agent" bun -e '
         const { readFileSync } = await import("node:fs");
