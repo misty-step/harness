@@ -27,9 +27,9 @@ remain untouched and unbounded until natural exit.
 Memory capacity is advisory, per Phaedrus's decision: below the 20-GiB available
 memory guideline or above the measured 36-GiB fleet guideline, warn and launch
 anyway. Missing `MemAvailable` also warns rather than denying startup.
-Warnings appear on stderr and in `omp-roster launch --json`; Glass updates its
-existing open advisory with actual warning measurements. Missing/busy publication
-never denies startup. Potential full-leaf capacity is not a reservation or warning.
+Warnings appear on stderr and in `omp-roster launch --json`, never as Glass board
+items. A warning changes neither admission nor containment; it creates no backlog
+work. Potential full-leaf capacity is not a reservation or warning.
 The owned parent has `MemoryMax=infinity`; actual per-engineer 4-GiB, zero-swap,
 group-OOM controls and live oomd exclusion remain mandatory containment.
 Explicit `engineer-cage` refresh raises an existing populated parent in place

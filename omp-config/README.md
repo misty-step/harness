@@ -124,8 +124,8 @@ run directly in their caller's cgroup. Classification follows native argument
 boundaries, not a caller allowlist.
 Memory capacity is advisory: below 20-GiB `MemAvailable` or above 36-GiB measured
 fleet use, warn and launch anyway. Missing available-memory guidance also warns.
-Warnings appear in stderr and roster launch JSON; Glass updates its open advisory
-with actual warning measurements. Missing/busy Glass never denies startup.
+Warnings appear in stderr and roster launch JSON, never as Glass board items.
+They change neither admission nor containment and create no backlog work.
 There is no full-leaf reservation, ancestry/RSS/PSS/smaps inspection, process-wide
 `/proc` walk, `legacy.json`, or heavy-job inventory in engineer startup.
 JSON reports measured `fleet_current_bytes`, `caged_count`, optional

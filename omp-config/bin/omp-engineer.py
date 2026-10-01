@@ -226,48 +226,6 @@ def admission_lock(path, *, clock=time.monotonic, sleep=time.sleep):
         os.close(fd)
 
 
-def publish_memory_warnings(result):
-    warnings = result["warnings"]
-    if not warnings:
-        return
-    for warning in warnings:
-        print("omp-engineer: warning: " + warning, file=sys.stderr)
-    # Glass owns the item; reuse its open record rather than caching another authority.
-    title = "OMP launches continue despite memory guidance"
-    scope = "misty-step/harness"
-    why = {"text": "the memory cage should be more of a guideline than a hard rule. Advisory. Otherwise it's too constraining.",
-           "attribution": "quoted", "source": "Phaedrus"}
-    try:
-        listing = subprocess.run(["glass", "item", "list", "--lock-wait", "100ms"],
-                                 stdin=subprocess.DEVNULL, capture_output=True, timeout=1, check=False)
-        if listing.returncode:
-            raise OSError(listing.stderr.decode(errors="replace").strip())
-        data = json.loads(listing.stdout)
-        if not isinstance(data, dict) or not isinstance(data.get("items"), list):
-            raise ValueError("Unrecognized Glass item list")
-        existing = next((item["id"] for item in data["items"]
-                         if isinstance(item, dict) and isinstance(item.get("id"), str) and item["id"]
-                         and item.get("title") == title and item.get("scope") == scope
-                         and item.get("kind") == "task" and item.get("why") == why
-                         and item.get("status") not in ("done", "dropped")), None)
-        if existing:
-            command = ["glass", "item", "update", existing]
-        else:
-            command = ["glass", "item", "add", "--scope", scope, "--kind", "task", "--status", "later",
-                       "--title", title,
-                       "--description", "Memory guidance is advisory; engineers continue to launch while their independent four-GiB containment and oomd exclusion remain verified.",
-                       "--why", why["text"], "--why-attribution", why["attribution"], "--why-source", why["source"]]
-        receipt = subprocess.run(
-            [*command, "--relaying", "none", "--notes", "\n".join(warnings),
-             "--note", "Memory advisory warning observed; launch continues. Latest observed measurements are in the item notes.",
-             "--json", "--lock-wait", "100ms"],
-            stdin=subprocess.DEVNULL, capture_output=True, timeout=1, check=False)
-        if receipt.returncode:
-            print("omp-engineer: Glass warning publication failed: " + receipt.stderr.decode(errors="replace").strip(), file=sys.stderr)
-        else:
-            print("omp-engineer: memory warning published in Glass", file=sys.stderr)
-    except (OSError, ValueError, subprocess.TimeoutExpired) as exc:
-        print("omp-engineer: Glass warning publication failed: " + str(exc), file=sys.stderr)
 
 
 def launch_transaction(lock, inspect, register):
@@ -276,7 +234,8 @@ def launch_transaction(lock, inspect, register):
     with lock:
         snapshot = inspect()
         result = admission(snapshot)
-        publish_memory_warnings(result)
+        for warning in result["warnings"]:
+            print("omp-engineer: warning: " + warning, file=sys.stderr)
         return register(result)
 
 
