@@ -103,12 +103,13 @@ with `persist-credentials:false` and use a reviewed pinned controller from trust
 `RUNNER_TEMP`. [GitHub runs this event from the base repository's default branch](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#pull_request_target),
 including PRs targeting nondefault branches. No upload token or agent QA execution
 belongs in this workflow. The ordinary scoped `github.token` may read PR metadata
-and post deployment/teardown facts, never native media.
+and post only the current preview link or explicit fork exception, never native
+media or story verdicts. Machine facts stay in the controller output.
 
 Use `contents:read`, `pull-requests:write`, pinned actions, controller-only SSH and
 reviewed host pins. Serialize `pr-preview-${repository}-${pr}` with
 `cancel-in-progress:false`, including close jobs. Recheck state/head before posting
-facts; do not convert deployment failure to success. Merge/close removes only the
+the link; do not convert deployment failure to success. Merge/close removes only the
 owned VM. Verify disappearance and surviving native PR attachments before calling
 the first loop complete.
 
