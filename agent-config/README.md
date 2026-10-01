@@ -21,6 +21,7 @@ harness repo. When in doubt, leave it in the harness.
 | `skills/test-audit/` | Shared authoring gate and focused test audit; subsystem campaign is opt-in (US-021) |
 | `skills/story-qa/` | Curated user-story walks by agents on the real product surface (US-022) |
 | `skills/story-qa/check-cadence.md` | Risk-based PR/nightly/weekly check selection without losing owned gates (US-023) |
+| `skills/pr-preview/` | Exact-head private exe.dev PR lifecycle and revision-bound story evidence; application-owned `.exe/preview` |
 | `guidance/*.md` | Shared global-guidance sections, spliced at the harness marker |
 | `bin/pass-env.ts` | Standalone pass-backed environment launcher |
 | `bin/openrouter-key.ts` | Shared OMP/Pi key resolver: R90 checkout or Git-common-dir gets the R90 pass entry; other directories use `--personal` (US-028) |
@@ -49,6 +50,33 @@ SHA-256 digests to `~/.cache/tmp/ws/<project>/<task>/`; `ws down --task T`
 refuses unpulled or changed evidence, then removes the worktree and lease,
 not the VM. `ws attach --task T` opens a remote shell; `ws status` checks
 VM presence. Agent sessions and model credentials stay local.
+
+## PR previews
+
+[`pr-preview`](skills/pr-preview/SKILL.md) supplies the small Bun controller:
+`bun /absolute/skill/pr-preview.ts up|down --repo OWNER/REPO --pr NUMBER`
+(`up` accepts `--sha HEAD_SHA`). Run it outside candidate code with
+`--no-env-file --no-install`; `PR_PREVIEW_CHECKOUT` identifies the trusted
+default-branch checkout and `PR_PREVIEW_OUTPUT_DIR` names a fresh controller
+temp directory for deployment facts. It streams exact-head source and Git
+objects to a deterministically owned private exe.dev VM. The application's
+`.exe/preview` builds production, seeds existing synthetic QA data, checks
+health, and stays foreground under supervision. CI serializes deployment and
+merge/close teardown only; the ordinary job token may post deployment facts.
+The agent walks every affected story/claimed adapter from its own session,
+fixes any verification gaps, marks untouched scope not affected, and posts
+revision-bound screenshots/video with its existing signed-in GitHub CLI
+2.101 `gh pr comment --attach`. No upload token goes into CI; no Actions
+artifacts or preview-hosted evidence. Merge/close destroys only the owned VM,
+not the durable native PR assets. Agents author the rationale. Both installers'
+existing `--skill all` selection deploys this package without routing changes.
+
+The operator-approved boundary is trusted same-repo PRs on every target;
+forks get explicit no-execution exception facts. Controller GitHub/SSH/model
+credentials are never transported. Existing exe.dev account policy is unchanged:
+trusted VMs may inherit its notification/model/reflection integrations, so they
+are not claimed to have zero model authority. The controller transfers no media;
+agent-session QA captures sanitized native evidence on the actual surface.
 
 ## Foundation check (US-024)
 

@@ -1186,3 +1186,42 @@ harness-only slice.
 
 Evidence: `docs/lean-agent-guidance.md`, `scripts/verify-installers`,
 `agent-config/bin/install.test.ts`; installed OMP/Pi guidance and skill reads.
+
+## US-049 Inspect a pull request's running candidate and agent evidence
+
+Statement: When an agent finishes a unit of work, I want its pull request to
+carry a production-like running preview and the agent's story evidence, so I
+can click through the candidate, see proof for every affected story and what
+was not affected, and approve it before merge.
+
+Criteria:
+1. WHEN a trusted same-repository pull request opens, reopens, or changes head,
+   THE SYSTEM SHALL run that exact head in its own private exe.dev VM using the
+   application's production build and existing privacy-safe QA data.
+2. WHEN an agent posts QA evidence, THE SYSTEM SHALL attach screenshots or video
+   directly to the PR with `gh pr comment --attach`, bind the preview and evidence
+   to the candidate revision, and walk every affected criterion through every
+   adapter it claims; affected verification gaps SHALL block completion until
+   repaired, and untouched stories SHALL be marked not affected.
+3. WHEN the pull request merges or closes without merging, THE SYSTEM SHALL
+   destroy only its owned preview VM while preserving the GitHub-native evidence
+   attached to the PR independently of the VM.
+4. WHEN a pull request receives another head, THE SYSTEM SHALL replace the old
+   preview and SHALL NOT publish obsolete evidence as proof of the new head.
+5. IF a fork pull request appears, THEN THE SYSTEM SHALL skip its preview and
+   post that exception on the PR without changing exe.dev account policy.
+6. WHEN either harness installs shared skills, THE SYSTEM SHALL provide the same
+   small preview lifecycle skill while the application owns its QA seed,
+   production setup, user stories, and verification.
+7. WHEN CI deploys a preview, THE SYSTEM SHALL limit CI to deployment and teardown;
+   the agent SHALL walk affected stories and attach evidence from its own session
+   using its existing GitHub sign-in, without provisioning an upload token in CI.
+
+No-gos: no real customer data unless explicitly approved for the application's
+existing QA; no controller SSH/GitHub credentials in the VM; no accepted affected
+verification gaps; no upload credentials in CI; no VM-hosted evidence or Actions
+artifacts; no changes to account-wide exe.dev integrations.
+
+Evidence: `agent-config/skills/pr-preview/pr-preview.test.ts`;
+Habitat PR #641's revision-bound private preview, GitHub-native screenshots/video,
+and four-adapter walk.
