@@ -157,8 +157,7 @@ class AdmissionTests(unittest.TestCase):
             with self.assertRaises(core.CageError):
                 core.admission(snapshot)
 
-    @patch.object(core.subprocess, "run", side_effect=FileNotFoundError("Glass is unavailable"))
-    def test_serialized_launch_remeasures_warnings_and_registers_below_floor(self, _run):
+    def test_serialized_launch_remeasures_warnings_and_registers_below_floor(self):
         snapshot = measurement()
         snapshot["scopes"] = [scope(number, current=GIB // 16) for number in range(18)]
         snapshot["fleet"].update(current_bytes=2 * GIB, populated=True)
@@ -185,10 +184,11 @@ class AdmissionTests(unittest.TestCase):
                 attempted.append((result["capacity"]["available_bytes"],
                                   result["admitted"], bool(result["warnings"])))
                 return registered
-            with patch.object(sys, "stderr", io.StringIO()):
+            with patch.object(sys, "stderr", io.StringIO()) as stderr:
                 core.launch_transaction(core.admission_lock(lock_path), inspect, register)
                 core.launch_transaction(core.admission_lock(lock_path), inspect, register)
             self.assertEqual(attempted, [(20 * GIB, True, False), (20 * GIB - 1, True, True)])
+            self.assertIn(str(20 * GIB - 1), stderr.getvalue())
             # The verified handoff releases the lock, not hypothetical cage slots.
             other = os.open(lock_path, os.O_RDWR)
             try:

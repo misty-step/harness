@@ -1119,10 +1119,10 @@ Criteria:
    live inspection through verified native startup and retain each leaf's
    independent 4-GiB containment while descendants remain.
 8. WHEN available memory is below the 20-GiB guideline or measured fleet memory exceeds
-   its advisory guideline, THE SYSTEM SHALL warn in stderr, launch JSON and
-   Glass, then launch anyway. Memory capacity SHALL NOT refuse a wrapper or
-   roster launch, and no opt-out flag SHALL be required. An unavailable warning
-   sink SHALL NOT prevent startup; verified containment remains mandatory.
+   its advisory guideline, THE SYSTEM SHALL warn in stderr and launch JSON,
+   then launch anyway. Memory capacity SHALL NOT refuse a wrapper or roster
+   launch, and no opt-out flag SHALL be required. Memory warnings SHALL NOT
+   create or update Glass board items; verified containment remains mandatory.
 9. WHEN an interactive native OMP engineer starts, THE SYSTEM SHALL verify effective 4-GiB memory,
    zero swap, group-OOM and actual membership outside every live oomd-monitored
    ancestor, while preserving argv, cwd, environment, PTY and session identity.
