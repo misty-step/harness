@@ -122,6 +122,17 @@ owned directory. Remove only that directory once its process has ended.
   8 refuses at 8 and above with exit 5, empty stdout and no artifacts; 7 working
   engineers plus settled agents succeeds; a configured limit, unnamed agents,
   ticketless launches, malformed Herdr replies and invalid limits are covered.
+- Reviewer-family acceptance (US-014, US-046; operator rule 2026-09-30) uses a
+  real OMP process with a network-disabled synthetic provider. Preserve the
+  JSONL transcript, provider attempts and active child config readback.
+  With fallback enabled and Sol authenticated, force Sonnet failure: observe
+  same-model retries followed by terminal failure, with no other reviewer
+  attempt. Remove the guard as a positive control and observe the forbidden
+  hop. Cover both author directions, security-reviewer, missing reviewer auth,
+  inherited concrete/effort/wildcard chains, and an actual parent failure after
+  review to prove the engineer's recovery still works. Registry record
+  overrides merge keys; the native settings singleton is not child-scoped.
+  The 2026-10-01 acceptance walk on OMP 18.4.6 found and rejected both traps.
 - `omp-config/extensions/credentials/credentials.test.ts` checks stable opt-in
   context, names-only default inventory, and no tool/prose-triggered interruption
   with a synthetic pass store (US-019). The [token-efficiency procedure](token-efficiency.md)

@@ -10,8 +10,12 @@ before commit/PR. Obtain the independent Misty Step PR review separately:
 pass-env run \
   -e KAYLEE_GITHUB_APP_ID=workstation/KAYLEE_GITHUB_APP_ID \
   -e KAYLEE_GITHUB_APP_PEM=workstation/KAYLEE_GITHUB_APP_PEM -- \
-  bun ~/development/misty-step/harness/agent-config/bin/agent-review.ts --repo misty-step/NAME --pr N
+  bun ~/development/misty-step/harness/agent-config/bin/agent-review.ts --repo misty-step/NAME --pr N --author-model AUTHOR_PROVIDER/AUTHOR_MODEL
 ```
+
+`--author-model` (or `AGENT_REVIEW_AUTHOR_MODEL`) identifies the model that
+actually authored the change, not an initial roster entry. The dispatcher
+derives the reviewer; there is no reviewer-model lookup step.
 
 `agent-review` starts a fresh model session on the PR title, description, and diff;
 the `kaylee-agent[bot]` App's exact-head approval is the independent signal

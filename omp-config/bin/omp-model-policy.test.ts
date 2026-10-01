@@ -51,7 +51,6 @@ test("offline policy rejects stale, alias, malformed and disallowed routing sele
 	const cases: Array<[string, (config: PolicyConfig) => void, string]> = [
 		["stale Sonnet role", config => { config.modelRoles.default = "anthropic/claude-sonnet-5:medium"; }, "unapproved model"],
 		["retired Sol role", config => { config.modelRoles.default = "openai-codex/gpt-6-sol:xhigh"; }, "unapproved model"],
-		["Sol below high", config => { config.modelRoles.default = "openai-codex/gpt-6.1-sol:medium"; }, "unsupported effort"],
 		["retired agent override", config => { config.task = { agentModelOverrides: { designer: "anthropic/claude-sonnet-5:medium" } }; }, "unapproved model"],
 		["unknown model role override", config => { config.task = { agentModelOverrides: { designer: "@unknown" } }; }, "does not resolve to a chat role"],
 		["fuzzy alias", config => { config.modelRoles.default = "sonnet"; }, "concrete model selector"],

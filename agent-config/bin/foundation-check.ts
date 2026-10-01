@@ -1547,8 +1547,8 @@ async function review(options: Options): Promise<Result> {
 	const overruled = modelReview !== undefined && decision !== undefined && decision.index > modelReview.index && decision.entry.state !== "APPROVED";
 	if (modelReview?.entry.state !== "APPROVED" || stale || overruled) {
 		errors.push(stale
-			? `FND-REV-001: the agent reviewer's approval of head ${head.slice(0, 12)} judged a different base, merge base, title or description than the PR now has; run agent-review --repo ${org}/${name} --pr ${options.pr}`
-			: `FND-REV-001: needs an agent-review approval from the designated agent reviewer ${agent} on head ${head.slice(0, 12)} (run agent-review --repo ${org}/${name} --pr ${options.pr})`);
+			? `FND-REV-001: the agent reviewer's approval of head ${head.slice(0, 12)} judged a different base, merge base, title or description than the PR now has; run agent-review --repo ${org}/${name} --pr ${options.pr} --author-model AUTHOR_PROVIDER/AUTHOR_MODEL`
+			: `FND-REV-001: needs an agent-review approval from the designated agent reviewer ${agent} on head ${head.slice(0, 12)} (run agent-review --repo ${org}/${name} --pr ${options.pr} --author-model AUTHOR_PROVIDER/AUTHOR_MODEL)`);
 	}
 	return { ok: errors.length === 0, errors, reasons, approved_by: errors.length === 0 ? agent : undefined };
 }

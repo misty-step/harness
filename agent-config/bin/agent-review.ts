@@ -8,7 +8,7 @@
  * approves as the GitHub App `kaylee-agent[bot]` (ADR-003, "Independent review by the agent reviewer").
  * This tool runs that review and records it:
  *
- *   agent-review --repo misty-step/NAME --pr N
+ *   agent-review --repo misty-step/NAME --pr N --author-model provider/model
  *
  * 1. Reads the PR head and diff through the App's installation token.
  * 2. Runs a fresh model process (`omp -p`, no session, no tools) on the PR title, description and diff, and asks for a JSON verdict.
@@ -26,15 +26,15 @@
  */
 import { createHash, createSign } from "node:crypto";
 import { spawn } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 const APP_LOGIN = "kaylee-agent[bot]";
 const ORG = "misty-step";
 const RERUN_LABEL = "agent-reviewed";
 /** Diffs above this are refused rather than truncated: a partial diff is not a review of the change. */
 const MAX_DIFF_BYTES = Number(process.env.AGENT_REVIEW_MAX_DIFF_BYTES ?? 400_000);
-const MODEL = process.env.AGENT_REVIEW_MODEL ?? "openai-codex/gpt-6-sol";
-const THINKING = process.env.AGENT_REVIEW_THINKING ?? "xhigh";
 const OMP = process.env.AGENT_REVIEW_OMP ?? "omp";
 const MODEL_TIMEOUT_MS = Number(process.env.AGENT_REVIEW_TIMEOUT_SECONDS ?? 1200) * 1000;
 const API = (process.env.GITHUB_API_URL ?? "https://api.github.com").replace(/\/+$/, "");
@@ -43,6 +43,44 @@ export type Finding = { title: string; body: string; priority: number };
 export type Verdict = { overall_correctness: "correct" | "incorrect"; explanation: string; findings: Finding[] };
 
 const b64url = (value: Buffer | string) => Buffer.from(value).toString("base64url");
+
+type Family = "openai" | "anthropic" | "google" | "xai";
+type Model = { model: string; provider: string; id: string; family: Family; thinking?: string };
+type Reviewer = Model & { thinking: string };
+const THINKING_LEVELS: Record<string, true> = { off: true, minimal: true, low: true, medium: true, high: true, xhigh: true, max: true };
+
+/** Concrete selectors only: a fuzzy name or role alias cannot establish model-family independence. */
+function model(value: string, source: string): Model {
+	const match = value.trim().match(/^([a-z][a-z0-9-]*)\/([a-zA-Z0-9][a-zA-Z0-9._/-]*)(?::([a-z]+))?$/);
+	if (!match) throw new Error(`${source} must be a concrete provider/model selector`);
+	const [, provider, id, thinking] = match;
+	if (thinking && !Object.hasOwn(THINKING_LEVELS, thinking)) throw new Error(`${source} has unsupported thinking level ${thinking}`);
+	const vendor = provider === "openrouter" ? id.slice(0, id.indexOf("/")) : provider;
+	const name = provider === "openrouter" ? id.slice(id.indexOf("/") + 1) : id;
+	let family: Family | undefined;
+	if (vendor === "anthropic" && name.startsWith("claude-")) family = "anthropic";
+	else if ((vendor === "openai" || vendor === "openai-codex" || vendor === "azure-openai") && /^(gpt-|o[1-9](?:-|$))/.test(name)) family = "openai";
+	else if ((vendor === "google" || vendor === "google-antigravity" || vendor === "google-gemini-cli" || vendor === "google-vertex") && name.startsWith("gemini-")) family = "google";
+	else if ((vendor === "xai" || vendor === "xai-oauth") && name.startsWith("grok-")) family = "xai";
+	if (!family) throw new Error(`${source} has an unknown model family: ${value}`);
+	return { model: `${provider}/${id}`, provider, id, family, thinking };
+}
+
+function reviewerFor(authorValue: string | undefined): Reviewer {
+	if (!authorValue?.trim()) throw new Error("--author-model or AGENT_REVIEW_AUTHOR_MODEL is required; refusing to guess the author's model");
+	const author = model(authorValue, "author model");
+	const route = author.family === "openai"
+		? { model: "anthropic/claude-sonnet-5-5", thinking: "high" }
+		: author.family === "anthropic"
+			? { model: "openai-codex/gpt-6.1-sol", thinking: "medium" }
+			: undefined;
+	if (!route) throw new Error(`no review route is defined for author model family ${author.family}`);
+	const reviewer = model(process.env.AGENT_REVIEW_MODEL ?? route.model, "AGENT_REVIEW_MODEL");
+	if (reviewer.family === author.family) throw new Error(`the reviewer ${reviewer.model} shares the author's ${author.family} model family; nothing was posted`);
+	const thinking = process.env.AGENT_REVIEW_THINKING ?? reviewer.thinking ?? route.thinking;
+	if (!Object.hasOwn(THINKING_LEVELS, thinking)) throw new Error(`AGENT_REVIEW_THINKING has unsupported thinking level ${thinking}`);
+	return { ...reviewer, thinking };
+}
 
 /** RS256 app JWT, valid nine minutes, backdated a minute for clock skew (GitHub's documented maximum is ten). */
 export function appJwt(appId: string, pem: string, now = Math.floor(Date.now() / 1000)): string {
@@ -85,21 +123,96 @@ function prompt(pr: { title: string; body: string; base: string; head: string },
 	].join("\n\n");
 }
 
-function runModel(text: string): Promise<string> {
-	const { promise, resolve, reject } = Promise.withResolvers<string>();
-	const child = spawn(OMP, ["-p", "--no-session", "--model", MODEL, "--thinking", THINKING, "--tools", ""], { stdio: ["pipe", "pipe", "pipe"] });
-	let out = "";
-	let err = "";
-	const timer = setTimeout(() => { child.kill("SIGKILL"); reject(new Error(`the reviewer model did not answer within ${MODEL_TIMEOUT_MS / 1000}s`)); }, MODEL_TIMEOUT_MS);
-	child.stdout.on("data", (chunk) => { out += chunk; });
-	child.stderr.on("data", (chunk) => { err += chunk; });
-	child.on("error", (error) => { clearTimeout(timer); reject(error); });
-	child.on("close", (code) => {
-		clearTimeout(timer);
-		if (code === 0) resolve(out); else reject(new Error(`the reviewer model exited ${code}: ${err.trim().slice(-300)}`));
-	});
-	child.stdin.end(text);
-	return promise;
+/** Trust native message identities, never a prompt answer or the requested selector, as reviewer evidence. */
+function modelVerdict(output: string, reviewer: Reviewer): Verdict {
+	let stopReason: unknown;
+	let content: unknown;
+	let completed = false;
+	for (const line of output.split("\n")) {
+		if (!line.trim()) continue;
+		const event: unknown = JSON.parse(line);
+		if (!event || typeof event !== "object" || Array.isArray(event) || !("type" in event) || typeof event.type !== "string") {
+			throw new Error("the reviewer returned an invalid OMP event");
+		}
+		if (event.type === "retry_fallback_applied") throw new Error("OMP applied a reviewer model fallback; nothing was posted");
+		if (event.type === "agent_end") completed = "isTerminal" in event && event.isTerminal === true;
+		if (event.type !== "message_end") continue;
+		const message = "message" in event ? event.message : undefined;
+		if (!message || typeof message !== "object" || Array.isArray(message) || !("role" in message)) {
+			throw new Error("the reviewer returned an invalid OMP message");
+		}
+		if (message.role !== "assistant") continue;
+		const provider = "provider" in message ? message.provider : undefined;
+		const id = "model" in message ? message.model : undefined;
+		if (provider !== reviewer.provider || id !== reviewer.id) {
+			throw new Error(`OMP resolved the reviewer to ${provider}/${id}, not ${reviewer.model}; nothing was posted`);
+		}
+		// Failed attempts may retry the same model. Only its final, completed response is a verdict.
+		stopReason = "stopReason" in message ? message.stopReason : undefined;
+		content = "content" in message ? message.content : undefined;
+		completed = false;
+	}
+	if (!completed || stopReason !== "stop") throw new Error("the reviewer did not complete successfully; nothing was posted");
+	if (!Array.isArray(content)) throw new Error("the reviewer returned no text");
+	const text: string[] = [];
+	for (const part of content) {
+		if (part && typeof part === "object" && "type" in part && part.type === "text" && "text" in part && typeof part.text === "string") {
+			text.push(part.text);
+		}
+	}
+	return parseVerdict(text.join("\n"));
+}
+
+async function runModel(text: string, reviewer: Reviewer): Promise<Verdict> {
+	const dir = mkdtempSync(join(tmpdir(), "agent-review-"));
+	let interrupt: (() => void) | undefined;
+	let terminate: (() => void) | undefined;
+	try {
+		const overlay = join(dir, "review.yml");
+		// A print process is a main session (default role), not a native reviewer task. Concrete keys
+		// outrank inherited global/roster chains, and empty arrays replace rather than extend them.
+		const none: string[] = [];
+		const fallbackChains: Record<string, string[]> = { [reviewer.model]: none, default: none, reviewer: none, "security-reviewer": none };
+		// Effort-specific model keys outrank bare keys, including after native effort normalization.
+		for (const thinking in THINKING_LEVELS) fallbackChains[`${reviewer.model}:${thinking}`] = none;
+		writeFileSync(overlay, JSON.stringify({
+			retry: { fallbackChains },
+			advisor: { enabled: false },
+		}), { mode: 0o600 });
+		const { promise, resolve, reject } = Promise.withResolvers<string>();
+		const child = spawn(OMP, [
+			"--mode", "json", "--print", "--no-session", "--model", reviewer.model, "--thinking", reviewer.thinking,
+			"--config", overlay, "--no-tools", "--no-extensions", "--no-skills", "--no-rules", "--no-lsp", "--no-title",
+		], { stdio: ["pipe", "pipe", "pipe"] });
+		let out = "";
+		let err = "";
+		let interrupted = false;
+		let timedOut = false;
+		let inputError: Error | undefined;
+		interrupt = () => { interrupted = true; child.kill("SIGKILL"); };
+		terminate = () => { interrupted = true; child.kill("SIGKILL"); };
+		process.once("SIGINT", interrupt);
+		process.once("SIGTERM", terminate);
+		const timer = setTimeout(() => { timedOut = true; child.kill("SIGKILL"); }, MODEL_TIMEOUT_MS);
+		child.stdout.on("data", (chunk) => { out += chunk; });
+		child.stderr.on("data", (chunk) => { err += chunk; });
+		child.stdin.on("error", (error) => { inputError = error; child.kill("SIGKILL"); });
+		child.on("error", (error) => { clearTimeout(timer); reject(error); });
+		child.on("close", (code) => {
+			clearTimeout(timer);
+			if (timedOut) reject(new Error(`the reviewer model did not answer within ${MODEL_TIMEOUT_MS / 1000}s`));
+			else if (interrupted) reject(new Error("the reviewer was interrupted; nothing was posted"));
+			else if (inputError) reject(inputError);
+			else if (code === 0) resolve(out);
+			else reject(new Error(`the reviewer model exited ${code}: ${err.trim().slice(-300)}`));
+		});
+		child.stdin.end(text);
+		return modelVerdict(await promise, reviewer);
+	} finally {
+		if (interrupt) process.off("SIGINT", interrupt);
+		if (terminate) process.off("SIGTERM", terminate);
+		rmSync(dir, { recursive: true, force: true });
+	}
 }
 
 async function api(path: string, token: string, init: { method?: string; body?: unknown; accept?: string; tolerate?: number[] } = {}) {
@@ -124,10 +237,10 @@ async function installationToken(repo: string): Promise<string> {
 }
 
 /** The base, merge base, title and description the model judged are recorded for the gate, which refuses an approval once any changes. */
-function body(verdict: Verdict, head: string, pull: Pull, mergeBase: string): string {
+function body(verdict: Verdict, head: string, pull: Pull, mergeBase: string, reviewer: Reviewer): string {
 	const digest = (value: string) => createHash("sha256").update(value).digest("hex");
 	const state = `agent-review-state: base=${pull.base.ref} merge-base=${mergeBase} title=sha256:${digest(pull.title)} description=sha256:${digest(pull.body ?? "")}`;
-	const lines = [`${passes(verdict) ? "agent-review: approved" : "agent-review: changes requested"} ${head}`, state, "", `Reviewer: ${MODEL} (${THINKING}), a fresh session that saw the PR title, description and diff only.`, "", verdict.explanation.trim()];
+	const lines = [`${passes(verdict) ? "agent-review: approved" : "agent-review: changes requested"} ${head}`, state, "", `Reviewer: ${reviewer.model} (${reviewer.thinking}), verified from OMP's completed response in a fresh session that saw the PR title, description and diff only.`, "", verdict.explanation.trim()];
 	for (const finding of verdict.findings) lines.push("", `- **P${finding.priority}** ${finding.title}: ${finding.body.trim()}`);
 	return lines.join("\n").slice(0, 60_000);
 }
@@ -141,10 +254,11 @@ const readPull = async (repo: string, number: number, token: string): Promise<{ 
 	return { pull, diff, mergeBase: compared.merge_base_commit.sha };
 };
 
-export async function review(repo: string, number: number): Promise<{ posted: "APPROVED" | "CHANGES_REQUESTED"; head: string; rerun: boolean }> {
+export async function review(repo: string, number: number, authorModel = process.env.AGENT_REVIEW_AUTHOR_MODEL): Promise<{ posted: "APPROVED" | "CHANGES_REQUESTED"; head: string; rerun: boolean; reviewer: { model: string; thinking: string } }> {
 	const [org, name, extra] = repo.split("/");
 	if (!org || !name || extra !== undefined) throw new Error("--repo must be OWNER/NAME");
 	if (org !== ORG) throw new Error(`the reviewer App is installed on ${ORG} only; ${org} has no designated agent reviewer (ADR-003)`);
+	const reviewer = reviewerFor(authorModel);
 	const token = await installationToken(repo);
 	const { pull, diff, mergeBase } = await readPull(repo, number, token);
 	if (pull.state !== "open") throw new Error(`pull request ${number} is ${pull.state}`);
@@ -156,14 +270,14 @@ export async function review(repo: string, number: number): Promise<{ posted: "A
 	// The label the re-run needs must exist before any review is recorded, or a missing label would leave an approval
 	// that never reaches the gate. 422 means it already exists.
 	await api(`/repos/${repo}/labels`, token, { method: "POST", body: { name: RERUN_LABEL, color: "ededed", description: "agent-review recorded a review; re-runs foundation-review" }, tolerate: [422] });
-	const verdict = parseVerdict(await runModel(prompt({ title: pull.title, body: pull.body ?? "", base: pull.base.ref, head }, diff)));
+	const verdict = await runModel(prompt({ title: pull.title, body: pull.body ?? "", base: pull.base.ref, head }, diff), reviewer);
 	// The model takes minutes. A push, a retarget or a description edit during that time makes the verdict about
 	// something else, and GitHub keeps an approval on a head whatever its base or diff became.
 	const now = await readPull(repo, number, token);
 	if (now.pull.head.sha !== head) throw new Error(`the head moved from ${head.slice(0, 12)} to ${now.pull.head.sha.slice(0, 12)} during review; nothing was posted`);
 	if (now.pull.base.ref !== pull.base.ref || now.mergeBase !== mergeBase || now.pull.title !== pull.title || (now.pull.body ?? "") !== (pull.body ?? "") || now.diff !== diff) throw new Error("the base, description or diff changed during review; nothing was posted");
 	const event = passes(verdict) ? "APPROVE" : "REQUEST_CHANGES";
-	await api(`/repos/${repo}/pulls/${number}/reviews`, token, { method: "POST", body: { commit_id: head, event, body: body(verdict, head, pull, mergeBase) } });
+	await api(`/repos/${repo}/pulls/${number}/reviews`, token, { method: "POST", body: { commit_id: head, event, body: body(verdict, head, pull, mergeBase, reviewer) } });
 	// Review events cannot trigger pull_request_target, so a label round trip re-runs the base branch's gate. The review
 	// is already recorded, so a failure here is reported, not thrown: toggle the label by hand to re-run the gate.
 	let rerun = true;
@@ -174,7 +288,7 @@ export async function review(repo: string, number: number): Promise<{ posted: "A
 		rerun = false;
 		console.error(`agent-review: the review is recorded but the gate was not re-run (${(error as Error).message}); toggle the ${RERUN_LABEL} label`);
 	}
-	return { posted: event === "APPROVE" ? "APPROVED" : "CHANGES_REQUESTED", head, rerun };
+	return { posted: event === "APPROVE" ? "APPROVED" : "CHANGES_REQUESTED", head, rerun, reviewer: { model: reviewer.model, thinking: reviewer.thinking } };
 }
 
 if (import.meta.main) {
@@ -182,13 +296,14 @@ if (import.meta.main) {
 	const value = (flag: string) => { const at = args.indexOf(flag); return at >= 0 ? args[at + 1] : undefined; };
 	const repo = value("--repo");
 	const pr = Number(value("--pr"));
+	const authorModel = args.includes("--author-model") ? value("--author-model") ?? "" : process.env.AGENT_REVIEW_AUTHOR_MODEL;
 	if (args.includes("--help") || !repo || !Number.isInteger(pr) || pr < 1) {
-		console.error("usage: agent-review --repo misty-step/NAME --pr N   (needs KAYLEE_GITHUB_APP_ID and KAYLEE_GITHUB_APP_PEM; run under pass-env)");
+		console.error("usage: agent-review --repo misty-step/NAME --pr N --author-model provider/model   (or AGENT_REVIEW_AUTHOR_MODEL; needs KAYLEE_GITHUB_APP_ID and KAYLEE_GITHUB_APP_PEM; run under pass-env)");
 		process.exit(args.includes("--help") ? 0 : 2);
 	}
 	try {
-		const result = await review(repo, pr);
-		console.log(`${result.posted} ${repo}#${pr} at ${result.head.slice(0, 12)} as ${APP_LOGIN}`);
+		const result = await review(repo, pr, authorModel);
+		console.log(`${result.posted} ${repo}#${pr} at ${result.head.slice(0, 12)} as ${APP_LOGIN}; reviewer ${result.reviewer.model} (${result.reviewer.thinking})`);
 		// A recorded review whose gate re-run failed leaves the old check result standing: fail loudly, never look done.
 		process.exit(!result.rerun ? 4 : result.posted === "APPROVED" ? 0 : 1);
 	} catch (error) {

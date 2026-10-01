@@ -164,7 +164,20 @@ there the decision is a review or comment from `moomooskycow` whose first line i
 `foundation-review: approved <head sha>` (ADR-003, Designated reviewers). After that reviewer's
 `foundation-escalation: product-direction` review on the head, only its later
 approval recording the operator's decision and opening with
-`foundation-escalation: resolved` as its exact first line counts; approvals from the operator's shared account never do. Every PR, those included, also needs one independent approval on its head, and on misty-step only the `kaylee-agent[bot]` App's counts, carrying `agent-review`'s record (another person's approval does not, a bare App approval does not, and the App's latest change request stands). The reviewing agent gives it with `agent-review --repo misty-step/NAME --pr N`: a fresh model session reads the PR title, description and diff and, when it finds no priority 0 or 1 defect, the App approves the exact head (run it under `pass-env` with `KAYLEE_GITHUB_APP_ID` and `KAYLEE_GITHUB_APP_PEM`). CodeRabbit is advisory. Copy
+`foundation-escalation: resolved` as its exact first line counts; approvals from the operator's shared account never do. Every PR, those included, also needs one independent approval on its head, and on misty-step only the `kaylee-agent[bot]` App's counts, carrying `agent-review`'s record (another person's approval does not, a bare App approval does not, and the App's latest change request stands).
+
+Invoke `agent-review --repo misty-step/NAME --pr N --author-model provider/model`
+with the actual author's selector, or set `AGENT_REVIEW_AUTHOR_MODEL`. The
+dispatcher owns family-based selection; missing/unknown author evidence and
+same-family `AGENT_REVIEW_MODEL` overrides stop before GitHub mutation.
+`AGENT_REVIEW_THINKING` remains an explicit effort override.
+A disposable OMP overlay empties the selected model's bare and effort-specific
+recovery chains; native response identity and terminal completion are checked
+before posting. A provider failure retries that reviewer or stops, never
+approves through a fallback. The fresh process reads the PR title, description
+and diff; when it finds no priority 0 or 1 defect, the App approves the exact
+head (run under `pass-env` with `KAYLEE_GITHUB_APP_ID` and
+`KAYLEE_GITHUB_APP_PEM`). CodeRabbit is advisory. Copy
 [`skills/foundation/foundation-review.yml`](skills/foundation/foundation-review.yml)
 into a repository's workflows and pin the same harness revision as its
 `foundation` job. It runs on `pull_request_target`, so the base branch's copy of

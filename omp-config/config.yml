@@ -5,8 +5,8 @@ modelRoles:
   plan: openai-codex/gpt-6.1-sol:xhigh
   advisor: anthropic/claude-sonnet-5-5:medium
   task: anthropic/claude-sonnet-5-5:medium
-  reviewer: openai-codex/gpt-6.1-sol:xhigh
-  security-reviewer: openai-codex/gpt-6.1-sol:xhigh
+  reviewer: openai-codex/gpt-6.1-sol:medium
+  security-reviewer: openai-codex/gpt-6.1-sol:medium
   vision: anthropic/claude-opus-5-5:high
   smol: openai-codex/gpt-6-luna:max
   tiny: openai-codex/gpt-6-luna:max
@@ -126,18 +126,12 @@ retry:
     plan:
       - anthropic/claude-sonnet-5-5:medium
       - google-antigravity/gemini-3.8-flash:high
-    reviewer:
-      - anthropic/claude-sonnet-5-5:medium
-      - xai-oauth/grok-4.7:xhigh
-      - google-antigravity/gemini-3.8-flash:high
+    reviewer: []
     slow:
       - openai-codex/gpt-6.1-sol:xhigh
       - google-antigravity/gemini-3.8-flash:high
     extreme: []
-    security-reviewer:
-      - anthropic/claude-sonnet-5-5:medium
-      - xai-oauth/grok-4.7:xhigh
-      - google-antigravity/gemini-3.8-flash:high
+    security-reviewer: []
     vision: []
     smol:
       - anthropic/claude-sonnet-5-5:medium
