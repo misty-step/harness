@@ -1222,6 +1222,12 @@ existing QA; no controller SSH/GitHub credentials in the VM; no accepted affecte
 verification gaps; no upload credentials in CI; no VM-hosted evidence or Actions
 artifacts; no changes to account-wide exe.dev integrations.
 
-Evidence: `agent-config/skills/pr-preview/pr-preview.test.ts`;
-Habitat PR #641's revision-bound private preview, GitHub-native screenshots/video,
-and four-adapter walk.
+Evidence and ownership:
+- Shared controller boundary: `agent-config/skills/pr-preview/pr-preview.test.ts`.
+- C2: Habitat PR #641's revision-bound private preview, GitHub-native
+  screenshots/video, and four-adapter walk.
+- C6: isolated Pi/OMP installation and composition through `scripts/check shared`.
+- C1, C3–C5, and C7 event wiring: the separately reviewed application integration
+  in [Habitat PR #692](https://github.com/r90group/habitat/pull/692), not this
+  shared skill alone. The refreshed #641 loop must prove automatic deployment
+  and teardown before end-to-end acceptance.

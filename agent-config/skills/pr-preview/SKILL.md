@@ -111,3 +111,7 @@ reviewed host pins. Serialize `pr-preview-${repository}-${pr}` with
 facts; do not convert deployment failure to success. Merge/close removes only the
 owned VM. Verify disappearance and surviving native PR attachments before calling
 the first loop complete.
+
+Failed deployment attempts retain the tagged VM for private SSH diagnosis until
+retry replaces it or merge/close removes it. This also covers provisioning
+failures before the application starts; the PR's deployment remains failed.
