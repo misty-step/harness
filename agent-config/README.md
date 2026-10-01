@@ -168,6 +168,8 @@ exact first line; approvals from the operator's shared account never do on
 misty-step. A bare App approval is not a model-review record. The App's latest
 binding change request or dismissal on the head stands: a metadata comment
 cannot clear it or revive an older approval.
+Metadata-only review cannot clear a binding rejection on the same head; fix the
+candidate and move the head, not just its description.
 
 The reviewing agent runs `agent-review --repo misty-step/NAME --pr N` under
 `pass-env` with `KAYLEE_GITHUB_APP_ID` and `KAYLEE_GITHUB_APP_PEM`. The default
@@ -187,7 +189,14 @@ inspection reaches the text reviewer; an inspection over 20,000 characters
 refuses the review rather than discarding evidence. The posted body names only
 images actually inspected, with native model identity verified.
 
-If every changed path is an opaque binary or gitlink pointer, the model judges
+Opaque asset classification additionally requires mode `100644`, a matching
+format suffix and signature: WOFF/WOFF2, TTF/OTF/TTC, WebAssembly, ZIP, gzip,
+7z and RAR. Headers are recognized, not payloads security-audited. Source/config
+made Git-binary by an embedded NUL, unknown formats and executable artifacts
+are refused, never granted a metadata-only waiver. Signature reads share the
+64 MB Git output bound.
+
+If every changed path is a recognized inert opaque asset or gitlink pointer, the model judges
 the PR description and immutable pointer/blob metadata. A clean verdict posts
 `COMMENT` with `agent-review-scope: metadata-only`, never an opaque content
 approval; a defect posts `REQUEST_CHANGES`. `foundation-check review` requires

@@ -1330,7 +1330,7 @@ describe("foundation-check review gate (US-027)", () => {
 		expect((await gate(repo)).output.errors.join("\n")).toContain("FND-REV-001");
 		// Opaque-only content requires a clean immutable metadata review, never an unreviewed exemption.
 		exec(repo, ["reset", "-q", "--hard", base]);
-		writeFileSync(join(repo, "font.woff"), Buffer.from([0, 1, 0, 0, 0, 9, 0]));
+		writeFileSync(join(repo, "font.woff"), Buffer.from("774f46460001000000000000", "hex"));
 		const opaque = at("font");
 		reviews = [];
 		expect((await gate(repo)).status).toBe(1);
@@ -1395,11 +1395,11 @@ describe("foundation-check review gate (US-027)", () => {
 		expect((await gate(repo)).status).toBe(0);
 	});
 
-	test("rename-only images need content review; opaque renames and mode changes need metadata review", async () => {
+	test("rename-only images need content review; inert opaque renames need metadata, executable assets cannot bypass it", async () => {
 		const repo = fixture("gate-metadata-only");
 		writeFileSync(join(repo, "asset.dat"), Buffer.from([0, 1, 0, 2]));
 		commit(repo, "binary in base");
-		const base = exec(repo, ["rev-parse", "HEAD"]);
+		let base = exec(repo, ["rev-parse", "HEAD"]);
 		exec(repo, ["mv", "asset.dat", "café\tlogo.png"]);
 		commit(repo, "rename to image");
 		const image = exec(repo, ["rev-parse", "HEAD"]);
@@ -1411,6 +1411,9 @@ describe("foundation-check review gate (US-027)", () => {
 		expect((await gate(repo)).status).toBe(0);
 
 		exec(repo, ["checkout", "-q", "-b", "opaque-rename", base]);
+		writeFileSync(join(repo, "asset.dat"), Buffer.from("774f46460001000000000000", "hex"));
+		commit(repo, "opaque font in base");
+		base = exec(repo, ["rev-parse", "HEAD"]);
 		exec(repo, ["mv", "asset.dat", "font.woff"]);
 		commit(repo, "rename opaque");
 		const opaque = exec(repo, ["rev-parse", "HEAD"]);
@@ -1428,8 +1431,25 @@ describe("foundation-check review gate (US-027)", () => {
 		expect((await gate(repo)).status).toBe(1);
 		reviews = [metadataRecord(repo, modeOnly)];
 		const result = await gate(repo);
-		expect(result.status).toBe(0);
-		expect(result.output.advisory?.join("\n")).toContain("opaque content was not inspected");
+		expect(result.status).toBe(1);
+		reviews = [recorded(agent, modeOnly)];
+		expect((await gate(repo)).status).toBe(1); // even a content approval cannot bless an unsupported executable artifact
+	});
+
+	test("NUL-bearing source or forged binary asset headers never qualify for metadata-only review", async () => {
+		const repo = fixture("gate-nul-source");
+		const base = exec(repo, ["rev-parse", "HEAD"]);
+		for (const path of ["run.sh", "config.toml", "unknown.bin", "font.woff"]) {
+			exec(repo, ["reset", "-q", "--hard", base]);
+			writeFileSync(join(repo, path), Buffer.from("wOFF\necho malicious\n# \0\n"));
+			commit(repo, "NUL-bearing source");
+			const head = exec(repo, ["rev-parse", "HEAD"]);
+			opened(base, head);
+			reviews = [metadataRecord(repo, head)];
+			expect((await gate(repo)).status).toBe(1);
+			reviews = [recorded(agent, head)];
+			expect((await gate(repo)).status).toBe(1);
+		}
 	});
 
 	test("citation covers each mapped source story even when the review checkout stays at the base", async () => {

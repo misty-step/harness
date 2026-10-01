@@ -106,6 +106,22 @@ const MAX_INSPECTION_CHARS = 20_000;
 type Change = { path: string; oldPath: string; oldMode: string; mode: string; oldOid: string; oid: string };
 const IMAGE_PATH = /\.(png|jpe?g|gif|webp)$/i;
 const blobMode = (mode: string) => mode === "100644" || mode === "100755";
+// Opaque assets need a known container signature and an inert file mode. Git's NUL-byte heuristic alone
+// is author-controlled: executable text/config must never acquire a metadata-only review by adding a NUL.
+const opaquePrefixes: Record<string, readonly Buffer[]> = {
+	woff: [Buffer.from("774f464600010000", "hex"), Buffer.from("wOFFOTTO")],
+	woff2: [Buffer.from("774f463200010000", "hex"), Buffer.from("wOF2OTTO")],
+	ttf: [Buffer.from("00010000", "hex")], otf: [Buffer.from("OTTO")], ttc: [Buffer.from("ttcf")],
+	wasm: [Buffer.from("0061736d01000000", "hex")],
+	zip: [Buffer.from("504b0304", "hex")], gz: [Buffer.from("1f8b08", "hex")],
+	"7z": [Buffer.from("377abcaf271c", "hex")], rar: [Buffer.from("526172211a07", "hex")],
+};
+function opaqueArtifact(repo: string, path: string, mode: string, oid: string, env: NodeJS.ProcessEnv): boolean {
+	const prefixes = opaquePrefixes[path.slice(path.lastIndexOf(".") + 1).toLowerCase()];
+	if (mode !== "100644" || !prefixes) return false;
+	const bytes = git(repo, env, "cat-file", "blob", oid);
+	return prefixes.some((prefix) => bytes.length >= prefix.length && bytes.compare(prefix, 0, prefix.length, 0, prefix.length) === 0);
+}
 type Parts = { text: string[]; images: { path: string; removed: boolean; oid: string }[]; other: Change[] };
 
 /** Standalone launchers cannot import each other. Keep this Git metadata contract in step with foundation-check:
@@ -169,7 +185,10 @@ function classifyChanges(repo: string, mergeBase: string, head: string, env: Nod
 		const deleted = change.mode === "000000";
 		if (change.mode === "160000") parts.other.push(change);
 		else if (blobMode(deleted ? change.oldMode : change.mode) && IMAGE_PATH.test(change.path)) parts.images.push({ path: change.path, removed: deleted, oid: change.oid });
-		else if ((deleted ? removed.get(change.oldPath) : atHead.get(change.path)) === true) parts.other.push(change);
+		else if ((deleted ? removed.get(change.oldPath) : atHead.get(change.path)) === true) {
+			if (!opaqueArtifact(repo, deleted ? change.oldPath : change.path, deleted ? change.oldMode : change.mode, deleted ? change.oldOid : change.oid, env)) throw new Error(`Git-binary content at ${JSON.stringify(change.path)} is not a recognized inert opaque artifact; provide reviewable source rather than a metadata-only bypass`);
+			parts.other.push(change);
+		}
 		else parts.text.push(change.path);
 	}
 	return parts;
@@ -229,7 +248,11 @@ async function runModel(text: string, options: { model: string; thinking: string
 			"--mode", "json", "--print", "--no-session", "--model", model, "--thinking", options.thinking,
 			"--config", overlay, "--no-tools", "--no-extensions", "--no-skills", "--no-rules", "--no-lsp", "--no-title",
 		];
-		if (options.attach) args.push(`@${options.attach}`, text);
+		if (options.attach) {
+			const promptFile = join(dir, "prompt.md");
+			writeFileSync(promptFile, text, { mode: 0o600 });
+			args.push(`@${promptFile}`, `@${options.attach}`);
+		}
 		const { promise, resolve, reject } = Promise.withResolvers<string>();
 		const child = spawn(OMP, args, { stdio: ["pipe", "pipe", "pipe"] });
 		let out = "";
@@ -242,6 +265,8 @@ async function runModel(text: string, options: { model: string; thinking: string
 		process.once("SIGINT", interrupt);
 		process.once("SIGTERM", terminate);
 		const timer = setTimeout(() => { timedOut = true; child.kill("SIGKILL"); }, MODEL_TIMEOUT_MS);
+		child.stdout.setEncoding("utf8");
+		child.stderr.setEncoding("utf8");
 		child.stdout.on("data", (chunk) => { out += chunk; });
 		child.stderr.on("data", (chunk) => { err += chunk; });
 		child.stdin.on("error", (error) => { inputError = error; child.kill("SIGKILL"); });
@@ -345,6 +370,10 @@ export async function review(repo: string, number: number): Promise<{ posted: "A
 	if (pull.user.login === APP_LOGIN) throw new Error(`${APP_LOGIN} authored this PR and cannot review it`);
 	const head = pull.head.sha;
 	const scratch = mkdtempSync(join(process.env.TMPDIR ?? tmpdir(), "agent-review-git-"));
+	let interrupted = false;
+	const cancel = () => { interrupted = true; rmSync(scratch, { recursive: true, force: true }); };
+	process.once("SIGINT", cancel);
+	process.once("SIGTERM", cancel);
 	// Credentials stay out of argv and the temporary repository's config. The header is scoped to GitHub, not
 	// arbitrary clone URLs; file:// fixture repositories need no credential. No checkout runs author-controlled hooks.
 	const env = {
@@ -357,15 +386,18 @@ export async function review(repo: string, number: number): Promise<{ posted: "A
 		const diff = git(scratch, env, "diff", "--find-renames", "--no-ext-diff", "--no-textconv", mergeBase, head).toString("utf8");
 		if (Buffer.byteLength(diff) > MAX_DIFF_BYTES) throw new Error(`the diff is ${Buffer.byteLength(diff)} bytes, over the ${MAX_DIFF_BYTES} limit; split the change (a partial diff is not a review)`);
 		const parts = classifyChanges(scratch, mergeBase, head, env);
+		if (interrupted) throw new Error("the review was interrupted; nothing was posted");
 		const metadataOnly = parts.other.length > 0;
 		if (metadataOnly && (parts.text.length > 0 || parts.images.length > 0)) throw new Refusal(3, `the diff mixes reviewable changes with content no review surface can inspect (${parts.other.map((change) => change.path).join(", ")}); split the PR so the reviewable part can be reviewed`);
 		const images = await inspectImages(scratch, env, parts.images.filter((image) => !image.removed), pull);
 		// A missing label must not leave a review that can never reach the gate. 422 means it already exists.
 		await api(`/repos/${repo}/labels`, token, { method: "POST", body: { name: RERUN_LABEL, color: "ededed", description: "agent-review recorded a review; re-runs foundation-review" }, tolerate: [422] });
+		if (interrupted) throw new Error("the review was interrupted; nothing was posted");
 		const verdict = parseVerdict(await runModel(prompt({ title: pull.title, body: pull.body ?? "", base: pull.base.ref, head }, diff, images, parts.other), { model: MODEL, thinking: THINKING }));
 		const now = await readPull(repo, number, token);
 		if (now.pull.head.sha !== head) throw new Error(`the head moved from ${head.slice(0, 12)} to ${now.pull.head.sha.slice(0, 12)} during review; nothing was posted`);
 		if (now.pull.base.ref !== pull.base.ref || now.mergeBase !== mergeBase || now.pull.title !== pull.title || (now.pull.body ?? "") !== (pull.body ?? "")) throw new Error("the base, description or diff changed during review; nothing was posted");
+		if (interrupted) throw new Error("the review was interrupted; nothing was posted");
 		const event = passes(verdict) ? (metadataOnly ? "COMMENT" : "APPROVE") : "REQUEST_CHANGES";
 		await api(`/repos/${repo}/pulls/${number}/reviews`, token, { method: "POST", body: { commit_id: head, event, body: body(verdict, head, pull, mergeBase, images.map((image) => image.path), metadataOnly) } });
 		// Reviews cannot trigger pull_request_target. A failed label round trip is reported because the old check stands.
@@ -379,6 +411,8 @@ export async function review(repo: string, number: number): Promise<{ posted: "A
 		}
 		return { posted: event === "APPROVE" ? "APPROVED" : event === "COMMENT" ? "COMMENTED" : "CHANGES_REQUESTED", head, rerun };
 	} finally {
+		process.off("SIGINT", cancel);
+		process.off("SIGTERM", cancel);
 		rmSync(scratch, { recursive: true, force: true });
 	}
 }

@@ -1448,16 +1448,32 @@ const reviewer = (entry: Record<string, unknown>): string => (record(entry.user)
 /** Standalone launchers cannot import each other. Keep the immutable raw/root-numstat metadata contract in step
  *  with agent-review: quoted/tab paths, renames and mode-only changes must classify the actual head entry. */
 const inspectableImage = /\.(png|jpe?g|gif|webp)$/i;
-function uninspectableOnly(repo: string, mergeBase: string, head: string): string[] {
+// Keep these inert-format signatures in step with agent-review. A NUL in source/config is not an opaque waiver.
+const opaquePrefixes: Record<string, readonly Buffer[]> = {
+	woff: [Buffer.from("774f464600010000", "hex"), Buffer.from("wOFFOTTO")],
+	woff2: [Buffer.from("774f463200010000", "hex"), Buffer.from("wOF2OTTO")],
+	ttf: [Buffer.from("00010000", "hex")], otf: [Buffer.from("OTTO")], ttc: [Buffer.from("ttcf")],
+	wasm: [Buffer.from("0061736d01000000", "hex")],
+	zip: [Buffer.from("504b0304", "hex")], gz: [Buffer.from("1f8b08", "hex")],
+	"7z": [Buffer.from("377abcaf271c", "hex")], rar: [Buffer.from("526172211a07", "hex")],
+};
+function opaqueArtifact(repo: string, path: string, mode: string, oid: string): boolean {
+	const prefixes = opaquePrefixes[path.slice(path.lastIndexOf(".") + 1).toLowerCase()];
+	if (mode !== "100644" || !prefixes) return false;
+	const result = spawnSync("git", ["cat-file", "blob", oid], { cwd: repo, maxBuffer: 64 * 1024 * 1024 });
+	if (result.error || result.status !== 0) throw new Error(`git cat-file: ${result.error?.message ?? result.stderr.toString().trim()}`);
+	return prefixes.some((prefix) => result.stdout.length >= prefix.length && result.stdout.compare(prefix, 0, prefix.length, 0, prefix.length) === 0);
+}
+function uninspectableOnly(repo: string, mergeBase: string, head: string): { paths: string[]; unsupported: string[]; mixed: boolean } {
 	const raw = git(repo, "diff", "--raw", "-z", "--no-abbrev", "--find-renames", "--no-ext-diff", "--no-textconv", mergeBase, head).split("\0");
-	const changed: { path: string; oldPath: string; mode: string; oldMode: string }[] = [];
+	const changed: { path: string; oldPath: string; mode: string; oldMode: string; oid: string; oldOid: string }[] = [];
 	for (let index = 0; index < raw.length - 1;) {
 		const fields = /^:(\d{6}) (\d{6}) ([0-9a-f]{40}) ([0-9a-f]{40}) ([A-Z]\d*)$/.exec(raw[index++]);
 		if (!fields || !raw[index]) throw new Error("git diff --raw returned incomplete metadata");
 		const oldPath = raw[index++];
 		const path = /^[RC]/.test(fields[5]) ? raw[index++] : oldPath;
 		if (!path) throw new Error("git diff --raw returned an incomplete rename");
-		changed.push({ path, oldPath, oldMode: fields[1], mode: fields[2] });
+		changed.push({ path, oldPath, oldMode: fields[1], mode: fields[2], oldOid: fields[3], oid: fields[4] });
 	}
 	const blobMode = (mode: string) => mode === "100644" || mode === "100755";
 	const binaryAt = (revision: string, paths: string[]): Map<string, boolean> => {
@@ -1492,8 +1508,16 @@ function uninspectableOnly(repo: string, mergeBase: string, head: string): strin
 	};
 	const atHead = binaryAt(head, changed.filter((change) => blobMode(change.mode) && !inspectableImage.test(change.path)).map((change) => change.path));
 	const removed = binaryAt(mergeBase, changed.filter((change) => change.mode === "000000" && blobMode(change.oldMode) && !inspectableImage.test(change.oldPath)).map((change) => change.oldPath));
-	const blind = changed.filter((change) => change.mode === "160000" || (change.mode === "000000" ? removed.get(change.oldPath) : atHead.get(change.path)) === true).map((change) => change.path);
-	return changed.length > 0 && blind.length === changed.length ? blind : [];
+	const blind: string[] = [];
+	const unsupported: string[] = [];
+	for (const change of changed) {
+		if (change.mode === "160000") blind.push(change.path);
+		else if ((change.mode === "000000" ? removed.get(change.oldPath) : atHead.get(change.path)) === true) {
+			const deleted = change.mode === "000000";
+			(opaqueArtifact(repo, deleted ? change.oldPath : change.path, deleted ? change.oldMode : change.mode, deleted ? change.oldOid : change.oid) ? blind : unsupported).push(change.path);
+		}
+	}
+	return { paths: changed.length > 0 && blind.length === changed.length ? blind : [], unsupported, mixed: blind.length > 0 && blind.length !== changed.length };
 }
 async function review(options: Options): Promise<Result> {
 	const [org, name, extra] = (options.githubRepo ?? process.env.GITHUB_REPOSITORY ?? "").split("/");
@@ -1597,7 +1621,10 @@ async function review(options: Options): Promise<Result> {
 	const stale = judged !== null && (judged[1] !== currentBase || judged[2] !== mergeBase || judged[3] !== digest(pull.title) || judged[4] !== digest(pull.body));
 	const overruled = modelReview !== undefined && decision !== undefined && decision.index > modelReview.index && decision.entry.state !== "APPROVED";
 	const advisory: string[] = [];
-	const uninspectable = uninspectableOnly(options.repo, mergeBase, head);
+	const classified = uninspectableOnly(options.repo, mergeBase, head);
+	if (classified.unsupported.length > 0) errors.push(`FND-REV-001: Git-binary content is not a recognized inert opaque artifact (${classified.unsupported.join(", ")}); provide reviewable source, not a metadata-only bypass`);
+	if (classified.mixed) errors.push("FND-REV-001: mixed opaque/reviewable changes must be split");
+	const uninspectable = classified.paths;
 	if (uninspectable.length > 0) {
 		// Only the immutable pointer/blob metadata can be judged. A clean recorded comment makes that review advisory
 		// about content, not optional about defects. It never claims byte inspection or supplies a designated approval.

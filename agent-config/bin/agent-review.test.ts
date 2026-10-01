@@ -35,7 +35,7 @@ function candidate(files: Record<string, string | Buffer>): string {
 const omp = join(dir, "omp");
 writeFileSync(omp, `#!/usr/bin/env bun
 const args = process.argv.slice(2);
-const attachment = args.find((arg) => arg.startsWith("@"));
+const attachment = args.find((arg) => arg.startsWith("@") && !arg.endsWith(".md"));
 if (attachment) {
 	await Bun.write(${JSON.stringify(join(dir, "attached.bin"))}, await Bun.file(attachment.slice(1)).arrayBuffer());
 	process.stdout.write(await Bun.file(${JSON.stringify(join(dir, "vision.txt"))}).text());
@@ -183,6 +183,8 @@ describe("agent-review immutable Git metadata", () => {
 		expect(readFileSync(join(dir, "attached.bin"))).toEqual(bytes);
 		calls = [];
 		git("reset", "--hard", pull.base.sha);
+		put("asset.dat", Buffer.from("774f46460001000000000000", "hex"));
+		pull.base.sha = commit("opaque font in base");
 		renameSync(join(repository, "asset.dat"), join(repository, "font.woff"));
 		pull.head.sha = commit("rename opaque");
 		expect((await run()).status).toBe(0);
@@ -194,6 +196,15 @@ describe("agent-review immutable Git metadata", () => {
 		expect(mixed.status).toBe(3);
 		expect(mixed.stderr).toContain("split the PR");
 		expect(posted("/reviews")).toHaveLength(0);
+	});
+
+	test("NUL-bearing source and forged opaque headers cannot get metadata-only approval", async () => {
+		for (const path of ["run.sh", "config.toml", "unknown.bin", "font.woff"]) {
+			calls = [];
+			candidate({ [path]: Buffer.from("wOFF\necho malicious\n# \0\n") });
+			expect((await run()).status).toBe(3);
+			expect(posted("/reviews")).toHaveLength(0);
+		}
 	});
 
 	test("ordinary Subproject commit text and a gitlink-to-text transition are reviewable", async () => {
@@ -443,7 +454,7 @@ describe("agent-review posting", () => {
 		expect(posted("/reviews")[0].body).toMatchObject({ event: "REQUEST_CHANGES" });
 		calls = [];
 		answer(clean);
-		candidate({ "font.woff": Buffer.from([0, 1, 0, 2]), "README.md": "hello\n" });
+		candidate({ "font.woff": Buffer.from("774f46460001000000000000", "hex"), "README.md": "hello\n" });
 		const mixed = await run();
 		expect(mixed.status).toBe(3);
 		expect(mixed.stderr).toContain("split the PR");

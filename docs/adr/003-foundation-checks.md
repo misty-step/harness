@@ -206,6 +206,12 @@ effect with the catalog and checker change that cites ADR-006.
   replacing a gitlink. Ordinary text beginning `Subproject commit` is not a pointer.
   The two standalone launchers retain this same contract independently because
   the installer does not allow launcher-to-launcher imports.
+  Git's author-controlled NUL-byte heuristic is not enough for opaque status:
+  recognized assets additionally require mode `100644`, a matching suffix and
+  header signature (WOFF/WOFF2, TTF/OTF/TTC, wasm, ZIP/gzip/7z/RAR). Headers are
+  recognized within the 64 MB Git output bound; payloads are not security-audited.
+  NUL-bearing source/config, unknown formats and executable artifacts refuse
+  rather than obtain metadata-only review. This does not add a human approval.
 
   PNG, JPEG, GIF and WebP head blobs (at most six of at most 5 MB) are read by the
   vision role (Opus, `anthropic/claude-opus-5-5` high) in a separate no-tools
@@ -227,6 +233,9 @@ effect with the catalog and checker change that cites ADR-006.
   defects. A metadata-only comment cannot approve inspectable text/images or
   supply a delegated approval. Mixed opaque/reviewable changes still
   refuse with exit 3 and must be split.
+  A clean metadata comment intentionally cannot clear a binding request or
+  dismissal on the same head. Recovery requires a corrected candidate/new
+  head, not a description-only edit; no second approval producer is introduced.
 
 ## Enforcement by plan
 
@@ -273,6 +282,10 @@ requires a new exact-head independent review and real Scry proofs; this amendmen
 does not retroactively clear those findings.
 
 ### Settings census and cutover (2026-10-01)
+
+Evidence: [aggregate API census and mutation/restoration results](https://github.com/misty-step/harness/pull/187#issuecomment-5927448467).
+The private repository-name inventory stays with the ticket owner's retained
+raw API artifacts, not this public decision record.
 
 The ticket owner's recorded census covered **349 repositories**: misty-step 128,
 r90group 54 and moomooskycow 167; 116 were unarchived. Before the cutover there
