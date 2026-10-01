@@ -1445,6 +1445,81 @@ async function github(path: string, token: string): Promise<unknown> {
 	return response.json();
 }
 const reviewer = (entry: Record<string, unknown>): string => (record(entry.user) && typeof entry.user.login === "string" ? entry.user.login : "");
+/** Standalone launchers cannot import each other. Keep the immutable raw/root-numstat metadata contract in step
+ *  with agent-review: quoted/tab paths, renames and mode-only changes must classify the actual head entry. */
+const inspectableImage = /\.(png|jpe?g|gif|webp)$/i;
+// Keep these inert-format signatures in step with agent-review. A NUL in source/config is not an opaque waiver.
+const opaquePrefixes: Record<string, readonly Buffer[]> = {
+	woff: [Buffer.from("774f464600010000", "hex"), Buffer.from("wOFFOTTO")],
+	woff2: [Buffer.from("774f463200010000", "hex"), Buffer.from("wOF2OTTO")],
+	ttf: [Buffer.from("00010000", "hex")], otf: [Buffer.from("OTTO")], ttc: [Buffer.from("ttcf")],
+	wasm: [Buffer.from("0061736d01000000", "hex")],
+	zip: [Buffer.from("504b0304", "hex")], gz: [Buffer.from("1f8b08", "hex")],
+	"7z": [Buffer.from("377abcaf271c", "hex")], rar: [Buffer.from("526172211a07", "hex")],
+};
+function opaqueArtifact(repo: string, path: string, mode: string, oid: string): boolean {
+	const suffix = path.slice(path.lastIndexOf(".") + 1).toLowerCase();
+	if (mode !== "100644" || !Object.hasOwn(opaquePrefixes, suffix)) return false;
+	const prefixes = opaquePrefixes[suffix];
+	const result = spawnSync("git", ["cat-file", "blob", oid], { cwd: repo, maxBuffer: 64 * 1024 * 1024 });
+	if (result.error || result.status !== 0) throw new Error(`git cat-file: ${result.error?.message ?? result.stderr.toString().trim()}`);
+	return prefixes.some((prefix) => result.stdout.length >= prefix.length && result.stdout.compare(prefix, 0, prefix.length, 0, prefix.length) === 0);
+}
+function uninspectableOnly(repo: string, mergeBase: string, head: string): { paths: string[]; unsupported: string[]; mixed: boolean } {
+	const raw = git(repo, "diff", "--raw", "-z", "--no-abbrev", "--find-renames", "--no-ext-diff", "--no-textconv", mergeBase, head).split("\0");
+	const changed: { path: string; oldPath: string; mode: string; oldMode: string; oid: string; oldOid: string }[] = [];
+	for (let index = 0; index < raw.length - 1;) {
+		const fields = /^:(\d{6}) (\d{6}) ([0-9a-f]{40}) ([0-9a-f]{40}) ([A-Z]\d*)$/.exec(raw[index++]);
+		if (!fields || !raw[index]) throw new Error("git diff --raw returned incomplete metadata");
+		const oldPath = raw[index++];
+		const path = /^[RC]/.test(fields[5]) ? raw[index++] : oldPath;
+		if (!path) throw new Error("git diff --raw returned an incomplete rename");
+		changed.push({ path, oldPath, oldMode: fields[1], mode: fields[2], oldOid: fields[3], oid: fields[4] });
+	}
+	const blobMode = (mode: string) => mode === "100644" || mode === "100755";
+	const binaryAt = (revision: string, paths: string[]): Map<string, boolean> => {
+		if (paths.length === 0) return new Map();
+		const emptyTree = git(repo, "hash-object", "-w", "-t", "tree", "/dev/null").trim();
+		const binary = new Map<string, boolean>();
+		for (let start = 0; start < paths.length;) {
+			let end = start;
+			let bytes = 0;
+			while (end < paths.length) {
+				const size = Buffer.byteLength(paths[end]) + 1;
+				if (size > 32_768) throw new Error("a Git path exceeds the metadata argument limit");
+				if (bytes + size > 32_768) break;
+				bytes += size;
+				end++;
+			}
+			const stats = git(repo, "--literal-pathspecs", `--attr-source=${emptyTree}`, "-c", "core.attributesFile=/dev/null", "diff", "--numstat", "-z", "--no-renames", "--no-ext-diff", "--no-textconv", emptyTree, revision, "--", ...paths.slice(start, end)).split("\0").filter(Boolean);
+			for (const line of stats) {
+				const first = line.indexOf("\t");
+				const second = line.indexOf("\t", first + 1);
+				if (first < 1 || second < 0) throw new Error("git diff --numstat returned incomplete metadata");
+				const added = line.slice(0, first);
+				const deleted = line.slice(first + 1, second);
+				const path = line.slice(second + 1);
+				if (!path || !/^(\d+|-)$/.test(added) || !/^(\d+|-)$/.test(deleted) || (added === "-") !== (deleted === "-")) throw new Error("git diff --numstat returned invalid metadata");
+				binary.set(path, added === "-");
+			}
+			start = end;
+		}
+		for (const path of paths) if (!binary.has(path)) throw new Error(`git diff --numstat omitted ${JSON.stringify(path)}`);
+		return binary;
+	};
+	const atHead = binaryAt(head, changed.filter((change) => blobMode(change.mode) && !inspectableImage.test(change.path)).map((change) => change.path));
+	const removed = binaryAt(mergeBase, changed.filter((change) => change.mode === "000000" && blobMode(change.oldMode) && !inspectableImage.test(change.oldPath)).map((change) => change.oldPath));
+	const blind: string[] = [];
+	const unsupported: string[] = [];
+	for (const change of changed) {
+		if (change.mode === "160000") blind.push(change.path);
+		else if ((change.mode === "000000" ? removed.get(change.oldPath) : atHead.get(change.path)) === true) {
+			const deleted = change.mode === "000000";
+			(opaqueArtifact(repo, deleted ? change.oldPath : change.path, deleted ? change.oldMode : change.mode, deleted ? change.oldOid : change.oid) ? blind : unsupported).push(change.path);
+		}
+	}
+	return { paths: changed.length > 0 && blind.length === changed.length ? blind : [], unsupported, mixed: blind.length > 0 && blind.length !== changed.length };
+}
 async function review(options: Options): Promise<Result> {
 	const [org, name, extra] = (options.githubRepo ?? process.env.GITHUB_REPOSITORY ?? "").split("/");
 	if (!org || !name || extra !== undefined) throw new Error("review needs --github-repo OWNER/NAME or GITHUB_REPOSITORY");
@@ -1517,40 +1592,54 @@ async function review(options: Options): Promise<Result> {
 	reviews.forEach((entry, index) => {
 		if (own(entry) && entry.commit_id === head && (entry.state === "COMMENTED" || entry.state === "CHANGES_REQUESTED") && says(entry, escalationMarker)) escalation = index;
 	});
-	// Reviews arrive in submission order. As on GitHub, each reviewer's latest approval, change request or
-	// dismissal stands; comments do not change it.
+	// Every PR needs the App's exact-head model record. Its approval also supplies the delegated agent decision
+	// when a trigger fires; a redundant second App approval is not another model review or a human gate.
+	const recordOf = (entry: Record<string, unknown>) => (typeof entry.body === "string" ? entry.body.match(/^agent-review-state: base=(\S+) merge-base=([0-9a-f]{40}) title=sha256:([0-9a-f]{64}) description=sha256:([0-9a-f]{64})$/m) : null);
+	const metadataOnly = (entry: Record<string, unknown>) => typeof entry.body === "string" && /^agent-review-scope: metadata-only$/m.test(entry.body);
+	const cleanMetadata = (entry: Record<string, unknown>) => entry.state === "COMMENTED" && metadataOnly(entry) && firstLine(entry) === `agent-review: metadata reviewed ${head}`;
+	// The latest binding decision on this head stands. Comments, including metadata reviews, cannot clear an
+	// explicit change request or dismissal; only a later approval can.
 	let decision: { entry: Record<string, unknown>; index: number } | undefined;
 	reviews.forEach((entry, index) => {
-		if (own(entry) && (entry.state === "APPROVED" || entry.state === "CHANGES_REQUESTED" || entry.state === "DISMISSED")) decision = { entry, index };
+		if (own(entry) && entry.commit_id === head && (entry.state === "APPROVED" || entry.state === "CHANGES_REQUESTED" || entry.state === "DISMISSED")) decision = { entry, index };
 	});
 	const approved = decision?.entry.state === "APPROVED" && decision.entry.commit_id === head;
 	if (reasons.length > 0 && escalation >= 0 && !(approved && decision!.index > escalation && states(decision!.entry, resolutionMarker))) {
 		errors.push(`escalated to the operator on head ${head.slice(0, 12)}; needs a later approving review from ${agent} that records the operator's decision and opens with "${resolutionMarker}" as its exact first line`);
 	} else if (reasons.length > 0 && !approved) errors.push(`needs an approving review from the designated agent reviewer ${agent} on head ${head.slice(0, 12)}`);
-	// FND-REV-001, for every PR: the independent review is a model review, which `agent-review` records as the App's
-	// review of this head carrying the base, merge base, title and description its model judged. A designated-review
-	// approval (above) is the App's decision on a trigger and never stands in for it. GitHub keeps an approval on a head
-	// after a retarget, an edit or a moved base, so a record naming a different one no longer stands (the diff is the head
-	// against the merge base, so head plus merge base cover it). Anyone else's approval does not count, and the App's
-	// later change request overrules the record, so a second approver cannot outvote the model review. GitHub
-	// authenticates the reviewer and head, not the judgement.
-	const recordOf = (entry: Record<string, unknown>) => (typeof entry.body === "string" ? entry.body.match(/^agent-review-state: base=(\S+) merge-base=([0-9a-f]{40}) title=sha256:([0-9a-f]{64}) description=sha256:([0-9a-f]{64})$/m) : null);
+	// GitHub keeps an approval on a head after a retarget, an edit or a moved base, so a record naming a different one
+	// no longer stands (the diff is the head against the merge base, so head plus merge base cover it). Anyone else's
+	// approval does not count, and the App's later change request overrules the record, so a second approver cannot
+	// outvote the model review. GitHub authenticates the reviewer and head, not the judgement.
 	let modelReview: { entry: Record<string, unknown>; index: number } | undefined;
 	reviews.forEach((entry, index) => {
-		if (own(entry) && entry.commit_id === head && (entry.state === "APPROVED" || entry.state === "CHANGES_REQUESTED") && recordOf(entry)) modelReview = { entry, index };
+		if (own(entry) && entry.commit_id === head && recordOf(entry) && (entry.state === "APPROVED" || entry.state === "CHANGES_REQUESTED" || entry.state === "DISMISSED" || cleanMetadata(entry))) modelReview = { entry, index };
 	});
 	const judged = modelReview ? recordOf(modelReview.entry) : null;
 	const currentBase = record(pull) && record(pull.base) && typeof pull.base.ref === "string" ? pull.base.ref : "";
 	const digest = (value: unknown) => createHash("sha256").update(typeof value === "string" ? value : "").digest("hex");
-	const mergeBase = spawnSync("git", ["merge-base", base, head], { cwd: options.repo, encoding: "utf8" }).stdout.trim();
+	const mergeBase = git(options.repo, "merge-base", base, head).trim();
 	const stale = judged !== null && (judged[1] !== currentBase || judged[2] !== mergeBase || judged[3] !== digest(pull.title) || judged[4] !== digest(pull.body));
 	const overruled = modelReview !== undefined && decision !== undefined && decision.index > modelReview.index && decision.entry.state !== "APPROVED";
-	if (modelReview?.entry.state !== "APPROVED" || stale || overruled) {
+	const advisory: string[] = [];
+	const classified = uninspectableOnly(options.repo, mergeBase, head);
+	if (classified.unsupported.length > 0) errors.push(`FND-REV-001: Git-binary content is not a recognized inert opaque artifact (${classified.unsupported.join(", ")}); provide reviewable source, not a metadata-only bypass`);
+	if (classified.mixed) errors.push("FND-REV-001: mixed opaque/reviewable changes must be split");
+	const uninspectable = classified.paths;
+	if (uninspectable.length > 0) {
+		// Only the immutable pointer/blob metadata can be judged. A clean recorded comment makes that review advisory
+		// about content, not optional about defects. It never claims byte inspection or supplies a designated approval.
+		if (decision && decision.entry.state !== "APPROVED") {
+			errors.push(`FND-REV-001: the agent reviewer's change request or dismissal on head ${head.slice(0, 12)} still stands; opaque content is not a bypass`);
+		} else if (!modelReview || !cleanMetadata(modelReview.entry) || stale) {
+			errors.push(`FND-REV-001: needs a current agent-review metadata-only review from ${agent} on head ${head.slice(0, 12)} bound to this base, merge base, title and description; no opaque bytes or submodule contents can be approved`);
+		} else advisory.push(`FND-REV-001: immutable pointer/blob metadata reviewed; opaque content was not inspected (${uninspectable.join(", ")})`);
+	} else if (modelReview?.entry.state !== "APPROVED" || metadataOnly(modelReview.entry) || stale || overruled) {
 		errors.push(stale
 			? `FND-REV-001: the agent reviewer's approval of head ${head.slice(0, 12)} judged a different base, merge base, title or description than the PR now has; run agent-review --repo ${org}/${name} --pr ${options.pr}`
 			: `FND-REV-001: needs an agent-review approval from the designated agent reviewer ${agent} on head ${head.slice(0, 12)} (run agent-review --repo ${org}/${name} --pr ${options.pr})`);
 	}
-	return { ok: errors.length === 0, errors, reasons, approved_by: errors.length === 0 ? agent : undefined };
+	return { ok: errors.length === 0, errors, reasons, advisory, approved_by: errors.length === 0 ? (advisory.length > 0 && !approved ? `${agent} (metadata only; opaque content not inspected)` : agent) : undefined };
 }
 function print(result: Result, json: boolean, command: Command): void {
 	if (json) { console.log(JSON.stringify(result)); return; }

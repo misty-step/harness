@@ -909,10 +909,24 @@ Criteria:
    triggers included: where the organisation has a reviewer App (misty-step)
    only that App's approval counts, it must carry `agent-review`'s record of the
    base, merge base, title and description judged, and its latest change request
-   stands. The reviewing agent gives it after a model review of the PR
-   (`agent-review`; operator rule, 2026-09-28). An invariants-ledger
-   edit or a new/changed `foundation-approval/1` disposition SHALL additionally
-   require the designated reviewer, making five designated-review triggers.
+   stands. The reviewing agent gives it after a model review of the PR, in which
+   image content is read by the vision role (`agent-review`; operator rule,
+   2026-09-28). An invariants-ledger edit or a new/changed
+   `foundation-approval/1` disposition SHALL additionally require the designated
+   reviewer, making five designated-review triggers. The exact-head model
+   approval SHALL supply that delegated decision, without a second approval.
+   IF every changed path is a submodule pointer or a recognized inert opaque
+   artifact (format signature, matching suffix, mode `100644`), THEN THE SYSTEM
+   SHALL require a clean
+   model review of the immutable pointer/blob metadata and PR description,
+   recorded as a current-head comment bound to the same state. Content remains
+   advisory and SHALL never be claimed inspected or approved. A change request
+   or dismissal SHALL still stand; mixed opaque/reviewable changes SHALL be split.
+   NUL-bearing source/config, unknown binary formats and executable artifacts
+   SHALL never qualify for metadata-only review.
+   Classification and image bytes SHALL come from immutable Git objects, preserving
+   quoted/tab paths, rename-only images and gitlink-to-text transitions. Vision
+   output SHALL reach the reviewer in full or the review SHALL refuse to post.
    IF mapped source changes, the PR description SHALL cite every affected
    live story id computed from the candidate git objects.
 
