@@ -58,11 +58,15 @@ bypasses or changes to production authentication.
 Env: `PREVIEW_REPO`, `PREVIEW_PR`, `PREVIEW_SHA`, `PREVIEW_BASE_SHA`,
 `PREVIEW_STATUS_FILE` (absolute path outside the clean checkout).
 Atomically write `{schema:1, sha, url, state:"ready"|"failed", data,
-readiness:{productionBuild:true,health:true}, login?}` after actual build/health
+readiness:{productionBuild:true,health:true}}` after actual build/health
 assertions within 30 minutes. Failures may include `phase`/`reason`. Readiness is
 deployment only, not a story pass. The controller emits `facts.json`,
 `status.json` when available, and fenced machine-only `comment.md`; it does not
 collect or publish media.
+
+`data` and optional `reason` are nonempty deployment metadata, at most 2,000
+characters each. Do not put login links, credentials or session state in CI
+status; the agent retrieves synthetic login through existing QA access on the VM.
 
 ## Walk and attach from the agent session
 

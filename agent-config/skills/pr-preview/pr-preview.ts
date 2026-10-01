@@ -13,7 +13,6 @@ type Status = {
 	schema: 1; sha: string; url: string; state: "ready" | "failed"; data?: string;
 	phase?: string; reason?: string;
 	readiness?: { productionBuild: boolean; health: boolean };
-	login?: unknown;
 };
 const sshOptions = ["-T", "-o", "BatchMode=yes", "-o", "StrictHostKeyChecking=yes", "-o", "ForwardAgent=no", "-o", "ClearAllForwardings=yes", "-o", "IdentitiesOnly=yes", "-o", "ServerAliveInterval=15", "-o", "ServerAliveCountMax=3"];
 // Even an operator's SendEnv wildcard must not transport GH/model credentials.
@@ -54,14 +53,18 @@ function parseStatus(raw: string, sha: string, url: string): Status {
 	const status = JSON.parse(raw) as Status;
 	if (!status || status.schema !== 1 || status.sha !== sha || status.url !== url ||
 		!["ready", "failed"].includes(status.state) ||
-		(status.data !== undefined && typeof status.data !== "string") ||
+		(status.data !== undefined && (typeof status.data !== "string" || !status.data || status.data.length > 2000)) ||
 		(status.phase !== undefined && (typeof status.phase !== "string" || !/^[a-z][a-z0-9_-]{0,63}$/.test(status.phase))) ||
-		(status.reason !== undefined && (typeof status.reason !== "string" || !status.reason)) ||
+		(status.reason !== undefined && (typeof status.reason !== "string" || !status.reason || status.reason.length > 2000)) ||
 		(status.readiness !== undefined && (!status.readiness || typeof status.readiness.productionBuild !== "boolean" || typeof status.readiness.health !== "boolean")) ||
 		(status.state === "ready" && (typeof status.data !== "string" || !status.readiness?.productionBuild || !status.readiness.health))) {
 		throw new Error("Deployment status is invalid or belongs to another revision/target");
 	}
-	return status;
+	return {
+		schema: 1, sha, url, state: status.state,
+		data: status.data, phase: status.phase, reason: status.reason,
+		readiness: status.readiness ? { productionBuild: status.readiness.productionBuild, health: status.readiness.health } : undefined,
+	};
 }
 
 async function main(): Promise<void> {
@@ -92,7 +95,7 @@ async function main(): Promise<void> {
 	if (action === "up") facts.story_qa = "agent-session-owned";
 	function report(outcome: string, reason?: string): void {
 		facts.outcome = outcome;
-		if (reason) facts.reason = reason;
+		if (reason) facts.reason = reason.slice(0, 2000);
 		const json = `${JSON.stringify(facts, null, 2)}\n`;
 		writeFileSync(join(output, "facts.json"), json, { mode: 0o600 });
 		// Machine facts only; the agent authors the PR's rationale and interpretation.
@@ -204,7 +207,6 @@ cat "$HOME/pr-preview/status.json"`);
 				facts.preview = status.state;
 				if (status.data) facts.data = status.data;
 				if (status.readiness) facts.readiness = status.readiness;
-				if (status.login) facts.login = status.login;
 				if (status.phase) facts.phase = status.phase;
 				if (status.reason) facts.reason = status.reason;
 				if (status.state === "ready") shell(host, "sudo systemctl is-active --quiet pr-preview");
@@ -218,8 +220,17 @@ cat "$HOME/pr-preview/status.json"`);
 			report(failed ? "failed" : "ready", failure ?? status?.reason ?? (status?.state === "failed" ? `Preview adapter failed in ${status.phase ?? "setup"}` : undefined));
 			if (failed) process.exitCode = 1;
 		} finally {
-			try { git(["update-ref", "-d", `${refs}/head`]); git(["update-ref", "-d", `${refs}/base`]); }
-			finally { rmSync(scratch, { recursive: true, force: true }); }
+			const errors: string[] = [];
+			for (const ref of [`${refs}/head`, `${refs}/base`]) {
+				try { git(["update-ref", "-d", ref]); }
+				catch (error) { errors.push((error instanceof Error ? error.message : String(error)).slice(0, 2000)); }
+			}
+			rmSync(scratch, { recursive: true, force: true });
+			if (errors.length) {
+				facts.ref_cleanup_errors = errors;
+				report("failed", typeof facts.reason === "string" ? facts.reason : "Temporary Git ref cleanup failed");
+				process.exitCode = 1;
+			}
 		}
 	} catch (error) {
 		if (vmCreated) {
