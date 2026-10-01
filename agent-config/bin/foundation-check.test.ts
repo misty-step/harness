@@ -1285,9 +1285,6 @@ describe("foundation-check review gate (US-027)", () => {
 		expect(retargeted.output.errors.join("\n")).toContain("different base, merge base, title or description");
 		opened(base, head, "engineer", "Stories: US-001\n\nnow claims something else");
 		expect((await gate(repo)).status).toBe(1);
-		// CodeRabbit's release notes in the description are not the author's text: the approval still stands.
-		opened(base, head, "engineer", "Stories: US-001\n\n<!-- This is an auto-generated comment: release notes by coderabbit.ai -->\n## Summary by CodeRabbit\n<!-- end of auto-generated comment: release notes by coderabbit.ai -->\n");
-		expect((await gate(repo)).status).toBe(0);
 		opened(base, head, "engineer", "Stories: US-001");
 		pull = { ...pull, title: "feat: something else" };
 		expect((await gate(repo)).status).toBe(1);
@@ -1354,6 +1351,13 @@ describe("foundation-check review gate (US-027)", () => {
 		expect((await gate(repo)).status).toBe(1);
 		reviews = [metadataRecord(repo, opaque, "CHANGES_REQUESTED")];
 		expect((await gate(repo)).status).toBe(1);
+		// A metadata COMMENT cannot clear an earlier binding rejection, from either record stream.
+		for (const state of ["CHANGES_REQUESTED", "DISMISSED"]) {
+			for (const rejected of [said(agent, opaque, state), metadataRecord(repo, opaque, state)]) {
+				reviews = [rejected, metadataRecord(repo, opaque)];
+				expect((await gate(repo)).status).toBe(1);
+			}
+		}
 		reviews = [metadataRecord(repo, opaque)];
 		// The same file beside a reviewable change spares nothing: the model review is required for the whole PR.
 		put(repo, "notes.txt", "three\n");
@@ -1517,16 +1521,12 @@ describe("foundation-check review gate (US-027)", () => {
 		const ledger = await gate(repo);
 		expect(ledger.output.reasons).toEqual(["invariants ledger: DOMAIN.md policy changes"]);
 		expect(ledger.output.errors.join("\n")).toContain("designated agent reviewer");
-		// agent-review's own approval is the model review, never the designated decision: it cannot satisfy a trigger alone.
+		// The exact-head model approval also supplies the delegated decision; no redundant second approval.
 		reviews = [recorded(agent, head)];
-		const modelOnly = await gate(repo);
-		expect(modelOnly.status).toBe(1);
-		expect(modelOnly.output.errors.join("\n")).toContain("other than agent-review's own record");
-		// Nor does the designated decision satisfy the model review; a designated change request overrules a passing record.
+		expect((await gate(repo)).status).toBe(0);
+		// An explicit change request still overrules a passing record.
 		reviews = [recorded(agent, head), said(agent, head, "CHANGES_REQUESTED")];
 		expect((await gate(repo)).status).toBe(1);
-		reviews = [recorded(agent, head), said(agent, head)];
-		expect((await gate(repo)).status).toBe(0);
 		const approvedBase = head;
 		const value = JSON.parse(readFileSync(join(repo, "foundation.json"), "utf8"));
 		const id = "FND-DOC-001";
@@ -1540,7 +1540,7 @@ describe("foundation-check review gate (US-027)", () => {
 		opened(approvedBase, dispositionHead);
 		reviews = [said("teammate", dispositionHead)];
 		expect((await gate(repo)).output.reasons).toEqual([`disposition approval: ${id} not_applicable`]);
-		reviews = [recorded(agent, dispositionHead), said(agent, dispositionHead)];
+		reviews = [recorded(agent, dispositionHead)];
 		expect((await gate(repo)).status).toBe(0);
 		put(repo, approval_ref, JSON.stringify({ ...decision, reason: "Mismatch" }));
 		commit(repo, "tamper record");
@@ -1588,7 +1588,7 @@ describe("foundation-check review gate (US-027)", () => {
 		// The designated approval alone is not a model review: FND-REV-001 still wants agent-review's record.
 		reviews = [said(agent, head)];
 		expect((await gate(repo)).output.errors.join("\n")).toContain("FND-REV-001");
-		reviews = [recorded(agent, head), said(agent, head)];
+		reviews = [recorded(agent, head)];
 		const approved = await gate(repo);
 		expect(approved.status).toBe(0);
 		expect(approved.output.approved_by).toBe(agent);

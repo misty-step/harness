@@ -1445,11 +1445,6 @@ async function github(path: string, token: string): Promise<unknown> {
 	return response.json();
 }
 const reviewer = (entry: Record<string, unknown>): string => (record(entry.user) && typeof entry.user.login === "string" ? entry.user.login : "");
-/** CodeRabbit writes release notes into the PR description as it reviews; that block is not the author's text and
- *  must not stale an approval. Keep in step with `authored` in agent-review.ts. */
-function authoredDescription(body: unknown): string {
-	return (typeof body === "string" ? body : "").replace(/<!-- This is an auto-generated comment: [^\n]*? by coderabbit\.ai -->[\s\S]*?<!-- end of auto-generated comment: [^\n]*? by coderabbit\.ai -->/g, "").trimEnd();
-}
 /** Standalone launchers cannot import each other. Keep the immutable raw/root-numstat metadata contract in step
  *  with agent-review: quoted/tab paths, renames and mode-only changes must classify the actual head entry. */
 const inspectableImage = /\.(png|jpe?g|gif|webp)$/i;
@@ -1468,17 +1463,29 @@ function uninspectableOnly(repo: string, mergeBase: string, head: string): strin
 	const binaryAt = (revision: string, paths: string[]): Map<string, boolean> => {
 		if (paths.length === 0) return new Map();
 		const emptyTree = git(repo, "hash-object", "-w", "-t", "tree", "/dev/null").trim();
-		const stats = git(repo, "--literal-pathspecs", `--attr-source=${emptyTree}`, "-c", "core.attributesFile=/dev/null", "diff", "--numstat", "-z", "--no-renames", "--no-ext-diff", "--no-textconv", emptyTree, revision, "--", ...paths).split("\0").filter(Boolean);
 		const binary = new Map<string, boolean>();
-		for (const line of stats) {
-			const first = line.indexOf("\t");
-			const second = line.indexOf("\t", first + 1);
-			if (first < 1 || second < 0) throw new Error("git diff --numstat returned incomplete metadata");
-			const added = line.slice(0, first);
-			const deleted = line.slice(first + 1, second);
-			const path = line.slice(second + 1);
-			if (!path || !/^(\d+|-)$/.test(added) || !/^(\d+|-)$/.test(deleted) || (added === "-") !== (deleted === "-")) throw new Error("git diff --numstat returned invalid metadata");
-			binary.set(path, added === "-");
+		for (let start = 0; start < paths.length;) {
+			let end = start;
+			let bytes = 0;
+			while (end < paths.length) {
+				const size = Buffer.byteLength(paths[end]) + 1;
+				if (size > 32_768) throw new Error("a Git path exceeds the metadata argument limit");
+				if (bytes + size > 32_768) break;
+				bytes += size;
+				end++;
+			}
+			const stats = git(repo, "--literal-pathspecs", `--attr-source=${emptyTree}`, "-c", "core.attributesFile=/dev/null", "diff", "--numstat", "-z", "--no-renames", "--no-ext-diff", "--no-textconv", emptyTree, revision, "--", ...paths.slice(start, end)).split("\0").filter(Boolean);
+			for (const line of stats) {
+				const first = line.indexOf("\t");
+				const second = line.indexOf("\t", first + 1);
+				if (first < 1 || second < 0) throw new Error("git diff --numstat returned incomplete metadata");
+				const added = line.slice(0, first);
+				const deleted = line.slice(first + 1, second);
+				const path = line.slice(second + 1);
+				if (!path || !/^(\d+|-)$/.test(added) || !/^(\d+|-)$/.test(deleted) || (added === "-") !== (deleted === "-")) throw new Error("git diff --numstat returned invalid metadata");
+				binary.set(path, added === "-");
+			}
+			start = end;
 		}
 		for (const path of paths) if (!binary.has(path)) throw new Error(`git diff --numstat omitted ${JSON.stringify(path)}`);
 		return binary;
@@ -1560,23 +1567,21 @@ async function review(options: Options): Promise<Result> {
 	reviews.forEach((entry, index) => {
 		if (own(entry) && entry.commit_id === head && (entry.state === "COMMENTED" || entry.state === "CHANGES_REQUESTED") && says(entry, escalationMarker)) escalation = index;
 	});
-	// FND-REV-001, for every PR: the independent review is a model review, which `agent-review` records as the App's
-	// review of this head carrying the base, merge base, title and description its model judged. That record and the
-	// designated approval below are separate streams from the same identity: a review carrying the record is the
-	// model review and never the designated decision on a trigger, or one automatic approval would satisfy both.
+	// Every PR needs the App's exact-head model record. Its approval also supplies the delegated agent decision
+	// when a trigger fires; a redundant second App approval is not another model review or a human gate.
 	const recordOf = (entry: Record<string, unknown>) => (typeof entry.body === "string" ? entry.body.match(/^agent-review-state: base=(\S+) merge-base=([0-9a-f]{40}) title=sha256:([0-9a-f]{64}) description=sha256:([0-9a-f]{64})$/m) : null);
 	const metadataOnly = (entry: Record<string, unknown>) => typeof entry.body === "string" && /^agent-review-scope: metadata-only$/m.test(entry.body);
 	const cleanMetadata = (entry: Record<string, unknown>) => entry.state === "COMMENTED" && metadataOnly(entry) && firstLine(entry) === `agent-review: metadata reviewed ${head}`;
-	// Reviews arrive in submission order. As on GitHub, each reviewer's latest approval, change request or
-	// dismissal stands; ordinary comments do not change it. A scoped clean metadata review is a model decision.
+	// The latest binding decision on this head stands. Comments, including metadata reviews, cannot clear an
+	// explicit change request or dismissal; only a later approval can.
 	let decision: { entry: Record<string, unknown>; index: number } | undefined;
 	reviews.forEach((entry, index) => {
-		if (own(entry) && !recordOf(entry) && (entry.state === "APPROVED" || entry.state === "CHANGES_REQUESTED" || entry.state === "DISMISSED")) decision = { entry, index };
+		if (own(entry) && entry.commit_id === head && (entry.state === "APPROVED" || entry.state === "CHANGES_REQUESTED" || entry.state === "DISMISSED")) decision = { entry, index };
 	});
 	const approved = decision?.entry.state === "APPROVED" && decision.entry.commit_id === head;
 	if (reasons.length > 0 && escalation >= 0 && !(approved && decision!.index > escalation && states(decision!.entry, resolutionMarker))) {
 		errors.push(`escalated to the operator on head ${head.slice(0, 12)}; needs a later approving review from ${agent} that records the operator's decision and opens with "${resolutionMarker}" as its exact first line`);
-	} else if (reasons.length > 0 && !approved) errors.push(`needs an approving review from the designated agent reviewer ${agent} on head ${head.slice(0, 12)}, other than agent-review's own record`);
+	} else if (reasons.length > 0 && !approved) errors.push(`needs an approving review from the designated agent reviewer ${agent} on head ${head.slice(0, 12)}`);
 	// GitHub keeps an approval on a head after a retarget, an edit or a moved base, so a record naming a different one
 	// no longer stands (the diff is the head against the merge base, so head plus merge base cover it). Anyone else's
 	// approval does not count, and the App's later change request overrules the record, so a second approver cannot
@@ -1589,14 +1594,14 @@ async function review(options: Options): Promise<Result> {
 	const currentBase = record(pull) && record(pull.base) && typeof pull.base.ref === "string" ? pull.base.ref : "";
 	const digest = (value: unknown) => createHash("sha256").update(typeof value === "string" ? value : "").digest("hex");
 	const mergeBase = git(options.repo, "merge-base", base, head).trim();
-	const stale = judged !== null && (judged[1] !== currentBase || judged[2] !== mergeBase || judged[3] !== digest(pull.title) || judged[4] !== digest(authoredDescription(pull.body)));
+	const stale = judged !== null && (judged[1] !== currentBase || judged[2] !== mergeBase || judged[3] !== digest(pull.title) || judged[4] !== digest(pull.body));
 	const overruled = modelReview !== undefined && decision !== undefined && decision.index > modelReview.index && decision.entry.state !== "APPROVED";
 	const advisory: string[] = [];
 	const uninspectable = uninspectableOnly(options.repo, mergeBase, head);
 	if (uninspectable.length > 0) {
 		// Only the immutable pointer/blob metadata can be judged. A clean recorded comment makes that review advisory
 		// about content, not optional about defects. It never claims byte inspection or supplies a designated approval.
-		if (modelReview?.entry.state === "CHANGES_REQUESTED" || overruled || (!modelReview && decision?.entry.state === "CHANGES_REQUESTED" && decision.entry.commit_id === head)) {
+		if (decision && decision.entry.state !== "APPROVED") {
 			errors.push(`FND-REV-001: the agent reviewer's change request or dismissal on head ${head.slice(0, 12)} still stands; opaque content is not a bypass`);
 		} else if (!modelReview || !cleanMetadata(modelReview.entry) || stale) {
 			errors.push(`FND-REV-001: needs a current agent-review metadata-only review from ${agent} on head ${head.slice(0, 12)} bound to this base, merge base, title and description; no opaque bytes or submodule contents can be approved`);

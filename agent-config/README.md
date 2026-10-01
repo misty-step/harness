@@ -157,19 +157,17 @@ non-application is a review trigger, like a baseline extension.
 `review --pr N` diagnoses foundation review records (ADR-003 Review authority),
 not a server merge prerequisite. It reads the PR's immutable base/head and
 submitted reviews. On misty-step, inspectable content needs the App's independent
-model-review record. First stories, baseline extensions, invariants-ledger changes,
-surface changes and disposition approvals additionally need a separate designated
-agent decision; the model record cannot supply both. The existing r90group record
-reader accepts a model decision published under `moomooskycow` with the exact
-`foundation-review: approved <head sha>` marker, not a required human approval.
-An explicit product-direction escalation uses the separate decision stream;
-only a later designated approval opening with
-`foundation-escalation: resolved` as its exact first line counts; approvals from
-the operator's shared account never do. Every misty-step PR also needs an
-independent model review carrying `agent-review`'s immutable head/base/title/
-description record. A bare App approval is not that record; a model review never
-supplies the separate designated decision, and the App's latest change request
-or dismissal cannot revive an older approval.
+model-review record. That same exact-head approval supplies the delegated agent
+decision for first stories, baseline extensions, invariants-ledger changes,
+surface changes and disposition approvals; no second App approval is required.
+The existing r90group record reader accepts a model decision published under
+`moomooskycow` with the exact `foundation-review: approved <head sha>` marker,
+not a required human approval. An explicit product-direction escalation still
+needs a later approval opening with `foundation-escalation: resolved` as its
+exact first line; approvals from the operator's shared account never do on
+misty-step. A bare App approval is not a model-review record. The App's latest
+binding change request or dismissal on the head stands: a metadata comment
+cannot clear it or revive an older approval.
 
 The reviewing agent runs `agent-review --repo misty-step/NAME --pr N` under
 `pass-env` with `KAYLEE_GITHUB_APP_ID` and `KAYLEE_GITHUB_APP_PEM`. The default

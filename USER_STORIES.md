@@ -911,10 +911,10 @@ Criteria:
    base, merge base, title and description judged, and its latest change request
    stands. The reviewing agent gives it after a model review of the PR, in which
    image content is read by the vision role (`agent-review`; operator rule,
-   2026-09-28). An invariants-ledger
-   edit or a new/changed `foundation-approval/1` disposition SHALL additionally
-   require the designated reviewer, whose decision is separate from that record
-   and which the record never satisfies, making five designated-review triggers.
+   2026-09-28). An invariants-ledger edit or a new/changed
+   `foundation-approval/1` disposition SHALL additionally require the designated
+   reviewer, making five designated-review triggers. The exact-head model
+   approval SHALL supply that delegated decision, without a second approval.
    IF every changed path is a submodule pointer or a non-image binary, which no
    content review surface can inspect, THEN THE SYSTEM SHALL require a clean
    model review of the immutable pointer/blob metadata and PR description,

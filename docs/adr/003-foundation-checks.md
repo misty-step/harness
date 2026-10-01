@@ -185,22 +185,20 @@ effect with the catalog and checker change that cites ADR-006.
   (`agent-review-state:` line) and the gate, which re-runs on `edited`, refuses an
   App approval that names a different one. The diff is the head against the
   merge base, so the head and merge base together cover it. Every PR, a
-  designated-review trigger included, needs that record. The record and the
-  designated approval are two streams from one identity: a review carrying the
-  record is the model review and never the designated decision (or one automatic
-  approval would satisfy both), a designated approval never stands in for the
-  model review, and the App's later change request overrules the record. A bare
-  App approval is not a model review. `agent-review` also refuses to post if any
+  designated-review trigger included, needs that record. The exact-head model
+  approval also supplies the delegated agent decision; requiring a second App
+  approval adds no independent judgment and is removed by the uniform cutover.
+  A bare approval cannot replace the model record. The latest binding change
+  request or dismissal on the head stands even after a clean metadata comment.
+  `agent-review` also refuses to post if any
   of these changed during its own review, and exits 4 when the review is
   recorded but the gate could not be re-run, because review events cannot
   trigger it and the old check result would keep standing. Its model processes
   run with `--no-tools` (an empty `--tools` list may read as unset) and no
-  session. The description it binds to leaves out the release-notes block
-  CodeRabbit writes into it as it reviews (a review that voided itself whenever
-  CodeRabbit ran was observed on this repo's own PR); text an author hides inside
-  such a marker would escape the binding, which the description does not warrant
-  a stricter rule for. r90group ordinary PRs never had an independent-approver
-  check, since the recorded-decision path returns first, and that is unchanged.
+  session. The record binds the complete PR description without provider-specific
+  stripping. Any edit, including generated release notes, requires fresh review.
+  r90group ordinary PRs never had an independent-approver check, since the
+  recorded-decision path returns first, and that is unchanged.
 
   Content a text model cannot read: classification comes from immutable Git raw
   entry modes/object IDs and blob-based root numstats, not diff text. NUL records
@@ -227,7 +225,7 @@ effect with the catalog and checker change that cites ADR-006.
   content advisory only after a clean current metadata record: a missing, stale
   or dismissed record or later explicit blocking decision fails, never waiving
   defects. A metadata-only comment cannot approve inspectable text/images or
-  supply a separate designated decision. Mixed opaque/reviewable changes still
+  supply a delegated approval. Mixed opaque/reviewable changes still
   refuse with exit 3 and must be split.
 
 ## Enforcement by plan
