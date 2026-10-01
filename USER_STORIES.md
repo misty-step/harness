@@ -1133,21 +1133,21 @@ Criteria:
    activation and rollback steps that reconcile existing limits without
    silently restarting a running fleet.
 7. WHEN OMP engineer caging is explicitly activated, THE SYSTEM SHALL admit
-   every fresh, direct, continued and resumed engineer before native startup,
-   reserve each live leaf's full 4-GiB ceiling under a serialized launch
-   transaction, and retain that reservation while any descendant remains.
-8. WHEN admission would exceed the 36-GiB engineer budget or physical
-   `MemAvailable` is below the operator's 20-GiB scale-up floor, THE SYSTEM SHALL
-   refuse before starting native OMP. Physical admission SHALL NOT add unused
-   cage/heavy-job ceilings or re-subtract measured legacy memory from that floor;
-   full live-cage reservations and measured legacy memory SHALL still count
-   against the aggregate independently of the working-engineer usage limit.
+   every fresh, direct, continued and resumed engineer before native startup
+   under a serialized live-memory inspection and verified registration
+   transaction. Each leaf SHALL retain its independent 4-GiB containment bound;
+   its unused capacity SHALL NOT reserve fleet slots.
+8. WHEN physical `MemAvailable` is below the operator's 20-GiB scale-up floor,
+   THE SYSTEM SHALL refuse before starting native OMP. Admission SHALL NOT add
+   unused cage/heavy-job ceilings, re-subtract measured legacy memory, or impose
+   a fixed aggregate engineer ceiling. Actual fleet use and surviving legacy
+   descendants SHALL remain measured; finite ancestor bounds remain enforced.
 9. WHEN native OMP starts, THE SYSTEM SHALL verify effective 4-GiB memory,
    zero swap, group-OOM and actual membership outside every live oomd-monitored
    ancestor, while preserving argv, cwd, environment, PTY and session identity.
 10. WHEN a caged engineer is killed, THE SYSTEM SHALL restore sane terminal
     state and discard stale query input before returning to the shell, without
-    replaying the interrupted tool or leaving a descendant's slot unreserved.
+    replaying the interrupted tool or hiding surviving descendants from memory accounting.
 11. WHEN the rollout is activated, THE SYSTEM SHALL preserve running Herdr and
     existing engineers; only their natural exits/restarts migrate them, and the
     memory snapshot SHALL identify the remaining uncaged processes.

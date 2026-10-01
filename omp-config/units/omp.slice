@@ -1,9 +1,9 @@
 # owned by misty-step/harness omp-config engineer-cage
 [Unit]
-Description=Admitted OMP engineer memory budget
+Description=OMP engineer containment parent
 
 [Slice]
 MemoryAccounting=yes
-MemoryMax=36G
+MemoryMax=infinity
 MemoryHigh=infinity
 MemorySwapMax=0

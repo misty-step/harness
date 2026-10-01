@@ -17,7 +17,7 @@ function memoryFixture(available = 128 * 1024 ** 3) {
 		({ path, memory_max, memory_swap_max, memory_high: null, current_bytes: 0, oom_group: 0, populated: false });
 	return {
 		schema_version: 1, uid: 1000, user_root: root, current_group: `${root}/app.slice/fixture.scope`,
-		available_bytes: available, fleet: { ...group(`${root}/omp.slice`, 36 * 1024 ** 3, 0), slice: "-.slice" },
+		available_bytes: available, fleet: { ...group(`${root}/omp.slice`, null, 0), slice: "-.slice" },
 		ancestors: ["/user.slice", "/user.slice/user-1000.slice", root].map((path) => group(path)),
 		monitored: [`${root}/app.slice`], scopes: [], processes: [], legacy_groups: [],
 		heavy: { path: `${root}/dev.slice/dev-exec.slice`, current_bytes: 0, jobs: [] },

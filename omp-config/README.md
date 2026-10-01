@@ -92,13 +92,23 @@ full install.
 `engineer-cage` retains the owned native ELF at `~/.local/lib/omp-engineer/omp`
 and makes `~/.local/bin/omp` the relative `omp-engineer` symlink. Every new,
 direct, continued or resumed invocation passes live admission and enters a
-verified 4-GiB, zero-swap, group-OOM scope below the standalone 36-GiB
-`omp.slice`. Existing processes stay in their original cgroups until natural
-exit; activation does not restart Herdr or any engineer. Never prepend the
-retained native directory to ordinary shells or call that ELF directly.
+verified 4-GiB, zero-swap, group-OOM scope below the standalone `omp.slice`,
+with unlimited `MemoryMax`/`MemoryHigh`, zero swap and ungrouped parent OOM.
+Existing processes stay in their original cgroups until natural exit; activation
+does not restart Herdr or any engineer. Never prepend the retained native
+directory to ordinary shells or call that ELF directly.
 An installed Workbench updater must advertise `harness-engineer-cage-v1` through
 its inert `omp-install-layouts` query before explicit activation writes anything.
 Deploy that reviewed consumer first; source-only compatibility is insufficient.
+
+Explicit `engineer-cage` refresh also migrates an already active 36-GiB parent:
+it installs the canonical infinity source unit, reloads the user manager, starts
+the slice only if needed, and applies
+`systemctl --user set-property --runtime omp.slice MemoryMax=infinity` before
+read-only inspection. This raises the live cap in place without restarting the
+slice, touching existing leaf limits or moving PIDs; the source unit preserves
+infinity across reboot. Default installation and `cli` staging do not reconcile
+live units.
 
 `omp-roster memory --json` is read-only preflight, not a reservation.
 On an unactivated host, staging the CLI reports `activated: false`, no capacity
@@ -107,12 +117,20 @@ existing uncaged behavior without requiring a Linux user manager. A retained
 native binary, local slice unit or owned stable alias is activation evidence:
 partial/broken activation still requires full inspection and fails closed.
 This read-only distinction never bypasses admission in the cage launch path.
-Actual `omp` launch serializes inspection through verified scope registration, counts
-idle/lingering populated cages at their full limits, measures uncaged engineers
-and mixed legacy groups, and uses the 20-GiB `MemAvailable` scale-up floor.
-Unused cage/heavy headroom is diagnostic, not added to that floor; full cage
-reservations still constrain the 36-GiB aggregate and effective ancestors. Refusal exits
-75. Native arguments, cwd, environment, stdio and exit status are preserved.
+Actual `omp` launch serializes inspection through verified scope registration
+and uses `MemAvailable >= 20 GiB` as the sole operator memory scale-up rule.
+Populated cages remain bounded individually at 4 GiB; their measured cgroup use
+and legacy RSS/PSS are diagnostics, not full-cage reservations or amounts
+subtracted again from `MemAvailable`. There is no fleet cap or maximum-count
+reservation, and no unused cage/heavy capacity is added to the floor. Actual
+finite ancestors must have 20 GiB of remaining headroom; containment inspection
+still fails closed. Simultaneous future growth to every leaf ceiling is not
+globally reserved. Refusal exits 75. Native arguments, cwd, environment, stdio
+and exit status are preserved.
+JSON `fleet_current_bytes` reports measured parent cgroup use,
+`measured_fleet_bytes` includes measured legacy RSS, and `caged_count` counts
+populated cages; none is a reservation. `required_available_bytes` is 20 GiB, and
+`effective_memory_max_bytes` is null when no actual ancestor has a finite limit.
 Only a mutating native `omp update` receives an updater-local PATH pointing at
 the retained ELF; normal/nested/resumed launches and `update --check` do not.
 See the [rolling activation and recovery runbook](../docs/desktop-memory-guard.md).

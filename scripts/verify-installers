@@ -133,14 +133,33 @@ for consumer in pi omp; do
       "$work/source/omp-config/install" >"$work/omp-layout.log" 2>&1; then
       printf 'FAIL omp cage refuses an incompatible installed updater\n' >&2
       failures=$((failures + 1))
-    elif grep -q 'Workbench does not support harness-engineer-cage-v1' "$work/omp-layout.log" \
-      && cmp -s "$work/expected-native" "$home/.local/bin/omp" \
+    elif cmp -s "$work/expected-native" "$home/.local/bin/omp" \
       && [ ! -e "$home/.local/lib/omp-engineer/omp" ] \
       && [ ! -e "$home/.config/systemd/user/omp.slice" ]; then
       printf 'PASS omp cage refuses incompatible updater before live writes\n'
     else
       printf 'FAIL omp cage incompatible-updater refusal before live writes\n' >&2
       cat "$work/omp-layout.log" >&2
+      failures=$((failures + 1))
+    fi
+    # Staging on an already owned layout must not migrate the old parent policy
+    # or replace the stable alias/native binary: only engineer-cage can do that.
+    mkdir -p "$home/.config/systemd/user" "$home/.local/lib/omp-engineer"
+    printf '# owned by misty-step/harness omp-config engineer-cage\n[Slice]\nMemoryMax=36G\nMemoryHigh=infinity\nMemorySwapMax=0\n' > "$work/expected-active-unit"
+    cp "$work/expected-active-unit" "$home/.config/systemd/user/omp.slice"
+    mv "$home/.local/bin/omp" "$home/.local/lib/omp-engineer/omp"
+    chmod 700 "$home/.local/lib/omp-engineer/omp"
+    ln -s omp-engineer "$home/.local/bin/omp"
+    if env -i PATH="$PATH" HOME="$home" TMPDIR="$work" PI_CODING_AGENT_DIR="$agent" \
+      OMP_INSTALL_COMPONENTS=cli \
+      "$work/source/omp-config/install" >"$work/omp-stage.log" 2>&1 \
+      && cmp -s "$work/expected-active-unit" "$home/.config/systemd/user/omp.slice" \
+      && [ "$(readlink "$home/.local/bin/omp")" = omp-engineer ] \
+      && cmp -s "$work/expected-native" "$home/.local/lib/omp-engineer/omp"; then
+      printf 'PASS omp CLI staging preserves an existing cage layout and parent policy\n'
+    else
+      printf 'FAIL omp CLI staging mutated an existing cage layout or parent policy\n' >&2
+      cat "$work/omp-stage.log" >&2
       failures=$((failures + 1))
     fi
     check "omp OpenRouter auth override" \

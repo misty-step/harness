@@ -10,30 +10,34 @@ visibility and literal `omp --resume=...` reconstruction remain unchanged.
 ```text
 user@UID.service
 ├── app.slice                         unchanged desktop, Herdr and old engineers
-├── omp.slice                         standalone 36-GiB, zero-swap aggregate
+├── omp.slice                         unlimited memory, zero-swap, ungrouped OOM
 │   ├── omp-engineer-<nonce>.scope     4 GiB, zero swap, group-OOM kill
 │   └── omp-engineer-<nonce>.scope     another admitted engineer and descendants
 └── dev.slice/dev-exec.slice           separately owned heavy-job budget
 ```
 
 Admission is serialized from live inspection through authenticated, verified
-scope registration. Populated cages reserve their full 4 GiB even when idle or
-the native root exits but helpers remain. Uncaged roots, their descendants and
-retained mixed legacy cgroups are measured once by RSS (PSS is also reported),
-not assigned fictitious 4-GiB reservations. Deleted cgroup annotations retain
-canonical membership until the last task exits. Their future growth is still
+scope registration. Each populated cage retains its verified 4-GiB limit even
+when idle or the native root exits but helpers remain; it does not reserve that
+full limit globally. Fleet cgroup `memory.current` and measured legacy RSS/PSS
+are diagnostics, not reservations. Uncaged roots, their descendants and retained
+mixed legacy cgroups are measured once; deleted cgroup annotations retain
+canonical membership until the last task exits. Legacy future growth remains
 unbounded until natural exit; this rolling deployment is not retroactive safety.
 
-The fleet ceiling covers existing measured memory plus full live cages and the
-new reservation. Physical admission follows the operator's scale-up rule:
+The sole operator memory scale-up rule is
 `MemAvailable >= 20 GiB` (21,474,836,480 bytes, matching `free -g` units).
+There is no aggregate fleet ceiling or maximum-count/full-leaf reservation.
 Do not add unused cage headroom, unused heavy capacity or another desktop reserve
-to that threshold; charged legacy memory is already reflected in `MemAvailable`.
-Cage reservations still constrain the aggregate, and finite ancestors must cover
-the floor and unused committed cage capacity. Actual cgroup controls and live
-oomd monitoring remain mandatory; incomplete hierarchy, an oomd-covered cage or
-incompatible active heavy-job limits fail closed. This is a measured scaling
-floor, not a guarantee that all engineer/heavy ceilings can fill simultaneously.
+to that threshold, and do not subtract measured fleet/legacy usage again:
+charged memory is already reflected in `MemAvailable`. Actual finite ancestors
+must retain 20 GiB of headroom, without additive unused-cage reservations.
+`omp.slice` is a root sibling with `MemoryMax=infinity`, `MemoryHigh=infinity`,
+zero swap and `memory.oom.group=0`, outside oomd monitor roots. Actual cgroup
+controls and live oomd monitoring remain mandatory; incomplete hierarchy, an
+oomd-covered cage or incompatible active heavy-job limits fail closed. This is
+a measured scaling floor, not a guarantee that all engineer/heavy ceilings can
+fill simultaneously; simultaneous future growth is not globally reserved.
 
 From the reviewed harness revision:
 
@@ -50,18 +54,29 @@ omp-roster memory --json                                 # live, no reservation
 omp --version                                           # real admitted launch
 ```
 
-Default installation stages the CLI but never activates a previously uncaged
-host. Explicit activation validates owned launchers, retains the native ELF,
-installs/starts only the empty `omp.slice`, and replaces the stable entrypoint.
-It does not move existing PIDs, restart Herdr, change oomd, or kill engineers.
-Work continues in existing sessions; their next natural direct/new/continued/
-resumed launch enters the cage. Do not force migration by restarting them.
+Default installation and `cli` staging leave live units and the stable entrypoint
+unchanged; they never activate a previously uncaged host. Explicit activation
+validates owned launchers, retains the native ELF, installs the canonical
+unlimited `omp.slice` source unit, reloads the user manager and starts the slice
+if needed. It then applies
+`systemctl --user set-property --runtime omp.slice MemoryMax=infinity` before
+read-only memory inspection and replacement of the stable entrypoint.
+
+The same explicit `engineer-cage` command refreshes an already active 36-GiB
+parent in place, including when populated. `start` does not restart an active
+slice, and `set-property` raises only its live memory cap; existing engineer
+scopes and their 4-GiB/zero-swap/group-OOM controls stay unchanged. The canonical
+source unit persists infinity across reboot; the runtime property is convergence,
+not a separate policy. Do not stop/restart the slice or move PIDs to migrate it.
+Activation does not restart Herdr, change oomd or kill engineers. Work continues
+in existing sessions; their next natural direct/new/continued/resumed launch
+enters the cage. Do not force migration by restarting them.
 
 Every native argument uses real admission; direct `omp` refusal exits 75 before
 native execution. Roster preflight exits 6 before overlay/record writes.
 Read-only fixture inputs cannot override actual launch. A preflight success is
 not a reservation. Nested OMP/helpers inherit the verified existing leaf rather
-than escaping it or reserving another independent cage.
+than escaping it or creating another independent cage.
 
 Keep the retained ELF directory out of ordinary PATH. Native OMP 18.4.9 updates
 resolve the target through `which("omp")`; only a mutating `omp update` child
@@ -93,6 +108,12 @@ exhaustion was used, and boundary fixtures cannot override real launches.
 The original Herdr server/client and Hyprland PID/start/cgroup identities stayed
 unchanged; surviving original engineers were not moved. Raw transcripts and
 process inventory remain private.
+
+The intermediate 20-GiB-floor policy still imposed a 36-GiB fleet cap and
+full-cage reservations, which blocked additional engineers despite about
+46 GiB `MemAvailable`. The accepted policy above removes both constraints;
+the earlier observed launches are historical proof, not deployment proof of this
+single-floor correction.
 
 This is resource containment, not a same-user security boundary. External
 daemons and deliberate cgroup escape need independent limits. Keep the approved

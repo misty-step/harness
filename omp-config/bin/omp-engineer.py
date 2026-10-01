@@ -24,7 +24,6 @@ import time
 
 GIB = 1024 ** 3
 LEAF_BYTES = 4 * GIB
-FLEET_BYTES = 36 * GIB
 MEMORY_FLOOR_BYTES = 20 * GIB
 HEAVY_BYTES = 16 * GIB
 HEAVY_SWAP_BYTES = 2 * GIB
@@ -35,7 +34,7 @@ SYSTEMCTL = "/usr/bin/systemctl"
 SYSTEMD_RUN = "/usr/bin/systemd-run"
 OOMCTL = "/usr/bin/oomctl"
 SCOPE = re.compile(r"omp-engineer-[0-9a-f]{24}\.scope\Z")
-POLICY = {"leaf_bytes": LEAF_BYTES, "fleet_bytes": FLEET_BYTES,
+POLICY = {"leaf_bytes": LEAF_BYTES,
           "available_memory_floor_bytes": MEMORY_FLOOR_BYTES, "heavy_capacity_bytes": HEAVY_BYTES,
           "leaf_swap_bytes": 0}
 HELP = """Usage:
@@ -117,7 +116,6 @@ def verify_hierarchy(snapshot):
     if not isinstance(fleet, dict) or fleet.get("path") != fleet_path or fleet.get("slice") != "-.slice":
         raise CageError("omp.slice is not a standalone user-manager root sibling")
     controls(fleet, "omp.slice")
-    finite(fleet.get("memory_max"), FLEET_BYTES, "omp.slice memory.max")
     if fleet["memory_swap_max"] != 0 or fleet["memory_high"] is not None or fleet["oom_group"] != 0:
         raise CageError("omp.slice requires zero swap, unlimited memory.high and ungrouped OOM")
     ancestors = snapshot.get("ancestors")
@@ -254,39 +252,27 @@ def admission(snapshot, *, source="live"):
     nested = current_group in {item["path"] for item in live}
     if contains(fleet_path, current_group) and not nested:
         raise CageError("Current process occupies an unverified cage")
-    new_bytes = 0 if nested else LEAF_BYTES
-    reserved = len(live) * LEAF_BYTES
-    unused = sum(max(0, LEAF_BYTES - item["current_bytes"]) for item in live)
-    heavy_unused = HEAVY_BYTES - heavy_current
-    required = MEMORY_FLOOR_BYTES
-    ancestor_required = max(required, unused + new_bytes)
-    aggregate = reserved + charge["rss_bytes"] + new_bytes
-    ceiling = min(FLEET_BYTES, fleet["memory_max"])
+    bounds = [item for item in (fleet, *ancestors) if item["memory_max"] is not None]
     reasons = []
     if not nested:
-        if aggregate > ceiling:
-            reasons.append(f"aggregate fleet demand {aggregate} exceeds {ceiling} bytes")
-        if available < required:
-            reasons.append(f"available memory {available} is below the {required}-byte (20-GiB) scale-up floor")
-        if fleet["memory_max"] - fleet["current_bytes"] < unused + new_bytes:
-            reasons.append("omp.slice lacks headroom for its full live reservations")
-        for item in ancestors:
-            if item["memory_max"] is not None and item["memory_max"] - item["current_bytes"] < ancestor_required:
-                reasons.append(f"effective ancestor {item['path']} lacks {ancestor_required} bytes of memory headroom")
-    bounds = [fleet["memory_max"], *[item["memory_max"] for item in ancestors if item["memory_max"] is not None]]
+        if available < MEMORY_FLOOR_BYTES:
+            reasons.append(f"available memory {available} is below the {MEMORY_FLOOR_BYTES}-byte (20-GiB) scale-up floor")
+        for item in bounds:
+            if item["memory_max"] - item["current_bytes"] < MEMORY_FLOOR_BYTES:
+                reasons.append(f"effective cgroup {item['path']} lacks {MEMORY_FLOOR_BYTES} bytes of memory headroom")
     return {"schema_version": 1, "ok": True, "source": source, "reservation": False,
             "activated": True,
             "captured_at": snapshot.get("captured_at"), "admitted": not reasons, "reasons": reasons,
             "policy": dict(POLICY), "reuses_cage": nested,
-            "capacity": {"available_bytes": available, "required_available_bytes": required,
-                         "required_ancestor_headroom_bytes": ancestor_required,
-                         "fleet_demand_bytes": aggregate, "fleet_ceiling_bytes": ceiling,
-                         "effective_memory_max_bytes": min(bounds), "caged_count": len(live),
-                         "caged_reserved_bytes": reserved, "caged_unused_bytes": unused,
+            "capacity": {"available_bytes": available, "required_available_bytes": MEMORY_FLOOR_BYTES,
+                         "required_ancestor_headroom_bytes": MEMORY_FLOOR_BYTES,
+                         "fleet_current_bytes": fleet["current_bytes"],
+                         "measured_fleet_bytes": fleet["current_bytes"] + charge["rss_bytes"],
+                         "effective_memory_max_bytes": min((item["memory_max"] for item in bounds), default=None),
+                         "caged_count": len(live),
                          "uncaged_count": len(charge["uncaged"]), "uncaged_rss_bytes": charge["rss_bytes"],
                          "uncaged_pss_bytes": charge["pss_bytes"], "legacy_process_count": len(charge["pids"]),
-                         "heavy_current_bytes": heavy_current, "heavy_unused_bytes": heavy_unused,
-                         "new_reservation_bytes": new_bytes},
+                         "heavy_current_bytes": heavy_current},
             "scopes": live, "uncaged": charge["uncaged"], "legacy_groups": charge["groups"],
             "legacy_unattributed_pids": charge["unattributed_pids"], "heavy_jobs": jobs,
             "ancestors": ancestors, "monitored": snapshot["monitored"],
@@ -337,7 +323,7 @@ def admission_lock(path, *, clock=time.monotonic, sleep=time.sleep):
 
 def launch_transaction(lock, inspect, register, retain=lambda snapshot: None):
     # Registration returns only after cgroupfs + process membership verification.
-    # The scope's populated lifetime, not this lock or launcher PID, owns capacity.
+    # Fresh inspection and verified registration share the lock, never abstract slots.
     with lock:
         snapshot = inspect()
         result = admission(snapshot)
@@ -513,7 +499,7 @@ class Host:
         directory = self.cgroup / fleet["path"].lstrip("/")
         if directory.exists():
             if self.read(directory / "cgroup.procs"):
-                raise CageError("Unreserved processes occupy omp.slice directly")
+                raise CageError("Unverified processes occupy omp.slice directly")
             try:
                 children = {path.name for path in directory.iterdir() if path.is_dir()}
             except OSError as exc:
