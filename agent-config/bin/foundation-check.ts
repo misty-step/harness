@@ -1458,8 +1458,9 @@ const opaquePrefixes: Record<string, readonly Buffer[]> = {
 	"7z": [Buffer.from("377abcaf271c", "hex")], rar: [Buffer.from("526172211a07", "hex")],
 };
 function opaqueArtifact(repo: string, path: string, mode: string, oid: string): boolean {
-	const prefixes = opaquePrefixes[path.slice(path.lastIndexOf(".") + 1).toLowerCase()];
-	if (mode !== "100644" || !prefixes) return false;
+	const suffix = path.slice(path.lastIndexOf(".") + 1).toLowerCase();
+	if (mode !== "100644" || !Object.hasOwn(opaquePrefixes, suffix)) return false;
+	const prefixes = opaquePrefixes[suffix];
 	const result = spawnSync("git", ["cat-file", "blob", oid], { cwd: repo, maxBuffer: 64 * 1024 * 1024 });
 	if (result.error || result.status !== 0) throw new Error(`git cat-file: ${result.error?.message ?? result.stderr.toString().trim()}`);
 	return prefixes.some((prefix) => result.stdout.length >= prefix.length && result.stdout.compare(prefix, 0, prefix.length, 0, prefix.length) === 0);

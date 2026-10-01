@@ -117,8 +117,9 @@ const opaquePrefixes: Record<string, readonly Buffer[]> = {
 	"7z": [Buffer.from("377abcaf271c", "hex")], rar: [Buffer.from("526172211a07", "hex")],
 };
 function opaqueArtifact(repo: string, path: string, mode: string, oid: string, env: NodeJS.ProcessEnv): boolean {
-	const prefixes = opaquePrefixes[path.slice(path.lastIndexOf(".") + 1).toLowerCase()];
-	if (mode !== "100644" || !prefixes) return false;
+	const suffix = path.slice(path.lastIndexOf(".") + 1).toLowerCase();
+	if (mode !== "100644" || !Object.hasOwn(opaquePrefixes, suffix)) return false;
+	const prefixes = opaquePrefixes[suffix];
 	const bytes = git(repo, env, "cat-file", "blob", oid);
 	return prefixes.some((prefix) => bytes.length >= prefix.length && bytes.compare(prefix, 0, prefix.length, 0, prefix.length) === 0);
 }

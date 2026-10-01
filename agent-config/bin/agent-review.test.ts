@@ -199,7 +199,7 @@ describe("agent-review immutable Git metadata", () => {
 	});
 
 	test("NUL-bearing source and forged opaque headers cannot get metadata-only approval", async () => {
-		for (const path of ["run.sh", "config.toml", "unknown.bin", "font.woff"]) {
+		for (const path of ["run.sh", "config.toml", "unknown.bin", "font.woff", "asset.constructor", "asset.__proto__"]) {
 			calls = [];
 			candidate({ [path]: Buffer.from("wOFF\necho malicious\n# \0\n") });
 			expect((await run()).status).toBe(3);

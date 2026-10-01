@@ -1439,7 +1439,7 @@ describe("foundation-check review gate (US-027)", () => {
 	test("NUL-bearing source or forged binary asset headers never qualify for metadata-only review", async () => {
 		const repo = fixture("gate-nul-source");
 		const base = exec(repo, ["rev-parse", "HEAD"]);
-		for (const path of ["run.sh", "config.toml", "unknown.bin", "font.woff"]) {
+		for (const path of ["run.sh", "config.toml", "unknown.bin", "font.woff", "asset.constructor", "asset.__proto__"]) {
 			exec(repo, ["reset", "-q", "--hard", base]);
 			writeFileSync(join(repo, path), Buffer.from("wOFF\necho malicious\n# \0\n"));
 			commit(repo, "NUL-bearing source");
