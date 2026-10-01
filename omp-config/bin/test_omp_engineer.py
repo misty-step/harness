@@ -57,12 +57,22 @@ class AdmissionTests(unittest.TestCase):
                 snapshot["available_bytes"] = available
                 result = core.admission(snapshot)
                 self.assertTrue(result["admitted"])
-                self.assertEqual(result["reasons"], [])
                 self.assertEqual(bool(result["warnings"]), warns)
                 self.assertEqual(result["capacity"]["required_available_bytes"], 20 * GIB)
                 self.assertEqual(result["capacity"]["fleet_current_bytes"], 2 * GIB)
                 self.assertEqual(result["capacity"]["caged_count"], 18)
                 self.assertIsNone(result["capacity"]["effective_memory_max_bytes"])
+
+    def test_measured_fleet_guideline_and_missing_capacity_measurements_warn_without_reserving(self):
+        snapshot = measurement()
+        snapshot["fleet"].update(current_bytes=36 * GIB, populated=True)
+        self.assertEqual(core.admission(snapshot)["warnings"], [])
+        snapshot["fleet"]["current_bytes"] += 1
+        warning = core.admission(snapshot)["warnings"]
+        self.assertIn(str(36 * GIB + 1), warning[0])
+        snapshot["fleet"]["current_bytes"] = 0
+        snapshot["available_bytes"] = None
+        self.assertIsNone(core.admission(snapshot)["capacity"]["available_bytes"])
 
     def test_nested_launch_reuses_a_verified_cage_below_the_scale_up_floor(self):
         snapshot = measurement()
@@ -83,7 +93,6 @@ class AdmissionTests(unittest.TestCase):
         snapshot["ancestors"][-1].update(memory_max=24 * GIB, current_bytes=8 * GIB)
         result = core.admission(snapshot)
         self.assertTrue(result["admitted"])
-        self.assertEqual(result["reasons"], [])
         self.assertTrue(bool(result["warnings"]))
         self.assertEqual(result["capacity"]["effective_memory_max_bytes"], 24 * GIB)
         snapshot["ancestors"][-1].update(memory_max=32 * GIB, current_bytes=12 * GIB)
@@ -95,7 +104,6 @@ class AdmissionTests(unittest.TestCase):
         snapshot["ancestors"][-1]["current_bytes"] += 1
         below_floor = core.admission(snapshot)
         self.assertTrue(below_floor["admitted"])
-        self.assertEqual(below_floor["reasons"], [])
         self.assertTrue(bool(below_floor["warnings"]))
         for corrupt in (lambda s: s["ancestors"][0].update(oom_group=1),
                         lambda s: s["monitored"].append(ROOT),
@@ -120,7 +128,6 @@ class AdmissionTests(unittest.TestCase):
         snapshot["fleet"]["current_bytes"] += 1
         below_floor = core.admission(snapshot)
         self.assertTrue(below_floor["admitted"])
-        self.assertEqual(below_floor["reasons"], [])
         self.assertTrue(bool(below_floor["warnings"]))
         snapshot["fleet"]["current_bytes"] = 12 * GIB
         snapshot["ancestors"][-1].update(memory_max=24 * GIB, current_bytes=4 * GIB)
@@ -150,7 +157,8 @@ class AdmissionTests(unittest.TestCase):
             with self.assertRaises(core.CageError):
                 core.admission(snapshot)
 
-    def test_serialized_launch_remeasures_warnings_and_registers_below_floor(self):
+    @patch.object(core.subprocess, "run", side_effect=FileNotFoundError("Glass is unavailable"))
+    def test_serialized_launch_remeasures_warnings_and_registers_below_floor(self, _run):
         snapshot = measurement()
         snapshot["scopes"] = [scope(number, current=GIB // 16) for number in range(18)]
         snapshot["fleet"].update(current_bytes=2 * GIB, populated=True)
@@ -268,11 +276,25 @@ except core.CageError as exc:
                     os.close(master)
                     os.close(slave)
 
+    def test_native_roots_and_aliases_route_only_outside_flag_values_and_prompt_data(self):
+        with patch.object(core.os, "isatty", return_value=True):
+            for args in (["join"], ["img"], ["plugins"], ["q"], ["skills"], ["wt"],
+                         ["--model", "opus", "models"], ["--approval-mode=yolo", "update"],
+                         ["--profile", "work", "models"], ["--metadata", "", "models"]):
+                with self.subTest(args=args):
+                    self.assertFalse(core.engineer_invocation(args))
+            for args in (["--model", "models"], ["--resume", "update"],
+                         ["--metadata", "models"], ["--", "models"],
+                         ["launch", "models"], ["a prompt", "models"]):
+                with self.subTest(args=args):
+                    self.assertTrue(core.engineer_invocation(args))
+
     def test_nonengineer_native_exec_bypasses_unavailable_containment_inspection(self):
         cases = ((["-p"], True, None), (["--print"], True, None),
                  (["--mode", "json"], True, None), (["--mode=rpc"], True, None),
-                 (["--mode", "acp"], True, None), (["--help"], True, None),
-                 ([], False, None), (["--check"], True, "update"))
+                 (["--mode", "acp"], True, None), (["--mode", "text"], True, None),
+                 (["--mode=rpc-ui"], True, None), (["--version"], True, None),
+                 (["--help"], True, None), ([], False, None), (["--check"], True, "update"))
         for options, terminal, command in cases:
             with self.subTest(options=options, terminal=terminal, command=command):
                 result = self.dispatch(options, terminal=terminal, command=command)
@@ -284,7 +306,8 @@ except core.CageError as exc:
     def test_engineers_require_safe_membership_and_print_shaped_data_cannot_bypass(self):
         cases = (([], True), (["--", "-p"], True),
                  (["--system-prompt", "-p", "--model", "-p"], True),
-                 (["--system-prompt=-p"], True), (["--mode", "rpc-ui"], False))
+                 (["--system-prompt=-p"], True), (["--model", "models"], True),
+                 (["--resume", "models"], True), (["--", "--mode=json"], True))
         for options, terminal in cases:
             with self.subTest(options=options, terminal=terminal):
                 result = self.dispatch(options, terminal=terminal)
@@ -383,6 +406,10 @@ class InspectionAndTerminalTests(unittest.TestCase):
                     patch.object(Path, "iterdir", new=limited_iterdir), \
                     patch.object(core, "runtime_path", side_effect=AssertionError("Legacy runtime inspection")):
                 result = core.admission(host.snapshot())
+                (host.proc / "meminfo").unlink()
+                missing = core.admission(host.snapshot())
+                self.assertIsNone(missing["capacity"]["available_bytes"])
+                self.assertEqual(missing["scopes"][0]["path"], snapshot["scopes"][0]["path"])
             self.assertTrue(result["admitted"])
             self.assertFalse(result["reuses_cage"])
 

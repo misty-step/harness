@@ -241,6 +241,12 @@ for name in $skill_list; do
   case "$name" in
     engineering-operations)
       rm -rf -- "$agent_dir/skills/agent-ergonomics" "$agent_dir/skills/capture" ;;
+    cloudflare-workers)
+      rm -rf -- "$agent_dir/skills/wrangler" ;;
+    remote-execution)
+      rm -rf -- "$agent_dir/skills/using-exe-dev" ;;
+    design-studio)
+      rm -rf -- "$agent_dir/skills/frontend-design" "$agent_dir/skills/show-me" "$agent_dir/skills/herdr" ;;
     sachstand)
       rm -rf -- "$agent_dir/skills/decide" ;;
     story-qa)

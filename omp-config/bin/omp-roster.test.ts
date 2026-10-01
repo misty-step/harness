@@ -5,7 +5,7 @@ import { basename, dirname, join } from "node:path";
 
 // The deployed cohort is the copied TypeScript CLI plus the Python admission owner.
 // Tests use explicit inert measurements; neither PATH mocks nor fixture environment
-// variables can bypass the real omp launcher's live reservation transaction.
+// variables can bypass the real omp launcher's verified containment transaction.
 let root = "";
 let cli = "";
 let counter = 0;
@@ -19,8 +19,7 @@ function memoryFixture(available = 128 * 1024 ** 3) {
 		schema_version: 1, uid: 1000, user_root: root, current_group: `${root}/app.slice/fixture.scope`,
 		available_bytes: available, fleet: { ...group(`${root}/omp.slice`, null, 0), slice: "-.slice" },
 		ancestors: ["/user.slice", "/user.slice/user-1000.slice", root].map((path) => group(path)),
-		monitored: [`${root}/app.slice`], scopes: [], processes: [], legacy_groups: [],
-		heavy: { path: `${root}/dev.slice/dev-exec.slice`, current_bytes: 0, jobs: [] },
+		monitored: [`${root}/app.slice`], scopes: [],
 		captured_at: "2026-10-01T00:00:00+00:00",
 	};
 }
@@ -119,21 +118,26 @@ const launched = (result: Result & { state: string }) => {
 };
 
 describe("omp-roster memory admission", () => {
-	test("read-only refusal reports real capacity and blocks all launch records before writing", () => {
-		const dir = scratch("memory-refusal");
+	test("below-floor guidance warns in launch JSON while preserving overlay and record creation", () => {
+		const dir = scratch("memory-warning");
 		const state = join(dir, "state");
 		const file = put(join(dir, "memory.json"), JSON.stringify(memoryFixture(20 * 1024 ** 3 - 1)));
 		const snapshot = invoke(["memory", "--json", "--memory-json", file]);
 		expect(snapshot.exitCode).toBe(0);
 		const value = JSON.parse(snapshot.stdout);
 		expect([value.admitted, value.reservation, value.capacity.available_bytes, value.capacity.required_available_bytes])
-			.toEqual([false, false, 20 * 1024 ** 3 - 1, 20 * 1024 ** 3]);
+			.toEqual([true, false, 20 * 1024 ** 3 - 1, 20 * 1024 ** 3]);
 		const ticket = put(join(dir, "ticket.json"), JSON.stringify(boardAnswer([SONNET])));
 		const usage = put(join(dir, "usage.json"), JSON.stringify(usageView([row("anthropic", "sonnet", "usable")])));
 		const args = ["launch", "--item", "K-test", "--ticket-json", ticket, "--usage-json", usage,
 			"--memory-json", file, "--state-dir", state, "--json"];
-		const refused = invoke(args);
-		expect([refused.exitCode, refused.stdout, existsSync(state)]).toEqual([6, "", false]);
+		const warned = invoke(args);
+		expect(warned.exitCode).toBe(0);
+		const warnedLaunch = JSON.parse(warned.stdout);
+		expect([warnedLaunch.memory.admitted, warnedLaunch.memory.capacity.available_bytes]).toEqual([true, 20 * 1024 ** 3 - 1]);
+		expect(warnedLaunch.memory.warnings.join(" ")).toContain(String(20 * 1024 ** 3 - 1));
+		expect(warned.stderr).toContain(String(20 * 1024 ** 3 - 1));
+		expect(JSON.parse(readFileSync(warnedLaunch.record, "utf8")).launch).toBe("anthropic/claude-sonnet-5-5:medium");
 		put(file, JSON.stringify(memoryFixture(20 * 1024 ** 3)));
 		const admitted = invoke(args);
 		expect(admitted.exitCode).toBe(0);

@@ -233,13 +233,10 @@ mirror implementation. For end-to-end evidence, record the exact revision,
 repeatable setup and command, observed postconditions, and redacted output or
 captures where relevant; passing one path does not prove another.
 
-When writing, changing, or auditing tests, follow the shared
-[`test-audit` skill](../agent-config/skills/test-audit/SKILL.md). Its authoring
-gate and focused-audit evidence prevent duplicate or circular coverage; the
-[campaign workflow](../agent-config/skills/test-audit/CAMPAIGN.md) applies only
-to an explicitly commissioned subsystem. `./scripts/verify` tests working
-source but clones committed HEAD for installer checks. Before commit, exercise
-changed skill packaging and guidance composition in disposable destinations.
+Use the shared [`test-audit` skill](../agent-config/skills/test-audit/SKILL.md)
+to judge consumer failures and preserve independent contracts without a per-test
+ledger. `./scripts/verify` tests working source but clones committed HEAD for
+installer checks; smoke changed composition in disposable destinations.
 
 The shared [`story-qa` skill](../agent-config/skills/story-qa/SKILL.md)
 requires agents to adversarially review their own work and, for user-facing
@@ -305,7 +302,7 @@ The original publish-time validation remains in place.
 The merge policy is uniform across `misty-step`, `r90group`, and `moomooskycow`
 (operator decisions, 2026-09-28/30): independent model review plus green observed
 CI, without human approval or server-required status checks. The
-[normal merge procedure](../agent-config/skills/engineering-operations/review.md)
+[maintainer merge procedure](../agent-config/review/README.md)
 owns supported settings changes and exact-head merging; no bypass actors,
 per-repository exclusions, or plan upgrade substitute for that policy.
 

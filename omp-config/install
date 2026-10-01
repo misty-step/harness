@@ -156,8 +156,15 @@ install_scopes() {
     --development-root "$development_root"
 }
 
+
+# Engineering craft only. Management/review packages belong to Kaylee.
+engineering_skills='agent-design authenticated-commands cloudflare-workers design-studio engineering-operations foundation pokayoke remote-execution story-qa system-one test-audit typesafe-ai user-stories visual-state-review'
 validate_skill() {
   case "${1-}" in
+    herdr|pr-preview|sachstand|session-close|frontend-design|show-me|wrangler|using-exe-dev|all)
+      printf 'Not an OMP engineering skill: %s\n' "$1" >&2
+      exit 1
+      ;;
     ''|*[!a-zA-Z0-9_-]*)
       printf 'Invalid skill name: %s\n' "${1-}" >&2
       exit 1
@@ -173,11 +180,18 @@ install_skill() {
 
 validate_shared() {
   require_base
-  run_shared --check --skill all --bin pass-env.ts --bin openrouter-key.ts --bin design-check.ts --bin foundation-check.ts --bin agent-review.ts --bin ws.ts
+  set -- --check --bin pass-env.ts --bin openrouter-key.ts --bin design-check.ts --bin foundation-check.ts --bin ws.ts
+  for skill in $engineering_skills; do set -- "$@" --skill "$skill"; done
+  run_shared "$@"
 }
 
 install_shared() {
-  run_shared --skill all --bin pass-env.ts --bin openrouter-key.ts --bin design-check.ts --bin foundation-check.ts --bin agent-review.ts --bin ws.ts
+  set -- --bin pass-env.ts --bin openrouter-key.ts --bin design-check.ts --bin foundation-check.ts --bin ws.ts
+  for skill in $engineering_skills; do set -- "$@" --skill "$skill"; done
+  run_shared "$@"
+  for skill in herdr pr-preview sachstand session-close decide; do
+    rm -rf -- "$agent_dir/skills/$skill"
+  done
 }
 
 validate_secrets() {

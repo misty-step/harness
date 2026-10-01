@@ -16,28 +16,31 @@ user@UID.service
 └── dev.slice/dev-exec.slice           separately owned heavy-job budget
 ```
 
-Admission is serialized from live inspection through authenticated, verified
-scope registration. Each populated cage retains its verified 4-GiB limit even
-when idle or the native root exits but helpers remain; it does not reserve that
-full limit globally. Fleet cgroup `memory.current` and measured legacy RSS/PSS
-are diagnostics, not reservations. Uncaged roots, their descendants and retained
-mixed legacy cgroups are measured once; deleted cgroup annotations retain
-canonical membership until the last task exits. Legacy future growth remains
-unbounded until natural exit; this rolling deployment is not retroactive safety.
+Interactive-engineer startup serializes containment inspection through
+authenticated, verified scope registration. Each populated cage keeps its
+independent 4-GiB bound even when idle or the native root exits but helpers remain.
+Only actual cgroup controls, own membership and live oomd monitoring are mandatory.
+There is no process-wide `/proc` walk, ancestry/RSS/PSS/smaps inspection,
+`legacy.json` or heavy-job inventory in this path. Existing uncaged processes
+remain untouched and unbounded until natural exit.
 
-The sole operator memory scale-up rule is
-`MemAvailable >= 20 GiB` (21,474,836,480 bytes, matching `free -g` units).
-There is no aggregate fleet ceiling or maximum-count/full-leaf reservation.
-Do not add unused cage headroom, unused heavy capacity or another desktop reserve
-to that threshold, and do not subtract measured fleet/legacy usage again:
-charged memory is already reflected in `MemAvailable`. Actual finite ancestors
-must retain 20 GiB of headroom, without additive unused-cage reservations.
-`omp.slice` is a root sibling with `MemoryMax=infinity`, `MemoryHigh=infinity`,
-zero swap and `memory.oom.group=0`, outside oomd monitor roots. Actual cgroup
-controls and live oomd monitoring remain mandatory; incomplete hierarchy, an
-oomd-covered cage or incompatible active heavy-job limits fail closed. This is
-a measured scaling floor, not a guarantee that all engineer/heavy ceilings can
-fill simultaneously; simultaneous future growth is not globally reserved.
+Memory capacity is advisory, per Phaedrus's decision: below the 20-GiB available
+memory guideline or above the measured 36-GiB fleet guideline, warn and launch
+anyway. Missing `MemAvailable` also warns rather than denying startup.
+Warnings appear on stderr and in `omp-roster launch --json`; Glass updates its
+existing open advisory with actual warning measurements. Missing/busy publication
+never denies startup. Potential full-leaf capacity is not a reservation or warning.
+The owned parent has `MemoryMax=infinity`; actual per-engineer 4-GiB, zero-swap,
+group-OOM controls and live oomd exclusion remain mandatory containment.
+Explicit `engineer-cage` refresh raises an existing populated parent in place
+through `systemctl --user set-property --runtime omp.slice MemoryMax=infinity`,
+without restarting a slice, Herdr or an engineer, or moving any existing PID.
+
+Native print (`-p`/`--print`), every explicit `--mode`, help/version/export/profile
+alias creation, registered management roots and aliases, and stdin pipes/cron run
+directly in their caller's cgroup. Root dispatch honors leading flag values and
+`--`; print-looking prompt data cannot evade interactive containment. This
+classification follows native OMP semantics, not named-caller exemptions.
 
 From the reviewed harness revision:
 
@@ -51,7 +54,7 @@ This closes MIS-203's source-compatible-but-not-deployed updater mismatch.
 OMP_INSTALL_COMPONENTS=cli ./omp-config/install           # stage only
 OMP_INSTALL_COMPONENTS=engineer-cage ./omp-config/install # explicit activation
 omp-roster memory --json                                 # live, no reservation
-omp --version                                           # real admitted launch
+omp --version                                           # native administrative execution
 ```
 
 Default installation and `cli` staging leave live units and the stable entrypoint
@@ -72,17 +75,16 @@ Activation does not restart Herdr, change oomd or kill engineers. Work continues
 in existing sessions; their next natural direct/new/continued/resumed launch
 enters the cage. Do not force migration by restarting them.
 
-Every native argument uses real admission; direct `omp` refusal exits 75 before
-native execution. Roster preflight exits 6 before overlay/record writes.
-Read-only fixture inputs cannot override actual launch. A preflight success is
-not a reservation. Nested OMP/helpers inherit the verified existing leaf rather
-than escaping it or creating another independent cage.
+Memory warnings never cause wrapper exit 75 or roster exit 6. Inspection/setup
+and containment failures remain errors; failed native readiness still fails.
+Read-only fixture inputs cannot override actual launch or leaf controls. Nested
+OMP/helpers inherit the verified existing leaf rather than escaping it.
 
 Keep the retained ELF directory out of ordinary PATH. Native OMP 18.4.9 updates
 resolve the target through `which("omp")`; only a mutating `omp update` child
 receives that directory first in PATH, protecting the stable wrapper. Read-only
 `update --check` retains ordinary PATH. The Workbench updater accepts the exact
-owned wrapper/retained-ELF layout and invokes the stable, admitted entrypoint.
+owned wrapper/retained-ELF layout and invokes the stable native entrypoint.
 Binary/catalog changes still take effect in engineers only on natural relaunch.
 
 On a killed native child (exit 137), the outer wrapper survives outside the
@@ -101,19 +103,20 @@ canonical/echo/signals restored; same-pane resume and another real Bash command
 succeeded without manual PTY repair. The initial conservative policy refused
 real `omp --version` at 47.7 GB available versus 50.6 GB required, with no new
 scope. That policy blocked real work and was superseded by the 20-GiB floor:
-the recalibrated source admitted actual native OMP at 51.7 GB available with
-21.5 GB required. Boundary contracts admit exactly 20 GiB and refuse one byte
-below it; roster refusal writes no overlay or launch record. No physical
-exhaustion was used, and boundary fixtures cannot override real launches.
+the recalibrated source admitted actual native OMP at 51.7 GB available with 21.5 GB required.
+That hard-refusal policy is superseded by advisory guidance: boundaries warn
+without preventing overlay, record or native startup. No physical exhaustion
+was used, and boundary fixtures cannot override real launches.
 The original Herdr server/client and Hyprland PID/start/cgroup identities stayed
 unchanged; surviving original engineers were not moved. Raw transcripts and
 process inventory remain private.
 
 The intermediate 20-GiB-floor policy still imposed a 36-GiB fleet cap and
-full-cage reservations, which blocked additional engineers despite about
-46 GiB `MemAvailable`. The accepted policy above removes both constraints;
-the earlier observed launches are historical proof, not deployment proof of this
-single-floor correction.
+full-cage reservations, blocking additional engineers despite about 46 GiB
+`MemAvailable`. Reviewed PR196 deployed advisory guidance at 17:29 CDT on
+2026-10-01 without restarting consumers. Two fresh native launches reached
+readiness at 17:30 with distinct 4-GiB/zero-swap/group-OOM leaves and visible
+Glass warnings. Surviving baseline process start times and cgroups were unchanged.
 
 This is resource containment, not a same-user security boundary. External
 daemons and deliberate cgroup escape need independent limits. Keep the approved

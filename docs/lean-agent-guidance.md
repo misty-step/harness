@@ -30,11 +30,11 @@ retain their existing enforcement contracts.
 | Knowledge formerly in startup text or a retired skill | On-demand owner |
 |---|---|
 | Kickoff, durable findings; `agent-ergonomics`, `capture` | `engineering-operations` |
-| Exact-head review/merge, Glass publication | `engineering-operations/review.md` |
+| Exact-head review/merge, Glass publication | Maintainer-only `agent-config/review/`, not engineering skills |
 | `ws`, desktop guard, audio, fleet/resource facts | `engineering-operations/workstation.md` |
 | Credential locations and safe migration | `authenticated-commands` |
-| `decide` | `sachstand/decisions.md`, quiet unless speech requested |
-| `check-cadence`, `verification-infrastructure` | `story-qa` references |
+| `decide` | `sachstand`, quiet decisions; only speech needs the skill |
+| `check-cadence`, `verification-infrastructure` | `story-qa`; missing infrastructure is separate work |
 | Direct UI fixes and deterministic copy checks | `visual-state-review` |
 | Model/account discovery, Linear/Host commands | OMP `OPERATIONS.md` sidecar |
 | Agent architecture and post-training source links | `agent-design` |
@@ -101,3 +101,40 @@ composition and full skill deployment produced the measured files above.
 Required pre-merge/full checks and post-merge live native-consumer evidence are
 published with the exact candidate/landed revision on the PR and board review
 round; this document does not substitute installer bytes for native loading.
+
+## Code-red subtraction, 2026-10-01
+
+The September measurements above are historical, not the current footprint.
+The startup engineering page now says smallest fix today, never widen a ticket,
+checks earn their place, and behaviour on the real path beats prose hashes.
+OMP carries why/victory in its existing todo phase and child task context; no
+OpenRig daemon, new queue, ledger or reminder extension.
+
+Skill bodies keep tool contracts and workstation traps, not process manuals.
+Removed: duplicated foundation rationale, compatibility pointers, exhaustive
+deletion audits, per-test ledgers, fixed QA report fields, duplicate mandatory
+diff review, generic status/decision scripts, and repeated design ceremony.
+The normative catalog and executable access/data-safety checks are unchanged.
+Review docs/template move to undeployed `agent-config/review/`; OMP's explicit
+engineering selection omits management/review skills and the review launcher.
+Non-obvious Cloudflare/exe.dev facts use distinct short homebrew packages; redundant
+visual manuals and templates are deleted. The PR records measured reduction and
+actual composition/native evidence, not a new process ledger.
+
+At PR #194, against the original task baseline `6057c72`, shared skill Markdown fell from
+2,420 lines / 133,433 characters to 783 / 39,940: **1,637 lines and 93,493
+characters removed (70.1%)**. The final total includes the newly adopted upstream
+TypeSafe skill (10,036 characters); the rest is 29,904 characters. No vendor
+TypeSafe content was rewritten by this cut.
+
+Both source installers composed successfully in isolated HOME/agent directories.
+A real OMP session initialized the why/victory through the native todo tool,
+compacted, exited and resumed; the phase persisted and the resumed engineer read
+`todo view` and recovered both clauses. RPC's in-memory `set_todos` is not the
+durable mechanism. [Ranked gate recommendations](unearned-gates.md) retain the
+actual safety proof and identify each repository owner.
+
+The vetted correction preserves whole-product reproduction, exact-head private
+exe.dev previews and compatible automatic rollback on failed health, keeping
+accepted writes. Kaylee owns orchestration; subtraction does not weaken these
+approved outcomes. Retired session-close/sachstand references are removed.

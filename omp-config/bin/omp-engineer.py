@@ -24,6 +24,7 @@ import time
 
 GIB = 1024 ** 3
 LEAF_BYTES = 4 * GIB
+FLEET_ADVISORY_BYTES = 36 * GIB
 MEMORY_FLOOR_BYTES = 20 * GIB
 INSPECTION_SECONDS = 10
 LOCK_SECONDS = 10
@@ -32,7 +33,7 @@ SYSTEMCTL = "/usr/bin/systemctl"
 SYSTEMD_RUN = "/usr/bin/systemd-run"
 OOMCTL = "/usr/bin/oomctl"
 SCOPE = re.compile(r"omp-engineer-[0-9a-f]{24}\.scope\Z")
-POLICY = {"leaf_bytes": LEAF_BYTES,
+POLICY = {"leaf_bytes": LEAF_BYTES, "fleet_advisory_bytes": FLEET_ADVISORY_BYTES,
           "available_memory_floor_bytes": MEMORY_FLOOR_BYTES, "leaf_swap_bytes": 0}
 HELP = """Usage:
   omp-engineer [--] OMP-ARGUMENTS...
@@ -135,7 +136,9 @@ def admission(snapshot, *, source="live"):
     if not isinstance(snapshot, dict) or snapshot.get("schema_version") != 1:
         raise CageError("Unrecognized memory measurement schema")
     _, fleet_path, fleet, ancestors = verify_hierarchy(snapshot)
-    available = natural(snapshot.get("available_bytes"), "available memory")
+    available = snapshot.get("available_bytes")
+    if available is not None:
+        available = natural(available, "available memory")
     scopes = snapshot.get("scopes")
     if not isinstance(scopes, list):
         raise CageError("Incomplete OMP scope inventory")
@@ -158,14 +161,18 @@ def admission(snapshot, *, source="live"):
     bounds = [item for item in (fleet, *ancestors) if item["memory_max"] is not None]
     warnings = []
     if not nested:
-        if available < MEMORY_FLOOR_BYTES:
-            warnings.append(f"available memory {available} is below the {MEMORY_FLOOR_BYTES}-byte (20-GiB) scale-up floor")
+        if available is None:
+            warnings.append("available-memory guidance is unavailable; launch continues")
+        elif available < MEMORY_FLOOR_BYTES:
+            warnings.append(f"available memory {available} is below the {MEMORY_FLOOR_BYTES}-byte (20-GiB) guideline; launch continues")
+        if fleet["current_bytes"] > FLEET_ADVISORY_BYTES:
+            warnings.append(f"measured fleet memory {fleet['current_bytes']} exceeds the {FLEET_ADVISORY_BYTES}-byte guideline; launch continues")
         for item in bounds:
             if item["memory_max"] - item["current_bytes"] < MEMORY_FLOOR_BYTES:
                 warnings.append(f"effective cgroup {item['path']} lacks {MEMORY_FLOOR_BYTES} bytes of memory headroom")
     return {"schema_version": 1, "ok": True, "source": source, "reservation": False,
             "activated": True,
-            "captured_at": snapshot.get("captured_at"), "admitted": True, "reasons": [], "warnings": warnings,
+            "captured_at": snapshot.get("captured_at"), "admitted": True, "warnings": warnings,
             "policy": dict(POLICY), "reuses_cage": nested,
             "capacity": {"available_bytes": available, "required_available_bytes": MEMORY_FLOOR_BYTES,
                          "required_ancestor_headroom_bytes": MEMORY_FLOOR_BYTES,
@@ -219,14 +226,57 @@ def admission_lock(path, *, clock=time.monotonic, sleep=time.sleep):
         os.close(fd)
 
 
+def publish_memory_warnings(result):
+    warnings = result["warnings"]
+    if not warnings:
+        return
+    for warning in warnings:
+        print("omp-engineer: warning: " + warning, file=sys.stderr)
+    # Glass owns the item; reuse its open record rather than caching another authority.
+    title = "OMP launches continue despite memory guidance"
+    scope = "misty-step/harness"
+    why = {"text": "the memory cage should be more of a guideline than a hard rule. Advisory. Otherwise it's too constraining.",
+           "attribution": "quoted", "source": "Phaedrus"}
+    try:
+        listing = subprocess.run(["glass", "item", "list", "--lock-wait", "100ms"],
+                                 stdin=subprocess.DEVNULL, capture_output=True, timeout=1, check=False)
+        if listing.returncode:
+            raise OSError(listing.stderr.decode(errors="replace").strip())
+        data = json.loads(listing.stdout)
+        if not isinstance(data, dict) or not isinstance(data.get("items"), list):
+            raise ValueError("Unrecognized Glass item list")
+        existing = next((item["id"] for item in data["items"]
+                         if isinstance(item, dict) and isinstance(item.get("id"), str) and item["id"]
+                         and item.get("title") == title and item.get("scope") == scope
+                         and item.get("kind") == "task" and item.get("why") == why
+                         and item.get("status") not in ("done", "dropped")), None)
+        if existing:
+            command = ["glass", "item", "update", existing]
+        else:
+            command = ["glass", "item", "add", "--scope", scope, "--kind", "task", "--status", "later",
+                       "--title", title,
+                       "--description", "Memory guidance is advisory; engineers continue to launch while their independent four-GiB containment and oomd exclusion remain verified.",
+                       "--why", why["text"], "--why-attribution", why["attribution"], "--why-source", why["source"]]
+        receipt = subprocess.run(
+            [*command, "--relaying", "none", "--notes", "\n".join(warnings),
+             "--note", "Memory advisory warning observed; launch continues. Current measurements are in the item notes.",
+             "--json", "--lock-wait", "100ms"],
+            stdin=subprocess.DEVNULL, capture_output=True, timeout=1, check=False)
+        if receipt.returncode:
+            print("omp-engineer: Glass warning publication failed: " + receipt.stderr.decode(errors="replace").strip(), file=sys.stderr)
+        else:
+            print("omp-engineer: memory warning published in Glass", file=sys.stderr)
+    except (OSError, ValueError, subprocess.TimeoutExpired) as exc:
+        print("omp-engineer: Glass warning publication failed: " + str(exc), file=sys.stderr)
+
+
 def launch_transaction(lock, inspect, register):
     # Registration returns only after cgroupfs + process membership verification.
     # Fresh inspection and verified registration share the lock, never abstract slots.
     with lock:
         snapshot = inspect()
         result = admission(snapshot)
-        for warning in result["warnings"]:
-            print(f"omp-engineer: warning: {warning}; launching with verified containment", file=sys.stderr)
+        publish_memory_warnings(result)
         return register(result)
 
 
@@ -409,11 +459,15 @@ class Host:
         current = self.current_group()
         fleet = self.fleet()
         scopes = self.scopes(fleet)
-        available = [line.split() for line in self.read(self.proc / "meminfo").splitlines() if line.startswith("MemAvailable:")]
-        if len(available) != 1 or len(available[0]) != 3 or available[0][2] != "kB" or not available[0][1].isdecimal():
-            raise CageError("Cannot inspect actual available physical memory")
+        available_bytes = None
+        try:
+            available = [line.split() for line in self.read(self.proc / "meminfo").splitlines() if line.startswith("MemAvailable:")]
+            if len(available) == 1 and len(available[0]) == 3 and available[0][2] == "kB" and available[0][1].isdecimal():
+                available_bytes = int(available[0][1]) * 1024
+        except CageError:
+            pass  # Capacity guidance is optional; containment inspection is not.
         return {"schema_version": 1, "uid": self.uid, "user_root": self.root,
-                "current_group": current, "available_bytes": int(available[0][1]) * 1024,
+                "current_group": current, "available_bytes": available_bytes,
                 "fleet": fleet, "scopes": scopes,
                 "ancestors": [self.group_controls(path) for path in ancestor_paths(self.root)],
                 "monitored": self.monitors(), "captured_at": datetime.now(timezone.utc).isoformat()}
@@ -619,17 +673,15 @@ def start_scope(argv, runtime):
 
 
 def engineer_invocation(argv):
-    # Native 18.4.9 CLI modes, not caller identities. Services without a terminal
-    # and explicit print/stdio modes are not interactive engineers.
-    commands = {"acp", "agents", "auth-broker", "auth-gateway", "bench", "browser-relay",
-                "cleanse", "clip", "collab", "commit", "completions", "compress", "config",
+    # Native 18.4.9 root dispatch / flag-tables.ts / main.ts isInteractive.
+    # Classify arguments, never callers; an explicit mode is not an engineer.
+    commands = {"help", "acp", "agents", "auth-broker", "auth-gateway", "bench", "browser-relay",
+                "cleanse", "clip", "collab", "commit", "completions", "__complete", "compress", "config",
                 "dry-balance", "find", "gallery", "gc", "git", "grep", "grievances",
-                "if-bench", "images", "install", "login", "models", "play", "plugin",
-                "predict", "ps", "read", "render", "say", "search", "setup", "share",
-                "shell", "skill", "ssh", "stats", "stream", "tiny-models", "token",
-                "toks", "ttsr", "update", "usage", "worktree"}
-    if argv and argv[0] in commands:
-        return False
+                "if-bench", "images", "img", "install", "join", "login", "models", "play", "plugin",
+                "plugins", "predict", "ps", "read", "render", "say", "search", "q", "web-search",
+                "setup", "share", "shell", "skill", "skills", "ssh", "stats", "stream",
+                "tiny-models", "token", "toks", "ttsr", "update", "usage", "worktree", "wt"}
     values = {"--cwd", "--config", "--add-dir", "--fork", "--provider", "--model",
               "--smol", "--slow", "--plan", "--prewalk-into", "--plan-yolo-into",
               "--max-time", "--service-tier", "--api-key", "--system-prompt",
@@ -637,27 +689,36 @@ def engineer_invocation(argv):
               "--prompt-cache-key", "--session-dir", "--models", "--tools", "--thinking",
               "--hook", "--extension", "-e", "--trusted-extension", "--plugin-dir",
               "--skills", "--approval-mode", "--profile"}
-    mode = None
+    optional = {"--resume", "-r", "--session"}
+    booleans = {"--help", "--version", "--allow-home", "--continue", "--from-claude",
+                "--from-codex", "--no-session", "--no-tools", "--no-lsp", "--no-pty",
+                "--hide-thinking", "--advisor", "--external-thinking", "--prewalk",
+                "--no-prewalk", "--plan-yolo", "--print", "--print-thoughts",
+                "--no-extensions", "--no-skills", "--no-rules", "--no-title", "--no-ui",
+                "--auto-approve", "--yolo"}
+    leading = True
     index = 0
     while index < len(argv):
         arg = argv[index]
         if arg == "--":
             break
-        flag, equals, value = arg.partition("=") if arg.startswith("--") else (arg, "", "")
-        if flag in ("-p", "--print", "-h", "--help", "-v", "--version", "--export", "--alias"):
+        if not arg.startswith("-"):
+            if leading and arg in commands:
+                return False
+            leading = False
+            index += 1
+            continue
+        flag, equals, _ = arg.partition("=") if arg.startswith("--") else (arg, "", "")
+        if flag in ("-p", "--print", "-h", "--help", "-v", "--version", "--export", "--alias", "--mode"):
             return False
-        if flag == "--mode":
-            if not equals and index + 1 < len(argv):
-                index += 1
-                value = argv[index]
-            mode = value
-        elif flag in values and not equals and index + 1 < len(argv):
-            if flag != "--plan" or not argv[index + 1].startswith("-"):
+        if not equals and index + 1 < len(argv):
+            following = argv[index + 1]
+            if flag in values or (
+                    not following.startswith("-") and (
+                        (flag in optional and following != "") or (flag.startswith("--") and flag not in booleans))):
                 index += 1
         index += 1
-    if mode in ("json", "rpc", "acp"):
-        return False
-    return mode == "rpc-ui" or os.isatty(0)
+    return os.isatty(0)
 
 
 def launch(argv):
@@ -711,7 +772,7 @@ def memory(argv):
         if not cage_activation_present(Path(pwd.getpwuid(os.getuid()).pw_dir)):
             print(json.dumps({"schema_version": 1, "ok": True, "source": "live",
                               "activated": False, "admitted": True, "reservation": False,
-                              "reasons": [], "warnings": [], "policy": POLICY, "capacity": None,
+                              "warnings": [], "policy": POLICY, "capacity": None,
                               "coverage": "Engineer cage is not activated; memory enforcement is inactive. Staged roster launches retain their uncaged behavior."}, indent=2))
             return 0
         snapshot = Host().snapshot()
