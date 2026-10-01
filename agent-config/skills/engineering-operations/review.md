@@ -18,6 +18,11 @@ the `kaylee-agent[bot]` App's exact-head approval is the independent signal
 `foundation-review` recognizes. Confirm the review ran successfully and refresh
 it when the head changes. CodeRabbit is advisory.
 
+For repositories with a PR-preview adapter, use `skill://pr-preview` before
+merge: CI deploys/tears down; the agent walks every affected criterion/adapter
+and attaches native evidence from its own signed-in session. Fix verification
+gaps; deployment readiness is not QA proof.
+
 With review and required CI green on that head:
 
 ```sh
