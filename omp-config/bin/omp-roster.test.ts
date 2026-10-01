@@ -360,6 +360,7 @@ describe("omp-roster launch (US-046)", () => {
 		["an entry without an effort", boardAnswer([{ provider: "anthropic", model: "claude-sonnet-5-5" } as Entry]), healthy, [], /needs a provider, a model and an effort/],
 		["an unapproved model", boardAnswer([SOL, { provider: "anthropic", model: "claude-haiku-4", effort: "low" }]), healthy, [], /entry 2 \(anthropic\/claude-haiku-4\) is not on the approved model list/],
 		["an effort the model lacks", boardAnswer([{ ...GEMINI, effort: "xhigh" }]), healthy, [], /effort xhigh, which google-antigravity\/gemini-3.8-flash does not support/],
+		["Sol below the engineer effort floor", boardAnswer([{ ...SOL, effort: "medium" }]), healthy, [], /effort medium, which openai-codex\/gpt-6\.1-sol does not support/],
 		["a duplicate entry", boardAnswer([SOL, SONNET, SOL]), healthy, [], /entries 1 and 3 are the same model and effort/],
 		["another harness", boardAnswer([SOL]), healthy, ["--harness", "pi"], /Pi enforcement is a later slice/],
 		["a usage view that is not ok", boardAnswer([SOL]), usageView([], { ok: false, error: "status is stale" }), [], /not ok: status is stale/],

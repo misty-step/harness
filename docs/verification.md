@@ -133,6 +133,18 @@ owned directory. Remove only that directory once its process has ended.
   review to prove the engineer's recovery still works. Registry record
   overrides merge keys; the native settings singleton is not child-scoped.
   The 2026-10-01 acceptance walk on OMP 18.4.6 found and rejected both traps.
+  Also remove the extension while retaining the default disabled-agent gate:
+  protected tasks must remain unavailable. Inject a child initialization failure
+  through a supported extension wrapper: no reviewer provider request or fallback
+  is permitted. Confirm enabled specialists remain present in the model-visible
+  task description. The standalone review-only process disables model switching
+  as well as emptying its selected reviewer's recovery chains; verify same-model
+  retries still occur and remove both restrictions for its forbidden-hop control.
+  Disable the loaded guard through native extension settings after its first
+  successful unlock: observe native hook suspension and closed specialist
+  permissions, with no child request. Revoke reviewer auth between preflight
+  and SDK startup: the child's requested-model provenance must refuse parent
+  substitution before its first provider request.
 - `omp-config/extensions/credentials/credentials.test.ts` checks stable opt-in
   context, names-only default inventory, and no tool/prose-triggered interruption
   with a synthetic pass store (US-019). The [token-efficiency procedure](token-efficiency.md)

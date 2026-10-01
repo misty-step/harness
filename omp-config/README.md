@@ -778,6 +778,21 @@ overrides merge keys, so an empty role alone is insufficient. The public
 `findScopedSettings` resolver selects the active child's settings;
 `pi.pi.settings` is the root singleton and would also change builder recovery.
 No parent recovery or persisted config is mutated.
+`task.disabledAgents` denies reviewers and designer until the loaded guard
+initializes their runtime permission. A missing/unloadable extension therefore
+cannot silently expose unguarded specialists. Failed child initialization
+aborts before a provider request; isolated extension errors never grant review
+permission. Other disabled agents are preserved.
+Changing `extensions` or `disabledExtensions` revokes this permission, including
+an in-flight spawn's auth result. Public setting listeners survive native hook
+suspension; dispatch remains closed until fresh guard initialization.
+The caller records its chosen reviewer against native spawn/parent identities
+before core resolution; the child consumes that immutable dispatch pin and
+persists it as a custom session entry for cold revival. `session_init.resolvedModel`
+already includes startup auth substitution and is not authoritative intent.
+The reviewer disables model switching in its own scope and checks the pinned
+identity before every provider request. Sol medium is a review-only approval
+exception; engineer rosters and ordinary config/recovery retain Sol's high floor.
 
 The native task result already records the actual resolved model identity,
 thinking level, and fallback status (`resolvedModelIdentity`,

@@ -73,6 +73,33 @@ test("offline policy rejects stale, alias, malformed and disallowed routing sele
 	}
 });
 
+test("Sol medium is approved for review routes but not builders, recovery or non-review agents", () => {
+	const medium = "openai-codex/gpt-6.1-sol:medium";
+	const high = "openai-codex/gpt-6.1-sol:high";
+	const accepted = smallConfig();
+	accepted.modelRoles.default = high;
+	accepted.modelRoles.reviewer = medium;
+	accepted.modelRoles["security-reviewer"] = medium;
+	accepted.task = { agentModelOverrides: { worker: "@default", reviewer: medium, "security-reviewer": "@security-reviewer" } };
+	accepted.retry.fallbackChains.default = [high];
+	expect(run(fixture(accepted).config).exitCode).toBe(0);
+
+	const refused: Array<[(config: PolicyConfig) => void, string]> = [
+		[config => { config.modelRoles.default = medium; }, "modelRoles.default"],
+		[config => { config.retry.fallbackChains.default = [medium]; }, "retry.fallbackChains.default[0]"],
+		[config => { config.task = { agentModelOverrides: { worker: medium } }; }, "task.agentModelOverrides.worker"],
+		[config => { config.task = { agentModelOverrides: { worker: "@reviewer" } }; }, "task.agentModelOverrides.worker (@reviewer)"],
+		[config => { config.modelRoles.reviewer = "openai-codex/gpt-6.1-sol:low"; }, "modelRoles.reviewer"],
+	];
+	for (const [change, location] of refused) {
+		const config = structuredClone(accepted);
+		change(config);
+		const result = run(fixture(config).config);
+		expect(result.exitCode, location).not.toBe(0);
+		expect(result.stderr.toString()).toContain(`${location} has unsupported effort:`);
+	}
+});
+
 test("web search fallback providers remain available without chat model recovery", () => {
 	const config = smallConfig();
 	config.retry.fallbackChains.web = ["web/parallel", "web/perplexity"];

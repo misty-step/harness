@@ -21,12 +21,14 @@ const ANY_EFFORT = ["minimal", ...LOW_TO_MAX];
 // model is approved for a roster but never launchable.
 export const approvedModels: Record<string, {
 	efforts: readonly string[];
+	/** Review-only effort exception; rosters and recovery use the ordinary floor above. */
+	reviewerEfforts?: readonly string[];
 	usage: { provider: string; model: string } | null;
 }> = {
 	"anthropic/claude-opus-5-5": { efforts: LOW_TO_MAX, usage: { provider: "anthropic", model: "opus" } },
 	"anthropic/claude-sonnet-5-5": { efforts: LOW_TO_MAX, usage: { provider: "anthropic", model: "sonnet" } },
 	"openai-codex/gpt-6-astra": { efforts: LOW_TO_MAX, usage: { provider: "openai-codex", model: "gpt-6-astra" } },
-	"openai-codex/gpt-6.1-sol": { efforts: ["medium", "high", "xhigh", "max"], usage: { provider: "openai-codex", model: "gpt-6.1-sol" } },
+	"openai-codex/gpt-6.1-sol": { efforts: ["high", "xhigh", "max"], reviewerEfforts: ["medium", "high", "xhigh", "max"], usage: { provider: "openai-codex", model: "gpt-6.1-sol" } },
 	"openai-codex/gpt-6-luna": { efforts: LOW_TO_MAX, usage: { provider: "openai-codex", model: "gpt-6-luna" } },
 	"xai-oauth/grok-4.7": { efforts: ["minimal", "low", "medium", "high", "xhigh"], usage: { provider: "xai", model: "grok" } },
 	"google-antigravity/gemini-3.8-flash": { efforts: ["minimal", "low", "medium", "high"], usage: null },

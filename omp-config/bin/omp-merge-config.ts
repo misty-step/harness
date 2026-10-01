@@ -104,6 +104,17 @@ if (live === null) {
 } else {
 	const merged = overlay(source, live ?? {});
 	pruneRetiredKeys(source, merged);
+	// Adding the fail-closed specialist gate must not enable a foreign agent
+	// that the operator already disabled.
+	const task = merged && typeof merged === "object" && !Array.isArray(merged) ? merged.task : undefined;
+	const liveTask = live.task;
+	if (task && liveTask && typeof task === "object" && typeof liveTask === "object"
+		&& !Array.isArray(task) && !Array.isArray(liveTask)
+		&& Array.isArray(task.disabledAgents) && Array.isArray(liveTask.disabledAgents)) {
+		const disabled = new Set(task.disabledAgents);
+		for (const agent of liveTask.disabledAgents) disabled.add(agent);
+		task.disabledAgents = [...disabled];
+	}
 	body = `${Bun.YAML.stringify(merged)}\n`;
 }
 const temporary = `${destPath}.${process.pid}.tmp`;

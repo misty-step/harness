@@ -3,9 +3,13 @@ import { lookup } from "@oh-my-pi/pi-coding-agent/config/registry";
 import { findScopedSettings } from "@oh-my-pi/pi-coding-agent/config/settings";
 
 type Spawn = { agent: string; invocationKind: string };
+type ModelSelection = { model: string } | { block: true; reason: string } | undefined;
+const GUARDED_AGENTS: Record<string, true> = { reviewer: true, "security-reviewer": true, designer: true };
+const REVIEW_PIN = "harness:reviewer-model-pin";
+const expectedReviews = new Map<string, { parentId: string; model: string }>();
 
 /** Reviewers contrast the live author; visual work stays on Opus at high or above. */
-function taskModelSelection(spawn: Spawn, ctx: ExtensionContext, thinking: string | undefined) {
+function taskModelSelection(spawn: Spawn, ctx: ExtensionContext, thinking: string | undefined): ModelSelection {
 	const parent = ctx.model;
 	if (spawn.agent === "reviewer" || spawn.agent === "security-reviewer") {
 		if (!parent) return { block: true, reason: "Reviewer requires a known author model family." };
@@ -28,9 +32,35 @@ function hasUnsafeDesignerEffort(item: unknown): boolean {
 }
 
 export default function registerSubagentInheritance(pi: ExtensionAPI) {
+	let ready = false;
+	let reviewer = true;
+	let reviewerModel: string | undefined;
+	let stopExtensions: (() => void) | undefined;
+	let stopDisabledExtensions: (() => void) | undefined;
+	let revokePermissions: (() => void) | undefined;
+
+	function pinReviewer(ctx: ExtensionContext) {
+		const request = expectedReviews.get(ctx.agent.id);
+		if (request) {
+			expectedReviews.delete(ctx.agent.id);
+			if (request.parentId !== ctx.agent.parentId) throw new Error("Reviewer dispatch identity mismatch.");
+			reviewerModel = request.model;
+			pi.appendEntry(REVIEW_PIN, reviewerModel);
+		} else if (!reviewerModel) {
+			const saved = ctx.sessionManager.getEntries().findLast(entry =>
+				entry.type === "custom" && entry.customType === REVIEW_PIN);
+			if (typeof saved?.data === "string") reviewerModel = saved.data;
+		}
+	}
 	pi.on("before_subagent_spawn", async (event, ctx) => {
-		const selection = taskModelSelection(event, ctx, pi.getThinkingLevel());
+		let selection: ModelSelection;
+		try {
+			selection = taskModelSelection(event, ctx, pi.getThinkingLevel());
+		} catch {
+			return { block: true, reason: "Specialist model selection failed; refusing parent-model fallback." };
+		}
 		if (!selection || "block" in selection) return selection;
+		if (!ready) return { block: true, reason: "Specialist guard is not initialized." };
 		const blocked = { block: true, reason: "Required specialist model is unavailable; refusing parent-model fallback." };
 		let timeout: NodeJS.Timeout | undefined;
 		try {
@@ -43,7 +73,14 @@ export default function registerSubagentInheritance(pi: ExtensionAPI) {
 				ctx.modelRegistry.getApiKey(model),
 				new Promise<undefined>(resolve => { timeout = setTimeout(() => resolve(undefined), 5_000); }),
 			]);
-			return key ? selection : blocked;
+			if (!ready || !key) return blocked;
+			if (event.agent === "reviewer" || event.agent === "security-reviewer") {
+				if (!event.spawnKey || !ctx.agent.id || expectedReviews.has(event.spawnKey)) {
+					return { block: true, reason: "Reviewer dispatch identity is unavailable or already pending." };
+				}
+				expectedReviews.set(event.spawnKey, { parentId: ctx.agent.id, model: `${provider}/${id}` });
+			}
+			return selection;
 		} catch {
 			return blocked;
 		} finally {
@@ -51,22 +88,77 @@ export default function registerSubagentInheritance(pi: ExtensionAPI) {
 		}
 	});
 	pi.on("session_start", (_event, ctx) => {
-		const reviewer = ctx.sessionManager.getEntries().some(entry =>
-			entry.type === "session_init" && (entry.agent === "reviewer" || entry.agent === "security-reviewer"));
+		ready = false;
+		reviewer = true;
+		reviewerModel = undefined;
+		try {
+			revokePermissions?.();
+			stopExtensions?.();
+			stopDisabledExtensions?.();
+			const initialization = ctx.sessionManager.getEntries().findLast(entry => entry.type === "session_init");
+			reviewer = ctx.agent.name === "reviewer" || ctx.agent.name === "security-reviewer"
+				|| initialization?.agent === "reviewer" || initialization?.agent === "security-reviewer";
+			// The public resolver follows the handler's native async scope.
+			// pi.pi.settings is the root singleton and must not be mutated here.
+			const settings = findScopedSettings(ctx.cwd);
+			const chains = lookup("retry.fallbackChains");
+			const switching = lookup("retry.modelFallback");
+			const disabled = lookup("task.disabledAgents");
+			const extensions = lookup("extensions");
+			const disabledExtensions = lookup("disabledExtensions");
+			if (!settings || !chains || !switching || !disabled || !extensions || !disabledExtensions) return;
+			if (reviewer) {
+				// Native session_init.resolvedModel already includes startup auth
+				// substitution. Only the caller's immutable spawn pin is authoritative.
+				pinReviewer(ctx);
+				if (!ctx.model || reviewerModel !== `${ctx.model.provider}/${ctx.model.id}`) return;
+				switching.override(settings, false);
+				if (switching.get(settings) !== false) return;
+				pi.setThinkingLevel(ctx.model?.id === "claude-sonnet-5-5" ? "high" : "medium");
+				// Record overrides merge keys: empty inherited model/effort/wildcard
+				// chains explicitly, then confirm the effective recovery boundary.
+				const empty: Record<string, string[]> = { default: [], reviewer: [], "security-reviewer": [] };
+				for (const key of Object.keys(chains.get(settings) as Record<string, unknown>)) empty[key] = [];
+				chains.override(settings, empty);
+				if (Object.values(chains.get(settings) as Record<string, unknown>)
+					.some(chain => !Array.isArray(chain) || chain.length !== 0)) return;
+			}
+			revokePermissions = () => {
+				ready = false;
+				for (const [id, request] of expectedReviews) {
+					if (request.parentId === ctx.agent.id) expectedReviews.delete(id);
+				}
+				const denied = new Set(disabled.get(settings) as string[]);
+				for (const agent in GUARDED_AGENTS) denied.add(agent);
+				disabled.override(settings, [...denied]);
+			};
+			// Native extension suspension removes hooks, not setting listeners.
+			// Close permissions before its async discovery can suspend this guard.
+			stopExtensions = extensions.listen(settings, revokePermissions);
+			stopDisabledExtensions = disabledExtensions.listen(settings, revokePermissions);
+			// Config denies these agents even when this extension cannot load.
+			disabled.override(settings, (disabled.get(settings) as string[]).filter(agent => !Object.hasOwn(GUARDED_AGENTS, agent)));
+			ready = true;
+		} catch {
+			// Startup errors are isolated by OMP. Keep permissions closed, and
+			// abort an already-spawned reviewer before its first provider request.
+		}
+	});
+	pi.on("session_shutdown", () => {
+		revokePermissions?.();
+		stopExtensions?.();
+		stopDisabledExtensions?.();
+	});
+	pi.on("before_provider_request", (_event, ctx) => {
 		if (!reviewer) return;
-		// A roster's model-key chains outrank role chains. Pin only this child's
-		// runtime settings, including cold revival; leave the engineer's recovery intact.
-		const chains = lookup("retry.fallbackChains");
-		if (!chains) throw new Error("Reviewer fallback setting is unavailable.");
-		// pi.pi.settings is the root singleton, not the active child's scope.
-		const settings = findScopedSettings(ctx.cwd);
-		if (!settings) throw new Error("Reviewer session settings are unavailable.");
-		// Record overrides merge keys, so explicitly empty inherited model,
-		// effort-specific and wildcard chains as well as the reviewer roles.
-		const empty: Record<string, string[]> = { default: [], reviewer: [], "security-reviewer": [] };
-		for (const key of Object.keys(chains.get(settings) as Record<string, unknown>)) empty[key] = [];
-		chains.override(settings, empty);
-		pi.setThinkingLevel(ctx.model?.id === "claude-sonnet-5-5" ? "high" : "medium");
+		try {
+			pinReviewer(ctx);
+			if (ready && reviewerModel === `${ctx.model?.provider}/${ctx.model?.id}`) return;
+		} catch {
+			// Provider hooks also isolate errors: abort, never rely on the throw.
+		}
+		ctx.abort();
+		throw new Error("Reviewer recovery guard is unavailable; review aborted.");
 	});
 	pi.on("tool_call", event => {
 		if (event.toolName !== "task") return;

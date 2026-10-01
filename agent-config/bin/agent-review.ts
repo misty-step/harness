@@ -46,7 +46,7 @@ const b64url = (value: Buffer | string) => Buffer.from(value).toString("base64ur
 
 type Family = "openai" | "anthropic" | "google" | "xai";
 type Model = { model: string; provider: string; id: string; family: Family; thinking?: string };
-type Reviewer = Model & { thinking: string };
+type Reviewer = Model & { thinking: string; declaredAuthorModel: string };
 const THINKING_LEVELS: Record<string, true> = { off: true, minimal: true, low: true, medium: true, high: true, xhigh: true, max: true };
 
 /** Concrete selectors only: a fuzzy name or role alias cannot establish model-family independence. */
@@ -79,7 +79,7 @@ function reviewerFor(authorValue: string | undefined): Reviewer {
 	if (reviewer.family === author.family) throw new Error(`the reviewer ${reviewer.model} shares the author's ${author.family} model family; nothing was posted`);
 	const thinking = process.env.AGENT_REVIEW_THINKING ?? reviewer.thinking ?? route.thinking;
 	if (!Object.hasOwn(THINKING_LEVELS, thinking)) throw new Error(`AGENT_REVIEW_THINKING has unsupported thinking level ${thinking}`);
-	return { ...reviewer, thinking };
+	return { ...reviewer, thinking, declaredAuthorModel: authorValue.trim() };
 }
 
 /** RS256 app JWT, valid nine minutes, backdated a minute for clock skew (GitHub's documented maximum is ten). */
@@ -176,7 +176,7 @@ async function runModel(text: string, reviewer: Reviewer): Promise<Verdict> {
 		// Effort-specific model keys outrank bare keys, including after native effort normalization.
 		for (const thinking in THINKING_LEVELS) fallbackChains[`${reviewer.model}:${thinking}`] = none;
 		writeFileSync(overlay, JSON.stringify({
-			retry: { fallbackChains },
+			retry: { modelFallback: false, fallbackChains },
 			advisor: { enabled: false },
 		}), { mode: 0o600 });
 		const { promise, resolve, reject } = Promise.withResolvers<string>();
@@ -240,7 +240,7 @@ async function installationToken(repo: string): Promise<string> {
 function body(verdict: Verdict, head: string, pull: Pull, mergeBase: string, reviewer: Reviewer): string {
 	const digest = (value: string) => createHash("sha256").update(value).digest("hex");
 	const state = `agent-review-state: base=${pull.base.ref} merge-base=${mergeBase} title=sha256:${digest(pull.title)} description=sha256:${digest(pull.body ?? "")}`;
-	const lines = [`${passes(verdict) ? "agent-review: approved" : "agent-review: changes requested"} ${head}`, state, "", `Reviewer: ${reviewer.model} (${reviewer.thinking}), verified from OMP's completed response in a fresh session that saw the PR title, description and diff only.`, "", verdict.explanation.trim()];
+	const lines = [`${passes(verdict) ? "agent-review: approved" : "agent-review: changes requested"} ${head}`, state, `agent-review-declared-author-model: ${reviewer.declaredAuthorModel}`, "", `Reviewer: ${reviewer.model} (${reviewer.thinking}), verified from OMP's completed response in a fresh session that saw the PR title, description and diff only.`, "", verdict.explanation.trim()];
 	for (const finding of verdict.findings) lines.push("", `- **P${finding.priority}** ${finding.title}: ${finding.body.trim()}`);
 	return lines.join("\n").slice(0, 60_000);
 }

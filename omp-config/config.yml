@@ -147,6 +147,11 @@ task:
   showResolvedModelBadge: true
   enableEffort: true
   enableLsp: true
+  # The supported specialist guard enables these only after initialization.
+  disabledAgents:
+    - reviewer
+    - security-reviewer
+    - designer
   # Opt-in per task item (`isolated: true`). Workspaces are copy-on-write under
   # ~/.omp/wt (btrfs/reflink on this host) and removed when the child yields;
   # no git worktree is registered. 0e0083c disabled this when `auto` produced

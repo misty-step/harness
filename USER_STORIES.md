@@ -548,6 +548,9 @@ Criteria:
    an engineer roster overlay; the engineer's recovery SHALL remain unchanged.
    `agent-review` SHALL require the actual author selector, reject same-family
    overrides, and verify native reviewer identity before posting an approval.
+   Missing/unloadable specialist enforcement SHALL keep protected agents
+   disabled; failed reviewer initialization SHALL abort before any provider
+   request, never continue with inherited recovery.
 4. WHERE cross-model recovery is allowed, THE SYSTEM SHALL use only approved
    subscription routes, with Gemini 3.8 Flash last. Grok 4.7 SHALL be allowed
    only as read-only advisory recovery and SHALL NOT occur in OMP builder fallback chains;

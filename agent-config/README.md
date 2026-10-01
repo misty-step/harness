@@ -171,9 +171,11 @@ with the actual author's selector, or set `AGENT_REVIEW_AUTHOR_MODEL`. The
 dispatcher owns family-based selection; missing/unknown author evidence and
 same-family `AGENT_REVIEW_MODEL` overrides stop before GitHub mutation.
 `AGENT_REVIEW_THINKING` remains an explicit effort override.
-A disposable OMP overlay empties the selected model's bare and effort-specific
-recovery chains; native response identity and terminal completion are checked
-before posting. A provider failure retries that reviewer or stops, never
+A disposable OMP overlay disables model switching and empties the selected
+model's bare and effort-specific recovery chains; native response identity and
+terminal completion are checked before posting. The review record identifies
+the caller's declared author selector, not an authenticated author identity.
+A provider failure retries that reviewer or stops, never
 approves through a fallback. The fresh process reads the PR title, description
 and diff; when it finds no priority 0 or 1 defect, the App approves the exact
 head (run under `pass-env` with `KAYLEE_GITHUB_APP_ID` and

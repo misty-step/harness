@@ -144,10 +144,11 @@ describe("agent-review independence", () => {
 		expect(reviewBody()).toContain("Reviewer: openai-codex/gpt-6.1-sol (medium)");
 	});
 
-	test("an explicit author selector outranks environment evidence", async () => {
-		const result = await run({ AGENT_REVIEW_AUTHOR_MODEL: "anthropic/claude-opus-5-5" }, "misty-step/demo", ["--author-model", "openai-codex/gpt-6.1-sol"]);
+	test("an explicit author selector controls routing and records the caller's declaration", async () => {
+		const result = await run({ AGENT_REVIEW_AUTHOR_MODEL: "anthropic/claude-opus-5-5" }, "misty-step/demo", ["--author-model", "openai-codex/gpt-6.1-sol:xhigh"]);
 		expect(result.status).toBe(0);
 		expect(reviewBody()).toContain("Reviewer: anthropic/claude-sonnet-5-5 (high)");
+		expect(reviewBody().match(/^agent-review-declared-author-model: (.+)$/m)?.[1]).toBe("openai-codex/gpt-6.1-sol:xhigh");
 	});
 
 	test("missing or unknown author evidence refuses before any GitHub mutation", async () => {
