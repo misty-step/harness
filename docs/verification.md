@@ -126,7 +126,8 @@ owned directory. Remove only that directory once its process has ended.
   engineers plus settled agents succeeds; a configured limit, unnamed agents,
   ticketless launches, malformed Herdr replies and invalid limits are covered.
 - `omp-config/bin/test_omp_engineer.py` covers measured legacy accounting,
-  full populated-scope reservations (including lingering helpers), physical and
+  full populated-scope reservations (including lingering helpers), the exact
+  20-GiB physical scaling boundary without fictitious legacy/unused-heavy reserves,
   ancestor headroom refusal, hierarchy/oomd failures, serialized admission,
   updater-local PATH isolation and foreground-only terminal recovery. Fake-proc
   cases retain orphan memory in deleted cgroups and refuse opaque native roots
@@ -135,9 +136,11 @@ owned directory. Remove only that directory once its process has ended.
   Unit and installer gates do not activate user units or prove native loading.
   Live US-043 proof uses native Herdr fresh/exact-session resumed engineers,
   actual kernel leaf controls and Bash child membership, queued-response/owned
-  SIGKILL recovery followed by unrepaired same-pane resume, and stable-entrypoint
-  refusal under real protected-headroom demand. Keep process/session evidence
-  private and never kill a working engineer to repeat it.
+  SIGKILL recovery followed by unrepaired same-pane resume, and current-memory
+  native admission. The floor refusal and no-artifact roster transition are
+  isolated boundary contracts, not a claim of physically exhausting the host.
+  Keep process/session evidence private and never kill a working engineer to
+  repeat it.
 - Reviewer-family acceptance (US-014, US-046; operator rule 2026-09-30) uses a
   real OMP process with a network-disabled synthetic provider. Preserve the
   JSONL transcript, provider attempts and active child config readback.

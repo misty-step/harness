@@ -25,7 +25,7 @@ import time
 GIB = 1024 ** 3
 LEAF_BYTES = 4 * GIB
 FLEET_BYTES = 36 * GIB
-DESKTOP_BYTES = 16 * GIB
+MEMORY_FLOOR_BYTES = 20 * GIB
 HEAVY_BYTES = 16 * GIB
 HEAVY_SWAP_BYTES = 2 * GIB
 INSPECTION_SECONDS = 10
@@ -36,7 +36,7 @@ SYSTEMD_RUN = "/usr/bin/systemd-run"
 OOMCTL = "/usr/bin/oomctl"
 SCOPE = re.compile(r"omp-engineer-[0-9a-f]{24}\.scope\Z")
 POLICY = {"leaf_bytes": LEAF_BYTES, "fleet_bytes": FLEET_BYTES,
-          "desktop_reserve_bytes": DESKTOP_BYTES, "heavy_capacity_bytes": HEAVY_BYTES,
+          "available_memory_floor_bytes": MEMORY_FLOOR_BYTES, "heavy_capacity_bytes": HEAVY_BYTES,
           "leaf_swap_bytes": 0}
 HELP = """Usage:
   omp-engineer [--] OMP-ARGUMENTS...
@@ -258,7 +258,8 @@ def admission(snapshot, *, source="live"):
     reserved = len(live) * LEAF_BYTES
     unused = sum(max(0, LEAF_BYTES - item["current_bytes"]) for item in live)
     heavy_unused = HEAVY_BYTES - heavy_current
-    required = new_bytes + unused + heavy_unused + DESKTOP_BYTES
+    required = MEMORY_FLOOR_BYTES
+    ancestor_required = max(required, unused + new_bytes)
     aggregate = reserved + charge["rss_bytes"] + new_bytes
     ceiling = min(FLEET_BYTES, fleet["memory_max"])
     reasons = []
@@ -266,17 +267,18 @@ def admission(snapshot, *, source="live"):
         if aggregate > ceiling:
             reasons.append(f"aggregate fleet demand {aggregate} exceeds {ceiling} bytes")
         if available < required:
-            reasons.append(f"available memory {available} cannot cover {required} bytes of cage headroom, heavy capacity and desktop reserve")
+            reasons.append(f"available memory {available} is below the {required}-byte (20-GiB) scale-up floor")
         if fleet["memory_max"] - fleet["current_bytes"] < unused + new_bytes:
             reasons.append("omp.slice lacks headroom for its full live reservations")
         for item in ancestors:
-            if item["memory_max"] is not None and item["memory_max"] - item["current_bytes"] < required:
-                reasons.append(f"effective ancestor {item['path']} lacks protected memory headroom")
+            if item["memory_max"] is not None and item["memory_max"] - item["current_bytes"] < ancestor_required:
+                reasons.append(f"effective ancestor {item['path']} lacks {ancestor_required} bytes of memory headroom")
     bounds = [fleet["memory_max"], *[item["memory_max"] for item in ancestors if item["memory_max"] is not None]]
     return {"schema_version": 1, "ok": True, "source": source, "reservation": False,
             "captured_at": snapshot.get("captured_at"), "admitted": not reasons, "reasons": reasons,
             "policy": dict(POLICY), "reuses_cage": nested,
             "capacity": {"available_bytes": available, "required_available_bytes": required,
+                         "required_ancestor_headroom_bytes": ancestor_required,
                          "fleet_demand_bytes": aggregate, "fleet_ceiling_bytes": ceiling,
                          "effective_memory_max_bytes": min(bounds), "caged_count": len(live),
                          "caged_reserved_bytes": reserved, "caged_unused_bytes": unused,

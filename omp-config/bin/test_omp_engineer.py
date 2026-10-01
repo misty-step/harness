@@ -76,13 +76,10 @@ class AdmissionTests(unittest.TestCase):
     def test_scope_lifetime_reserves_full_ceiling_for_idle_and_lingering_children(self):
         snapshot = measurement()
         snapshot["scopes"] = [scope(number) for number in range(8)]
-        snapshot["available_bytes"] = 68 * GIB
+        snapshot["available_bytes"] = 20 * GIB
         boundary = core.admission(snapshot)
         self.assertTrue(boundary["admitted"])
         self.assertEqual(boundary["capacity"]["caged_reserved_bytes"], 32 * GIB)
-        snapshot["available_bytes"] -= 1
-        self.assertFalse(core.admission(snapshot)["admitted"])
-        snapshot["available_bytes"] = 128 * GIB
         lingering = scope(8, current=GIB // 4)
         snapshot["scopes"].append(lingering)
         snapshot["processes"].append(process(500, path=lingering["path"], native=False, rss=GIB // 4))
@@ -98,11 +95,24 @@ class AdmissionTests(unittest.TestCase):
     def test_old_physical_usage_is_not_subtracted_twice_from_memavailable(self):
         snapshot = measurement()
         snapshot["processes"] = [process(100, rss=20 * GIB, pss=10 * GIB)]
-        snapshot["available_bytes"] = 36 * GIB
+        snapshot["available_bytes"] = 20 * GIB
         result = core.admission(snapshot)
         self.assertTrue(result["admitted"])
-        self.assertEqual(result["capacity"]["required_available_bytes"], 36 * GIB)
+        self.assertEqual(result["capacity"]["required_available_bytes"], 20 * GIB)
         self.assertEqual(result["capacity"]["fleet_demand_bytes"], 24 * GIB)
+
+    def test_scale_up_uses_twenty_gib_floor_not_unused_cage_or_heavy_headroom(self):
+        snapshot = measurement()
+        snapshot["scopes"] = [scope(number) for number in range(4)]
+        snapshot["processes"] = [process(100 + number, rss=GIB // 4) for number in range(20)]
+        # Today's reported 52.3 GB, the exact floor, and one byte below it.
+        for available, admitted in ((52_300_000_000, True), (20 * GIB, True), (20 * GIB - 1, False)):
+            with self.subTest(available=available):
+                snapshot["available_bytes"] = available
+                result = core.admission(snapshot)
+                self.assertEqual(result["admitted"], admitted)
+                self.assertEqual(result["capacity"]["required_available_bytes"], 20 * GIB)
+                self.assertEqual(result["capacity"]["fleet_demand_bytes"], 25 * GIB)
 
     def test_retained_legacy_group_keeps_reparented_children_charged_once(self):
         snapshot = measurement()
@@ -140,10 +150,10 @@ class AdmissionTests(unittest.TestCase):
 
     def test_actual_ancestor_bounds_and_oomd_monitors_cannot_be_hidden_by_leaf_limits(self):
         snapshot = measurement()
-        snapshot["ancestors"][-1].update(memory_max=40 * GIB, current_bytes=8 * GIB)
+        snapshot["ancestors"][-1].update(memory_max=24 * GIB, current_bytes=8 * GIB)
         result = core.admission(snapshot)
         self.assertFalse(result["admitted"])
-        self.assertEqual(result["capacity"]["effective_memory_max_bytes"], 36 * GIB)
+        self.assertEqual(result["capacity"]["effective_memory_max_bytes"], 24 * GIB)
         snapshot["ancestors"][-1].update(memory_max=32 * GIB, current_bytes=0)
         self.assertEqual(core.admission(snapshot)["capacity"]["effective_memory_max_bytes"], 32 * GIB)
         for corrupt in (lambda s: s["ancestors"][0].update(oom_group=1),
@@ -156,20 +166,18 @@ class AdmissionTests(unittest.TestCase):
             with self.assertRaises(core.CageError):
                 core.admission(candidate)
 
-    def test_only_unused_approved_heavy_capacity_is_reserved(self):
+    def test_active_heavy_bounds_are_checked_without_reserving_unused_capacity(self):
         snapshot = measurement()
+        snapshot["available_bytes"] = 20 * GIB
         snapshot["heavy"].update(memory_max=60 * GIB, memory_swap_max=8 * GIB, populated=False)
-        self.assertEqual(core.admission(snapshot)["capacity"]["heavy_unused_bytes"], 16 * GIB)
+        self.assertTrue(core.admission(snapshot)["admitted"])
         path = ROOT + "/dev.slice/dev-exec.slice"
         snapshot["heavy"] = {**group(path, 16 * GIB, 2 * GIB, current=4 * GIB, populated=True),
                              "jobs": [{**group(path + "/dev-job-1.scope", 8 * GIB, GIB,
                                                current=4 * GIB, oom=1, populated=True), "unit": "dev-job-1.scope"}]}
-        snapshot["available_bytes"] = 32 * GIB
         result = core.admission(snapshot)
         self.assertTrue(result["admitted"])
-        self.assertEqual(result["capacity"]["heavy_unused_bytes"], 12 * GIB)
-        snapshot["available_bytes"] -= 1
-        self.assertFalse(core.admission(snapshot)["admitted"])
+        self.assertEqual(result["capacity"]["required_available_bytes"], 20 * GIB)
         snapshot["heavy"]["memory_max"] = 60 * GIB
         with self.assertRaises(core.CageError):
             core.admission(snapshot)

@@ -103,7 +103,9 @@ Deploy that reviewed consumer first; source-only compatibility is insufficient.
 `omp-roster memory --json` is read-only preflight, not a reservation. Actual
 `omp` launch serializes inspection through verified scope registration, counts
 idle/lingering populated cages at their full limits, measures uncaged engineers
-and mixed legacy groups, and protects desktop/heavy-job headroom. Refusal exits
+and mixed legacy groups, and uses the 20-GiB `MemAvailable` scale-up floor.
+Unused cage/heavy headroom is diagnostic, not added to that floor; full cage
+reservations still constrain the 36-GiB aggregate and effective ancestors. Refusal exits
 75. Native arguments, cwd, environment, stdio and exit status are preserved.
 Only a mutating native `omp update` receives an updater-local PATH pointing at
 the retained ELF; normal/nested/resumed launches and `update --check` do not.

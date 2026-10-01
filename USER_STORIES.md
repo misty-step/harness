@@ -1136,10 +1136,12 @@ Criteria:
    every fresh, direct, continued and resumed engineer before native startup,
    reserve each live leaf's full 4-GiB ceiling under a serialized launch
    transaction, and retain that reservation while any descendant remains.
-8. WHEN admission would exceed the 36-GiB engineer budget or consume the
-   16-GiB desktop and 16-GiB heavy-job headroom, THE SYSTEM SHALL refuse before
-   starting native OMP; idle engineers, subagents and uncaged descendant memory
-   SHALL count, independently of the working-engineer usage limit.
+8. WHEN admission would exceed the 36-GiB engineer budget or physical
+   `MemAvailable` is below the operator's 20-GiB scale-up floor, THE SYSTEM SHALL
+   refuse before starting native OMP. Physical admission SHALL NOT add unused
+   cage/heavy-job ceilings or re-subtract measured legacy memory from that floor;
+   full live-cage reservations and measured legacy memory SHALL still count
+   against the aggregate independently of the working-engineer usage limit.
 9. WHEN native OMP starts, THE SYSTEM SHALL verify effective 4-GiB memory,
    zero swap, group-OOM and actual membership outside every live oomd-monitored
    ancestor, while preserving argv, cwd, environment, PTY and session identity.

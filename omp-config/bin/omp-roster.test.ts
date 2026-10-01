@@ -122,19 +122,19 @@ describe("omp-roster memory admission", () => {
 	test("read-only refusal reports real capacity and blocks all launch records before writing", () => {
 		const dir = scratch("memory-refusal");
 		const state = join(dir, "state");
-		const file = put(join(dir, "memory.json"), JSON.stringify(memoryFixture(36 * 1024 ** 3 - 1)));
+		const file = put(join(dir, "memory.json"), JSON.stringify(memoryFixture(20 * 1024 ** 3 - 1)));
 		const snapshot = invoke(["memory", "--json", "--memory-json", file]);
 		expect(snapshot.exitCode).toBe(0);
 		const value = JSON.parse(snapshot.stdout);
 		expect([value.admitted, value.reservation, value.capacity.available_bytes, value.capacity.required_available_bytes])
-			.toEqual([false, false, 36 * 1024 ** 3 - 1, 36 * 1024 ** 3]);
+			.toEqual([false, false, 20 * 1024 ** 3 - 1, 20 * 1024 ** 3]);
 		const ticket = put(join(dir, "ticket.json"), JSON.stringify(boardAnswer([SONNET])));
 		const usage = put(join(dir, "usage.json"), JSON.stringify(usageView([row("anthropic", "sonnet", "usable")])));
 		const args = ["launch", "--item", "K-test", "--ticket-json", ticket, "--usage-json", usage,
 			"--memory-json", file, "--state-dir", state, "--json"];
 		const refused = invoke(args);
 		expect([refused.exitCode, refused.stdout, existsSync(state)]).toEqual([6, "", false]);
-		put(file, JSON.stringify(memoryFixture(36 * 1024 ** 3)));
+		put(file, JSON.stringify(memoryFixture(20 * 1024 ** 3)));
 		const admitted = invoke(args);
 		expect(admitted.exitCode).toBe(0);
 		const launch = JSON.parse(admitted.stdout);

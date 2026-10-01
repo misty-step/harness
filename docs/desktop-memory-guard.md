@@ -25,12 +25,15 @@ canonical membership until the last task exits. Their future growth is still
 unbounded until natural exit; this rolling deployment is not retroactive safety.
 
 The fleet ceiling covers existing measured memory plus full live cages and the
-new reservation. Physical `MemAvailable` must additionally cover unused cage
-headroom, unused approved 16-GiB heavy-job capacity and a 16-GiB desktop reserve.
-Already charged memory is not subtracted twice. Effective ancestors, actual
-cgroup controls and live oomd monitoring are inspected; incomplete hierarchy,
-an oomd-covered cage or incompatible active heavy-job limits fail closed.
-Inactive obsolete heavy-job configuration is not a live reservation.
+new reservation. Physical admission follows the operator's scale-up rule:
+`MemAvailable >= 20 GiB` (21,474,836,480 bytes, matching `free -g` units).
+Do not add unused cage headroom, unused heavy capacity or another desktop reserve
+to that threshold; charged legacy memory is already reflected in `MemAvailable`.
+Cage reservations still constrain the aggregate, and finite ancestors must cover
+the floor and unused committed cage capacity. Actual cgroup controls and live
+oomd monitoring remain mandatory; incomplete hierarchy, an oomd-covered cage or
+incompatible active heavy-job limits fail closed. This is a measured scaling
+floor, not a guarantee that all engineer/heavy ceilings can fill simultaneously.
 
 From the reviewed harness revision:
 
@@ -80,9 +83,13 @@ resumed engineers were discoverable in Herdr and Glass and executed real Bash
 inside verified 4-GiB/zero-swap/group-OOM scopes. After queued terminal-response
 bytes and SIGKILL of only a completed owned probe, the shell reported 137 with
 canonical/echo/signals restored; same-pane resume and another real Bash command
-succeeded without manual PTY repair. With three naturally populated cages,
-47.7 GB available could not cover 50.6 GB protected headroom: real `omp --version`
-refused 75 with no new scope. No physical exhaustion or fixture was used.
+succeeded without manual PTY repair. The initial conservative policy refused
+real `omp --version` at 47.7 GB available versus 50.6 GB required, with no new
+scope. That policy blocked real work and was superseded by the 20-GiB floor:
+the recalibrated source admitted actual native OMP at 51.7 GB available with
+21.5 GB required. Boundary contracts admit exactly 20 GiB and refuse one byte
+below it; roster refusal writes no overlay or launch record. No physical
+exhaustion was used, and boundary fixtures cannot override real launches.
 The original Herdr server/client and Hyprland PID/start/cgroup identities stayed
 unchanged; surviving original engineers were not moved. Raw transcripts and
 process inventory remain private.
