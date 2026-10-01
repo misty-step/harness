@@ -358,6 +358,7 @@ install_engineer_cage() {
   install -m 600 "$repo_dir/units/omp.slice" "$HOME/.config/systemd/user/omp.slice"
   systemctl --user daemon-reload
   systemctl --user start omp.slice
+  systemctl --user set-property --runtime omp.slice MemoryMax=infinity
   "$HOME/.local/bin/omp-engineer" memory --json
   entry="$HOME/.local/bin/omp"
   native="$HOME/.local/lib/omp-engineer/omp"

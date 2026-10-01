@@ -57,7 +57,6 @@ const ADVISOR_FILE = "__advisor";
 const EXHAUSTED = 3;
 const OFF_ROSTER = 4;
 const FLEET_FULL = 5;
-const MEMORY_REFUSED = 6;
 const READ_TIMEOUT_MS = 15_000;
 
 // `check` also excuses the designer (`vision` role) on Opus 5.5, which the subagent-inheritance
@@ -78,7 +77,7 @@ type Skip = { selector: string; verdict: string | null; reason: string; next_res
 type Freshness = { degraded: boolean; degraded_reason: string | null; oldest_observation: string | null; stale_after_seconds: number | null };
 type LaunchOptions = { harness?: string; json?: boolean; "ticket-json"?: string; "usage-json"?: string; "state-dir"?: string; "memory-json"?: string };
 type CheckOptions = { "ticket-json"?: string; "state-dir"?: string; since?: string };
-type MemorySnapshot = Record<string, unknown> & { schema_version: 1; ok: true; activated: boolean; admitted: boolean; reservation: false; reasons: string[] };
+type MemorySnapshot = Record<string, unknown> & { schema_version: 1; ok: true; activated: boolean; admitted: boolean; reservation: false; reasons: string[]; warnings: string[] };
 
 const USAGE = `Usage:
   omp-roster launch --item ID [--ticket-json FILE] [--usage-json FILE] [--memory-json FILE] [--state-dir DIR] [--harness omp] [--json]
@@ -86,7 +85,7 @@ const USAGE = `Usage:
   omp-roster memory [--json] [--memory-json FILE]
   omp-roster check --item ID --session DIR|FILE... [--ticket-json FILE] [--state-dir DIR] [--since ISO]
 Memory fixtures are read-only preflight; the actual omp launch always rechecks live admission under lock.
-Exit: 0 done, 1 refused or unreadable input, 2 usage, 3 roster exhausted, 4 turns off the roster or the roster changed, 5 working-engineer limit reached, 6 memory admission refused`;
+Exit: 0 done, 1 refused or unreadable input, 2 usage, 3 roster exhausted, 4 turns off the roster or the roster changed, 5 working-engineer limit reached`;
 
 class CliError extends Error {
 	constructor(message: string, readonly exitCode = 1) {
@@ -147,6 +146,7 @@ function memorySnapshot(file?: string): MemorySnapshot {
 	if (answer.exitCode !== 0 || !isRecord(doc) || doc.schema_version !== 1 || doc.ok !== true
 		|| typeof doc.activated !== "boolean"
 		|| typeof doc.admitted !== "boolean" || doc.reservation !== false || !Array.isArray(doc.reasons)
+		|| !Array.isArray(doc.warnings) || !doc.warnings.every((warning) => typeof warning === "string")
 		|| !doc.reasons.every((reason) => typeof reason === "string")) {
 		throw new CliError(`Cannot inspect launch memory: ${(isRecord(doc) && plainOrNull(doc.error)) || answer.stderr || "unrecognised memory snapshot"}.`);
 	}
@@ -157,8 +157,8 @@ function memoryCommand(options: { json?: boolean; "memory-json"?: string }): num
 	const snapshot = memorySnapshot(options["memory-json"]);
 	if (options.json) console.log(JSON.stringify(snapshot, null, 2));
 	else {
-		console.log(`memory admission: ${snapshot.activated ? snapshot.admitted ? "available" : "refused" : "inactive"} (preflight only, no reservation)`);
-		for (const reason of snapshot.reasons) console.log(`  ${plain(reason)}`);
+		console.log(`memory guidance: ${snapshot.activated ? snapshot.warnings.length ? "warning; launches continue" : "within guidelines" : "inactive"} (preflight only, no reservation)`);
+		for (const warning of snapshot.warnings) console.log(`  ${plain(warning)}`);
 		if (typeof snapshot.coverage === "string") console.log(snapshot.coverage);
 	}
 	return 0;
@@ -409,7 +409,7 @@ function launchCommand(options: LaunchOptions & { item?: string; model?: string;
 	}
 	enforceEngineerLimit();
 	const memory = memorySnapshot(options["memory-json"]);
-	if (!memory.admitted) throw new CliError(`memory admission refused: ${memory.reasons.map(plain).join("; ")}.`, MEMORY_REFUSED);
+	for (const warning of memory.warnings) console.error(`warning: ${plain(warning)}`);
 	const { rows, freshness } = usageView(options["usage-json"]);
 	const sha = rosterSha(roster);
 	const skipped: Skip[] = [];

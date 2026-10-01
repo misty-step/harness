@@ -92,7 +92,7 @@ full install.
 `engineer-cage` retains the owned native ELF at `~/.local/lib/omp-engineer/omp`
 and makes `~/.local/bin/omp` the relative `omp-engineer` symlink. Every new,
 direct, continued or resumed invocation passes live admission and enters a
-verified 4-GiB, zero-swap, group-OOM scope below the standalone 36-GiB
+verified 4-GiB, zero-swap, group-OOM scope below the standalone unlimited
 `omp.slice`. Existing processes stay in their original cgroups until natural
 exit; activation does not restart Herdr or any engineer. Never prepend the
 retained native directory to ordinary shells or call that ELF directly.
@@ -110,9 +110,12 @@ This read-only distinction never bypasses admission in the cage launch path.
 Actual `omp` launch serializes inspection through verified scope registration, counts
 idle/lingering populated cages at their full limits, measures uncaged engineers
 and mixed legacy groups, and uses the 20-GiB `MemAvailable` scale-up floor.
-Unused cage/heavy headroom is diagnostic, not added to that floor; full cage
-reservations still constrain the 36-GiB aggregate and effective ancestors. Refusal exits
-75. Native arguments, cwd, environment, stdio and exit status are preserved.
+Memory capacity is advisory: below the 20-GiB floor or above the potential
+36-GiB fleet guideline, launch continues with warnings in stderr and roster
+launch JSON. Glass receives an idempotent advisory item; a missing/busy Glass
+never denies startup. Explicit cage refresh raises the active parent to infinity
+without restarting its scopes. Per-leaf containment and oomd exclusion remain mandatory.
+Native arguments, cwd, environment, stdio and exit status are preserved.
 Only a mutating native `omp update` receives an updater-local PATH pointing at
 the retained ELF; normal/nested/resumed launches and `update --check` do not.
 See the [rolling activation and recovery runbook](../docs/desktop-memory-guard.md).

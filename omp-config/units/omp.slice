@@ -4,6 +4,6 @@ Description=Admitted OMP engineer memory budget
 
 [Slice]
 MemoryAccounting=yes
-MemoryMax=36G
+MemoryMax=infinity
 MemoryHigh=infinity
 MemorySwapMax=0

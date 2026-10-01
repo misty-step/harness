@@ -24,7 +24,7 @@ import time
 
 GIB = 1024 ** 3
 LEAF_BYTES = 4 * GIB
-FLEET_BYTES = 36 * GIB
+FLEET_ADVISORY_BYTES = 36 * GIB
 MEMORY_FLOOR_BYTES = 20 * GIB
 HEAVY_BYTES = 16 * GIB
 HEAVY_SWAP_BYTES = 2 * GIB
@@ -35,7 +35,7 @@ SYSTEMCTL = "/usr/bin/systemctl"
 SYSTEMD_RUN = "/usr/bin/systemd-run"
 OOMCTL = "/usr/bin/oomctl"
 SCOPE = re.compile(r"omp-engineer-[0-9a-f]{24}\.scope\Z")
-POLICY = {"leaf_bytes": LEAF_BYTES, "fleet_bytes": FLEET_BYTES,
+POLICY = {"leaf_bytes": LEAF_BYTES, "fleet_advisory_bytes": FLEET_ADVISORY_BYTES,
           "available_memory_floor_bytes": MEMORY_FLOOR_BYTES, "heavy_capacity_bytes": HEAVY_BYTES,
           "leaf_swap_bytes": 0}
 HELP = """Usage:
@@ -45,7 +45,7 @@ HELP = """Usage:
 The installed `omp` entrypoint passes every argument to native OMP in a verified
 4-GiB, zero-swap, group-OOM scope. Memory is read-only preflight, never a reservation.
 Fixtures are accepted only by read-only memory; launch always inspects live state.
-Exit: native status; 1 inspection/setup failure; 2 usage; 75 admission/readiness refusal.
+Exit: native status; 1 inspection/setup failure; 2 usage; 75 readiness failure.
 """
 
 
@@ -117,7 +117,6 @@ def verify_hierarchy(snapshot):
     if not isinstance(fleet, dict) or fleet.get("path") != fleet_path or fleet.get("slice") != "-.slice":
         raise CageError("omp.slice is not a standalone user-manager root sibling")
     controls(fleet, "omp.slice")
-    finite(fleet.get("memory_max"), FLEET_BYTES, "omp.slice memory.max")
     if fleet["memory_swap_max"] != 0 or fleet["memory_high"] is not None or fleet["oom_group"] != 0:
         raise CageError("omp.slice requires zero swap, unlimited memory.high and ungrouped OOM")
     ancestors = snapshot.get("ancestors")
@@ -259,29 +258,29 @@ def admission(snapshot, *, source="live"):
     unused = sum(max(0, LEAF_BYTES - item["current_bytes"]) for item in live)
     heavy_unused = HEAVY_BYTES - heavy_current
     required = MEMORY_FLOOR_BYTES
-    ancestor_required = max(required, unused + new_bytes)
+    ancestor_required = required
     aggregate = reserved + charge["rss_bytes"] + new_bytes
-    ceiling = min(FLEET_BYTES, fleet["memory_max"])
+    ceiling = fleet["memory_max"]
     reasons = []
     if not nested:
-        if aggregate > ceiling:
-            reasons.append(f"aggregate fleet demand {aggregate} exceeds {ceiling} bytes")
+        if aggregate > FLEET_ADVISORY_BYTES:
+            reasons.append(f"potential fleet demand {aggregate} exceeds the {FLEET_ADVISORY_BYTES}-byte guideline; launch continues")
         if available < required:
             reasons.append(f"available memory {available} is below the {required}-byte (20-GiB) scale-up floor")
-        if fleet["memory_max"] - fleet["current_bytes"] < unused + new_bytes:
-            reasons.append("omp.slice lacks headroom for its full live reservations")
+        if ceiling is not None and ceiling - fleet["current_bytes"] < required:
+            reasons.append("omp.slice lacks measured headroom for the scale-up floor")
         for item in ancestors:
             if item["memory_max"] is not None and item["memory_max"] - item["current_bytes"] < ancestor_required:
                 reasons.append(f"effective ancestor {item['path']} lacks {ancestor_required} bytes of memory headroom")
-    bounds = [fleet["memory_max"], *[item["memory_max"] for item in ancestors if item["memory_max"] is not None]]
+    bounds = [item["memory_max"] for item in (fleet, *ancestors) if item["memory_max"] is not None]
     return {"schema_version": 1, "ok": True, "source": source, "reservation": False,
             "activated": True,
-            "captured_at": snapshot.get("captured_at"), "admitted": not reasons, "reasons": reasons,
+            "captured_at": snapshot.get("captured_at"), "admitted": True, "reasons": [], "warnings": reasons,
             "policy": dict(POLICY), "reuses_cage": nested,
             "capacity": {"available_bytes": available, "required_available_bytes": required,
                          "required_ancestor_headroom_bytes": ancestor_required,
                          "fleet_demand_bytes": aggregate, "fleet_ceiling_bytes": ceiling,
-                         "effective_memory_max_bytes": min(bounds), "caged_count": len(live),
+                         "effective_memory_max_bytes": min(bounds, default=None), "caged_count": len(live),
                          "caged_reserved_bytes": reserved, "caged_unused_bytes": unused,
                          "uncaged_count": len(charge["uncaged"]), "uncaged_rss_bytes": charge["rss_bytes"],
                          "uncaged_pss_bytes": charge["pss_bytes"], "legacy_process_count": len(charge["pids"]),
@@ -335,6 +334,31 @@ def admission_lock(path, *, clock=time.monotonic, sleep=time.sleep):
         os.close(fd)
 
 
+def publish_memory_warnings(result):
+    warnings = result["warnings"]
+    if not warnings:
+        return
+    for warning in warnings:
+        print("omp-engineer: warning: " + warning, file=sys.stderr)
+    # Publication is advisory too: a missing/busy Glass must never deny startup.
+    try:
+        receipt = subprocess.run(
+            ["glass", "item", "add", "--origin", "omp:memory-advisory",
+             "--scope", "misty-step/harness", "--kind", "task", "--status", "later",
+             "--relaying", "none",
+             "--title", "OMP launches continue despite memory guidance",
+             "--description", "Memory guidance is advisory; engineers continue to launch while their independent four-GiB containment and oomd exclusion remain verified.",
+             "--why", "the memory cage should be more of a guideline than a hard rule. Advisory. Otherwise it's too constraining.",
+             "--why-attribution", "quoted", "--why-source", "Phaedrus",
+             "--note", "Memory advisory warning observed; launch continues. Inspect omp-roster memory --json for current warning measurements.",
+             "--json", "--lock-wait", "100ms"],
+            stdin=subprocess.DEVNULL, capture_output=True, timeout=1, check=False)
+        if receipt.returncode:
+            print("omp-engineer: Glass warning publication failed: " + receipt.stderr.decode(errors="replace").strip(), file=sys.stderr)
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        print("omp-engineer: Glass warning publication failed: " + str(exc), file=sys.stderr)
+
+
 def launch_transaction(lock, inspect, register, retain=lambda snapshot: None):
     # Registration returns only after cgroupfs + process membership verification.
     # The scope's populated lifetime, not this lock or launcher PID, owns capacity.
@@ -342,8 +366,7 @@ def launch_transaction(lock, inspect, register, retain=lambda snapshot: None):
         snapshot = inspect()
         result = admission(snapshot)
         retain(snapshot)
-        if not result["admitted"]:
-            raise CageError("memory admission refused: " + "; ".join(result["reasons"]), 75)
+        publish_memory_warnings(result)
         return register(result)
 
 
@@ -926,7 +949,7 @@ def memory(argv):
         if not cage_activation_present(Path(pwd.getpwuid(os.getuid()).pw_dir)):
             print(json.dumps({"schema_version": 1, "ok": True, "source": "live",
                               "activated": False, "admitted": True, "reservation": False,
-                              "reasons": [], "policy": POLICY, "capacity": None,
+                              "reasons": [], "warnings": [], "policy": POLICY, "capacity": None,
                               "coverage": "Engineer cage is not activated; memory enforcement is inactive. Staged roster launches retain their uncaged behavior."}, indent=2))
             return 0
         snapshot = Host().snapshot()

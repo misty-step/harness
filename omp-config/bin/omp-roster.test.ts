@@ -119,7 +119,7 @@ const launched = (result: Result & { state: string }) => {
 };
 
 describe("omp-roster memory admission", () => {
-	test("read-only refusal reports real capacity and blocks all launch records before writing", () => {
+	test("below-floor guidance warns in launch JSON while preserving overlay and record creation", () => {
 		const dir = scratch("memory-refusal");
 		const state = join(dir, "state");
 		const file = put(join(dir, "memory.json"), JSON.stringify(memoryFixture(20 * 1024 ** 3 - 1)));
@@ -127,13 +127,18 @@ describe("omp-roster memory admission", () => {
 		expect(snapshot.exitCode).toBe(0);
 		const value = JSON.parse(snapshot.stdout);
 		expect([value.admitted, value.reservation, value.capacity.available_bytes, value.capacity.required_available_bytes])
-			.toEqual([false, false, 20 * 1024 ** 3 - 1, 20 * 1024 ** 3]);
+			.toEqual([true, false, 20 * 1024 ** 3 - 1, 20 * 1024 ** 3]);
 		const ticket = put(join(dir, "ticket.json"), JSON.stringify(boardAnswer([SONNET])));
 		const usage = put(join(dir, "usage.json"), JSON.stringify(usageView([row("anthropic", "sonnet", "usable")])));
 		const args = ["launch", "--item", "K-test", "--ticket-json", ticket, "--usage-json", usage,
 			"--memory-json", file, "--state-dir", state, "--json"];
-		const refused = invoke(args);
-		expect([refused.exitCode, refused.stdout, existsSync(state)]).toEqual([6, "", false]);
+		const warned = invoke(args);
+		expect(warned.exitCode).toBe(0);
+		const warnedLaunch = JSON.parse(warned.stdout);
+		expect([warnedLaunch.memory.admitted, warnedLaunch.memory.capacity.available_bytes]).toEqual([true, 20 * 1024 ** 3 - 1]);
+		expect(warnedLaunch.memory.warnings.join(" ")).toContain(String(20 * 1024 ** 3 - 1));
+		expect(warned.stderr).toContain(String(20 * 1024 ** 3 - 1));
+		expect(JSON.parse(readFileSync(warnedLaunch.record, "utf8")).launch).toBe("anthropic/claude-sonnet-5-5:medium");
 		put(file, JSON.stringify(memoryFixture(20 * 1024 ** 3)));
 		const admitted = invoke(args);
 		expect(admitted.exitCode).toBe(0);
