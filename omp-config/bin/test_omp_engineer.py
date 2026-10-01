@@ -22,7 +22,6 @@ spec.loader.exec_module(core)
 GIB = 1024 ** 3
 ROOT = "/user.slice/user-1000.slice/user@1000.service"
 FLEET = ROOT + "/omp.slice"
-LEGACY = ROOT + "/app.slice/app-terminal.scope"
 
 
 def group(path, maximum=None, swap=None, current=0, oom=0, populated=False):
@@ -38,112 +37,32 @@ def scope(number, *, current=0, populated=True):
             "systemd_oom_policy": "kill"}
 
 
-def process(pid, *, ppid=1, rss=GIB, pss=None, native=True, path=LEGACY):
-    return {"pid": pid, "ppid": ppid, "uid": 1000, "starttime": pid * 10,
-            "rss_bytes": rss, "pss_bytes": rss if pss is None else pss,
-            "native_omp": native, "cgroup": path, "comm": "omp" if native else "worker",
-            "exe": "/home/fixture/.local/bin/omp" if native else "/usr/bin/worker"}
-
-
 def measurement():
     return {"schema_version": 1, "uid": 1000, "user_root": ROOT,
             "current_group": ROOT + "/app.slice/fixture.scope", "available_bytes": 128 * GIB,
             "fleet": {**group(FLEET, swap=0), "slice": "-.slice"},
             "ancestors": [group(path) for path in ("/user.slice", "/user.slice/user-1000.slice", ROOT)],
-            "monitored": [ROOT + "/app.slice"], "scopes": [], "processes": [], "legacy_groups": [],
-            "heavy": {"path": ROOT + "/dev.slice/dev-exec.slice", "current_bytes": 0, "jobs": []},
+            "monitored": [ROOT + "/app.slice"], "scopes": [],
             "captured_at": "2026-10-01T00:00:00+00:00"}
 
 
 class AdmissionTests(unittest.TestCase):
-    def test_rolling_uncaged_charge_is_measured_and_includes_idle_native_subagents(self):
-        snapshot = measurement()
-        snapshot["processes"] = [process(100 + number, rss=GIB // 4, pss=GIB // 8) for number in range(20)]
-        # Twenty idle native roots are 5 GiB, not a fictional 80-GiB reservation.
-        admitted = core.admission(snapshot)
-        self.assertTrue(admitted["admitted"])
-        self.assertEqual(admitted["capacity"]["measured_fleet_bytes"], 5 * GIB)
-        self.assertEqual(admitted["capacity"]["uncaged_count"], 20)
-        self.assertEqual(admitted["capacity"]["uncaged_pss_bytes"], 20 * GIB // 8)
-        # An engineer's native subagent and worker count as descendants, not new roots.
-        snapshot["processes"].extend([process(300, ppid=100, rss=GIB),
-                                      process(301, ppid=300, rss=31 * GIB, native=False)])
-        enlarged = core.admission(snapshot)
-        self.assertTrue(enlarged["admitted"])
-        self.assertEqual(enlarged["capacity"]["measured_fleet_bytes"], 37 * GIB)
-        self.assertEqual(enlarged["capacity"]["uncaged_count"], 20)
-        self.assertEqual(enlarged["uncaged"][0]["pids"], [100, 300, 301])
-
-    def test_populated_lingering_children_remain_in_measured_fleet_once(self):
-        snapshot = measurement()
-        active = scope(0, current=GIB // 2)
-        lingering = scope(1, current=GIB // 4)
-        snapshot["scopes"] = [active, lingering]
-        snapshot["fleet"].update(current_bytes=GIB, populated=True)
-        snapshot["processes"] = [process(100, path=active["path"], rss=GIB // 2),
-                                  process(500, path=lingering["path"], native=False, rss=GIB // 4),
-                                  process(501, ppid=500, path=lingering["path"], native=False, rss=GIB // 8)]
-        result = core.admission(snapshot)
-        self.assertTrue(result["admitted"])
-        self.assertEqual(result["capacity"]["caged_count"], 2)
-        self.assertEqual(result["capacity"]["fleet_current_bytes"], GIB)
-        self.assertEqual(result["capacity"]["measured_fleet_bytes"], GIB)
-        self.assertEqual(result["capacity"]["legacy_process_count"], 0)
-        # cgroup memory.current includes the workers even without a native root.
-        lingering.update(current_bytes=0, populated=False)
-        snapshot["fleet"]["current_bytes"] = GIB // 2
-        snapshot["processes"] = [snapshot["processes"][0]]
-        after_exit = core.admission(snapshot)
-        self.assertEqual(after_exit["capacity"]["caged_count"], 1)
-        self.assertEqual(after_exit["capacity"]["measured_fleet_bytes"], GIB // 2)
-
-    def test_old_physical_usage_is_not_subtracted_twice_from_memavailable(self):
-        snapshot = measurement()
-        snapshot["processes"] = [process(100, rss=20 * GIB, pss=10 * GIB)]
-        snapshot["available_bytes"] = 20 * GIB
-        result = core.admission(snapshot)
-        self.assertTrue(result["admitted"])
-        self.assertEqual(result["capacity"]["required_available_bytes"], 20 * GIB)
-        self.assertEqual(result["capacity"]["measured_fleet_bytes"], 20 * GIB)
-
-    def test_many_idle_cages_and_legacy_roots_scale_at_the_twenty_gib_floor(self):
+    def test_minimal_containment_snapshot_warns_below_the_twenty_gib_floor(self):
         snapshot = measurement()
         snapshot["scopes"] = [scope(number, current=GIB // 16) for number in range(18)]
         snapshot["fleet"].update(current_bytes=2 * GIB, populated=True)
-        snapshot["processes"] = [process(100 + number, rss=GIB // 4) for number in range(20)]
         # The 18 live cages have 72 GiB of limits; none are physical reservations.
-        for available, admitted in ((46 * GIB, True), (20 * GIB, True), (20 * GIB - 1, False)):
+        for available, warns in ((46 * GIB, False), (20 * GIB, False), (20 * GIB - 1, True)):
             with self.subTest(available=available):
                 snapshot["available_bytes"] = available
                 result = core.admission(snapshot)
-                self.assertEqual(result["admitted"], admitted)
+                self.assertTrue(result["admitted"])
+                self.assertEqual(result["reasons"], [])
+                self.assertEqual(bool(result["warnings"]), warns)
                 self.assertEqual(result["capacity"]["required_available_bytes"], 20 * GIB)
                 self.assertEqual(result["capacity"]["fleet_current_bytes"], 2 * GIB)
-                self.assertEqual(result["capacity"]["measured_fleet_bytes"], 7 * GIB)
                 self.assertEqual(result["capacity"]["caged_count"], 18)
-                self.assertEqual(result["capacity"]["uncaged_count"], 20)
                 self.assertIsNone(result["capacity"]["effective_memory_max_bytes"])
-
-    def test_retained_legacy_group_keeps_reparented_children_charged_once(self):
-        snapshot = measurement()
-        snapshot["legacy_groups"] = [LEGACY]
-        snapshot["processes"] = [process(200, ppid=100, native=False, rss=33 * GIB),
-                                  process(201, ppid=200, native=False, rss=GIB),
-                                  process(202, native=False, path=ROOT + "/app.slice/unrelated.scope", rss=50 * GIB)]
-        result = core.admission(snapshot)
-        self.assertTrue(result["admitted"])
-        self.assertEqual(result["capacity"]["uncaged_count"], 0)
-        self.assertEqual(result["capacity"]["uncaged_rss_bytes"], 34 * GIB)
-        self.assertEqual(result["legacy_unattributed_pids"], [200, 201])
-        snapshot["processes"].append(process(100, rss=GIB))
-        result = core.admission(snapshot)
-        self.assertEqual(result["capacity"]["uncaged_rss_bytes"], 35 * GIB)
-        self.assertEqual(result["capacity"]["legacy_process_count"], 3)
-        snapshot["processes"][-1].update(exited=True, native_omp=False, rss_bytes=0, pss_bytes=0)
-        after_exit = core.admission(snapshot)
-        self.assertEqual(after_exit["capacity"]["legacy_process_count"], 2)
-        self.assertEqual(after_exit["capacity"]["uncaged_rss_bytes"], 34 * GIB)
-        self.assertEqual(after_exit["legacy_unattributed_pids"], [200, 201])
 
     def test_nested_launch_reuses_a_verified_cage_below_the_scale_up_floor(self):
         snapshot = measurement()
@@ -163,15 +82,21 @@ class AdmissionTests(unittest.TestCase):
         snapshot["fleet"].update(current_bytes=2 * GIB, populated=True)
         snapshot["ancestors"][-1].update(memory_max=24 * GIB, current_bytes=8 * GIB)
         result = core.admission(snapshot)
-        self.assertFalse(result["admitted"])
+        self.assertTrue(result["admitted"])
+        self.assertEqual(result["reasons"], [])
+        self.assertTrue(bool(result["warnings"]))
         self.assertEqual(result["capacity"]["effective_memory_max_bytes"], 24 * GIB)
         snapshot["ancestors"][-1].update(memory_max=32 * GIB, current_bytes=12 * GIB)
         at_floor = core.admission(snapshot)
         self.assertTrue(at_floor["admitted"])
+        self.assertEqual(at_floor["warnings"], [])
         self.assertEqual(at_floor["capacity"]["effective_memory_max_bytes"], 32 * GIB)
         self.assertEqual(at_floor["capacity"]["required_ancestor_headroom_bytes"], 20 * GIB)
         snapshot["ancestors"][-1]["current_bytes"] += 1
-        self.assertFalse(core.admission(snapshot)["admitted"])
+        below_floor = core.admission(snapshot)
+        self.assertTrue(below_floor["admitted"])
+        self.assertEqual(below_floor["reasons"], [])
+        self.assertTrue(bool(below_floor["warnings"]))
         for corrupt in (lambda s: s["ancestors"][0].update(oom_group=1),
                         lambda s: s["monitored"].append(ROOT),
                         lambda s: s["monitored"].append("/"),
@@ -189,58 +114,47 @@ class AdmissionTests(unittest.TestCase):
         snapshot["fleet"].update(memory_max=32 * GIB, current_bytes=12 * GIB, populated=True)
         at_floor = core.admission(snapshot)
         self.assertTrue(at_floor["admitted"])
+        self.assertEqual(at_floor["warnings"], [])
         self.assertEqual(at_floor["capacity"]["effective_memory_max_bytes"], 32 * GIB)
         self.assertEqual(at_floor["capacity"]["required_ancestor_headroom_bytes"], 20 * GIB)
         snapshot["fleet"]["current_bytes"] += 1
-        self.assertFalse(core.admission(snapshot)["admitted"])
+        below_floor = core.admission(snapshot)
+        self.assertTrue(below_floor["admitted"])
+        self.assertEqual(below_floor["reasons"], [])
+        self.assertTrue(bool(below_floor["warnings"]))
         snapshot["fleet"]["current_bytes"] = 12 * GIB
         snapshot["ancestors"][-1].update(memory_max=24 * GIB, current_bytes=4 * GIB)
         restricted = core.admission(snapshot)
         self.assertTrue(restricted["admitted"])
         self.assertEqual(restricted["capacity"]["effective_memory_max_bytes"], 24 * GIB)
 
-    def test_active_heavy_bounds_are_checked_without_reserving_unused_capacity(self):
-        snapshot = measurement()
-        snapshot["available_bytes"] = 20 * GIB
-        snapshot["heavy"].update(memory_max=60 * GIB, memory_swap_max=8 * GIB, populated=False)
-        self.assertTrue(core.admission(snapshot)["admitted"])
-        path = ROOT + "/dev.slice/dev-exec.slice"
-        snapshot["heavy"] = {**group(path, 16 * GIB, 2 * GIB, current=4 * GIB, populated=True),
-                             "jobs": [{**group(path + "/dev-job-1.scope", 8 * GIB, GIB,
-                                               current=4 * GIB, oom=1, populated=True), "unit": "dev-job-1.scope"}]}
-        result = core.admission(snapshot)
-        self.assertTrue(result["admitted"])
-        self.assertEqual(result["capacity"]["required_available_bytes"], 20 * GIB)
-        snapshot["heavy"]["memory_max"] = 60 * GIB
-        with self.assertRaises(core.CageError):
-            core.admission(snapshot)
-
-    def test_incomplete_or_ambiguous_measurements_fail_closed(self):
+    def test_incomplete_or_ambiguous_containment_measurements_fail_closed(self):
         for corrupt in (lambda s: s["ancestors"][-1].pop("memory_max"),
+                        lambda s: s.update(uid="1000"),
                         lambda s: s.pop("monitored"),
+                        lambda s: s.pop("scopes"),
                         lambda s: s["ancestors"].pop(),
                         lambda s: s["fleet"].update(slice="app.slice"),
                         lambda s: s["fleet"].update(memory_swap_max=GIB),
                         lambda s: s["fleet"].update(memory_high=GIB),
                         lambda s: s["fleet"].update(oom_group=1),
+                        lambda s: s["scopes"][0].update(memory_max=8 * GIB),
                         lambda s: s["scopes"][0].update(memory_swap_max=GIB),
+                        lambda s: s["scopes"][0].update(systemd_memory_max=8 * GIB),
                         lambda s: s["scopes"][0].update(systemd_oom_policy="continue"),
-                        lambda s: s["processes"].append(copy.deepcopy(s["processes"][0])),
-                        lambda s: s["processes"][0].update(pss_bytes=2 * GIB)):
+                        lambda s: s["scopes"].append(copy.deepcopy(s["scopes"][0])),
+                        lambda s: s.update(current_group=FLEET)):
             snapshot = measurement()
             snapshot["scopes"] = [scope(0)]
-            snapshot["processes"] = [process(100)]
             corrupt(snapshot)
             with self.assertRaises(core.CageError):
                 core.admission(snapshot)
 
-    def test_stale_preflight_rechecks_live_memory_through_verified_registration(self):
+    def test_serialized_launch_remeasures_warnings_and_registers_below_floor(self):
         snapshot = measurement()
         snapshot["scopes"] = [scope(number, current=GIB // 16) for number in range(18)]
         snapshot["fleet"].update(current_bytes=2 * GIB, populated=True)
         snapshot["available_bytes"] = 20 * GIB
-        preflight = copy.deepcopy(snapshot)
-        self.assertTrue(core.admission(preflight)["admitted"])
         with tempfile.TemporaryDirectory() as directory:
             lock_path = Path(directory) / "admission.lock"
             attempted = []
@@ -256,26 +170,127 @@ class AdmissionTests(unittest.TestCase):
                 return copy.deepcopy(snapshot)
             def register(result):
                 assert_locked()
-                registered = scope(18, current=GIB // 16)
+                registered = scope(18 + len(attempted), current=GIB // 16)
                 snapshot["scopes"].append(registered)
                 snapshot["fleet"]["current_bytes"] += GIB // 16
                 snapshot["available_bytes"] -= 1
-                attempted.append("registered")
+                attempted.append((result["capacity"]["available_bytes"],
+                                  result["admitted"], bool(result["warnings"])))
                 return registered
-            core.launch_transaction(core.admission_lock(lock_path), inspect, register)
-            with self.assertRaises(core.CageError) as refused:
+            with patch.object(sys, "stderr", io.StringIO()):
                 core.launch_transaction(core.admission_lock(lock_path), inspect, register)
-            self.assertEqual(refused.exception.code, 75)
-            self.assertEqual(attempted, ["registered"])
-            self.assertTrue(core.admission(preflight)["admitted"])
+                core.launch_transaction(core.admission_lock(lock_path), inspect, register)
+            self.assertEqual(attempted, [(20 * GIB, True, False), (20 * GIB - 1, True, True)])
             # The verified handoff releases the lock, not hypothetical cage slots.
             other = os.open(lock_path, os.O_RDWR)
             try:
                 fcntl.flock(other, fcntl.LOCK_EX | fcntl.LOCK_NB)
             finally:
                 os.close(other)
-            snapshot["available_bytes"] = 20 * GIB
-            self.assertTrue(core.admission(snapshot)["admitted"])
+
+
+class NativeDispatchTests(unittest.TestCase):
+    RECEIPT = r'''
+import json, os, sys
+from pathlib import Path
+Path(os.environ["OMP_EXEC_RECEIPT"]).write_text(json.dumps({
+    "pid": os.getpid(), "exe": os.readlink("/proc/self/exe"),
+    "argv": sys.argv[1:], "tty": os.isatty(0),
+}))
+sys.exit(23)
+'''
+    DRIVER = r'''
+import importlib.util, sys
+from pathlib import Path
+spec = importlib.util.spec_from_file_location("core", sys.argv[1])
+core = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(core)
+native, runtime, trace_file = map(Path, sys.argv[2:5])
+root, argv = sys.argv[5], sys.argv[6:]
+def trace(value):
+    with trace_file.open("a") as handle:
+        handle.write(value + "\n")
+class FixtureHost:
+    def __init__(self, *args):
+        trace("host")
+        self.root = root
+    def current_group(self):
+        trace("membership")
+        raise core.CageError("Launcher membership is outside the verified user hierarchy")
+def forbidden_registration(*args):
+    raise AssertionError("Unsafe membership attempted a live systemd registration")
+core.Host = FixtureHost
+core.native_path = lambda: native
+core.runtime_path = lambda: runtime
+core.start_scope = forbidden_registration
+sys.argv = ["omp", *argv]
+try:
+    sys.exit(core.main(argv))
+except core.CageError as exc:
+    print(str(exc), file=sys.stderr)
+    sys.exit(exc.code)
+'''
+
+    def dispatch(self, options, *, terminal, command=None):
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory)
+            native = base / "native" / "omp"
+            native.parent.mkdir()
+            shutil.copyfile(sys.executable, native)
+            native.chmod(0o700)
+            trace_file, receipt_file = base / "trace", base / "receipt.json"
+            if command is None:
+                argv = ["-c", self.RECEIPT, *options]
+            else:
+                (base / command).write_text(self.RECEIPT)
+                argv = [command, *options]
+            environment = {**os.environ, "OMP_EXEC_RECEIPT": str(receipt_file)}
+            master, slave = pty.openpty() if terminal else (None, None)
+            try:
+                with subprocess.Popen(
+                        [sys.executable, "-c", self.DRIVER,
+                         str(Path(__file__).with_name("omp-engineer.py").resolve()), str(native),
+                         str(base / "runtime"), str(trace_file), ROOT, *argv],
+                        cwd=base, env=environment, stdin=slave if terminal else subprocess.DEVNULL,
+                        stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True) as child:
+                    try:
+                        _, stderr = child.communicate(timeout=5)
+                    except subprocess.TimeoutExpired:
+                        child.kill()
+                        child.communicate()
+                        raise
+                    return {"code": child.returncode, "stderr": stderr, "pid": child.pid,
+                            "native": str(native),
+                            "receipt": json.loads(receipt_file.read_text()) if receipt_file.exists() else None,
+                            "inspections": trace_file.read_text().splitlines() if trace_file.exists() else []}
+            finally:
+                if terminal:
+                    os.close(master)
+                    os.close(slave)
+
+    def test_nonengineer_native_exec_bypasses_unavailable_containment_inspection(self):
+        cases = ((["-p"], True, None), (["--print"], True, None),
+                 (["--mode", "json"], True, None), (["--mode=rpc"], True, None),
+                 (["--mode", "acp"], True, None), (["--help"], True, None),
+                 ([], False, None), (["--check"], True, "update"))
+        for options, terminal, command in cases:
+            with self.subTest(options=options, terminal=terminal, command=command):
+                result = self.dispatch(options, terminal=terminal, command=command)
+                self.assertEqual(result["code"], 23, result["stderr"])
+                self.assertEqual(result["receipt"], {"pid": result["pid"], "exe": result["native"],
+                                                     "argv": options, "tty": terminal})
+                self.assertEqual(result["inspections"], [])
+
+    def test_engineers_require_safe_membership_and_print_shaped_data_cannot_bypass(self):
+        cases = (([], True), (["--", "-p"], True),
+                 (["--system-prompt", "-p", "--model", "-p"], True),
+                 (["--system-prompt=-p"], True), (["--mode", "rpc-ui"], False))
+        for options, terminal in cases:
+            with self.subTest(options=options, terminal=terminal):
+                result = self.dispatch(options, terminal=terminal)
+                self.assertEqual(result["code"], 1, result["stderr"])
+                self.assertIsNone(result["receipt"])
+                self.assertIn("membership", result["inspections"])
 
 
 class InspectionAndTerminalTests(unittest.TestCase):
@@ -310,66 +325,66 @@ class InspectionAndTerminalTests(unittest.TestCase):
                         core.memory(["--json"])
                     marker.unlink()
 
-    def test_unrelated_opaque_daemon_does_not_block_native_memory_inspection(self):
-        host = core.Host()
-        scratch = Path(os.environ.get("TMPDIR", Path.home() / ".cache/tmp"))
-        scratch.mkdir(parents=True, exist_ok=True)
-        with tempfile.TemporaryDirectory(dir=scratch) as directory:
-            host.proc = Path(directory)
-            for pid, name, group in ((1, "daemon", host.root),
-                                     (2, "omp", host.root + "/app.slice/terminal.scope")):
-                process = host.proc / str(pid)
-                process.mkdir()
-                fields = ["S", *(["0"] * 21)]
-                fields[1], fields[19], fields[21] = "0", "123", "1"
-                (process / "stat").write_text(f"{pid} ({name}) " + " ".join(fields))
-                (process / "cgroup").write_text("0::" + group + "\n")
-                (process / "smaps_rollup").write_text("Pss: 1 kB\n")
-                (process / "exe").symlink_to("/usr/bin/" + name)
-            original = os.readlink
-            def protected(path):
-                if Path(path).parent.name == "1":
-                    raise PermissionError("Unrelated daemon is not ptrace-readable")
-                return original(path)
-            with patch.object(core.os, "readlink", side_effect=protected):
-                processes, groups = host.processes([], [])
-            self.assertEqual([(row["pid"], row["native_omp"]) for row in sorted(processes, key=lambda row: row["pid"])],
-                             [(1, False), (2, True)])
-            self.assertEqual(groups, [host.root + "/app.slice/terminal.scope"])
-            with patch.object(core.os, "readlink", side_effect=PermissionError("Native root is opaque")):
-                with self.assertRaises(core.CageError):
-                    host.processes([], [])
+    def test_live_snapshot_admits_without_process_memory_or_legacy_state(self):
+        snapshot = measurement()
+        snapshot["available_bytes"] = 20 * GIB
+        snapshot["scopes"] = [scope(0, current=GIB // 16)]
+        snapshot["fleet"].update(current_bytes=GIB // 16, populated=True)
+        with tempfile.TemporaryDirectory() as directory:
+            host = core.Host(seconds=float("inf"))
+            host.uid, host.root = snapshot["uid"], snapshot["user_root"]
+            host.proc = Path(directory) / "proc"
+            host.cgroup = Path(directory) / "cgroup"
+            own = host.proc / str(os.getpid())
+            own.mkdir(parents=True)
+            (own / "cgroup").write_text("0::" + snapshot["current_group"] + "\n")
+            (host.proc / "meminfo").write_text(f"MemAvailable: {20 * GIB // 1024} kB\n")
+            # There are no stat, exe or smaps files, and no retained runtime state.
+            for record in [*snapshot["ancestors"], snapshot["fleet"], *snapshot["scopes"]]:
+                group_directory = host.cgroup / record["path"].lstrip("/")
+                group_directory.mkdir(parents=True, exist_ok=True)
+                for filename, key in (("memory.max", "memory_max"),
+                                      ("memory.swap.max", "memory_swap_max"),
+                                      ("memory.high", "memory_high"),
+                                      ("memory.current", "current_bytes"),
+                                      ("memory.oom.group", "oom_group")):
+                    value = record[key]
+                    (group_directory / filename).write_text("max" if value is None else str(value))
+                (group_directory / "cgroup.events").write_text(
+                    f"populated {int(record['populated'])}\nfrozen 0\n")
+                (group_directory / "cgroup.procs").write_text("")
 
-    def test_deleted_legacy_group_retains_live_orphan_memory_until_tasks_exit(self):
-        host = core.Host()
-        scratch = Path(os.environ.get("TMPDIR", Path.home() / ".cache/tmp"))
-        scratch.mkdir(parents=True, exist_ok=True)
-        with tempfile.TemporaryDirectory(dir=scratch) as directory:
-            runtime = Path(directory)
-            host.proc = runtime / "proc"
-            host.proc.mkdir()
-            process = host.proc / "2"
-            process.mkdir()
-            fields = ["S", *(["0"] * 21)]
-            fields[1], fields[19], fields[21] = "0", "123", "1"
-            (process / "stat").write_text("2 (orphan) " + " ".join(fields))
-            legacy = host.root + "/app.slice/terminal.scope"
-            (process / "cgroup").write_text("0::" + legacy + " (deleted)\n")
-            (process / "smaps_rollup").write_text("Pss: 1 kB\n")
-            state = runtime / "legacy.json"
-            state.write_text(json.dumps([legacy]))
-            state.chmod(0o600)
-            with patch.object(core, "runtime_path", return_value=runtime):
-                self.assertEqual(host.legacy_groups(), [legacy])
-            processes, groups = host.processes([legacy], [])
-            self.assertEqual(groups, [legacy])
-            self.assertEqual([(row["native_omp"], row["pss_bytes"]) for row in processes],
-                             [(False, 1024)])
-            for child in process.iterdir():
-                child.unlink()
-            process.rmdir()
-            self.assertEqual(host.processes([legacy], []), ([], []))
+            def capture(argv):
+                if argv[0] == core.OOMCTL:
+                    return ("Swap Monitored CGroups:\nMemory Pressure Monitored CGroups:\n"
+                            f"  Path: {ROOT}/app.slice\n")
+                if "list-units" in argv:
+                    return json.dumps([{"unit": snapshot["scopes"][0]["unit"]}])
+                unit = argv[argv.index("show") + 1]
+                if unit == "omp.slice":
+                    properties = {"Id": unit, "LoadState": "loaded", "ActiveState": "active",
+                                  "ControlGroup": FLEET, "Slice": "-.slice", "MemoryMax": "infinity",
+                                  "MemorySwapMax": "0", "MemoryHigh": "infinity"}
+                elif unit == snapshot["scopes"][0]["unit"]:
+                    properties = {"Id": unit, "LoadState": "loaded", "ActiveState": "active",
+                                  "ControlGroup": snapshot["scopes"][0]["path"], "Slice": "omp.slice",
+                                  "MemoryMax": str(4 * GIB), "MemorySwapMax": "0", "OOMPolicy": "kill"}
+                else:
+                    raise AssertionError(f"Unrelated unit inspection: {unit}")
+                return "\n".join(f"{field[2:]}={properties[field[2:]]}"
+                                 for field in argv if field.startswith("-p"))
 
+            original_iterdir = Path.iterdir
+            def limited_iterdir(path):
+                if path == host.proc:
+                    raise AssertionError("Snapshot attempted a process-wide /proc walk")
+                return original_iterdir(path)
+            with patch.object(host, "capture", side_effect=capture), \
+                    patch.object(Path, "iterdir", new=limited_iterdir), \
+                    patch.object(core, "runtime_path", side_effect=AssertionError("Legacy runtime inspection")):
+                result = core.admission(host.snapshot())
+            self.assertTrue(result["admitted"])
+            self.assertFalse(result["reuses_cage"])
 
     def test_native_updater_target_routing_never_leaks_into_engineer_or_read_only_paths(self):
         native = Path("/home/fixture/.local/lib/omp-engineer/omp")

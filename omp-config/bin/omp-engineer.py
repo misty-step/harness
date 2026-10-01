@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # owned by misty-step/harness omp-config engineer-cage
-"""Fail-closed OMP leaf containment and measured, serialized fleet admission."""
+"""Fail-closed OMP leaf containment and serialized, advisory memory inspection."""
 
 import contextlib
 from datetime import datetime, timezone
@@ -25,8 +25,6 @@ import time
 GIB = 1024 ** 3
 LEAF_BYTES = 4 * GIB
 MEMORY_FLOOR_BYTES = 20 * GIB
-HEAVY_BYTES = 16 * GIB
-HEAVY_SWAP_BYTES = 2 * GIB
 INSPECTION_SECONDS = 10
 LOCK_SECONDS = 10
 READY_SECONDS = 15
@@ -35,16 +33,16 @@ SYSTEMD_RUN = "/usr/bin/systemd-run"
 OOMCTL = "/usr/bin/oomctl"
 SCOPE = re.compile(r"omp-engineer-[0-9a-f]{24}\.scope\Z")
 POLICY = {"leaf_bytes": LEAF_BYTES,
-          "available_memory_floor_bytes": MEMORY_FLOOR_BYTES, "heavy_capacity_bytes": HEAVY_BYTES,
-          "leaf_swap_bytes": 0}
+          "available_memory_floor_bytes": MEMORY_FLOOR_BYTES, "leaf_swap_bytes": 0}
 HELP = """Usage:
   omp-engineer [--] OMP-ARGUMENTS...
   omp-engineer memory --json [--fixture FILE]
   omp-engineer --help
-The installed `omp` entrypoint passes every argument to native OMP in a verified
-4-GiB, zero-swap, group-OOM scope. Memory is read-only preflight, never a reservation.
-Fixtures are accepted only by read-only memory; launch always inspects live state.
-Exit: native status; 1 inspection/setup failure; 2 usage; 75 admission/readiness refusal.
+The installed `omp` entrypoint contains interactive engineers in verified
+4-GiB, zero-swap, group-OOM scopes. Native one-shot/stdio modes run directly.
+Memory is read-only and advisory, never a reservation or launch-capacity gate.
+Fixtures are accepted only by read-only memory; fresh engineer admission inspects live state.
+Exit: native status; 1 inspection/setup failure; 2 usage; 75 lock/readiness refusal.
 """
 
 
@@ -75,11 +73,6 @@ def ancestor_paths(group):
     return ["/" + "/".join(parts[:number]) for number in range(1, len(parts) + 1)]
 
 
-def finite(value, maximum, label):
-    if value is None or natural(value, label) > maximum:
-        raise CageError(f"{label} is not bounded at or below {maximum} bytes")
-
-
 def controls(record, label):
     required = {"path", "memory_max", "memory_swap_max", "memory_high", "current_bytes", "oom_group", "populated"}
     if not isinstance(record, dict) or not required.issubset(record):
@@ -108,8 +101,9 @@ def verify_leaf(record, fleet):
 
 
 def verify_hierarchy(snapshot):
+    uid = natural(snapshot.get("uid"), "uid")
     root = group_path(snapshot.get("user_root"))
-    if re.fullmatch(r"/user\.slice/user-([0-9]+)\.slice/user@\1\.service", root) is None or root != f"/user.slice/user-{snapshot.get('uid')}.slice/user@{snapshot.get('uid')}.service":
+    if re.fullmatch(r"/user\.slice/user-([0-9]+)\.slice/user@\1\.service", root) is None or root != f"/user.slice/user-{uid}.slice/user@{uid}.service":
         raise CageError("Unrecognized user-manager hierarchy")
     fleet_path = root + "/omp.slice"
     fleet = snapshot.get("fleet")
@@ -136,82 +130,15 @@ def verify_hierarchy(snapshot):
     return root, fleet_path, fleet, ancestors
 
 
-def process_charge(snapshot, fleet_path, live_scopes):
-    """Count processes once, retaining mixed legacy groups after roots disappear."""
-    processes = snapshot.get("processes")
-    legacy = snapshot.get("legacy_groups")
-    uid = natural(snapshot.get("uid"), "uid")
-    if not isinstance(processes, list) or not isinstance(legacy, list):
-        raise CageError("Incomplete process or retained legacy-group inventory")
-    by_pid = {}
-    for item in processes:
-        if not isinstance(item, dict):
-            raise CageError("Invalid process inventory")
-        for key in ("pid", "ppid", "uid", "starttime", "rss_bytes"):
-            natural(item.get(key), f"process {key}")
-        if not item["pid"] or item["pid"] in by_pid:
-            raise CageError("Duplicate or invalid process identity")
-        group_path(item.get("cgroup"))
-        if type(item.get("native_omp")) is not bool or type(item.get("exited", False)) is not bool:
-            raise CageError("Missing native OMP process identity")
-        by_pid[item["pid"]] = item
-    scope_groups = {item["path"] for item in live_scopes}
-    def caged(item):
-        if contains(fleet_path, item["cgroup"]):
-            if item["cgroup"] not in scope_groups:
-                raise CageError("A process occupies an unverified OMP cgroup")
-            return True
-        return False
-    native = {pid for pid, item in by_pid.items() if item["uid"] == uid and item["native_omp"] and not item.get("exited", False) and not caged(item)}
-    for path in legacy:
-        group_path(path)
-        if contains(fleet_path, path):
-            raise CageError("Retained legacy identity overlaps the cage")
-    legacy = sorted(set(legacy) | {by_pid[pid]["cgroup"] for pid in native})
-    def chain(pid):
-        seen = set()
-        while pid in by_pid:
-            if pid in seen:
-                raise CageError("Cyclic process ancestry")
-            seen.add(pid)
-            yield pid
-            pid = by_pid[pid]["ppid"]
-    roots = sorted(pid for pid in native if not any(parent in native for parent in list(chain(pid))[1:]))
-    descendants = {pid for pid in by_pid if any(parent in roots for parent in chain(pid))}
-    selected = {pid for pid, item in by_pid.items()
-                if not item.get("exited", False) and not caged(item) and (pid in descendants or any(contains(path, item["cgroup"]) for path in legacy))}
-    for pid in selected:
-        item = by_pid[pid]
-        if item["uid"] != uid:
-            raise CageError(f"Cannot account foreign-uid descendant {pid}")
-        natural(item.get("pss_bytes"), f"process {pid} PSS")
-        if item["pss_bytes"] > item["rss_bytes"]:
-            raise CageError(f"Inconsistent resident accounting for process {pid}")
-    uncaged = []
-    for pid in roots:
-        members = sorted(child for child in selected if pid in chain(child))
-        item = by_pid[pid]
-        uncaged.append({"pid": pid, "starttime": item["starttime"], "comm": item.get("comm", "omp"),
-                        "exe": item.get("exe", ""), "cgroup": item["cgroup"], "pids": members,
-                        "rss_bytes": sum(by_pid[child]["rss_bytes"] for child in members),
-                        "pss_bytes": sum(by_pid[child]["pss_bytes"] for child in members),
-                        "bounded": False})
-    return {"groups": legacy, "uncaged": uncaged, "pids": sorted(selected),
-            "unattributed_pids": sorted(selected - descendants),
-            "rss_bytes": sum(by_pid[pid]["rss_bytes"] for pid in selected),
-            "pss_bytes": sum(by_pid[pid]["pss_bytes"] for pid in selected)}
-
-
 def admission(snapshot, *, source="live"):
     """Pure preflight. Input contains measurements, never policy overrides."""
     if not isinstance(snapshot, dict) or snapshot.get("schema_version") != 1:
         raise CageError("Unrecognized memory measurement schema")
-    root, fleet_path, fleet, ancestors = verify_hierarchy(snapshot)
+    _, fleet_path, fleet, ancestors = verify_hierarchy(snapshot)
     available = natural(snapshot.get("available_bytes"), "available memory")
     scopes = snapshot.get("scopes")
-    heavy = snapshot.get("heavy")
-    if not isinstance(scopes, list) or not isinstance(heavy, dict):
-        raise CageError("Incomplete cage or heavy-job inventory")
+    if not isinstance(scopes, list):
+        raise CageError("Incomplete OMP scope inventory")
     seen = set()
     for item in scopes:
         if not isinstance(item, dict):
@@ -224,59 +151,30 @@ def admission(snapshot, *, source="live"):
             if contains(path, item["path"]):
                 raise CageError(f"systemd-oomd monitors an OMP leaf through {path}")
     live = [item for item in scopes if item["populated"]]
-    heavy_current = natural(heavy.get("current_bytes"), "heavy-job memory")
-    jobs = heavy.get("jobs")
-    if not isinstance(jobs, list) or heavy_current > HEAVY_BYTES:
-        raise CageError("Heavy jobs exceed the approved 16-GiB capacity")
-    if heavy_current or jobs or heavy.get("populated"):
-        controls(heavy, "heavy-job aggregate")
-        if heavy.get("path") != root + "/dev.slice/dev-exec.slice":
-            raise CageError("Heavy-job aggregate is outside the inspected hierarchy")
-        finite(heavy.get("memory_max"), HEAVY_BYTES, "heavy-job aggregate memory.max")
-        finite(heavy.get("memory_swap_max"), HEAVY_SWAP_BYTES, "heavy-job aggregate memory.swap.max")
-        maxima = 0
-        job_paths = set()
-        for job in jobs:
-            controls(job, "heavy job")
-            path = group_path(job.get("path"))
-            if path in job_paths or not contains(heavy["path"], path) or path == heavy["path"]:
-                raise CageError("Invalid or duplicate heavy-job identity")
-            job_paths.add(path)
-            finite(job.get("memory_max"), HEAVY_BYTES, "heavy job memory.max")
-            finite(job.get("memory_swap_max"), HEAVY_SWAP_BYTES, "heavy job memory.swap.max")
-            maxima += job["memory_max"]
-        if maxima > HEAVY_BYTES or not jobs:
-            raise CageError("Active heavy jobs do not have compatible inspected leaf bounds")
-    charge = process_charge(snapshot, fleet_path, live)
     current_group = group_path(snapshot.get("current_group"))
     nested = current_group in {item["path"] for item in live}
     if contains(fleet_path, current_group) and not nested:
         raise CageError("Current process occupies an unverified cage")
     bounds = [item for item in (fleet, *ancestors) if item["memory_max"] is not None]
-    reasons = []
+    warnings = []
     if not nested:
         if available < MEMORY_FLOOR_BYTES:
-            reasons.append(f"available memory {available} is below the {MEMORY_FLOOR_BYTES}-byte (20-GiB) scale-up floor")
+            warnings.append(f"available memory {available} is below the {MEMORY_FLOOR_BYTES}-byte (20-GiB) scale-up floor")
         for item in bounds:
             if item["memory_max"] - item["current_bytes"] < MEMORY_FLOOR_BYTES:
-                reasons.append(f"effective cgroup {item['path']} lacks {MEMORY_FLOOR_BYTES} bytes of memory headroom")
+                warnings.append(f"effective cgroup {item['path']} lacks {MEMORY_FLOOR_BYTES} bytes of memory headroom")
     return {"schema_version": 1, "ok": True, "source": source, "reservation": False,
             "activated": True,
-            "captured_at": snapshot.get("captured_at"), "admitted": not reasons, "reasons": reasons,
+            "captured_at": snapshot.get("captured_at"), "admitted": True, "reasons": [], "warnings": warnings,
             "policy": dict(POLICY), "reuses_cage": nested,
             "capacity": {"available_bytes": available, "required_available_bytes": MEMORY_FLOOR_BYTES,
                          "required_ancestor_headroom_bytes": MEMORY_FLOOR_BYTES,
                          "fleet_current_bytes": fleet["current_bytes"],
-                         "measured_fleet_bytes": fleet["current_bytes"] + charge["rss_bytes"],
                          "effective_memory_max_bytes": min((item["memory_max"] for item in bounds), default=None),
-                         "caged_count": len(live),
-                         "uncaged_count": len(charge["uncaged"]), "uncaged_rss_bytes": charge["rss_bytes"],
-                         "uncaged_pss_bytes": charge["pss_bytes"], "legacy_process_count": len(charge["pids"]),
-                         "heavy_current_bytes": heavy_current},
-            "scopes": live, "uncaged": charge["uncaged"], "legacy_groups": charge["groups"],
-            "legacy_unattributed_pids": charge["unattributed_pids"], "heavy_jobs": jobs,
+                         "caged_count": len(live)},
+            "scopes": live,
             "ancestors": ancestors, "monitored": snapshot["monitored"],
-            "coverage": "Uncaged engineers and retained mixed legacy groups are measured, not bounded; their future growth remains unbounded until natural exit. Descendant containment excludes external daemons and deliberate same-user cgroup escape."}
+            "coverage": "Interactive engineers have verified per-leaf bounds. Descendant containment excludes external daemons and deliberate same-user cgroup escape."}
 
 
 def runtime_path():
@@ -321,15 +219,14 @@ def admission_lock(path, *, clock=time.monotonic, sleep=time.sleep):
         os.close(fd)
 
 
-def launch_transaction(lock, inspect, register, retain=lambda snapshot: None):
+def launch_transaction(lock, inspect, register):
     # Registration returns only after cgroupfs + process membership verification.
     # Fresh inspection and verified registration share the lock, never abstract slots.
     with lock:
         snapshot = inspect()
         result = admission(snapshot)
-        retain(snapshot)
-        if not result["admitted"]:
-            raise CageError("memory admission refused: " + "; ".join(result["reasons"]), 75)
+        for warning in result["warnings"]:
+            print(f"omp-engineer: warning: {warning}; launching with verified containment", file=sys.stderr)
         return register(result)
 
 
@@ -508,144 +405,17 @@ class Host:
                 raise CageError("Actual OMP leaf inventory disagrees with systemd registration")
         return records
 
-    def heavy(self):
-        path = self.root + "/dev.slice/dev-exec.slice"
-        directory = self.cgroup / path.lstrip("/")
-        empty = {"path": path, "current_bytes": 0, "jobs": []}
-        if not directory.exists():
-            return empty
-        record = self.group_controls(path)
-        if not record["populated"]:
-            return empty  # Obsolete, unused configured ceilings are not reservations.
-        props = self.show("dev-exec.slice", "MemoryMax", "MemorySwapMax")
-        if props["LoadState"] != "loaded" or props["ControlGroup"] != path:
-            raise CageError("Active heavy-job aggregate has uninspectable placement")
-        for key, prop in (("memory_max", "MemoryMax"), ("memory_swap_max", "MemorySwapMax")):
-            if record[key] != self.limit(props[prop], prop):
-                raise CageError("Heavy-job configured and actual aggregate bounds disagree")
-        if self.read(directory / "cgroup.procs"):
-            raise CageError("Heavy jobs occupy the aggregate without inspected leaf boundaries")
-        try:
-            children = [child for child in directory.iterdir() if child.is_dir()]
-        except OSError as exc:
-            raise CageError("Cannot enumerate active heavy jobs") from exc
-        jobs = []
-        for child in children:
-            job = self.group_controls(path + "/" + child.name)
-            if job["populated"]:
-                if not child.name.endswith((".scope", ".service")):
-                    raise CageError("Unrecognized active heavy-job leaf")
-                job["unit"] = child.name
-                jobs.append(job)
-        record["jobs"] = jobs
-        return record
-
-    def legacy_groups(self):
-        path = runtime_path() / "legacy.json"
-        try:
-            info = path.lstat()
-        except FileNotFoundError:
-            return []
-        if not stat.S_ISREG(info.st_mode) or info.st_uid != self.uid or info.st_mode & 0o077:
-            raise CageError("Unsafe retained legacy-group state")
-        try:
-            groups = json.loads(self.read(path))
-        except ValueError as exc:
-            raise CageError("Unreadable retained legacy-group state") from exc
-        if not isinstance(groups, list):
-            raise CageError("Invalid retained legacy-group state")
-        return [group_path(group) for group in groups]
-
-    def processes(self, legacy, scopes):
-        by_pid = {}
-        try:
-            entries = list(self.proc.iterdir())
-        except OSError as exc:
-            raise CageError("Cannot enumerate process memory") from exc
-        for entry in entries:
-            if not entry.name.isdecimal() or int(entry.name) == os.getpid():
-                continue
-            self.remaining()
-            try:
-                text = (entry / "stat").read_text()
-                left, rest = text.rsplit(") ", 1)
-                parts = rest.split()
-                uid = entry.stat().st_uid
-                item = {"pid": int(entry.name), "ppid": int(parts[1]), "uid": uid,
-                        "comm": left.split("(", 1)[1], "starttime": int(parts[19]),
-                        "rss_bytes": max(0, int(parts[21])) * os.sysconf("SC_PAGE_SIZE"),
-                        "native_omp": False, "cgroup": "/", "exe": ""}
-                if uid == self.uid:
-                    item["cgroup"] = self.process_group(item["pid"])
-                    # The supported native ELF is named omp (including the
-                    # retained update target). Identify that root before asking
-                    # ptrace-protected executable metadata from unrelated daemons.
-                    item["native_omp"] = item["comm"] == "omp"
-                    if item["native_omp"]:
-                        try:
-                            item["exe"] = os.readlink(entry / "exe")
-                        except FileNotFoundError:
-                            if parts[0] != "Z":
-                                continue
-                        except PermissionError as exc:
-                            raise CageError(f"Cannot identify native OMP executable {entry.name}") from exc
-                by_pid[item["pid"]] = item
-            except (FileNotFoundError, ProcessLookupError):
-                continue  # A vanished process no longer consumes resident memory.
-            except (OSError, ValueError, IndexError) as exc:
-                raise CageError(f"Cannot inspect process identity {entry.name}") from exc
-        native = {pid for pid, item in by_pid.items() if item["native_omp"] and not contains(self.root + "/omp.slice", item["cgroup"])}
-        groups = set(legacy) | {by_pid[pid]["cgroup"] for pid in native}
-        selected = {pid for pid, item in by_pid.items() if any(contains(group, item["cgroup"]) for group in groups)}
-        changed = True
-        while changed:
-            extra = {pid for pid, item in by_pid.items() if item["ppid"] in selected}
-            changed = not extra.issubset(selected)
-            selected |= extra
-        caged = {item["path"] for item in scopes if item["populated"]}
-        for pid in selected:
-            item = by_pid[pid]
-            if item["cgroup"] in caged:
-                continue
-            if item["uid"] != self.uid:
-                raise CageError(f"Cannot measure foreign-uid legacy descendant {pid}")
-            try:
-                raw = (self.proc / str(pid) / "smaps_rollup").read_text()
-                pss = [line.split() for line in raw.splitlines() if line.startswith("Pss:")]
-                if len(pss) != 1 or len(pss[0]) != 3 or pss[0][2] != "kB" or not pss[0][1].isdecimal():
-                    raise CageError(f"Cannot measure legacy process {pid} PSS")
-                again = (self.proc / str(pid) / "stat").read_text().rsplit(") ", 1)[1].split()
-                if int(again[19]) != item["starttime"]:
-                    raise CageError(f"Process identity changed during memory inspection: {pid}")
-                item["pss_bytes"] = int(pss[0][1]) * 1024
-                item["rss_bytes"] = max(item["rss_bytes"], item["pss_bytes"], max(0, int(again[21])) * os.sysconf("SC_PAGE_SIZE"))
-            except (FileNotFoundError, ProcessLookupError):
-                # Retain the ancestry identity so surviving children do not disappear.
-                item["rss_bytes"] = item["pss_bytes"] = 0
-                item["native_omp"] = False
-                item["exited"] = True
-            except (OSError, ValueError, IndexError) as exc:
-                raise CageError(f"Cannot inspect legacy descendant memory {pid}") from exc
-        # A removed cgroup can still contain live orphaned tasks. Process
-        # membership, not the disappearance of cgroup.events, ends this charge.
-        groups = {group for group in groups if any(
-            item["uid"] == self.uid and not item.get("exited", False)
-            and contains(group, item["cgroup"]) for item in by_pid.values())}
-        return list(by_pid.values()), sorted(groups)
-
     def snapshot(self):
         current = self.current_group()
         fleet = self.fleet()
         scopes = self.scopes(fleet)
-        legacy = self.legacy_groups()
-        processes, legacy = self.processes(legacy, scopes)
-        available = [line.split() for line in self.read("/proc/meminfo").splitlines() if line.startswith("MemAvailable:")]
+        available = [line.split() for line in self.read(self.proc / "meminfo").splitlines() if line.startswith("MemAvailable:")]
         if len(available) != 1 or len(available[0]) != 3 or available[0][2] != "kB" or not available[0][1].isdecimal():
             raise CageError("Cannot inspect actual available physical memory")
         return {"schema_version": 1, "uid": self.uid, "user_root": self.root,
                 "current_group": current, "available_bytes": int(available[0][1]) * 1024,
-                "fleet": fleet, "scopes": scopes, "processes": processes, "legacy_groups": legacy,
-                "heavy": self.heavy(), "ancestors": [self.group_controls(path) for path in ancestor_paths(self.root)],
+                "fleet": fleet, "scopes": scopes,
+                "ancestors": [self.group_controls(path) for path in ancestor_paths(self.root)],
                 "monitored": self.monitors(), "captured_at": datetime.now(timezone.utc).isoformat()}
 
     def verify_registered(self, unit, pid):
@@ -663,21 +433,6 @@ class Host:
             if contains(path, record["path"]):
                 raise CageError("Live systemd-oomd monitoring includes the native handoff")
         return record
-
-
-def retain_legacy(snapshot):
-    path = runtime_path() / "legacy.json"
-    temporary = path.with_name("legacy-" + secrets.token_hex(8) + ".tmp")
-    try:
-        fd = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_CLOEXEC, 0o600)
-        with os.fdopen(fd, "w") as handle:
-            json.dump(snapshot["legacy_groups"], handle)
-            handle.write("\n")
-        os.replace(temporary, path)
-    except OSError as exc:
-        raise CageError("Cannot retain legacy descendant identities") from exc
-    finally:
-        temporary.unlink(missing_ok=True)
 
 
 def native_environment(argv, inherited, native):
@@ -863,8 +618,52 @@ def start_scope(argv, runtime):
         address.unlink(missing_ok=True)
 
 
+def engineer_invocation(argv):
+    # Native 18.4.9 CLI modes, not caller identities. Services without a terminal
+    # and explicit print/stdio modes are not interactive engineers.
+    commands = {"acp", "agents", "auth-broker", "auth-gateway", "bench", "browser-relay",
+                "cleanse", "clip", "collab", "commit", "completions", "compress", "config",
+                "dry-balance", "find", "gallery", "gc", "git", "grep", "grievances",
+                "if-bench", "images", "install", "login", "models", "play", "plugin",
+                "predict", "ps", "read", "render", "say", "search", "setup", "share",
+                "shell", "skill", "ssh", "stats", "stream", "tiny-models", "token",
+                "toks", "ttsr", "update", "usage", "worktree"}
+    if argv and argv[0] in commands:
+        return False
+    values = {"--cwd", "--config", "--add-dir", "--fork", "--provider", "--model",
+              "--smol", "--slow", "--plan", "--prewalk-into", "--plan-yolo-into",
+              "--max-time", "--service-tier", "--api-key", "--system-prompt",
+              "--system-prompt-template", "--append-system-prompt", "--provider-session-id",
+              "--prompt-cache-key", "--session-dir", "--models", "--tools", "--thinking",
+              "--hook", "--extension", "-e", "--trusted-extension", "--plugin-dir",
+              "--skills", "--approval-mode", "--profile"}
+    mode = None
+    index = 0
+    while index < len(argv):
+        arg = argv[index]
+        if arg == "--":
+            break
+        flag, equals, value = arg.partition("=") if arg.startswith("--") else (arg, "", "")
+        if flag in ("-p", "--print", "-h", "--help", "-v", "--version", "--export", "--alias"):
+            return False
+        if flag == "--mode":
+            if not equals and index + 1 < len(argv):
+                index += 1
+                value = argv[index]
+            mode = value
+        elif flag in values and not equals and index + 1 < len(argv):
+            if flag != "--plan" or not argv[index + 1].startswith("-"):
+                index += 1
+        index += 1
+    if mode in ("json", "rpc", "acp"):
+        return False
+    return mode == "rpc-ui" or os.isatty(0)
+
+
 def launch(argv):
     native = native_path()
+    if not engineer_invocation(argv):
+        os.execve(native, [str(native), *argv], native_environment(argv, os.environ, native))
     terminal = Terminal()
     terminal.recover_if_polluted()
     host = Host()
@@ -882,7 +681,7 @@ def launch(argv):
         runtime = runtime_path()
         private_directory(runtime)
         child, pid = launch_transaction(admission_lock(runtime / "admission.lock"),
-                                        lambda: Host().snapshot(), lambda result: start_scope(argv, runtime), retain_legacy)
+                                        lambda: Host().snapshot(), lambda result: start_scope(argv, runtime))
         with forward_signals(child, lambda: pid):
             result = exit_status(child.wait())
     if result == 137:
@@ -912,7 +711,7 @@ def memory(argv):
         if not cage_activation_present(Path(pwd.getpwuid(os.getuid()).pw_dir)):
             print(json.dumps({"schema_version": 1, "ok": True, "source": "live",
                               "activated": False, "admitted": True, "reservation": False,
-                              "reasons": [], "policy": POLICY, "capacity": None,
+                              "reasons": [], "warnings": [], "policy": POLICY, "capacity": None,
                               "coverage": "Engineer cage is not activated; memory enforcement is inactive. Staged roster launches retain their uncaged behavior."}, indent=2))
             return 0
         snapshot = Host().snapshot()
@@ -931,7 +730,7 @@ def memory(argv):
 
 def main(argv):
     # The omp alias has no launcher-option bypass: every native argument, even
-    # `memory` and `--help`, follows the real launch transaction.
+    # `memory` and `--help`, follows native-mode dispatch.
     if Path(sys.argv[0]).name != "omp":
         if argv in (["--help"], ["-h"]):
             print(HELP, end="")
