@@ -51,8 +51,8 @@ tool. At the start of owned repository work, including inherited worktrees, run
 `bun path/to/session-close.ts track [--repo PATH]` before switching or deletion.
 Its `check` auto-enrollment is a safety net, not a replacement for early tracking.
 
-A finished session means merged through green required CI and exact-head model
-review, deployed to the repository's actual targets with production sanity
+A finished session means merged after observed green CI and independent exact-head
+model review, deployed to the repository's actual targets with production sanity
 evidence, local/origin feature branches deleted, own worktree removed, and the
 canonical checkout clean on the fetched origin default head. Shared harness
 changes deploy to both Pi and OMP through the [installers below](#deploy-explicit-live-writes);
@@ -106,9 +106,10 @@ ship with the pinned `foundation-check` checker (ADR-006). A repository's
 `obl:`/`ops:` gaps, repository-side security and evidence shape;
 `foundation-check affected --base <rev> --repo <path>` identifies stories to
 walk and cite as `Stories: US-001` in a mapped-source PR. The separate
-`foundation-check review --pr N` gate verifies independent and designated
-GitHub approvals on the candidate head. Structural checks cannot prove
-runtime coverage or what a reviewer actually judged: preserve execution and
+`foundation-check review --pr N` diagnoses independent model-review records and
+designated decisions on the candidate head, not a server merge prerequisite.
+One exact-head model approval supplies the delegated decision. Structural checks
+cannot prove runtime coverage or what a reviewer judged: preserve execution and
 review receipts. Existing adopters re-pin explicitly only after their
 2026-10-25 cliff entries close or are extended (ADR-006).
 

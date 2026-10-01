@@ -82,11 +82,13 @@ the Foundation Standard tooling. It does not own:
   unmanaged server or an oomd monitoring ancestor. Enforced at runtime by
   `agent-config/desktop-guard/desktop-guard.py`; the native owner-path walk is
   documented in `docs/desktop-memory-guard.md`.
-- **INV-010** A protected release candidate passes Landmark's own validation
-  on an up-to-date merge candidate before it can land (US-015). Enforced by
-  required `verify` in `.github/workflows/ci.yml`, its configuration/replay
-  regression in `scripts/protected-release.test.ts`, and GitHub ruleset
-  23779166's strict required-status-check policy with no bypass actors.
+- **INV-010** A release candidate passes Landmark's own validation on an
+  up-to-date merge candidate before it can land (US-015). `unenforced`: reviewers judge it.
+  Why: CI's `verify` runs the validator in `.github/workflows/ci.yml`;
+  `scripts/protected-release.test.ts` checks current-base replay.
+  Scope: Before an ordinary merge, the agent observes green CI and verifies an
+  up-to-date merge candidate against the current default head. GitHub approval
+  and required-status merge gates were removed by ADR-003's uniform cutover.
 - **INV-011** Sessions close only landed or explicitly parked with a resume note
   (US-004). Deterministic owned Git/GitHub facts and live lease obligations are
   enforced by `agent-config/skills/session-close/session-close.ts check`, with
@@ -94,7 +96,7 @@ the Foundation Standard tooling. It does not own:
   `agent-config/skills/session-close/session-close.test.ts`. Corrupt storage and
   unparked auth/command failures fail closed; parked facts remain unverified.
   Foreign resources are informational and never cleanup targets.
-  `unenforced`: exact-head model review, green required CI, deployment
+  `unenforced`: independent exact-head model review, observed green CI, deployment
   to actual targets, production sanity and PR/relevant-ticket evidence remain
   engineer judgment under `agent-config/skills/session-close/SKILL.md`. Parking is
   reported as unfinished and does not waive live non-worktree leases.
