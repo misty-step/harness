@@ -155,10 +155,13 @@ effect with the catalog and checker change that cites ADR-006.
   pull request. Agents author under the operator's account, so FND-REV-001's
   approval "from someone other than the author" needs another identity. On
   misty-step that identity is the designated reviewer `kaylee-agent[bot]`: the
-  reviewing agent runs `agent-review --repo misty-step/NAME --pr N`
-  (`agent-config/bin/agent-review.ts`, under `pass-env` with
-  `KAYLEE_GITHUB_APP_ID` and `KAYLEE_GITHUB_APP_PEM`). A fresh Sonnet 5.5 high
-  process sees the PR title, description, immutable diff and any complete vision
+  reviewing agent runs `agent-review --repo misty-step/NAME --pr N
+  --author-model provider/model` (`agent-config/bin/agent-review.ts`, under
+  `pass-env` with `KAYLEE_GITHUB_APP_ID` and `KAYLEE_GITHUB_APP_PEM`). The
+  dispatcher selects Sonnet 5.5 high for an OpenAI author and Sol medium for
+  an Anthropic author, refuses same-family overrides, and records the caller's
+  declared author selector. A fresh reviewer process sees the PR title,
+  description, immutable diff and any complete vision
   inspections and returns a JSON verdict. Both model processes use a disposable
   supported OMP config with fallback disabled and selected model/effort/provider-
   wildcard/default/reviewer chains empty; native completed response identities

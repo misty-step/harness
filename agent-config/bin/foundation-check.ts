@@ -1636,8 +1636,8 @@ async function review(options: Options): Promise<Result> {
 		} else advisory.push(`FND-REV-001: immutable pointer/blob metadata reviewed; opaque content was not inspected (${uninspectable.join(", ")})`);
 	} else if (modelReview?.entry.state !== "APPROVED" || metadataOnly(modelReview.entry) || stale || overruled) {
 		errors.push(stale
-			? `FND-REV-001: the agent reviewer's approval of head ${head.slice(0, 12)} judged a different base, merge base, title or description than the PR now has; run agent-review --repo ${org}/${name} --pr ${options.pr}`
-			: `FND-REV-001: needs an agent-review approval from the designated agent reviewer ${agent} on head ${head.slice(0, 12)} (run agent-review --repo ${org}/${name} --pr ${options.pr})`);
+			? `FND-REV-001: the agent reviewer's approval of head ${head.slice(0, 12)} judged a different base, merge base, title or description than the PR now has; run agent-review --repo ${org}/${name} --pr ${options.pr} --author-model AUTHOR_PROVIDER/AUTHOR_MODEL`
+			: `FND-REV-001: needs an agent-review approval from the designated agent reviewer ${agent} on head ${head.slice(0, 12)} (run agent-review --repo ${org}/${name} --pr ${options.pr} --author-model AUTHOR_PROVIDER/AUTHOR_MODEL)`);
 	}
 	return { ok: errors.length === 0, errors, reasons, advisory, approved_by: errors.length === 0 ? (advisory.length > 0 && !approved ? `${agent} (metadata only; opaque content not inspected)` : agent) : undefined };
 }

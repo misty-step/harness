@@ -165,3 +165,15 @@ test("US-014 Opus guards fail closed, retire on cutover, and preserve allowed re
 	expect(migrated.retry.fallbackChains[successor]).toEqual([]);
 	expect(migrated.retry.fallbackChains["anthropic/claude-opus-4-6"]).toEqual([]);
 });
+
+test("installing the specialist gate preserves foreign disabled agents without duplicating existing denies", () => {
+	const files = fixture("task:\n  disabledAgents: [reviewer, security-reviewer, designer]\n",
+		"task:\n  disabledAgents: [foreign-agent, reviewer]\n  foreign-setting: keep\n");
+	expect(invoke(files).exitCode).toBe(0);
+	expect(parsed(files)).toEqual({
+		task: {
+			disabledAgents: ["reviewer", "security-reviewer", "designer", "foreign-agent"],
+			"foreign-setting": "keep",
+		},
+	});
+});

@@ -19,12 +19,13 @@ function mapping(value: unknown, location: string): Record<string, unknown> {
 	return value as Record<string, unknown>;
 }
 
-function selector(value: unknown, location: string): Selection {
+function selector(value: unknown, location: string, reviewer = false): Selection {
 	if (typeof value !== "string") throw new Error(`${location} must be a concrete model selector`);
 	const match = /^([a-z0-9-]+)\/([a-z0-9][a-z0-9.-]*)(?::([a-z]+))?$/.exec(value);
 	if (!match) throw new Error(`${location} must be a concrete model selector`);
 	const [, provider, id, effort] = match;
-	const levels = approvedModels[`${provider}/${id}`]?.efforts;
+	const approved = approvedModels[`${provider}/${id}`];
+	const levels = reviewer ? (approved?.reviewerEfforts ?? approved?.efforts) : approved?.efforts;
 	if (!levels) throw new Error(`${location} selects an unapproved model: ${provider}/${id}`);
 	if (effort && !levels.includes(effort)) throw new Error(`${location} has unsupported effort: ${effort}`);
 	return { selector: value, model: { provider, id, ...(effort ? { effort } : {}) } };
@@ -36,15 +37,15 @@ function configuredSelectors(config: unknown): Map<string, Model> {
 	if (Object.keys(roles).length === 0) throw new Error("modelRoles must not be empty");
 	const chains = mapping(mapping(root.retry, "retry").fallbackChains, "retry.fallbackChains");
 	const selections = new Map<string, Model>();
-	const add = (value: unknown, location: string) => {
-		const parsed = selector(value, location);
+	const add = (value: unknown, location: string, reviewer = false) => {
+		const parsed = selector(value, location, reviewer);
 		selections.set(parsed.selector, parsed.model);
 	};
 	for (const [role, value] of Object.entries(roles)) {
 		if (!/^[a-z][a-z0-9-]*$/.test(role)) throw new Error(`Invalid model role: ${role}`);
 		// OMP's built-in web route is not a chat model. No other role is exempt.
 		if (role === "web" && value === "web/exa") continue;
-		add(value, `modelRoles.${role}`);
+		add(value, `modelRoles.${role}`, role === "reviewer" || role === "security-reviewer");
 	}
 	for (const [key, chain] of Object.entries(chains)) {
 		if (key.includes("/")) add(key, `retry.fallbackChains key ${key}`);
@@ -66,13 +67,15 @@ function configuredSelectors(config: unknown): Map<string, Model> {
 		const overrides = mapping(task.agentModelOverrides, "task.agentModelOverrides");
 		for (const [agent, value] of Object.entries(overrides)) {
 			if (!/^[a-z][a-z0-9-]*$/.test(agent)) throw new Error(`Invalid task agent override: ${agent}`);
+			const reviewer = agent === "reviewer" || agent === "security-reviewer";
 			if (typeof value === "string" && value.startsWith("@")) {
 				const role = value.slice(1);
 				if (!Object.hasOwn(roles, role) || role === "web") {
 					throw new Error(`task.agentModelOverrides.${agent} does not resolve to a chat role: ${value}`);
 				}
+				add(roles[role], `task.agentModelOverrides.${agent} (${value})`, reviewer);
 			} else {
-				add(value, `task.agentModelOverrides.${agent}`);
+				add(value, `task.agentModelOverrides.${agent}`, reviewer);
 			}
 		}
 	}

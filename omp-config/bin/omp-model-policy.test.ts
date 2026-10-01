@@ -51,7 +51,6 @@ test("offline policy rejects stale, alias, malformed and disallowed routing sele
 	const cases: Array<[string, (config: PolicyConfig) => void, string]> = [
 		["stale Sonnet role", config => { config.modelRoles.default = "anthropic/claude-sonnet-5:medium"; }, "unapproved model"],
 		["retired Sol role", config => { config.modelRoles.default = "openai-codex/gpt-6-sol:xhigh"; }, "unapproved model"],
-		["Sol below high", config => { config.modelRoles.default = "openai-codex/gpt-6.1-sol:medium"; }, "unsupported effort"],
 		["retired agent override", config => { config.task = { agentModelOverrides: { designer: "anthropic/claude-sonnet-5:medium" } }; }, "unapproved model"],
 		["unknown model role override", config => { config.task = { agentModelOverrides: { designer: "@unknown" } }; }, "does not resolve to a chat role"],
 		["fuzzy alias", config => { config.modelRoles.default = "sonnet"; }, "concrete model selector"],
@@ -71,6 +70,33 @@ test("offline policy rejects stale, alias, malformed and disallowed routing sele
 		const result = run(fixture(config).config);
 		expect(result.exitCode, label).not.toBe(0);
 		expect(result.stderr.toString(), label).toContain(reason);
+	}
+});
+
+test("Sol medium is approved for review routes but not builders, recovery or non-review agents", () => {
+	const medium = "openai-codex/gpt-6.1-sol:medium";
+	const high = "openai-codex/gpt-6.1-sol:high";
+	const accepted = smallConfig();
+	accepted.modelRoles.default = high;
+	accepted.modelRoles.reviewer = medium;
+	accepted.modelRoles["security-reviewer"] = medium;
+	accepted.task = { agentModelOverrides: { worker: "@default", reviewer: medium, "security-reviewer": "@security-reviewer" } };
+	accepted.retry.fallbackChains.default = [high];
+	expect(run(fixture(accepted).config).exitCode).toBe(0);
+
+	const refused: Array<[(config: PolicyConfig) => void, string]> = [
+		[config => { config.modelRoles.default = medium; }, "modelRoles.default"],
+		[config => { config.retry.fallbackChains.default = [medium]; }, "retry.fallbackChains.default[0]"],
+		[config => { config.task = { agentModelOverrides: { worker: medium } }; }, "task.agentModelOverrides.worker"],
+		[config => { config.task = { agentModelOverrides: { worker: "@reviewer" } }; }, "task.agentModelOverrides.worker (@reviewer)"],
+		[config => { config.modelRoles.reviewer = "openai-codex/gpt-6.1-sol:low"; }, "modelRoles.reviewer"],
+	];
+	for (const [change, location] of refused) {
+		const config = structuredClone(accepted);
+		change(config);
+		const result = run(fixture(config).config);
+		expect(result.exitCode, location).not.toBe(0);
+		expect(result.stderr.toString()).toContain(`${location} has unsupported effort:`);
 	}
 });
 

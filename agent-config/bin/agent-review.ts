@@ -8,7 +8,7 @@
  * approves as the GitHub App `kaylee-agent[bot]` (ADR-003, "Independent review by the agent reviewer").
  * This tool runs that review and records it:
  *
- *   agent-review --repo misty-step/NAME --pr N
+ *   agent-review --repo misty-step/NAME --pr N --author-model provider/model
  *
  * 1. Reads the immutable PR head and merge base through the App's installation token and Git.
  * 2. Runs a fresh model process (`omp -p`, no session, no tools) on the PR title, description and diff, and asks for a JSON verdict.
@@ -37,8 +37,6 @@ const RERUN_LABEL = "agent-reviewed";
 const MAX_DIFF_BYTES = Number(process.env.AGENT_REVIEW_MAX_DIFF_BYTES ?? 400_000);
 const MAX_IMAGES = 6;
 const MAX_IMAGE_BYTES = Number(process.env.AGENT_REVIEW_MAX_IMAGE_BYTES ?? 5_000_000);
-const MODEL = process.env.AGENT_REVIEW_MODEL ?? "anthropic/claude-sonnet-5-5";
-const THINKING = process.env.AGENT_REVIEW_THINKING ?? "high";
 /** Visual work goes to Opus (the configured vision role); it fails closed, so an outage posts nothing. */
 const VISION_MODEL = process.env.AGENT_REVIEW_VISION_MODEL ?? "anthropic/claude-opus-5-5";
 const VISION_THINKING = process.env.AGENT_REVIEW_VISION_THINKING ?? "high";
@@ -50,6 +48,44 @@ export type Finding = { title: string; body: string; priority: number };
 export type Verdict = { overall_correctness: "correct" | "incorrect"; explanation: string; findings: Finding[] };
 
 const b64url = (value: Buffer | string) => Buffer.from(value).toString("base64url");
+
+type Family = "openai" | "anthropic" | "google" | "xai";
+type Model = { model: string; provider: string; id: string; family: Family; thinking?: string };
+type Reviewer = Model & { thinking: string; declaredAuthorModel: string };
+const THINKING_LEVELS: Record<string, true> = { off: true, minimal: true, low: true, medium: true, high: true, xhigh: true, max: true };
+
+/** Concrete selectors only: a fuzzy name or role alias cannot establish model-family independence. */
+function model(value: string, source: string): Model {
+	const match = value.trim().match(/^([a-z][a-z0-9-]*)\/([a-zA-Z0-9][a-zA-Z0-9._/-]*)(?::([a-z]+))?$/);
+	if (!match) throw new Error(`${source} must be a concrete provider/model selector`);
+	const [, provider, id, thinking] = match;
+	if (thinking && !Object.hasOwn(THINKING_LEVELS, thinking)) throw new Error(`${source} has unsupported thinking level ${thinking}`);
+	const vendor = provider === "openrouter" ? id.slice(0, id.indexOf("/")) : provider;
+	const name = provider === "openrouter" ? id.slice(id.indexOf("/") + 1) : id;
+	let family: Family | undefined;
+	if (vendor === "anthropic" && name.startsWith("claude-")) family = "anthropic";
+	else if ((vendor === "openai" || vendor === "openai-codex" || vendor === "azure-openai") && /^(gpt-|o[1-9](?:-|$))/.test(name)) family = "openai";
+	else if ((vendor === "google" || vendor === "google-antigravity" || vendor === "google-gemini-cli" || vendor === "google-vertex") && name.startsWith("gemini-")) family = "google";
+	else if ((vendor === "xai" || vendor === "xai-oauth") && name.startsWith("grok-")) family = "xai";
+	if (!family) throw new Error(`${source} has an unknown model family: ${value}`);
+	return { model: `${provider}/${id}`, provider, id, family, thinking };
+}
+
+function reviewerFor(authorValue: string | undefined): Reviewer {
+	if (!authorValue?.trim()) throw new Error("--author-model or AGENT_REVIEW_AUTHOR_MODEL is required; refusing to guess the author's model");
+	const author = model(authorValue, "author model");
+	const route = author.family === "openai"
+		? { model: "anthropic/claude-sonnet-5-5", thinking: "high" }
+		: author.family === "anthropic"
+			? { model: "openai-codex/gpt-6.1-sol", thinking: "medium" }
+			: undefined;
+	if (!route) throw new Error(`no review route is defined for author model family ${author.family}`);
+	const reviewer = model(process.env.AGENT_REVIEW_MODEL ?? route.model, "AGENT_REVIEW_MODEL");
+	if (reviewer.family === author.family) throw new Error(`the reviewer ${reviewer.model} shares the author's ${author.family} model family; nothing was posted`);
+	const thinking = process.env.AGENT_REVIEW_THINKING ?? reviewer.thinking ?? route.thinking;
+	if (!Object.hasOwn(THINKING_LEVELS, thinking)) throw new Error(`AGENT_REVIEW_THINKING has unsupported thinking level ${thinking}`);
+	return { ...reviewer, thinking, declaredAuthorModel: authorValue.trim() };
+}
 
 /** RS256 app JWT, valid nine minutes, backdated a minute for clock skew (GitHub's documented maximum is ten). */
 export function appJwt(appId: string, pem: string, now = Math.floor(Date.now() / 1000)): string {
@@ -243,7 +279,7 @@ async function runModel(text: string, options: { model: string; thinking: string
 		const overlay = join(dir, "review.yml");
 		const none: string[] = [];
 		const fallbackChains: Record<string, string[]> = { [model]: none, [`${model.slice(0, slash)}/*`]: none, default: none, reviewer: none, "security-reviewer": none };
-		for (const thinking of ["off", "minimal", "low", "medium", "high", "xhigh", "max"]) fallbackChains[`${model}:${thinking}`] = none;
+		for (const thinking in THINKING_LEVELS) fallbackChains[`${model}:${thinking}`] = none;
 		writeFileSync(overlay, JSON.stringify({ retry: { modelFallback: false, fallbackChains }, advisor: { enabled: false } }), { mode: 0o600 });
 		const args = [
 			"--mode", "json", "--print", "--no-session", "--model", model, "--thinking", options.thinking,
@@ -311,12 +347,12 @@ async function installationToken(repo: string): Promise<string> {
 }
 
 /** The base, merge base, title and description the model judged are recorded for the gate, which refuses an approval once any changes. */
-function body(verdict: Verdict, head: string, pull: Pull, mergeBase: string, images: string[], metadataOnly: boolean): string {
+function body(verdict: Verdict, head: string, pull: Pull, mergeBase: string, images: string[], metadataOnly: boolean, reviewer: Reviewer): string {
 	const digest = (value: string) => createHash("sha256").update(value).digest("hex");
 	const state = `agent-review-state: base=${pull.base.ref} merge-base=${mergeBase} title=sha256:${digest(pull.title)} description=sha256:${digest(pull.body ?? "")}`;
 	const seen = `a fresh session that saw the PR title, description and diff${images.length > 0 ? `, and ${VISION_MODEL}'s inspection of ${images.join(", ")}` : ""}${metadataOnly ? ", and immutable pointer/blob metadata (no opaque file bytes or submodule contents were inspected)" : ""} only.`;
 	const outcome = passes(verdict) ? (metadataOnly ? "metadata reviewed" : "approved") : "changes requested";
-	const lines = [`agent-review: ${outcome} ${head}`, state, ...(metadataOnly ? ["agent-review-scope: metadata-only"] : []), "", `Reviewer: ${MODEL} (${THINKING}), verified from OMP's completed response in ${seen}`, "", verdict.explanation.trim()];
+	const lines = [`agent-review: ${outcome} ${head}`, state, `agent-review-declared-author-model: ${reviewer.declaredAuthorModel}`, ...(metadataOnly ? ["agent-review-scope: metadata-only"] : []), "", `Reviewer: ${reviewer.model} (${reviewer.thinking}), verified from OMP's completed response in ${seen}`, "", verdict.explanation.trim()];
 	for (const finding of verdict.findings) lines.push("", `- **P${finding.priority}** ${finding.title}: ${finding.body.trim()}`);
 	return lines.join("\n").slice(0, 60_000);
 }
@@ -361,10 +397,11 @@ const readPull = async (repo: string, number: number, token: string): Promise<{ 
 	return { pull, mergeBase: compared.merge_base_commit.sha };
 };
 
-export async function review(repo: string, number: number): Promise<{ posted: "APPROVED" | "CHANGES_REQUESTED" | "COMMENTED"; head: string; rerun: boolean }> {
+export async function review(repo: string, number: number, authorModel = process.env.AGENT_REVIEW_AUTHOR_MODEL): Promise<{ posted: "APPROVED" | "CHANGES_REQUESTED" | "COMMENTED"; head: string; rerun: boolean; reviewer: { model: string; thinking: string } }> {
 	const [org, name, extra] = repo.split("/");
 	if (!org || !name || extra !== undefined) throw new Error("--repo must be OWNER/NAME");
 	if (org !== ORG) throw new Error(`the reviewer App is installed on ${ORG} only; ${org} has no designated agent reviewer (ADR-003)`);
+	const reviewer = reviewerFor(authorModel);
 	const token = await installationToken(repo);
 	const { pull, mergeBase } = await readPull(repo, number, token);
 	if (pull.state !== "open") throw new Error(`pull request ${number} is ${pull.state}`);
@@ -394,13 +431,13 @@ export async function review(repo: string, number: number): Promise<{ posted: "A
 		// A missing label must not leave a review that can never reach the gate. 422 means it already exists.
 		await api(`/repos/${repo}/labels`, token, { method: "POST", body: { name: RERUN_LABEL, color: "ededed", description: "agent-review recorded a review; re-runs foundation-review" }, tolerate: [422] });
 		if (interrupted) throw new Error("the review was interrupted; nothing was posted");
-		const verdict = parseVerdict(await runModel(prompt({ title: pull.title, body: pull.body ?? "", base: pull.base.ref, head }, diff, images, parts.other), { model: MODEL, thinking: THINKING }));
+		const verdict = parseVerdict(await runModel(prompt({ title: pull.title, body: pull.body ?? "", base: pull.base.ref, head }, diff, images, parts.other), reviewer));
 		const now = await readPull(repo, number, token);
 		if (now.pull.head.sha !== head) throw new Error(`the head moved from ${head.slice(0, 12)} to ${now.pull.head.sha.slice(0, 12)} during review; nothing was posted`);
 		if (now.pull.base.ref !== pull.base.ref || now.mergeBase !== mergeBase || now.pull.title !== pull.title || (now.pull.body ?? "") !== (pull.body ?? "")) throw new Error("the base, description or diff changed during review; nothing was posted");
 		if (interrupted) throw new Error("the review was interrupted; nothing was posted");
 		const event = passes(verdict) ? (metadataOnly ? "COMMENT" : "APPROVE") : "REQUEST_CHANGES";
-		await api(`/repos/${repo}/pulls/${number}/reviews`, token, { method: "POST", body: { commit_id: head, event, body: body(verdict, head, pull, mergeBase, images.map((image) => image.path), metadataOnly) } });
+		await api(`/repos/${repo}/pulls/${number}/reviews`, token, { method: "POST", body: { commit_id: head, event, body: body(verdict, head, pull, mergeBase, images.map((image) => image.path), metadataOnly, reviewer) } });
 		// Reviews cannot trigger pull_request_target. A failed label round trip is reported because the old check stands.
 		let rerun = true;
 		try {
@@ -410,12 +447,13 @@ export async function review(repo: string, number: number): Promise<{ posted: "A
 			rerun = false;
 			console.error(`agent-review: the review is recorded but the gate was not re-run (${(error as Error).message}); toggle the ${RERUN_LABEL} label`);
 		}
-		return { posted: event === "APPROVE" ? "APPROVED" : event === "COMMENT" ? "COMMENTED" : "CHANGES_REQUESTED", head, rerun };
+		return { posted: event === "APPROVE" ? "APPROVED" : event === "COMMENT" ? "COMMENTED" : "CHANGES_REQUESTED", head, rerun, reviewer: { model: reviewer.model, thinking: reviewer.thinking } };
 	} finally {
 		process.off("SIGINT", cancel);
 		process.off("SIGTERM", cancel);
 		rmSync(scratch, { recursive: true, force: true });
 	}
+
 }
 
 if (import.meta.main) {
@@ -423,13 +461,14 @@ if (import.meta.main) {
 	const value = (flag: string) => { const at = args.indexOf(flag); return at >= 0 ? args[at + 1] : undefined; };
 	const repo = value("--repo");
 	const pr = Number(value("--pr"));
+	const authorModel = args.includes("--author-model") ? value("--author-model") ?? "" : process.env.AGENT_REVIEW_AUTHOR_MODEL;
 	if (args.includes("--help") || !repo || !Number.isInteger(pr) || pr < 1) {
-		console.error("usage: agent-review --repo misty-step/NAME --pr N   (needs KAYLEE_GITHUB_APP_ID and KAYLEE_GITHUB_APP_PEM; run under pass-env)");
+		console.error("usage: agent-review --repo misty-step/NAME --pr N --author-model provider/model   (or AGENT_REVIEW_AUTHOR_MODEL; needs KAYLEE_GITHUB_APP_ID and KAYLEE_GITHUB_APP_PEM; run under pass-env)");
 		process.exit(args.includes("--help") ? 0 : 2);
 	}
 	try {
-		const result = await review(repo, pr);
-		console.log(`${result.posted} ${repo}#${pr} at ${result.head.slice(0, 12)} as ${APP_LOGIN}`);
+		const result = await review(repo, pr, authorModel);
+		console.log(`${result.posted} ${repo}#${pr} at ${result.head.slice(0, 12)} as ${APP_LOGIN}; reviewer ${result.reviewer.model} (${result.reviewer.thinking})`);
 		// A recorded review whose gate re-run failed leaves the old check result standing: fail loudly, never look done.
 		process.exit(!result.rerun ? 4 : result.posted === "CHANGES_REQUESTED" ? 1 : 0);
 	} catch (error) {

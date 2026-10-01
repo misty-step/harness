@@ -21,12 +21,14 @@ const ANY_EFFORT = ["minimal", ...LOW_TO_MAX];
 // model is approved for a roster but never launchable.
 export const approvedModels: Record<string, {
 	efforts: readonly string[];
+	/** Review-only effort exception; rosters and recovery use the ordinary floor above. */
+	reviewerEfforts?: readonly string[];
 	usage: { provider: string; model: string } | null;
 }> = {
 	"anthropic/claude-opus-5-5": { efforts: LOW_TO_MAX, usage: { provider: "anthropic", model: "opus" } },
 	"anthropic/claude-sonnet-5-5": { efforts: LOW_TO_MAX, usage: { provider: "anthropic", model: "sonnet" } },
 	"openai-codex/gpt-6-astra": { efforts: LOW_TO_MAX, usage: { provider: "openai-codex", model: "gpt-6-astra" } },
-	"openai-codex/gpt-6.1-sol": { efforts: ["high", "xhigh", "max"], usage: { provider: "openai-codex", model: "gpt-6.1-sol" } },
+	"openai-codex/gpt-6.1-sol": { efforts: ["high", "xhigh", "max"], reviewerEfforts: ["medium", "high", "xhigh", "max"], usage: { provider: "openai-codex", model: "gpt-6.1-sol" } },
 	"openai-codex/gpt-6-luna": { efforts: LOW_TO_MAX, usage: { provider: "openai-codex", model: "gpt-6-luna" } },
 	"xai-oauth/grok-4.7": { efforts: ["minimal", "low", "medium", "high", "xhigh"], usage: { provider: "xai", model: "grok" } },
 	"google-antigravity/gemini-3.8-flash": { efforts: ["minimal", "low", "medium", "high"], usage: null },
@@ -38,11 +40,9 @@ const CASH_PROVIDER = "openrouter";
 const CASH_REASON = "cash route: a per-ticket cash cap is not built yet";
 // Roles that resolve an engineer's own work: the only modelRoles the overlay writes.
 const PINNED_ROLES = ["default", "slow", "task", "extreme"];
-// Helper roles keep the US-014 primary model config.yml gives them (the reviewer stays a different
-// family from the author). Only their recovery is restricted: the overlay chains each to roster
-// models. `check` reads a helper's turn on this primary as a helper turn, not a violation. The
-// omp-roster test holds this table to config.yml. `vision` (the designer) and `web` are not here:
-// vision has no fallback and web search is not a chat model.
+// Helper primaries are outside the engineer roster. Reviewer recovery is
+// always empty; the supported subagent hook selects its contrasting family.
+// Other helpers recover only onto the roster. Vision and web keep their routes.
 const HELPER_PRIMARIES: Record<string, string> = {
 	advisor: "anthropic/claude-sonnet-5-5",
 	plan: "openai-codex/gpt-6.1-sol",
@@ -268,10 +268,8 @@ function skipLine(skip: Skip): string {
 	return `${skip.selector}: ${skip.verdict ? `${skip.verdict}, ` : ""}${skip.reason}${reset}`;
 }
 
-// Fallback chains name only roster models, so a hop can never leave the roster; an empty chain
-// stops the session at the provider's error. Cash routes are excluded from every chain. An
-// engineer role never chains to the launch model. A helper role keeps its own primary and chains
-// to the whole roster in rank order, minus that primary's model.
+// Engineer recovery stays on the roster. Reviewers stop on failure; their
+// child-only runtime pin also removes model-key chains inherited from this overlay.
 function overlayText(item: string, sha: string, roster: Entry[], launch: Entry): string {
 	const chainable = roster.filter((entry) => !isCash(entry));
 	const others = (model: string) => chainable.filter((entry) => key(entry) !== model).map(selector);
@@ -292,7 +290,9 @@ function overlayText(item: string, sha: string, roster: Entry[], launch: Entry):
 		lines.push(models.length ? `    ${scalar(name)}:` : `    ${scalar(name)}: []`, ...models.map((model) => `      - ${scalar(model)}`));
 	for (const model of new Set(chainable.map(key))) chain(model, others(model));
 	for (const role of PINNED_ROLES) chain(role, others(key(launch)));
-	for (const [role, primary] of Object.entries(HELPER_PRIMARIES)) chain(role, others(primary));
+	for (const [role, primary] of Object.entries(HELPER_PRIMARIES)) {
+		chain(role, role === "reviewer" || role === "security-reviewer" ? [] : others(primary));
+	}
 	return `${lines.join("\n")}\n`;
 }
 
@@ -617,6 +617,8 @@ function checkCommand(item: string, paths: string[], options: CheckOptions): num
 				? plain(`${provider}/${id}`)
 				: "(no provider and model recorded)";
 			if (helperRole && model === basis.primaries[helperRole]) { helperTurns++; continue; }
+			if ((helperRole === "reviewer" || helperRole === "security-reviewer")
+				&& model === "anthropic/claude-sonnet-5-5") { helperTurns++; continue; }
 			const position = basis.position.get(model);
 			if (position !== undefined) {
 				const seen = onRoster.get(`${model}\0${position}`) ?? { model, position, count: 0 };

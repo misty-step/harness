@@ -1,4 +1,4 @@
-import { afterAll, beforeEach, describe, expect, test } from "bun:test";
+import { afterAll, afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { createHash, createVerify, generateKeyPairSync } from "node:crypto";
 import { execFileSync } from "node:child_process";
 import { chmodSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, renameSync, rmSync, writeFileSync } from "node:fs";
@@ -106,31 +106,43 @@ const server = Bun.serve({
 	},
 });
 afterAll(() => { server.stop(true); rmSync(dir, { recursive: true, force: true }); });
+afterEach(() => expect(readdirSync(runtime)).toEqual([]));
 
-async function run(overrides: Record<string, string> = {}, slug = "misty-step/demo") {
+async function run(overrides: Record<string, string> = {}, slug = "misty-step/demo", args: string[] = []) {
 	pullReads = 0;
-	const child = Bun.spawn(["bun", script, "--repo", slug, "--pr", "7"], {
-		env: { ...process.env, TMPDIR: runtime, GITHUB_API_URL: server.url.origin, KAYLEE_GITHUB_APP_ID: "4978618", KAYLEE_GITHUB_APP_PEM: privateKey.export({ type: "pkcs8", format: "pem" }) as string, AGENT_REVIEW_OMP: omp, AGENT_REVIEW_MODEL: "anthropic/claude-sonnet-5-5", AGENT_REVIEW_THINKING: "high", AGENT_REVIEW_VISION_MODEL: "anthropic/claude-opus-5-5", AGENT_REVIEW_VISION_THINKING: "high", AGENT_REVIEW_TIMEOUT_SECONDS: "20", ...overrides },
+	const env = { ...process.env };
+	delete env.AGENT_REVIEW_MODEL;
+	delete env.AGENT_REVIEW_THINKING;
+	env.AGENT_REVIEW_VISION_MODEL = "anthropic/claude-opus-5-5";
+	env.AGENT_REVIEW_VISION_THINKING = "high";
+	const child = Bun.spawn(["bun", script, "--repo", slug, "--pr", "7", ...args], {
+		env: { ...env, TMPDIR: runtime, GITHUB_API_URL: server.url.origin, KAYLEE_GITHUB_APP_ID: "4978618", KAYLEE_GITHUB_APP_PEM: privateKey.export({ type: "pkcs8", format: "pem" }) as string, AGENT_REVIEW_OMP: omp, AGENT_REVIEW_AUTHOR_MODEL: "openai-codex/gpt-6.1-sol", AGENT_REVIEW_TIMEOUT_SECONDS: "20", ...overrides },
 		stdout: "pipe", stderr: "pipe",
 	});
 	const [stdout, stderr] = await Promise.all([new Response(child.stdout).text(), new Response(child.stderr).text(), child.exited]);
 	return { status: child.exitCode, stdout, stderr };
 }
-const response = (text: string, selector = "anthropic/claude-sonnet-5-5", stopReason = "stop") => {
+const response = (verdict: unknown, selector = "anthropic/claude-sonnet-5-5", stopReason = "stop") => {
 	const slash = selector.indexOf("/");
-	return { type: "message_end", message: { role: "assistant", provider: selector.slice(0, slash), model: selector.slice(slash + 1), stopReason, content: [{ type: "text", text }] } };
+	return { type: "message_end", message: { role: "assistant", provider: selector.slice(0, slash), model: selector.slice(slash + 1), stopReason, content: [{ type: "text", text: typeof verdict === "string" ? verdict : JSON.stringify(verdict) }] } };
 };
+const events = (value: unknown[], exit = 0) => {
+	writeFileSync(join(dir, "answer.txt"), value.map((event) => JSON.stringify(event)).join("\n"));
+	writeFileSync(join(dir, "exit.txt"), String(exit));
+};
+const answer = (verdict: unknown, exit = 0, selector = "anthropic/claude-sonnet-5-5") => events([response(verdict, selector), { type: "agent_end", isTerminal: true }], exit);
 const terminal = { type: "agent_end", isTerminal: true };
 function output(events: unknown[]): string {
 	return events.map((event) => JSON.stringify(event)).join("\n");
 }
-const answer = (verdict: unknown, exit = 0) => { writeFileSync(join(dir, "answer.txt"), output([response(typeof verdict === "string" ? verdict : JSON.stringify(verdict)), terminal])); writeFileSync(join(dir, "exit.txt"), String(exit)); };
 const vision = (text: string) => writeFileSync(join(dir, "vision.txt"), output([response(text, "anthropic/claude-opus-5-5"), terminal]));
 const clean = { overall_correctness: "correct", explanation: "Small, tested, and consistent with the story.", findings: [{ title: "typo", body: "in a comment", priority: 3 }] };
 const posted = (suffix: string) => calls.filter((call) => call.method !== "GET" && call.path.endsWith(suffix));
 function reviewBody(): string {
 	const value = posted("/reviews")[0]?.body;
-	if (!value || typeof value !== "object" || !("body" in value) || typeof value.body !== "string") throw new Error("no GitHub review body was posted");
+	if (!value || typeof value !== "object" || !("body" in value) || typeof value.body !== "string") {
+		throw new Error("no GitHub review body was posted");
+	}
 	return value.body;
 }
 
@@ -156,6 +168,7 @@ beforeEach(() => {
 	labelAddStatus = 200;
 	calls = [];
 	pullReads = 0;
+	writeFileSync(join(dir, "stall.txt"), "no");
 	answer(clean);
 });
 
@@ -324,6 +337,105 @@ describe("agent-review verdicts", () => {
 		for (const bad of ["approved!", "{}", JSON.stringify({ ...clean, overall_correctness: "mostly" }), JSON.stringify({ ...clean, findings: [{ title: "x", body: "y", priority: "high" }] }), JSON.stringify({ ...clean, findings: "none" }), JSON.stringify({ ...clean, explanation: " " })]) {
 			expect(() => parseVerdict(bad)).toThrow();
 		}
+	});
+});
+
+describe("agent-review independence", () => {
+	test("OpenAI authors get verified Sonnet high and Anthropic authors get verified Sol medium", async () => {
+		const openai = await run();
+		expect(openai.status).toBe(0);
+		expect(reviewBody()).toContain("Reviewer: anthropic/claude-sonnet-5-5 (high)");
+		calls = [];
+		answer(clean, 0, "openai-codex/gpt-6.1-sol");
+		const anthropic = await run({ AGENT_REVIEW_AUTHOR_MODEL: "anthropic/claude-opus-5-5" });
+		expect(anthropic.status).toBe(0);
+		expect(reviewBody()).toContain("Reviewer: openai-codex/gpt-6.1-sol (medium)");
+	});
+
+	test("an explicit author selector controls routing and records the caller's declaration", async () => {
+		const result = await run({ AGENT_REVIEW_AUTHOR_MODEL: "anthropic/claude-opus-5-5" }, "misty-step/demo", ["--author-model", "openai-codex/gpt-6.1-sol:xhigh"]);
+		expect(result.status).toBe(0);
+		expect(reviewBody()).toContain("Reviewer: anthropic/claude-sonnet-5-5 (high)");
+		expect(reviewBody().match(/^agent-review-declared-author-model: (.+)$/m)?.[1]).toBe("openai-codex/gpt-6.1-sol:xhigh");
+	});
+
+	test("missing or unknown author evidence refuses before any GitHub mutation", async () => {
+		for (const author of ["", "gpt-6.1-sol", "unknown/model", "anthropic/not-a-model", "google-antigravity/gemini-3.8-flash"]) {
+			calls = [];
+			const result = await run({ AGENT_REVIEW_AUTHOR_MODEL: author });
+			expect(result.status).toBe(3);
+			expect(result.stderr).toMatch(/required|concrete|unknown model family|no review route/);
+			expect(calls).toEqual([]);
+		}
+	});
+
+	test("same-family and unclassifiable reviewer overrides never approve", async () => {
+		for (const [author, reviewer, reason] of [
+			["openai-codex/gpt-6.1-sol", "openai-codex/gpt-6-luna:max", "shares the author's openai"],
+			["openai-codex/gpt-6.1-sol", "openrouter/openai/gpt-6.1-sol:medium", "shares the author's openai"],
+			["anthropic/claude-sonnet-5-5", "anthropic/claude-opus-5-5:high", "shares the author's anthropic"],
+			["anthropic/claude-opus-5-5", "openrouter/anthropic/claude-sonnet-5-5", "shares the author's anthropic"],
+			["openai-codex/gpt-6.1-sol", "@reviewer", "concrete"],
+			["openai-codex/gpt-6.1-sol", "unknown/model", "unknown model family"],
+		]) {
+			calls = [];
+			const result = await run({ AGENT_REVIEW_AUTHOR_MODEL: author, AGENT_REVIEW_MODEL: reviewer });
+			expect(result.status).toBe(3);
+			expect(result.stderr).toContain(reason);
+			expect(calls).toEqual([]);
+		}
+	});
+
+	test("a concrete cross-family override remains usable with an explicit thinking level", async () => {
+		answer(clean, 0, "anthropic/claude-opus-5-5");
+		const result = await run({ AGENT_REVIEW_MODEL: "anthropic/claude-opus-5-5:medium", AGENT_REVIEW_THINKING: "high" });
+		expect(result.status).toBe(0);
+		expect(reviewBody()).toContain("Reviewer: anthropic/claude-opus-5-5 (high)");
+	});
+
+	test("a successful verdict from a different actual model cannot be mislabeled as an approval", async () => {
+		for (const actual of ["openai-codex/gpt-6.1-sol", "anthropic/claude-opus-5-5"]) {
+			calls = [];
+			answer(clean, 0, actual);
+			const result = await run();
+			expect(result.status).toBe(3);
+			expect(posted("/reviews")).toEqual([]);
+		}
+	});
+
+	test("native terminal completion is required, and only same-model failed attempts may precede it", async () => {
+		const terminal = { type: "agent_end", isTerminal: true };
+		events([response("", "anthropic/claude-sonnet-5-5", "error"), terminal, response(clean), terminal]);
+		expect((await run()).status).toBe(0);
+		for (const output of [
+			[clean],
+			[{ ...response(clean), message: { ...response(clean).message, role: "user" } }, terminal],
+			[response(clean)],
+			[response(clean), { type: "agent_end", isTerminal: false }],
+			[response(clean, "anthropic/claude-sonnet-5-5", "error"), terminal],
+			[response(clean, "anthropic/claude-sonnet-5-5", "aborted"), terminal],
+			[response("", "openai-codex/gpt-6.1-sol", "error"), response(clean), terminal],
+			[{ type: "retry_fallback_applied", from: "anthropic/claude-sonnet-5-5:high", to: "openai-codex/gpt-6.1-sol:medium", role: "default" }, response(clean), terminal],
+		]) {
+			calls = [];
+			events(output);
+			expect((await run()).status).toBe(3);
+			expect(posted("/reviews")).toEqual([]);
+		}
+	});
+
+	test("a timeout or failed process launch posts no approval and leaves no temporary config", async () => {
+		// Separate-process watchdog enforcement uses the platform clock; fake timers cannot drive the child.
+		writeFileSync(join(dir, "stall.txt"), "yes");
+		const timedOut = await run({ AGENT_REVIEW_TIMEOUT_SECONDS: "0.05" });
+		expect(timedOut.status).toBe(3);
+		expect(timedOut.stderr).toContain("did not answer within");
+		expect(posted("/reviews")).toEqual([]);
+		expect(readdirSync(runtime)).toEqual([]);
+		calls = [];
+		const missing = await run({ AGENT_REVIEW_OMP: join(dir, "missing-omp") });
+		expect(missing.status).toBe(3);
+		expect(posted("/reviews")).toEqual([]);
 	});
 });
 

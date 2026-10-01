@@ -171,10 +171,15 @@ cannot clear it or revive an older approval.
 Metadata-only review cannot clear a binding rejection on the same head; fix the
 candidate and move the head, not just its description.
 
-The reviewing agent runs `agent-review --repo misty-step/NAME --pr N` under
-`pass-env` with `KAYLEE_GITHUB_APP_ID` and `KAYLEE_GITHUB_APP_PEM`. The default
-reviewer is Sonnet 5.5 high; explicit model/thinking environment overrides remain
-available. Both text and vision processes use a disposable supported OMP config
+The reviewing agent runs `agent-review --repo misty-step/NAME --pr N
+--author-model provider/model` under `pass-env` with `KAYLEE_GITHUB_APP_ID`
+and `KAYLEE_GITHUB_APP_PEM`, or supplies `AGENT_REVIEW_AUTHOR_MODEL`.
+The dispatcher selects Sonnet 5.5 high for an OpenAI author and Sol medium
+for an Anthropic author. Missing/unknown author evidence and same-family
+`AGENT_REVIEW_MODEL` overrides refuse before GitHub mutation;
+`AGENT_REVIEW_THINKING` remains an explicit effort override. The record identifies
+the caller's declared author selector, not an authenticated author identity.
+Both text and vision processes use a disposable supported OMP config
 that disables model fallback and clears the selected model's bare, effort,
 provider-wildcard and reviewer/default recovery chains. Native response identity
 and terminal successful completion are checked before any review is recorded.

@@ -28,8 +28,7 @@ const GEMINI: Entry = { provider: "google-antigravity", model: "gemini-3.8-flash
 const CASH: Entry = { provider: "openrouter", model: "deepseek/deepseek-v4.1-flash", effort: "medium" };
 const OLD_SOL: Entry = { provider: "openai-codex", model: "gpt-6-sol", effort: "medium" };
 
-// The overlay writes modelRoles for these four only. Helper roles keep their US-014 primaries
-// (also in config.yml, and checked against it below) and get roster-only recovery chains.
+// Engineer recovery is roster-only; reviewers never recover onto their author.
 const ENGINEER = ["default", "slow", "task", "extreme"];
 const PRIMARY: Record<string, string> = {
 	advisor: "anthropic/claude-sonnet-5-5",
@@ -41,11 +40,11 @@ const PRIMARY: Record<string, string> = {
 	commit: "openai-codex/gpt-6-luna",
 };
 const pinnedTo = (selector: string) => Object.fromEntries(ENGINEER.map((role) => [role, selector]));
-// Engineer roles chain to the roster without the launch model; a helper to the whole roster
-// without its own primary's model.
+// Other helpers recover onto the roster without their primary; reviewers stop.
 const chainsOf = (engineer: string[], roster: string[]) => ({
 	...Object.fromEntries(ENGINEER.map((role) => [role, engineer])),
-	...Object.fromEntries(Object.entries(PRIMARY).map(([role, primary]) => [role, roster.filter((entry) => !entry.startsWith(`${primary}:`))])),
+	...Object.fromEntries(Object.entries(PRIMARY).map(([role, primary]) => [role,
+		role === "reviewer" || role === "security-reviewer" ? [] : roster.filter((entry) => !entry.startsWith(`${primary}:`))])),
 });
 
 const scratch = (name: string) => {
@@ -361,6 +360,7 @@ describe("omp-roster launch (US-046)", () => {
 		["an entry without an effort", boardAnswer([{ provider: "anthropic", model: "claude-sonnet-5-5" } as Entry]), healthy, [], /needs a provider, a model and an effort/],
 		["an unapproved model", boardAnswer([SOL, { provider: "anthropic", model: "claude-haiku-4", effort: "low" }]), healthy, [], /entry 2 \(anthropic\/claude-haiku-4\) is not on the approved model list/],
 		["an effort the model lacks", boardAnswer([{ ...GEMINI, effort: "xhigh" }]), healthy, [], /effort xhigh, which google-antigravity\/gemini-3.8-flash does not support/],
+		["Sol below the engineer effort floor", boardAnswer([{ ...SOL, effort: "medium" }]), healthy, [], /effort medium, which openai-codex\/gpt-6\.1-sol does not support/],
 		["a duplicate entry", boardAnswer([SOL, SONNET, SOL]), healthy, [], /entries 1 and 3 are the same model and effort/],
 		["another harness", boardAnswer([SOL]), healthy, ["--harness", "pi"], /Pi enforcement is a later slice/],
 		["a usage view that is not ok", boardAnswer([SOL]), usageView([], { ok: false, error: "status is stale" }), [], /not ok: status is stale/],
@@ -471,8 +471,11 @@ describe("omp-roster launch (US-046)", () => {
 
 		// The subagents reach helper roles through overrides; each target role must be one of those.
 		for (const [agent, route] of Object.entries(config.task.agentModelOverrides)) {
-			if (route.startsWith("@")) expect([agent, roles]).toEqual([agent, expect.arrayContaining([route.slice(1)])]);
+			if (route.startsWith("@")) expect([agent, [...roles, "reviewer", "security-reviewer"]])
+				.toEqual([agent, expect.arrayContaining([route.slice(1)])]);
 		}
+		expect(overlay.retry.fallbackChains.reviewer).toEqual([]);
+		expect(overlay.retry.fallbackChains["security-reviewer"]).toEqual([]);
 		// Helper primaries stay as US-014 has them; only the four engineer roles are pinned.
 		for (const [role, primary] of Object.entries(PRIMARY)) expect([role, config.modelRoles[role].replace(/:[a-z]+$/, "")]).toEqual([role, primary]);
 		expect(Object.keys(overlay.modelRoles).sort()).toEqual([...ENGINEER].sort());
@@ -927,7 +930,6 @@ describe("omp-roster without a ticket (US-046)", () => {
 			["an effort suffix", ["--model", "openai-codex/gpt-6.1-sol:high", "--thinking", "high"], 2, /no effort suffix; give the effort with --thinking, not openai-codex\/gpt-6\.1-sol:high/],
 			["a model without a provider", ["--model", "gpt-6.1-sol", "--thinking", "high"], 2, /--model needs provider\/model, not gpt-6\.1-sol/],
 			["retired Sol", ["--model", "openai-codex/gpt-6-sol", "--thinking", "high"], 1, /gpt-6-sol\) is not on the approved model list/],
-			["Sol below high", ["--model", "openai-codex/gpt-6.1-sol", "--thinking", "medium"], 1, /effort medium, which openai-codex\/gpt-6\.1-sol does not support/],
 			["an unapproved model", ["--model", "anthropic/claude-haiku-4", "--thinking", "low"], 1, /anthropic\/claude-haiku-4\) is not on the approved model list/],
 			["an effort the model lacks", ["--model", "google-antigravity/gemini-3.8-flash", "--thinking", "xhigh"], 1, /effort xhigh, which google-antigravity\/gemini-3.8-flash does not support/],
 			["--ticket-json", ["--model", "openai-codex/gpt-6.1-sol", "--thinking", "medium", "--ticket-json", ticket], 2, /--ticket-json goes with --item/],

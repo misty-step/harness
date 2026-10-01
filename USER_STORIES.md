@@ -535,15 +535,25 @@ Criteria:
    reasoning level.
 3. WHEN OMP resolves `smol`, `tiny`, `commit`, `scout`, or `sonic`, THE SYSTEM
    SHALL select GPT-6 Luna max; `advisor` SHALL select Sonnet 5.5 medium;
-   `plan`, `security-reviewer` and `reviewer` SHALL select GPT-6.1 Sol xhigh.
-   Astra SHALL require explicit selection. Ordinary task children SHALL use
-   their configured agent routes rather than inherit the live parent's model
-   and thinking; explicit tagged model selections and per-item effort SHALL
-   remain available, except designer effort below high SHALL be rejected.
+   `plan` SHALL select GPT-6.1 Sol xhigh. Astra SHALL require explicit selection.
+   Ordinary task children SHALL use their configured agent routes rather than
+   inherit the live parent's model and thinking; explicit tagged model
+   selections and per-item effort SHALL remain available, except designer
+   effort below high SHALL be rejected.
+   Under the operator's 2026-09-30 review rule, reviewer and security-reviewer
+   task/eval dispatch SHALL choose Sonnet 5.5 high for an OpenAI author and
+   GPT-6.1 Sol medium for an Anthropic author. Missing/unknown author family or
+   unavailable reviewer authentication SHALL block dispatch. Reviewer recovery
+   SHALL retry the selected model or stop, with no fallback chain, even under
+   an engineer roster overlay; the engineer's recovery SHALL remain unchanged.
+   `agent-review` SHALL require the actual author selector, reject same-family
+   overrides, and verify native reviewer identity before posting an approval.
+   Missing/unloadable specialist enforcement SHALL keep protected agents
+   disabled; failed reviewer initialization SHALL abort before any provider
+   request, never continue with inherited recovery.
 4. WHERE cross-model recovery is allowed, THE SYSTEM SHALL use only approved
    subscription routes, with Gemini 3.8 Flash last. Grok 4.7 SHALL be allowed
-   only as read-only advisory/review recovery (`advisor`, `reviewer`,
-   `security-reviewer`) and SHALL NOT occur in OMP builder fallback chains;
+   only as read-only advisory recovery and SHALL NOT occur in OMP builder fallback chains;
    Pi's chain ends at Grok 4.7 (criterion 5).
    All shared subscription accounts SHALL be authorized for any work;
    native account-policy priority SHALL prefer eligible r90.dev Anthropic
@@ -581,22 +591,23 @@ Statement: When I put a ranked model roster on a board item and Kaylee launches
 an OMP engineer for it, or an OMP engineer is launched on a single model with no
 ticket, I want that engineer's own session to run only on the roster (or that one model)
 and stop when it runs out, so recovery never lands on a model I did not name.
-Helper roles (scout, reviewer, advisor and the like) keep the primaries US-014
-gives them and can recover only onto the roster (extends US-014's approved
-routing).
+Other helper roles retain US-014's routes and can recover only onto the roster.
+Reviewers instead use US-014's contrasting author-family route and stop after
+same-model retries.
 
 Criteria:
 1. WHEN a ticket has a roster and Kaylee launches an OMP engineer, THE SYSTEM
    SHALL launch it on the first roster entry whose ai-usage verdict is `usable`
    or `low`, and SHALL refuse with exit status 3 and write no launch overlay
    when no entry qualifies, naming each entry's skip reason and reset time.
-2. IF the launched model fails, or the approved primary of a helper the
-   engineer spawns (scout, sonic, reviewer, security-reviewer, plan, smol, tiny,
-   commit or the advisor sidecar) fails, THEN THE SYSTEM SHALL switch that call
-   only to models on the roster, in rank order, and SHALL stop with the
-   provider's error when the roster runs out. Helpers keep their US-014
-   primaries; only their recovery is restricted. The `vision` role, which the
-   designer agent uses, keeps its own Opus-only route unless the roster names Opus.
+2. IF the launched model fails, or the approved primary of a recoverable
+   helper (scout, sonic, plan, smol, tiny, commit or the advisor sidecar) fails,
+   THEN THE SYSTEM SHALL switch that call only to roster models, in rank order,
+   and stop with the provider's error when the roster runs out.
+   Reviewer and security-reviewer recovery SHALL remain empty even when their
+   model appears on the roster. Helpers keep their US-014 routes; only their
+   recovery is restricted. The `vision` role, which the designer agent uses,
+   keeps its own Opus-only route unless the roster names Opus.
 3. WHEN a session is checked against its ticket, THE SYSTEM SHALL judge each
    session file against the launch record of the newest launch that started at
    or before it (a subagent file with its session), from launch time on, exit

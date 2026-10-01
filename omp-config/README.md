@@ -676,7 +676,7 @@ OMP follows the operator's lower-spend model policy (US-014, updated
 GPT-6.1 Sol high or xhigh handles Codex work, with Astra only by explicit
 selection. Visual work stays on Opus at high or above. Ordinary `task`
 children use their configured agent routes rather than the live parent's model.
-Grok 4.7 is allowed only for read-only advisory/review recovery, never as a
+Grok 4.7 is allowed only for read-only advisory recovery, never as a
 builder fallback. Gemini 3.8 Flash is the last resort where cross-model
 recovery is allowed; Opus has none. Native roles and provider-failure
 chains live in `config.yml`; changing them does not switch the selected model
@@ -708,8 +708,7 @@ policy check rejects any chat selector added back to that chain.
 | `@smol`, `@commit`; `scout` and `sonic` | `openai-codex/gpt-6-luna:max` |
 | `@tiny` | configured `openai-codex/gpt-6-luna:max` |
 | `@plan` (system design, architecture) | `openai-codex/gpt-6.1-sol:xhigh` |
-| `reviewer` | `openai-codex/gpt-6.1-sol:xhigh` |
-| `security-reviewer` | `openai-codex/gpt-6.1-sol:xhigh` |
+| `reviewer`, `security-reviewer` | Author-family selection in `extensions/subagent-inheritance`; no recovery |
 | `@advisor` | `anthropic/claude-sonnet-5-5:medium` |
 | `@slow` (explicit thorough pass, hard problems) | `anthropic/claude-sonnet-5-5:high` |
 | `@extreme` (rare unconstrained reasoning) | `anthropic/claude-opus-5-5:xhigh` |
@@ -757,18 +756,43 @@ precedence is `task.agentModelOverrides` → agent frontmatter → parent/defaul
 fallback. Ordinary children retain their configured agent routes rather than
 being overwritten by the live parent's model and thinking.
 `extensions/subagent-inheritance` uses the supported `before_subagent_spawn`
-hook only to preserve the `designer` Opus 5.5 high minimum: a non-Opus parent
+hook to select reviewers and preserve the `designer` Opus 5.5 high minimum: a non-Opus parent
 or an Opus parent below high selects Opus high; Opus high/xhigh/max parents
 retain their thinking level. A task's `agent` can name a model tagged with
 `^` in the composer (`m1`, `m2`, …); that remains an explicit model choice.
 `task.enableEffort` exposes per-item `effort: "lo" | "med" | "hi"`, mapped
 to the selected model's supported range. Designer `lo` and `med` are refused
-before spawn. The hook applies to `task`, not eval `agent()` or direct role
-selection.
+before spawn. Designer routing applies to `task`, not eval `agent()` or direct
+role selection.
 Designer dispatch also resolves Opus credentials before spawn. Missing models,
 missing credentials, lookup failures, and lookups exceeding five seconds return
 an explicit block; otherwise native startup can silently select the authenticated
 parent before retry chains apply. This checks authentication, not remaining quota.
+
+Reviewer and security-reviewer routing also covers eval `agent()` dispatch.
+The hook compares native model-family identities against the live author and
+blocks unavailable reviewer authentication before native parent-model fallback.
+Reviewer `session_start` pins effort and empties every inherited recovery key,
+including model, effort-specific and provider-wildcard keys. Registry record
+overrides merge keys, so an empty role alone is insufficient. The public
+`findScopedSettings` resolver selects the active child's settings;
+`pi.pi.settings` is the root singleton and would also change builder recovery.
+No parent recovery or persisted config is mutated.
+`task.disabledAgents` denies reviewers and designer until the loaded guard
+initializes their runtime permission. A missing/unloadable extension therefore
+cannot silently expose unguarded specialists. Failed child initialization
+aborts before a provider request; isolated extension errors never grant review
+permission. Other disabled agents are preserved.
+Changing `extensions` or `disabledExtensions` revokes this permission, including
+an in-flight spawn's auth result. Public setting listeners survive native hook
+suspension; dispatch remains closed until fresh guard initialization.
+The caller records its chosen reviewer against native spawn/parent identities
+before core resolution; the child consumes that immutable dispatch pin and
+persists it as a custom session entry for cold revival. `session_init.resolvedModel`
+already includes startup auth substitution and is not authoritative intent.
+The reviewer disables model switching in its own scope and checks the pinned
+identity before every provider request. Sol medium is a review-only approval
+exception; engineer rosters and ordinary config/recovery retain Sol's high floor.
 
 The native task result already records the actual resolved model identity,
 thinking level, and fallback status (`resolvedModelIdentity`,
@@ -794,10 +818,10 @@ Do not use an extension that throws during startup as a substitute: OMP can
 isolate extension failures and continue.
 
 The role chains remain in `config.yml` for allowed non-Opus recovery, using
-approved subscription providers. Grok is restricted to read-only `advisor`,
-`reviewer`, and `security-reviewer` recovery and must never enter a builder
-chain; `scout` shares the Luna/smol route without Grok. Gemini
-3.8 Flash is last where cross-model recovery is allowed. The dedicated
+approved subscription providers. Grok is restricted to read-only `advisor`
+recovery; `scout` shares the Luna/smol route without Grok. Gemini
+3.8 Flash is last where cross-model recovery is allowed. Reviewers have no
+recovery chain. The dedicated
 `vision` chain also remains Opus-only. Unlike an absent chain, an explicit
 empty model chain means no fallback candidates; there is no need to disable
 `retry.modelFallback` globally.
@@ -1077,21 +1101,16 @@ earliest, and the report says so), `--since`, helper and designer primaries, cas
 always a violation.
 
 Helper roles. The overlay writes `modelRoles` only for `default`, `slow`, `task`
-and `extreme`. `advisor`, `plan`, `reviewer`, `security-reviewer`, `smol`,
-`tiny` and `commit` keep the primaries `config.yml` gives them (US-014: the
-reviewer stays a different family from the author): advisor Sonnet 5.5, plan,
-reviewer and security-reviewer GPT-6.1 Sol xhigh; smol, tiny and commit Luna.
-The `scout` and `sonic` agents resolve through `smol`, the reviewers through their own
-roles. Only their recovery changes: the overlay writes
-`retry.fallbackChains.<role>` for each helper role as the whole roster in rank
-order, minus the role's own primary model (empty when nothing remains), so a
-helper whose primary fails hops only onto a roster model, never onto Gemini or
-Grok. `HELPER_PRIMARIES` in `bin/omp-roster.ts` is the table the chains use;
-`omp-roster.test.ts` holds it to `config.yml` and fails if any role of the real
-`config.yml` with a chat-model chain, or an `agentModelOverrides` target, lacks a
-roster-only chain in the overlay, or if any model-keyed chain (`provider/model`
-or `provider/*`) in `config.yml` is not `[]`, so a later config entry cannot
-reopen the hole.
+and `extreme`. Other helpers retain the routes owned by `config.yml` and
+`extensions/subagent-inheritance`. Reviewer and security-reviewer role chains
+are explicitly empty. Their child-scoped runtime pin also empties inherited
+model-key chains, which otherwise outrank those roles.
+
+For other helpers the overlay writes `retry.fallbackChains.<role>` as the
+roster in rank order, minus the role's primary model. `HELPER_PRIMARIES` in
+`bin/omp-roster.ts` owns that table. The roster checker recognizes both
+configured reviewer primaries as helper turns. `omp-roster.test.ts` exercises
+the roster-only recovery boundary and the reviewer exception.
 
 Designer and Opus. `vision` is deliberately untouched: its `config.yml` chain is
 empty and the designer agent uses it. OMP chains are keyed by model, and a model
