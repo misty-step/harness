@@ -672,9 +672,10 @@ do not maintain another skill copy in omp-config or install it globally.
 ### Model routing (US-014)
 
 OMP follows the operator's lower-spend model policy (US-014, updated
-2026-09-29): Sonnet 5.5 medium handles ordinary work and orchestration;
-GPT-6.1 Sol high or xhigh handles Codex work, with Astra only by explicit
-selection. Visual work stays on Opus at high or above. Ordinary `task`
+2026-10-01): Sonnet 5.5 medium handles ordinary work and orchestration;
+GPT-6.1 Sol defaults to xhigh for Codex work and recovery; explicit high
+remains allowed, with Astra only by explicit selection. Visual work stays on
+Opus at high or above. Ordinary `task`
 children use their configured agent routes rather than the live parent's model.
 Grok 4.7 is allowed only for read-only advisory recovery, never as a
 builder fallback. Gemini 3.8 Flash is the last resort where cross-model
@@ -792,7 +793,8 @@ persists it as a custom session entry for cold revival. `session_init.resolvedMo
 already includes startup auth substitution and is not authoritative intent.
 The reviewer disables model switching in its own scope and checks the pinned
 identity before every provider request. Sol medium is a review-only approval
-exception; engineer rosters and ordinary config/recovery retain Sol's high floor.
+exception; engineer rosters and ordinary config/recovery still allow explicit
+high, while harness-selected Sol routes use xhigh.
 
 The native task result already records the actual resolved model identity,
 thinking level, and fallback status (`resolvedModelIdentity`,
