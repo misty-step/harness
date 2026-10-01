@@ -1195,6 +1195,16 @@ describe("foundation-check review gate (US-027)", () => {
 	const said = (login: string, commit: string, state = "APPROVED", body = "") => ({ user: { login }, state, commit_id: commit, body });
 	// An approval carrying agent-review's record of whatever the PR currently is, filled in when the gate asks.
 	const recorded = (login: string, commit: string) => said(login, commit, "APPROVED", "__RECORD__");
+	function metadataRecord(repo: string, commit: string, state = "COMMENTED") {
+		const digest = (value: string) => createHash("sha256").update(value).digest("hex");
+		const body = [
+			`agent-review: metadata reviewed ${commit}`,
+			`agent-review-state: base=${pull.base.ref} merge-base=${exec(repo, ["merge-base", pull.base.sha, commit])} title=sha256:${digest(pull.title)} description=sha256:${digest(pull.body)}`,
+			"agent-review-scope: metadata-only",
+			"No opaque file bytes or submodule contents were inspected.",
+		].join("\n");
+		return said(agent, commit, state, body);
+	}
 	const opened = (base: string, head: string, author = "engineer", body = "") => { pull = { head: { sha: head }, base: { sha: base, ref: "master" }, user: { login: author }, title: "docs: note", body }; };
 	async function gate(repo: string, slug = "misty-step/demo") {
 		currentRepo = repo;
@@ -1202,7 +1212,7 @@ describe("foundation-check review gate (US-027)", () => {
 			cwd: repo, env: { ...process.env, GITHUB_TOKEN: "test-token", GITHUB_API_URL: server.url.origin }, stdout: "pipe", stderr: "pipe",
 		});
 		const [stdout] = await Promise.all([new Response(child.stdout).text(), child.exited]);
-		return { status: child.exitCode, output: JSON.parse(stdout) as { ok: boolean; errors: string[]; reasons?: string[]; approved_by?: string } };
+		return { status: child.exitCode, output: JSON.parse(stdout) as { ok: boolean; errors: string[]; reasons?: string[]; approved_by?: string; advisory?: string[] } };
 	}
 
 	test("declaring that the repository is no longer an application needs the designated reviewer", async () => {
@@ -1310,6 +1320,8 @@ describe("foundation-check review gate (US-027)", () => {
 		const image = at("image");
 		reviews = [];
 		expect((await gate(repo)).status).toBe(1);
+		reviews = [metadataRecord(repo, image)];
+		expect((await gate(repo)).status).toBe(1); // a clean metadata comment cannot stand in for image inspection
 		reviews = [recorded(agent, image)];
 		expect((await gate(repo)).status).toBe(0);
 		// Git keeps a tab in a path literal under -z: an image named with one is still an image, not opaque content.
@@ -1319,32 +1331,47 @@ describe("foundation-check review gate (US-027)", () => {
 		at("tab-named image");
 		reviews = [];
 		expect((await gate(repo)).output.errors.join("\n")).toContain("FND-REV-001");
-		// A binary no surface can read, alone, is advisory: nothing could review it, and the gate says so.
+		// Opaque-only content requires a clean immutable metadata review, never an unreviewed exemption.
 		exec(repo, ["reset", "-q", "--hard", base]);
 		writeFileSync(join(repo, "font.woff"), Buffer.from([0, 1, 0, 0, 0, 9, 0]));
 		const opaque = at("font");
 		reviews = [];
-		const advisory = await gate(repo) as { status: number | null; output: { errors: string[]; advisory?: string[]; approved_by?: string } };
+		expect((await gate(repo)).status).toBe(1);
+		reviews = [metadataRecord(repo, opaque)];
+		const advisory = await gate(repo);
 		expect(advisory.status).toBe(0);
 		expect(advisory.output.advisory?.join("\n")).toContain("font.woff");
-		expect(advisory.output.approved_by).toBe("no reviewable content");
-		// Being spared an approval never erases the App's explicit no on this head.
-		reviews = [{ ...recorded(agent, opaque), state: "CHANGES_REQUESTED" }];
+		expect(advisory.output.approved_by).toBe(`${agent} (metadata only; opaque content not inspected)`);
+		// A stale comment, an explicit no or a dismissal cannot make the opaque-content path pass.
+		opened(base, opaque, "engineer", "description edited after review");
 		expect((await gate(repo)).status).toBe(1);
-		reviews = [];
+		opened(base, opaque);
+		reviews = [metadataRecord(repo, opaque), metadataRecord(repo, opaque, "DISMISSED")];
+		expect((await gate(repo)).status).toBe(1);
+		reviews = [metadataRecord(repo, opaque), said(agent, opaque, "CHANGES_REQUESTED")];
+		expect((await gate(repo)).status).toBe(1);
+		reviews = [metadataRecord(repo, opaque), said(agent, opaque, "DISMISSED")];
+		expect((await gate(repo)).status).toBe(1);
+		reviews = [metadataRecord(repo, opaque, "CHANGES_REQUESTED")];
+		expect((await gate(repo)).status).toBe(1);
+		reviews = [metadataRecord(repo, opaque)];
 		// The same file beside a reviewable change spares nothing: the model review is required for the whole PR.
 		put(repo, "notes.txt", "three\n");
 		const mixed = at("font and text");
 		expect(mixed).not.toBe(opaque);
 		expect((await gate(repo)).output.errors.join("\n")).toContain("FND-REV-001");
-		// A submodule bump is the same kind of content: alone it is advisory.
+		// A real gitlink has no content surface either: the same exact-head metadata contract applies.
 		exec(repo, ["reset", "-q", "--hard", base]);
 		exec(repo, ["update-index", "--add", "--cacheinfo", `160000,${"a".repeat(40)},vendor/lib`]);
 		exec(repo, ["commit", "-qm", "submodule"]);
-		opened(base, exec(repo, ["rev-parse", "HEAD"]));
+		const submoduleHead = exec(repo, ["rev-parse", "HEAD"]);
+		opened(base, submoduleHead);
+		reviews = [];
+		expect((await gate(repo)).status).toBe(1);
+		reviews = [metadataRecord(repo, submoduleHead)];
 		const submodule = await gate(repo);
 		expect(submodule.status).toBe(0);
-		expect((submodule.output as { advisory?: string[] }).advisory?.join("\n")).toContain("vendor/lib");
+		expect(submodule.output.advisory?.join("\n")).toContain("vendor/lib");
 		// A file that replaces a gitlink is ordinary text, so it needs the model review, and a dismissed record never revives an approval.
 		exec(repo, ["reset", "-q", "--hard", base]);
 		exec(repo, ["update-index", "--add", "--cacheinfo", `160000,${"a".repeat(40)},vendor/lib`]);
@@ -1362,6 +1389,43 @@ describe("foundation-check review gate (US-027)", () => {
 		expect((await gate(repo)).status).toBe(1);
 		reviews = [recorded(agent, replaced)];
 		expect((await gate(repo)).status).toBe(0);
+	});
+
+	test("rename-only images need content review; opaque renames and mode changes need metadata review", async () => {
+		const repo = fixture("gate-metadata-only");
+		writeFileSync(join(repo, "asset.dat"), Buffer.from([0, 1, 0, 2]));
+		commit(repo, "binary in base");
+		const base = exec(repo, ["rev-parse", "HEAD"]);
+		exec(repo, ["mv", "asset.dat", "café\tlogo.png"]);
+		commit(repo, "rename to image");
+		const image = exec(repo, ["rev-parse", "HEAD"]);
+		opened(base, image);
+		reviews = [metadataRecord(repo, image)];
+		exec(repo, ["checkout", "-q", base]); // immutable head metadata, never checkout contents
+		expect((await gate(repo)).status).toBe(1);
+		reviews = [recorded(agent, image)];
+		expect((await gate(repo)).status).toBe(0);
+
+		exec(repo, ["checkout", "-q", "-b", "opaque-rename", base]);
+		exec(repo, ["mv", "asset.dat", "font.woff"]);
+		commit(repo, "rename opaque");
+		const opaque = exec(repo, ["rev-parse", "HEAD"]);
+		opened(base, opaque);
+		reviews = [recorded(agent, opaque)]; // a content approval is not a clean scoped metadata record
+		expect((await gate(repo)).status).toBe(1);
+		reviews = [metadataRecord(repo, opaque)];
+		expect((await gate(repo)).status).toBe(0);
+
+		chmodSync(join(repo, "font.woff"), 0o755);
+		commit(repo, "opaque mode change");
+		const modeOnly = exec(repo, ["rev-parse", "HEAD"]);
+		opened(opaque, modeOnly);
+		reviews = [];
+		expect((await gate(repo)).status).toBe(1);
+		reviews = [metadataRecord(repo, modeOnly)];
+		const result = await gate(repo);
+		expect(result.status).toBe(0);
+		expect(result.output.advisory?.join("\n")).toContain("opaque content was not inspected");
 	});
 
 	test("citation covers each mapped source story even when the review checkout stays at the base", async () => {

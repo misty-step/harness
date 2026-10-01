@@ -1450,23 +1450,43 @@ const reviewer = (entry: Record<string, unknown>): string => (record(entry.user)
 function authoredDescription(body: unknown): string {
 	return (typeof body === "string" ? body : "").replace(/<!-- This is an auto-generated comment: [^\n]*? by coderabbit\.ai -->[\s\S]*?<!-- end of auto-generated comment: [^\n]*? by coderabbit\.ai -->/g, "").trimEnd();
 }
-/** Image formats the vision role reads natively; keep in step with `IMAGE_PATH` in agent-review.ts. */
+/** Standalone launchers cannot import each other. Keep the immutable raw/root-numstat metadata contract in step
+ *  with agent-review: quoted/tab paths, renames and mode-only changes must classify the actual head entry. */
 const inspectableImage = /\.(png|jpe?g|gif|webp)$/i;
-/** The changed paths, when the change is nothing but content no review surface can inspect: submodule bumps and non-image binaries. */
 function uninspectableOnly(repo: string, mergeBase: string, head: string): string[] {
-	const diff = (kind: string) => spawnSync("git", ["diff", kind, "-z", "--no-renames", mergeBase, head], { cwd: repo, encoding: "utf8", maxBuffer: 64 * 1024 * 1024 }).stdout.split("\0");
-	// A path may contain tabs, and -z leaves them literal: only the first two tabs delimit the counts.
-	const stats = diff("--numstat").filter(Boolean).map((line) => { const [added, deleted, ...path] = line.split("\t"); return [added, deleted, path.join("\t")]; });
-	const raw = diff("--raw");
-	const submodules = new Set<string>();
-	for (let index = 0; index + 1 < raw.length; index += 2) {
-		const after = raw[index].split(" ")[1];
-		// Only a pointer at head has no review surface; a gitlink that a file replaces, or that is removed, shows reviewable text.
-		if (after === "160000") submodules.add(raw[index + 1]);
+	const raw = git(repo, "diff", "--raw", "-z", "--no-abbrev", "--find-renames", "--no-ext-diff", "--no-textconv", mergeBase, head).split("\0");
+	const changed: { path: string; oldPath: string; mode: string; oldMode: string }[] = [];
+	for (let index = 0; index < raw.length - 1;) {
+		const fields = /^:(\d{6}) (\d{6}) ([0-9a-f]{40}) ([0-9a-f]{40}) ([A-Z]\d*)$/.exec(raw[index++]);
+		if (!fields || !raw[index]) throw new Error("git diff --raw returned incomplete metadata");
+		const oldPath = raw[index++];
+		const path = /^[RC]/.test(fields[5]) ? raw[index++] : oldPath;
+		if (!path) throw new Error("git diff --raw returned an incomplete rename");
+		changed.push({ path, oldPath, oldMode: fields[1], mode: fields[2] });
 	}
-	const paths = stats.map(([, , path]) => path);
-	const blind = stats.filter(([added, deleted, path]) => submodules.has(path) || (added === "-" && deleted === "-" && !inspectableImage.test(path))).map(([, , path]) => path);
-	return paths.length > 0 && blind.length === paths.length ? blind : [];
+	const blobMode = (mode: string) => mode === "100644" || mode === "100755";
+	const binaryAt = (revision: string, paths: string[]): Map<string, boolean> => {
+		if (paths.length === 0) return new Map();
+		const emptyTree = git(repo, "hash-object", "-w", "-t", "tree", "/dev/null").trim();
+		const stats = git(repo, "--literal-pathspecs", `--attr-source=${emptyTree}`, "-c", "core.attributesFile=/dev/null", "diff", "--numstat", "-z", "--no-renames", "--no-ext-diff", "--no-textconv", emptyTree, revision, "--", ...paths).split("\0").filter(Boolean);
+		const binary = new Map<string, boolean>();
+		for (const line of stats) {
+			const first = line.indexOf("\t");
+			const second = line.indexOf("\t", first + 1);
+			if (first < 1 || second < 0) throw new Error("git diff --numstat returned incomplete metadata");
+			const added = line.slice(0, first);
+			const deleted = line.slice(first + 1, second);
+			const path = line.slice(second + 1);
+			if (!path || !/^(\d+|-)$/.test(added) || !/^(\d+|-)$/.test(deleted) || (added === "-") !== (deleted === "-")) throw new Error("git diff --numstat returned invalid metadata");
+			binary.set(path, added === "-");
+		}
+		for (const path of paths) if (!binary.has(path)) throw new Error(`git diff --numstat omitted ${JSON.stringify(path)}`);
+		return binary;
+	};
+	const atHead = binaryAt(head, changed.filter((change) => blobMode(change.mode) && !inspectableImage.test(change.path)).map((change) => change.path));
+	const removed = binaryAt(mergeBase, changed.filter((change) => change.mode === "000000" && blobMode(change.oldMode) && !inspectableImage.test(change.oldPath)).map((change) => change.oldPath));
+	const blind = changed.filter((change) => change.mode === "160000" || (change.mode === "000000" ? removed.get(change.oldPath) : atHead.get(change.path)) === true).map((change) => change.path);
+	return changed.length > 0 && blind.length === changed.length ? blind : [];
 }
 async function review(options: Options): Promise<Result> {
 	const [org, name, extra] = (options.githubRepo ?? process.env.GITHUB_REPOSITORY ?? "").split("/");
@@ -1545,8 +1565,10 @@ async function review(options: Options): Promise<Result> {
 	// designated approval below are separate streams from the same identity: a review carrying the record is the
 	// model review and never the designated decision on a trigger, or one automatic approval would satisfy both.
 	const recordOf = (entry: Record<string, unknown>) => (typeof entry.body === "string" ? entry.body.match(/^agent-review-state: base=(\S+) merge-base=([0-9a-f]{40}) title=sha256:([0-9a-f]{64}) description=sha256:([0-9a-f]{64})$/m) : null);
+	const metadataOnly = (entry: Record<string, unknown>) => typeof entry.body === "string" && /^agent-review-scope: metadata-only$/m.test(entry.body);
+	const cleanMetadata = (entry: Record<string, unknown>) => entry.state === "COMMENTED" && metadataOnly(entry) && firstLine(entry) === `agent-review: metadata reviewed ${head}`;
 	// Reviews arrive in submission order. As on GitHub, each reviewer's latest approval, change request or
-	// dismissal stands; comments do not change it.
+	// dismissal stands; ordinary comments do not change it. A scoped clean metadata review is a model decision.
 	let decision: { entry: Record<string, unknown>; index: number } | undefined;
 	reviews.forEach((entry, index) => {
 		if (own(entry) && !recordOf(entry) && (entry.state === "APPROVED" || entry.state === "CHANGES_REQUESTED" || entry.state === "DISMISSED")) decision = { entry, index };
@@ -1561,29 +1583,30 @@ async function review(options: Options): Promise<Result> {
 	// outvote the model review. GitHub authenticates the reviewer and head, not the judgement.
 	let modelReview: { entry: Record<string, unknown>; index: number } | undefined;
 	reviews.forEach((entry, index) => {
-		if (own(entry) && entry.commit_id === head && (entry.state === "APPROVED" || entry.state === "CHANGES_REQUESTED" || entry.state === "DISMISSED") && recordOf(entry)) modelReview = { entry, index };
+		if (own(entry) && entry.commit_id === head && recordOf(entry) && (entry.state === "APPROVED" || entry.state === "CHANGES_REQUESTED" || entry.state === "DISMISSED" || cleanMetadata(entry))) modelReview = { entry, index };
 	});
 	const judged = modelReview ? recordOf(modelReview.entry) : null;
 	const currentBase = record(pull) && record(pull.base) && typeof pull.base.ref === "string" ? pull.base.ref : "";
 	const digest = (value: unknown) => createHash("sha256").update(typeof value === "string" ? value : "").digest("hex");
-	const mergeBase = spawnSync("git", ["merge-base", base, head], { cwd: options.repo, encoding: "utf8" }).stdout.trim();
+	const mergeBase = git(options.repo, "merge-base", base, head).trim();
 	const stale = judged !== null && (judged[1] !== currentBase || judged[2] !== mergeBase || judged[3] !== digest(pull.title) || judged[4] !== digest(authoredDescription(pull.body)));
 	const overruled = modelReview !== undefined && decision !== undefined && decision.index > modelReview.index && decision.entry.state !== "APPROVED";
 	const advisory: string[] = [];
 	const uninspectable = uninspectableOnly(options.repo, mergeBase, head);
 	if (uninspectable.length > 0) {
-		// No native review surface reads a submodule bump or a non-image binary, so the model review cannot be required of a
-		// PR that is nothing else. It is reported, never hidden, and a PR that mixes it with reviewable content is not spared.
-		// Being spared an approval does not erase the App's explicit no: a current-head change request still stands.
-		if (modelReview?.entry.state === "CHANGES_REQUESTED" || overruled || (decision?.entry.state === "CHANGES_REQUESTED" && decision.entry.commit_id === head)) {
-			errors.push(`FND-REV-001: the agent reviewer requested changes on head ${head.slice(0, 12)}, and that stands although no approval is required for content nothing can inspect`);
-		} else advisory.push(`FND-REV-001 not required: every changed path is content no review surface can inspect (${uninspectable.join(", ")})`);
-	} else if (modelReview?.entry.state !== "APPROVED" || stale || overruled) {
+		// Only the immutable pointer/blob metadata can be judged. A clean recorded comment makes that review advisory
+		// about content, not optional about defects. It never claims byte inspection or supplies a designated approval.
+		if (modelReview?.entry.state === "CHANGES_REQUESTED" || overruled || (!modelReview && decision?.entry.state === "CHANGES_REQUESTED" && decision.entry.commit_id === head)) {
+			errors.push(`FND-REV-001: the agent reviewer's change request or dismissal on head ${head.slice(0, 12)} still stands; opaque content is not a bypass`);
+		} else if (!modelReview || !cleanMetadata(modelReview.entry) || stale) {
+			errors.push(`FND-REV-001: needs a current agent-review metadata-only review from ${agent} on head ${head.slice(0, 12)} bound to this base, merge base, title and description; no opaque bytes or submodule contents can be approved`);
+		} else advisory.push(`FND-REV-001: immutable pointer/blob metadata reviewed; opaque content was not inspected (${uninspectable.join(", ")})`);
+	} else if (modelReview?.entry.state !== "APPROVED" || metadataOnly(modelReview.entry) || stale || overruled) {
 		errors.push(stale
 			? `FND-REV-001: the agent reviewer's approval of head ${head.slice(0, 12)} judged a different base, merge base, title or description than the PR now has; run agent-review --repo ${org}/${name} --pr ${options.pr}`
 			: `FND-REV-001: needs an agent-review approval from the designated agent reviewer ${agent} on head ${head.slice(0, 12)} (run agent-review --repo ${org}/${name} --pr ${options.pr})`);
 	}
-	return { ok: errors.length === 0, errors, reasons, advisory, approved_by: errors.length === 0 ? (advisory.length > 0 && !approved ? "no reviewable content" : agent) : undefined };
+	return { ok: errors.length === 0, errors, reasons, advisory, approved_by: errors.length === 0 ? (advisory.length > 0 && !approved ? `${agent} (metadata only; opaque content not inspected)` : agent) : undefined };
 }
 function print(result: Result, json: boolean, command: Command): void {
 	if (json) { console.log(JSON.stringify(result)); return; }

@@ -874,10 +874,15 @@ Criteria:
    edit or a new/changed `foundation-approval/1` disposition SHALL additionally
    require the designated reviewer, whose decision is separate from that record
    and which the record never satisfies, making five designated-review triggers.
-   IF every changed path is a submodule bump or a non-image binary, which no
-   review surface can inspect, THEN THE SYSTEM SHALL report the model review as
-   advisory instead of requiring it, and a PR that mixes such content with
-   reviewable changes SHALL still require it.
+   IF every changed path is a submodule pointer or a non-image binary, which no
+   content review surface can inspect, THEN THE SYSTEM SHALL require a clean
+   model review of the immutable pointer/blob metadata and PR description,
+   recorded as a current-head comment bound to the same state. Content remains
+   advisory and SHALL never be claimed inspected or approved. A change request
+   or dismissal SHALL still stand; mixed opaque/reviewable changes SHALL be split.
+   Classification and image bytes SHALL come from immutable Git objects, preserving
+   quoted/tab paths, rename-only images and gitlink-to-text transitions. Vision
+   output SHALL reach the reviewer in full or the review SHALL refuse to post.
    IF mapped source changes, the PR description SHALL cite every affected
    live story id computed from the candidate git objects.
 

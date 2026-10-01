@@ -126,17 +126,53 @@ and adds new catalog obligations as `pending`, keeping existing walk entries;
 `--surfaces a,b` sets the record's surfaces. Declaring an application's record a
 non-application is a review trigger, like a baseline extension.
 
-`review --pr N` is the gate for the two approvals an author cannot give
-(ADR-003 Review authority). From the GitHub API it reads the PR's base, head,
-author and reviews, and passes at once unless the PR gives `USER_STORIES.md`
-its first stories or adds a `foundation/extensions/` record. Then it needs an
-approving review on the PR head from the organisation's agent reviewer, written
-into the checker (misty-step: `kaylee-agent[bot]`). r90group has no reviewer App:
-there the decision is a review or comment from `moomooskycow` whose first line is
-`foundation-review: approved <head sha>` (ADR-003, Designated reviewers). After that reviewer's
-`foundation-escalation: product-direction` review on the head, only its later
-approval recording the operator's decision and opening with
-`foundation-escalation: resolved` as its exact first line counts; approvals from the operator's shared account never do. Every PR, those included, also needs one independent approval on its head, and on misty-step only the `kaylee-agent[bot]` App's counts, carrying `agent-review`'s record (another person's approval does not, a bare App approval does not, `agent-review`'s own approval is not the designated one, and the App's latest change request stands). The reviewing agent gives it with `agent-review --repo misty-step/NAME --pr N`: a fresh no-tools model session reads the PR title, description and diff (PNG, JPEG, GIF and WebP images through the vision role) and, when it finds no priority 0 or 1 defect, the App approves the exact head (run it under `pass-env` with `KAYLEE_GITHUB_APP_ID` and `KAYLEE_GITHUB_APP_PEM`). A PR whose every changed path is a submodule bump or a non-image binary has no review surface: the gate reports FND-REV-001 as `advisory:` for it, and `agent-review` exits 5; one that mixes such content with reviewable changes must be split. CodeRabbit is advisory. Copy
+`review --pr N` diagnoses foundation review records (ADR-003 Review authority),
+not a server merge prerequisite. It reads the PR's immutable base/head and
+submitted reviews. On misty-step, inspectable content needs the App's independent
+model-review record. First stories, baseline extensions, invariants-ledger changes,
+surface changes and disposition approvals additionally need a separate designated
+agent decision; the model record cannot supply both. The existing r90group record
+reader accepts a model decision published under `moomooskycow` with the exact
+`foundation-review: approved <head sha>` marker, not a required human approval.
+An explicit product-direction escalation uses the separate decision stream;
+only a later designated approval opening with
+`foundation-escalation: resolved` as its exact first line counts; approvals from
+the operator's shared account never do. Every misty-step PR also needs an
+independent model review carrying `agent-review`'s immutable head/base/title/
+description record. A bare App approval is not that record; a model review never
+supplies the separate designated decision, and the App's latest change request
+or dismissal cannot revive an older approval.
+
+The reviewing agent runs `agent-review --repo misty-step/NAME --pr N` under
+`pass-env` with `KAYLEE_GITHUB_APP_ID` and `KAYLEE_GITHUB_APP_PEM`. The default
+reviewer is Sonnet 5.5 high; explicit model/thinking environment overrides remain
+available. Both text and vision processes use a disposable supported OMP config
+that disables model fallback and clears the selected model's bare, effort,
+provider-wildcard and reviewer/default recovery chains. Native response identity
+and terminal successful completion are checked before any review is recorded.
+No model outage, fallback or incomplete response produces an approval.
+
+Paths are classified from immutable Git raw mode/object records and blob-based
+numstats, never unified-diff wording: quoted/tab paths and rename-only images
+retain their review surface, and ordinary `Subproject commit` text or a file
+replacing a gitlink remains reviewable. Supported PNG, JPEG, GIF and WebP head
+blobs are attached to a separate no-tools Opus/high process. Its complete
+inspection reaches the text reviewer; an inspection over 20,000 characters
+refuses the review rather than discarding evidence. The posted body names only
+images actually inspected, with native model identity verified.
+
+If every changed path is an opaque binary or gitlink pointer, the model judges
+the PR description and immutable pointer/blob metadata. A clean verdict posts
+`COMMENT` with `agent-review-scope: metadata-only`, never an opaque content
+approval; a defect posts `REQUEST_CHANGES`. `foundation-check review` requires
+that clean exact-head, current-state metadata record before reporting content
+as advisory. Missing/stale/dismissed records or explicit blocking decisions
+fail it. Mixed opaque/reviewable changes must be split.
+
+CodeRabbit is advisory. The 2026-09-30 uniform policy removes human approval and
+server-required CI merge gates across all three owners without changing plans
+or granting repository exemptions; model review, green checks and real-flow
+proof remain the agent's merge procedure (ADR-003 amendment). Copy
 [`skills/foundation/foundation-review.yml`](skills/foundation/foundation-review.yml)
 into a repository's workflows and pin the same harness revision as its
 `foundation` job. It runs on `pull_request_target`, so the base branch's copy of

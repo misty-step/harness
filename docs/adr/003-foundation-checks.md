@@ -77,6 +77,11 @@ none of the five designated-review triggers below fires (ADR-006).
 
 ## Review authority
 
+The authority decisions describe the historical adoption rollout. Their records
+remain the foundation checker's diagnostic contract, including the repaired
+image/binary path below, not today's server merge policy. The uniform 2026-09-30
+amendment supersedes the plan- and owner-specific server gates.
+
 Three steps need an approval the PR author cannot give: a repository's first
 user stories, any baseline extension (a new baseline entry or a later expiry),
 and declaring that an application's record is not an application, which drops
@@ -152,8 +157,12 @@ effect with the catalog and checker change that cites ADR-006.
   misty-step that identity is the designated reviewer `kaylee-agent[bot]`: the
   reviewing agent runs `agent-review --repo misty-step/NAME --pr N`
   (`agent-config/bin/agent-review.ts`, under `pass-env` with
-  `KAYLEE_GITHUB_APP_ID` and `KAYLEE_GITHUB_APP_PEM`). A fresh model session
-  (Sol, no tools, no session) sees the PR title, description and diff only and returns a JSON verdict; the
+  `KAYLEE_GITHUB_APP_ID` and `KAYLEE_GITHUB_APP_PEM`). A fresh Sonnet 5.5 high
+  process sees the PR title, description, immutable diff and any complete vision
+  inspections and returns a JSON verdict. Both model processes use a disposable
+  supported OMP config with fallback disabled and selected model/effort/provider-
+  wildcard/default/reviewer chains empty; native completed response identities
+  must match their selected models and end successfully without fallback. The
   App approves the exact head when it is `correct` with no priority 0 or 1
   finding, else requests changes, then toggles the `agent-reviewed` label so the
   base branch's `foundation-review` re-runs. A model failure, an unusable
@@ -161,7 +170,9 @@ effect with the catalog and checker change that cites ADR-006.
   during the review, or a PR the App authored posts nothing: no approval is ever
   a fallback. In an organisation with a reviewer App, FND-REV-001 now counts only
   that App's approval of the head: another person's approval does not, and the
-  App's latest change request stands. What the gate trusts is that approval, and
+  latest explicit change request or dismissal stands in its own review stream.
+  A dismissed model record never revives an older approval. What the gate trusts
+  is that approval, and
   so the reviewer's judgement of the title, description and diff alone; a
   persuasive PR can sway a model, and the approval says nothing about code the
   diff does not show. CodeRabbit is advisory everywhere: it reports `success` even when it
@@ -191,24 +202,38 @@ effect with the catalog and checker change that cites ADR-006.
   a stricter rule for. r90group ordinary PRs never had an independent-approver
   check, since the recorded-decision path returns first, and that is unchanged.
 
-  Content a text model cannot read: PNG, JPEG, GIF and WebP files (at most six
-  of at most 5 MB) are read by the vision role (Opus, `anthropic/claude-opus-5-5`
-  high) in a separate no-tools process on the attached file, fetched from the
-  reviewed head commit itself (never a listing of the PR, which a push could
-  change mid-review), and its written inspection reaches the reviewer as
-  untrusted data; a vision failure, or an inspection over 20,000 characters
-  (never cut short), posts nothing, and the review body names the images
-  inspected. A submodule bump or
-  any other binary (fonts, archives, wasm) has no native review surface. When
-  every changed path is such content the gate reports FND-REV-001 as advisory
-  rather than blocking, because nothing could review it and `agent-review`
-  refuses with exit 5; a PR that mixes it with reviewable content gets no such
-  relief (`agent-review` refuses with exit 3 and asks for a split), so adding a
-  font to a PR cannot skip the review of the rest. The cost is that a binary-only
-  PR of these kinds merges unreviewed but visibly so (an `advisory:` line), and
-  splitting is the price of a mixed one.
+  Content a text model cannot read: classification comes from immutable Git raw
+  entry modes/object IDs and blob-based root numstats, not diff text. NUL records
+  preserve quoted/tab paths, rename-only images and opaque files, and regular text
+  replacing a gitlink. Ordinary text beginning `Subproject commit` is not a pointer.
+  The two standalone launchers retain this same contract independently because
+  the installer does not allow launcher-to-launcher imports.
+
+  PNG, JPEG, GIF and WebP head blobs (at most six of at most 5 MB) are read by the
+  vision role (Opus, `anthropic/claude-opus-5-5` high) in a separate no-tools
+  process on the attached blob bytes. Neither a mutable PR file list nor a
+  temporary A → B → A push can substitute another image, and discovery has no
+  PR-file pagination limit. Its complete written inspection reaches the reviewer
+  as untrusted data; a vision failure, mismatched native identity, fallback,
+  incomplete response or inspection over 20,000 characters posts nothing, never
+  a cut-short account. The review body names only the images actually inspected.
+
+  Gitlink pointers and other binaries (fonts, archives, wasm) have no native
+  content review surface. An opaque-only PR still receives a model review of its
+  description and immutable pointer/blob metadata. A clean verdict posts a
+  `COMMENT` carrying the exact head/state record and the marker
+  `agent-review-scope: metadata-only`; it disclaims opaque byte/submodule inspection.
+  A defect posts `REQUEST_CHANGES` and remains blocking. The checker reports
+  content advisory only after a clean current metadata record: a missing, stale
+  or dismissed record or later explicit blocking decision fails, never waiving
+  defects. A metadata-only comment cannot approve inspectable text/images or
+  supply a separate designated decision. Mixed opaque/reviewable changes still
+  refuse with exit 3 and must be split.
 
 ## Enforcement by plan
+
+**Historical and superseded.** This describes the adoption rollout, not current
+merge policy. The amendment below supersedes both owners' server-required gates.
 
 - **misty-step:** `foundation` and `story-walk` become required checks after
   the first green run on master, as on Scry.
@@ -223,3 +248,50 @@ effect with the catalog and checker change that cites ADR-006.
 2. Approved: build ratchet mode (`foundation-check baseline` and `mode: bootstrap`) next. Wave one of the rollout census (Tach, Habitat, Nopalito in `r90group/infrastructure`, Linejam, Sploot) is the first proof.
 3. Approved: Jev drafts first maps only. Revisit drift detection when a holdout repository shows area precision ≥ 0.9.
 4. Operator changes: the designated agent reviewer, not the operator, approves first user stories and baseline extensions, escalating only a real change in product direction.
+
+## Uniform merge-policy amendment (2026-09-30)
+
+The operator's rule is uniform across **misty-step, r90group and moomooskycow**:
+agents merge normally, without `--admin`, after independent model review,
+green checks and the affected real product/CLI flow. Human approval and
+server-required CI are not merge gates. Removing those GitHub settings does not
+make review or verification optional, erase an explicit change request, or
+permit an approval to claim image/opaque inspection that never happened.
+
+There is no plan upgrade and no per-repository exemption. Use GitHub's supported
+branch-protection/ruleset settings to remove the gates instead of building a new
+reviewer App or permission workaround. A platform response requiring GitHub Pro
+or a public repository is recorded as unsupported enforcement, not a policy
+waiver; the same agent review, green-check and real-flow procedure still applies.
+Credentials are not rotated or revoked by this cutover.
+
+Historical `--admin` merges
+[#137](https://github.com/misty-step/harness/pull/137),
+[#138](https://github.com/misty-step/harness/pull/138) and
+[#169](https://github.com/misty-step/harness/pull/169) are not precedents.
+[#173](https://github.com/misty-step/harness/pull/173) records that #169 merged
+with the App's changes requested still outstanding. The binary/image repair
+requires a new exact-head independent review and real Scry proofs; this amendment
+does not retroactively clear those findings.
+
+### Settings census and cutover (2026-10-01)
+
+The ticket owner's recorded census covered **349 repositories**: misty-step 128,
+r90group 54 and moomooskycow 167; 116 were unarchived. Before the cutover there
+were 65 classic protection rules and nine rulesets. Positive approval counts
+appeared only on archived `gradient` (`master`) and `gradient-quarantine`
+(`main`/`master`); live roots had required status checks including
+`foundation-review` and workflows operating under the shared author identity.
+
+The settings cutover removed 87 classic subrules (60 required-status and 27
+review subrules) and deleted eight gate-only rulesets. `exocortex` retains its
+deletion and non-fast-forward protections. Fifty-three archived repositories
+were temporarily unarchived to apply the supported settings and restored:
+the final archive states did not differ.
+
+The after-census recorded zero classic approval/status blockers and zero gate
+rulesets. Eighty private repositories returned the explicit GitHub Pro/public
+403 (51 r90group, 29 personal); those unsupported capabilities are not exemptions.
+The `includes_parents=true` endpoints disclosed no inherited organisation rule.
+Settings evidence is separate from execution proof: source checks, exact-head
+model review and normal live merges own the latter.
