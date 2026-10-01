@@ -1,3 +1,9 @@
+# [0.1.79](https://github.com/misty-step/harness/compare/v0.1.78...v0.1.79) (2026-10-01)
+<!-- landmark:protected-release previous=v0.1.78 source=89f5c34bd6d2051d23007ebfa7a75c31245761cec5cac545bee66c06969d1e49 -->
+
+### Features
+
+* **shared:** agent-owned PR previews and native evidence (US-049) (#183) ([6519719](https://github.com/misty-step/harness/commit/65197199971d04aa8e58b71a9116a9050539c1c8))
 # [0.1.78](https://github.com/misty-step/harness/compare/v0.1.77...v0.1.78) (2026-09-30)
 <!-- landmark:protected-release previous=v0.1.77 source=3b1432168b89359a826525319f3a40b7cfe1854ec3e7af3d0d898c24018208e2 -->
 
