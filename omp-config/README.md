@@ -520,9 +520,8 @@ inviting collaborators. No paid plan or GitHub integration is enabled here.
 
 Maintained engineering and visual preferences live in `global/AGENTS.md`.
 `VISION.md` is retired (harness ADR-004): a repository's purpose and non-goals
-live in its README, and authorized direction in Linear. The unchanged `show-me`
-skill provides diagrams and code-shape explanations; choose evidence for the
-actual change rather than requiring a fixed artifact packet.
+live in its README, and authorized direction in Linear. Diagrams are optional
+explanations of the actual change, not a required artifact packet.
 
 ASCII support is currently **aesthetic guidance and browser-based asset authoring**,
 not a dedicated conversion tool, skill, or automatic asset pipeline.
@@ -535,136 +534,48 @@ there is no documented public automation API, and video exports are silent.
 
 Keep controls and essential text accessible. Referencing
 [U.S. Graphics](https://usgraphics.com/) or Berkeley Mono does not grant asset or
-font licenses. The external `frontend-design` and `show-me` packages stay verbatim.
+font licenses.
 
-## Skills and agents
+## Engineering skills
 
-Shared skills load on demand; distinct entrypoints include:
+OMP selects engineering craft and non-obvious tool knowledge, not every shared
+package. The startup [engineering page](../agent-config/guidance/engineering.md)
+is the philosophy: smallest fix today; good taste, deep modules and simplicity;
+question, delete, simplify; checks earn their place; never widen a ticket.
 
-| Command | Outcome |
-| --- | --- |
-| `/skill:foundation` | Recommend a coherent project direction and practical transition without changing the project |
-| `/skill:agent-design` | Design agent skills, tools, context and caching from post-training facts |
-| `/skill:engineering-operations` | Use workstation facts, scoped kickoff, durable handoffs and the normal review/landing path |
-| `/skill:story-qa` | Walk a curated set of root user stories through the real product surface and report outcomes and gaps |
-| `/skill:pokayoke` | Make a class of error impossible (shape, type, ownership, missing affordance, or a failing-closed check) instead of warning about it |
-| `/skill:sachstand` | Give a concise status or decision brief with facts, tradeoffs, recommendation and next action |
-| `/skill:user-stories` | Draft, extend, or reconcile a repository's root user stories |
-| `/skill:visual-state-review` | Capture every named UI state as screenshots, organise them, and look before claiming frontend work verified |
-| `/skill:design-studio` | Run the divergent-concepts → critique → recombine → handoff loop for real UI/UX design work before production code |
+On-demand owners: `design-studio`/`visual-state-review` for rendered design,
+`test-audit`/`story-qa` for real consumer proof, `foundation` for commissioned
+assessment, `user-stories` for its checker grammar, `agent-design` for prompt
+loading/cache traps, `authenticated-commands` for pass/native auth,
+`cloudflare-workers`/`remote-execution` for platform traps, `system-one` for Jev
+wiring, `engineering-operations` for workstation tools, and `pokayoke` for the
+existing incident template. No generic process manuals or required concept rounds.
 
-`disable-model-invocation: true` hides these descriptions from the automatic
-skill index. It does not prevent an explicit `skill://` read or grant authority
-to act. Read-only requests remain read-only. These skills are owned by
-`agent-config` and deployed through its contract; this repo no longer carries a
-`skills/` directory.
+The existing todo phase carries ticket why/victory and its link. Native state
+restores it on resume; engineers read `todo view` after compaction before changing
+course. Child assignments carry the same intent because they do not inherit
+parent todos. No daemon, extra queue, intent file or repeating reminder.
 
-`test-audit` (US-021) owns independent test contracts and focused pruning;
-whole-subsystem campaigns retain commissioned scope. `story-qa` (US-022)
-owns real product walks, with on-demand check-cadence (US-023), authoring and
-runtime references for missing verification capability. These skills reuse
-the product's working paths. `effective-verification` remains an undeployed
-source candidate for judging completion evidence.
+Kaylee owns dispatch, fleet, review choreography and approvals. OMP does not
+install `herdr`, `pr-preview`, `sachstand`, `session-close` or the `agent-review`
+launcher. Full deployment retires their old skill copies, preserves foreign
+packages, and rejects explicit management-skill selections. Review source and its
+gate template remain under `agent-config/review/` for the owner to evaluate;
+their presence is not an engineering obligation.
 
-`authenticated-commands` is a portable homebrew skill for API tokens,
-authenticated scripts, pass entries, `.env.pass`, and migrated project execution.
-OMP automatically discovers it when installed together with `pass-env` by the
-`secrets` component (or `all`), without a global AGENTS secret policy.
+`frontend-design` and `show-me` are removed whole. The old Wrangler/exe.dev manuals
+are replaced by distinct short homebrew skills; Cloudflare attribution/license
+remain. Omarchy's `omarchy`/`diagnose-crash` retain their independent owner.
 
-`foundation` is a first-principles assessment and repair procedure, not an
-implementation pass or a second policy source. It reads the canonical
-[Foundation Standard v1](../agent-config/skills/foundation/foundation-standard-v1.md),
-maps only obligations applicable to the project's capabilities, and distinguishes
-an ideal destination from a practical transition; preserving a sound system is a
-valid conclusion. The [operating pointer](../agent-config/skills/foundation/operating-foundations.md)
-keeps older links valid without redefining the standard. Invoke
-`/skill:foundation` with context or constraints the repository cannot supply;
-select the model separately. Backlog changes and implementation remain separately
-authorized work.
-
-Use `/skill:agent-design` when building or changing an agent. Its short entrypoint
-links progressive disclosure and provider prompt-caching facts to source docs.
-`engineering-operations` absorbs durable capture and agent-driver improvements;
-`sachstand` absorbs decision briefs. The installer removes the five retired
-entrypoints so fresh sessions discover one current path.
-
-Use `/skill:pokayoke [optional error class or incident]` after a defect,
-incident, or near-miss. The outcome is a mechanism that makes that class of
-error impossible—not a warning, comment, or extra instruction layer. A reminder
-is not pokayoke. The postmortem template in `skill://pokayoke` requires the same close.
-
-
-Use `/skill:sachstand [optional scope: session, repo, initiative, or portfolio] [quiet]`
-for a sixty-second orientation. It is read-only. It opens by naming the project,
-the task, and the repository, branch, and worktree, so briefs from parallel
-sessions are distinguishable. Then it gives a verdict, verified outcomes, open and
-blocked work, critical context, each needed decision with its missing
-information, and what happens next without input. A decision that needs
-deeper analysis stays in `/skill:sachstand` with the decision topic. Unless `quiet` is given, it also
-speaks a one-minute version with Gemini 3.8 Flash-Lite TTS (about $0.01) through
-`pass-env` and `GEMINI_API_KEY`, and saves the audio under `~/.cache/tts-play/`.
-
-Use `/skill:user-stories [optional repository, capability, or story id]` to
-keep a repository's root `USER_STORIES.md` honest: draft stories from observed
-behavior, extend them with the feature PR that ships the change, or audit gaps
-read-only. Stories are the root artifact; downstream work cites the story id.
-
-Five vendored packages remain unchanged except by whole-package refresh:
-`frontend-design`, `herdr`, `show-me`, `wrangler`, and `using-exe-dev`.
-Wrangler is refreshed from [cloudflare/skills](https://github.com/cloudflare/skills)
-at `d924cd8` with its Apache 2.0 license. `using-exe-dev` is the
-[official skill](https://exe.dev/docs/agent-skill.md), vendored unchanged from
-[`boldsoftware/exe.dev` at `9af0789cf2417fc16cab7684cc401967a17060d0`](https://github.com/boldsoftware/exe.dev/blob/9af0789cf2417fc16cab7684cc401967a17060d0/skill/SKILL.md)
-(skill blob `5c3018342ee964c0c5384772e42e30256e10def8`).
-Update them from upstream or remove the whole package; use a distinctly named
-homebrew skill for different behavior. These packages are owned by
-`agent-config`; provenance and refresh live there. Omarchy's `omarchy` and
-`diagnose-crash` retain their own owners and discovery paths; this installer
-does not replace them. Todoist is owned by Daybook and is not shipped here.
-
-### Repository verification
-
-From the product checkout, invoke:
-
-```text
-/skill:story-qa
-```
-
-For a missing runnable path, load its [authoring reference](../agent-config/skills/story-qa/authoring.md):
-discover existing setup, fixtures, smoke commands and CI before creating anything.
-The [runtime reference](../agent-config/skills/story-qa/runtime.md) carries launch,
-doctor, drive, evidence and cleanup facts. Installing the complete package keeps
-those references available on demand.
-
-`foundation` assesses whether a fresh agent can exercise the core outcome,
-distinguish success from failure, and clean up. It recommends missing capability
-without implementing it. Ordinary executable work uses the product's skill and
-updates affected procedures and checks in the same change. Use the authoring
-skill again for a substantial repair, not for every feature edit.
-
-Repository onboarding and a wider adoption pass need an explicit scope.
-Recurring drift checks belong to an authorized execution system, not a timer
-installed by this skill. Explicit-resource workers need their own skill-loading
-integration; installing a global package does not override disabled discovery.
-This harness change does not provision workspaces, start repository rollouts,
-or activate factory work.
-
-To deploy only this capability and its guidance:
-
-```sh
-OMP_INSTALL_COMPONENTS="guidance skill:foundation skill:story-qa skill:engineering-operations" ./install
-```
-
-Start a fresh OMP session after installation to discover the new slash command.
+Missing verification infrastructure is separate work unless it prevents proving
+this change. Use the existing product commands; docs/internal changes get
+composition or real owner-path checks, not a pretend product journey.
+Start a fresh session after deployment to discover current skills.
 
 ### Persistent workspaces and exe.dev
 
-`using-exe-dev` is advertised automatically for exe.dev and `*.exe.xyz` work.
-Refresh the whole upstream skill package and update this provenance together.
-Local workspace, authorization, hosting, and recovery policy lives in
-`global/AGENTS.md`. `foundation` examines the practical transition and
-`WATCHDOG.md` challenges missed ownership or recovery risks. No extra SYSTEM
-prompt, scheduler, or automatic migration is installed.
+`remote-execution` distinguishes the exe.dev lobby from a VM shell; `ws` owns
+project workspaces. No scheduler or automatic migration is installed.
 
 Before first SSH access, verify the
 [published host key](https://exe.dev/docs/faq/host-key.md). Read current

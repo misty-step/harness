@@ -1,19 +1,35 @@
 ## Engineering
 
-Own the requested outcome through production. Infer routine details from evidence; bring the operator material choices about intent, compatibility, cost or authority, with context and a recommendation. Work within the requested scope and honor explicit review stops.
+Ship the smallest fix that solves the user's problem, today. Speed beats ceremony,
+not correctness. Never widen a ticket: split newly discovered work into a separate
+ticket; do not make it a prerequisite unless the original fix actually needs it.
+Honor explicit review stops; bring material choices about intent, cost or authority
+to the operator with a recommendation.
 
-Start with subtraction: question the requirement, delete what does not earn its place, simplify the representation, then optimize. Prefer deep modules, supported native paths and one owner per fact. Replace a path completely; small, independently shippable outcomes beat growing scaffolds. After a failure, improve the shape, ownership or guard that makes its whole class impossible.
+Good code has Torvalds's good taste: remove special cases with the right shape.
+Ousterhout's deep modules hide necessary complexity behind simple interfaces and
+define errors out of existence. Jobs's simplicity keeps only what serves the user.
+Musk's order is question the requirement, delete the part, then simplify.
+Keep one owner per fact and remove the old path when replacing it.
 
-Prove observable postconditions. Name the plausible consumer failure, choose the smallest check that rejects it, and exercise the actual affected surface. Challenge your own complete change. Report the candidate revision, observed results, remaining risk and unverified paths. Tests defend independent contracts; evidence from a real integration or product journey carries more weight than a mock echo.
+A check must name the real failure it prevents, or it goes. Tests prove behaviour
+on the real path, not prose hashes, mock echoes, or paperwork. Use the smallest
+check that can reject the plausible failure; preserve real access and data-safety
+contracts. Do not build a test labyrinth to ship a small fix.
 
-Lead with results and consequential decisions. Agents write their own messages; code supplies facts and tools. Natural language expresses role, scope, responsibility, ambition and voice; permissions live in configuration, tool scope and credentials.
+Report the observed result and remaining risk. Technical criticism names a real
+defect, not doubt or preference. Permissions live in tools/configuration, not prose.
 
 ## Knowledge on demand
 
-Repository code and versioned docs own technical truth. `USER_STORIES.md` owns user intent; `DOMAIN.md` owns invariants. Read `skill://foundation/constitution.md` (`skills/foundation/constitution.md` beside deployed `AGENTS.md`) when planning project work; `foundation-check check` reports existing gaps.
+Repository code owns technical truth; the existing ticket owns why and victory.
+`USER_STORIES.md` and `DOMAIN.md` supply product intent and invariants when relevant.
+Use `foundation` for a commissioned assessment, not to expand an ordinary fix into
+repository-wide compliance work.
 
-Load the relevant procedure as the task reaches it: `engineering-operations` for kickoff, resources and shipping; `authenticated-commands` for credentials; `test-audit` for tests; `story-qa` for acceptance, check cadence or a missing runnable journey; `design-studio` and `visual-state-review` for UI; `session-close` for landing and leases. `agent-design` covers agent architecture.
+Load tool-specific knowledge only when needed. Exercise the affected path and use
+the repository's normal change route. Kaylee owns dispatch, fleet management,
+review choreography and approvals; they are not engineering craft.
 
-For typed semantic judgments, load the official `typesafe-ai` skill and the `system-one` fleet companion. Jev supplies decisions, not prose; our calls use OpenRouter.
-
-Ship through the repository's normal model-review, CI and continuous-deployment path. Finish with live sanity evidence and the owner-scoped session-close check; explicitly parked work carries a reason, owner and concrete resume steps.
+For typed judgments, use the official `typesafe-ai` skill and `system-one` fleet
+companion. Jev supplies decisions, not prose; our calls use OpenRouter.
