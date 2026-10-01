@@ -17,7 +17,7 @@ run-scoped under `~/.cache/tmp` and removed on ordinary exit. Run:
 ./scripts/verify all
 ```
 
-CI uses one job, `./scripts/check all`, and a 15-minute timeout. Before that gate,
+CI uses one job, `./scripts/check all`, and a 15-minute timeout. Before that check,
 the pinned Landmark action validates the prospective release candidate with
 `prepare-protected` and supplies its checksum-verified binary for the release
 race replay. CI therefore also needs access to GitHub release downloads.
@@ -44,7 +44,7 @@ owned directory. Remove only that directory once its process has ended.
   worktrees to check external paths, nested repositories, dirty and prunable
   states, and non-destructive failure reporting while continuing past unreadable
   directories; it does not inspect or clean the host's worktrees.
-- `scripts/protected-release.test.ts` guards the required release validation
+- `scripts/protected-release.test.ts` guards the release validation
   configuration and, when `LANDMARK_BIN` is supplied, replays a docs-only
   candidate race against the real binary. CI always supplies it from the
   pinned Landmark action. Offline local runs explicitly skip that replay.
@@ -74,8 +74,10 @@ owned directory. Remove only that directory once its process has ended.
      Introduce a controlled Git-visible dirty change and run installed `check`;
      observe exit 2 and the dirty blocker. Resolve only that controlled change,
      preserving other owners' evidence.
-  2. Obtain exact-head model review (Sonnet 5.5 high `agent-review` for this
-     harness change), green required CI and a real PR merge. Deploy the merged
+  2. Obtain exact-head independent model review, recording the actual author
+     model and using the cross-family reviewer without fallback. Await and
+     observe green CI on the candidate against the current base, then merge
+     normally without `--admin` or a human approval gate. Deploy the merged
      revision through both Pi/OMP installers for shared changes, restart and
      exercise the affected installed path. Record revision, target and observed
      production sanity result in the PR and relevant existing routed ticket
@@ -208,27 +210,74 @@ walks. Its [check-cadence reference](../agent-config/skills/story-qa/check-caden
 tiers repository checks by measured cost and delayed-detection risk: PR feedback
 should take minutes; expensive matrices belong to owned nightly or weekly
 runs with notification and on-demand execution. This guidance does not install
-a scheduler or change this repository's CI. Keep required security and
-installer gates intact.
+a scheduler. Keep security and installer verification intact; agents await and
+inspect their results rather than making them server-required merge gates.
+
+## Merge-rule census (2026-10-01)
+
+The supported-settings cutover inspected every owned repository, including
+archives, all classic branch-protection patterns, and repository rulesets with
+`includes_parents=true`. Owner pagination was exhausted; no classic rule list
+was truncated.
+
+| Owner | Repositories | Ruleset API unavailable on current private plan |
+| --- | ---: | ---: |
+| `misty-step` | 128 | 0 |
+| `r90group` | 54 | 51 |
+| `moomooskycow` | 167 | 29 |
+
+Before: 65 classic rules and nine rulesets. Only three branches in two archived
+repositories required a positive approval count. The live blockers were required
+CI contexts, including `foundation-review`, whose workflow demanded an identity
+other than the shared author. Scry already required zero approving GitHub reviews.
+Historical admin merges include
+[harness #137](https://github.com/misty-step/harness/pull/137),
+[#138](https://github.com/misty-step/harness/pull/138), and
+[#169](https://github.com/misty-step/harness/pull/169);
+[#173's resume note](https://github.com/misty-step/harness/pull/173#issuecomment-5899946049)
+records the unresolved binary/submodule review path.
+
+Change: remove 60 classic required-status-check subrules and 27 review subrules;
+delete eight gate-only rulesets and remove the required-check rule from the ninth,
+retaining its deletion and non-fast-forward protections. GitHub rejects settings
+writes on archives: 53 affected repositories were temporarily unarchived, changed,
+then rearchived. Readback found no archive-state differences.
+
+After: zero classic approval/status-check gates and zero ruleset approval,
+required-check or merge-queue gates across the same 349 repositories. The
+80 private-plan failures explicitly say to upgrade to GitHub Pro or make the
+repository public; these settings are unsupported, not repository exemptions.
+No upgrade, bypass actor, new App or credential change was made. Independent
+model review, observed CI and actual-flow verification remain agent obligations.
+The release workflow opens its candidate PR but no longer enables server
+auto-merge, which could otherwise merge before model review once required checks
+are removed.
 
 ## Protected release walk (US-015)
 
-The required `verify` job validates the prospective PR merge, not only the head
+The `verify` job validates the prospective PR merge, not only the head
 branch, with the same pinned Landmark `prepare-protected` action used to create
 release candidates. This invokes the publisher's local candidate classifier.
 It may generate an uncommitted changelog in the disposable CI checkout; it
 cannot publish, push, or mutate the source checkout used by subsequent jobs.
 The original publish-time validation remains in place.
 
-The [default-branch ruleset](https://github.com/misty-step/harness/rules/23779166)
-must require `verify` with `strict_required_status_checks_policy: true` and no
-bypass actors. Without up-to-date checks, a base advance after successful CI
-can invalidate a release marker. Inspect the actual rules, rather than assuming
-workflow files configure them:
+The merge policy is uniform across `misty-step`, `r90group`, and `moomooskycow`
+(operator decisions, 2026-09-28/30): independent model review plus green observed
+CI, without human approval or server-required status checks. The
+[normal merge procedure](../agent-config/skills/engineering-operations/review.md)
+owns supported settings changes and exact-head merging; no bypass actors,
+per-repository exclusions, or plan upgrade substitute for that policy.
 
-```sh
-gh api repos/misty-step/harness/rulesets/23779166
-```
+Removing a strict required `verify` rule does not remove release-candidate
+validation. The agent must check the candidate against the current base and
+await the observed `verify` jobs before merging. A base advance after successful
+CI can invalidate a release marker even if the PR head is unchanged. Re-read
+the base immediately before merge; if it moved, update the branch, regenerate
+a stale candidate through the normal Landmark preparation flow, and await fresh
+CI on the resulting prospective merge. Refresh model review for changed
+head/state. `--match-head-commit` guards the head, not the base; do not treat
+that flag or an old green run as proof of current-base validation.
 
 For a bounded local race replay, use the checksum-verified binary from the
 Landmark release matching the action pin, then run:
@@ -240,7 +289,7 @@ LANDMARK_BIN=/absolute/path/to/landmark bun test --max-concurrency=1 scripts/pro
 The fixtures live under run-scoped `~/.cache/tmp` and are removed on exit. The
 replay rejects a stale docs-only candidate, then proves regeneration and the
 next tagged boundary. It does not pretend to publish a GitHub Release.
-With `CI=true`, a missing `LANDMARK_BIN` fails the gate rather than silently
+With `CI=true`, a missing `LANDMARK_BIN` fails the job rather than silently
 skipping this replay.
 
 Between a release PR landing and its tag being published, other PR checks can
@@ -248,9 +297,11 @@ reject that pending candidate if they add commits. After publication, rerun
 their checks with freshly fetched tags; validation is then bounded by the
 published tag. Do not remove the guard to clear this transient state.
 
-For real-path acceptance, observe required `verify` on the fix PR, merge
-through protection, observe green `Verify and Release` on master, and follow
-the generated `landmark/release` PR through its own required check and merge.
+For real-path acceptance, observe green `verify` against the current base on the
+fix PR and merge its reviewed exact head normally. Observe green `Verify and
+Release` on master, then follow the generated `landmark/release` PR through
+current-base candidate validation, model review, observed green CI and normal
+merge, without a human approval gate or admin override.
 Read the resulting tag target and GitHub Release back through `gh`, confirming
 the target is the landed release commit. Dispatch the release workflow again
 and confirm the existing tag is unchanged and no duplicate release is created.
