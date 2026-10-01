@@ -3,6 +3,7 @@
 import copy
 import fcntl
 import importlib.util
+import io
 import json
 import os
 from pathlib import Path
@@ -233,6 +234,37 @@ class AdmissionTests(unittest.TestCase):
 
 
 class InspectionAndTerminalTests(unittest.TestCase):
+    def test_staged_roster_is_unenforced_but_partial_activation_fails_closed(self):
+        with tempfile.TemporaryDirectory() as directory:
+            home = Path(directory)
+            entry = home / ".local/bin/omp"
+            entry.parent.mkdir(parents=True)
+            entry.write_bytes(b"\x7fELFregular native remains untouched")
+            account = core.pwd.struct_passwd(("fixture", "x", os.getuid(), os.getgid(),
+                                            "", str(home), "/bin/sh"))
+            with patch.object(core.pwd, "getpwuid", return_value=account), \
+                    patch.object(core, "Host", side_effect=core.CageError("No user manager")):
+                output = io.StringIO()
+                with patch.object(sys, "stdout", output):
+                    self.assertEqual(core.memory(["--json"]), 0)
+                inactive = json.loads(output.getvalue())
+                self.assertFalse(inactive["activated"])
+                self.assertTrue(inactive["admitted"])
+                self.assertFalse(inactive["reservation"])
+                self.assertIsNone(inactive["capacity"])
+                entry.unlink()
+                entry.symlink_to("omp-engineer")
+                with self.assertRaises(core.CageError):
+                    core.memory(["--json"])
+                entry.unlink()
+                for relative in (".local/lib/omp-engineer/omp", ".config/systemd/user/omp.slice"):
+                    marker = home / relative
+                    marker.parent.mkdir(parents=True, exist_ok=True)
+                    marker.touch()
+                    with self.assertRaises(core.CageError):
+                        core.memory(["--json"])
+                    marker.unlink()
+
     def test_unrelated_opaque_daemon_does_not_block_native_memory_inspection(self):
         host = core.Host()
         scratch = Path(os.environ.get("TMPDIR", Path.home() / ".cache/tmp"))

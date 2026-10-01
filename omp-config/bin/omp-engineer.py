@@ -275,6 +275,7 @@ def admission(snapshot, *, source="live"):
                 reasons.append(f"effective ancestor {item['path']} lacks {ancestor_required} bytes of memory headroom")
     bounds = [fleet["memory_max"], *[item["memory_max"] for item in ancestors if item["memory_max"] is not None]]
     return {"schema_version": 1, "ok": True, "source": source, "reservation": False,
+            "activated": True,
             "captured_at": snapshot.get("captured_at"), "admitted": not reasons, "reasons": reasons,
             "policy": dict(POLICY), "reuses_cage": nested,
             "capacity": {"available_bytes": available, "required_available_bytes": required,
@@ -903,8 +904,31 @@ def launch(argv):
     return result
 
 
+def cage_activation_present(home):
+    # Staging must not impose cage prerequisites on unactivated roster callers.
+    # Partial activation still requires enforcement, never an uncaged fallback.
+    entry = home / ".local/bin/omp"
+    for path in (home / ".local/lib/omp-engineer/omp",
+                 home / ".config/systemd/user/omp.slice", entry):
+        try:
+            info = path.lstat()
+        except FileNotFoundError:
+            continue
+        except OSError as exc:
+            raise CageError("Cannot inspect OMP cage activation") from exc
+        if path != entry or stat.S_ISLNK(info.st_mode) and os.readlink(path) == "omp-engineer":
+            return True
+    return False
+
+
 def memory(argv):
     if argv == ["--json"]:
+        if not cage_activation_present(Path(pwd.getpwuid(os.getuid()).pw_dir)):
+            print(json.dumps({"schema_version": 1, "ok": True, "source": "live",
+                              "activated": False, "admitted": True, "reservation": False,
+                              "reasons": [], "policy": POLICY, "capacity": None,
+                              "coverage": "Engineer cage is not activated; memory enforcement is inactive. Staged roster launches retain their uncaged behavior."}, indent=2))
+            return 0
         snapshot = Host().snapshot()
         source = "live"
     elif len(argv) == 3 and argv[0] == "--json" and argv[1] == "--fixture":

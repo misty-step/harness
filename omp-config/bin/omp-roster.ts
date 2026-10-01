@@ -78,7 +78,7 @@ type Skip = { selector: string; verdict: string | null; reason: string; next_res
 type Freshness = { degraded: boolean; degraded_reason: string | null; oldest_observation: string | null; stale_after_seconds: number | null };
 type LaunchOptions = { harness?: string; json?: boolean; "ticket-json"?: string; "usage-json"?: string; "state-dir"?: string; "memory-json"?: string };
 type CheckOptions = { "ticket-json"?: string; "state-dir"?: string; since?: string };
-type MemorySnapshot = Record<string, unknown> & { schema_version: 1; ok: true; admitted: boolean; reservation: false; reasons: string[] };
+type MemorySnapshot = Record<string, unknown> & { schema_version: 1; ok: true; activated: boolean; admitted: boolean; reservation: false; reasons: string[] };
 
 const USAGE = `Usage:
   omp-roster launch --item ID [--ticket-json FILE] [--usage-json FILE] [--memory-json FILE] [--state-dir DIR] [--harness omp] [--json]
@@ -145,6 +145,7 @@ function memorySnapshot(file?: string): MemorySnapshot {
 	const answer = capture(core, ["memory", "--json", ...(file ? ["--fixture", resolve(file)] : [])]);
 	const doc = answer.json;
 	if (answer.exitCode !== 0 || !isRecord(doc) || doc.schema_version !== 1 || doc.ok !== true
+		|| typeof doc.activated !== "boolean"
 		|| typeof doc.admitted !== "boolean" || doc.reservation !== false || !Array.isArray(doc.reasons)
 		|| !doc.reasons.every((reason) => typeof reason === "string")) {
 		throw new CliError(`Cannot inspect launch memory: ${(isRecord(doc) && plainOrNull(doc.error)) || answer.stderr || "unrecognised memory snapshot"}.`);
@@ -156,7 +157,7 @@ function memoryCommand(options: { json?: boolean; "memory-json"?: string }): num
 	const snapshot = memorySnapshot(options["memory-json"]);
 	if (options.json) console.log(JSON.stringify(snapshot, null, 2));
 	else {
-		console.log(`memory admission: ${snapshot.admitted ? "available" : "refused"} (preflight only, no reservation)`);
+		console.log(`memory admission: ${snapshot.activated ? snapshot.admitted ? "available" : "refused" : "inactive"} (preflight only, no reservation)`);
 		for (const reason of snapshot.reasons) console.log(`  ${plain(reason)}`);
 		if (typeof snapshot.coverage === "string") console.log(snapshot.coverage);
 	}

@@ -100,8 +100,14 @@ An installed Workbench updater must advertise `harness-engineer-cage-v1` through
 its inert `omp-install-layouts` query before explicit activation writes anything.
 Deploy that reviewed consumer first; source-only compatibility is insufficient.
 
-`omp-roster memory --json` is read-only preflight, not a reservation. Actual
-`omp` launch serializes inspection through verified scope registration, counts
+`omp-roster memory --json` is read-only preflight, not a reservation.
+On an unactivated host, staging the CLI reports `activated: false`, no capacity
+measurement and explicitly inactive enforcement; roster launch retains its
+existing uncaged behavior without requiring a Linux user manager. A retained
+native binary, local slice unit or owned stable alias is activation evidence:
+partial/broken activation still requires full inspection and fails closed.
+This read-only distinction never bypasses admission in the cage launch path.
+Actual `omp` launch serializes inspection through verified scope registration, counts
 idle/lingering populated cages at their full limits, measures uncaged engineers
 and mixed legacy groups, and uses the 20-GiB `MemAvailable` scale-up floor.
 Unused cage/heavy headroom is diagnostic, not added to that floor; full cage
