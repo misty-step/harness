@@ -100,8 +100,8 @@ on the PR after VM deletion. Keep commands to at most 50 attachments per invocat
 Use a repository-writer-trusted `pull_request_target` workflow for opened,
 synchronize, reopened and closed events, without path filters. Checkout default
 with `persist-credentials:false` and use a reviewed pinned controller from trusted
-`RUNNER_TEMP`. YAML comes from the target base; allowed repository-writer bases
-are trusted, including nondefault targets. No upload token or agent QA execution
+`RUNNER_TEMP`. [GitHub runs this event from the base repository's default branch](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#pull_request_target),
+including PRs targeting nondefault branches. No upload token or agent QA execution
 belongs in this workflow. The ordinary scoped `github.token` may read PR metadata
 and post deployment/teardown facts, never native media.
 
