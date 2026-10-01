@@ -1,65 +1,39 @@
 ---
 name: foundation
-description: Recommend a project's direction and practical transition without changing it.
+description: Assess a project's direction and recommend the simplest practical transition.
 disable-model-invocation: true
 ---
 
 # Foundation
 
-Reassess the project as a whole: is it pursuing the right outcome, and what is
-the simplest complete system to achieve it? Distinguish what we would build
-starting today from the sensible path out of the current system.
+Return a read-only, evidence-backed judgment: is this the right outcome, what
+would we build today, and what practical transition preserves users and data?
+Use root stories, repository/backlog evidence, real behavior, and explicit
+operator constraints. Separate necessities from inherited choices; compare doing
+less, reuse, keeping the system, and replacement. Migration costs and uncertainty
+matter; sunk effort does not justify complexity.
 
-This is read-only judgment, not implementation. Do not change project files,
-backlog records, or deployed state. Isolated experiments may strengthen the
-assessment; they do not authorize shared-state changes.
-
-## Basis for judgment
-
-Use the repository, its root `USER_STORIES.md` when present, the relevant
-backlog, and available product evidence to examine intended users, promised
-outcomes, and actual behavior. Vision, stories, and backlog are claims, not
-proof of necessity. Preserve explicit obligations and
-operator-owned constraints; distinguish them from inherited choices. Missing
-product evidence is an uncertainty, not permission to invent needs.
-
-Reason from behavior, data, invariants, and operating needs rather than the
-current decomposition. Consider product scope, architecture, stack, dependencies,
-and operations together. Remove unnecessary concepts and competing owners instead
-of shifting complexity onto callers, users, or operators. Compare meaningful
-alternatives—including doing less, reusing a capability, or keeping the system.
-Sunk effort is not a benefit; migration, compatibility, and data safety are costs.
-
-
-Exercise System One strategy review (`omp-diff-review --battery strategy`) to evaluate
-complected concerns, deletable surface (erasure), and platform sprawl before proposing
-new structural mechanisms.
-Inspect or exercise evidence that could change a consequential recommendation.
-Consult current primary sources for external technology claims. Distinguish
-observations, inferences, preferences, and unknowns; identify inaccessible or
-unexercised claims. Keeping a sound foundation is a valid conclusion.
-
-This skill is an assessment and repair procedure, not a second policy source.
-Judge against the [constitution](constitution.md), the canonical short
-statement of the foundations every project keeps. Read the canonical
+Judge against the [constitution](constitution.md). Read the canonical
 [Foundation Standard v1](foundation-standard-v1.md) when verification,
-deployment, hosting, data, or product operation could change the
-recommendation. Map only obligations whose applicability predicates are true;
-record uncertainty rather than inventing proof or exemptions. The concise
-[operating pointer](operating-foundations.md) preserves compatibility for existing
-links. Changing the foundations follows the [authoring notes](authoring.md).
+deployment, hosting, data, or operations affects the recommendation. Map only
+applicable predicates and observed proof, not invented obligations/exemptions.
+[authoring.md](authoring.md) owns changes to foundations;
+[operating-foundations.md](operating-foundations.md) preserves existing links.
 
-For enforceable repository checks, use the standalone `foundation-check`
-launcher on the target repository: `foundation-check check`,
-`foundation-check affected --base <rev>`, and
-`foundation-check receipt <path> --base <rev>`. The skill remains a read-only
-assessment, not the validator or an authorization to change the project's
-adoption record.
+```sh
+foundation-check check
+foundation-check affected --base <rev>
+foundation-check receipt <path> --base <rev>
+omp-diff-review --battery strategy
+```
 
-## Complete recommendation
+The validator proves its deterministic claims, not this assessment's product
+judgment. Strategy review informs separation, deletion, and platform sprawl.
+Use primary sources or a focused isolated experiment where it could change a
+consequential recommendation. Missing verification may justify a separately
+commissioned repair via `skill://story-qa/authoring.md`, not hidden implementation.
 
-Deliver a coherent judgment with project-specific evidence: what to preserve,
-remove, simplify, or replace, the alternatives and tradeoffs, backlog implications,
-and a practical transition with its major risks. Identify operator decisions,
-unresolved questions, and the smallest useful evidence that would change the
-recommendation. Choose the presentation for the findings, not a fixed template.
+Explain what to preserve/remove/simplify, credible alternatives, evidence,
+operator decisions, and a coherent transition with its main risks. Distinguish
+observations, inferences, preferences, and unknowns. Choose the presentation for
+the findings; keeping a sound foundation is a valid result.

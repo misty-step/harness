@@ -49,7 +49,7 @@ commands in a portable skill.
 Evidence: `scripts/references.test.ts`,
 `agent-config/skills/test-audit/SKILL.md`,
 `agent-config/skills/test-audit/CAMPAIGN.md`,
-`agent-config/guidance/communication-and-verification.md`,
+`agent-config/guidance/engineering.md`,
 `./scripts/verify all`; working-tree disposable installer smoke for both consumers.
 
 ## US-022 Review work and walk product stories as an agent
@@ -80,7 +80,7 @@ universal receipt format, or scheduler created by installing a skill.
 
 Evidence: `scripts/references.test.ts`,
 `agent-config/skills/story-qa/SKILL.md`,
-`agent-config/guidance/communication-and-verification.md`;
+`agent-config/guidance/engineering.md`;
 disposable Pi and OMP installer smoke.
 
 ## US-045 Open the exact review round from the board
@@ -90,25 +90,24 @@ exact round and keep earlier rounds distinct, so I can review the right page
 without searching folders or exposing private text.
 
 Criteria:
-1. WHEN Pi or OMP composes global guidance, THE SYSTEM SHALL instruct every
-   agent handing Phaedrus work to review to publish each round as its own file
-   under `~/review` and never overwrite a published round.
-2. WHEN an agent registers a review round, THE SYSTEM SHALL direct it to use
-   `glass review publish --item <board item id> --page <file under ~/review>`
-   with one specific page, never a folder.
-3. THE SYSTEM SHALL explain that publishing links the board item to the exact
-   page and marks earlier rounds old.
-4. THE SYSTEM SHALL require agents to keep private text, including pile words,
-   out of review pages and keep R90 data in R90's own tools.
-5. THE SYSTEM SHALL define `~/review` as storage only, with no index pages.
-6. IF the work has no board item yet, THEN THE SYSTEM SHALL instruct the agent
-   to ask Kaylee to add one first, then publish onto it.
+1. WHEN Pi or OMP composes global guidance, THE SYSTEM SHALL route review
+   handoffs to the on-demand `engineering-operations` skill.
+2. WHEN that skill is loaded for a handoff, THE SYSTEM SHALL direct each round
+   to its own file under `~/review` and register one exact page with
+   `glass review publish --item <board item id> --page <file under ~/review>`.
+3. THE SYSTEM SHALL explain that publication links that page on the board and
+   marks earlier rounds old.
+4. THE SYSTEM SHALL keep private context, including pile words, in its owning
+   tools, with R90 data in R90 tools and review pages containing public evidence.
+5. THE SYSTEM SHALL define `~/review` as storage for distinct rounds.
+6. IF the work has no board item, THEN THE SYSTEM SHALL direct the agent to ask
+   Kaylee to add one before registering the review.
 
 No-gos: no private text in review pages, folder links, overwritten rounds, or
 review index pages. The board owns publication and history; this story owns
 the shared instructions.
 
-Evidence: `agent-config/guidance/communication-and-verification.md`,
+Evidence: `agent-config/skills/engineering-operations/review.md`,
 `scripts/verify-installers`; inspect both consumers' composed guidance in
 disposable directories.
 
@@ -120,7 +119,7 @@ means something without rerunning an expensive full suite each time.
 
 Criteria:
 1. WHEN Pi or OMP installs shared skills, THE SYSTEM SHALL provide
-   `check-cadence` and route CI tiering decisions to it from composed guidance.
+   `story-qa/check-cadence.md` and route CI tiering decisions through `story-qa`.
 2. WHEN proposing a check moved off PR, THE SYSTEM SHALL require its independent
    contract, delayed-detection risk, scheduled trigger, owner, and failure
    response; IF those are missing, THEN THE SYSTEM SHALL leave the gate intact.
@@ -133,8 +132,8 @@ No-gos: no implicit deletion of required gates, unapproved recurring spend, or
 CI change to Habitat or Tach in this harness PR.
 
 Evidence: `scripts/references.test.ts`,
-`agent-config/skills/check-cadence/SKILL.md`,
-`agent-config/guidance/communication-and-verification.md`;
+`agent-config/skills/story-qa/check-cadence.md`,
+`agent-config/guidance/engineering.md`;
 disposable Pi and OMP installer smoke.
 
 ## US-024 Enforce repository foundations with required checks
@@ -225,7 +224,7 @@ Criteria:
 
 No-gos: no automatic additional VM or model-credential transfer.
 
-Evidence: `agent-config/guidance/host-resources.md`,
+Evidence: `agent-config/guidance/workstation.md`,
 `omp-config/global/AGENTS.md`
 
 ## US-025 Work in an owned exe.dev project workspace
@@ -257,27 +256,69 @@ Evidence: `agent-config/bin/ws.test.ts`
 
 ## Capability: Session close
 
-## US-004 Close session-owned host resources
+## US-004 Close owned landing work and session resources
 
-Statement: When I finish a session that created worktrees or non-standing VMs,
-I want a check scoped to my own live leases, so unrelated sessions can continue
-and stale resources receive deliberate review.
+Statement: When I close an engineering session, including inherited repository
+work, I want an owner-scoped gate that accepts only landed or explicitly parked
+work, so unfinished changes cannot be called done, unrelated sessions continue,
+and stale resources receive deliberate review. Operator-authorized intent
+extension (2026-09-30): the original lease-only contract now includes landing.
 
 Criteria:
-1. WHEN a local worktree or non-standing exe.dev VM is created in-session,
-   THE SYSTEM SHALL record an owner-scoped lease in the same turn.
-2. WHEN the caller owns live leases, `session-close.ts check` SHALL exit 2;
-   WHEN only foreign leases remain, THE SYSTEM SHALL exit 0 and print them.
-3. WHEN an expired, orphaned, or legacy ownerless lease exists,
-   `session-close.ts review` SHALL list it and exit 3 without deleting it.
-4. IF a lease file is corrupt, THEN `session-close.ts` SHALL exit 1 without
-   treating the store as clean.
-5. WHEN a lease is dropped by target, THE SYSTEM SHALL print its recorded owner.
+1. WHEN repository work begins, THE ENGINEER SHALL run
+   `session-close.ts track [--repo PATH]` before switching branches or deleting
+   worktrees, including inherited worktrees; WHEN `check` runs in Git, THE SYSTEM
+   SHALL auto-track as a safety net and preserve existing parked status.
+2. WHEN a local worktree or non-standing exe.dev VM is created in-session,
+   THE SYSTEM SHALL record an owner-scoped lease in the same turn; `ws up`
+   SHALL lease its task worktree and `ws init` SHALL preserve a standing VM.
+   WHEN expired, orphaned or legacy ownerless leases exist, `review` SHALL list
+   them and exit 3 without deleting resources; expiry SHALL NOT erase owned
+   landing obligations. WHEN a lease is dropped, THE SYSTEM SHALL print its
+   recorded owner. `ws down` SHALL retain its ownership and pulled-evidence gate.
+   WHEN `leases --json` runs, THE SYSTEM SHALL provide read-only introspection
+   with `leases`, `own`, `foreign` and `needsReview`, without Git checks or
+   auto-tracking.
+3. WHEN `check` runs, THE SYSTEM SHALL evaluate all unparked owned landing records
+   after the original worktree disappears, fetch the authoritative origin
+   default, and require clean owned/current checkouts plus a canonical checkout
+   on that fetched default head. Remaining owned linked worktrees, local/origin
+   feature branches, open branch PRs or unmerged HEADs SHALL block.
+   WHEN squash/rebase merge proof is used, THE SYSTEM SHALL require a merged PR
+   whose final HEAD contains the recorded work and whose merge commit is in the
+   fresh default, fetching retained PR refs when needed; direct merge proof
+   SHALL require recorded-HEAD ancestry. WHEN local tips advance, THE SYSTEM
+   SHALL refresh them and retain divergent prior tips as independent obligations,
+   so branch reuse/rewriting cannot erase abandoned work.
+4. WHEN owned deterministic landing facts or live leases remain unresolved,
+   `check` SHALL exit 2; WHEN all owned work is landed or explicitly parked and
+   no other owned live leases block, it SHALL exit 0. Foreign records SHALL be
+   informational and SHALL NOT be mutated or deleted.
+   IF storage is malformed, or unparked work has malformed API data, failed
+   GitHub authentication/commands or an unknown authoritative default, THEN
+   THE SYSTEM SHALL fail closed with exit 1 rather than treating work as landed.
+5. WHEN `park --repo PATH --note TEXT` is used, THE SYSTEM SHALL retain the owned
+   landing records, meaningful resume note and matching owned worktree leases;
+   live non-worktree leases SHALL still block. THE ENGINEER SHALL report
+   **parked/unfinished**, reason, owner, resume steps, retained resources and
+   PR/ticket status, never done. `unpark --repo PATH` SHALL resume the obligation.
+6. WHEN the engineer is about to yield, THE ENGINEER SHALL run `check`. Done
+   SHALL additionally mean
+   merged through green required CI and exact-head model review, deployed to
+   actual targets with production sanity evidence, feature branches deleted,
+   own worktree removed and default canonical checkout clean/up-to-date.
+   THE ENGINEER SHALL update the PR and relevant existing ticket's status,
+   context and evidence using project routing: Habitat where used, Linear for
+   Misty Step/personal work. These judgment facts remain doctrine, not checker
+   assertions.
 
-No-gos: no destruction of unleased or standing VMs; no global scan of other
-sessions' worktrees; no network in the unit check.
+No-gos: no parallel close tool, automatic Git/resource deletion, global cleanup
+of other sessions' worktrees or destruction of unleased/standing VMs; no Habitat
+mandate for projects without it and no invented ticket prerequisite. Unit
+fixtures SHALL avoid live network; the owner-path walk uses real Git/GitHub.
 
-Evidence: `agent-config/skills/session-close/session-close.test.ts`
+Evidence: `agent-config/skills/session-close/session-close.test.ts`,
+`agent-config/skills/session-close/SKILL.md`, `docs/verification.md`.
 
 ## Capability: Semantic Review
 
@@ -418,8 +459,7 @@ Evidence: `agent-config/skills/design-studio/SKILL.md`,
 `agent-config/skills/design-studio/references/media-policy.md`,
 `agent-config/skills/design-studio/references/handoff.md`,
 `agent-config/skills/design-studio/scripts/check_design_md.test.ts`,
-`agent-config/skills/design-studio/scripts/imagine.test.ts`,
-`agent-config/guidance/design-routing.md`
+`agent-config/skills/design-studio/scripts/imagine.test.ts`.
 
 ## US-044 Subtract content before shipping a designed surface
 
@@ -439,8 +479,7 @@ No-gos: no global word budget, automatic judgment of semantic redundancy, or
 hiding required safety, status, or accessibility information to meet a count.
 
 Evidence: `agent-config/skills/design-studio/references/loop.md`,
-`agent-config/skills/design-studio/SKILL.md`,
-`agent-config/guidance/design-routing.md`
+`agent-config/skills/design-studio/SKILL.md`.
 
 ## Capability: Design-surface verification
 
@@ -468,7 +507,7 @@ network from the check itself; API-route and other backend code stays out of
 the scoped surface list.
 
 Evidence: `agent-config/bin/design-check.test.ts`,
-`agent-config/guidance/design-routing.md`,
+`agent-config/skills/visual-state-review/SKILL.md`,
 `docs/adr/002-design-toolkit-trial.md`
 
 ## Capability: Model routing
@@ -619,9 +658,10 @@ limit, so dispatch queues work on the board instead of consuming more usage.
 
 Criteria:
 1. WHEN `omp-roster launch` prepares a ticketed or ticketless engineer, THE
-   SYSTEM SHALL count every Herdr agent whose `agent_status` is `working`
-   across the current session, including other workspaces and the caller,
-   excluding `idle`, `done`, `blocked` and `unknown`.
+   SYSTEM SHALL count every Herdr agent whose `agent` is `omp` and
+   `agent_status` is `working` across the current session, including other
+   workspaces and the caller, excluding other agent kinds (including Kaylee's
+   Hermes window), `idle`, `done`, `blocked` and `unknown`.
 2. WHEN that count is at or above the configured limit, THE SYSTEM SHALL exit
    5, emit one stderr line naming the working engineers (pane id for an unnamed
    engineer) and directing the caller to queue work on the board, leave stdout
@@ -993,16 +1033,14 @@ foundations every project keeps, stated once in a short constitution, so its
 work implements, maintains and improves them without me restating them.
 
 Criteria:
-1. WHEN Pi or OMP installs shared guidance, THE SYSTEM SHALL compose a
-   foundations section that names the constitution as
-   `skill://foundation/constitution.md` and as a path, relative to the
-   deployed `AGENTS.md`, that resolves to the deployed constitution.
+1. WHEN Pi or OMP installs shared guidance, THE SYSTEM SHALL name the
+   constitution as `skill://foundation/constitution.md` and as a path, relative
+   to deployed `AGENTS.md`, that resolves to the deployed constitution.
 2. WHEN Pi or OMP installs shared skills, THE SYSTEM SHALL deploy the
    constitution with the `foundation` skill, and every relative link in that
    package SHALL resolve inside it.
-3. WHEN the composed guidance is deployed, THE SYSTEM SHALL equal the harness
-   intro plus every selected section, including foundations, in the declared
-   order.
+3. WHEN composed guidance is deployed, THE SYSTEM SHALL equal the harness
+   intro plus every selected section in the declared order.
 
 No-gos: no catalog obligations restated in guidance; no authoring
 instructions in the constitution (they live in the skill's authoring notes);
@@ -1128,3 +1166,81 @@ Evidence: `pi-config/extensions/accounts/slots.test.ts`,
 `pi-config/extensions/accounts/pool.test.ts`, `pi-config/docs/adr/026-pool-accounts-behind-one-provider-with-shared-blocks.md`,
 `pi-config/docs/adr/024-extra-accounts-are-cloned-providers-with-pi-owned-logins.md`,
 and the isolated `/login` walk recorded in the PR.
+
+## US-048 Carry lean, useful agent guidance
+
+Statement: When I start engineering work, I want positive principles and local
+facts in a small global prompt, with procedures available on demand, so agents
+spend context on the task rather than repeated rules.
+
+Criteria:
+1. WHEN Pi or OMP composes global guidance, THE SYSTEM SHALL carry positive
+   engineering principles and operational discovery facts; the commissioned
+   OMP subtraction SHALL reduce the 2026-09-30 baseline of 3,907 words to at most
+   800 words, excluding the separately discovered skill index.
+2. WHEN a relevant procedure is needed, THE SYSTEM SHALL provide its commands,
+   paths, credential locations and review/landing facts through on-demand skills
+   or the harness-specific reference, while configuration owns enforced policy.
+3. WHEN an agent builds or changes an agent, THE SYSTEM SHALL provide a short
+   `agent-design` skill with source-linked progressive disclosure, prompt-cache,
+   tool/context, authored-message and positive-guidance facts.
+4. WHEN skills are consolidated, THE SYSTEM SHALL migrate current callers,
+   remove retired owned packages and preserve foreign packages and executable
+   contracts.
+5. WHEN verifying this subtraction, THE ENGINEER SHALL replay the same five
+   authentic recent engineer first turns before and after, report word counts
+   and scope/delivery regressions, and distinguish planning proof from execution.
+
+No-gos: no code/config permission changes or new message templates; Kaylee's
+existing Hermes operating skill remains outside this operator-approved
+harness-only slice.
+
+Evidence: `docs/lean-agent-guidance.md`, `scripts/verify-installers`,
+`agent-config/bin/install.test.ts`; installed OMP/Pi guidance and skill reads.
+
+## US-049 Inspect a pull request's running candidate and agent evidence
+
+Statement: When an agent finishes a unit of work, I want its pull request to
+carry a production-like running preview and the agent's story evidence, so I
+can click through the candidate, see proof for every affected story and what
+was not affected, and approve it before merge.
+
+Criteria:
+1. WHEN a trusted same-repository pull request opens, reopens, or changes head,
+   THE SYSTEM SHALL run that exact head in its own private exe.dev VM using the
+   application's production build and existing privacy-safe QA data.
+2. WHEN an agent posts QA evidence, THE SYSTEM SHALL attach screenshots or video
+   directly to the PR with `gh pr comment --attach`, bind the preview and evidence
+   to the candidate revision, and walk every affected criterion through every
+   adapter it claims; affected verification gaps SHALL block completion until
+   repaired, and untouched stories SHALL be marked not affected.
+3. WHEN the pull request merges or closes without merging, THE SYSTEM SHALL
+   destroy only its owned preview VM while preserving the GitHub-native evidence
+   attached to the PR independently of the VM.
+4. WHEN a pull request receives another head, THE SYSTEM SHALL replace the old
+   preview and SHALL NOT publish obsolete evidence as proof of the new head.
+5. IF a fork pull request appears, THEN THE SYSTEM SHALL skip its preview and
+   post that exception on the PR without changing exe.dev account policy.
+6. WHEN either harness installs shared skills, THE SYSTEM SHALL provide the same
+   small preview lifecycle skill while the application owns its QA seed,
+   production setup, user stories, and verification.
+7. WHEN CI deploys a preview, THE SYSTEM SHALL limit CI to deployment and teardown;
+   the agent SHALL walk affected stories and attach evidence from its own session
+   using its existing GitHub sign-in, without provisioning an upload token in CI.
+   CI SHALL post only the current preview link or an explicit fork exception,
+   keeping deployment machine facts in the controller output.
+
+No-gos: no real customer data unless explicitly approved for the application's
+existing QA; no controller SSH/GitHub credentials in the VM; no accepted affected
+verification gaps; no upload credentials in CI; no VM-hosted evidence or Actions
+artifacts; no changes to account-wide exe.dev integrations.
+
+Evidence and ownership:
+- Shared controller boundary: `agent-config/skills/pr-preview/pr-preview.test.ts`.
+- C2: Habitat PR #641's revision-bound private preview, GitHub-native
+  screenshots/video, and four-adapter walk.
+- C6: isolated Pi/OMP installation and composition through `scripts/check shared`.
+- C1, C3–C5, and C7 event wiring: the separately reviewed application integration
+  in [Habitat PR #692](https://github.com/r90group/habitat/pull/692), not this
+  shared skill alone. The refreshed #641 loop must prove automatic deployment
+  and teardown before end-to-end acceptance.

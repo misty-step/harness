@@ -1,3 +1,27 @@
+# [0.1.79](https://github.com/misty-step/harness/compare/v0.1.78...v0.1.79) (2026-10-01)
+<!-- landmark:protected-release previous=v0.1.78 source=89f5c34bd6d2051d23007ebfa7a75c31245761cec5cac545bee66c06969d1e49 -->
+
+### Features
+
+* **shared:** agent-owned PR previews and native evidence (US-049) (#183) ([6519719](https://github.com/misty-step/harness/commit/65197199971d04aa8e58b71a9116a9050539c1c8))
+# [0.1.78](https://github.com/misty-step/harness/compare/v0.1.77...v0.1.78) (2026-09-30)
+<!-- landmark:protected-release previous=v0.1.77 source=3b1432168b89359a826525319f3a40b7cfe1854ec3e7af3d0d898c24018208e2 -->
+
+### Bug Fixes
+
+* **omp-roster:** count only working OMP engineers (US-047) (#179) ([82d1424](https://github.com/misty-step/harness/commit/82d1424755dd1d73b56712541f405dd3af053719))
+# [0.1.77](https://github.com/misty-step/harness/compare/v0.1.76...v0.1.77) (2026-09-30)
+<!-- landmark:protected-release previous=v0.1.76 source=23dec38646816841755391cda0f6d84821d670e7eff62e3eb4a2fda3c3cc7496 -->
+
+### Features
+
+* **session-close:** require landed or explicitly parked sessions (US-004) (#176) ([0a4696e](https://github.com/misty-step/harness/commit/0a4696e25484c806075c06a89eb58a69184999ce))
+# [0.1.76](https://github.com/misty-step/harness/compare/v0.1.75...v0.1.76) (2026-09-30)
+<!-- landmark:protected-release previous=v0.1.75 source=fc533d19453227ba6df2ad426227f9f18bff6856c66e0ced08e485dbcd3a3628 -->
+
+### Features
+
+* **doctrine:** braver engineers and safe continuous deployment (#174) ([e48d880](https://github.com/misty-step/harness/commit/e48d88069c9331aad89a8121c9b2ff76cc4261d2))
 # [0.1.75](https://github.com/misty-step/harness/compare/v0.1.74...v0.1.75) (2026-09-29)
 <!-- landmark:protected-release previous=v0.1.74 source=6f0aeede4ef884bd678146f673eb8d5d3720107902bb5cec4309feb2df2d831d -->
 

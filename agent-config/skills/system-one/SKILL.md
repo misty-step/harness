@@ -1,76 +1,34 @@
 ---
 name: system-one
-description: Use TypeSafe Jev (System One) for typed decisions.
+description: Use TypeSafe Jev for typed semantic decisions, not prose generation.
 version: 0.2.0
 license: MIT
 ---
 
 # System One
 
-Jev returns typed probabilities. It does not generate text, trees, or plans.
-Code owns control flow, arithmetic, credentials, and side effects.
+Jev supplies typed probabilities. Code owns deterministic rules, arithmetic,
+control flow, credentials, and side effects. Use it for a semantic judgment
+that code cannot express, or to replace classify-and-parse generation; candidate
+messages, trees, and plans are authored elsewhere.
 
-Live TypeSafe docs are the API source of truth. Do not copy endpoint shapes
-from memory. Start at https://docs.typesafe.ai/llms.txt and read only the
-pages this task needs (append `.md` to docs paths).
+Live API source: https://docs.typesafe.ai/llms.txt. Follow only relevant primitive
+and cookbook pages (append `.md` to doc paths); unreachable docs are a missing
+prerequisite, not a reason to invent request fields.
 
-## When to Use
+Name the software outcome and what stays deterministic. Before writing criteria,
+read [references/questions.md](references/questions.md). Give each independent
+judgment one question, batch independent questions against the same state, and
+keep complete meaning in `instructions` rather than IDs. Put questions together;
+weights and thresholds belong in code.
 
-- A feature needs a semantic judgment code cannot express (route, rank, verify, select).
-- An LLM classify-and-parse step can become a typed decision.
-- Brainstorming where Jev could replace slow generation.
-- Changing OpenRouter or TypeSafe Jev calls in this fleet.
+Reuse deployed wiring; [references/fleet.md](references/fleet.md) holds auth,
+model, and harness/Hermes differences. Choice/Score confidence is distribution
+uncertainty, not workflow correctness; Noul has no confidence field. Low
+confidence needs an explicit fallback, not a pretend middle score.
 
-Don't use for: writing prose; counting, dates, or money math; Hermes tool
-permission gates; generating UI trees or patches.
-
-## Procedure
-
-1. **Name the judgment, not the HTTP call.** What will software show, select,
-   change, or hand off? Keep known rules in code.
-   Done when: one sentence for the job, plus what stays deterministic.
-
-2. **Read current docs for this task.** Fetch the docs index, then the
-   primitive and cookbook pages that match. If docs are unreachable, say so
-   and do not invent request fields.
-   Done when: the pages you will follow are named.
-
-3. **Write questions.** One snap judgment per question. Pick Choice, Score, or
-   Noul by the answer shape. Put complete meaning in `instructions` (IDs are
-   for code only). Include an escape option on Choice. Ask every independent
-   question in one request, including speculative ones. A second request is
-   only when the first answer is required to fetch evidence or build options.
-   Read [references/questions.md](references/questions.md) before writing
-   criteria. Keep questions in one file; keep weights and thresholds in code
-   beside them.
-   Done when: that file exists and every question is independently answerable
-   from the state.
-
-4. **Call through existing wiring.** Do not paste a new fetch client.
-   Auth, model pin, Hermes vs harness policy:
-   [references/fleet.md](references/fleet.md).
-   Done when: the call uses OpenRouter or the deployed engine.
-
-5. **Compose answers in code.** Thresholds and weights are yours. Low
-   confidence is "I don't know", not a medium score. Noul has no confidence
-   field. Unused speculative answers stay unused.
-   Done when: every branch has an explicit fallback if the call fails or
-   confidence is low.
-
-6. **Verify on real state.** One live call, elapsed time recorded, timeout
-   path exercised without a blank screen or a blocked Hermes tool. Tune
-   thresholds on our data, not cookbook defaults.
-   Done when: success path and fail-open path both ran.
-
-## Pitfalls
-
-- Asking Jev to generate, plan, or emit a tree. Select from candidates code already built.
-- One question per HTTP call. Batch.
-- Snapshotting API fields from this skill. Docs win.
-- Treating Jev as a Hermes `pre_tool_call` veto. Advisory only there.
-- Copying TypeSafe cookbook thresholds into production.
-
-## Verification
-
-A default path exists if Jev is down. Answers are logged with id, type, value,
-and confidence when present. Docs pages used are named in the change.
+Exercise a live decision on real state and its timeout/low-confidence path,
+record elapsed time, and tune thresholds against our cases. Retain a usable
+default when Jev is down; a Hermes advisory judgment never becomes a tool veto.
+Report the docs used and observed answers (`id`, type, value, confidence where
+present), without secrets in state.

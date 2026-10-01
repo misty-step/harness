@@ -34,6 +34,9 @@ owned directory. Remove only that directory once its process has ended.
   routes (US-021–US-023), and rejects missing or out-of-package skill references,
   including legacy backticked `references/` paths. Regression fixtures reproduce
   the original defect and package escapes.
+  Existing Markdown links in the foundation skill and operating pointer are
+  checked for resolvable targets (US-024); this does not prove their wording,
+  that a removed link survives, or semantic subordination to the standard.
   This is a CI guard, not a live installer preflight or general Markdown/network
   crawler: external web availability, anchors, native `skill://` discovery, and
   arbitrary prose/code paths need semantic review.
@@ -51,10 +54,46 @@ owned directory. Remove only that directory once its process has ended.
   results, and scanner errors fail closed without printing candidate secrets.
 - Existing shared, pi and OMP suites exercise component logic.
 - `agent-config/skills/session-close/session-close.test.ts` exercises scoped lease
-  ownership and stale/corrupt review (US-004); `agent-config/bin/ws.test.ts`
-  uses real disposable Git repositories and a fake SSH lobby/VM to exercise
-  snapshots, command input, leases, and evidence-gated teardown (US-025).
+  ownership and stale/corrupt review (US-004). The existing close gate also owns
+  deterministic landing verification: persistent owned branch/HEAD records,
+  fetched origin-default merge proof, live origin/GitHub branch/PR facts,
+  checkout cleanliness and owned worktree teardown. Its exit 0 means landed or
+  explicitly parked, not independently verified deployment, review or ticket
+  completion. Unparked GitHub auth, command and malformed-API failures fail
+  closed, as does corrupt storage. Parked facts remain unverified.
+  `leases --json` remains read-only lease introspection for `ws`, with
+  no Git checks or auto-tracking. `agent-config/bin/ws.test.ts` uses real
+  disposable Git repositories and a fake SSH lobby/VM to exercise snapshots,
+  command input, leases and evidence-gated teardown (US-025).
   These checks do not provision a live VM or prove live CDP/browser readiness.
+
+  US-004 owner-path verification uses the installed `session-close.ts`, the
+  same owner identity/store throughout, and a real task PR:
+  1. At the beginning, `track --repo PATH` the owned checkout (including an
+     inherited worktree); create-time lease any newly created worktree/VM.
+     Introduce a controlled Git-visible dirty change and run installed `check`;
+     observe exit 2 and the dirty blocker. Resolve only that controlled change,
+     preserving other owners' evidence.
+  2. Obtain exact-head model review (Sonnet 5.5 high `agent-review` for this
+     harness change), green required CI and a real PR merge. Deploy the merged
+     revision through both Pi/OMP installers for shared changes, restart and
+     exercise the affected installed path. Record revision, target and observed
+     production sanity result in the PR and relevant existing routed ticket
+     (Habitat where used; Misty Step remains Linear).
+  3. Delete only the owned merged local/origin branch, remove only the owned
+     worktree without force and resolve its lease after evidence inspection;
+     preserve `ws pull` before evidence-gated `ws down`. Leave the canonical
+     checkout clean on the freshly fetched origin default head. Foreign dirt
+     is a blocker to coordinate with its owner, never permission to erase it.
+  4. Run installed `check` from the canonical checkout after the original
+     worktree is gone; observe exit 0 and **landed** records, not parked records.
+     Record installed script path, owner, revision, commands, exit codes and
+     redacted output. A `park --repo PATH --note TEXT` pass is explicitly
+     **unfinished**, with reason/owner/resume steps and retained-resource
+     status; it is not evidence of this successful landing walk.
+
+  Update affected documentation as part of the landing. Root Landmark release
+  automation owns `CHANGELOG.md`; do not manually edit it.
 - `agent-config/bin/openrouter-key.test.ts` builds real Git checkouts and a
   linked worktree to exercise R90 versus personal selection, damaged Git
   metadata, invalid-token failure with a usable personal key present, bounded
@@ -165,7 +204,7 @@ requires agents to adversarially review their own work and, for user-facing
 changes, manually walk affected request and story criteria through the actual
 end-user surface before calling the work done. Docs-only and internal changes
 get proportionate owner-path checks; recurring runs rotate broader curated
-walks. The [`check-cadence` skill](../agent-config/skills/check-cadence/SKILL.md)
+walks. Its [check-cadence reference](../agent-config/skills/story-qa/check-cadence.md)
 tiers repository checks by measured cost and delayed-detection risk: PR feedback
 should take minutes; expensive matrices belong to owned nightly or weekly
 runs with notification and on-demand execution. This guidance does not install

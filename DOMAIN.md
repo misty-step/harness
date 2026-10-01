@@ -37,6 +37,14 @@ and agent rules in [AGENTS.md](AGENTS.md).
   the dated list of gaps that ratchet mode tolerates until each expires.
 - **Designated agent reviewer:** the GitHub App whose approval alone admits a
   repository's first stories or a baseline extension (ADR-003).
+- **Landing record:** owner-bound repository, canonical checkout, branch and
+  last observed HEAD, stored separately from leases and retained after worktree
+  removal so merge/teardown obligations cannot disappear with the resource.
+- **Landed session:** owned work merged, deployed and sanity-checked with
+  PR/ticket evidence, feature branches/worktrees removed, and the canonical
+  checkout clean on the fetched origin default head.
+- **Parked session:** explicitly unfinished owned work retained with a meaningful
+  reason, owner and resume steps; parking permits close but never means done.
 
 ## Owns and delegates
 
@@ -79,6 +87,17 @@ the Foundation Standard tooling. It does not own:
   required `verify` in `.github/workflows/ci.yml`, its configuration/replay
   regression in `scripts/protected-release.test.ts`, and GitHub ruleset
   23779166's strict required-status-check policy with no bypass actors.
+- **INV-011** Sessions close only landed or explicitly parked with a resume note
+  (US-004). Deterministic owned Git/GitHub facts and live lease obligations are
+  enforced by `agent-config/skills/session-close/session-close.ts check`, with
+  regression coverage in
+  `agent-config/skills/session-close/session-close.test.ts`. Corrupt storage and
+  unparked auth/command failures fail closed; parked facts remain unverified.
+  Foreign resources are informational and never cleanup targets.
+  `unenforced`: exact-head model review, green required CI, deployment
+  to actual targets, production sanity and PR/relevant-ticket evidence remain
+  engineer judgment under `agent-config/skills/session-close/SKILL.md`. Parking is
+  reported as unfinished and does not waive live non-worktree leases.
 
 ## Code map
 

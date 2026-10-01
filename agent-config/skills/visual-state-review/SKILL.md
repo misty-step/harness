@@ -1,58 +1,36 @@
 ---
 name: visual-state-review
-description: Capture and review every named UI state as screenshots.
+description: Capture and inspect named UI states with the existing manifest/gallery tools.
 disable-model-invocation: true
-argument-hint: "[optional app, route, or run dir]"
+argument-hint: "[app, route, or run dir]"
 ---
 
 # Visual state review
 
-The class of error: shipping frontend work after one happy-path screenshot,
-or none. A CSS test is not visual proof. A missing state is unverified.
-
-The mechanism is a **named-state matrix**. Write the state list first. Capture
-every state. Organise the shots. Look at them. [scripts/gallery.py](scripts/gallery.py)
-`--check` fails closed when a declared captured state has no image.
-
-This authors the matrix and the review. It does not authorize a pixel-diff CI
-product, a new browser stack, or committing PNGs to Git.
-
-## Enumerate, then capture
-
-Name the states that exist, not the ones that look good. Start from routes,
-stories, and the change under test. Include idle, loading, empty, error,
-success, compact and fullscreen or equivalent layout modes, both themes when
-the product has them, and labeled scroll positions when content overflows.
-Record skipped states with a reason. Silent omission is a hole.
-
-Write `manifest.json` from [templates/manifest.json](templates/manifest.json)
-before the first screenshot. Then put the UI into each state and capture it
-with whatever renderer the product already has (Playwright, Chromium, a
-desktop bridge, a QML replay). Do not invent a second capture stack when one
-exists. Large matrices belong on an approved exe.dev VM per host-resources
-guidance, not unbounded on the workstation.
-
-Replay and screenshots verify appearance. They do not prove backend operations
-occurred. Say so in `notes` and `limitations`.
-
-## Organise and look
-
-Keep PNG artifacts out of Git. Default run directory:
-
-`~/.cache/visual-states/<project>/<run-id>/`
+Write the affected state list before capturing: routes/stories, loading, empty,
+error, success, layout widths/modes, themes, and labeled scroll positions where
+they exist. Record skipped states and why; a missing state is unverified.
+Use [templates/manifest.json](templates/manifest.json) and the product's existing
+renderer. Default artifacts: `~/.cache/visual-states/<project>/<run-id>/`, outside Git.
 
 ```sh
 python3 path/to/scripts/gallery.py manifest.json --check
 python3 path/to/scripts/gallery.py manifest.json --out index.html
 ```
 
-Open `index.html` (`file://` is enough). A human and an agent both look at the
-pictures. Pixel-identical is not visual-OK: clipped type, inverted contrast,
-overlay, empty panels, and wrong state still fail. Record findings on the
-manifest and re-capture after a fix. `--check` exit 0 is necessary and not
-sufficient.
+The bundled [gallery.py](scripts/gallery.py) checks captured-state image presence.
+Open `index.html` and look: clipped type, contrast, overlays, empty panels,
+overflow, and wrong state can fail even pixel-identical shots. Record findings
+in the manifest and recapture fixes. Exit 0 is not a visual verdict.
 
-## Residual class
+For changed player/design surfaces, including direct copy/color/size fixes, run
+`bun ~/.local/bin/design-check <surface-paths>` (from the harness source:
+`bun agent-config/bin/design-check.ts <surface-paths>`). It finds dash characters,
+engineering vocabulary and placeholders; route findings by file/line.
+Run axe-core on captured states and `npx impeccable detect <file>` when its
+supported Hermes skill is installed. Screenshots do not clear copy checks.
 
-States you never named never appear. Do not compensate with a single extra
-screenshot of "the app". Expand the matrix, then capture.
+Screenshots prove appearance, not backend operations. Keep those limits in
+`notes`/`limitations`; `skill://story-qa` proves user outcomes. Large matrices
+follow `skill://engineering-operations/workstation.md`. Unnamed states remain
+invisible to the gallery: repair the matrix rather than adding one generic shot.

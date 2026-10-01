@@ -57,12 +57,16 @@
 
 ## Ship continuously
 
-- **Green on the main branch goes to production for every tenant, with no hand step.**
-  The gate is strong enough to ship at 5pm on a Friday. Each tenant's
-  migrations run first and stay compatible with the running code. An excluded
-  tenant is named with a reason. After every deploy, each tenant's version is
-  read back.
-- **When a release goes wrong we roll it back first and investigate second, and we have practised the rollback.**
+- **Every app ships continuously: merge to main deploys everywhere, with no human release step.**
+  Small, independently shippable slices pass rigorous verification in a
+  production-like QA environment with representative, privacy-safe
+  production-like data, where agents walk every user story.
+  Each tenant's migrations run first and stay compatible with the running code,
+  every deployed tenant's version is read back, and any excluded tenant is named
+  with a reason.
+- **A bad release rolls back automatically; investigate after recovery, and practise the rollback.**
+  Release health checks trigger rollback to the last healthy version without
+  losing accepted writes or requiring destructive data restoration.
   A recorded rollback drill proves the way back works.
 
 ## Watch it run, and learn from every failure

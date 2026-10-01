@@ -1,111 +1,51 @@
 # The design loop
 
-The operational sequence behind `design-studio`. Each step names its artifact and its
-exit condition. Scale the counts per the table in SKILL.md; never skip critique,
-recombination, or rendered QA.
+Scale concept/candidate counts to the scope table in [SKILL.md](../SKILL.md).
+The loop ends with a defensible, buildable direction, not a pile of images.
 
-## 1. Intake — what job, for whom, what exists
+## Ground and diverge
 
-Collect from user stories, the live product, screenshots, repo components/tokens, analytics,
-constraints, and prior explorations. Write a one-paragraph brief plus a plain list of locked
-requirements, explicitly labeled.
+Read stories, live behavior, existing components/tokens, constraints, and prior
+explorations. Name the job, audience, locked requirements, and uncertainties.
+Study relevant real products through [references.md](references.md), extracting
+principles and their limits rather than copying their pixels.
 
-- Exit: primary user job, audience, constraints, and the surface archetype candidates are named.
-- Missing fidelity-critical context: ask focused questions (see SKILL.md "Principal touchpoints").
-- Never guess locked requirements. If the brief is silent, record your assumption.
+Map distinct navigation/content models and the primary journey's success/failure
+exits before skinning them. Name each concept and its surface archetype, stance,
+and structural/behavioral divergence. Use generated software mockups only where
+they buy useful breadth; diagrams plus a compact composition can suffice.
+Record boards with [templates/concept-board.md](../templates/concept-board.md).
 
-## 2. Reference study — steal principles, not pixels
+## Critique and recombine
 
-Pick 2-4 anchors relevant to the job from the reference library
-([references.md](references.md)) and study them against the brief. For each: what principle it
-demonstrates, where that principle applies here, where it does not, and its limits.
+Compare concepts against the user's job: what each optimizes, sacrifices, wins
+for, and fails on. Identify surviving structure and graftable pieces; a model
+vote or taste score is not a recommendation. [rubric.md](rubric.md) supplies axes.
 
-- Exit: each concept direction can cite at least one principle instead of "it looks nice".
+Build a synthesis, not merely a winning label. Record where navigation, density,
+type, and motion decisions came from and why rejected directions lost.
 
-## 3. IA and journey maps — structure before skin
+## Build, refine, subtract
 
-For each of the 1-3 most plausible directions: map navigation/content model and the primary
-journey (entry → core action → success/failure exits). Text and diagrams only — no images.
+Make finalists usable in HTML/CSS or the product stack, with realistic labeled
+content, primary interaction, meaningful state transition, keyboard access,
+responsive layout, and reduced-motion behavior. Use per-concept
+`skill://frontend-design` craft; keep one bold move and supporting elements quiet.
 
-- Exit: at least one structurally distinct IA per finalist direction; differences are nameable.
+Revise against critique and preserve the before/after. Further exploration earns
+its place only with new evidence or a named decision. For each refined screen,
+list visible elements; keep task/status/safety/accessibility information and cut
+the rest. Show subtraction before/after, including how moved information remains
+reachable. A safe no-cut result needs a reason.
 
-## 4. Divergent boards — six concepts, cheap and named
+## Handoff and QA
 
-Generate the full concept set (default 6 for major work). Each concept: a name, a one-line
-stance, its surface archetype, and how it diverges (multiple rubric dimensions, including
-structure or behavior). Cheap breadth lives here:
+Write the spec, semantic tokens, states, motion, copy, accessibility constraints,
+implementation mapping, and validation plan via [handoff.md](handoff.md).
+Tokens alone are not product design.
 
-- A generated software-interface mockup per concept where useful (see media-policy) — it may
-  propose IA, layout, typography, and exact labels; the rendered build must verify them.
-- Or a structural diagram plus a compact visual composition when image generation is not useful.
-- Concept notes go in [templates/concept-board.md](../templates/concept-board.md).
-
-- Exit: the set spans conservative → evolutionary → radical, with optional labeled wildcard;
-  no two concepts are the same structure with different paint.
-
-## 5. Comparative critique — what each idea costs
-
-Critique every concept against the primary user job, not against taste alone. For each:
-what it optimizes, what it sacrifices, which user it wins for, and what would have to be
-true for it to win. Use the critique format in [rubric.md](rubric.md). No numeric
-"taste scores"; no model-vote winner.
-
-- Exit: a ranked shortlist with named survivors, and a list of good pieces worth keeping.
-
-## 6. Recombine — synthesis beats selection
-
-Build the synthesis: keep the structure that best serves the job, graft the strongest
-pieces (navigation idea, density approach, typography move, motion moment) from the others.
-Record what came from where in the lineage section of each concept README.
-
-- Exit: one synthesized direction, with lineage, ready to build for real.
-
-## 7. Clickable finalists — real HTML, real behavior
-
-Build the finalists as real artifacts: single-file HTML/CSS or the product's actual stack,
-realistic labeled sample content, working interactions (primary action, one state
-transition, hover affordances), keyboard reachable, responsive, reduced-motion respected.
-
-- Exit: each finalist can be opened and used; broken states fixed before showing anyone.
-
-## 8. Refine — iterate against critique
-
-Take the strongest finalist through a real revision pass driven by the critique (not a
-restyle). Preserve the pre-revision version for the before/after record.
-
-- Before/after is required evidence: what the critique said, what changed, what it fixed.
-- Further rounds: only with new evidence or a named open decision.
-
-## 9. Subtract — one final screen-by-screen pass
-
-For each screen of the refined direction, list every visible element. Keep
-what serves the primary task or provides required status, safety, or
-accessibility; cut everything else. If nothing can safely go, say why.
-Show that screen before and after, then check that the task and required
-information still work. If information moved, show how to reach it.
-
-- Exit: each screen has its element list, cuts (or no-cut reason), and before/after.
-
-## 10. Decision capture — the spec
-
-Write or update the handoff artifacts: DESIGN.md-compatible spec, semantic tokens,
-states, motion, copy patterns, a11y constraints, implementation mapping, validation
-plan, and the subtraction decisions. See [handoff.md](handoff.md). Tokens alone do
-not stand in for product design.
-
-## 11. Rendered QA — every named state
-
-Run `skill://visual-state-review`: enumerate states, capture each, look at each. Desktop and
-mobile widths. Focus/keyboard pass, contrast, overflow, empty/error/loading where the surface
-has them, reduced-motion behavior. Generated images are never QA evidence.
-
-## 12. Feedback — close the loop
-
-Record findings, limitations, and what a next round would test. Update the lineage. Hand off
-to implementation with the spec; keep the exploration artifacts (they are the rationale).
-
-## Lineage and rejection records
-
-Every concept README keeps: stance, dimensions of divergence, critique verdict, and — if
-rejected — the reason. Rejected options are deliverables of the process. Never delete them
-to make the outcome look inevitable.
+Use `skill://visual-state-review` for named states: desktop/mobile widths,
+keyboard/focus, contrast, overflow, empty/error/loading, and reduced motion where
+applicable. Generated images remain proposals, not interaction evidence.
+Keep concept lineage, rejection reasons, findings, and honest limits with the
+spec so the next iteration can understand the decision.

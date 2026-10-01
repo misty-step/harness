@@ -105,20 +105,24 @@ describe("omp-roster launch (US-046)", () => {
 		const usage = put(join(dir, "usage.json"), JSON.stringify(usageView([row("anthropic", "sonnet", "usable")])));
 		const working = Array.from({ length: 9 }, (_, index) => ({
 			name: index === 0 ? null : `engineer-${index + 1}`,
-			pane_id: `w${index + 1}:p1`, workspace_id: `w${index + 1}`, agent_status: "working",
+			pane_id: `w${index + 1}:p1`, workspace_id: `w${index + 1}`, agent: "omp", agent_status: "working",
 		}));
-		const settled = ["idle", "done", "blocked", "unknown"].map((agent_status) => ({ name: agent_status, pane_id: "w0:p1", agent_status }));
+		const settled = ["idle", "done", "blocked", "unknown"].map((agent_status) => ({ agent: "omp", name: agent_status, pane_id: "w0:p1", agent_status }));
+		const nonEngineers = [
+			{ agent: "hermes", name: null, pane_id: "w54:p1", cwd: "/home/phaedrus", agent_status: "working" },
+			{ agent: "claude", name: "named-non-engineer", pane_id: "w55:p1", agent_status: "working" },
+		];
 		const args = ["launch", "--item", "K-test", "--ticket-json", ticket, "--usage-json", usage, "--json"];
 		const env = { HERDR_TEST_AGENTS: agentsFile };
 		for (const [limit, count] of [[8, 8], [8, 9], [2, 2]]) {
-			put(agentsFile, JSON.stringify({ result: { agents: [...working.slice(0, count), ...settled] } }));
+			put(agentsFile, JSON.stringify({ result: { agents: [...working.slice(0, count), ...settled, ...nonEngineers] } }));
 			const state = join(dir, `refused-${limit}-${count}`);
 			const refused = invoke([...args, "--state-dir", state], { ...env, ...(limit === 8 ? {} : { OMP_ROSTER_ENGINEER_LIMIT: String(limit) }) });
 			expect([refused.exitCode, refused.stdout]).toEqual([5, ""]);
 			expect(refused.stderr).toBe(`omp-roster: working-engineer limit reached (${count}/${limit}); working: ${working.slice(0, count).map((agent) => agent.name ?? agent.pane_id).join(", ")}; queue work on the board.\n`);
 			expect(existsSync(state)).toBe(false);
 		}
-		put(agentsFile, JSON.stringify({ result: { agents: [...working.slice(0, 7), ...settled] } }));
+		put(agentsFile, JSON.stringify({ result: { agents: [...working.slice(0, 7), ...settled, ...nonEngineers] } }));
 		const state = join(dir, "admitted");
 		const admitted = invoke([...args, "--state-dir", state], env);
 		expect([admitted.exitCode, admitted.stderr]).toEqual([0, ""]);
@@ -134,14 +138,14 @@ describe("omp-roster launch (US-046)", () => {
 			expect([refused.exitCode, refused.stdout]).toEqual([1, ""]);
 			expect(refused.stderr).toContain("OMP_ROSTER_ENGINEER_LIMIT must be a positive safe integer.");
 		}
-		for (const doc of ["not JSON", "{}", '{"result":{"agents":[{"agent_status":"new-status"}]}}', '{"result":{"agents":[{"agent_status":"working"}]}}']) {
+		for (const doc of ["not JSON", "{}", '{"result":{"agents":[{"agent":"omp","agent_status":"new-status"}]}}', '{"result":{"agents":[{"agent":"omp","agent_status":"working"}]}}']) {
 			put(agents, doc);
 			const refused = invoke(args, { HERDR_TEST_AGENTS: agents });
 			expect([refused.exitCode, refused.stdout]).toEqual([1, ""]);
 			expect(refused.stderr).toContain("Cannot read the Herdr agents:");
 			expect(refused.stderr.trim().split("\n")).toHaveLength(1);
 		}
-		put(agents, JSON.stringify({ result: { agents: Array.from({ length: 8 }, (_, i) => ({ name: `engineer-${i + 1}`, agent_status: "working" })) } }));
+		put(agents, JSON.stringify({ result: { agents: Array.from({ length: 8 }, (_, i) => ({ agent: "omp", name: `engineer-${i + 1}`, agent_status: "working" })) } }));
 		const full = invoke(args, { HERDR_TEST_AGENTS: agents });
 		expect([full.exitCode, full.stdout]).toEqual([5, ""]);
 		expect(existsSync(state)).toBe(false);
