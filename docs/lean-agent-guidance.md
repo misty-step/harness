@@ -121,7 +121,7 @@ Non-obvious Cloudflare/exe.dev facts use distinct short homebrew packages; redun
 visual manuals and templates are deleted. The PR records measured reduction and
 actual composition/native evidence, not a new process ledger.
 
-Against the original task baseline `6057c72`, all shared skill Markdown falls from
+At PR #194, against the original task baseline `6057c72`, shared skill Markdown fell from
 2,420 lines / 133,433 characters to 783 / 39,940: **1,637 lines and 93,493
 characters removed (70.1%)**. The final total includes the newly adopted upstream
 TypeSafe skill (10,036 characters); the rest is 29,904 characters. No vendor
@@ -133,3 +133,8 @@ compacted, exited and resumed; the phase persisted and the resumed engineer read
 `todo view` and recovered both clauses. RPC's in-memory `set_todos` is not the
 durable mechanism. [Ranked gate recommendations](unearned-gates.md) retain the
 actual safety proof and identify each repository owner.
+
+The vetted correction preserves whole-product reproduction, exact-head private
+exe.dev previews and compatible automatic rollback on failed health, keeping
+accepted writes. Kaylee owns orchestration; subtraction does not weaken these
+approved outcomes. Retired session-close/sachstand references are removed.
