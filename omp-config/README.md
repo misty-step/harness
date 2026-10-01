@@ -112,7 +112,7 @@ idle/lingering populated cages at their full limits, measures uncaged engineers
 and mixed legacy groups, and uses the 20-GiB `MemAvailable` scale-up floor.
 Memory capacity is advisory: below the 20-GiB floor or above the potential
 36-GiB fleet guideline, launch continues with warnings in stderr and roster
-launch JSON. Glass receives an idempotent advisory item; a missing/busy Glass
+launch JSON. Glass receives an advisory item; a missing/busy Glass
 never denies startup. Explicit cage refresh raises the active parent to infinity
 without restarting its scopes. Per-leaf containment and oomd exclusion remain mandatory.
 Native arguments, cwd, environment, stdio and exit status are preserved.

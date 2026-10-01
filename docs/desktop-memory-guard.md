@@ -26,7 +26,7 @@ natural exit. The separate diagnostic-subtraction change removes this bookkeepin
 Memory capacity is advisory, per Phaedrus's decision: below the 20-GiB available
 memory guideline or above the potential 36-GiB fleet guideline, warn and launch
 anyway. Warnings appear on stderr and in `omp-roster launch --json`; Glass gets
-an idempotent advisory item. Missing/busy publication never blocks startup.
+an advisory item. Missing/busy publication never blocks startup.
 The owned parent has `MemoryMax=infinity`; actual per-engineer 4-GiB, zero-swap,
 group-OOM controls and live oomd exclusion remain mandatory containment.
 Explicit `engineer-cage` refresh raises an existing populated parent in place

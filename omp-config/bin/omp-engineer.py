@@ -343,7 +343,7 @@ def publish_memory_warnings(result):
     # Publication is advisory too: a missing/busy Glass must never deny startup.
     try:
         receipt = subprocess.run(
-            ["glass", "item", "add", "--origin", "omp:memory-advisory",
+            ["glass", "item", "add",
              "--scope", "misty-step/harness", "--kind", "task", "--status", "later",
              "--relaying", "none",
              "--title", "OMP launches continue despite memory guidance",
@@ -355,6 +355,8 @@ def publish_memory_warnings(result):
             stdin=subprocess.DEVNULL, capture_output=True, timeout=1, check=False)
         if receipt.returncode:
             print("omp-engineer: Glass warning publication failed: " + receipt.stderr.decode(errors="replace").strip(), file=sys.stderr)
+        else:
+            print("omp-engineer: memory warning published in Glass", file=sys.stderr)
     except (OSError, subprocess.TimeoutExpired) as exc:
         print("omp-engineer: Glass warning publication failed: " + str(exc), file=sys.stderr)
 
