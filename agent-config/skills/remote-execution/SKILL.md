@@ -11,6 +11,6 @@ description: Use exe.dev SSH destinations and project workspaces without confusi
 VM disks persist; `https://VM.exe.xyz/` provides TLS and account-policy auth.
 
 Prefer the project's `ws` commands for heavy execution, snapshots and teardown.
-Lease non-standing VMs with `session-close` when created. Do not delete a standing
-or foreign VM. For a first connection, verify the provider host-key fingerprint;
+Do not delete a standing or foreign VM. For a first connection, verify the
+provider host-key fingerprint;
 never mistake an unseen host-key prompt for a hung job.

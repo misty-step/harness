@@ -30,5 +30,5 @@ The [memory runbook](https://github.com/misty-step/harness/blob/master/docs/desk
 owns activation; staging files does not activate it.
 
 Audio plays into silent `agent-sandbox`; default `pw-record`/`parecord` captures
-its monitor. Deliver audio as a file; `sachstand` is the explicit playback path.
+its monitor. Deliver audio as a file for the operator to play.
 Keep routing env intact. Reuse existing checkouts; stop only owned processes.
