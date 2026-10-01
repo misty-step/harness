@@ -31,24 +31,20 @@ contract defended at its useful owner boundary, so refactoring does not produce
 redundant tests or lose independent regression coverage.
 
 Criteria:
-1. WHEN Pi or OMP selects shared skills, THE SYSTEM SHALL provide the same
-   `test-audit` authoring, focused-audit, and optional campaign instructions.
-2. WHEN an agent writes or changes a test, THE SYSTEM SHALL direct it to name
-   the independent contract, plausible failure, existing owner, and any
-   test-only production seam before adding coverage.
-3. WHEN an agent proposes deleting or consolidating a test, THE SYSTEM SHALL
-   require evidence of what it detects, remaining proof or lack of contract,
-   relevant history, and a focused validation path before editing.
-4. IF a whole-subsystem campaign is commissioned, THEN THE SYSTEM SHALL require
-   a baseline, per-declaration ledger, keeper plan, and preservation review;
-   OTHERWISE it SHALL keep the audit within the requested scope.
+1. WHEN Pi or OMP selects engineering skills, THE SYSTEM SHALL provide concise
+   `test-audit` guidance for preserving independent consumer contracts.
+2. WHEN adding coverage, THE SYSTEM SHALL direct the engineer to name the real
+   failure and inspect existing proof at its owner boundary.
+3. WHEN pruning coverage, THE SYSTEM SHALL preserve valuable assertions and
+   exercise affected paths; history is needed only for concrete uncertainty.
+4. IF a subsystem audit is commissioned, THEN THE SYSTEM SHALL group work by
+   contract without a per-test ledger; OTHERWISE it SHALL keep the original scope.
 
 No-gos: no automatic portfolio sweep, model gate, or OpenClaw-specific runner
 commands in a portable skill.
 
 Evidence: `scripts/references.test.ts`,
 `agent-config/skills/test-audit/SKILL.md`,
-`agent-config/skills/test-audit/CAMPAIGN.md`,
 `agent-config/guidance/engineering.md`,
 `./scripts/verify all`; working-tree disposable installer smoke for both consumers.
 
@@ -88,6 +84,8 @@ disposable Pi and OMP installer smoke.
 Statement: When an agent hands me work to review, I want the board to open that
 exact round and keep earlier rounds distinct, so I can review the right page
 without searching folders or exposing private text.
+Retired: 2026-10-01 — Phaedrus assigns review publication and choreography to
+Kaylee's harness, not engineering guidance.
 
 Criteria:
 1. WHEN Pi or OMP composes global guidance, THE SYSTEM SHALL route review
@@ -107,9 +105,8 @@ No-gos: no private text in review pages, folder links, overwritten rounds, or
 review index pages. The board owns publication and history; this story owns
 the shared instructions.
 
-Evidence: `agent-config/skills/engineering-operations/review.md`,
-`scripts/verify-installers`; inspect both consumers' composed guidance in
-disposable directories.
+Evidence: `agent-config/review/README.md`; retained as maintainer-only procedure,
+not installed engineering guidance.
 
 ## US-023 Keep verification cadence useful
 
@@ -422,18 +419,12 @@ production UI code is written, so I can commit to a direction on evidence
 instead of the first plausible mockup.
 
 Criteria:
-1. WHEN a task has real design surface (a new surface, a reimagining, a flow
-   change, or focused component or motion work), THE SYSTEM SHALL run the
-   `skill://design-studio` loop before production UI code is written.
-2. WHEN a concept set is produced, THE SYSTEM SHALL name every concept with a
-   surface archetype and a one-sentence divergence claim and SHALL never
-   present two concepts that are the same structure with different paint. WHEN
-   the set holds three or more concepts, THE SYSTEM SHALL span conservative,
-   evolutionary, and radical possibilities.
-3. WHEN concepts are critiqued, THE SYSTEM SHALL judge each against the primary
-   user job rather than taste alone, record what it optimizes, sacrifices, wins
-   for, and offers to keep, and recombine the strong pieces into one synthesized
-   direction before refinement.
+1. WHEN designing a changed surface, THE SYSTEM SHALL provide `design-studio`
+   craft and non-obvious tool knowledge without mandatory exploration rounds.
+2. WHEN alternatives are useful, THE SYSTEM SHALL distinguish structure or
+   behaviour rather than present recolours as different concepts.
+3. WHEN choosing a direction, THE SYSTEM SHALL judge it against the user's job,
+   not a numeric taste score or a model-vote winner.
 4. WHEN generated mockups are used, THE SYSTEM SHALL present them as visual
    proposals for early IA, navigation and content-model, layout, typography,
    hierarchy, component and content-hierarchy composition, and visual language
@@ -441,9 +432,8 @@ Criteria:
    SHALL verify exact copy, behavior, and accessibility on rendered HTML/CSS
    with named-state QA (`skill://visual-state-review`); generated images SHALL
    never count as proof of UX, accessibility, or behavior.
-5. WHEN exploration closes, THE SYSTEM SHALL hand off a DESIGN.md-compatible
-   spec validated by the design-md CLI or the bundled structural fallback, and
-   SHALL keep rejected options with their reasons in the lineage.
+5. WHEN design decisions need a durable home, THE SYSTEM SHALL use the product's
+   existing DESIGN.md rather than add handoff or provenance templates.
 6. WHEN the bundled image adapter runs a batch, THE SYSTEM SHALL enforce the
    exploratory cost cap against caller-supplied price evidence; IF the price is
    unknown or non-finite, THEN THE SYSTEM SHALL fail closed before any spend.
@@ -454,10 +444,6 @@ without new evidence or a named open decision; no committed screenshots or
 binary artifacts; no secrets or sensitive product data in prompts or artifacts.
 
 Evidence: `agent-config/skills/design-studio/SKILL.md`,
-`agent-config/skills/design-studio/references/loop.md`,
-`agent-config/skills/design-studio/references/rubric.md`,
-`agent-config/skills/design-studio/references/media-policy.md`,
-`agent-config/skills/design-studio/references/handoff.md`,
 `agent-config/skills/design-studio/scripts/check_design_md.test.ts`,
 `agent-config/skills/design-studio/scripts/imagine.test.ts`.
 
@@ -468,18 +454,15 @@ challenged and unnecessary content removed, so I can see simpler screens
 without losing the primary task or required information.
 
 Criteria:
-1. WHEN a design direction is refined, THE SYSTEM SHALL list every visible
-   element on each screen, cut elements that serve neither the primary task
-   nor required information, and say why if nothing can safely be cut.
-2. WHEN subtraction is claimed complete, THE SYSTEM SHALL show each affected
-   screen before and after and demonstrate that the primary task and required
-   information remain reachable.
+1. WHEN refining a design, THE SYSTEM SHALL remove elements that serve neither
+   the primary task nor required information.
+2. WHEN claiming subtraction complete, THE SYSTEM SHALL inspect the affected
+   rendered state and ensure the task and required information remain reachable.
 
 No-gos: no global word budget, automatic judgment of semantic redundancy, or
 hiding required safety, status, or accessibility information to meet a count.
 
-Evidence: `agent-config/skills/design-studio/references/loop.md`,
-`agent-config/skills/design-studio/SKILL.md`.
+Evidence: `agent-config/skills/design-studio/SKILL.md`.
 
 ## Capability: Design-surface verification
 

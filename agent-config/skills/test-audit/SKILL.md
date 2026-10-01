@@ -8,34 +8,15 @@ description: Write, change, review, or prune tests while preserving independent 
 Adapted from [OpenClaw test-audit](https://github.com/openclaw/openclaw/blob/80930af448ebabc84174146b56bc106d37fab3b4/.agents/skills/test-audit/SKILL.md);
 [LICENSE](LICENSE) preserves its MIT notice.
 
-Give each contract one primary proof at its strongest useful owner boundary.
-Another layer needs a distinct risk. Whole-subsystem commissions use
-[CAMPAIGN.md](CAMPAIGN.md); ordinary edits stay focused.
+Give each real consumer contract one primary proof at its owner boundary.
+Another layer needs a distinct failure. Before adding/deleting, inspect that
+boundary and existing proof; use history only to resolve concrete uncertainty.
 
-Name the consumer-visible regression and gap in existing proof before adding a
-test. Extend a keeper instead of replaying its path. Exercise production
-boundaries; delete obsolete test-only seams. For bugs, show the intended pre-fix
-failure where practical, then the repaired result.
+Delete wording/source pins, copied inventories, mock echoes, tautologies and
+duplicate layers. Preserve independently expected access, data, migration,
+package and protocol contracts, regardless of test shape. Negative cases must
+reach the guard; behavior on the real path beats paperwork.
 
-Delete implementation/wording pins, copied inventories, source greps, mock echoes,
-supplied receipts/order, bare not-throw/nonempty checks, tautologies, and duplicate
-same-contract layers. Negative controls must reach their claimed guard.
-
-Preserve independently expected API, protocol, configuration, migration, storage,
-security, platform, release, package, architecture, and artifact contracts.
-Snapshots, fixtures, mocks, static checks, or exact public bytes can prove them.
-Judge the failure detected, not test shape, runtime, or coverage count.
-
-Before deletion, read the complete candidate, owner/callers, history, overlap,
-relevant dependencies, and CI route. Identify its actual failure, production seam
-users, remaining keeper or absent contract, risk, and focused proof. Keep uncertain
-candidates. Repair baseline product failures rather than pruning symptoms.
-
-Move valuable assertions first, then remove redundant tests/support in owner
-batches. Preserve genuine access/security boundaries. Run owner checks and
-distinct consumer paths; report removals, retained false positives, production
-simplification, observed evidence, and limits. `skill://story-qa` owns real-path proof.
-
-Harness fact: `./scripts/verify [selection]` reads working unit files but checks
-installers from committed HEAD. Exercise a changed source installer separately
-in a disposable destination; reuse applicable evidence between handoffs.
+Run affected checks and the actual consumer. Report deletions and remaining risk
+in the existing PR, not a per-test ledger. Harness installer verification reads
+committed HEAD; smoke working-source composition in a disposable destination.

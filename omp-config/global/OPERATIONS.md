@@ -1,6 +1,6 @@
 # OMP operating facts
 
-Load this reference for OMP-specific routing, trackers or host administration.
+Load this reference for OMP tool configuration, ticket access or host privileges.
 The installed copy lives beside global `AGENTS.md`, under `omp config path`.
 
 ## Models and accounts
@@ -8,10 +8,8 @@ The installed copy lives beside global `AGENTS.md`, under `omp config path`.
 `config.yml`, `models.yml` and `omp-model-policy` own model selectors, recovery
 chains and role enforcement. `omp usage` reports current native account capacity;
 the configured account policy includes the eligible r90.dev Anthropic and Codex
-accounts. A route label and available capacity are different facts. Ordinary task
-children resolve their own configured model/thinking; inspect the result badge.
-Tagged model choices and explicit thinking remain caller choices. An installed
-binary update takes effect in fresh processes, including its model catalog.
+accounts. A route label and available capacity are different facts. Binary/catalog
+updates take effect in fresh processes.
 
 For image questions, `read <image>?q=<question>` invokes the configured vision
 role; `designer` owns design work.
@@ -37,8 +35,7 @@ pass-env run -e TOKEN=workstation/LINEAR_API_KEY -- sh -c '
 A read-only auth check is `{ viewer { name } teams { nodes { key } } }`.
 Existing issue branches use `phaedrus/mis-<number>-<slug>` and conventional
 commits include `(MIS-xx)`; otherwise use a descriptive branch. `Fixes` means the
-merge satisfies the issue; partial work uses `Refs` or `Relates to`. Update one
-`### Agent Execution Scratchpad` comment with current evidence and blockers.
+merge satisfies the issue; partial work uses `Refs` or `Relates to`.
 
 ## Host administration
 

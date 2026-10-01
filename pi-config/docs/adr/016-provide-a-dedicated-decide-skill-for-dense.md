@@ -3,10 +3,9 @@
 Accepted 2026-09-15.
 
 Package ownership superseded 2026-09-30 by [lean shared guidance](../../../docs/lean-agent-guidance.md)
-(US-048). Material decision briefs now live in the shared
-`sachstand/decisions.md` reference; the historical `/skill:decide` entrypoint is
-retired. The original rationale below records the earlier design, not a current
-installer target.
+(US-048). Generic decision prose was subsequently removed in the 2026-10-01
+code-red cut; `sachstand` retains only the optional speech path. The historical
+`/skill:decide` entrypoint is retired.
 
 When an operator asks an agent to "help me make a high
 quality decision here," the agent frequently defaults to conversational filler,

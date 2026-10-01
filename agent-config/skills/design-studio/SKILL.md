@@ -1,54 +1,46 @@
 ---
 name: design-studio
-description: "Use when exploring UI/UX design before committing to code: divergent concepts, comparative critique, refinement, spec handoff."
-version: 1.1.0
+description: "Use when designing, building or reshaping UI: visual taste, interface copy, generated mockups and DESIGN.md."
 author: Misty Step harness
 license: MIT
-platforms: [linux, macos]
-metadata:
-  hermes:
-    tags: [design, ux, ui, exploration, concepts, critique, iteration, handoff, tokens, motion, ia]
-    related_skills: [sketch, claude-design, frontend-design, design-md, popular-web-designs, visual-state-review, user-stories]
 ---
 
 # Design studio
 
-Explore UI/UX before production code: structurally distinct concepts, comparative
-critique, recombination, refinement, subtraction, then a buildable handoff.
-Use for new/reimagined surfaces, flow changes, and component/motion work.
-One-line copy/color/spacing changes can go directly to implementation.
+Draw distinctiveness from the subject's own materials, vernacular and audience;
+the brief's explicit direction always wins. On a free axis, skip the
+generated-UI defaults catalogued by
+[Anthropic's frontend-design](https://github.com/anthropics/skills/tree/main/skills/frontend-design):
+cream ≈#F4F1EA with serif display and terracotta ≈#D97757 (Claude's own
+accent); near-black with one acid-green or vermilion accent; hairline
+broadsheet columns at zero radius; identical rounded cards with one radius,
+rgba(0,0,0,.1) shadows and gradient washes; big-number heroes; tracked ALL-CAPS
+eyebrows, `A · B · C` meta, `WORD — fragment` labels, #111 for black, mono
+micro-labels, `→` on links; one accented word per headline; 01/02/03 on
+non-sequences; fade-up on every section and hover motion on every card.
 
-Start from the actual user job, product evidence, and locked constraints. Concepts
-differ in organization or behavior as well as visual language, not just skins.
-Compare conservative, evolutionary, and radical directions; recommend with
-evidence rather than numeric taste scores. Keep rejected options and reasons.
+Spend boldness on one element, keep the rest quiet, then remove one accessory.
+Alternatives differ in structure or behavior; a recolor is not a concept. Copy
+uses the user's words (notifications, not webhook config); an action keeps its
+name through the flow (Publish, then Published); errors say what happened and
+how to fix it, without apology. Draw brand marks at 16px first, check light,
+dark and browser-tab backgrounds, and ship the optical small variant.
 
-| Scope | Named concepts | Clickable candidates |
-| --- | --- | --- |
-| Major surface/reimagining | 6, at least 3 structurally distinct | 3 |
-| Feature/flow | 3, at least 2 structurally distinct | 2 |
-| Focused component/motion | 2–3, clear axis per variant | 1–2 |
+`npx @google/design.md lint` validates DESIGN.md; the bundled fallback
+`scripts/check_design_md.py` checks structure only, not schema or WCAG contrast.
+Inspect rendered states with `skill://visual-state-review`.
 
-One divergence round plus recombination is normally enough. Another round needs
-new evidence or a named open question. Show before/after of refinement and the
-final subtraction; preserve the user's task and required information.
+## Generated mockups
 
-Load focused detail:
-- [references/loop.md](references/loop.md): exploration and lineage.
-- [references/rubric.md](references/rubric.md): archetypes and meaningful divergence.
-- [references/references.md](references/references.md): dated primary reference anchors.
-- [references/media-policy.md](references/media-policy.md): image-provider evidence,
-  provenance, pricing, and bundled adapter. Raster proposals are not UX proof.
-- [references/handoff.md](references/handoff.md): spec, validators, and local quality checks.
+Raster mockups buy cheap breadth in layout, hierarchy, type and visual
+language; they never prove UX, accessibility or behavior. Rebuild promising
+pieces in the real stack and check labels, cloned rows, invented data and
+contrast. Prompts leave the machine: no secrets, private product data, real
+people's likenesses or brand logos. Keep generated media outside Git.
 
-Build finalists on real HTML/CSS or the product stack. `skill://frontend-design`
-owns per-concept craft; `skill://visual-state-review` owns captured rendered
-states. Optional host-profile skills (`sketch`, `claude-design`, `design-md`,
-`popular-web-designs`) may be absent on fresh Pi/OMP installs; this package's
-rubric/references and minimal validator keep the loop usable.
-
-Ask for a consequential taste choice with visible options, tradeoffs, and a
-recommendation, not a questionnaire. Exploration proposes; it does not silently
-change locked intent or live products. Keep binary artifacts out of Git and distinguish
-generated mockups from actual screenshots in
-[templates/evidence-manifest.json](templates/evidence-manifest.json).
+Dated evidence (2026-09-19, 34 samples, 11 models): `openai/gpt-5.4-image-2`
+(≈$0.14/image) and GPT-image-2 via Codex led, Grok Imagine 2.0 was strong,
+`google/gemini-3-pro-image` best kept exact strings and edits, and
+`bytedance-seed/seedream-5-0-pro` corrupted required labels. Re-check IDs and
+prices before use. `scripts/imagine.py` generates xAI mockups under a price cap
+(usage in its docstring); `scripts/contact_sheet.py` lays a run out side by side.

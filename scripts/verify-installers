@@ -43,6 +43,10 @@ for consumer in pi omp; do
     mkdir -p "$home/.local/bin"
     printf 'foreign native executable sentinel\n' > "$work/expected-native"
     cp "$work/expected-native" "$home/.local/bin/omp"
+    for skill in herdr pr-preview sachstand session-close; do
+      mkdir -p "$agent/skills/$skill"
+      printf 'old owned management skill\n' > "$agent/skills/$skill/SKILL.md"
+    done
   fi
   if env -i PATH="$PATH" HOME="$home" TMPDIR="$work" \
     PI_CODING_AGENT_DIR="$agent" OMP_DEVELOPMENT_ROOT="$home/development" \
@@ -91,9 +95,17 @@ for consumer in pi omp; do
   rm -f "$home/dirty.html"
   check "$consumer foundation-check bytes" cmp -s "$work/source/agent-config/bin/foundation-check.ts" "$home/.local/bin/foundation-check"
   check "$consumer foundation-check executable" test -x "$home/.local/bin/foundation-check"
-  check "$consumer agent-review bytes" cmp -s "$work/source/agent-config/bin/agent-review.ts" "$home/.local/bin/agent-review"
-  check "$consumer agent-review executable" test -x "$home/.local/bin/agent-review"
-  check "$consumer agent-review runs" sh -c "bun '$home/.local/bin/agent-review' --help 2>&1 | grep -q 'usage: agent-review'"
+  if [ "$consumer" = pi ]; then
+    check "$consumer agent-review bytes" cmp -s "$work/source/agent-config/bin/agent-review.ts" "$home/.local/bin/agent-review"
+    check "$consumer agent-review executable" test -x "$home/.local/bin/agent-review"
+    check "$consumer agent-review runs" sh -c "bun '$home/.local/bin/agent-review' --help 2>&1 | grep -q 'usage: agent-review'"
+  else
+    check "omp does not install review launcher" test ! -e "$home/.local/bin/agent-review"
+    for skill in herdr pr-preview sachstand session-close; do
+      check "omp retires $skill" test ! -e "$agent/skills/$skill"
+    done
+    check "omp omits review gate template" test ! -e "$agent/skills/foundation/foundation-review.yml"
+  fi
   # The deployed checker must resolve the catalog and story checker from the
   # installed skills, then fail closed on a repository with no adoption record.
   git init --quiet "$home/bare-repo"

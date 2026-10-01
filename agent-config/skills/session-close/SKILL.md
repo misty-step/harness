@@ -5,75 +5,31 @@ description: Close owned landing work and resource leases as landed or explicitl
 
 # Session close
 
-Close only your session's work: **landed** or explicitly **parked/unfinished**.
-The checker proves deterministic Git/GitHub and lease facts, not deployment,
-production correctness, ticket completion, or a globally clean workstation.
-
-## Track and lease
-
-Register each responsible repository, including inherited worktrees, before
-editing, switching branches, or deleting resources:
+The colocated `session-close.ts` records only owned landing work/resources. It
+does not prove product behavior, deployment or a globally clean workstation.
 
 ```sh
-bun /absolute/skill/dir/session-close.ts track [--repo /absolute/worktree]
+bun /absolute/skill/session-close.ts track --repo /worktree
+bun /absolute/skill/session-close.ts add --kind worktree --target /new/worktree
+bun /absolute/skill/session-close.ts add --kind exe.dev --target VM.exe.xyz
+bun /absolute/skill/session-close.ts check --repo /worktree --json
+bun /absolute/skill/session-close.ts park --repo /worktree --note "Reason; owner; resume steps"
+bun /absolute/skill/session-close.ts unpark --repo /worktree
+bun /absolute/skill/session-close.ts leases --json
+bun /absolute/skill/session-close.ts drop --target /finished/resource
 ```
+Track inherited repos before editing/branch changes; lease resources on creation.
+`ws up` leases its worktree; standing VMs are not session leases. State is under
+`~/.cache/tmp/omp-session-leases`; owner defaults to process identity.
+Park preserves owned worktree leases, not live VM leases; tracking does not unpark.
 
-Landing records survive removal of the original worktree. `check` auto-enrolls
-the current repository as a safety net, not a replacement for early tracking.
-In the same turn as creating a local worktree or non-standing VM:
+At the requested stopping point, land through normal review/CI or explicitly park
+with owner/resume steps. Do not merge or deploy past a user PR-only stop.
+Harness Landmark owns changelogs. Full shared deployment uses both consumers'
+installers, preserving foreign state; actual loading needs native observation.
 
-```sh
-bun /absolute/skill/dir/session-close.ts add --kind worktree --target /absolute/path
-bun /absolute/skill/dir/session-close.ts add --kind exe.dev --target vm.exe.xyz
-```
-
-`ws up` automatically leases remote task worktrees; `ws init`'s standing project
-VM is not a session lease. The store is `~/.cache/tmp/omp-session-leases`;
-`landings/` records are separate from leases. Owner identity is
-`pid:<pid>:<starttime>`; `SESSION_CLOSE_OWNER` overrides it for non-agent callers.
-Leases default to 48 hours (`--expires-hours N`); `--lease-dir` isolates a store.
-
-## Land and observe
-
-Merge the exact reviewed head through required green CI and the normal path in
-`skill://engineering-operations/review.md`. Deploy to actual targets and observe
-production sanity. Update the PR and relevant existing ticket with revision,
-status, context, and evidence; use the project's existing tracker, without
-inventing a ticket. Update owning docs. Harness Landmark automation owns
-`CHANGELOG.md`, not hand edits.
-
-For shared harness changes, install through both `pi-config/install` and
-`omp-config/install`. Pi defaults to `~/.pi/agent`; OMP uses `omp config path`
-unless `PI_CODING_AGENT_DIR` is set. Shared launchers go to `~/.local/bin`; respect
-OMP's declared scope/host targets and foreign state. Restart affected consumers
-and observe loading: file presence or installer tests alone do not prove it.
-
-Inspect branch changes, untracked/ignored artifacts, and evidence. Remove only
-finished owned worktrees without `--force`; delete merged local/origin feature
-branches. Leave the canonical checkout clean on the fetched origin default head.
-Keep standing VMs and foreign or uncertain resources. For remote tasks, pull
-evidence before `ws down`; it refuses unpulled/changed evidence.
-
-## Check or park
-
-```sh
-bun /absolute/skill/dir/session-close.ts check [--repo /absolute/canonical] [--json]
-bun /absolute/skill/dir/session-close.ts leases --json
-bun /absolute/skill/dir/session-close.ts review
-bun /absolute/skill/dir/session-close.ts park --repo /absolute/repo --note "Reason; owner; resume steps"
-bun /absolute/skill/dir/session-close.ts unpark --repo /absolute/repo
-bun /absolute/skill/dir/session-close.ts drop --target /absolute/path-or-vm
-```
-
-Check before yielding. It checks owned landing records even when their original
-worktrees are gone; GitHub errors fail closed for unparked work. `leases` is
-read-only introspection, without Git checks or auto-tracking. `review` identifies
-expired, orphaned, and legacy ownerless leases for manual judgment; expiry never
-erases landing obligations.
-
-Parking records a meaningful resume note and preserves matching owned worktree
-leases, not live VM leases. Report unfinished scope, owner, resume steps,
-PR/ticket state, retained resources, and unavailable facts. `unpark` explicitly
-resumes; later auto-tracking does not. `--repo` may be another extant checkout of
-the same common Git repository. Drop a lease only after inspecting owned state
-and removing its resource or recording standing ownership, never to hide work.
+Remove only finished owned resources, never `--force` or uncertain work. Pull
+remote evidence before `ws down`. `review` lists stale/orphaned leases; expiry
+never authorizes deletion. Drop records only after removal or standing-ownership
+confirmation. Check before yielding; an open PR can be parked without pretending
+it landed.

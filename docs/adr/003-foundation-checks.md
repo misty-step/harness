@@ -121,7 +121,7 @@ effect with the catalog and checker change that cites ADR-006.
   the first drill showed an escalated PR authored under the operator's account
   could never pass when only that account's approval counted).
 - **Gate.** `foundation-check review --pr N` runs as the `foundation-review`
-  workflow (template: `agent-config/skills/foundation/foundation-review.yml`)
+  workflow (template now maintained at `agent-config/review/foundation-review.yml`)
   on `pull_request_target`, so the base branch's copy of the gate judges every PR
   and a PR cannot replace it. The job checks out only the base branch and fetches
   the PR's commits as git objects, so none of the PR's files are checked out or

@@ -18,10 +18,10 @@ harness repo. When in doubt, leave it in the harness.
 | --- | --- |
 | `install` | The single deploy contract: skills, guidance, launchers, and the audio sandbox |
 | `skills/` | Portable skill packages, clean-replaced when selected |
-| `skills/test-audit/` | Shared authoring gate and focused test audit; subsystem campaign is opt-in (US-021) |
-| `skills/story-qa/` | Curated user-story walks by agents on the real product surface (US-022) |
-| `skills/story-qa/check-cadence.md` | Risk-based PR/nightly/weekly check selection without losing owned gates (US-023) |
-| `skills/pr-preview/` | Exact-head private exe.dev PR lifecycle and revision-bound story evidence; application-owned `.exe/preview` |
+| `skills/test-audit/` | Concise independent consumer-proof guidance, no per-test ledger |
+| `skills/story-qa/` | Short real-path proof and check-cadence guidance |
+| `skills/pr-preview/` | Legacy preview controller source; not selected by OMP engineering |
+| `review/` | Undeployed review choreography/template, owned by Kaylee rather than engineers |
 | `guidance/*.md` | Shared global-guidance sections, spliced at the harness marker |
 | `bin/pass-env.ts` | Standalone pass-backed environment launcher |
 | `bin/openrouter-key.ts` | Shared OMP/Pi key resolver: R90 checkout or Git-common-dir gets the R90 pass entry; other directories use `--personal` (US-028) |
@@ -68,8 +68,8 @@ fixes any verification gaps, marks untouched scope not affected, and posts
 revision-bound screenshots/video with its existing signed-in GitHub CLI
 2.101 `gh pr comment --attach`. No upload token goes into CI; no Actions
 artifacts or preview-hosted evidence. Merge/close destroys only the owned VM,
-not the durable native PR assets. Agents author the rationale. Both installers'
-existing `--skill all` selection deploys this package without routing changes.
+not the durable native PR assets. Agents author the rationale.
+Pi retains this controller package; OMP engineering no longer selects it.
 
 The operator-approved boundary is trusted same-repo PRs on every target;
 forks get explicit no-execution exception facts. Controller GitHub/SSH/model
@@ -213,7 +213,7 @@ CodeRabbit is advisory. The 2026-09-30 uniform policy removes human approval and
 server-required CI merge gates across all three owners without changing plans
 or granting repository exemptions; model review, green checks and real-flow
 proof remain the agent's merge procedure (ADR-003 amendment). Copy
-[`skills/foundation/foundation-review.yml`](skills/foundation/foundation-review.yml)
+[`review/foundation-review.yml`](review/foundation-review.yml)
 into a repository's workflows and pin the same harness revision as its
 `foundation` job. It runs on `pull_request_target`, so the base branch's copy of
 the gate judges each PR; after any review action the reviewer toggles a label to
@@ -309,26 +309,25 @@ the insertion marker:
 `./install` replaces that line with the selected sections, in the order given,
 and leaves the rest of the harness file — its title, intro, and vehicle-specific
 sections — untouched. The marker is required; its absence aborts the deploy.
-Shared guidance sections may reference shared primitives and vehicles deployed across both harnesses, such as `skill://using-exe-dev`.
+Shared guidance references only knowledge selected by both engineering consumers.
 
 ## What each harness selects
 
 | Harness | Skills | Guidance | Launcher | Audio sandbox |
 | --- | --- | --- | --- | --- |
 | `pi-config` | all | engineering, workstation | `pass-env`, `design-check`, `foundation-check`, `ws` | component `audio-sandbox` |
-| `omp-config` | all | engineering, workstation | `pass-env`, `design-check`, `foundation-check`, `ws` | component `audio-sandbox` |
+| `omp-config` | explicit engineering selection | engineering, workstation | `pass-env`, `openrouter-key`, `design-check`, `foundation-check`, `ws` | component `audio-sandbox` |
 
 OMP's intro carries its routing/tracker discovery facts; its `OPERATIONS.md`
 holds on-demand details. Pi's file is title and intro. Component `AGENTS.md`
 files are maintainer instructions, separate from these generated globals.
 
-`test-audit` owns independent test contracts. `story-qa` owns actual affected
-journeys, check cadence and repairs to a missing runnable path. The short
-`engineering-operations` skill owns kickoff, resources, durable handoffs and
-review/landing procedures. `agent-design` carries post-training agent-system
-facts. `sachstand` owns status and decision briefs; `pokayoke` retains the
-incident template. Skills load at their relevant decision, rather than adding
-their procedures to every session.
+OMP carries craft only: quality code, product intent, foundations, actual consumer
+proof and non-obvious tooling facts. Dispatch, fleet management, review
+choreography and approval gates belong to Kaylee; neither the shared engineering
+page nor OMP's selected skills prescribes them. Review docs/template remain
+maintainer-only in `review/`; the OMP installer does not install `agent-review`.
+Existing access/data-safety code and the normative catalog remain unchanged.
 
 The installer retires `agent-ergonomics`, `capture`, `decide`, `check-cadence`
 and `verification-infrastructure` after migrating their useful content.
@@ -352,12 +351,9 @@ clients, not the agent skill; no SDK dependency is needed for this adoption.
 
 ## Semantic-quality source candidate
 
-The semantic-quality files are not selected by either installer. Candidate skills
-stay outside `skills/`, because both consumers currently select every directory there.
-They remain a
-source candidate until a separate rollout completes repository pilots and fresh-process
-Hermes verification. The engine uses fixed Choice questions through OpenRouter
-Decisions. Its findings remain advisory, and deterministic exits stay authoritative.
+Semantic-quality files remain undeployed source candidates, outside the
+engineering skill selection. Typed findings advise; deterministic product
+contracts own actual failures.
 
 See [the build, pilot, and rollback guide](../docs/semantic-quality.md).
 
