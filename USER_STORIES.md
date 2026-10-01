@@ -1216,6 +1216,8 @@ Criteria:
 7. WHEN CI deploys a preview, THE SYSTEM SHALL limit CI to deployment and teardown;
    the agent SHALL walk affected stories and attach evidence from its own session
    using its existing GitHub sign-in, without provisioning an upload token in CI.
+   CI SHALL post only the current preview link or an explicit fork exception,
+   keeping deployment machine facts in the controller output.
 
 No-gos: no real customer data unless explicitly approved for the application's
 existing QA; no controller SSH/GitHub credentials in the VM; no accepted affected
