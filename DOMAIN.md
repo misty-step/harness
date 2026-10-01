@@ -100,6 +100,17 @@ the Foundation Standard tooling. It does not own:
   to actual targets, production sanity and PR/relevant-ticket evidence remain
   engineer judgment under `agent-config/skills/session-close/SKILL.md`. Parking is
   reported as unfinished and does not waive live non-worktree leases.
+- **INV-012** Activated OMP engineer starts are admitted under one launch lock
+  and enter a verified 4-GiB/zero-swap/group-OOM leaf before native execution.
+  Live cgroups, not launcher PIDs or environment markers, own reservations;
+  measured uncaged memory remains visible during natural-restart migration.
+  Enforced by `omp-config/bin/omp-engineer.py`, with admission/transition
+  coverage in `omp-config/bin/test_omp_engineer.py`. Native Herdr/Glass visibility,
+  terminal recovery and actual low-headroom refusal require the recorded live
+  rollout walk in addition to these isolated tests.
+  Explicit layout activation also requires the installed Workbench updater's
+  versioned capability before writes (`omp-config/install`,
+  `scripts/verify-installers`; MIS-203).
 
 ## Code map
 

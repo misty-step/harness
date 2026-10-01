@@ -40,12 +40,14 @@ bounds, because a bounded client does not contain the daemon.
 Use a run-scoped `TMPDIR` under `~/.cache/tmp` and clean it on exit. `/tmp` is
 RAM-backed tmpfs on this workstation.
 
-The managed Herdr server and restored panes inherit a bounded user-service
-hierarchy outside `app.slice`. Staged guard files are not activation. The
-operator-owned [desktop-memory runbook](https://github.com/misty-step/harness/blob/master/docs/desktop-memory-guard.md)
-owns fleet cutover; restarting the fleet or changing limits is not part of
-ordinary execution. Bounds do not make a broad search safe or determine an OOM
-victim.
+The operator-owned [desktop-memory runbook](https://github.com/misty-step/harness/blob/master/docs/desktop-memory-guard.md)
+owns activation. The rolling OMP cage uses the stable `omp` entrypoint for new,
+direct and resumed engineers; existing engineers remain in their old cgroups
+until natural exit. Do not bypass it through the retained native ELF or restart
+Herdr/working engineers to migrate them. Whole-Herdr service containment is a
+separate disruptive option, not the rolling path. Staging files is not
+activation. Bounds do not make broad searches safe; external daemons need their
+own containment.
 
 ## Audio and ownership
 

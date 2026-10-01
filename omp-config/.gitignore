@@ -25,6 +25,8 @@
 !/extensions/**
 !/bin/
 !/bin/**
+!/units/
+!/units/**
 
 # Telemetry tooling (repo-local, not deployed)
 !references/

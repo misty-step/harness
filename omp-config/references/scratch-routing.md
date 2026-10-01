@@ -133,7 +133,7 @@ Rejected candidates:
 
 | Candidate | Verdict |
 | --- | --- |
-| `omp`/`omx` command | `~/.local/bin/omp` is a 250 MB compiled binary, not a script; shimming it fights upstream updates, and it covers exactly the same process set as the session wrapper because `omp` is started from the session. |
+| `omp`/`omx` command | Not the scratch owner: it covers the same session-inherited environment. The separately approved engineer cage now retains the native ELF behind an owned `omp` entrypoint; only mutating `omp update` gets an updater-local native PATH. This containment boundary preserves caller `TMPDIR` rather than creating another scratch lifecycle. |
 | `devrun` admission shim (§A4) | Covers only jobs routed through it, and does not exist yet. Routing must not depend on admission landing. `devrun` must instead **compose** with this (below), because systemd boundaries drop the caller's environment. |
 | Agent session environment *only* (the `~/.bashrc`/`~/.profile` export) | Correct locus, wrong object: a shared directory with no lifecycle (§2). Replace the object, keep the locus. |
 | Per-repo config / per-repo `AGENTS.md` | 63 files, drifts, and cannot survive a killed worker (report §B2, §B3, §6). |

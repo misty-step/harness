@@ -278,12 +278,88 @@ install_audio_sandbox() {
   run_shared --audio-sandbox
 }
 
+validate_cli() {
+  require_bun
+  require_nonempty "$repo_dir/bin/omp-grievances.ts"
+  require_nonempty "$repo_dir/bin/omp-roster.ts"
+  require_nonempty "$repo_dir/bin/omp-engineer.py"
+  command -v python3 >/dev/null 2>&1 || { echo "python3 is required" >&2; exit 1; }
+  python3 -c 'import sys; compile(open(sys.argv[1]).read(), sys.argv[1], "exec")' "$repo_dir/bin/omp-engineer.py"
+  target="$HOME/.local/bin/omp-engineer"
+  if [ -e "$target" ] || [ -L "$target" ]; then
+    [ ! -L "$target" ] && python3 -c 'import sys; f = open(sys.argv[1]); sys.exit(f.readline() + f.readline() != "#!/usr/bin/env python3\n# owned by misty-step/harness omp-config engineer-cage\n")' "$target" || {
+      echo "Refusing foreign omp-engineer entrypoint" >&2; exit 1;
+    }
+  fi
+}
+
+validate_engineer_cage() {
+  validate_cli
+  # Reject a layout cutover before writes when its installed updater has not
+  # accepted this versioned contract. The query is inert in Workbench.
+  updater="$HOME/.local/bin/workbench-host-update"
+  if [ -e "$updater" ] || [ -L "$updater" ]; then
+    if ! layouts=$(timeout 5 "$updater" omp-install-layouts) ||
+      ! printf '%s\n' "$layouts" | jq -e \
+        '.schema_version == 1 and (.layouts | type == "array") and (.layouts | index("harness-engineer-cage-v1") != null)' >/dev/null; then
+      echo "Workbench does not support harness-engineer-cage-v1; upgrade its host-update release before activation" >&2
+      exit 1
+    fi
+  fi
+  require_nonempty "$repo_dir/units/omp.slice"
+  for tool in systemctl systemd-run oomctl; do
+    command -v "$tool" >/dev/null 2>&1 || { echo "$tool is required" >&2; exit 1; }
+  done
+  entry="$HOME/.local/bin/omp"
+  native="$HOME/.local/lib/omp-engineer/omp"
+  if [ -L "$entry" ]; then
+    [ "$(readlink "$entry")" = omp-engineer ] && [ -x "$native" ] || {
+      echo "Refusing foreign omp symlink or missing retained native binary" >&2; exit 1;
+    }
+  else
+    [ -f "$entry" ] && [ -x "$entry" ] && [ ! -e "$native" ] || {
+      echo "Expected an executable native omp and an unused native destination" >&2; exit 1;
+    }
+    [ "$(od -An -tx1 -N4 "$entry" | tr -d ' \n')" = 7f454c46 ] || {
+      echo "Refusing to replace a non-ELF omp entrypoint" >&2; exit 1;
+    }
+    case "$("$entry" --version)" in
+      omp/[0-9]*) ;;
+      *) echo "Refusing an unrecognised native omp binary" >&2; exit 1 ;;
+    esac
+  fi
+  unit="$HOME/.config/systemd/user/omp.slice"
+  if [ -e "$unit" ] || [ -L "$unit" ]; then
+    [ ! -L "$unit" ] && [ "$(IFS= read -r line < "$unit"; printf '%s' "$line")" = \
+      '# owned by misty-step/harness omp-config engineer-cage' ] || {
+      echo "Refusing foreign omp.slice configuration" >&2; exit 1;
+    }
+  fi
+}
+
+install_engineer_cage() {
+  # Explicit live cutover of future starts only. Never relocate running PIDs.
+  install_cli
+  install -d -m 700 "$HOME/.config/systemd/user" "$HOME/.local/lib/omp-engineer"
+  install -m 600 "$repo_dir/units/omp.slice" "$HOME/.config/systemd/user/omp.slice"
+  systemctl --user daemon-reload
+  systemctl --user start omp.slice
+  "$HOME/.local/bin/omp-engineer" memory --json
+  entry="$HOME/.local/bin/omp"
+  native="$HOME/.local/lib/omp-engineer/omp"
+  if [ ! -L "$entry" ]; then
+    mv -- "$entry" "$native"
+    ln -s omp-engineer "$entry"
+  fi
+}
+
 install_cli() {
   require_nonempty "$repo_dir/bin/omp-grievances.ts"
   require_nonempty "$repo_dir/bin/omp-roster.ts"
   install -d -m 700 "$HOME/.local/bin"
   install -m 700 "$repo_dir/bin/omp-grievances.ts" "$HOME/.local/bin/omp-grievances"
   install -m 700 "$repo_dir/bin/omp-roster.ts" "$HOME/.local/bin/omp-roster"
+  install -m 700 "$repo_dir/bin/omp-engineer.py" "$HOME/.local/bin/omp-engineer"
 }
 
 if [ "${OMP_INSTALL_GUIDANCE_ONLY+x}" = x ]; then
@@ -310,8 +386,7 @@ for component do
       validate_agents
       validate_themes
       validate_audio_sandbox
-      require_nonempty "$repo_dir/bin/omp-grievances.ts"
-      require_nonempty "$repo_dir/bin/omp-roster.ts"
+      validate_cli
       ;;
     guidance) validate_guidance ;;
     config) validate_config ;;
@@ -320,6 +395,8 @@ for component do
     agents) validate_agents ;;
     secrets) validate_secrets ;;
     audio-sandbox) validate_audio_sandbox ;;
+    cli) validate_cli ;;
+    engineer-cage) validate_engineer_cage ;;
     skill:*) validate_skill "${component#skill:}" ;;
     *)
       printf 'Unknown install component: %s\n' "$component" >&2
@@ -338,6 +415,8 @@ if [ "$1" != all ]; then
       agents) install_agents ;;
       secrets) install_secrets ;;
       audio-sandbox) install_audio_sandbox ;;
+      cli) install_cli ;;
+      engineer-cage) install_engineer_cage ;;
       skill:*) install_skill "${component#skill:}" ;;
     esac
   done
