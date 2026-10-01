@@ -2,9 +2,13 @@
 
 ## Normal merge path
 
-Model review plus green required checks is the merge gate (operator decision,
-2026-09-28). Run System One diff review (`bun ~/development/misty-step/harness/omp-config/bin/omp-diff-review.ts` or `/diff-review`)
-before commit/PR. Obtain the independent Misty Step PR review separately:
+Model review plus green observed CI is the agent's merge decision (operator
+decisions, 2026-09-28/30). The policy is uniform across `misty-step`, `r90group`,
+and `moomooskycow`: no human approval gates and no server-required CI checks.
+CI informs the decision; removing a GitHub requirement is not permission to
+ignore a failed or unfinished job. No per-repository exemptions or plan upgrade.
+Run System One diff review (`bun ~/development/misty-step/harness/omp-config/bin/omp-diff-review.ts` or `/diff-review`)
+before commit/PR. Obtain the independent PR model review separately:
 
 ```sh
 pass-env run \
@@ -18,31 +22,63 @@ actually authored the change, not an initial roster entry. The dispatcher
 derives the reviewer; there is no reviewer-model lookup step.
 
 `agent-review` starts a fresh model session on the PR title, description, and diff;
-the `kaylee-agent[bot]` App's exact-head approval is the independent signal
-`foundation-review` recognizes. Confirm the review ran successfully and refresh
-it when the head changes. CodeRabbit is advisory.
+the `kaylee-agent[bot]` App's exact-head approval is the independent model signal
+`foundation-review` recognizes, not a human approval requirement. Confirm the
+review ran successfully, resolve its blocking findings, and refresh it when the
+head or reviewed PR state changes. CodeRabbit is advisory.
+
+That App is installed only on `misty-step`; the launcher refuses other owners.
+For `r90group` and `moomooskycow`, obtain the same independent, cross-family,
+no-fallback model review and record its completed model identity, verdict and
+exact head in a PR comment under the existing account. Where the pinned
+foundation checker uses recorded decisions, its first line is
+`foundation-review: approved <full-head-sha>`. A second human identity is not
+needed; the shared account records a different model's judgment, not self-review.
+The merge obligations are identical for all owners.
 
 For repositories with a PR-preview adapter, use `skill://pr-preview` before
 merge: CI deploys/tears down; the agent walks every affected criterion/adapter
 and attaches native evidence from its own signed-in session. Fix verification
 gaps; deployment readiness is not QA proof.
 
-With review and required CI green on that head:
+Check the prospective merge against the current base, not only the head branch.
+If the base moved since verification, update the branch and rerun affected
+verification and CI; refresh model review for the resulting head/state. Await
+and inspect all applicable jobs on that candidate, not just checks listed as
+required by GitHub:
+
+```sh
+gh pr checks N --watch
+```
+
+With independent model review and observed CI green, re-read the PR head and
+current base immediately before merging. If either changed, refresh the evidence.
+Merge the exact reviewed head normally:
 
 ```sh
 gh pr merge N --match-head-commit <sha> --squash
 ```
 
 Use the repository's allowed method (`--squash`, `--merge`, or `--rebase`).
-For a strict base that moved, run `gh pr update-branch N`, review the updated head,
-and merge with `--auto` so GitHub waits for checks. `foundation-review` names
-missing signals; resolve them through the normal gate. Route a human-only
-approval rule to Kaylee with the repository/rule details.
+Do not use `--admin` or rely on `--auto` to wait for advisory jobs.
 
-R90 private repositories are on GitHub's free plan and R90 has no reviewer App;
-checks there are advisory but still run and are awaited. Foundation review
-obligations remain in `skill://foundation/foundation-standard-v1.md`; this
-procedure does not replace them.
+If GitHub still demands a human approval or a required check, remove that gate
+through supported settings instead of bypassing it or asking Kaylee to supply
+an approval. Inspect classic branch protection and all applicable repository
+and inherited organization rulesets; change an inherited rule at its owner.
+GitHub's [branch-protection API](https://docs.github.com/en/rest/branches/branch-protection)
+supports deleting `required_pull_request_reviews` and `required_status_checks`;
+its [ruleset API](https://docs.github.com/en/rest/repos/rules)
+supports updating the owning ruleset. Remove approval conditions (including
+code-owner and last-push approval) and `required_status_checks` rules; retain
+unrelated protections, including deletion and force-push guards. A PR-only
+ruleset may remain with zero required approvals and no human approval conditions.
+Read back effective settings before retrying the normal merge. Do not add bypass
+actors or repository exclusions.
+
+Foundation review obligations remain in
+`skill://foundation/foundation-standard-v1.md`; this procedure does not replace
+them with a human approval gate.
 
 Landing, deployment sanity, branch/worktree removal, and canonical-checkout
 proof belong to `skill://session-close`.
