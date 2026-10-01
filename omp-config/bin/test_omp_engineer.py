@@ -413,24 +413,9 @@ class InspectionAndTerminalTests(unittest.TestCase):
             self.assertTrue(result["admitted"])
             self.assertFalse(result["reuses_cage"])
 
-    def test_native_updater_target_routing_never_leaks_into_engineer_or_read_only_paths(self):
-        native = Path("/home/fixture/.local/lib/omp-engineer/omp")
-        inherited = {"PATH": "/home/fixture/.local/bin:/usr/bin", "HERDR_SESSION": "kept",
-                     "PI_CONFIG_FILES": "/owned/roster.yml", "OMPCODE": "1"}
-        normal = ([], ["--resume=session.jsonl"], ["-p", "update"],
-                  ["update", "--check"], ["update", "-c"], ["update", "--canary", "-c"])
-        for argv in normal:
-            self.assertEqual(core.native_environment(argv, inherited, native)["PATH"],
-                             "/home/fixture/.local/bin:/usr/bin")
-        for argv in (["update"], ["update", "--force"], ["update", "--canary"], ["update", "--stable"]):
-            environment = core.native_environment(argv, inherited, native)
-            self.assertEqual(environment["PATH"],
-                             "/home/fixture/.local/lib/omp-engineer:/home/fixture/.local/bin:/usr/bin")
-        self.assertEqual(inherited["PATH"], "/home/fixture/.local/bin:/usr/bin")
 
-    def test_native_update_replaces_retained_binary_without_replacing_owned_entrypoint(self):
-        # OMP 18.4.9 selects its replacement target through which("omp").
-        # Exercise that external filesystem contract, not just the PATH string.
+    def test_native_update_replaces_only_retained_binary_and_preserves_normal_target_resolution(self):
+        # Exercise native which("omp") and actual ELF replacement, not PATH strings.
         scratch = Path(os.environ.get("TMPDIR", Path.home() / ".cache/tmp"))
         scratch.mkdir(parents=True, exist_ok=True)
         with tempfile.TemporaryDirectory(dir=scratch) as directory:
@@ -446,7 +431,15 @@ class InspectionAndTerminalTests(unittest.TestCase):
             native.parent.mkdir(parents=True)
             shutil.copyfile(sys.executable, native)
             native.chmod(0o700)
-            environment = core.native_environment(["update"], {"PATH": str(entry.parent)}, native)
+            inherited = {"PATH": str(entry.parent)}
+            for args in ([], ["launch", "update"], ["--resume=session"], ["--", "update"],
+                         ["--model", "update"], ["update", "--check"], ["update", "-c"],
+                         ["--model", "--check", "update", "--check"]):
+                with self.subTest(args=args):
+                    selected = subprocess.check_output(
+                        [str(native), "-c", 'import shutil; print(shutil.which("omp"))'],
+                        env=core.native_environment(args, inherited, native), text=True, timeout=5)
+                    self.assertEqual(selected.strip(), str(entry))
             update = """import os,shutil,sys; from pathlib import Path
 target = Path(shutil.which("omp"))
 assert target.read_bytes()[:4] == b"\\x7fELF"
@@ -455,13 +448,18 @@ shutil.copyfile(sys.argv[1], stage)
 stage.chmod(0o700)
 os.replace(stage, target)
 """
-            subprocess.run([str(native), "-c", update, "/usr/bin/true"],
-                           env=environment, check=True, timeout=5)
-            self.assertEqual(native.read_bytes(), Path("/usr/bin/true").read_bytes())
-            self.assertTrue(entry.is_symlink())
-            self.assertEqual(os.readlink(entry), "omp-engineer")
-            self.assertEqual(launcher.read_bytes(), owned)
-            self.assertEqual(subprocess.run([str(native)], check=False, timeout=5).returncode, 0)
+            for args in (["update"], ["--model", "--check", "update"], ["-p", "update"],
+                         ["--cwd", str(home), "update"]):
+                with self.subTest(args=args):
+                    shutil.copyfile(sys.executable, native)
+                    native.chmod(0o700)
+                    subprocess.run([str(native), "-c", update, "/usr/bin/true"],
+                                   env=core.native_environment(args, inherited, native), check=True, timeout=5)
+                    self.assertEqual(native.read_bytes(), Path("/usr/bin/true").read_bytes())
+                    self.assertTrue(entry.is_symlink())
+                    self.assertEqual(os.readlink(entry), "omp-engineer")
+                    self.assertEqual(launcher.read_bytes(), owned)
+                    self.assertEqual(subprocess.run([str(native)], check=False, timeout=5).returncode, 0)
 
     def test_missing_actual_cgroup_control_and_malformed_oomd_inventory_refuse(self):
         host = core.Host(seconds=float("inf"))

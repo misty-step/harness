@@ -259,7 +259,7 @@ def publish_memory_warnings(result):
                        "--why", why["text"], "--why-attribution", why["attribution"], "--why-source", why["source"]]
         receipt = subprocess.run(
             [*command, "--relaying", "none", "--notes", "\n".join(warnings),
-             "--note", "Memory advisory warning observed; launch continues. Current measurements are in the item notes.",
+             "--note", "Memory advisory warning observed; launch continues. Latest observed measurements are in the item notes.",
              "--json", "--lock-wait", "100ms"],
             stdin=subprocess.DEVNULL, capture_output=True, timeout=1, check=False)
         if receipt.returncode:
@@ -493,7 +493,8 @@ def native_environment(argv, inherited, native):
     # Native 18.4.9 resolves its mutable update target through PATH, not its own
     # executable. Only a mutating update may resolve `omp` to the ELF directory.
     # A global prefix would let nested/resumed engineers bypass the launch owner.
-    if not argv or argv[0] != "update" or any(flag in ("--check", "-c") for flag in argv[1:]):
+    command = native_command_index(argv)
+    if command is None or argv[command] != "update" or any(flag in ("--check", "-c") for flag in argv[command + 1:]):
         return inherited
     environment = dict(inherited)
     prior = inherited.get("PATH", "")
@@ -672,23 +673,16 @@ def start_scope(argv, runtime):
         address.unlink(missing_ok=True)
 
 
-def engineer_invocation(argv):
-    # Native 18.4.9 root dispatch / flag-tables.ts / main.ts isInteractive.
-    # Classify arguments, never callers; an explicit mode is not an engineer.
-    commands = {"help", "acp", "agents", "auth-broker", "auth-gateway", "bench", "browser-relay",
-                "cleanse", "clip", "collab", "commit", "completions", "__complete", "compress", "config",
-                "dry-balance", "find", "gallery", "gc", "git", "grep", "grievances",
-                "if-bench", "images", "img", "install", "join", "login", "models", "play", "plugin",
-                "plugins", "predict", "ps", "read", "render", "say", "search", "q", "web-search",
-                "setup", "share", "shell", "skill", "skills", "ssh", "stats", "stream",
-                "tiny-models", "token", "toks", "ttsr", "update", "usage", "worktree", "wt"}
-    values = {"--cwd", "--config", "--add-dir", "--fork", "--provider", "--model",
+def native_arguments(argv):
+    # Native 18.4.9 flag-tables.ts: one owner for value boundaries in both
+    # engineer classification and the update target's narrowly scoped PATH.
+    values = {"--cwd", "--config", "--add-dir", "--mode", "--fork", "--provider", "--model",
               "--smol", "--slow", "--plan", "--prewalk-into", "--plan-yolo-into",
               "--max-time", "--service-tier", "--api-key", "--system-prompt",
               "--system-prompt-template", "--append-system-prompt", "--provider-session-id",
               "--prompt-cache-key", "--session-dir", "--models", "--tools", "--thinking",
               "--hook", "--extension", "-e", "--trusted-extension", "--plugin-dir",
-              "--skills", "--approval-mode", "--profile"}
+              "--skills", "--approval-mode", "--profile", "--alias", "--export"}
     optional = {"--resume", "-r", "--session"}
     booleans = {"--help", "--version", "--allow-home", "--continue", "--from-claude",
                 "--from-codex", "--no-session", "--no-tools", "--no-lsp", "--no-pty",
@@ -696,28 +690,49 @@ def engineer_invocation(argv):
                 "--no-prewalk", "--plan-yolo", "--print", "--print-thoughts",
                 "--no-extensions", "--no-skills", "--no-rules", "--no-title", "--no-ui",
                 "--auto-approve", "--yolo"}
-    leading = True
     index = 0
     while index < len(argv):
         arg = argv[index]
+        yield index, arg
         if arg == "--":
-            break
-        if not arg.startswith("-"):
-            if leading and arg in commands:
-                return False
-            leading = False
-            index += 1
-            continue
+            return
         flag, equals, _ = arg.partition("=") if arg.startswith("--") else (arg, "", "")
-        if flag in ("-p", "--print", "-h", "--help", "-v", "--version", "--export", "--alias", "--mode"):
-            return False
-        if not equals and index + 1 < len(argv):
+        if arg.startswith("-") and not equals and index + 1 < len(argv):
             following = argv[index + 1]
             if flag in values or (
                     not following.startswith("-") and (
                         (flag in optional and following != "") or (flag.startswith("--") and flag not in booleans))):
                 index += 1
         index += 1
+
+
+def native_command_index(argv):
+    # Registered roots/aliases, plus the installed 18.4.9 help surface.
+    commands = {"launch", "help", "acp", "agents", "auth-broker", "auth-gateway", "bench", "browser-relay",
+                "cleanse", "clip", "collab", "commit", "completions", "__complete", "compress", "config",
+                "dry-balance", "find", "gallery", "gc", "git", "grep", "grievances",
+                "if-bench", "images", "img", "install", "join", "login", "models", "play", "plugin",
+                "plugins", "predict", "ps", "read", "render", "say", "search", "q", "web-search",
+                "setup", "share", "shell", "skill", "skills", "ssh", "stats", "stream",
+                "tiny-models", "token", "toks", "ttsr", "update", "usage", "worktree", "wt"}
+    for index, arg in native_arguments(argv):
+        if arg == "--":
+            return None
+        if not arg.startswith("-"):
+            return index if arg in commands else None
+    return None
+
+
+def engineer_invocation(argv):
+    command = native_command_index(argv)
+    if command is not None and argv[command] != "launch":
+        return False
+    for _, arg in native_arguments(argv):
+        if arg == "--":
+            break
+        flag = arg.split("=", 1)[0] if arg.startswith("--") else arg
+        if flag in ("-p", "--print", "-h", "--help", "-v", "--version", "--export", "--alias", "--mode"):
+            return False
     return os.isatty(0)
 
 
