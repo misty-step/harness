@@ -1115,16 +1115,14 @@ Criteria:
 6. WHEN cutover is requested, THE SYSTEM SHALL provide explicit operator-owned
    activation and rollback steps that reconcile existing limits without
    silently restarting a running fleet.
-7. WHEN OMP engineer caging is explicitly activated, THE SYSTEM SHALL admit
-   every fresh, direct, continued and resumed engineer before native startup,
-   reserve each live leaf's full 4-GiB ceiling under a serialized launch
-   transaction, and retain that reservation while any descendant remains.
-8. WHEN admission would exceed the 36-GiB engineer budget or physical
-   `MemAvailable` is below the operator's 20-GiB scale-up floor, THE SYSTEM SHALL
-   refuse before starting native OMP. Physical admission SHALL NOT add unused
-   cage/heavy-job ceilings or re-subtract measured legacy memory from that floor;
-   full live-cage reservations and measured legacy memory SHALL still count
-   against the aggregate independently of the working-engineer usage limit.
+7. WHEN OMP engineer caging is explicitly activated, THE SYSTEM SHALL serialize
+   live inspection through verified native startup and retain each leaf's
+   independent 4-GiB containment while descendants remain.
+8. WHEN memory is below the 20-GiB guideline or potential fleet demand exceeds
+   its advisory guideline, THE SYSTEM SHALL warn in stderr, launch JSON and
+   Glass, then launch anyway. Memory capacity SHALL NOT refuse a wrapper or
+   roster launch, and no opt-out flag SHALL be required. An unavailable warning
+   sink SHALL NOT prevent startup; verified containment remains mandatory.
 9. WHEN native OMP starts, THE SYSTEM SHALL verify effective 4-GiB memory,
    zero swap, group-OOM and actual membership outside every live oomd-monitored
    ancestor, while preserving argv, cwd, environment, PTY and session identity.

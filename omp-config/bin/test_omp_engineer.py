@@ -69,12 +69,12 @@ class AdmissionTests(unittest.TestCase):
         snapshot["processes"].extend([process(300, ppid=100, rss=GIB),
                                       process(301, ppid=300, rss=31 * GIB, native=False)])
         refused = core.admission(snapshot)
-        self.assertFalse(refused["admitted"])
+        self.assertTrue(refused["admitted"])
         self.assertEqual(refused["capacity"]["fleet_demand_bytes"], 41 * GIB)
         self.assertEqual(refused["capacity"]["uncaged_count"], 20)
         self.assertEqual(refused["uncaged"][0]["pids"], [100, 300, 301])
 
-    def test_scope_lifetime_reserves_full_ceiling_for_idle_and_lingering_children(self):
+    def test_scope_lifetime_is_advisory_for_idle_and_lingering_children(self):
         snapshot = measurement()
         snapshot["scopes"] = [scope(number) for number in range(8)]
         snapshot["available_bytes"] = 20 * GIB
@@ -85,10 +85,10 @@ class AdmissionTests(unittest.TestCase):
         snapshot["scopes"].append(lingering)
         snapshot["processes"].append(process(500, path=lingering["path"], native=False, rss=GIB // 4))
         refused = core.admission(snapshot)
-        self.assertFalse(refused["admitted"])
+        self.assertTrue(refused["admitted"])
         self.assertEqual(refused["capacity"]["caged_reserved_bytes"], 36 * GIB)
         self.assertEqual(refused["capacity"]["uncaged_count"], 0)
-        # Only an empty cgroup releases the reservation, not loss of native PID.
+        # Only an empty cgroup releases the potential full-leaf capacity diagnostic.
         lingering["populated"] = False
         snapshot["processes"] = []
         self.assertTrue(core.admission(snapshot)["admitted"])
@@ -107,11 +107,11 @@ class AdmissionTests(unittest.TestCase):
         snapshot["scopes"] = [scope(number) for number in range(4)]
         snapshot["processes"] = [process(100 + number, rss=GIB // 4) for number in range(20)]
         # Today's reported 52.3 GB, the exact floor, and one byte below it.
-        for available, admitted in ((52_300_000_000, True), (20 * GIB, True), (20 * GIB - 1, False)):
+        for available in (52_300_000_000, 20 * GIB, 20 * GIB - 1):
             with self.subTest(available=available):
                 snapshot["available_bytes"] = available
                 result = core.admission(snapshot)
-                self.assertEqual(result["admitted"], admitted)
+                self.assertTrue(result["admitted"])
                 self.assertEqual(result["capacity"]["required_available_bytes"], 20 * GIB)
                 self.assertEqual(result["capacity"]["fleet_demand_bytes"], 25 * GIB)
 
@@ -122,7 +122,7 @@ class AdmissionTests(unittest.TestCase):
                                   process(201, ppid=200, native=False, rss=GIB),
                                   process(202, native=False, path=ROOT + "/app.slice/unrelated.scope", rss=50 * GIB)]
         result = core.admission(snapshot)
-        self.assertFalse(result["admitted"])
+        self.assertTrue(result["admitted"])
         self.assertEqual(result["capacity"]["uncaged_count"], 0)
         self.assertEqual(result["capacity"]["uncaged_rss_bytes"], 34 * GIB)
         self.assertEqual(result["legacy_unattributed_pids"], [200, 201])
@@ -153,7 +153,7 @@ class AdmissionTests(unittest.TestCase):
         snapshot = measurement()
         snapshot["ancestors"][-1].update(memory_max=24 * GIB, current_bytes=8 * GIB)
         result = core.admission(snapshot)
-        self.assertFalse(result["admitted"])
+        self.assertTrue(result["admitted"])
         self.assertEqual(result["capacity"]["effective_memory_max_bytes"], 24 * GIB)
         snapshot["ancestors"][-1].update(memory_max=32 * GIB, current_bytes=0)
         self.assertEqual(core.admission(snapshot)["capacity"]["effective_memory_max_bytes"], 32 * GIB)
@@ -199,9 +199,11 @@ class AdmissionTests(unittest.TestCase):
             with self.assertRaises(core.CageError):
                 core.admission(snapshot)
 
-    def test_two_stale_preflights_cannot_spend_the_last_scope_twice(self):
+    @patch.object(core.subprocess, "run", side_effect=FileNotFoundError("Glass is unavailable"))
+    def test_low_memory_warns_but_registration_and_lock_lifetime_are_unchanged(self, _run):
         snapshot = measurement()
         snapshot["scopes"] = [scope(number) for number in range(8)]
+        snapshot["available_bytes"] = 20 * GIB - 1
         self.assertTrue(core.admission(copy.deepcopy(snapshot))["admitted"])
         self.assertTrue(core.admission(copy.deepcopy(snapshot))["admitted"])
         with tempfile.TemporaryDirectory() as directory:
@@ -215,22 +217,20 @@ class AdmissionTests(unittest.TestCase):
                         fcntl.flock(other, fcntl.LOCK_EX | fcntl.LOCK_NB)
                 finally:
                     os.close(other)
-                snapshot["scopes"].append(scope(8))
+                snapshot["scopes"].append(scope(8 + len(attempted)))
                 attempted.append("registered")
-                return scope(8)
+                return snapshot["scopes"][-1]
             first = core.launch_transaction(core.admission_lock(lock_path), lambda: copy.deepcopy(snapshot), register)
             self.assertEqual(first["path"], FLEET + "/omp-engineer-000000000000000000000008.scope")
-            with self.assertRaises(core.CageError) as refused:
-                core.launch_transaction(core.admission_lock(lock_path), lambda: copy.deepcopy(snapshot), register)
-            self.assertEqual(refused.exception.code, 75)
-            self.assertEqual(attempted, ["registered"])
-            # The launch lock is released; the still-populated scope is the reservation.
+            second = core.launch_transaction(core.admission_lock(lock_path), lambda: copy.deepcopy(snapshot), register)
+            self.assertEqual(second["path"], FLEET + "/omp-engineer-000000000000000000000009.scope")
+            self.assertEqual(attempted, ["registered", "registered"])
+            # Warnings and unavailable publication never turn into a capacity gate.
             other = os.open(lock_path, os.O_RDWR)
             try:
                 fcntl.flock(other, fcntl.LOCK_EX | fcntl.LOCK_NB)
             finally:
                 os.close(other)
-            self.assertEqual(core.admission(snapshot)["capacity"]["caged_reserved_bytes"], 36 * GIB)
 
 
 class InspectionAndTerminalTests(unittest.TestCase):
