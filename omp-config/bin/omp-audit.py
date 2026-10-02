@@ -740,6 +740,8 @@ def create(kind, scope, request, body, context, mark):
 
 def recur(kind, ticket, request, context, moment):
     """An open ticket already owns this gap: note it was seen again and let its priority climb with age."""
+    if ticket.get("board"):
+        return None  # Board items carry no comments or priorities; the desk grooms them.
     base = PRIORITIES.index(request["priority"])
     created = datetime.fromisoformat(str(ticket["created"]).replace("Z", "+00:00")) if ticket.get("created") else moment
     target = climbed(base, created, moment)
@@ -785,8 +787,18 @@ def prior_records(runs, *, marker_=None, audit=None, repo=None, run=None):
     return records
 
 
+BOARD_ITEM = re.compile(r"K-\d{8}-[a-z0-9-]+\Z")
+
+
 def ticket_state(kind, ticket):
     """One known ticket's state, so an adopted or earlier ticket keeps owning its gap after it closes."""
+    if BOARD_ITEM.match(ticket):
+        item = (run_json(["glass", "item", "show", ticket], check=False) or {}).get("item")
+        if not item:
+            return None
+        status = item.get("status")
+        return {"id": item["id"], "url": None, "board": True, "priority": None, "created": item.get("created_at"),
+                "state": "done" if status == "done" else "declined" if status == "dropped" else "open"}
     if kind == "linear":
         data = run_json(["linear", "gql", "query($id: String!) { issue(id: $id) { id identifier url priority createdAt state { type } } }",
                          "--vars", json.dumps({"id": ticket})], check=False)
@@ -877,6 +889,20 @@ def carry_forward(context, previous_run):
     return carried
 
 
+def adopt(context, request, write):
+    """An existing ticket owns this gap: verify it, and treat it like any open owner (seen again, climbing)."""
+    kind, _ = destination(context["repo"])
+    state = ticket_state(kind, request["ticket"])
+    if state is None:
+        raise Refusal(f"{request['ticket']} is not an open ticket in {kind} or on the board; file the gap instead")
+    if state["state"] == "done":
+        raise Refusal(f"{state['id']} is done; file the gap so it is tracked as a regression")
+    if state["state"] == "declined":
+        return {"outcome": "declined", "ticket": state["id"]}
+    raised = recur(kind, state, request, context, now()) if write else None
+    return {"outcome": "adopted", "ticket": state["id"], "url": state.get("url"), "raised_to": raised}
+
+
 def file_command(context_path, stdin):
     context = json.loads(Path(context_path).read_text())
     request = validate(json.loads(stdin.read()))
@@ -885,7 +911,7 @@ def file_command(context_path, stdin):
 
     def compute():
         if request["action"] == "adopt":
-            return {"outcome": "adopted", "ticket": request["ticket"]}
+            return adopt(context, request, write)
         if request["action"] == "propose":
             return propose(context, request, mark, write)
         return file_gap(context, request, mark, now(), write)

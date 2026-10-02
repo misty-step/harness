@@ -119,9 +119,17 @@ class Filing(unittest.TestCase):
             audit.validate(forged)
         self.assertFalse(audit.carries("text mentioning foundation-gap: x/y/z inline", "foundation-gap: x/y/z"))
 
-    def test_adopt_records_the_existing_owner_without_tracker_writes(self):
-        outcome, writes = self.file(request(action="adopt", ticket="MIS-171"), [])
-        self.assertEqual((outcome["outcome"], outcome["ticket"], writes), ("adopted", "MIS-171", []))
+    def test_adopted_open_ticket_is_seen_again_like_any_owner(self):
+        open_ = {"MIS-171": {"id": "MIS-171", "uuid": "u", "url": None, "state": "open", "priority": 2, "created": "2026-09-27T00:00:00Z"}}
+        outcome, writes = self.file(request(action="adopt", ticket="MIS-171"), [], open_)
+        self.assertEqual((outcome["outcome"], outcome["ticket"], writes), ("adopted", "MIS-171", [("recur", "MIS-171")]))
+
+    def test_adopting_a_done_or_unknown_ticket_is_refused_so_the_gap_gets_filed(self):
+        done = {"MIS-172": {"id": "MIS-172", "uuid": "u", "url": None, "state": "done", "priority": None, "created": None}}
+        for ticket in ("MIS-172", "MIS-999"):
+            with self.assertRaises(audit.Refusal):
+                self.file(request(action="adopt", ticket=ticket), [], done)
+        self.assertEqual(self.outputs.read_text(), "")
 
 
 class Routing(unittest.TestCase):
