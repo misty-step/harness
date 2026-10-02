@@ -25,6 +25,7 @@ prompt is: how can I pokayoke this so this kind of error never happens again?
 | `bin/omp-merge-config.ts` | Overlay source-owned YAML keys and remove retired owned keys while preserving foreign config entries |
 | `bin/omp-grievances.ts` | Manual grievance inbox CLI |
 | `bin/omp-roster.ts` | Launch an OMP engineer only on a board ticket's model roster and check a session stayed on it (US-046); installed as `~/.local/bin/omp-roster` |
+| `bin/omp-experiments.ts` | Automatic one-variable pairs, blind native verdicts and evidence-backed effort defaults in the existing experiment journal; installed beside the roster CLI as `~/.local/bin/omp-experiments.ts` |
 | `bin/omp-engineer.py`, `units/omp.slice` | Serialized live memory admission and per-engineer containment (US-043); explicit `engineer-cage` activation |
 | `bin/omp-display.py`, `bin/omp-gui.py` | Kernel-enforced live-display isolation and engineer-owned headless native GUI |
 | `auditors/`, `bin/omp-audit.py`, `units/omp-audit*` | Weekly read-only repository audits (foundations, principles, simplicity): one visible OMP auditor per active repository; explicit `auditors` activation |
@@ -64,9 +65,11 @@ arguments (including `--check`); use `../scripts/verify omp` for isolated checks
 
 Preflight validates every selected input, then writes. Unset selection means
 `all`: owned config overlay, guidance, MCP, scopes, agents, skills, themes,
-extensions, `omp-grievances`, `omp-roster`, `omp-engineer`, `omp-display`, `omp-gui`,
-`pass-env`, `openrouter-key`, `design-check`, `foundation-check`, and `ws`. Staging
-the cage CLI does not activate
+extensions, `omp-grievances`, `omp-roster`, its sibling `omp-experiments.ts`,
+`omp-engineer`, `omp-display`, `omp-gui`, `pass-env`, `openrouter-key`,
+`design-check`, `foundation-check`, and `ws`. CLI installation deploys code only:
+it never overwrites the runtime experiment journal or copies history into a
+second ledger. Staging the cage CLI does not activate
 it on an unactivated host. It does not delete foreign skills
 or agents and does not import live secrets into this checkout. Skills, shared
 guidance sections, and those shared launchers deploy from the sibling
@@ -965,8 +968,10 @@ A board item can carry a ranked model roster on its ticket (`ticket.roster`:
 `config.yml` recover a failing model onto models the ticket never named, ending
 at Gemini 3.8 Flash. `omp-roster` gives an OMP engineer launched for a ticket
 only that roster and stops it when the roster runs out. It extends the
-approved routing of US-014 and makes no model call. The installed
-`~/.local/bin/omp-roster` uses the sibling `omp-engineer` for memory preflight.
+approved routing of US-014. Roster planning and checking make no model call;
+qualifying launches now start an experiment and `verdict` makes a native judge
+call (see below). The installed `~/.local/bin/omp-roster` uses the siblings
+`omp-engineer` for memory preflight and `omp-experiments.ts` for journal state.
 
 A launch with no ticket goes through the same tool: `--model provider/model
 --thinking effort` (no `--item`) builds a one-entry roster, so the engineer stops
@@ -974,14 +979,14 @@ when that model fails instead of hopping to Gemini. See "Launch without a
 ticket" below.
 
 ```sh
-omp-roster launch --item K-20260929-example --json
-omp-roster launch --item K-20260929-example    # prints: export PI_CONFIG_FILES=…, then --model … --thinking … --config …
+omp-roster launch --item K-20260929-example --json  # qualifying ticket: starts both lanes in this checkout
+omp-roster launch --item K-20260929-example --tiny "single typo fix"  # recorded opt-out; prints one launch plan
 omp-roster launch --model anthropic/claude-sonnet-5-5 --thinking medium --json   # no ticket: one route
 omp-roster check --item K-20260929-example --session ~/.omp/agent/sessions/<cwd>/<session>.jsonl
 omp-roster check --item adhoc-anthropic-claude-sonnet-5-5-20260929T190130Z --session <dir>   # id from the launch
 ```
 
-`launch [--ticket-json FILE] [--usage-json FILE] [--state-dir DIR] [--harness omp] [--json]`:
+`launch [--ticket-json FILE] [--usage-json FILE] [--state-dir DIR] [--harness omp] [--cwd DIR] [--brief-file FILE] [--use-default] [--tiny REASON | --live-data REASON | --no-experiment REASON] [--json]`:
 
 Fleet admission (US-047): after validating the requested roster, before reading
 usage or writing any overlay, `launch` reads `herdr agent list` for the entire
@@ -1002,10 +1007,11 @@ omp-roster: working-engineer limit reached (8/8); working: engineer-a, engineer-
 
 Unnamed working agents use their pane ids. Unreadable Herdr state or an invalid
 limit refuses with exit 1 and no files written. Below the limit, normal roster
-and usage admission continues. This is a snapshot gate, not a reservation or
-spawn transaction: simultaneous dispatches below the limit can both pass, and
-an overlay does not reserve a future slot. It neither closes agents nor changes
-Herdr or the board.
+and usage admission continues. The fleet count itself is a snapshot gate, not a
+reservation: simultaneous dispatches below the limit can both pass, and an
+overlay does not reserve a future slot. This is distinct from the experiment's
+serialized one-pair reservation below; qualifying launches create their own
+Herdr lanes, but do not close unrelated agents or edit the board.
 
 Memory admission (US-043) follows the working-status gate, before usage or
 overlay/record writes. `omp-roster memory --json` prints live measurements and
@@ -1044,7 +1050,8 @@ state under its lock; a successful roster preflight never reserves capacity.
    roster may name them, but they are never launched or used as recovery until
    a per-ticket cash cap exists, and `check` never counts a turn on one as on
    the roster.
-4. The first launchable entry in rank order wins. If none is launchable,
+4. Without explicit `--use-default`, the first launchable ticket entry in rank
+   order wins. If none is launchable,
    `launch` exits 3 with "roster exhausted", each entry's skip reason and reset
    time on stderr, and writes nothing; with `--json` stdout also carries
    `{item, launch: null, skipped, roster_sha256}`, without it stdout is empty.
@@ -1073,12 +1080,20 @@ state under its lock; a successful roster preflight never reserves capacity.
    error. `retry.modelFallback` stays on. `roster_sha256` hashes the roster as
    compact JSON (entries in rank order, keys `provider`, `model`, `effort`) and
    is recorded in the overlay's header comment.
-6. Output. Plain: a line `export PI_CONFIG_FILES=OVERLAY`, then `--model
-   provider/model --thinking effort --config OVERLAY`, with `skipped` reasons and
-   warnings on stderr. The dispatcher exports the variable in the engineer's
-   environment so any `omp` the engineer starts from its shell reads the same
-   overlay. `--json` prints `{item, launch, overlay, record, env, args, skipped,
-   roster_sha256, usage, pair}`: `launch` carries the entry's `verdict` (`usable` or
+6. For nonqualifying launches, recorded opt-outs, or an existing experiment
+   reservation, output is still a launch plan. Plain: a line
+   `export PI_CONFIG_FILES=OVERLAY`, then `--model provider/model --thinking effort --config OVERLAY`,
+   with `skipped` reasons and warnings on stderr. The dispatcher exports the
+   variable in the engineer's environment so nested `omp` reads the same overlay.
+   Qualifying launches without a reservation instead start both lanes and report
+   the experiment and real pane/session identities; do not dispatch an extra
+   engineer from that output. JSON retains launch route, overlay/record, `env`,
+   `args`, skip reasons, roster hash and usage diagnostics, and reports
+   `pair: {status: 'live' | 'none' | 'starting' | 'not-applicable', file, experiment?}`.
+   `file` is the journal path; `experiment` carries recorded lane identities.
+   Nonqualifying/ad-hoc launches without an explicit opt-out do not read or lock
+   the journal. Explicit `--use-default` reports only the routing evidence it consumed.
+   `launch` carries the entry's `verdict` (`usable` or
    `low`), `env` is `{"PI_CONFIG_FILES": OVERLAY}`, and `usage` is `{degraded,
    degraded_reason, oldest_observation, stale_after_seconds}` from the ai-usage
    view and the launch row (`degraded` is true when either says so). `skipped`
@@ -1086,48 +1101,122 @@ state under its lock; a successful roster preflight never reserves capacity.
    degraded reading are also printed as `warning:` lines on stderr. Launching does
    not act on either: the roster guarantee does not depend on them.
 
-### A/B visibility (US-046)
+### Automatic experiments and evidence defaults (US-046)
 
-Every successful launch plan reports `pair.status` in JSON. Unless both registered
-lanes are currently working OMP sessions, stderr shows `no A/B pair live` and a
-paste-ready twin command for this plan. Plain stdout remains the export line and
-launch arguments. Pair state never refuses a launch, reserves capacity, or starts
-an engineer; missing, stale, and unreadable markers all produce the suggestion.
-The existing roster, usage, memory-containment, and engineer-limit checks are
-unchanged.
+From the target checkout, `omp-roster launch --item ID` automatically starts
+two actual OMP lanes for qualifying **build, design or research** work when no
+experiment is reserved. This replaces the optional twin suggestion and manual
+`pair` registration/clear path; there is no `pair.json` or second experiment ledger.
+The launch uses the current checkout unless `--cwd DIR` selects another.
+Worktree creation resolves the checkout's canonical Herdr parent workspace first;
+a linked checkout is a valid launch source, not a worktree-creation parent.
+Both lanes receive the same complete Glass ticket brief (title, why, description,
+scope, done checks and victory); `--brief-file FILE` optionally supplies a tailored
+brief to relay identically. A real checkout, clean shared starting HEAD and ticket
+done checks are required; missing required context refuses rather than suggesting
+another command.
 
-The suggested command changes only **planning-prompt**: it appends a short
-implementation-plan instruction, preserving this ticket's model, thinking level,
-overlay, and inherited roster. Run it in a separate worktree with the **same task
-brief and starting commit** as the original lane; the desk decides whether to run
-it. It is not a model or effort comparison and does not edit the ticket.
+The preregistered question is whether the candidate effort meets those done
+checks as well as the baseline for this nature/model. The candidate changes only
+supported **reasoning effort**, never model, family or planning prompt:
+`xhigh` compares with `high`, `high` with `xhigh` when supported, otherwise an
+adjacent supported effort. Both lanes use separate Herdr worktrees from the same
+commit, the same brief and instructions, and pinned native subscription routes.
+No pair starts without a usable, default-changing candidate. Build lanes must
+not merge or install before the verdict. Existing approved-model, usage,
+ticket-roster, helper-role, memory and fleet-admission boundaries still apply.
 
-After both engineers start, register the pair's real Herdr panes and its one
-variable:
+For genuinely tiny work, live-data work unsuitable for identical snapshots, or
+an explicit operator exception, use `--tiny REASON`, `--live-data REASON` or
+`--no-experiment REASON`. Each requires a nonempty stated reason and records it
+with the item and timestamp in the journal before returning an ordinary launch
+plan. A bare opt-out flag is not accepted.
+
+The existing `~/.hermes/profiles/kaylee/journal/experiments.md` remains the sole
+durable ledger. One marked JSON block stores current experiments, opt-out reasons
+and evidence defaults; all historical prose stays intact, and new numbering
+follows the highest legacy E-id. `OMP_ROSTER_EXPERIMENTS_FILE` selects a different
+journal only for isolated proof or an explicitly selected shared home;
+`--state-dir` still redirects launch artifacts, not this fleet-wide journal.
+Writes are atomic and private (0600). Linux `util-linux flock` holds an exclusive
+kernel lease over launch side effects and ledger updates; process exit or crash
+releases it. Its persistent `.lock` inode is coordination, not another ledger:
+never unlink it while launchers may be active. Busy or malformed required journal
+state fails closed.
+Installation stages the sibling helper with the CLI, never the journal.
+
+Only one experiment may reserve a live pair (`starting` or `running`). The
+launcher reserves `starting` before spawning and binds actual pane/session
+identities before recording `running`. Once the bound lanes are settled it
+records `awaiting-verdict` and may start the next live pair; the unfinished
+verdict remains in the ledger. A stopped, missing or replaced session cannot
+masquerade as a live lane. Definite launch failure rolls back only resources
+created by that launch; ambiguous failure retains `starting` to avoid duplicates.
+Other launches return their ordinary ticket launch plans while a live reservation
+exists. To record abandonment, use
+`omp-roster abandon --experiment E-NNN --reason "why this cannot be judged"`:
+it preserves the record and refuses while a bound lane is still working.
+There is no bare pair-clear operation that erases unfinished evidence.
+
+Submit the real lane deliverables for a blind verdict:
 
 ```sh
-omp-roster pair --item K-example --lane-a w1:p1 --lane-b w2:p1 --variable planning-prompt
+omp-roster verdict --experiment E-019 \
+  --artifact-a /path/to/lane-a-deliverable --artifact-b /path/to/lane-b-deliverable \
+  --judge xai-oauth/grok-4.7 --thinking high --json
+omp-roster defaults --nature build --model openai-codex/gpt-6.1-sol
+omp-roster launch --item K-example --use-default --json
 ```
 
-The CLI stores a private, atomic `pair.json` beside the default roster state
-(`$XDG_STATE_HOME/omp-roster/`, else `~/.local/state/omp-roster/`). Each lane binds
-its pane id to its current OMP session identity. Launch reuses its existing Herdr
-snapshot: stopped, missing, non-OMP, or replaced sessions cannot silence the
-warning. A registered live pair may be on any ticket. `--state-dir` redirects
-launch artifacts, **not** this fleet-wide marker. `OMP_ROSTER_PAIR_FILE` overrides
-only the marker path for isolated proof or an explicitly selected shared home.
+Artifact A/B paths must realpath inside their recorded baseline/candidate worktrees,
+respectively; swapped paths and escaping symlinks are rejected. A/B are not the
+anonymous labels the judge sees. The helper randomizes X/Y, redacts
+lane model/effort, worktree and experiment identities, and withholds the mapping.
+The approved, usable native OMP judge must be from a **different family than
+either lane**. It runs in print mode with no tools, rules, skills or extensions,
+an isolated no-fallback overlay and a minimal blind prompt. The recorded actual
+judge identity must match the requested route; a same-family judge, fallback,
+invalid score or incomplete verdict cannot update a default.
+Its temporary overlay lives privately under the routing state directory, outside
+the native boundary's replaced TMPDIR, and is removed after the judge exits.
 
-Keep the pair and verdict in the existing experiment journal. Once the verdict
-is recorded, `omp-roster pair --clear` removes the marker; it does not stop either
-engineer or erase the journal. Glass's distinct missing-pair and missing-verdict
-lights belong to a separate change; this CLI does not claim either board signal.
+The judge scores **every ticket done check for each lane, 0–2**, with evidence
+and rationale. The larger total wins; equal totals choose lower effort under the
+preregistered tie rule. An accepted verdict stores scores, check evidence, judge
+identity and raw response/hash in the same journal. Only a winner scoring 2 on
+every done check changes the preregistered `<nature>:<provider>/<model>` effort
+default, citing its E-id; incomplete winners retain a no-change verdict. `defaults` reports
+usable learned entries and their evidence, optionally filtered by `--nature` and
+`--model`; there is no invented seed verdict. This is an operator query for
+future ticket routing, **not a silent rewrite of ticket-pinned rosters**.
+`launch --use-default` explicitly requests learned effort for the ticket's first
+model entry and reports its evidence; fallback entries remain ticket-pinned.
+The immutable launch record preserves the original ticket roster hash separately
+from its effective learned effort, so audit still detects later board edits.
+It does not rewrite `config.yml`, native interactive/subagent defaults, the
+approved model policy or helper routes.
 
-**Cost:** plans, marker registration, and warnings make no model calls. Nothing
-is automatically twinned. Running the suggested command adds one full engineer
-session against the same subscription route, plus any comparison work the desk
-commissions. Provider quota consumption depends on the task, reasoning, and cache
-usage; no fixed dollar amount or quota percentage is inferred from token counts.
-No System 1 experiment calls or cash-provider routes are added.
+**Historical assessment, not migrated verdicts:** E-007 really changed Pile's
+primary to Sonnet 5.5 medium, with its nonblind/script scoring and placement
+caveats. E-013's blind cross-family result supports high for discovery-heavy,
+underspecified UX work; it explicitly leaves medium for well-shaped tickets.
+E-014 records a Luna win but the Sol judge shared Luna's family, a confound.
+E-015 was abandoned with no verdict after the fleet crash, not a routing result.
+E-017 records a manual blind judgment attributed to Kaylee and an exploratory
+Opus win, not a verified native cross-family judge/default update. E-018 is
+pending with no result; its existing model comparison can be tracked as a
+`legacy: true` pair without a preregistered effort default and cannot be promoted
+to an automated default. Keep these distinctions in the original journal: do
+not retroactively unblind, invent verdicts or import them as automated defaults.
+
+**Cost:** a qualifying launch adds a full subscription engineer session, and
+`verdict` makes one native subscription judge call. Planning, checking, opt-out
+recording and `defaults` do not call a model. Quota consumption depends on the
+task, reasoning and cache use; no fixed dollars or quota percentage are inferred
+from token counts. No System One, TypeSafe or cash-provider experiment route is
+added. Glass missing-pair/verdict lights are not claimed by this CLI.
+
+### Checking the launched roster
 
 `check --item ID --session DIR|FILE... [--ticket-json FILE] [--state-dir DIR] [--since ISO]`
 (`--session` repeatable) reads OMP session JSONL. A file brings its sibling
@@ -1234,9 +1323,10 @@ roster) applies to every Opus turn, a designer's included, and the designer may
 hop onto the roster. Without Opus on the roster the designer stays on its
 Opus-only route and `check` does not flag it.
 
-What the guarantee does not cover. It holds for an engineer launched through
-`omp-roster launch`, with a ticket's roster or with `--model`, and with the printed
-arguments and `PI_CONFIG_FILES` exported. It does not hold for:
+What the guarantee does not cover. It holds for lanes started automatically by
+`omp-roster launch`, and for an engineer dispatched from its ordinary ticketed
+or `--model` launch plan with the printed arguments and `PI_CONFIG_FILES` exported.
+It does not hold for:
 
 - a Pi lane, and any `omp` not launched through `omp-roster launch` (including one
   an engineer starts without inheriting the environment): those still use the
@@ -1255,8 +1345,9 @@ arguments and `PI_CONFIG_FILES` exported. It does not hold for:
   `before_subagent_spawn` (the hook `subagent-inheritance` already uses to block)
   would prevent off-roster spawns instead; it is not built.
 
-Nothing enforces the roster unless the dispatcher runs `omp-roster launch` and
-passes the printed arguments and environment.
+Nothing enforces the roster unless dispatch goes through `omp-roster launch`:
+use its automatically started lanes, or pass its ordinary launch plan's printed
+arguments and environment to the engineer.
 
 Forced-outage observation (2026-09-29, `omp` 18.4.3, Codex exhausted): a
 Sol-then-Sonnet roster launched Sonnet; `omp -p --model openai-codex/gpt-6-sol

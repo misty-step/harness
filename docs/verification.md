@@ -112,7 +112,7 @@ owned directory. Remove only that directory once its process has ended.
   failed-task inclusion, unknown/unpriced evidence, split-task worker ownership,
   scope escape, malformed archives and content-free reporting (US-018).
 - `omp-config/bin/omp-roster.test.ts` runs an isolated installed-layout copy of
-  the launcher and sibling memory helper against fixture ticket/usage/memory
+  the launcher and sibling helpers against fixture ticket/usage/memory
   views, fake `board`, `ai-usage` and `herdr` commands, and
   synthetic session files: first-usable launch with skip reasons, verdict and
   degraded reporting, the printed `export` and arguments, exit 3 with nothing
@@ -134,6 +134,46 @@ owned directory. Remove only that directory once its process has ended.
   reports the effective cap/count on success. Lower and higher overrides,
   settled/non-OMP agents, unnamed agents, ticketless launches, malformed Herdr
   replies and invalid limits are covered.
+  Automatic experiment acceptance extends US-046, not the fleet cap or native
+  defaults scope. Preserve the existing roster/fleet/memory proof above. At the
+  launcher boundary, exercise qualifying plain `launch --item` in a checkout,
+  identical full-ticket or `--brief-file` briefs and starting commits, actual
+  two-worktree spawn identity binding, one live reservation under concurrent
+  launches, explicit recorded reason opt-outs, malformed/busy journal refusal,
+  ambiguous launch failure and settled lanes retaining an `awaiting-verdict`
+  record while permitting the next live pair. A replaced session must not count
+  as live. Abandonment must require a reason and refuse a still-working lane.
+  Check that ticket-pinned effort remains unchanged without `--use-default`,
+  and explicit default consumption reports evidence without editing the ticket
+  or native interactive/subagent defaults.
+  Learned effort applies only to the first roster entry; original-ticket hash
+  auditing must accept that explicit substitution but still reject later board
+  edits. Launch from a linked checkout and verify canonical parent routing.
+  Stored evidence quoting ledger markers must round-trip. Prove real competing
+  processes cannot enter and a SIGKILLed holder cannot strand the kernel lock.
+  Artifact realpaths must remain inside their own lane; swapped paths and
+  cross-lane symlinks must fail before invoking the judge.
+  At the ledger/verdict boundary (`omp-config/bin/omp-experiments.ts`), isolate
+  `OMP_ROSTER_EXPERIMENTS_FILE`: preserve legacy journal prose and numbering,
+  reject malformed state, anonymize the lane identities and keep the key from
+  the judge, require every done-check score/evidence, reject same-family judges
+  and observed fallback identities, enforce the lower-effort tie rule, and
+  persist only accepted verdict/default evidence in that same journal. Historical
+  confounds, abandonment, pending results and legacy model comparisons must not
+  become invented automated defaults. Installer proof must stage the sibling
+  `omp-experiments.ts` with `omp-roster` and leave a sentinel runtime journal
+  byte-for-byte unchanged; do not install into the live journal for this check.
+  **Product proof is separate from fixtures:** run a real qualifying ticket
+  launch and observe both native Herdr sessions/worktrees with the same brief
+  hash and base commit. Use real lane deliverables and an approved usable
+  cross-family native OMP judge via
+  `verdict --experiment E-NNN --artifact-a FILE --artifact-b FILE --judge provider/model --thinking effort`.
+  Observe the actual judge model, blind done-check verdict and journal write,
+  then query `defaults --nature NATURE --model provider/model` and observe the
+  winning effort plus E-id evidence. A bare ticket launch must remain pinned;
+  `launch --use-default` must explicitly consume that evidence. Record command,
+  version, status and redacted readback in the PR; do not label mocked judges,
+  copied scores, retrospective unblinding or an unexecuted walk as product proof.
 - `omp-config/bin/test_omp_engineer.py` covers measured legacy accounting,
   full populated-scope reservations (including lingering helpers), the exact
   20-GiB physical scaling boundary without fictitious legacy/unused-heavy reserves,

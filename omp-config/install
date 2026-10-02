@@ -295,8 +295,10 @@ validate_display_tools() {
 
 validate_cli() {
   require_bun
+  command -v flock >/dev/null 2>&1 || { echo "util-linux flock is required for experiment journal coordination" >&2; exit 1; }
   require_nonempty "$repo_dir/bin/omp-grievances.ts"
   require_nonempty "$repo_dir/bin/omp-roster.ts"
+  require_nonempty "$repo_dir/bin/omp-experiments.ts"
   command -v python3 >/dev/null 2>&1 || { echo "python3 is required" >&2; exit 1; }
   for name in omp-engineer omp-display omp-gui; do
     source="$repo_dir/bin/$name.py"
@@ -383,9 +385,12 @@ install_engineer_cage() {
 install_cli() {
   require_nonempty "$repo_dir/bin/omp-grievances.ts"
   require_nonempty "$repo_dir/bin/omp-roster.ts"
+  require_nonempty "$repo_dir/bin/omp-experiments.ts"
   install -d -m 700 "$HOME/.local/bin"
   install -m 700 "$repo_dir/bin/omp-grievances.ts" "$HOME/.local/bin/omp-grievances"
   install -m 700 "$repo_dir/bin/omp-roster.ts" "$HOME/.local/bin/omp-roster"
+  # Deploy code only; the experiment journal and its historical prose are runtime state.
+  install -m 600 "$repo_dir/bin/omp-experiments.ts" "$HOME/.local/bin/omp-experiments.ts"
   install -m 700 "$repo_dir/bin/omp-engineer.py" "$HOME/.local/bin/omp-engineer"
   install -m 700 "$repo_dir/bin/omp-display.py" "$HOME/.local/bin/omp-display"
   install -m 700 "$repo_dir/bin/omp-gui.py" "$HOME/.local/bin/omp-gui"

@@ -2,15 +2,16 @@
 // omp-roster (US-046, extending US-014): launch an OMP engineer only on a board ticket's ranked
 // model roster, then check that its session stayed on it.
 //
-// The TypeScript CLI imports only Node and Bun built-ins. Its installed sibling
-// `omp-engineer` owns advisory memory guidance and verified containment; the approved
-// model table remains here for omp-model-policy.ts and the copied CLI alike.
+// The CLI and sibling experiment owner use only Node/Bun built-ins. `omp-engineer`
+// owns memory guidance and containment; `omp-experiments.ts` owns the existing journal
+// and blind verdicts. The approved model table remains here for deployed consumers.
 
 import { createHash, randomBytes } from "node:crypto";
 import { existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, readlinkSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { basename, delimiter, dirname, isAbsolute, join, resolve } from "node:path";
 import { parseArgs } from "node:util";
+import { experimentCommand, ledgerPath, nextExperimentId, readLedger, withLedgerLock, writeLedger, type Experiment, type Lane, type Ledger, type Nature } from "./omp-experiments.ts";
 
 const LOW_TO_MAX = ["low", "medium", "high", "xhigh", "max"];
 // The board's effort vocabulary, used where no approved-model entry narrows it.
@@ -75,19 +76,17 @@ type Entry = { provider: string; model: string; effort: string };
 type UsageRow = { harness?: unknown; provider?: unknown; model?: unknown; verdict: string; reason?: unknown; next_reset?: unknown; degraded?: unknown };
 type Skip = { selector: string; verdict: string | null; reason: string; next_reset: string | null };
 type Freshness = { degraded: boolean; degraded_reason: string | null; oldest_observation: string | null; stale_after_seconds: number | null };
-type LaunchOptions = { harness?: string; json?: boolean; "ticket-json"?: string; "usage-json"?: string; "state-dir"?: string; "memory-json"?: string };
+type LaunchOptions = { harness?: string; json?: boolean; "ticket-json"?: string; "usage-json"?: string; "state-dir"?: string; "memory-json"?: string; cwd?: string; "brief-file"?: string; tiny?: string; "live-data"?: string; "no-experiment"?: string; "use-default"?: boolean };
 type CheckOptions = { "ticket-json"?: string; "state-dir"?: string; since?: string };
 type MemorySnapshot = Record<string, unknown> & { schema_version: 1; ok: true; activated: boolean; admitted: boolean; reservation: false; warnings: string[] };
-type PairOptions = { item?: string; "lane-a"?: string; "lane-b"?: string; variable?: string; clear?: boolean };
-
-const TWIN_PROMPT = "Before editing, write a short implementation plan with a concrete verification step.";
 const USAGE = `Usage:
-  omp-roster launch --item ID [--ticket-json FILE] [--usage-json FILE] [--memory-json FILE] [--state-dir DIR] [--harness omp] [--json]
+  omp-roster launch --item ID [--cwd CHECKOUT] [--brief-file FILE] [--no-experiment REASON|--tiny REASON|--live-data REASON] [--use-default] [--json]
   omp-roster launch --model provider/model --thinking effort [--usage-json FILE] [--memory-json FILE] [--state-dir DIR] [--json]
   omp-roster memory [--json] [--memory-json FILE]
   omp-roster check --item ID --session DIR|FILE... [--ticket-json FILE] [--state-dir DIR] [--since ISO]
-  omp-roster pair --item ID --lane-a PANE --lane-b PANE --variable NAME
-  omp-roster pair --clear
+  omp-roster defaults [--nature build|design|research] [--model provider/model] [--json]
+  omp-roster verdict --experiment E-NNN --artifact-a FILE --artifact-b FILE --judge provider/model --thinking effort [--json]
+  omp-roster abandon --experiment E-NNN --reason TEXT
 Memory fixtures are read-only guidance; the actual engineer launch rechecks live containment under lock.
 Exit: 0 done, 1 refused or unreadable input, 2 usage, 3 roster exhausted, 4 turns off the roster or the roster changed, 5 working-engineer limit reached`;
 
@@ -132,11 +131,11 @@ export function boardProgram(env: Record<string, string | undefined> = process.e
 	return locate("glass") ? "glass" : "board";
 }
 
-function capture(name: string, args: string[]): { json: unknown; stderr: string; exitCode: number } {
+function capture(name: string, args: string[], timeout = READ_TIMEOUT_MS): { json: unknown; stderr: string; exitCode: number } {
 	const binary = locate(name);
 	if (!binary) throw new CliError(`${name} is not on PATH or in ~/.local/bin.`);
-	const result = Bun.spawnSync({ cmd: [binary, ...args], stdout: "pipe", stderr: "pipe", timeout: READ_TIMEOUT_MS });
-	if (result.exitedDueToTimeout) throw new CliError(`${name} did not answer within ${READ_TIMEOUT_MS / 1000} seconds.`);
+	const result = Bun.spawnSync({ cmd: [binary, ...args], stdout: "pipe", stderr: "pipe", timeout });
+	if (result.exitedDueToTimeout) throw new CliError(`${name} did not answer within ${timeout / 1000} seconds; inspect its state before retrying.`);
 	let json: unknown = null;
 	try { json = JSON.parse(result.stdout.toString()); }
 	catch { /* not JSON: the caller reports stderr */ }
@@ -227,7 +226,8 @@ function ticketOf(item: string, file: string | undefined): unknown {
 	if (!isRecord(data) || data.state !== "ok" || !isRecord(data.value)) {
 		throw new CliError(`The board's answer for ${item} is not ready.`);
 	}
-	return data.value.ticket ?? null;
+	const ticket = data.value.ticket;
+	return isRecord(ticket) ? { ...ticket, title: data.value.title, description: data.value.description, why: data.value.why, brief: data.value.brief } : ticket ?? null;
 }
 
 function rosterOf(ticket: unknown, item: string, historical = false): Entry[] {
@@ -367,56 +367,164 @@ function stateDir(explicit: string | undefined): string {
 // Paste-ready: quote only what the shell would split or expand.
 const shellWord = (value: string) => (/^[A-Za-z0-9_@%+=:,./-]+$/.test(value) ? value : `'${value.replaceAll("'", "'\\''")}'`);
 
-const PAIR_FILE = process.env.OMP_ROSTER_PAIR_FILE ? resolve(process.env.OMP_ROSTER_PAIR_FILE) : join(stateDir(undefined), "pair.json");
+const LEGACY_PAIR_FILE = process.env.OMP_ROSTER_PAIR_FILE ? resolve(process.env.OMP_ROSTER_PAIR_FILE) : join(stateDir(undefined), "pair.json");
 
-function pairCommand(options: PairOptions): number {
-	const path = PAIR_FILE;
-	if (options.clear) {
-		if (options.item || options["lane-a"] || options["lane-b"] || options.variable) throw new CliError("--clear takes no pair fields.", 2);
-		rmSync(path, { force: true });
-	} else {
-		const item = itemOf(options.item);
-		const lanes = [options["lane-a"], options["lane-b"]];
-		if (!lanes.every((lane) => typeof lane === "string" && /^w[A-Za-z0-9]+:p[0-9]+$/.test(lane)) || lanes[0] === lanes[1]) {
-			throw new CliError("A pair needs two distinct Herdr pane ids (--lane-a and --lane-b).", 2);
-		}
-		if (!options.variable || !/^[a-z][a-z0-9-]{0,63}$/.test(options.variable)) throw new CliError("--variable needs one named experimental variable.", 2);
-		const answer = capture("herdr", ["agent", "list"]);
-		const result = isRecord(answer.json) ? answer.json.result : undefined;
-		const agents = isRecord(result) && Array.isArray(result.agents) ? result.agents : [];
-		const bindings = lanes.map((pane) => {
-			const agent = agents.find((value) => isRecord(value) && value.pane_id === pane && value.agent === "omp");
-			const session = isRecord(agent) && isRecord(agent.agent_session) ? agent.agent_session.value : undefined;
-			if (answer.exitCode !== 0 || typeof session !== "string" || !session) throw new CliError(`Cannot bind ${pane} to a live OMP session.`);
-			return { pane_id: pane, session };
-		});
-		writeStateFile(dirname(path), basename(path), `${JSON.stringify({ schema_version: 1, item, lanes: bindings, variable: options.variable, recorded_at: new Date().toISOString() }, null, 2)}\n`);
-	}
-	console.log(path);
-	return 0;
+function liveLane(lane: Lane, agents: Record<string, unknown>[]): boolean {
+	return agents.some((agent) => agent.pane_id === lane.pane_id && agent.agent === "omp"
+		&& ["working", "blocked", "unknown"].includes(agent.agent_status as string)
+		&& isRecord(agent.agent_session) && agent.agent_session.value === lane.session);
 }
 
-function pairStatus(agents: Record<string, unknown>[]): { status: "live" | "none" | "stale" | "unreadable"; file: string; item?: string; variable?: string } {
-	const file = PAIR_FILE;
-	try {
-		const pair = JSON.parse(readFileSync(file, "utf8"));
-		if (!isRecord(pair) || pair.schema_version !== 1 || typeof pair.item !== "string" ||
-			typeof pair.variable !== "string" || !Array.isArray(pair.lanes) || pair.lanes.length !== 2 ||
-			!pair.lanes.every((lane) => isRecord(lane) && typeof lane.pane_id === "string" && typeof lane.session === "string") ||
-			pair.lanes[0].pane_id === pair.lanes[1].pane_id) {
-			return { status: "unreadable", file };
-		}
-		const live = pair.lanes.every((lane) => agents.some((agent) => agent.pane_id === lane.pane_id && agent.agent === "omp" &&
-			agent.agent_status === "working" && isRecord(agent.agent_session) && agent.agent_session.value === lane.session));
-		return { status: live ? "live" : "stale", file, item: pair.item, variable: pair.variable };
-	} catch (error) {
-		return { status: (error as NodeJS.ErrnoException).code === "ENOENT" ? "none" : "unreadable", file };
+// One-time cutover: preserve the existing live reservation, not a second ledger.
+function importLegacyPair(ledger: Ledger, agents: Record<string, unknown>[]): void {
+	const path = LEGACY_PAIR_FILE;
+	if (!existsSync(path)) return;
+	const doc = readJson(path, "legacy pair marker");
+	if (!isRecord(doc) || doc.schema_version !== 1 || typeof doc.item !== "string" || !Array.isArray(doc.lanes) || doc.lanes.length !== 2) {
+		throw new CliError(`Cannot migrate ${path}; repair the existing pair marker before launching.`);
 	}
+	if (!ledger.experiments.some((experiment) => experiment.item === doc.item && experiment.legacy)) {
+		const lanes: Lane[] = doc.lanes.map((binding) => {
+			if (!isRecord(binding) || typeof binding.pane_id !== "string" || typeof binding.session !== "string") throw new CliError(`Cannot migrate ${path}: invalid lane.`);
+			const session = readFileSync(binding.session, "utf8").split("\n", 5).filter(Boolean).map((line) => JSON.parse(line));
+			const model = session.find((record) => record.type === "model_change")?.model;
+			const effort = session.find((record) => record.type === "thinking_level_change")?.thinkingLevel;
+			const cwd = session.find((record) => record.type === "session")?.cwd;
+			if (typeof model !== "string" || typeof effort !== "string" || typeof cwd !== "string") throw new CliError(`Cannot migrate ${path}: missing lane identity.`);
+			const slash = model.indexOf("/");
+			return { pane_id: binding.pane_id, session: binding.session, cwd, workspace_id: binding.pane_id.split(":")[0]!, entry: { provider: model.slice(0, slash), model: model.slice(slash + 1), effort } };
+		});
+		const sections = readFileSync(ledgerPath(), "utf8").split(/(?=^## E-[0-9]+)/m);
+		const itemPattern = new RegExp(`(?<![A-Za-z0-9._-])${(doc.item as string).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?![A-Za-z0-9._-])`);
+		const historical = sections.findLast((section) => itemPattern.test(section));
+		const id = historical?.match(/^## (E-[0-9]+)/)?.[1] ?? nextExperimentId(ledger);
+		ledger.experiments.push({
+			id, item: doc.item, nature: "design", question: "Legacy pair; see the preserved journal entry. No default was preregistered.",
+			default_key: "", variable: doc.variable === "effort" ? "effort" : "model", baseline: lanes[0]!.entry, candidate: lanes[1]!.entry,
+			done: [], brief_sha256: "", base_commit: "", lanes, legacy: true,
+			status: lanes.some((lane) => liveLane(lane, agents)) ? "running" : "awaiting-verdict",
+			started_at: typeof doc.recorded_at === "string" ? doc.recorded_at : new Date().toISOString(),
+		});
+	}
+	writeLedger(ledger);
+	rmSync(path);
+}
+
+function currentPair(ledger: Ledger, agents: Record<string, unknown>[]): { status: "live" | "none" | "starting"; file: string; experiment?: Experiment } {
+	for (const experiment of ledger.experiments) {
+		if (experiment.status === "starting") return { status: "starting", file: ledgerPath(), experiment };
+		if (experiment.status !== "running") continue;
+		if (experiment.lanes.some((lane) => liveLane(lane, agents))) return { status: "live", file: ledgerPath(), experiment };
+		experiment.status = "awaiting-verdict";
+		writeLedger(ledger);
+	}
+	return { status: "none", file: ledgerPath() };
+}
+
+function gitFact(cwd: string, args: string[]): string {
+	const result = Bun.spawnSync({ cmd: ["git", "-C", cwd, ...args], stdout: "pipe", stderr: "pipe" });
+	if (result.exitCode !== 0) throw new CliError(`Cannot resolve experiment checkout ${cwd}: ${plain(result.stderr.toString())}.`);
+	return result.stdout.toString().trim();
+}
+
+function experimentBrief(item: string, ticket: Record<string, unknown>, file?: string): string {
+	if (file) {
+		const brief = readFileSync(resolve(file), "utf8");
+		if (!brief.trim()) throw new CliError("--brief-file must contain the same full task brief for both lanes.");
+		return brief;
+	}
+	return `Contract ${item}\n${JSON.stringify(ticket, null, 2)}\nComplete this ticket against every done check.`;
+}
+
+function startPair(ledger: Ledger, item: string, ticket: Record<string, unknown>, launch: Entry, options: LaunchOptions, working: number, limit: number): Experiment {
+	if (process.env.HERDR_ENV !== "1") throw new CliError("Automatic experiments require a Herdr-managed dispatch pane.");
+	if (working + 2 > limit) throw new CliError(`A pair needs two engineer slots (${working}/${limit}); queue work or record an opt-out reason.`, FLEET_FULL);
+	const nature = ticket.nature as Nature;
+	const efforts = approvedModels[key(launch)]!.efforts;
+	const index = efforts.indexOf(launch.effort);
+	const candidateEffort = launch.effort === "xhigh" ? "high" : efforts[index + 1] ?? efforts[index - 1];
+	if (!candidateEffort || candidateEffort === launch.effort) throw new CliError("This model has no default-changing effort comparison; record an opt-out reason.");
+	const candidate = { ...launch, effort: candidateEffort };
+	const checks = ticket.done;
+	if (!Array.isArray(checks) || !checks.length || !checks.every((check) => isRecord(check) && typeof check.check === "string" && check.check.trim() && typeof check.proof === "string" && check.proof.trim())) {
+		throw new CliError("A useful pair requires the ticket's done checks and their proof contracts.");
+	}
+	const cwd = resolve(options.cwd ?? process.cwd());
+	const base = gitFact(cwd, ["rev-parse", "HEAD"]);
+	if (gitFact(cwd, ["status", "--porcelain"])) throw new CliError("Experiment lanes need a committed starting snapshot; commit the checkout or select a clean --cwd.");
+	const inventory = capture("herdr", ["worktree", "list", "--cwd", cwd]);
+	const source = isRecord(inventory.json) && isRecord(inventory.json.result) ? inventory.json.result.source : undefined;
+	if (inventory.exitCode !== 0 || !isRecord(source) || typeof source.repo_root !== "string") throw new CliError("Cannot resolve the Herdr repository parent for experiment worktrees.");
+	const parent = typeof source.source_workspace_id === "string" ? ["--workspace", source.source_workspace_id] : ["--cwd", source.repo_root];
+	const brief = experimentBrief(item, ticket, options["brief-file"]);
+	const experiment: Experiment = {
+		id: nextExperimentId(ledger), item, nature, variable: "effort", baseline: launch, candidate,
+		question: `Does ${candidate.effort} effort meet ${nature} done checks as well as ${launch.effort} on ${key(launch)}?`,
+		default_key: `${nature}:${key(launch)}`, done: checks as Experiment["done"],
+		brief_sha256: createHash("sha256").update(brief).digest("hex"), base_commit: base, lanes: [], status: "starting", started_at: new Date().toISOString(),
+	};
+	ledger.experiments.push(experiment);
+	writeLedger(ledger); // Reserve before any process side effect; ambiguous failure cannot create a second pair.
+	const appendix = `\n\nExperiment contract: ${experiment.question}\nRouting default tested: ${experiment.default_key}. Only effort differs. Both lanes use the same starting commit and brief. Stop after delivering evidence against each done check; do not merge, install, publish, or change live data. A blind cross-family judge chooses afterwards. On equal complete scores, lower effort wins. Write your final deliverable to experiment-result.md in this worktree.`;
+	for (const [index, entry] of [launch, candidate].entries()) {
+		const label = `${experiment.id}-${index === 0 ? "a" : "b"}`;
+		const created = capture("herdr", ["worktree", "create", ...parent, "--branch", `phaedrus/experiment-${label.toLowerCase()}-${randomBytes(3).toString("hex")}`, "--base", base, "--label", `${basename(cwd)} ${label}`, "--no-focus"], 60_000);
+		const result = isRecord(created.json) ? created.json.result : undefined;
+		if (created.exitCode !== 0 || !isRecord(result) || !isRecord(result.root_pane) || !isRecord(result.workspace) || !isRecord(result.worktree)
+			|| typeof result.root_pane.pane_id !== "string" || typeof result.workspace.workspace_id !== "string" || typeof result.worktree.path !== "string") {
+			throw new CliError(`Experiment ${experiment.id} remains starting: cannot create ${label}: ${created.stderr}. Inspect before abandoning.`);
+		}
+		const lane: Lane = { pane_id: result.root_pane.pane_id, workspace_id: result.workspace.workspace_id, cwd: result.worktree.path, session: "", entry };
+		experiment.lanes.push(lane);
+		writeLedger(ledger);
+		const overlay = writePlan(`${item}.${label}`, [entry], entry, options["state-dir"]);
+		const exported = capture("herdr", ["pane", "run", lane.pane_id, `export PI_CONFIG_FILES=${shellWord(overlay.overlay)}`]);
+		if (exported.exitCode !== 0) throw new CliError(`Experiment ${experiment.id} remains starting: cannot pin ${label}'s inherited roster: ${exported.stderr}.`);
+		const name = `exp-${label.toLowerCase()}-${randomBytes(2).toString("hex")}`;
+		const started = capture("herdr", ["agent", "start", name, "--kind", "omp", "--pane", lane.pane_id, "--", "--model", key(entry), "--thinking", entry.effort, "--config", overlay.overlay], 60_000);
+		const startedResult = isRecord(started.json) ? started.json.result : undefined;
+		const agent = isRecord(startedResult) ? startedResult.agent : undefined;
+		if (started.exitCode !== 0 || !isRecord(agent) || !isRecord(agent.agent_session) || typeof agent.agent_session.value !== "string") {
+			throw new CliError(`Experiment ${experiment.id} remains starting: cannot bind ${label}: ${started.stderr}. Inspect before abandoning.`);
+		}
+		lane.session = agent.agent_session.value;
+		writeLedger(ledger);
+	}
+	for (const lane of experiment.lanes) {
+		const prompted = capture("herdr", ["agent", "prompt", lane.pane_id, brief + appendix, "--wait", "--until", "working", "--timeout", "10000"], 15_000);
+		if (prompted.exitCode !== 0) throw new CliError(`Experiment ${experiment.id} remains starting: ambiguous brief delivery for ${lane.pane_id}: ${prompted.stderr}. Do not resend without readback.`);
+	}
+	experiment.status = "running";
+	writeLedger(ledger);
+	return experiment;
+}
+
+function abandonCommand(args: string[]): number {
+	const { values } = parseArgs({ args, options: { experiment: { type: "string" }, reason: { type: "string" } }, strict: true });
+	if (!values.experiment || !values.reason?.trim()) throw new CliError("Abandon requires --experiment and a stated --reason.", 2);
+	return withLedgerLock(() => {
+		const ledger = readLedger();
+		const experiment = ledger.experiments.find((record) => record.id === values.experiment);
+		if (!experiment || ["verdict", "abandoned"].includes(experiment.status)) throw new CliError("No unfinished experiment with that id.");
+		const snapshot = capture("herdr", ["agent", "list"]);
+		const result = isRecord(snapshot.json) ? snapshot.json.result : undefined;
+		if (snapshot.exitCode !== 0 || !isRecord(result) || !Array.isArray(result.agents)) throw new CliError("Cannot inspect experiment lanes before abandonment.");
+		const agents = result.agents as Record<string, unknown>[];
+		if (experiment.lanes.some((lane) => liveLane(lane, agents)
+			|| (experiment.status === "starting" && !lane.session && agents.some((agent) => agent.pane_id === lane.pane_id && agent.agent === "omp")))) {
+			throw new CliError("Cannot abandon a live or unbound OMP lane; settle the owned experiment agents first.");
+		}
+		experiment.status = "abandoned";
+		ledger.opt_outs.push({ item: experiment.item, reason: `Abandoned ${experiment.id}: ${values.reason.trim()}`, at: new Date().toISOString() });
+		writeLedger(ledger);
+		console.log(experiment.id);
+		return 0;
+	});
 }
 
 const recordName = (item: string, digest: string) => `${item}.${digest}.launch.json`;
 
-type LaunchRecord = { roster: Entry[]; launched_at: string; at: number; path: string; primaries: Record<string, string> };
+type LaunchRecord = { roster: Entry[]; ticketSha?: string; launched_at: string; at: number; path: string; primaries: Record<string, string> };
 
 function readLaunchRecord(path: string, item: string): LaunchRecord {
 	const doc = readJson(path, "launch record");
@@ -426,7 +534,8 @@ function readLaunchRecord(path: string, item: string): LaunchRecord {
 	let roster: Entry[];
 	try { roster = rosterOf({ roster: doc.roster }, item, doc.schema_version === undefined); }
 	catch { throw refused; }
-	return { roster, launched_at: doc.launched_at as string, at, path, primaries: doc.schema_version === 2 ? CHECK_PRIMARIES : HISTORICAL_CHECK_PRIMARIES };
+	if (doc.ticket_roster_sha256 !== undefined && (typeof doc.ticket_roster_sha256 !== "string" || !/^[a-f0-9]{64}$/.test(doc.ticket_roster_sha256))) throw refused;
+	return { roster, ticketSha: doc.ticket_roster_sha256 as string | undefined, launched_at: doc.launched_at as string, at, path, primaries: doc.schema_version === 2 ? CHECK_PRIMARIES : HISTORICAL_CHECK_PRIMARIES };
 }
 
 // Every launch record for the item, oldest first. The pattern is exact so an item id that is a
@@ -455,19 +564,56 @@ function adhocRoster(model: string | undefined, thinking: string | undefined): {
 	return { item, roster };
 }
 
+function writePlan(item: string, roster: Entry[], launch: Entry, explicit?: string, ticketSha?: string) {
+	const sha = rosterSha(roster);
+	const dir = stateDir(explicit);
+	const body = overlayText(item, sha, roster, launch) + (ticketSha ? `# ticket_roster_sha256: ${ticketSha}\n` : "");
+	const digest = createHash("sha256").update(body).digest("hex").slice(0, 8);
+	const overlay = join(dir, `${item}.${digest}.yml`);
+	if (overlay.includes(delimiter)) throw new CliError(`The overlay path ${plain(overlay)} contains "${delimiter}", which PI_CONFIG_FILES cannot carry.`);
+	writeStateFile(dir, basename(overlay), body);
+	const record = join(dir, recordName(item, digest));
+	let text: string | null = null;
+	try { readLaunchRecord(record, item); text = readFileSync(record, "utf8"); }
+	catch { /* new snapshot */ }
+	if (text === null) {
+		text = `${JSON.stringify({ schema_version: 2, item, roster, roster_sha256: sha, ticket_roster_sha256: ticketSha, launch: plain(selector(launch)), overlay, launched_at: new Date().toISOString() }, null, 2)}\n`;
+		writeStateFile(dir, basename(record), text);
+	}
+	writeStateFile(dir, `${item}.launch.json`, text);
+	return { overlay, record, env: { PI_CONFIG_FILES: overlay }, args: ["--model", key(launch), "--thinking", launch.effort, "--config", overlay] };
+}
+
 function launchCommand(options: LaunchOptions & { item?: string; model?: string; thinking?: string }): number {
 	if ((options.harness ?? "omp") !== "omp") {
 		throw new CliError("Only --harness omp enforces a ticket roster; Pi enforcement is a later slice.");
 	}
 	let item: string;
 	let roster: Entry[];
+	let ticket: unknown = null;
+	let defaultEvidence: string | null = null;
+	const reasons = [options.tiny, options["live-data"], options["no-experiment"]].filter((reason) => reason !== undefined);
+	if (reasons.length > 1 || reasons.some((reason) => !reason?.trim())) throw new CliError("Give one nonempty experiment opt-out reason.", 2);
 	if (options.item !== undefined) {
 		if (options.model !== undefined || options.thinking !== undefined) {
 			throw new CliError("--item takes its model from the ticket's roster; do not give --model or --thinking with it.", 2);
 		}
 		item = itemOf(options.item);
 		if (item.startsWith(ADHOC_PREFIX)) throw new CliError(`Board item ids cannot start with "${ADHOC_PREFIX}": that prefix names a launch without a ticket.`, 2);
-		roster = rosterOf(ticketOf(item, options["ticket-json"]), item);
+		ticket = ticketOf(item, options["ticket-json"]);
+		roster = rosterOf(ticket, item);
+		if (options["use-default"]) {
+			if (!isRecord(ticket) || !["build", "design", "research"].includes(ticket.nature as string)) throw new CliError("--use-default requires a qualifying ticket nature.");
+			const defaults = readLedger().defaults;
+			roster = roster.map((entry, index) => {
+				if (index !== 0) return entry;
+				const learned = defaults[`${ticket.nature}:${key(entry)}`];
+				if (!learned) throw new CliError(`No verdict-backed default for ${ticket.nature}:${key(entry)}.`);
+				defaultEvidence = learned.evidence;
+				return learned.entry;
+			});
+			roster = rosterOf({ roster }, item);
+		}
 	} else {
 		if (options["ticket-json"] !== undefined) throw new CliError("--ticket-json goes with --item; a launch with --model reads no ticket.", 2);
 		({ item, roster } = adhocRoster(options.model, options.thinking));
@@ -493,50 +639,42 @@ function launchCommand(options: LaunchOptions & { item?: string; model?: string;
 		console.error(`omp-roster: roster exhausted for ${item}; nothing was launched.\n${skipped.map((skip) => `  ${skipLine(skip)}`).join("\n")}`);
 		return EXHAUSTED;
 	}
-	const dir = stateDir(options["state-dir"]);
-	const body = overlayText(item, sha, roster, launch);
-	const digest = createHash("sha256").update(body).digest("hex").slice(0, 8);
-	const overlay = join(dir, `${item}.${digest}.yml`);
-	// PI_CONFIG_FILES is a path-delimited list, so a colon in the path would split it in two.
-	if (overlay.includes(delimiter)) throw new CliError(`The overlay path ${plain(overlay)} contains "${delimiter}", which PI_CONFIG_FILES cannot carry.`);
-	writeStateFile(dir, basename(overlay), body);
-	// One record per launch, named like its overlay, so `check` can judge each session against the
-	// launch that started it. The same digest means the same roster and launch entry, so an earlier
-	// record for it stays: its older launch time judges the same roster.
-	const record = join(dir, recordName(item, digest));
-	let text: string | null = null;
-	try { readLaunchRecord(record, item); text = readFileSync(record, "utf8"); }
-	catch { /* none yet, or not one omp-roster wrote: write it */ }
-	if (text === null) {
-		text = `${JSON.stringify({ schema_version: 2, item, roster, roster_sha256: sha, launch: plain(selector(launch)), overlay, launched_at: new Date().toISOString() }, null, 2)}\n`;
-		writeStateFile(dir, basename(record), text);
-	}
-	// The newest launch's record again under a name that needs no digest, for people.
-	writeStateFile(dir, `${item}.launch.json`, text);
-	// Nested `omp` runs the engineer starts inherit the roster only through the environment.
-	const env = { PI_CONFIG_FILES: overlay };
-	const args = ["--model", key(launch), "--thinking", launch.effort, "--config", overlay];
-	const pair = pairStatus(agents);
-	const twin = pair.status === "live" ? null : {
-		variable: "planning-prompt",
-		command: ["env", `PI_CONFIG_FILES=${overlay}`, "omp", ...args, "--append-system-prompt", TWIN_PROMPT].map(shellWord).join(" "),
-	};
-	if (twin) {
-		console.error(`warning: no A/B pair live (${pair.status}); pair state: ${pair.file}`);
-		console.error(`twin for ${item}; change only ${twin.variable}: ${twin.command}`);
-	}
+	const overlayDirectory = stateDir(options["state-dir"]);
+	if (overlayDirectory.includes(delimiter)) throw new CliError(`The overlay path ${plain(overlayDirectory)} contains "${delimiter}", which PI_CONFIG_FILES cannot carry.`);
+	const qualifies = isRecord(ticket) && ["build", "design", "research"].includes(ticket.nature as string);
+	const ticketSha = options["use-default"] ? rosterSha(rosterOf(ticket, item)) : undefined;
+	const outcome: { started: boolean; pair: { status: string; file: string; experiment?: Experiment }; overlay: string | null; record: string | null; env: { PI_CONFIG_FILES?: string }; args: string[] } = qualifies || reasons.length ? withLedgerLock(() => {
+		const ledger = readLedger();
+		importLegacyPair(ledger, agents);
+		let pair = currentPair(ledger, agents);
+		if (reasons.length) {
+			ledger.opt_outs.push({ item, reason: reasons[0]!.trim(), at: new Date().toISOString() });
+			writeLedger(ledger);
+		}
+		if (qualifies && !reasons.length && pair.status === "starting") throw new CliError(`Experiment ${pair.experiment!.id} has an unresolved start; inspect its lanes before abandoning.`);
+		if (qualifies && !reasons.length && pair.status === "none") {
+			const experiment = startPair(ledger, item, ticket as Record<string, unknown>, launch!, options, engineerCapacity.working, engineerCapacity.limit);
+			pair = { status: "live", file: ledgerPath(), experiment };
+			return { started: true, pair, overlay: null, record: null, env: {}, args: [] as string[] };
+		}
+		return { started: false, pair, ...writePlan(item, roster, launch!, options["state-dir"], ticketSha) };
+	}) : { started: false, pair: { status: "not-applicable", file: ledgerPath() }, ...writePlan(item, roster, launch, options["state-dir"]) };
 	const degraded = route.degraded ?? freshness.degraded_reason;
 	if (route.verdict === "low") console.error(`warning: ${plain(selector(launch))} is low on capacity and may run out soon`);
 	if (degraded) console.error(`warning: the ai-usage reading is degraded: ${degraded}`);
 	if (options.json) {
 		const usage = { ...freshness, degraded: freshness.degraded || route.degraded !== null, degraded_reason: degraded };
 		console.log(JSON.stringify({
-			item, launch: { ...launch, selector: plain(selector(launch)), verdict: route.verdict }, overlay, record, env, args, skipped, roster_sha256: sha, usage, memory, engineer_capacity: engineerCapacity, pair: { ...pair, twin },
+			item, launch: { ...launch, selector: plain(selector(launch)), verdict: route.verdict }, ...outcome, skipped, roster_sha256: sha, usage, memory, engineer_capacity: engineerCapacity,
+			default_evidence: options["use-default"] && launch === roster[0] ? defaultEvidence : null,
 		}, null, 2));
 	} else {
 		for (const skip of skipped) console.error(`skipped ${skipLine(skip)}`);
-		console.log(`export PI_CONFIG_FILES=${shellWord(env.PI_CONFIG_FILES)}`);
-		console.log(args.map(shellWord).join(" "));
+		if (outcome.started) console.log(`Started ${outcome.pair.experiment!.id}: ${outcome.pair.experiment!.lanes.map((lane) => lane.pane_id).join(", ")}`);
+		else {
+			console.log(`export PI_CONFIG_FILES=${shellWord(outcome.env.PI_CONFIG_FILES!)}`);
+			console.log(outcome.args.map(shellWord).join(" "));
+		}
 	}
 	return 0;
 }
@@ -677,7 +815,7 @@ function checkCommand(item: string, paths: string[], options: CheckOptions): num
 	let changedLine: string | null = null;
 	if (launches.length > 0 && !adhoc) {
 		if (current === null) changedLine = `roster changed since launch: the board's roster could not be read (${unreadable})`;
-		else if (newest?.basis.record && rosterSha(newest.basis.record.roster) !== rosterSha(current)) {
+		else if (newest?.basis.record && (newest.basis.record.ticketSha ?? rosterSha(newest.basis.record.roster)) !== rosterSha(current)) {
 			changedLine = `roster changed since launch: the board now has roster_sha256 ${rosterSha(current)}`;
 		}
 	}
@@ -792,23 +930,19 @@ function run(argv: string[]): number {
 				item: { type: "string" }, "ticket-json": { type: "string" }, "usage-json": { type: "string" }, "memory-json": { type: "string" },
 				"state-dir": { type: "string" }, harness: { type: "string" }, json: { type: "boolean" }, help: { type: "boolean", short: "h" },
 				model: { type: "string" }, thinking: { type: "string" },
+				cwd: { type: "string" }, "brief-file": { type: "string" }, tiny: { type: "string" }, "live-data": { type: "string" }, "no-experiment": { type: "string" }, "use-default": { type: "boolean" },
 			},
 			strict: true,
 		});
 		if (values.help) { console.log(USAGE); return 0; }
 		return launchCommand(values);
 	}
-	if (command === "pair") {
-		const { values } = parseArgs({
-			args,
-			options: {
-				item: { type: "string" }, "lane-a": { type: "string" }, "lane-b": { type: "string" },
-				variable: { type: "string" }, clear: { type: "boolean" }, help: { type: "boolean", short: "h" },
-			},
-			strict: true,
+	if (command === "abandon") return abandonCommand(args);
+	if (command === "defaults" || command === "verdict") {
+		return experimentCommand([command, ...args], {
+			approvedModels,
+			routeUsable: (entry) => !("skip" in routeState(entry, usageView(undefined).rows)),
 		});
-		if (values.help) { console.log(USAGE); return 0; }
-		return pairCommand(values);
 	}
 	if (command === "memory") {
 		const { values } = parseArgs({
