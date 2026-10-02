@@ -31,6 +31,9 @@ beforeAll(() => {
 	writeFileSync(join(root, "bin", "herdr"), '#!/bin/sh\n[ "$*" = "agent list" ] || exit 2\nif [ -n "$HERDR_TEST_AGENTS" ]; then cat "$HERDR_TEST_AGENTS"; else printf \'%s\\n\' \'{"result":{"agents":[]}}\'; fi\n', { mode: 0o755 });
 	cli = join(root, "deploy", "omp-roster");
 	copyFileSync(join(import.meta.dir, "omp-roster.ts"), cli);
+	copyFileSync(join(import.meta.dir, "omp-experiments.ts"), join(root, "deploy", "omp-experiments.ts"));
+	mkdirSync(join(root, ".hermes", "profiles", "kaylee", "journal"), { recursive: true });
+	writeFileSync(join(root, ".hermes", "profiles", "kaylee", "journal", "experiments.md"), "# Experiments\n\n## E-018 Historical fixture\n");
 	const core = join(root, "deploy", "omp-engineer");
 	copyFileSync(join(import.meta.dir, "omp-engineer.py"), core);
 	chmodSync(core, 0o700);
@@ -92,10 +95,15 @@ function invoke(args: string[], env: Record<string, string> = {}): Result {
 	const inherited = { ...process.env };
 	delete inherited.OMP_ROSTER_ENGINEER_LIMIT;
 	delete inherited.OMP_ROSTER_PAIR_FILE;
-	const actualArgs = args[0] === "launch" && !args.includes("--memory-json") ? [...args, "--memory-json", memoryFile] : args;
+	delete inherited.OMP_ROSTER_EXPERIMENTS_FILE;
+	const actualArgs = args[0] === "launch" ? [
+		...args,
+		...(!args.includes("--memory-json") ? ["--memory-json", memoryFile] : []),
+		...(!env.ROSTER_AUTO_PAIR && args.includes("--item") && !args.some((arg) => ["--tiny", "--live-data", "--no-experiment"].includes(arg)) ? ["--no-experiment", "Isolated roster admission/audit fixture"] : []),
+	] : args;
 	const result = Bun.spawnSync({
 		cmd: ["sh", "-c", 'umask 0; exec "$@"', "sh", process.execPath, cli, ...actualArgs],
-		env: { ...inherited, HOME: root, XDG_STATE_HOME: join(root, "xdg"), ...env, PATH: `${join(root, "bin")}:${env.PATH ?? process.env.PATH}` },
+		env: { ...inherited, HOME: root, XDG_STATE_HOME: join(root, "xdg"), OMP_ROSTER_EXPERIMENTS_FILE: join(root, ".hermes", "profiles", "kaylee", "journal", "experiments.md"), ...env, PATH: env.PATH ? `${env.PATH}:${join(root, "bin")}` : `${join(root, "bin")}:${process.env.PATH}` },
 		stdout: "pipe",
 		stderr: "pipe",
 	});
@@ -550,87 +558,129 @@ describe("omp-roster launch (US-046)", () => {
 	});
 });
 
-describe("omp-roster A/B visibility", () => {
-	const pairArgs = ["pair", "--item", "K-example", "--lane-a", "w1:p1", "--lane-b", "w2:p1", "--variable", "planning-prompt"];
-	const agents = [
-		{ agent: "omp", pane_id: "w1:p1", agent_status: "working", agent_session: { value: "/sessions/a.jsonl" } },
-		{ agent: "omp", pane_id: "w2:p1", agent_status: "working", agent_session: { value: "/sessions/b.jsonl" } },
-	];
-	const prepare = () => {
-		const dir = scratch("pair");
-		const pair = join(dir, "pair.json");
-		const snapshot = put(join(dir, "agents.json"), JSON.stringify({ result: { agents } }));
-		const env = { OMP_ROSTER_PAIR_FILE: pair, HERDR_TEST_AGENTS: snapshot };
-		const args = ["launch", "--item", "K-test",
-			"--ticket-json", put(join(dir, "ticket.json"), JSON.stringify(boardAnswer([SOL]))),
-			"--usage-json", put(join(dir, "usage.json"), JSON.stringify(usageView([row("openai-codex", "gpt-6.1-sol", "usable")]))),
-			"--state-dir", join(dir, "state dir's"), "--json"];
-		return { dir, pair, snapshot, env, args };
-	};
-
-	test("missing pair warns without gating and offers the same ticket with only a prompt variation", () => {
-		const { dir, pair, env, args } = prepare();
-		const run = invoke(args, env);
-		expect(run.exitCode).toBe(0);
-		const out = JSON.parse(run.stdout);
-		expect(out.pair).toMatchObject({ status: "none", file: pair, twin: { variable: "planning-prompt" } });
-		expect(run.stderr).toContain(out.pair.twin.command);
-		expect(out.launch).toMatchObject(SOL);
-		expect(JSON.parse(readFileSync(out.record, "utf8")).item).toBe("K-test");
-		expect(existsSync(pair)).toBe(false);
+describe("automatic experiment lifecycle", () => {
+	function prepare() {
+		const dir = scratch("automatic-pair");
+		const repo = join(dir, "repo");
+		mkdirSync(repo);
+		for (const args of [["init", "-q"], ["-c", "user.name=Fixture", "-c", "user.email=fixture@example.invalid", "commit", "-q", "--allow-empty", "-m", "base"]]) {
+			expect(Bun.spawnSync(["git", "-C", repo, ...args]).exitCode).toBe(0);
+		}
+		const journal = put(join(dir, "experiments.md"), "# Experiments\n\n## E-018 Existing history\nPreserve the prior lesson.\n");
+		const state = put(join(dir, "herdr.json"), JSON.stringify({ agents: [], worktrees: [], prompts: [] }));
 		const bin = join(dir, "bin");
-		mkdirSync(bin);
-		put(join(bin, "omp"), `#!${process.execPath}\nconsole.log(JSON.stringify({env:process.env.PI_CONFIG_FILES,args:process.argv.slice(2)}));\n`);
-		chmodSync(join(bin, "omp"), 0o700);
-		const command = Bun.spawnSync(["sh", "-c", out.pair.twin.command], { env: { ...process.env, PATH: `${bin}:${process.env.PATH}` } });
-		expect(command.exitCode).toBe(0);
-		const decoded = JSON.parse(command.stdout.toString());
-		expect(decoded.env).toBe(out.overlay);
-		expect(decoded.args.slice(0, -2)).toEqual(out.args);
-		expect(decoded.args.slice(-2)).toEqual(["--append-system-prompt", expect.any(String)]);
+		const herdr = put(join(bin, "herdr"), `#!${process.execPath}
+import {readFileSync,writeFileSync,mkdirSync} from "node:fs";
+import {join} from "node:path";
+const path=process.env.AUTO_HERDR_STATE;
+const state=JSON.parse(readFileSync(path,"utf8"));
+const args=process.argv.slice(2);
+const flag=(name)=>args[args.indexOf(name)+1];
+let result;
+if(args[0]==="agent"&&args[1]==="list") result={agents:state.agents};
+else if(args[0]==="pane"&&args[1]==="run") result={};
+else if(args[0]==="worktree"&&args[1]==="create"){
+ const n=state.worktrees.length+1, cwd=join(process.env.AUTO_ROOT,"lane-"+n);
+ const git=Bun.spawnSync(["git","-C",flag("--cwd"),"worktree","add","-q","-b",flag("--branch"),cwd,flag("--base")]);
+ if(git.exitCode!==0){console.error(git.stderr.toString());process.exit(1);}
+ const lane={pane_id:"w"+n+":p1",workspace_id:"w"+n,cwd};
+ state.worktrees.push(lane);
+ result={root_pane:{pane_id:lane.pane_id},workspace:{workspace_id:lane.workspace_id},worktree:{path:cwd}};
+}else if(args[0]==="agent"&&args[1]==="start"){
+ const pane=flag("--pane"), lane=state.worktrees.find(x=>x.pane_id===pane);
+ const session=join(process.env.AUTO_ROOT,pane.replace(":","-")+".jsonl");
+ writeFileSync(session,[{type:"session",cwd:lane.cwd},{type:"model_change",model:flag("--model")},{type:"thinking_level_change",thinkingLevel:flag("--thinking")}].map(x=>JSON.stringify(x)).join("\\n")+"\\n");
+ const agent={agent:"omp",pane_id:pane,agent_status:"idle",agent_session:{value:session}};
+ state.agents.push(agent); result={agent};
+}else if(args[0]==="agent"&&args[1]==="prompt"){
+ const agent=state.agents.find(x=>x.pane_id===args[2]);agent.agent_status="working";
+ state.prompts.push({pane:args[2],text:args[3]});result={agent};
+}else {console.error("unsupported Herdr command");process.exit(2);}
+writeFileSync(path,JSON.stringify(state));
+console.log(JSON.stringify({result}));
+`);
+		chmodSync(herdr, 0o700);
+		const ticket = put(join(dir, "ticket.json"), JSON.stringify({ nature: "research", roster: [SOL], done: [{ check: "Name the ownership boundary", proof: "Exact source evidence" }], victory: "Decidable ownership" }));
+		const usage = put(join(dir, "usage.json"), JSON.stringify(usageView([row("openai-codex", "gpt-6.1-sol", "usable")])));
+		const env = { ROSTER_AUTO_PAIR: "1", HERDR_ENV: "1", AUTO_ROOT: dir, AUTO_HERDR_STATE: state, OMP_ROSTER_EXPERIMENTS_FILE: journal, PATH: `${bin}:${process.env.PATH}` };
+		const args = ["launch", "--item", "K-test", "--cwd", repo, "--ticket-json", ticket, "--usage-json", usage, "--state-dir", join(dir, "roster-state"), "--json"];
+		return { dir, repo, journal, state, env, args };
+	}
+
+	test("one qualifying command starts isolated lanes; a surviving lane prevents another pair", () => {
+		const { journal, state, env, args } = prepare();
+		const first = invoke(args, env);
+		expect(first.exitCode).toBe(0);
+		const result = JSON.parse(first.stdout);
+		expect(result.started).toBe(true);
+		expect(result.args).toEqual([]);
+		expect(result.pair.experiment).toMatchObject({ id: "E-019", variable: "effort", default_key: "research:openai-codex/gpt-6.1-sol", status: "running" });
+		const runtime = JSON.parse(readFileSync(state, "utf8"));
+		expect(runtime.worktrees.length).toBe(2);
+		expect(runtime.prompts[0].text).toBe(runtime.prompts[1].text);
+		const commits = runtime.worktrees.map((lane: { cwd: string }) => Bun.spawnSync(["git", "-C", lane.cwd, "rev-parse", "HEAD"]).stdout.toString().trim());
+		expect(commits).toEqual([result.pair.experiment.base_commit, result.pair.experiment.base_commit]);
+		runtime.agents[0].agent_status = "done";
+		writeFileSync(state, JSON.stringify(runtime));
+		const second = invoke(args, env);
+		expect(second.exitCode).toBe(0);
+		expect(JSON.parse(second.stdout)).toMatchObject({ started: false, pair: { status: "live" } });
+		expect(JSON.parse(readFileSync(state, "utf8")).worktrees.length).toBe(2);
+		expect(readFileSync(journal, "utf8")).toContain("Preserve the prior lesson.");
 	});
 
-	test("registered live pair stays quiet; stopped or replaced sessions cannot silence the signal", () => {
-		const { pair, snapshot, env, args } = prepare();
-		const saved = invoke(pairArgs, env);
-		expect(saved.exitCode).toBe(0);
-		expect(statSync(pair).mode & 0o777).toBe(0o600);
-		const live = invoke(args, env);
-		expect(live.exitCode).toBe(0);
-		expect(JSON.parse(live.stdout).pair).toMatchObject({ status: "live", item: "K-example", twin: null });
-		expect(live.stderr).toBe("");
-		for (const replacement of [
-			{ ...agents[1], agent_status: "done" },
-			{ ...agents[1], agent_session: { value: "/sessions/restarted.jsonl" } },
-			{ ...agents[1], agent: "hermes" },
-		]) {
-			put(snapshot, JSON.stringify({ result: { agents: [agents[0], replacement] } }));
-			const stale = invoke(args, env);
-			expect(stale.exitCode).toBe(0);
-			expect(JSON.parse(stale.stdout).pair.status).toBe("stale");
-			expect(stale.stderr).toContain(JSON.parse(stale.stdout).pair.twin.command);
-		}
-		expect(invoke(["pair", "--clear"], env).exitCode).toBe(0);
-		expect(existsSync(pair)).toBe(false);
+	test("explicit reason skips both side effects and is retained; a bare opt-out refuses", () => {
+		const { state, journal, env, args } = prepare();
+		const skipped = invoke([...args, "--live-data", "Writes financial observations to the live ledger"], env);
+		expect(skipped.exitCode).toBe(0);
+		expect(JSON.parse(skipped.stdout).started).toBe(false);
+		expect(JSON.parse(readFileSync(state, "utf8")).worktrees).toEqual([]);
+		expect(readFileSync(journal, "utf8")).toContain("Writes financial observations to the live ledger");
+		expect(invoke([...args, "--no-experiment", " "], env).exitCode).toBe(2);
 	});
 
-	test("unreadable markers are advisory, and invalid registrations leave state untouched", () => {
-		const { pair, env, args } = prepare();
-		for (const marker of ["not JSON", "{}", JSON.stringify({ schema_version: 1, item: "K-example", variable: "model", lanes: ["w1:p1", "w1:p1"] })]) {
-			put(pair, marker);
-			const run = invoke(args, env);
-			expect(run.exitCode).toBe(0);
-			expect(JSON.parse(run.stdout).pair.status).toBe("unreadable");
-			expect(run.stderr).toContain(JSON.parse(run.stdout).pair.twin.command);
-		}
-		for (const fields of [
-			["--lane-b", "w1:p1"], ["--lane-b", "missing"], ["--variable", "two variables"],
-		]) {
-			expect(invoke([...pairArgs, ...fields], env).exitCode).toBe(2);
-		}
-		expect(JSON.parse(readFileSync(pair, "utf8")).lanes).toEqual(["w1:p1", "w1:p1"]);
+	test("unresolved starts and insufficient two-lane capacity cannot silently become singleton plans", () => {
+		const { state, env, args } = prepare();
+		expect(invoke(args, { ...env, OMP_ROSTER_ENGINEER_LIMIT: "1" }).exitCode).toBe(5);
+		expect(JSON.parse(readFileSync(state, "utf8")).worktrees).toEqual([]);
+		const script = join(env.PATH.split(":")[0]!, "herdr");
+		writeFileSync(script, '#!/bin/sh\nif [ "$*" = "agent list" ]; then printf \'{"result":{"agents":[]}}\\n\'; else printf \'creation ambiguous\\n\' >&2; exit 1; fi\n');
+		const failed = invoke(args, env);
+		expect(failed.exitCode).toBe(1);
+		expect(failed.stderr).toContain("remains starting");
+		const retry = invoke(args, env);
+		expect(retry.exitCode).toBe(1);
+		expect(retry.stderr).toContain("unresolved start");
+	});
+
+	test("cutover preserves the old live pair in the same journal without promoting its unregistered default", () => {
+		const { dir, repo, journal, state, env, args } = prepare();
+		writeFileSync(journal, "# Experiments\n\n## E-018 Existing history K-test\nPreserve the prior lesson.\n");
+		const lanes = [SOL, OPUS].map((entry, index) => {
+			const laneCwd = join(dir, `legacy-lane-${index}`);
+			mkdirSync(laneCwd);
+			const session = put(join(dir, `legacy-${index}.jsonl`), [
+				{ type: "session", cwd: laneCwd },
+				{ type: "model_change", model: `${entry.provider}/${entry.model}` },
+				{ type: "thinking_level_change", thinkingLevel: entry.effort },
+			].map((record) => JSON.stringify(record)).join("\n") + "\n");
+			return { pane_id: `w${index + 1}:p1`, session };
+		});
+		const runtime = JSON.parse(readFileSync(state, "utf8"));
+		runtime.agents = lanes.map((lane) => ({ agent: "omp", pane_id: lane.pane_id, agent_status: "working", agent_session: { value: lane.session } }));
+		writeFileSync(state, JSON.stringify(runtime));
+		const marker = put(join(dir, "pair.json"), JSON.stringify({ schema_version: 1, item: "K-test", variable: "model", lanes }));
+		const migrated = invoke(args, { ...env, OMP_ROSTER_PAIR_FILE: marker });
+		expect(migrated.exitCode).toBe(0);
+		expect(JSON.parse(migrated.stdout)).toMatchObject({ started: false, pair: { status: "live", experiment: { id: "E-018", legacy: true, default_key: "" } } });
+		expect(existsSync(marker)).toBe(false);
+		expect(JSON.parse(readFileSync(state, "utf8")).worktrees).toEqual([]);
+		const defaults = invoke(["defaults", "--json"], env);
+		expect(defaults.exitCode).toBe(0);
+		expect(JSON.parse(defaults.stdout).defaults).toEqual([]);
 	});
 });
+
 
 describe("omp-roster check (US-046)", () => {
 	const SECRET = "PROMPT-TEXT-THAT-MUST-NOT-APPEAR";

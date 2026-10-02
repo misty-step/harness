@@ -47,6 +47,9 @@ for consumer in pi omp; do
     mkdir -p "$home/.local/bin"
     printf 'foreign native executable sentinel\n' > "$work/expected-native"
     cp "$work/expected-native" "$home/.local/bin/omp"
+    mkdir -p "$home/.hermes/profiles/kaylee/journal"
+    printf '# Experiments\n\n## E-018 Preserved runtime journal sentinel\n' > "$work/expected-experiments"
+    cp "$work/expected-experiments" "$home/.hermes/profiles/kaylee/journal/experiments.md"
     for skill in herdr pr-preview sachstand session-close; do
       mkdir -p "$agent/skills/$skill"
       printf 'old owned management skill\n' > "$agent/skills/$skill/SKILL.md"
@@ -141,6 +144,8 @@ for consumer in pi omp; do
     check "omp engineer launcher bytes" cmp -s "$work/source/omp-config/bin/omp-engineer.py" "$home/.local/bin/omp-engineer"
     check "omp engineer launcher executable" test -x "$home/.local/bin/omp-engineer"
     check "omp engineer launcher installed load" "$home/.local/bin/omp-engineer" --help
+    check "omp CLI preserves the sole runtime experiment ledger" cmp -s "$work/expected-experiments" "$home/.hermes/profiles/kaylee/journal/experiments.md"
+    check "omp installed roster loads its experiment owner and queries defaults" env -i PATH="$PATH" HOME="$home" TMPDIR="$work" "$home/.local/bin/omp-roster" defaults --json
     # MIS-203: an installed updater must accept the new layout before live
     # activation writes anything. The virgin-host/native sentinels stay intact.
     printf '#!/bin/sh\nexit 2\n' > "$home/.local/bin/workbench-host-update"

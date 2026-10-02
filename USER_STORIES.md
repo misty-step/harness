@@ -576,6 +576,9 @@ and stop when it runs out, so recovery never lands on a model I did not name.
 Other helper roles retain US-014's routes and can recover only onto the roster.
 Reviewers instead use US-014's contrasting author-family route and stop after
 same-model retries.
+Qualifying build, design and research launches also start an identical-brief,
+same-model effort twin automatically, so a blind done-check verdict can change
+future routing with cited evidence instead of experiments remaining optional prose.
 
 Criteria:
 1. WHEN a ticket has a roster and Kaylee launches an OMP engineer, THE SYSTEM
@@ -619,25 +622,62 @@ Criteria:
    refuse `--item` together with `--model` or `--thinking`, neither, and a
    `:effort` suffix on `--model`, call no board, and let `check --item adhoc-...`
    judge a session against the recorded route with no board.
-7. WHEN a launch plan has no registered pair whose two OMP sessions are working,
-   THE SYSTEM SHALL report that state and a runnable twin command changing only
-   the planning-prompt variable while retaining the same model, effort, and
-   roster; a live registered pair SHALL suppress the suggestion.
-   Missing, stale, or unreadable pair state SHALL NOT refuse or defer the launch.
-   The launcher SHALL NOT automatically start a twin or edit a ticket roster.
-   A stopped or replaced session SHALL NOT count as a live lane.
+7. WHEN a build, design or research ticket qualifies and no live experiment is
+   reserved, THE SYSTEM SHALL start both OMP lanes from the same clean commit
+   in separate Herdr worktrees, with the identical complete ticket brief (or
+   supplied `--brief-file`) and done checks. The current checkout SHALL be used
+   unless `--cwd` is supplied; a qualifying launch SHALL NOT require a second
+   twin command. The candidate SHALL differ only by supported reasoning effort
+   and SHALL be capable of changing a nature/model effort default; build lanes
+   SHALL NOT merge or install before the verdict.
+8. WHEN `--tiny REASON`, `--live-data REASON` or `--no-experiment REASON` is used,
+   THE SYSTEM SHALL require a nonempty reason, record it with item and timestamp
+   in the existing experiment journal and return an ordinary launch plan.
+   Nonqualifying work and launches while a live pair is reserved SHALL retain
+   the ordinary roster-enforced plan; missing required experiment context or
+   malformed journal state SHALL fail closed, not degrade to a suggestion.
+9. WHEN starting a pair, THE SYSTEM SHALL hold an exclusive journal lock,
+   reserve `starting` before side effects, bind real pane/session identities,
+   and record `running`. It SHALL allow at most one live reservation, keep
+   ambiguous failures reserved and roll back only its own definitely failed
+   launch resources. Settled lanes SHALL become `awaiting-verdict` without
+   losing unfinished evidence and SHALL NOT prevent the next live pair.
+   Stopped or replaced sessions SHALL NOT count as live lanes.
+   `abandon --experiment E-NNN --reason TEXT` SHALL preserve the record and
+   refuse while a bound lane remains working.
+10. WHEN `verdict` receives the real lane artifacts and an approved usable native
+    judge, THE SYSTEM SHALL anonymize/randomize the lanes, withhold their key and
+    authors, require a judge family distinct from both lanes, disable fallback
+    and verify actual judge identity. It SHALL score each ticket done check per
+    lane 0–2 with evidence and rationale, choose the larger sum and lower effort
+    on a tie, and only then record the verdict and update the preregistered
+    `<nature>:<provider>/<model>` effort default with its E-id as evidence.
+    A confounded, incomplete or fallback verdict SHALL NOT change a default.
+11. WHEN querying `defaults`, THE SYSTEM SHALL report usable evidence-backed
+    entries with optional nature/model filters. Ticket-pinned rosters SHALL NOT
+    be silently overridden; `launch --use-default` SHALL be required to consume
+    learned effort and SHALL report its evidence without rewriting the ticket
+    or native interactive/subagent defaults.
+12. WHEN installing or recording experiments, THE SYSTEM SHALL keep the existing
+    Markdown journal as the sole durable ledger, preserve legacy prose and
+    confounds, number new records after legacy E-ids and never manufacture
+    historical verdict/default evidence. CLI installation SHALL deploy
+    `omp-experiments.ts` beside `omp-roster` without overwriting runtime history.
 
 No-gos: no cash routes (OpenRouter entries are never launched or used as
 recovery until a per-ticket cash cap exists, and a cash turn is never on the
-roster); no Pi enforcement yet; no gating in the board; no roster edits or model
-choice by the launcher. Not covered, and said so in `omp-config/README.md`: Pi
+roster); no Pi enforcement yet; no gating in the board; no silent roster edits or
+model-family choice by the launcher. Explicit learned effort consumption is
+scoped to the selected model, not global role defaults. Not covered, and said
+so in `omp-config/README.md`: Pi
 lanes and any `omp` not launched through `omp-roster launch` (a ticketless item is
 covered only when launched with `--model` and `--thinking`); agent definitions that
 pin their own model and the `find` judge's `model_usage` calls; prevention at spawn
 time (`check` detects afterwards).
 
 Evidence: `omp-config/bin/omp-roster.test.ts`, `omp-config/bin/omp-roster.ts`,
-`omp-config/README.md`, `./scripts/verify omp`, and the forced-outage smoke
+`omp-config/bin/omp-experiments.ts`, `omp-config/README.md`,
+`docs/verification.md`, `./scripts/verify omp`, and the forced-outage smoke
 recorded in the PR (Codex exhausted: a Sol-then-Sonnet roster hopped to Sonnet
 only, a Sol-only roster stopped with the usage-limit error, and
 `omp-roster check` was clean for both). A scout spawned by a Sonnet engineer on a
