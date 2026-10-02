@@ -229,6 +229,8 @@ are not a general security boundary.
 
 Repositories and ordinary home data remain shared and writable. Host config,
 installed executables and selected broker/runtime paths are read-only or hidden.
+Engineer `~/.cache/tmp` is a fresh private directory on its existing disk
+filesystem, not tmpfs storage that consumes the per-engineer memory bound.
 Git, cached pass/signing, silent Pulse audio and the native headless `browser`
 tool remain usable. Native PipeWire/ALSA clients cannot reach the host graph or
 devices: an active screen-share video node must not be exposed alongside audio.

@@ -174,7 +174,10 @@ class GpgAuthorityTests(unittest.TestCase):
 @unittest.skipUnless(shutil.which("bwrap") and shutil.which("slirp4netns"), "display namespace dependencies")
 class NamespaceAuthorityTests(unittest.TestCase):
     def test_env_socket_rediscovery_host_proc_loopback_and_inherited_fds_are_fenced(self):
-        with tempfile.TemporaryDirectory() as directory, socket.socket(socket.AF_UNIX) as filesystem, \
+        scratch = Path.home() / ".cache/tmp"
+        scratch.mkdir(parents=True, exist_ok=True)
+        scratch_device = scratch.stat().st_dev
+        with tempfile.TemporaryDirectory(dir=scratch) as directory, socket.socket(socket.AF_UNIX) as filesystem, \
                 socket.socket(socket.AF_UNIX) as abstract, socket.socket() as tcp:
             path = str(Path(directory) / "display.sock")
             filesystem.bind(path)
@@ -185,9 +188,9 @@ class NamespaceAuthorityTests(unittest.TestCase):
             tcp.bind(("127.0.0.1", 0))
             tcp.listen(1)
             code = r'''
-import json, os, socket, sys
+import json, os, socket, sys, tempfile
 from pathlib import Path
-path, abstract, host_pid, port, fd = sys.argv[1:]
+path, abstract, host_pid, port, fd, scratch_device = sys.argv[1:]
 result = {}
 for name, family, address in (
     ("pathname", socket.AF_UNIX, path),
@@ -211,6 +214,8 @@ except OSError:
 result["display_env"] = [name for name in ("DISPLAY", "WAYLAND_DISPLAY", "HYPRLAND_INSTANCE_SIGNATURE", "DBUS_SESSION_BUS_ADDRESS") if name in os.environ]
 result["no_input_devices"] = not Path("/dev/input").exists() and not Path("/dev/uinput").exists()
 result["native_media_hidden"] = not Path("/run/user/" + str(os.getuid()) + "/pipewire-0").exists()
+result["scratch_backing_preserved"] = (Path.home() / ".cache/tmp").stat().st_dev == int(scratch_device)
+result["default_scratch_private"] = tempfile.gettempdir() == str(Path.home() / ".cache/tmp")
 print(json.dumps(result))
 sys.exit(73)
 '''
@@ -219,7 +224,8 @@ sys.exit(73)
                                HYPRLAND_INSTANCE_SIGNATURE="synthetic", DBUS_SESSION_BUS_ADDRESS="unix:path=" + path)
             child = subprocess.run(
                 [sys.executable, str(DIRECTORY / "omp-display.py"), "--", sys.executable, "-c", code,
-                 path, abstract_name[1:], str(os.getpid()), str(tcp.getsockname()[1]), str(filesystem.fileno())],
+                 path, abstract_name[1:], str(os.getpid()), str(tcp.getsockname()[1]),
+                 str(filesystem.fileno()), str(scratch_device)],
                 env=environment, pass_fds=(filesystem.fileno(),), capture_output=True, text=True, timeout=20)
             self.assertEqual(child.returncode, 73, child.stderr)
             self.assertEqual(json.loads(child.stdout), {
@@ -227,6 +233,8 @@ sys.exit(73)
                 "slirp_host_gateway": "denied", "host_proc": "denied", "inherited_fd": "denied",
                 "display_env": [], "no_input_devices": True,
                 "native_media_hidden": True,
+                "scratch_backing_preserved": True,
+                "default_scratch_private": True,
             })
 
     def test_group_interrupt_is_single_and_term_reaches_command_for_graceful_flush(self):
