@@ -1,0 +1,13 @@
+# owned by misty-step/harness omp-config auditors
+[Unit]
+Description=Read-only %i audit: one OMP auditor per active repository
+OnFailure=kaylee-host-alert@%n.service
+OnSuccess=kaylee-host-ok@%n.service
+
+[Service]
+Type=oneshot
+Environment="PATH=%h/.local/bin:%h/.bun/bin:/usr/local/bin:/usr/bin:/bin"
+ExecStart=%h/.local/bin/pass-env run -f %h/.config/omp-audit.env.pass -- /usr/bin/python3 %h/.local/bin/omp-audit run %i
+TimeoutStartSec=16h
+Nice=10
+UMask=0077

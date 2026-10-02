@@ -182,7 +182,7 @@ function memoryCommand(options: { json?: boolean; "memory-json"?: string }): num
 }
 // Session-wide: no workspace filter, no exclusion for the calling engineer.
 function enforceEngineerLimit(): { working: number; limit: number; agents: Record<string, unknown>[] } {
-	const configured = process.env.OMP_ROSTER_ENGINEER_LIMIT ?? "20";
+	const configured = process.env.OMP_ROSTER_ENGINEER_LIMIT ?? "24";
 	if (!/^[1-9][0-9]*$/.test(configured) || !Number.isSafeInteger(Number(configured))) {
 		throw new CliError("OMP_ROSTER_ENGINEER_LIMIT must be a positive safe integer.");
 	}

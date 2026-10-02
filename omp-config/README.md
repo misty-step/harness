@@ -27,6 +27,7 @@ prompt is: how can I pokayoke this so this kind of error never happens again?
 | `bin/omp-roster.ts` | Launch an OMP engineer only on a board ticket's model roster and check a session stayed on it (US-046); installed as `~/.local/bin/omp-roster` |
 | `bin/omp-engineer.py`, `units/omp.slice` | Serialized live memory admission and per-engineer containment (US-043); explicit `engineer-cage` activation |
 | `bin/omp-display.py`, `bin/omp-gui.py` | Kernel-enforced live-display isolation and engineer-owned headless native GUI |
+| `auditors/`, `bin/omp-audit.py`, `units/omp-audit*` | Weekly read-only repository audits (foundations, principles, simplicity): one visible OMP auditor per active repository; explicit `auditors` activation |
 | `bin/pass-env.ts` | Moved to `agent-config`: pass-backed launcher, installed as `~/.local/bin/pass-env` |
 | `bin/design-check.ts` | Moved to `agent-config`: player-surface copy checker, installed as `~/.local/bin/design-check` |
 | `bin/tmp-health.py`, `references/dev-exec.md` | Opt-in workstation execution limits, pressure notifications, and rollback workflow |
@@ -81,11 +82,12 @@ OMP_INSTALL_COMPONENTS=mcp ./install
 OMP_INSTALL_COMPONENTS=audio-sandbox ./install
 OMP_INSTALL_COMPONENTS=cli ./install             # stage/refresh owned OMP launchers
 OMP_INSTALL_COMPONENTS=engineer-cage ./install   # explicit live rolling activation
+OMP_INSTALL_COMPONENTS=auditors ./install        # explicit: enables the weekly audit timers
 OMP_INSTALL_COMPONENTS="guidance mcp scopes skill:engineering-operations" ./install
 ```
 
 Supported components are `guidance`, `config`, `mcp`, `scopes`, `agents`,
-`secrets`, `audio-sandbox`, `cli`, `engineer-cage`, and `skill:<source-directory-name>`.
+`secrets`, `audio-sandbox`, `cli`, `engineer-cage`, `auditors`, and `skill:<source-directory-name>`.
 `all` cannot be combined with another component. Empty, unknown, missing-skill, invalid-name, and invalid YAML
 selections fail before any writes. The retired `OMP_INSTALL_GUIDANCE_ONLY`
 variable fails with migration instructions rather than silently triggering a
@@ -275,6 +277,49 @@ Updating the launcher does not retrofit existing processes. Relaunch engineers
 at their next natural exit; do not restart Herdr or forcibly move sessions.
 See [fresh-engineer proof](../docs/desktop-memory-guard.md#engineer-display-isolation-proof)
 for observed live denial, private GUI screenshot/click and compatibility checks.
+
+## Auditors
+
+Three weekly audits read every active repository: non-archived, non-empty
+`misty-step` and `r90group` repositories pushed within 30 days, less the
+archive mirror, test fixture and Kaylee journal named in `bin/omp-audit.py`.
+Foundations runs Sunday, Principles Monday and Simplicity Thursday, all at
+01:00. Simplicity replaces Kaylee's nightly deletion pass. The doctrine they
+apply is `agent-config/skills/foundation/constitution.md`.
+
+`omp-audit run <audit>` works like this:
+
+- Code gathers each repository's evidence: CI runs, releases, Sentry, security
+  alerts, the live site, portfolio pages and open tickets.
+- It checks the repository out fresh under `~/.cache/omp-audit`. OMP sessions
+  cannot see `~/.cache/tmp`.
+- It starts one OMP auditor per repository in its own Herdr tab, six at a
+  time. Each auditor runs inside `omp-roster`'s working-engineer cap and model
+  route, from `auditors/template.md` plus the audit's file.
+
+Auditors get `read`, `grep`, `glob` and `audit_file` only;
+`auditors/audit-tool.ts` refuses every other tool. They file as many tickets as
+the gaps need, and never fix, steer or message anyone.
+
+The filer (`omp-audit file`) writes a trusted
+`foundation-gap: <audit>/<repo>/<gap>` marker into each ticket. Later runs
+recognise the gap by that marker:
+
+- **Open ticket:** it is noted as seen again (a Linear comment) and its
+  priority climbs a step a week, never to urgent unless an auditor says so.
+- **Declined ticket:** it is not filed again.
+- **Done ticket:** it is filed again as a regression.
+
+Earlier runs' `outputs.jsonl` keep the history of which ticket owns each gap,
+so a ticket an auditor adopted rather than filed keeps its gap after it closes.
+Principles and Simplicity skip a repository with no commits since its last
+run, but its open gaps are still carried forward: seen again, and climbing.
+
+Routing is Habitat for R90 and Linear MIS for Misty Step; doctrine proposals go
+to the board. Each run keeps `manifest.json`, `run.log`, `outputs.jsonl` and
+every bundle and brief under `~/.local/state/omp-audit/runs/<run>/`.
+`--dry-run` gathers evidence without launching anything.
+`--record-only` launches auditors but only records what they would file.
 
 ## Privilege and approval
 
