@@ -1058,6 +1058,8 @@ either lane**. It runs in print mode with no tools, rules, skills or extensions,
 an isolated no-fallback overlay and a minimal blind prompt. The recorded actual
 judge identity must match the requested route; a same-family judge, fallback,
 invalid score or incomplete verdict cannot update a default.
+Its temporary overlay lives privately under the routing state directory, outside
+the native boundary's replaced TMPDIR, and is removed after the judge exits.
 
 The judge scores **every ticket done check for each lane, 0–2**, with evidence
 and rationale. The larger total wins; equal totals choose lower effort under the

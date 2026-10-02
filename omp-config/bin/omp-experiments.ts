@@ -1,8 +1,8 @@
 #!/usr/bin/env bun
 import { spawnSync } from "node:child_process";
 import { createHash, randomBytes, randomInt } from "node:crypto";
-import { closeSync, constants, fsyncSync, ftruncateSync, lstatSync, mkdtempSync, openSync, readFileSync, realpathSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
-import { homedir, tmpdir } from "node:os";
+import { closeSync, constants, fsyncSync, ftruncateSync, lstatSync, mkdirSync, mkdtempSync, openSync, readFileSync, realpathSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { homedir } from "node:os";
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { parseArgs } from "node:util";
 
@@ -424,7 +424,11 @@ function nativeAnswer(raw: string, requested: Entry): { text: string; judge: Ent
 	return { text: answer, judge };
 }
 function runJudge(prompt: string, judge: Entry): { raw: string; answer: string; judge: Entry } {
-	const cwd = mkdtempSync(join(tmpdir(), "omp-experiment-judge-"));
+	// The native display boundary replaces TMPDIR; routing overlays must remain visible across it.
+	const stateHome = process.env.XDG_STATE_HOME;
+	const state = join(stateHome && isAbsolute(stateHome) ? stateHome : join(homedir(), ".local", "state"), "omp-roster");
+	mkdirSync(state, { recursive: true, mode: 0o700 });
+	const cwd = mkdtempSync(join(state, ".judge-"));
 	try {
 		const overlay = join(cwd, "judge.json");
 		const roles = ["default", "slow", "task", "extreme", "reviewer", "security-reviewer"];
