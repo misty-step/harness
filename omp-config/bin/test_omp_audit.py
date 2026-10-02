@@ -131,6 +131,14 @@ class Filing(unittest.TestCase):
                 self.file(request(action="adopt", ticket=ticket), [], done)
         self.assertFalse(self.outputs.exists() and self.outputs.read_text())
 
+    def test_board_item_owner_is_read_from_the_board_only(self):
+        calls = []
+        board = {"item": {"id": "K-20261001-tach-per-pr-preview", "status": "later", "created_at": "2026-10-01T00:00:00Z"}}
+        with patch.object(audit, "run_json", side_effect=lambda argv, **kw: calls.append(argv[0]) or board):
+            state = audit.ticket_state("habitat", "K-20261001-tach-per-pr-preview")
+        self.assertEqual((state["state"], state["board"], calls), ("open", True, ["glass"]))
+        self.assertIsNone(audit.recur("habitat", state, request(), {}, NOW))
+
 
 class Routing(unittest.TestCase):
     def test_trackers(self):

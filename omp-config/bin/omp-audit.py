@@ -800,15 +800,14 @@ def ticket_state(kind, ticket):
         if not item:
             return None
         status = item.get("status")
+        return {"id": item["id"], "url": None, "board": True, "priority": None, "created": item.get("created_at"),
+                "state": "done" if status == "done" else "declined" if status == "dropped" else "open"}
     if kind == "linear":
         data = run_json(["linear", "gql", "query($id: String!) { issue(id: $id) { id identifier url priority createdAt state { type } team { id } } }",
                          "--vars", json.dumps({"id": ticket})], check=False)
         node = ((data or {}).get("data") or data or {}).get("issue")
         if not node or (node.get("team") or {}).get("id") != MIS_TEAM_ID:
             return None  # Misty Step gaps route to Linear MIS; another team's issue is never adopted or written.
-        node = ((data or {}).get("data") or data or {}).get("issue")
-        if not node:
-            return None
         kind_ = node["state"]["type"]
         return {"id": node["identifier"], "uuid": node["id"], "url": node["url"],
                 "state": "done" if kind_ == "completed" else "declined" if kind_ in ("canceled", "duplicate") else "open",
