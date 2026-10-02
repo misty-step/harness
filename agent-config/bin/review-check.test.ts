@@ -1,8 +1,11 @@
-import { afterAll, describe, expect, test } from "bun:test";
+import { afterAll, describe, expect, setDefaultTimeout, test } from "bun:test";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { evaluate, parseArgs, type Box, type Finding, type Measure } from "./review-check.ts";
+
+// Every real-browser test starts a Chromium; a cold CI runner needs more than bun's 5s default.
+setDefaultTimeout(60_000);
 
 const script = join(import.meta.dir, "review-check.ts");
 const scratch = mkdtempSync(join(tmpdir(), "review-check-test-"));
@@ -108,6 +111,31 @@ describe("real headless page", () => {
 			expect(code).toBe(1);
 			expect(rules).toEqual(["ask-not-visible"]);
 		}
+	});
+
+	test("an ask whose own text is cut off is not on the first screen", () => {
+		const ask = "Approve the idle-engineer rule, the single brief sender, and the weekly retro together";
+		const boxed = page("boxed.html", `<p data-review="point">Code fixes hold.</p><p data-review="ask" style="width:100px;height:20px;overflow:hidden">${ask}</p>`);
+		const ellipsis = page(
+			"ellipsis.html",
+			`<p data-review="point">Code fixes hold.</p><p data-review="ask" style="width:120px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${ask}</p>`,
+		);
+		for (const cut of [boxed, ellipsis]) {
+			const { code, rules } = rulesFor(cut);
+			expect(code).toBe(1);
+			expect(rules).toEqual(["ask-not-visible"]);
+		}
+	});
+
+	test("detail collapsed by overflow rather than <details> does not count as read", () => {
+		const collapsed = page(
+			"collapsed.html",
+			`<p data-review="point">Code fixes hold.</p><p data-review="ask">Approve it</p><div style="height:0;overflow:hidden"><p>${OVERVIEW}</p></div>`,
+		);
+		const { code, rules, stats } = rulesFor(collapsed);
+		expect(rules).toEqual([]);
+		expect(code).toBe(0);
+		expect(stats.screenWords).toBeLessThan(10);
 	});
 
 	test("a paragraph that runs past the fold counts only the words the reader sees", () => {

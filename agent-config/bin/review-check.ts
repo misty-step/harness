@@ -108,12 +108,13 @@ export function evaluate(page: string, measure: Measure, limits: Limits = DEFAUL
 }
 
 /**
- * Runs inside the page. The words a reader can see on the first screen are
- * grouped under their nearest block-level ancestor. Closed <details> content is
- * not rendered, so it counts for nothing and its marks report as hidden. A
- * marked part inside the first screen must also be what is painted at its
- * points: an ancestor's overflow or anything laid over it would hide it.
- * Returned by value, so it stays plain JSON.
+ * Runs inside the page. A reader sees an element only if it is what is painted at
+ * its points: an ancestor's overflow, text-overflow, or anything laid over it
+ * shows something else. That one test judges a marked part (its box and every
+ * line of its text) and each word counted on the first screen, grouped under its
+ * nearest block-level ancestor. Closed <details> content is not rendered, so it
+ * counts for nothing and its marks report as hidden. Returned by value, so it
+ * stays plain JSON.
  */
 const PAGE_SCRIPT = (pointSelector: string, askSelector: string) => `(async () => {
 	await document.fonts.ready;
@@ -121,39 +122,44 @@ const PAGE_SCRIPT = (pointSelector: string, askSelector: string) => `(async () =
 	const vw = document.documentElement.clientWidth, vh = window.innerHeight;
 	const visible = (el) => el.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true });
 	const hasWord = (text) => /[\\p{L}\\p{N}]/u.test(text);
-	const words = (text) => text.split(/\\s+/).filter(hasWord).length;
-	const onScreen = (r) => r.width > 0 && r.top < vh && r.bottom > 0 && r.left < vw && r.right > 0;
+	const solid = (r) => r.width > 0 && r.height > 0;
+	const onScreen = (r) => solid(r) && r.top < vh && r.bottom > 0 && r.left < vw && r.right > 0;
 	const wholly = (r) => r.top >= -0.5 && r.bottom <= vh + 0.5 && r.left >= -0.5 && r.right <= vw + 0.5;
-	const painted = (el) => [...el.getClientRects()].every((r) => {
-		const inset = Math.min(2, r.width / 2, r.height / 2);
-		const points = [
-			[r.left + r.width / 2, r.top + r.height / 2],
-			[r.left + inset, r.top + inset], [r.right - inset, r.top + inset],
-			[r.left + inset, r.bottom - inset], [r.right - inset, r.bottom - inset],
-		];
-		return points.every(([x, y]) => {
-			const hit = document.elementFromPoint(x, y);
-			return hit !== null && el.contains(hit);
+	const shows = (el, x, y) => {
+		const hit = document.elementFromPoint(x, y);
+		return hit !== null && el.contains(hit);
+	};
+	const painted = (el) => {
+		const text = document.createRange();
+		text.selectNodeContents(el);
+		return [...el.getClientRects(), ...text.getClientRects()].filter(solid).every((r) => {
+			const inset = Math.min(2, r.width / 2, r.height / 2);
+			return [
+				[r.left + r.width / 2, r.top + r.height / 2],
+				[r.left + inset, r.top + inset], [r.right - inset, r.top + inset],
+				[r.left + inset, r.bottom - inset], [r.right - inset, r.bottom - inset],
+			].every(([x, y]) => shows(el, x, y));
 		});
-	});
+	};
 	const box = (el) => {
 		const rect = el.getBoundingClientRect();
-		let shown = visible(el) && rect.width > 0 && rect.height > 0;
+		let shown = visible(el) && solid(rect);
 		if (shown && wholly(rect)) shown = painted(el);
 		return { text: el.textContent || "", visible: shown, top: rect.top, left: rect.left, bottom: rect.bottom, right: rect.right };
 	};
-	const visibleWords = (node) => {
+	const visibleWords = (node, owner) => {
 		const range = document.createRange();
 		range.selectNodeContents(node);
-		const rects = [...range.getClientRects()];
-		if (!rects.some(onScreen)) return 0;
-		if (rects.every(wholly)) return words(node.data);
+		if (![...range.getClientRects()].some(onScreen)) return 0;
 		let count = 0;
 		for (const match of node.data.matchAll(/\\S+/g)) {
 			if (!hasWord(match[0])) continue;
 			range.setStart(node, match.index);
 			range.setEnd(node, match.index + match[0].length);
-			if ([...range.getClientRects()].some(onScreen)) count++;
+			const [r] = range.getClientRects();
+			if (!r || !solid(r)) continue;
+			const left = Math.max(r.left, 0), right = Math.min(r.right, vw), top = Math.max(r.top, 0), bottom = Math.min(r.bottom, vh);
+			if (left < right && top < bottom && shows(owner, (left + right) / 2, (top + bottom) / 2)) count++;
 		}
 		return count;
 	};
@@ -163,7 +169,7 @@ const PAGE_SCRIPT = (pointSelector: string, askSelector: string) => `(async () =
 	for (let node = walker.nextNode(); node; node = walker.nextNode()) {
 		const parent = node.parentElement;
 		if (!parent || !hasWord(node.data) || parent.closest("script,style,noscript,template") || !visible(parent)) continue;
-		const count = visibleWords(node);
+		const count = visibleWords(node, parent);
 		if (count === 0) continue;
 		let block = parent;
 		while (block.parentElement && /^(inline|contents)/.test(getComputedStyle(block).display)) block = block.parentElement;
@@ -229,6 +235,9 @@ class Browser {
 		try {
 			const args = [
 				"--headless=new", "--disable-gpu", "--no-first-run", "--no-default-browser-check", "--disable-extensions",
+				// A cold start otherwise probes the network, the keyring and the update service before it serves a page.
+				"--disable-background-networking", "--disable-component-update", "--disable-sync", "--metrics-recording-only",
+				"--password-store=basic", "--use-mock-keychain", "--force-color-profile=srgb",
 				"--remote-debugging-port=0", `--user-data-dir=${browser.profile}`, "about:blank",
 			];
 			if (process.getuid?.() === 0) args.unshift("--no-sandbox");
