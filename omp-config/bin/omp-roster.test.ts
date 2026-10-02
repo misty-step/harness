@@ -192,7 +192,7 @@ describe("omp-roster launch (US-046)", () => {
 		const args = ["launch", "--item", "K-test", "--ticket-json", ticket, "--usage-json", usage, "--json"];
 		const env = { HERDR_TEST_AGENTS: agentsFile };
 		for (const [configured, limit, count] of [
-			[undefined, 20, 11], [undefined, 20, 19], [undefined, 20, 20], [undefined, 20, 21],
+			[undefined, 24, 11], [undefined, 24, 23], [undefined, 24, 24], [undefined, 24, 25],
 			["2", 2, 1], ["2", 2, 2], ["2", 2, 3], ["24", 24, 19],
 		] as const) {
 			put(agentsFile, JSON.stringify({ result: { agents: [...working.slice(0, count), ...settled, ...nonEngineers] } }));
