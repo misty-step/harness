@@ -134,6 +134,15 @@ owned directory. Remove only that directory once its process has ended.
   reports the effective cap/count on success. Lower and higher overrides,
   settled/non-OMP agents, unnamed agents, ticketless launches, malformed Herdr
   replies and invalid limits are covered.
+  `capacity --json` uses the same snapshot policy and succeeds at/full-over cap
+  while launch still exits 5. Read-only boundary proof inventories a dirty
+  unrelated checkout and an unwritable corrupt journal before/after the query,
+  with launch tools refusing any call and Herdr accepting only `agent list`.
+  Invalid limits and unknown fleet replies must remain visible errors, not
+  guessed capacity. Product smoke must separately call the staged/installed
+  `capacity` CLI and observe zero new agents, worktrees, locks or journal writes;
+  the subsequent real qualifying launch must dispatch exactly two lanes and
+  no third engineer. Capacity never serves as a reservation.
   Automatic experiment acceptance extends US-046, not the fleet cap or native
   defaults scope. Preserve the existing roster/fleet/memory proof above. At the
   launcher boundary, exercise qualifying plain `launch --item` in a checkout,

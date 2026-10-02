@@ -18,14 +18,15 @@ gitleaks protect --staged --redact --no-banner || {
   exit 1
 }
 
-# Step 2 (Jev, advisory only): never changes the exit status.
+# Step 2 (Jev, advisory only): never changes the exit status. A check that could
+# not run is a failed run reported through the outcome route, not a silent skip.
 if [ "${JEV_HOOK_OFF:-}" = "1" ]; then
   exit 0
 fi
+. .githooks/outcome.sh
 # Shared test-evidence advice reads the same immutable index snapshot. A provider
 # outage is unavailable, never a passing verdict or a reason to waive scanners.
 if command -v bun >/dev/null 2>&1 && [ -f agent-config/bin/semantic-check.ts ]; then
-  bun agent-config/bin/semantic-check.ts --repo "$PWD" --staged || \
-    printf 'semantic-check: advisory unavailable; deterministic scanners remain blocking\n'
+  advise harness-pre-commit-semantic-check bun agent-config/bin/semantic-check.ts --repo "$PWD" --staged
 fi
 exit 0

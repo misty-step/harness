@@ -1,12 +1,13 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { spawnSync } from "node:child_process";
-import { chmodSync, cpSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 
 const repoRoot = resolve(import.meta.dir, "..", "..");
 const preCommit = join(repoRoot, ".githooks", "pre-commit");
 const prePush = join(repoRoot, ".githooks", "pre-push");
+const outcomeHelpers = join(repoRoot, ".githooks", "outcome.sh");
 
 const gitleaksAvailable = spawnSync("gitleaks", ["version"], { encoding: "utf8" }).status === 0;
 if (!gitleaksAvailable) {
@@ -59,6 +60,7 @@ function makeRepo(): string {
 	cpSync(prePush, join(dir, ".githooks", "pre-push"));
 	chmodSync(join(dir, ".githooks", "pre-commit"), 0o755);
 	chmodSync(join(dir, ".githooks", "pre-push"), 0o755);
+	cpSync(outcomeHelpers, join(dir, ".githooks", "outcome.sh"));
 	git(dir, ["config", "core.hooksPath", ".githooks"]);
 
 	// Exercise the remaining advisory CLI on the real commit path. Its sources
@@ -80,6 +82,22 @@ function output(result: ReturnType<typeof spawnSync>): string {
 	return `${result.stdout ?? ""}${result.stderr ?? ""}`;
 }
 
+/** A PATH directory holding a recording `outcome` and, optionally, a key-injecting `pass-env` stand-in. */
+function fakeTools(passEnv: boolean): { env: NodeJS.ProcessEnv; outcomes: () => string[] } {
+	const bin = scratch();
+	const log = join(bin, "outcomes.log");
+	writeFileSync(join(bin, "outcome"), `#!/bin/sh\nprintf '%s\\n' "$*" >> '${log}'\n`);
+	chmodSync(join(bin, "outcome"), 0o755);
+	if (passEnv) {
+		// Resolves every entry, injects no key: the check itself then finds its provider unavailable.
+		writeFileSync(join(bin, "pass-env"), '#!/bin/sh\nwhile [ "$1" != "--" ]; do shift; done\nshift\nexec "$@"\n');
+		chmodSync(join(bin, "pass-env"), 0o755);
+	}
+	const env = hookEnv();
+	env.PATH = `${bin}:${env.PATH}`;
+	return { env, outcomes: () => readFileSync(log, "utf8").trim().split("\n") };
+}
+
 // The AWS-shaped id alone is allowlisted by gitleaks' default config; the
 // runtime-assembled Stripe-shaped value guarantees the scanner has a real
 // problem to block on without committing a credential-shaped string.
@@ -96,17 +114,33 @@ describe("hook policy matrix", () => {
 		expect(output(result)).toContain("gitleaks");
 	});
 
-	hookTest("staged test changes commit when semantic assessment is unavailable, without reporting a clean verdict", () => {
+	hookTest("a semantic check whose key cannot be read commits and records a failed run", () => {
+		const repo = makeRepo();
+		writeFileSync(join(repo, "cache.ts"), "export const cacheKey = (value: string) => value;\n");
+		git(repo, ["add", "cache.ts"]);
+		// The fixture has no .env.pass, so key resolution fails whichever pass-env is installed.
+		const tools = fakeTools(false);
+		const result = commit(repo, "add code without a readable key", tools.env);
+		expect(result.status).toBe(0);
+		expect(tools.outcomes()).toHaveLength(1);
+		expect(tools.outcomes()[0]).toStartWith("record harness-pre-commit-semantic-check --fail key-unreadable --detail ");
+	});
+
+	hookTest("staged test changes commit when the provider is unavailable, recording a failed run rather than a clean verdict", () => {
 		const repo = makeRepo();
 		writeFileSync(join(repo, "cache.ts"), "export const cacheKey = (value: string) => value;\n");
 		writeFileSync(join(repo, "cache.test.ts"), "import { cacheKey } from './cache';\nexpect(cacheKey('base')).toBe('base');\n");
 		git(repo, ["add", "cache.ts", "cache.test.ts"]);
 		const stagedTree = git(repo, ["write-tree"]).stdout?.toString().trim();
-		const result = commit(repo, "add staged test evidence");
+		const tools = fakeTools(true);
+		const result = commit(repo, "add staged test evidence", tools.env);
 		expect(result.status).toBe(0);
 		expect(git(repo, ["rev-parse", "HEAD^{tree}"]).stdout?.toString().trim()).toBe(stagedTree);
 		expect(output(result)).toContain("provider unavailable");
 		expect(output(result)).not.toContain("assessed; no findings");
+		expect(tools.outcomes()).toEqual([
+			"record harness-pre-commit-semantic-check --fail exit-3 --detail harness-pre-commit-semantic-check exited 3; no advice was produced",
+		]);
 	});
 
 	hookTest("disabling advisory checks cannot bypass the staged secret scanner", () => {

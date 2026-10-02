@@ -38,14 +38,17 @@ jobs:
           fi
       - name: Check workspace and all components sequentially
         run: ./scripts/check all
+      # A review that cannot run fails this step (exit 2); only fork pull requests,
+      # which receive no secrets by design, skip it.
       - name: System One semantic review gate
         env:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          FORK: ${{ github.event.pull_request.head.repo.fork }}
         run: |
-          if [ -n "$OPENROUTER_API_KEY" ] && [ "${{ github.event_name }}" = "pull_request" ]; then
+          if [ "$FORK" = "true" ]; then
+            echo "Semantic review gate skipped: fork pull requests receive no secrets."
+          elif [ "${{ github.event_name }}" = "pull_request" ]; then
             bun omp-config/bin/omp-diff-review.ts --range "origin/${{ github.base_ref }}..HEAD" --strict
-          elif [ -n "$OPENROUTER_API_KEY" ]; then
-            bun omp-config/bin/omp-diff-review.ts --commit HEAD --strict
           else
-            echo "Semantic review gate skipped in uncredentialed CI run."
+            bun omp-config/bin/omp-diff-review.ts --commit HEAD --strict
           fi

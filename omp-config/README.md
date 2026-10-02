@@ -239,6 +239,8 @@ are not a general security boundary.
 
 Repositories and ordinary home data remain shared and writable. Host config,
 installed executables and selected broker/runtime paths are read-only or hidden.
+All of `~/.hermes` stays hidden; Kaylee hands off briefs and live-data copies through `~/.local/state/kaylee/briefs`.
+Engineers read Kaylee's source in the `hermes-config` repository, never the live profile.
 Engineer `~/.cache/tmp` is a fresh private directory on its existing disk
 filesystem, not tmpfs storage that consumes the per-engineer memory bound.
 Git, cached pass/signing, silent Pulse audio and the native headless `browser`
@@ -288,7 +290,10 @@ for observed live denial, private GUI screenshot/click and compatibility checks.
 
 Three weekly audits read every active repository: non-archived, non-empty
 `misty-step` and `r90group` repositories pushed within 30 days, less the
-archive mirror, test fixture and Kaylee journal named in `bin/omp-audit.py`.
+archive mirror, test fixture and Kaylee journal named in `bin/omp-audit.py` and
+the repositories Phaedrus set aside in Glass's list
+(`~/.config/glass/set-aside`). Archive a project on GitHub or set it aside there
+and no audit files work on it again.
 Foundations runs Sunday, Principles Monday and Simplicity Thursday, all at
 01:00. Simplicity replaces Kaylee's nightly deletion pass. The doctrine they
 apply is `agent-config/skills/foundation/constitution.md`.
@@ -307,12 +312,15 @@ Auditors get `read`, `grep`, `glob` and `audit_file` only;
 `auditors/audit-tool.ts` refuses every other tool. They file as many tickets as
 the gaps need, and never fix, steer or message anyone.
 
-The filer (`omp-audit file`) writes a trusted
-`foundation-gap: <audit>/<repo>/<gap>` marker into each ticket. Later runs
+`audit_file` records each finding in the run; the auditor's sandbox cannot see
+the board, and a tracker outage must not lose findings. When each auditor ends,
+the launcher files its findings (`omp-audit` itself, outside the sandbox) with a
+trusted `foundation-gap: <audit>/<repo>/<gap>` marker in each ticket. Later runs
 recognise the gap by that marker:
 
-- **Open ticket:** it is noted as seen again (a Linear comment) and its
-  priority climbs a step a week, never to urgent unless an auditor says so.
+- **Open ticket:** no twin is filed. A Habitat ticket's priority climbs a step
+  a week, never to urgent unless an auditor says so; board items carry no
+  priority, so the desk grooms them.
 - **Declined ticket:** it is not filed again.
 - **Done ticket:** it is filed again as a regression.
 
@@ -321,9 +329,18 @@ so a ticket an auditor adopted rather than filed keeps its gap after it closes.
 Principles and Simplicity skip a repository with no commits since its last
 run, but its open gaps are still carried forward: seen again, and climbing.
 
-Routing is Habitat for R90 and Linear MIS for Misty Step; doctrine proposals go
-to the board. Each run keeps `manifest.json`, `run.log`, `outputs.jsonl` and
-every bundle and brief under `~/.local/state/omp-audit/runs/<run>/`.
+Routing is Habitat for R90 and Glass board items for Misty Step, including
+doctrine proposals; there is no Linear path. Every finding carries a complete
+ticket written by its auditor: nature, scope in and out, done checks with proof
+and a victory. A board item lands with that ticket in the same write, its
+roster the desk's default for its nature; a bare item an audit opened earlier
+gets its ticket when the gap is seen again. Habitat gets the ticket as text in
+the description. A finding that cannot be filed is kept in `outputs.jsonl` as
+`stranded`, with its whole request; it fails the repository and the run, so the
+unit's alert fires.
+`omp-audit refile <run>` files a run's stranded findings without auditing again.
+Each run keeps `manifest.json`, `run.log`, `outputs.jsonl` and every bundle and
+brief under `~/.local/state/omp-audit/runs/<run>/`.
 `--dry-run` gathers evidence without launching anything.
 `--record-only` launches auditors but only records what they would file.
 
@@ -974,12 +991,25 @@ when that model fails instead of hopping to Gemini. See "Launch without a
 ticket" below.
 
 ```sh
-omp-roster launch --item K-20260929-example --json  # qualifying ticket: starts both lanes in this checkout
+omp-roster capacity --json  # read-only session-wide count; never launches or reserves
+omp-roster launch --item K-20260929-example --cwd /path/to/exclusive-checkout --json  # qualifying ticket: starts both lanes
 omp-roster launch --item K-20260929-example --tiny "single typo fix"  # recorded opt-out; prints one launch plan
 omp-roster launch --model anthropic/claude-sonnet-5-5 --thinking medium --json   # no ticket: one route
 omp-roster check --item K-20260929-example --session ~/.omp/agent/sessions/<cwd>/<session>.jsonl
 omp-roster check --item adhoc-anthropic-claude-sonnet-5-5-20260929T190130Z --session <dir>   # id from the launch
 ```
+
+`capacity [--json]` is the capacity-only API. It reads only the configured
+working-engineer limit and `herdr agent list`, using the same session-wide OMP
+count policy as launch. JSON is `{ "engineer_capacity": { "working": N, "limit": L } }`;
+exit **0** includes a fleet at or above its limit. An invalid limit or unreadable
+fleet exits **1**, with the read error on stderr rather than a guessed count.
+It needs no ticket, usage route, memory measurement, display activation or clean
+checkout. It neither reads nor writes the experiment journal (even if corrupt
+or unwritable), migrates retired pair state, takes a lock, writes launch
+artifacts, nor creates worktrees, panes or agents. This is a snapshot, not
+reservation or admission: an actual launch rechecks its existing guards.
+Do not use `launch`, a fake ticket or an opt-out reason for a capacity/status read.
 
 `launch [--ticket-json FILE] [--usage-json FILE] [--state-dir DIR] [--harness omp] [--cwd DIR] [--brief-file FILE] [--use-default] [--tiny REASON | --live-data REASON | --no-experiment REASON] [--json]`:
 
@@ -1103,6 +1133,13 @@ two actual OMP lanes for qualifying **build, design or research** work when no
 experiment is reserved. This replaces the optional twin suggestion and manual
 `pair` registration/clear path; there is no `pair.json` or second experiment ledger.
 The launch uses the current checkout unless `--cwd DIR` selects another.
+Choose an exclusive checkout **before** launching and pass it with `--cwd`.
+In JSON, `started: true` means **both agents are already dispatched**:
+consume `pair.experiment.id` and the returned `pair.experiment.lanes` identities
+(`pane_id`, `session`, `workspace_id`, `cwd`); do not start or prompt a third
+engineer or manually register/log the pair. Only `started: false` returns
+`env` and `args` for **one** explicitly pinned engineer. Any `--tiny REASON`
+or `--live-data REASON` decision must be made before that launch.
 Worktree creation resolves the checkout's canonical Herdr parent workspace first;
 a linked checkout is a valid launch source, not a worktree-creation parent.
 Both lanes receive the same complete Glass ticket brief (title, why, description,

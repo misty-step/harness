@@ -221,7 +221,8 @@ export async function main(args = process.argv.slice(2)): Promise<number> {
   });
   if (options.json) process.stdout.write(`${JSON.stringify(result.record)}\n`);
   else process.stdout.write(`${result.humanLines.join("\n")}\n`);
-  return 0;
+  // A provider that could not assess is a failed run of the checker, never a clean result.
+  return result.record.status === "unavailable" ? 3 : 0;
 }
 
 if (import.meta.main) {

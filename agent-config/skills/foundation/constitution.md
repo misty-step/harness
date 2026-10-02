@@ -16,7 +16,9 @@ Critical: a gap here can hurt people, data or money.
    every PR. Failed or absent candidate proof never authorizes production.
 2. **Screams in production.** Every production error, failed health check or
    broken story reaches Sentry or an outside probe and starts agentic incident
-   response and triage within minutes.
+   response and triage within minutes. Our own machinery screams the same way:
+   every timer, cron, hook, reviewer, backup and release records one outcome
+   per run, and a failed or missed run becomes one incident per cause.
 3. **Safe releases.** A release ships only a proven change, reads back what
    shipped, and rolls itself back on failure without losing accepted data.
 4. **Recoverable data.** Data people trust us with has an owned backup and a
@@ -41,7 +43,8 @@ Table stakes: a gap here makes a project look or work unlike ours.
     phaedrus.io.
 
 Internal tools, infrastructure, config repositories and private betas skip 9
-and 10; libraries and local apps skip 2. Phaedrus approves any other exception.
+and 10; libraries and local apps skip 2's production clause, never its
+machinery clause. Phaedrus approves any other exception.
 
 ## Five principles for every change
 

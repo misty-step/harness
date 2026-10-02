@@ -37,15 +37,32 @@ constitution says, without any declaration in the repository.
 
 - File one ticket for every real gap you find, as many as the gaps need. There
   is no cap, and a gap is never left out because others exist.
+- `audit_file` records each finding in this run. The launcher files them when
+  you finish, outside this sandbox: Habitat for R90, the Glass board for Misty
+  Step. It deduplicates each gap against tickets that already carry it. A tool
+  error means nothing was recorded: read the message, fix the request and call
+  again.
 - Before filing, compare the gap with the open tickets in the bundle. When one
   already owns the same outcome, call `audit_file` with `action: "adopt"` and
-  its id instead of filing a twin.
+  its id instead of filing a twin. Still write a full title and body: if that
+  ticket turns out to be closed, the launcher files your finding instead.
 - `gap` is a short, stable kebab-case name for the gap (for example `sentry`,
   `restore-drill`, `licence`). The same gap gets the same name next week, so
   the filer can recognise it.
 - Title: `<repository>: <the outcome, in plain words>`, at most 120 characters.
   Body: the gap in one or two sentences, the evidence with links, and an
   observable "Done when". No preamble.
+- Every finding carries a complete ticket, so the queue can launch an engineer
+  on it exactly as written. Write it from your evidence; nobody re-specifies it.
+  - `nature`: the work that closes the gap: build, fix, research, design,
+    visual, communications, sysadmin or review.
+  - `scope_in`: what the work covers. `scope_out`: what it must not touch, so
+    the engineer stays on this gap. One line each, at most 160 characters.
+  - `done`: each thing that must be true, with its `proof`: a command, URL or
+    observation an engineer can show. One line each.
+  - `victory`: the one outcome that matters, in one sentence.
+  - Plain words: no dashes between clauses, and say what a code such as
+    `HA-12` or `#201` is in parentheses after it.
 - Priority:
   - `urgent`: a critical-foundation gap hurting people now, such as a site
     that is down, an exposed secret or critical vulnerability on a live
