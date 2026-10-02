@@ -74,7 +74,7 @@ const excerpt = (text: string, max = 60) => {
 };
 
 function whereIsIt(box: Box, height: number, width: number): string | null {
-	if (!box.visible) return "is hidden or closed inside a <details>";
+	if (!box.visible) return "is hidden, folded, clipped or covered";
 	if (box.bottom > height + 0.5) return `ends ${Math.ceil(box.bottom - height)}px below the first screen`;
 	if (box.top < -0.5) return "starts above the first screen";
 	if (box.right > width + 0.5 || box.left < -0.5) return "runs past the side of the first screen";
@@ -108,35 +108,65 @@ export function evaluate(page: string, measure: Measure, limits: Limits = DEFAUL
 }
 
 /**
- * Runs inside the page. Every visible text node on the first screen is grouped
- * under its nearest block-level ancestor. Closed <details> content is not
- * rendered, so it counts for nothing and its marks report as hidden. Returned
- * by value, so it stays plain JSON.
+ * Runs inside the page. The words a reader can see on the first screen are
+ * grouped under their nearest block-level ancestor. Closed <details> content is
+ * not rendered, so it counts for nothing and its marks report as hidden. A
+ * marked part inside the first screen must also be what is painted at its
+ * points: an ancestor's overflow or anything laid over it would hide it.
+ * Returned by value, so it stays plain JSON.
  */
 const PAGE_SCRIPT = (pointSelector: string, askSelector: string) => `(async () => {
 	await document.fonts.ready;
 	await new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done)));
 	const vw = document.documentElement.clientWidth, vh = window.innerHeight;
 	const visible = (el) => el.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true });
-	const words = (text) => text.split(/\\s+/).filter((word) => /[\\p{L}\\p{N}]/u.test(word)).length;
+	const hasWord = (text) => /[\\p{L}\\p{N}]/u.test(text);
+	const words = (text) => text.split(/\\s+/).filter(hasWord).length;
+	const onScreen = (r) => r.width > 0 && r.top < vh && r.bottom > 0 && r.left < vw && r.right > 0;
+	const wholly = (r) => r.top >= -0.5 && r.bottom <= vh + 0.5 && r.left >= -0.5 && r.right <= vw + 0.5;
+	const painted = (el) => [...el.getClientRects()].every((r) => {
+		const inset = Math.min(2, r.width / 2, r.height / 2);
+		const points = [
+			[r.left + r.width / 2, r.top + r.height / 2],
+			[r.left + inset, r.top + inset], [r.right - inset, r.top + inset],
+			[r.left + inset, r.bottom - inset], [r.right - inset, r.bottom - inset],
+		];
+		return points.every(([x, y]) => {
+			const hit = document.elementFromPoint(x, y);
+			return hit !== null && el.contains(hit);
+		});
+	});
 	const box = (el) => {
 		const rect = el.getBoundingClientRect();
-		const shown = visible(el) && rect.width > 0 && rect.height > 0;
+		let shown = visible(el) && rect.width > 0 && rect.height > 0;
+		if (shown && wholly(rect)) shown = painted(el);
 		return { text: el.textContent || "", visible: shown, top: rect.top, left: rect.left, bottom: rect.bottom, right: rect.right };
+	};
+	const visibleWords = (node) => {
+		const range = document.createRange();
+		range.selectNodeContents(node);
+		const rects = [...range.getClientRects()];
+		if (!rects.some(onScreen)) return 0;
+		if (rects.every(wholly)) return words(node.data);
+		let count = 0;
+		for (const match of node.data.matchAll(/\\S+/g)) {
+			if (!hasWord(match[0])) continue;
+			range.setStart(node, match.index);
+			range.setEnd(node, match.index + match[0].length);
+			if ([...range.getClientRects()].some(onScreen)) count++;
+		}
+		return count;
 	};
 	const blocks = new Map();
 	let screenWords = 0;
 	const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
 	for (let node = walker.nextNode(); node; node = walker.nextNode()) {
 		const parent = node.parentElement;
-		if (!parent || !/[\\p{L}\\p{N}]/u.test(node.data) || parent.closest("script,style,noscript,template") || !visible(parent)) continue;
-		const range = document.createRange();
-		range.selectNodeContents(node);
-		const onScreen = [...range.getClientRects()].some((r) => r.width > 0 && r.top < vh && r.bottom > 0 && r.left < vw && r.right > 0);
-		if (!onScreen) continue;
+		if (!parent || !hasWord(node.data) || parent.closest("script,style,noscript,template") || !visible(parent)) continue;
+		const count = visibleWords(node);
+		if (count === 0) continue;
 		let block = parent;
 		while (block.parentElement && /^(inline|contents)/.test(getComputedStyle(block).display)) block = block.parentElement;
-		const count = words(node.data);
 		screenWords += count;
 		const entry = blocks.get(block) || { text: "", words: 0 };
 		entry.text += " " + node.data;

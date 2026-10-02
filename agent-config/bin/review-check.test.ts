@@ -97,6 +97,27 @@ describe("real headless page", () => {
 		expect(rules).toEqual(["ask-not-visible"]);
 	});
 
+	test("an ask clipped by an ancestor or covered by another element is not on the first screen", () => {
+		const clipped = page("clipped.html", `<p data-review="point">Code fixes hold.</p><div style="height:0;overflow:hidden"><p data-review="ask">Approve it</p></div>`);
+		const covered = page(
+			"covered.html",
+			`<p data-review="point">Code fixes hold.</p><div style="position:relative"><p data-review="ask">Approve it</p><div style="position:absolute;inset:0;background:#fff"></div></div>`,
+		);
+		for (const hidden of [clipped, covered]) {
+			const { code, rules } = rulesFor(hidden);
+			expect(code).toBe(1);
+			expect(rules).toEqual(["ask-not-visible"]);
+		}
+	});
+
+	test("a paragraph that runs past the fold counts only the words the reader sees", () => {
+		const straddle = page("straddle.html", `<p data-review="point">Code fixes hold.</p><p data-review="ask">Approve it</p><div style="height:540px"></div><p>${OVERVIEW}</p>`);
+		const { code, rules, stats } = rulesFor(straddle);
+		expect(rules).toEqual([]);
+		expect(code).toBe(0);
+		expect(stats.screenWords).toBeLessThan(60);
+	});
+
 	test("a shorter viewport pushes the last ask off the screen", () => {
 		expect(rulesFor(recut, "--viewport", "1280x640").rules).toEqual([]);
 		const { code, rules } = rulesFor(recut, "--viewport", "1280x150");
