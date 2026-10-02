@@ -189,6 +189,13 @@ class Launch(unittest.TestCase):
         self.assertEqual(argv[argv.index("-e") + 1], str(audit.SHARE / "audit-tool.ts"))
         self.assertIn("--no-skills", argv)
 
+    def test_auditor_names_fit_herdr_and_stay_distinct(self):
+        repos = ["r90group/agent-usage-telemetry", "misty-step/habitat", "r90group/habitat", "misty-step/hermes-cloud.fixture_x"]
+        names = [audit.auditor_name("20261002T191348Z-foundations", "foundations", repo) for repo in repos]
+        for name in names:
+            self.assertRegex(name, r"\A[a-z][a-z0-9_-]{0,31}\Z")
+        self.assertEqual(len(set(names)), len(names))
+
 
 if __name__ == "__main__":
     unittest.main()

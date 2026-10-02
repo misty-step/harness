@@ -393,6 +393,15 @@ def safe(repo):
     return repo.replace("/", "__")
 
 
+def auditor_name(run_id, audit, repo):
+    """A Herdr agent name (lowercase start, [a-z0-9_-], at most 32 characters), readable and unique per repository
+    and run: the hash covers the full repository identity, so same-named repositories never share an auditor."""
+    owner, name = repo.lower().split("/", 1)
+    slug = re.sub(r"[^a-z0-9]+", "-", name).strip("-")[:15].strip("-") or "repo"
+    suffix = hashlib.sha256(f"{run_id}|{repo}".encode()).hexdigest()[:7]
+    return f"audit-{audit[0]}{owner[0]}-{slug}-{suffix}"
+
+
 def system_prompt(audit):
     return f"{(SHARE / 'template.md').read_text().rstrip()}\n\n{(SHARE / f'{audit}.md').read_text().rstrip()}\n"
 
@@ -550,9 +559,7 @@ def audit_one(context, meta, shared_path, shared, deadline):
     if context.dry_run:
         context.record(repo, status="gathered", finished=iso(now()))
         return
-    # Readable, and unique across organizations and runs: same-named repositories never share an auditor.
-    suffix = hashlib.sha256(f"{context.id}|{repo}".encode()).hexdigest()[:8]
-    name = f"{re.sub(r'[^a-z0-9-]+', '-', f'audit-{context.audit}-{repo.lower()}')[:50]}-{suffix}"
+    name = auditor_name(context.id, context.audit, repo)
     prompt = (f"Begin the {context.audit} audit of {repo}. Read {record / 'brief.md'} first, then {record / 'bundle.json'}, "
               "then the repository. File every gap with audit_file, then finish with your summary.")
     tab_id = None
