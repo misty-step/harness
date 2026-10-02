@@ -29,7 +29,7 @@ check() {
 for consumer in pi omp; do
   home="$work/$consumer-home"
   agent="$home/agent"
-  mkdir -p "$agent/skills/foreign" "$home/development"
+  mkdir -p "$agent/skills/foreign" "$home/development/r90group"
   printf 'foreign skill sentinel\n' > "$work/expected-skill"
   printf '{"synthetic":"auth sentinel","anthropic":{"type":"api_key","key":"synthetic-foreign"},"openrouter":{"type":"api_key","key":"synthetic-old"}}\n' > "$work/expected-auth"
   cp "$work/expected-skill" "$agent/skills/foreign/SKILL.md"
