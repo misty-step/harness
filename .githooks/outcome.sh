@@ -1,6 +1,8 @@
 # Sourced by the hooks. Advisory checks never block, but a check that could not
 # run is a failed run, never silence: it reports through Kaylee's outcome route
 # (docs/adr/009-nothing-fails-silently.md). A missing recorder is printed.
+# The hooks run in the repository root so `outcome` resolves its Git origin,
+# never the launcher's directory or a host-owner fallback.
 record() {
   if command -v outcome >/dev/null 2>&1; then
     outcome record "$@" || printf 'outcome: could not record %s; this run is unreported\n' "$1" >&2
