@@ -34,7 +34,7 @@ prompt is: how can I pokayoke this so this kind of error never happens again?
 | `mcp.json` | Global MCP inventory; Linear is deliberately absent |
 | `workspace-mcp.json`, `bin/omp-install-scopes.ts` | Linear directory scopes, native project-local imports, owned skill retirement |
 | `global/AGENTS.md` | OMP-specific guidance; `./install` composes it with shared sections from `agent-config` |
-| `global/WATCHDOG.md`, `global/WATCHDOG.yml` | One read-only Steward advisor |
+| `global/WATCHDOG.md`, `global/WATCHDOG.yml` | Read-only Steward advisor, enabled only on demand |
 | `themes/` | TUI themes (`tokyonight`, `everforest`, `everforest-light`) |
 | `skills/` | Moved to `agent-config`: portable skill packages, clean-replaced when selected |
 | `../.githooks/pre-push` | Root scanners; wired by `../scripts/bootstrap`, not runtime deployment |
@@ -148,7 +148,9 @@ servers only. OMP's managed OAuth tokens remain in its auth storage, never in
 this repository.
 
 OpenRouter auth (US-028): `models.yml` resolves `openrouter-key --personal
-workstation/OPENROUTER_OMP_HARNESS_API_KEY` on first use. The shared launcher
+workstation/OPENROUTER_MISTY_STEP_HARNESS_WORKSTATION_DIFF_REVIEW_API_KEY` on first use.
+The existing workstation entry supplies OMP's Jev-backed `find`; its name does
+not enable the retired automatic diff review. The shared launcher
 chooses `workstation/OPENROUTER_R90_HARNESS_WORKSTATION_INFERENCE_API_KEY` when the process directory
 or its Git common directory is under `~/development/r90group` (linked
 worktrees included). A failed pass lookup, damaged Git metadata or timeout
@@ -160,8 +162,8 @@ keeps existing `agent.db` credentials untouched, while a broken R90 entry
 receives an OpenRouter 401 instead of personal billing. Explicit runtime
 `--api-key` overrides remain higher priority and are outside this policy.
 `OMP_INSTALL_COMPONENTS=config ./install` deploys both the override and the
-launcher. Restart OMP after installation; see root verification guide for
-real-path billing checks.
+launcher. Start a fresh OMP process after installation; running engineers keep
+their current configuration. See root verification guide for real-path billing checks.
 
 Configuration preservation is semantic, not preservation of YAML comments or
 formatting. Package preflight checks syntax and local imports; native loading
@@ -858,10 +860,17 @@ there are no review or delivery skill entry points here. The bundled OMP
 reviewers remain available for explicitly requested work. Linear is an interactive
 provider integration, not a scheduler or an autonomous delivery service.
 
-`Steward` remains a read-only observer, not a release gate. Its native
-`advisor.syncBacklog: "off"` setting avoids waiting for catch-up while preserving
-background review and ordinary advice delivery. Print-mode can still drain a
-final review. Subagents are unadvised unless they opt in.
+`Steward` remains a read-only observer, not a release gate. Automatic review is
+off (`advisor.enabled: false`); use `omp --advisor` or `/advisor on` when requested.
+The definition, model role, and recovery chain remain available on demand.
+`advisor.syncBacklog: "off"` still avoids waiting for catch-up in an opted-in session.
+
+The automatic turn-end `extensions/diff-review` package is retired and removed
+by the full installer. The 2026-10-01 retro recorded 467 runs, 463 disabled, and
+no prevented failure; repairing `find` is not a reason to revive that check.
+The explicit `bin/omp-diff-review.ts` CLI and Pi's extension retain the shared
+System One engine. The roster, per-engineer 4-GiB cage, and visual model floor
+are unchanged.
 
 ### Ticket rosters (US-046)
 

@@ -25,10 +25,11 @@ its owned skills directory. Its repository owns Hermes-specific Jev procedures
 and authentication; do not infer them from retired plugins or copy OMP wiring.
 Jev advises on semantic decisions; Hermes/code retain execution and side effects.
 
-## OMP / Pi diff review
+## Diff review
 
-`agent-config/system-one/engine.ts` deploys into the `diff-review` extensions.
-Use `/diff-review [taste|security]`, or from the harness checkout:
+`agent-config/system-one/engine.ts` deploys into Pi's `diff-review` extension.
+Pi supports `/diff-review [taste|security]`. OMP's automatic turn-end extension
+is retired; explicit CLI review remains available from the harness checkout:
 
 ```sh
 pass-env run -f .env.pass -- bun omp-config/bin/omp-diff-review.ts

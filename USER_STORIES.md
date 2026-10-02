@@ -337,7 +337,7 @@ Criteria:
    escalation, THEN THE SYSTEM SHALL flag a hard block.
 4. IF a diff silences an error or handles invalid state after occurrence rather
    than eliminating root cause, THEN THE SYSTEM SHALL flag a pokayoke violation.
-5. WHEN the OMP or Pi extension is installed, THE SYSTEM SHALL load all review modules
+5. WHEN the Pi extension is installed, THE SYSTEM SHALL load all review modules
    self-contained from the deployed extension directory.
 6. WHEN testing offline or without remote keys, THE SYSTEM SHALL evaluate using
    deterministic heuristics only under explicit request (`--provider heuristic` or
@@ -346,16 +346,13 @@ Criteria:
    by default unless explicitly disabled.
 8. WHEN a diff exceeds context limits, THE SYSTEM SHALL chunk changes by file
    and hunk boundaries, evaluating chunks in parallel without truncation.
-9. WHEN an OMP session reviews a diff without a Jev key in its environment,
-   THE SYSTEM SHALL read the OpenRouter key at runtime through `pass-env` from
-   the names-only `jev.env.pass` mapping, keep the value out of the process
-   environment and disk, record each review's provider and resolved model in
-   `diff-review.jsonl`, and show a `no-key` status when resolution fails.
+9. WHEN OMP is installed, THE SYSTEM SHALL remove the retired automatic
+   turn-end diff-review extension. Explicit CLI review remains available.
 
 No-gos: no fabricated probability or confidence numbers in live sessions; no
 live credential storage on disk; no uncredentialed blocking of interactive turns;
 no silent truncation of multi-file diffs.
-Evidence: `omp-config/bin/omp-diff-review.test.ts`, `omp-config/extensions/diff-review/diff-review.test.ts`, `omp-config/extensions/diff-review/jev-key.test.ts`, `pi-config/extensions/diff-review/diff-review.test.ts`
+Evidence: `omp-config/bin/omp-diff-review.test.ts`, `scripts/verify-installers`, `pi-config/extensions/diff-review/diff-review.test.ts`
 
 ## US-010 Bounded continuation nudge
 
@@ -519,6 +516,8 @@ Criteria:
 3. WHEN OMP resolves `smol`, `tiny`, `commit`, `scout`, or `sonic`, THE SYSTEM
    SHALL select GPT-6 Luna max; `advisor` SHALL select Sonnet 5.5 medium;
    `plan` SHALL select GPT-6.1 Sol xhigh. Astra SHALL require explicit selection.
+   OMP SHALL leave automatic Steward review off by default while preserving
+   explicit `--advisor` and `/advisor on` invocation.
    Ordinary task children SHALL use their configured agent routes rather than
    inherit the live parent's model and thinking; explicit tagged model
    selections and per-item effort SHALL remain available, except designer

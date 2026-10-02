@@ -26,7 +26,7 @@ import {
 	routeBatteryForChunk,
 	generateStructuralMap,
 	MACRO_BATTERY,
-} from "../extensions/diff-review/engine.ts";
+} from "../../agent-config/system-one/engine.ts";
 import type {
 	SystemOneProvider,
 	ReviewVerdict,
@@ -36,7 +36,7 @@ import type {
 	ChoiceQuestion,
 	ScoreQuestion,
 	RuleFinding,
-} from "../extensions/diff-review/engine.ts";
+} from "../../agent-config/system-one/engine.ts";
 
 export {
 	evaluateDiff,

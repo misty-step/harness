@@ -7,4 +7,4 @@ providers:
     discovery:
       type: ollama
   openrouter:
-    apiKey: "!openrouter-key --personal workstation/OPENROUTER_OMP_HARNESS_API_KEY"
+    apiKey: "!openrouter-key --personal workstation/OPENROUTER_MISTY_STEP_HARNESS_WORKSTATION_DIFF_REVIEW_API_KEY"

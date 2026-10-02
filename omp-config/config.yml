@@ -67,7 +67,7 @@ secrets:
 tools:
   approvalMode: yolo
 advisor:
-  enabled: true
+  enabled: false
   syncBacklog: "off"
 providers:
   webSearchOrder:
