@@ -11,7 +11,7 @@ contracts remain meaningful; documentation or receipt syntax is not their proof.
 ## Lean safety cadence
 
 The approved 2026-10-02 amendment to
-[ADR-007](../../../docs/adr/007-braver-engineers-continuous-deployment.md)
+[ADR-007](https://github.com/misty-step/harness/blob/master/docs/adr/007-braver-engineers-continuous-deployment.md#lean-ci-amendment-2026-10-02)
 changes FND-CHG-002's cadence and FND-REL-001's deployment proof. No automatic
 PR or PR-target CI: engineers verify affected contracts, obtain independent
 review and run cheap secret/privacy scans before merge. Main builds one immutable
