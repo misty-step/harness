@@ -143,7 +143,13 @@ class Filing(unittest.TestCase):
     def test_adopting_a_missing_or_done_ticket_files_the_finding_instead(self):
         self.record(request(action="adopt", ticket="K-20261002-gone"))
         outcome, writes, _ = self.deliver()
-        self.assertEqual((outcome["outcome"], outcome["adoption_refused"], len(writes)), ("created", "K-20261002-gone", 1))
+        self.assertEqual((outcome["outcome"], outcome["adoption_refused"], outcome["regression_of"], len(writes)),
+                         ("created", "K-20261002-gone", None, 1))
+        self.outputs.write_text("")
+        self.record(request(action="adopt", ticket="HA-12"))
+        outcome, writes, _ = self.deliver(states={"HA-12": ticket("HA-12", "done")})
+        self.assertEqual((outcome["outcome"], outcome["regression_of"]), ("created", ["HA-12"]))
+        self.assertIn("- regression of: HA-12", writes[0][3])
 
     def test_unchanged_repository_carries_open_gaps_forward_without_an_auditor(self):
         self.earlier_run(action="file", outcome="created", ticket="HA-900")

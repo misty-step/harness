@@ -822,8 +822,8 @@ def owner_states(kind, context, mark):
     return {state: [ticket for ticket in found if ticket["state"] == state] for state in ("open", "declined", "done")}
 
 
-def file_gap(context, request, mark, moment):
-    """Open owner: recurrence. Declined: no write. Done: a regression gets a new one."""
+def file_gap(context, request, mark, moment, done=()):
+    """Open owner: recurrence. Declined: no write. Done (found, or `done` already seen): a regression gets a new one."""
     kind, scope = destination(context["repo"])
     found = owner_states(kind, context, mark)
     if found["open"]:
@@ -831,7 +831,7 @@ def file_gap(context, request, mark, moment):
         return {"outcome": "recurrence", "ticket": owner["id"], "url": owner.get("url"), "raised_to": recur(owner, request, context, moment)}
     if found["declined"]:
         return {"outcome": "declined", "ticket": found["declined"][0]["id"]}
-    regression_of = [ticket["id"] for ticket in found["done"]]
+    regression_of = list(dict.fromkeys([ticket["id"] for ticket in found["done"]] + list(done)))
     ticket, url = create(kind, scope, request, ticket_body(context, request, mark, regression_of), context, mark)
     return {"outcome": "created", "ticket": ticket, "url": url, "tracker": kind, "regression_of": regression_of or None}
 
@@ -843,7 +843,8 @@ def adopt(context, request, mark, moment):
         return {"outcome": "adopted", "ticket": state["id"], "url": state.get("url"), "raised_to": recur(state, request, context, moment)}
     if state and state["state"] == "declined":
         return {"outcome": "declined", "ticket": state["id"]}
-    return {**file_gap(context, request, mark, moment), "adoption_refused": request["ticket"]}
+    done = [state["id"]] if state and state["state"] == "done" else []
+    return {**file_gap(context, request, mark, moment, done), "adoption_refused": request["ticket"]}
 
 
 def carry(context, request, mark, moment):
