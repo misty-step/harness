@@ -704,9 +704,14 @@ def habitat_module_id(label):
 BOARD_CODE = re.compile(r"\b[A-Za-z]{2,}-[0-9]+\b|#[0-9]+\b")
 
 
-def plain_words(text):
+def plain_words(text, limit):
+    """At most `limit` characters; cut the source, never a gloss, so every code keeps its explanation."""
     text = re.sub(r"\s*[\u2014\u2013]\s*|\s+-\s+", ", ", " ".join(text.split()))
-    return BOARD_CODE.sub(lambda code: f"{code.group(0)} (see notes)", text)
+    while True:
+        glossed = BOARD_CODE.sub(lambda code: f"{code.group(0)} (see notes)", text)
+        if len(glossed) <= limit:
+            return glossed
+        text = text[:len(text) - (len(glossed) - limit)].rstrip()
 
 
 def board_add(context, request, notes, scope, note):
@@ -715,8 +720,8 @@ def board_add(context, request, notes, scope, note):
     if len(notes) > 2000:
         tail = f"\n\n[cut to fit; the whole finding is in {context['outputs']}]"
         notes = notes[:2000 - len(tail)] + tail
-    why = plain_words(request["body"].strip().split("\n\n", 1)[0])[:600]
-    receipt = run_json(["glass", "item", "add", "--title", plain_words(request["title"])[:160], "--kind", "task",
+    why = plain_words(request["body"].strip().split("\n\n", 1)[0], 600)
+    receipt = run_json(["glass", "item", "add", "--title", plain_words(request["title"], 160), "--kind", "task",
                         "--status", "later", "--scope", scope, "--why", why, "--why-attribution", "quoted",
                         "--why-source", "omp-audit auditor", "--relaying", "none", "--notes", notes, "--note", note,
                         "--caller", "omp-audit", "--json"])

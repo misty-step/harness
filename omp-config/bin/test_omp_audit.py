@@ -212,9 +212,11 @@ class Filing(unittest.TestCase):
         self.assertEqual(flag("--title"), "chrondle: close ALR-001 (see notes), the alert rule")
         self.assertEqual(flag("--why"), "US-014 (see notes) (story) fails, see #201 (see notes).")
         self.assertEqual(flag("--status"), "later")
-        fitted = audit.plain_words("a" * 150 + " ALR-001 and HA-12", 160)
-        self.assertLessEqual(len(fitted), 160)
-        self.assertTrue(fitted.endswith("(see notes)"))
+        for source in ("a" * 150 + " ALR-001 and HA-12", "a" * 140 + " ALR-001"):
+            fitted = audit.plain_words(source, 160)
+            self.assertLessEqual(len(fitted), 160)
+            self.assertEqual(len(audit.BOARD_CODE.findall(fitted)), fitted.count(" (see notes)"))
+        self.assertTrue(fitted.endswith("ALR-001 (see notes)"))
 
     def test_a_habitat_climb_sends_the_items_current_revision(self):
         updates = []
