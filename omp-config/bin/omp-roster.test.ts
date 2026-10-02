@@ -180,7 +180,7 @@ describe("omp-roster launch (US-046)", () => {
 		const agentsFile = join(dir, "agents.json");
 		const ticket = put(join(dir, "ticket.json"), JSON.stringify(boardAnswer([SONNET])));
 		const usage = put(join(dir, "usage.json"), JSON.stringify(usageView([row("anthropic", "sonnet", "usable")])));
-		const working = Array.from({ length: 24 }, (_, index) => ({
+		const working = Array.from({ length: 26 }, (_, index) => ({
 			name: index === 0 ? null : `engineer-${index + 1}`,
 			pane_id: `w${index + 1}:p1`, workspace_id: `w${index + 1}`, agent: "omp", agent_status: "working",
 		}));
