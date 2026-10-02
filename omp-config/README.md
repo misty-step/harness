@@ -306,12 +306,15 @@ Auditors get `read`, `grep`, `glob` and `audit_file` only;
 `auditors/audit-tool.ts` refuses every other tool. They file as many tickets as
 the gaps need, and never fix, steer or message anyone.
 
-The filer (`omp-audit file`) writes a trusted
-`foundation-gap: <audit>/<repo>/<gap>` marker into each ticket. Later runs
+`audit_file` records each finding in the run; the auditor's sandbox cannot see
+the board, and a tracker outage must not lose findings. When each auditor ends,
+the launcher files its findings (`omp-audit` itself, outside the sandbox) with a
+trusted `foundation-gap: <audit>/<repo>/<gap>` marker in each ticket. Later runs
 recognise the gap by that marker:
 
-- **Open ticket:** it is noted as seen again (a Linear comment) and its
-  priority climbs a step a week, never to urgent unless an auditor says so.
+- **Open ticket:** no twin is filed. A Habitat ticket's priority climbs a step
+  a week, never to urgent unless an auditor says so; board items carry no
+  priority, so the desk grooms them.
 - **Declined ticket:** it is not filed again.
 - **Done ticket:** it is filed again as a regression.
 
@@ -320,9 +323,13 @@ so a ticket an auditor adopted rather than filed keeps its gap after it closes.
 Principles and Simplicity skip a repository with no commits since its last
 run, but its open gaps are still carried forward: seen again, and climbing.
 
-Routing is Habitat for R90 and Linear MIS for Misty Step; doctrine proposals go
-to the board. Each run keeps `manifest.json`, `run.log`, `outputs.jsonl` and
-every bundle and brief under `~/.local/state/omp-audit/runs/<run>/`.
+Routing is Habitat for R90 and Glass board items for Misty Step, including
+doctrine proposals; there is no Linear path. A finding that cannot be filed is
+kept in `outputs.jsonl` as `stranded`, with its whole request; it fails the
+repository and the run, so the unit's alert fires.
+`omp-audit refile <run>` files a run's stranded findings without auditing again.
+Each run keeps `manifest.json`, `run.log`, `outputs.jsonl` and every bundle and
+brief under `~/.local/state/omp-audit/runs/<run>/`.
 `--dry-run` gathers evidence without launching anything.
 `--record-only` launches auditors but only records what they would file.
 

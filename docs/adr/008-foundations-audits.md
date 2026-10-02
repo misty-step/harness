@@ -24,11 +24,14 @@ fresh checkout. Each auditor uses the fixed template, our subscriptions and the
 OMP config.
 
 Auditors are read-only. Tool scope and a tool guard enforce this, not prose.
-Their one write is the filer, which keeps one ticket per gap through a trusted
-marker. There is no ticket cap; ranking and weekly priority climb replace it.
-Auditors never fix gaps, steer engineers or message anyone; only the desk
-dispatches. Routing reuses the trackers: Habitat for R90, Linear MIS for Misty
-Step, and the board for doctrine proposals that Phaedrus decides.
+Their one write is recording findings; the launcher files them outside the
+auditor's sandbox and keeps one ticket per gap through a trusted marker. There
+is no ticket cap; ranking and weekly priority climb replace it. A finding that
+cannot be filed is kept and fails the run loudly, to be refiled without another
+audit. Auditors never fix gaps, steer engineers or message anyone; only the desk
+dispatches. Routing: Habitat for R90; Glass board items for Misty Step and for
+doctrine proposals that Phaedrus decides. Misty Step left Linear on 2 October;
+the audits have no Linear path.
 
 ## Consequences
 

@@ -50,7 +50,7 @@ export default function auditTool(pi: ExtensionAPI): void {
 		name: "audit_file",
 		label: "File audit gap",
 		description:
-			"File one audit outcome. action=file opens or updates the one ticket for this gap; action=adopt records that an existing open ticket (ticket=ID) already owns it; action=propose suggests a doctrine change to Phaedrus. No cap: call once per gap.",
+			"Record one finding for this audit; the launcher files it after the audit ends. action=file is a gap; action=adopt names an existing open ticket (ticket=ID) that already owns it; action=propose suggests a doctrine change to Phaedrus. No cap: call once per gap. A tool error means nothing was recorded: fix the request and call again.",
 		loadMode: "essential",
 		parameters: z.object({
 			action: z.enum(["file", "adopt", "propose"]),
@@ -63,7 +63,8 @@ export default function auditTool(pi: ExtensionAPI): void {
 		}),
 		async execute(_toolCallId, params) {
 			const outcome = fileRequest(filer, context, params as Request);
-			return { content: [{ type: "text", text: outcome.text }], details: { ok: outcome.ok } };
+			if (!outcome.ok) throw new Error(outcome.text); // A failure is a tool error, never a quiet success.
+			return { content: [{ type: "text", text: outcome.text }], details: { ok: true } };
 		},
 	});
 }

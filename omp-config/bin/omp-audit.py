@@ -2,18 +2,22 @@
 # owned by misty-step/harness omp-config auditors
 """Read-only repository audits: one visible OMP auditor per active repository and audit.
 
-  omp-audit run AUDIT [--repo OWNER/NAME]... [--concurrency N] [--dry-run]
+  omp-audit run AUDIT [--repo OWNER/NAME]... [--concurrency N] [--dry-run] [--record-only]
   omp-audit repos
-  omp-audit file --context FILE      one audit_file request as JSON on stdin
+  omp-audit file --context FILE      one audit_file request as JSON on stdin (records it; files nothing)
+  omp-audit refile RUN [--repo OWNER/NAME]   deliver a run's pending and stranded findings
 
 `run` gathers each repository's evidence with code, checks it out fresh and starts one OMP auditor in
 its own Herdr tab from the fixed template (auditors/template.md plus the audit's file). Auditors read;
-their one write is `file`, which deduplicates each gap by a trusted marker, ranks it and routes it to
-Habitat (R90), Linear MIS (Misty Step) or the board (doctrine proposals). There is no ticket cap.
+their one write is `file`, which records each finding in the run. When an auditor ends, the launcher
+delivers its findings outside the auditor's sandbox, one ticket per gap by a trusted marker: Habitat for
+R90, the Glass board for Misty Step and for doctrine proposals. There is no ticket cap. A finding that
+cannot be filed is stranded with its full request and fails the run loudly; `refile` delivers it later.
 """
 
 import argparse
 from concurrent.futures import ThreadPoolExecutor
+import contextlib
 from datetime import datetime, timedelta, timezone
 import fcntl
 import hashlib
@@ -53,18 +57,12 @@ PORTFOLIO = ("https://mistystep.io/", "https://phaedrus.io/")
 R90_SITE = "repos/r90group/web-r90/contents/public/index.html"
 SENTRY_ORGS = ("misty-step", "r90")
 
-MIS_TEAM_ID = "a46fc8a2-9d59-4d9d-bc2a-cf5eab537338"
 HABITAT_MODULES = {
     "agent-usage-telemetry": "Agent Usage Telemetry (AUT)", "allie": "Allie (AL)", "Cap": "Cap (CA)",
     "habitat": "Habitat (HA)", "habitat-teams-bot": "Habitat (HA)", "infrastructure": "Infrastructure (INF)",
     "seedbed": "Seedbed (SBD)", "tangle": "Tangle (TAN)", "time-tracker": "Time Tracker (TI)", "trellis": "Trellis (TRE)",
 }
-LINEAR_PROJECTS = {
-    "cantrip": "Cantrip", "glass": "Glass", "harness": "omp-config", "landmark": "Landmark", "linejam": "Linejam",
-    "parlor": "Parlor", "poppycock": "Poppycock", "scry": "Scry", "sploot": "Sploot",
-}
 PRIORITIES = ("urgent", "high", "normal", "low")
-LINEAR_PRIORITY = (1, 2, 3, 4)
 HABITAT_PRIORITY = ("p0", "p1", "p2", "p3")
 MARKER_PREFIX = "foundation-gap:"
 GAP = re.compile(r"[a-z0-9][a-z0-9-]{1,59}\Z")
@@ -148,12 +146,12 @@ def active_repositories():
 # --- Where tickets go ------------------------------------------------------------------------------
 
 def destination(repo):
-    """("habitat", module label or None) for R90, ("linear", project name or None) for Misty Step."""
+    """("habitat", module label or None) for R90; ("board", "misty-step/<repo>") for Misty Step."""
     owner, name = repo.split("/", 1)
     if owner == "r90group":
         return "habitat", HABITAT_MODULES.get(name)
     if owner == "misty-step":
-        return "linear", LINEAR_PROJECTS.get(name)
+        return "board", f"misty-step/{name}"
     raise Refusal(f"no tracker route for {repo}")
 
 
@@ -216,22 +214,6 @@ def sentry_projects():
     return {"projects": found}
 
 
-def linear_open():
-    query = ("query($after: String) { issues(first: 250, after: $after, filter: { team: { key: { eq: \"MIS\" } }, "
-             "state: { type: { nin: [\"completed\", \"canceled\"] } } }) { nodes { identifier title url state { name } "
-             "project { name } } pageInfo { hasNextPage endCursor } } }")
-    issues, after = [], None
-    for _ in range(10):
-        data = run_json(["linear", "gql", query, "--vars", json.dumps({"after": after})])
-        page = (data.get("data") or data)["issues"]
-        issues += [{"id": node["identifier"], "title": node["title"], "url": node["url"], "state": node["state"]["name"],
-                    "project": (node.get("project") or {}).get("name")} for node in page["nodes"]]
-        if not page["pageInfo"]["hasNextPage"]:
-            return issues
-        after = page["pageInfo"]["endCursor"]
-    raise Refusal("Linear open-issue listing exceeded 10 pages")
-
-
 def habitat_open():
     items, offset = [], 0
     for _ in range(20):
@@ -256,7 +238,7 @@ def shared_evidence():
     pages = {url: page_text(fetch(url).get("text", "")) for url in PORTFOLIO}
     pages["R90 site (r90group/web-r90 public/index.html)"] = page_text(r90 or "")
     return {"gathered": iso(now()), "sentry": sentry_projects(), "portfolio": pages,
-            "tickets": {"linear": linear_open(), "habitat": habitat_open(), "board": board_open()}}
+            "tickets": {"habitat": habitat_open(), "board": board_open()}}
 
 
 def mentions(text, name):
@@ -268,13 +250,12 @@ def project_tickets(repo, shared):
     kind, target = destination(repo)
     name = repo.split("/", 1)[1]
     tickets = shared["tickets"]
-    if kind == "habitat":
-        module = (target or "").rsplit(" (", 1)[0]
-        own = [t for t in tickets["habitat"] if (module and t["module"] == module) or mentions(t["title"], name)]
-    else:
-        own = [t for t in tickets["linear"] if (target and t["project"] == target) or mentions(t["title"], name)]
-    board = [t for t in tickets["board"] if mentions(t["title"], name) or (t.get("project") or "").lower() == name.lower()]
-    return {"tracker": own, "board": board}
+    named = [t for t in tickets["board"] if mentions(t["title"], name) or (t.get("project") or "").lower() == name.lower()]
+    if kind == "board":
+        return {"tracker": named}
+    module = (target or "").rsplit(" (", 1)[0]
+    own = [t for t in tickets["habitat"] if (module and t["module"] == module) or mentions(t["title"], name)]
+    return {"tracker": own, "board": named}
 
 
 def ci_runs(repo, days=30):
@@ -498,13 +479,11 @@ class Run:
             self.save()
 
     def save(self):
-        filed = [json.loads(line) for line in self.outputs.read_text().splitlines() if line.strip()]
         write_json(self.state / "manifest.json", {
             "run": self.id, "audit": self.audit, "dry_run": self.dry_run, "record_only": self.record_only, "started": iso(self.started),
             "template_sha256": hashlib.sha256(system_prompt(self.audit).encode()).hexdigest(),
             "finished": self.finished, "workspace": self.workspace, "repositories": self.repos,
-            "outputs": {"total": len(filed), "by_outcome": {key: sum(1 for item in filed if item.get("outcome") == key)
-                                                           for key in sorted({item.get("outcome") for item in filed})}}})
+            "outputs": outcome_counts(self.outputs)})
 
 
 def previous_run(audit, repo, before):
@@ -551,7 +530,8 @@ def audit_one(context, meta, shared_path, shared, deadline):
     unchanged = context.audit in ("principles", "simplicity") and last_commit == evidence["commit"]
     if unchanged:
         carried = carry_forward(filer_context, last_run) if last_run else 0
-        context.record(repo, status="skipped", carried=carried, finished=iso(now()), reason="no commits since its last run")
+        context.record(repo, carried=carried, finished=iso(now()), reason="no commits since its last run")
+        settle(context, repo, "skipped")
         return
     write_json(record / "bundle.json", evidence)
     (record / "brief.md").write_text(brief(context.audit, repo, checkout, record, shared_path, evidence))
@@ -582,6 +562,18 @@ def audit_one(context, meta, shared_path, shared, deadline):
         context.record(repo, session=session_file(checkout, started), finished=iso(now()))
         if tab_id:
             herdr("tab", "close", tab_id, check=False)
+    settle(context, repo, status)
+
+
+def settle(context, repo, status):
+    """Deliver the repository's findings outside the auditor's sandbox. Any finding that cannot be filed is kept
+    with its full request, and fails the repository, so the run fails and its alert fires."""
+    if not context.record_only and not context.dry_run:
+        context.record(repo, delivered=deliver_run(context.outputs, repo))
+    stranded = stranded_count(context.outputs, repo)
+    if stranded:
+        status = f"failed ({stranded} findings stranded)"
+        context.log(f"{repo}: {stranded} findings could not be filed; kept for `omp-audit refile {context.id}`")
     context.record(repo, status=status)
 
 
@@ -664,27 +656,6 @@ def ticket_body(context, request, mark, regression_of=()):
     return "\n".join(header) + "\n\n" + request["body"].strip() + "\n"
 
 
-def linear_marked(mark):
-    query = ("query($m: String!, $after: String) { issues(first: 50, after: $after, filter: { description: { contains: $m } }) "
-             "{ nodes { id identifier url description priority createdAt state { type } } pageInfo { hasNextPage endCursor } } }")
-    found, after = [], None
-    for _ in range(20):
-        data = run_json(["linear", "gql", query, "--vars", json.dumps({"m": mark, "after": after})])
-        page = (data.get("data") or data)["issues"]
-        for node in page["nodes"]:
-            if not carries(node.get("description"), mark):
-                continue
-            kind = node["state"]["type"]
-            found.append({"id": node["identifier"], "uuid": node["id"], "url": node["url"],
-                          "state": "done" if kind == "completed" else "declined" if kind in ("canceled", "duplicate") else "open",
-                          "priority": (node.get("priority") or 0) - 1 if node.get("priority") else None,
-                          "created": node["createdAt"]})
-        if not page["pageInfo"]["hasNextPage"]:
-            return found
-        after = page["pageInfo"]["endCursor"]
-    raise Refusal(f"Linear search for '{mark}' exceeded 20 pages")
-
-
 def habitat_marked(mark):
     found = []
     for status in ([], ["--status", "closed"]):
@@ -707,16 +678,21 @@ def habitat_marked(mark):
     return list({item["id"]: item for item in found}.values())
 
 
-_linear_projects = {}
+def board_state(item):
+    status = item.get("status")
+    return {"id": item["id"], "url": None, "board": True, "priority": None, "created": item.get("created_at"),
+            "state": "done" if status == "done" else "declined" if status == "dropped" else "open"}
 
 
-def linear_project_id(name):
-    if name not in _linear_projects:
-        data = run_json(["linear", "gql", "query($n: String!) { projects(first: 5, filter: { name: { eq: $n } }) { nodes { id name } } }",
-                         "--vars", json.dumps({"n": name})])
-        nodes = (data.get("data") or data)["projects"]["nodes"]
-        _linear_projects[name] = nodes[0]["id"] if len(nodes) == 1 else None
-    return _linear_projects[name]
+def board_marked(mark):
+    items = run_json(["glass", "item", "list", "--include-done"])
+    return [board_state(item) for item in (items.get("items") if isinstance(items, dict) else items) or []
+            if carries(item.get("notes"), mark)]
+
+
+def marked(kind, mark):
+    """Every ticket that carries the marker."""
+    return habitat_marked(mark) if kind == "habitat" else board_marked(mark)
 
 
 def habitat_module_id(label):
@@ -724,19 +700,26 @@ def habitat_module_id(label):
     return next((module.get("value") for module in (filters.get("data") or filters).get("modules") or [] if module.get("label") == label), None)
 
 
+def board_add(context, request, notes, scope, status, note):
+    """One Glass board item. Board items carry no priority; the desk grooms them, and urgent ones start as next.
+    Notes hold 2000 characters: a longer finding keeps its marker header and points at its whole record."""
+    if len(notes) > 2000:
+        tail = f"\n\n[cut to fit; the whole finding is in {context['outputs']}]"
+        notes = notes[:2000 - len(tail)] + tail
+    why = request["body"].strip().split("\n\n", 1)[0][:600]
+    receipt = run_json(["glass", "item", "add", "--title", request["title"][:160], "--kind", "task", "--status", status,
+                        "--scope", scope, "--why", why, "--why-attribution", "quoted", "--why-source", "omp-audit auditor",
+                        "--relaying", "none", "--notes", notes, "--note", note, "--caller", "omp-audit", "--json"])
+    if not isinstance(receipt, dict) or not receipt.get("id"):
+        raise Refusal("the board did not return the new item's id")
+    return receipt["id"]
+
+
 def create(kind, scope, request, body, context, mark):
     rank = PRIORITIES.index(request["priority"])
-    if kind == "linear":
-        fields = {"teamId": MIS_TEAM_ID, "title": request["title"], "description": body, "priority": LINEAR_PRIORITY[rank]}
-        project = linear_project_id(scope) if scope else None
-        if project:
-            fields["projectId"] = project
-        data = run_json(["linear", "gql", "mutation($input: IssueCreateInput!) { issueCreate(input: $input) { success issue { identifier url } } }",
-                         "--vars", json.dumps({"input": fields})])
-        result = (data.get("data") or data)["issueCreate"]
-        if not result.get("success"):
-            raise Refusal("Linear refused the issue")
-        return result["issue"]["identifier"], result["issue"]["url"]
+    if kind == "board":
+        status = "next" if request["priority"] == "urgent" else "later"
+        return board_add(context, request, body, scope, status, f"Opened by the {context['audit']} audit"), None
     argv = [HABITAT, "--json", "create", "--type", "task", "--title", request["title"], "--description", body,
             "--priority", HABITAT_PRIORITY[rank], "--tags", f"audit,{context['audit']}",
             "--idempotency-key", "audit-" + hashlib.sha256(f"{mark}|{context['run']}".encode()).hexdigest()[:40]]
@@ -744,43 +727,48 @@ def create(kind, scope, request, body, context, mark):
     if module:
         argv += ["--module-id", module]
     item = run_json(argv)
-    return item.get("external_id") or (item.get("data") or {}).get("external_id"), None
+    ticket = item.get("external_id") or (item.get("data") or {}).get("external_id")
+    if not ticket:
+        raise Refusal("Habitat did not return the new item's id")
+    return ticket, None
 
 
-def recur(kind, ticket, request, context, moment):
-    """An open ticket already owns this gap: note it was seen again and let its priority climb with age."""
+def recur(ticket, request, context, moment):
+    """An open ticket already owns this gap: a Habitat ticket's priority climbs with age. Board items carry no
+    priority; the desk grooms them."""
     if ticket.get("board"):
-        return None  # Board items carry no comments or priorities; the desk grooms them.
+        return None
     base = PRIORITIES.index(request["priority"])
     created = datetime.fromisoformat(str(ticket["created"]).replace("Z", "+00:00")) if ticket.get("created") else moment
     target = climbed(base, created, moment)
     raised = ticket.get("priority") is None or target < ticket["priority"]
-    if kind == "linear":
-        run(["linear", "comment", ticket["id"], f"--body=Still seen by the {context['audit']} audit on {moment:%Y-%m-%d} at {context['repo']}@{context['commit'][:12]}."])
-        if raised:
-            run(["linear", "gql", "mutation($id: String!, $p: Int!) { issueUpdate(id: $id, input: { priority: $p }) { success } }",
-                 "--vars", json.dumps({"id": ticket["uuid"], "p": LINEAR_PRIORITY[target]})])
-    elif raised:
-        run([HABITAT, "--json", "update", ticket["id"], "--priority", HABITAT_PRIORITY[target]])
+    if raised:  # Habitat refuses an update without the item's current revision.
+        item = run_json([HABITAT, "--json", "get", ticket["id"]])
+        revision = (item.get("data") or item)["revision"]
+        run([HABITAT, "--json", "update", ticket["id"], "--priority", HABITAT_PRIORITY[target], "--expected-revision", str(revision)])
     return PRIORITIES[target] if raised else None
 
 
-def propose(context, request, mark, write):
-    items = run_json(["glass", "item", "list"])
-    for item in (items.get("items") if isinstance(items, dict) else items) or []:
-        if carries(item.get("notes"), mark):
-            return {"outcome": "recurrence", "ticket": item.get("id")}
-    if not write:
-        return {"outcome": "would-propose"}
-    receipt = run_json(["glass", "item", "add", "--title", request["title"][:160], "--kind", "task", "--status", "later",
-                        "--scope", "misty-step/harness", "--why", request["body"][:600], "--why-attribution", "quoted",
-                        "--why-source", f"{context['audit']} auditor", "--notes", f"- {mark}\n\n{request['body']}"[:2000],
-                        "--note", "Doctrine proposal from an auditor", "--caller", "omp-audit", "--json"])
-    return {"outcome": "proposed", "ticket": (receipt.get("item") or receipt).get("id")}
+def propose(context, request, mark):
+    """A doctrine proposal keeps the gap rules, on the board: open is seen again, dropped stays dropped, done regresses."""
+    found = owner_states("board", context, mark)
+    if found["open"]:
+        return {"outcome": "recurrence", "ticket": found["open"][0]["id"]}
+    if found["declined"]:
+        return {"outcome": "declined", "ticket": found["declined"][0]["id"]}
+    regression_of = [ticket["id"] for ticket in found["done"]]
+    notes = ticket_body(context, request, mark, regression_of)
+    item = board_add(context, request, notes, "misty-step/harness", "later", f"Doctrine proposal from the {context['audit']} audit")
+    return {"outcome": "proposed", "ticket": item, "regression_of": regression_of or None}
 
 
 # Outcomes whose ticket owns the gap in later runs, including a declined one that must never be refiled.
-OWNING = ("created", "recurrence", "adopted", "carried", "declined", "closed-since")
+OWNING = ("created", "recurrence", "adopted", "carried", "declined", "closed-since", "proposed")
+REQUEST_FIELDS = ("action", "area", "gap", "priority", "title", "body", "ticket")
+
+
+def read_records(outputs):
+    return [json.loads(line) for line in Path(outputs).read_text().splitlines() if line.strip()] if Path(outputs).exists() else []
 
 
 def prior_records(runs, *, marker_=None, audit=None, repo=None, run=None):
@@ -789,36 +777,24 @@ def prior_records(runs, *, marker_=None, audit=None, repo=None, run=None):
     for path in sorted(Path(runs).glob("*/outputs.jsonl")) if Path(runs).is_dir() else []:
         if run and path.parent.name != run:
             continue
-        for line in path.read_text().splitlines():
-            item = json.loads(line) if line.strip() else {}
-            if ((marker_ is None or item.get("marker") == marker_) and (audit is None or item.get("audit") == audit)
-                    and (repo is None or item.get("repo") == repo)):
-                records.append(item)
+        records += [item for item in read_records(path)
+                    if (marker_ is None or item.get("marker") == marker_) and (audit is None or item.get("audit") == audit)
+                    and (repo is None or item.get("repo") == repo)]
     return records
 
 
 BOARD_ITEM = re.compile(r"K-\d{8}-[a-z0-9-]+\Z")
 
 
-def ticket_state(kind, ticket):
-    """One known ticket's state, so an adopted or earlier ticket keeps owning its gap after it closes."""
+def ticket_state(ticket):
+    """One known ticket's state, so an adopted or earlier ticket keeps owning its gap after it closes.
+    A board that cannot answer is an error, never a missing ticket, so it cannot cause a twin."""
     if BOARD_ITEM.match(ticket):
-        item = (run_json(["glass", "item", "show", ticket], check=False) or {}).get("item")
-        if not item:
-            return None
-        status = item.get("status")
-        return {"id": item["id"], "url": None, "board": True, "priority": None, "created": item.get("created_at"),
-                "state": "done" if status == "done" else "declined" if status == "dropped" else "open"}
-    if kind == "linear":
-        data = run_json(["linear", "gql", "query($id: String!) { issue(id: $id) { id identifier url priority createdAt state { type } team { id } } }",
-                         "--vars", json.dumps({"id": ticket})], check=False)
-        node = ((data or {}).get("data") or data or {}).get("issue")
-        if not node or (node.get("team") or {}).get("id") != MIS_TEAM_ID:
-            return None  # Misty Step gaps route to Linear MIS; another team's issue is never adopted or written.
-        kind_ = node["state"]["type"]
-        return {"id": node["identifier"], "uuid": node["id"], "url": node["url"],
-                "state": "done" if kind_ == "completed" else "declined" if kind_ in ("canceled", "duplicate") else "open",
-                "priority": node["priority"] - 1 if node.get("priority") else None, "created": node["createdAt"]}
+        result = run(["glass", "item", "show", ticket], check=False)
+        if result.returncode != 0 and "no item matches" not in result.stdout + result.stderr:
+            raise Refusal(f"glass item show {ticket} failed (exit {result.returncode}): {(result.stderr or result.stdout).strip()[:300]}")
+        item = (json.loads(result.stdout or "null") or {}).get("item") if result.returncode == 0 else None
+        return board_state(item) if item else None
     item = run_json([HABITAT, "--json", "get", ticket], check=False)
     item = (item or {}).get("data") or item
     if not item or not item.get("external_id"):
@@ -831,107 +807,160 @@ def ticket_state(kind, ticket):
 
 def owners(kind, mark, runs):
     """Tickets that carry the marker, plus tickets earlier runs filed or adopted for this gap."""
-    found = (linear_marked if kind == "linear" else habitat_marked)(mark)
+    found = marked(kind, mark)
     seen = {ticket["id"] for ticket in found}
     for item in prior_records(runs, marker_=mark):
-        ticket = item.get("ticket")
-        if item.get("outcome") in OWNING and ticket and ticket not in seen and not item.get("record_only"):
+        ticket = item.get("ticket") if item.get("outcome") in OWNING else None
+        if ticket and ticket not in seen and not item.get("record_only"):
             seen.add(ticket)
-            state = ticket_state(kind, ticket)
+            state = ticket_state(ticket)
             if state:
                 found.append(state)
     return found
 
 
-def file_gap(context, request, mark, moment, write):
-    """Open owner: recurrence. Declined (cancelled, duplicate, closed): no write. Done: a regression gets a new one."""
-    kind, scope = destination(context["repo"])
+def owner_states(kind, context, mark):
+    """The gap's owners by state: open, declined (cancelled, dropped, closed) and done."""
     found = owners(kind, mark, Path(context["outputs"]).parent.parent)
-    current = [ticket for ticket in found if ticket["state"] == "open"]
-    if current:
-        raised = recur(kind, current[0], request, context, moment) if write else None
-        return {"outcome": "recurrence", "ticket": current[0]["id"], "url": current[0].get("url"), "raised_to": raised}
-    declined = [ticket["id"] for ticket in found if ticket["state"] == "declined"]
-    if declined:
-        return {"outcome": "declined", "ticket": declined[0]}
-    regression_of = [ticket["id"] for ticket in found if ticket["state"] == "done"]
-    if not write:
-        return {"outcome": "would-create", "tracker": kind, "scope": scope, "regression_of": regression_of or None}
+    return {state: [ticket for ticket in found if ticket["state"] == state] for state in ("open", "declined", "done")}
+
+
+def file_gap(context, request, mark, moment, done=()):
+    """Open owner: recurrence. Declined: no write. Done (found, or `done` already seen): a regression gets a new one."""
+    kind, scope = destination(context["repo"])
+    found = owner_states(kind, context, mark)
+    if found["open"]:
+        owner = found["open"][0]
+        return {"outcome": "recurrence", "ticket": owner["id"], "url": owner.get("url"), "raised_to": recur(owner, request, context, moment)}
+    if found["declined"]:
+        return {"outcome": "declined", "ticket": found["declined"][0]["id"]}
+    regression_of = list(dict.fromkeys([ticket["id"] for ticket in found["done"]] + list(done)))
     ticket, url = create(kind, scope, request, ticket_body(context, request, mark, regression_of), context, mark)
     return {"outcome": "created", "ticket": ticket, "url": url, "tracker": kind, "regression_of": regression_of or None}
 
 
-def locked_outcome(context, mark, fields, compute):
-    """Record one outcome per gap per run. The lock spans every run, so overlapping runs cannot file a twin."""
-    outputs = Path(context["outputs"])
-    with open(outputs.parent.parent / "filer.lock", "w") as lock:
+def adopt(context, request, mark, moment):
+    """An existing open ticket owns this gap: it is seen again and climbs. A missing or done one gets the finding filed."""
+    state = ticket_state(request["ticket"])
+    if state and state["state"] == "open":
+        return {"outcome": "adopted", "ticket": state["id"], "url": state.get("url"), "raised_to": recur(state, request, context, moment)}
+    if state and state["state"] == "declined":
+        return {"outcome": "declined", "ticket": state["id"]}
+    done = [state["id"]] if state and state["state"] == "done" else []
+    return {**file_gap(context, request, mark, moment, done), "adoption_refused": request["ticket"]}
+
+
+def carry(context, request, mark, moment):
+    current_ = owner_states(destination(context["repo"])[0], context, mark)["open"]
+    if not current_:
+        return {"outcome": "closed-since", "ticket": request.get("ticket")}
+    return {"outcome": "carried", "ticket": current_[0]["id"], "url": current_[0].get("url"),
+            "raised_to": recur(current_[0], request, context, moment)}
+
+
+@contextlib.contextmanager
+def filer_lock(outputs):
+    """One lock for every run's filing, so overlapping runs cannot file a twin."""
+    with open(Path(outputs).parent.parent / "filer.lock", "w") as lock:
         fcntl.flock(lock, fcntl.LOCK_EX)
-        earlier = [json.loads(line) for line in outputs.read_text().splitlines() if line.strip()] if outputs.exists() else []
-        repeat = next((item for item in earlier if item.get("marker") == mark), None)
-        if repeat:
-            return repeat, True
-        record = {"at": iso(now()), "run": context["run"], "audit": context["audit"], "repo": context["repo"],
-                  "commit": context["commit"], "marker": mark, "record_only": bool(context.get("record_only")),
-                  **fields, **compute()}
-        with outputs.open("a") as handle:
-            handle.write(json.dumps(record, sort_keys=True) + "\n")
-        return record, False
+        yield
+
+
+def append_record(context, request, mark, outcome):
+    record = {"at": iso(now()), "run": context["run"], "audit": context["audit"], "repo": context["repo"],
+              "commit": context["commit"], "marker": mark, "record_only": bool(context.get("record_only")),
+              **{key: request.get(key) for key in REQUEST_FIELDS if request.get(key) is not None}, **outcome}
+    with Path(context["outputs"]).open("a") as handle:
+        handle.write(json.dumps(record, sort_keys=True) + "\n")
+    return record
+
+
+def deliver(context, request, mark):
+    """File one recorded finding outside the auditor. A tracker failure strands it, request and all, for `refile`."""
+    with filer_lock(context["outputs"]):
+        try:
+            action = {"file": file_gap, "adopt": adopt, "carry": carry}.get(request["action"])
+            outcome = propose(context, request, mark) if request["action"] == "propose" else action(context, request, mark, now())
+        except (Refusal, subprocess.SubprocessError, OSError, ValueError, KeyError) as error:
+            outcome = {"outcome": "stranded", "error": str(error)[:500]}
+        return append_record(context, request, mark, outcome)
+
+
+def current(outputs):
+    """Each gap's current record in a run, the last one written for its marker, read under the filer lock
+    so a concurrent append is never read half-written."""
+    with filer_lock(outputs):
+        records = read_records(outputs)
+    return {(item.get("repo"), item.get("marker")): item for item in records}
+
+
+def stranded_count(outputs, repo=None):
+    return sum(1 for (owner, _), item in current(outputs).items()
+               if item.get("outcome") == "stranded" and repo in (None, owner))
+
+
+def outcome_counts(outputs):
+    gaps = list(current(outputs).values())  # One entry per gap: pending, then filed or stranded.
+    return {"total": len(gaps), "by_outcome": {key: sum(1 for item in gaps if item.get("outcome") == key)
+                                               for key in sorted({item.get("outcome") for item in gaps})}}
+
+
+def deliver_run(outputs, repo=None):
+    """Deliver a run's pending and stranded findings (all repositories, or one). Returns the counts by outcome."""
+    counts = {}
+    for (owner, mark), item in current(outputs).items():
+        if repo not in (None, owner) or item.get("outcome") not in ("pending", "stranded") or item.get("record_only"):
+            continue
+        context = {key: item[key] for key in ("run", "audit", "repo", "commit")} | {"outputs": str(outputs)}
+        outcome = deliver(context, item, mark)["outcome"]
+        counts[outcome] = counts.get(outcome, 0) + 1
+    return counts
 
 
 def carry_forward(context, previous_run):
     """An unchanged repository is not re-audited, but its open gaps are still seen and keep climbing."""
     runs = Path(context["outputs"]).parent.parent
-    kind, _ = destination(context["repo"])
-    latest = {}
+    owned = {}
     for item in prior_records(runs, audit=context["audit"], repo=context["repo"], run=previous_run):
-        if item.get("outcome") in OWNING and item.get("ticket") and not item.get("record_only"):
-            latest[item["marker"]] = item
+        if item.get("outcome") in OWNING and item.get("ticket") and not item.get("record_only") and item.get("action") != "propose":
+            owned[item["marker"]] = item
     carried = 0
-    for mark, item in latest.items():
-        def compute(item=item, mark=mark):
-            current = [ticket for ticket in owners(kind, mark, runs) if ticket["state"] == "open"]
-            if not current:
-                return {"outcome": "closed-since", "ticket": item["ticket"]}
-            raised = None if context.get("record_only") else recur(kind, current[0], item, context, now())
-            return {"outcome": "carried", "ticket": current[0]["id"], "url": current[0].get("url"), "raised_to": raised}
-        fields = {key: item.get(key) for key in ("area", "gap", "priority", "title")}
-        record, _ = locked_outcome(context, mark, {"action": "carry", **fields}, compute)
-        carried += record.get("outcome") == "carried"
+    for mark, item in owned.items():
+        if context.get("record_only"):
+            continue
+        record = deliver(context, {**{key: item.get(key) for key in REQUEST_FIELDS}, "action": "carry"}, mark)
+        carried += record["outcome"] == "carried"
     return carried
 
 
-def adopt(context, request, write):
-    """An existing ticket owns this gap: verify it, and treat it like any open owner (seen again, climbing)."""
-    kind, _ = destination(context["repo"])
-    state = ticket_state(kind, request["ticket"])
-    if state is None:
-        raise Refusal(f"{request['ticket']} is not an open ticket in {kind} or on the board; file the gap instead")
-    if state["state"] == "done":
-        raise Refusal(f"{state['id']} is done; file the gap so it is tracked as a regression")
-    if state["state"] == "declined":
-        return {"outcome": "declined", "ticket": state["id"]}
-    raised = recur(kind, state, request, context, now()) if write else None
-    return {"outcome": "adopted", "ticket": state["id"], "url": state.get("url"), "raised_to": raised}
-
-
 def file_command(context_path, stdin):
+    """The audit_file tool, inside the auditor's sandbox: validate and record the finding, never touch a tracker.
+    The launcher delivers it after the audit, where the trackers and the board are reachable."""
     context = json.loads(Path(context_path).read_text())
     request = validate(json.loads(stdin.read()))
     mark = marker(context["audit"], context["repo"], request["gap"])
-    write = not context.get("record_only")
-
-    def compute():
-        if request["action"] == "adopt":
-            return adopt(context, request, write)
-        if request["action"] == "propose":
-            return propose(context, request, mark, write)
-        return file_gap(context, request, mark, now(), write)
-
-    fields = {key: request[key] for key in ("action", "area", "gap", "priority", "title")}
-    record, repeat = locked_outcome(context, mark, fields, compute)
-    where = record.get("url") or record.get("ticket") or ""
-    print(f"{'Already recorded in this run: ' if repeat else ''}{record['outcome']}: {where}".strip())
+    with filer_lock(context["outputs"]):
+        earlier = next((item for item in read_records(context["outputs"]) if item.get("marker") == mark), None)
+        if earlier:
+            print(f"Already recorded in this run: {earlier.get('gap')} ({earlier.get('outcome')})")
+            return 0
+        append_record(context, request, mark, {"outcome": "pending"})
+    print(f"Recorded {request['gap']}; it is filed when this audit ends, deduplicated and routed by the launcher.")
     return 0
+
+
+def refile_command(run_id, repo=None):
+    """Deliver a run's pending and stranded findings without auditing again; fail while any stays stranded."""
+    outputs = STATE / "runs" / run_id / "outputs.jsonl"
+    if not outputs.exists():
+        raise Refusal(f"no outputs for run {run_id} under {STATE / 'runs'}")
+    counts = deliver_run(outputs, repo)
+    stranded = stranded_count(outputs, repo)
+    manifest = outputs.parent / "manifest.json"
+    if manifest.exists():  # Keep the run's summary describing each gap's current outcome.
+        write_json(manifest, {**json.loads(manifest.read_text()), "outputs": outcome_counts(outputs)})
+    print(json.dumps({"run": run_id, "delivered": counts, "still_stranded": stranded}, sort_keys=True))
+    return 1 if stranded else 0
 
 
 def main(argv=None):
@@ -946,6 +975,9 @@ def main(argv=None):
     commands.add_parser("repos", help="list the active repositories")
     filing = commands.add_parser("file", help="the audit_file tool's filer (request JSON on stdin)")
     filing.add_argument("--context", required=True)
+    refile = commands.add_parser("refile", help="deliver a run's pending and stranded findings")
+    refile.add_argument("run", help="the run id, a directory name under the runs state")
+    refile.add_argument("--repo", help="limit to OWNER/NAME")
     options = parser.parse_args(argv)
     try:
         if options.command == "repos":
@@ -954,6 +986,8 @@ def main(argv=None):
             return 0
         if options.command == "file":
             return file_command(options.context, sys.stdin)
+        if options.command == "refile":
+            return refile_command(options.run, options.repo)
         if not 1 <= options.concurrency <= 12:
             raise Refusal("--concurrency must be 1-12")
         for repo in options.repo:
