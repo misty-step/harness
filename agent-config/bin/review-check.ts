@@ -29,8 +29,9 @@
  * Scope: it catches a first screen that is accidentally too dense or buries its
  * point and asks, by layout and paint order with pointer-events forced on. It is
  * not a defence against deliberately invisible styling (transparent text, zero
- * font size); `--screenshot` saves the first screen for the eye that must still
- * look at it.
+ * font size) and does not read text drawn by CSS content, images or canvas, or
+ * held in shadow DOM or frames; `--screenshot` saves the first screen for the eye
+ * that must still look at it.
  *
  * Exit 0 when every page passes, 1 when any finding exists, 2 when the check
  * itself could not run (no Chromium, page did not load): never a silent pass.
@@ -155,7 +156,7 @@ const PAGE_SCRIPT = (pointSelector: string, askSelector: string) => `(async () =
 		const xs = [left + dx, (left + right) / 2, right - dx], ys = [top + dy, (top + bottom) / 2, bottom - dy];
 		return xs.flatMap((x) => ys.map((y) => [x, y]));
 	};
-	const wordsOf = (node) => {
+	const wordsOf = (node, whole = false) => {
 		const owner = ownerOf(node);
 		const range = document.createRange();
 		range.selectNodeContents(node);
@@ -167,7 +168,7 @@ const PAGE_SCRIPT = (pointSelector: string, askSelector: string) => `(async () =
 			range.setStart(node, match.index);
 			range.setEnd(node, match.index + match[0].length);
 			const [r] = range.getClientRects();
-			if (!r || !solid(r)) continue;
+			if (!r || !solid(r) || (whole && !wholly(r))) continue;
 			const left = Math.max(r.left, 0), right = Math.min(r.right, vw), top = Math.max(r.top, 0), bottom = Math.min(r.bottom, vh);
 			if (left < right && top < bottom && probes(left, top, right, bottom).every(([x, y]) => document.elementFromPoint(x, y) === owner)) shown++;
 		}
@@ -181,7 +182,7 @@ const PAGE_SCRIPT = (pointSelector: string, askSelector: string) => `(async () =
 		const rect = el.getBoundingClientRect();
 		let shown = visible(el) && solid(rect);
 		if (shown && wholly(rect)) shown = boxShown(el) && textNodes(el).every((node) => {
-			const { total, shown: seen } = wordsOf(node);
+			const { total, shown: seen } = wordsOf(node, true);
 			return seen === total;
 		});
 		return { text: el.textContent || "", visible: shown, top: rect.top, left: rect.left, bottom: rect.bottom, right: rect.right };

@@ -135,14 +135,20 @@ describe("real headless page", () => {
 		}
 	});
 
-	test("an ask whose last letters are cut off by a hair is not on the first screen", () => {
+	test("an ask whose last letters are cut off, by its box or by the window, is not on the first screen", () => {
 		const hair = page(
 			"clipped-word.html",
 			`<p data-review="point">Code fixes hold.</p><p data-review="ask" style="font:20px/24px monospace;width:60px;white-space:nowrap;overflow:hidden">Approve</p>`,
 		);
-		const { code, rules } = rulesFor(hair);
-		expect(code).toBe(1);
-		expect(rules).toEqual(["ask-not-visible"]);
+		const pastWindow = page(
+			"past-window.html",
+			`<p data-review="point">Code fixes hold.</p><p data-review="ask" style="position:fixed;left:1220px;top:100px;width:60px;font:20px/24px monospace;white-space:nowrap">Approve</p>`,
+		);
+		for (const cut of [hair, pastWindow]) {
+			const { code, rules } = rulesFor(cut);
+			expect(code).toBe(1);
+			expect(rules).toEqual(["ask-not-visible"]);
+		}
 	});
 
 	test("detail collapsed by overflow rather than <details> does not count as read", () => {
