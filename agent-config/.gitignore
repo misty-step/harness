@@ -19,6 +19,9 @@
 !/desktop-guard/
 !/desktop-guard/**
 /desktop-guard/**/__pycache__/
+!/session-backup/
+!/session-backup/**
+/session-backup/**/__pycache__/
 !/candidates/
 !/candidates/**
 !/.githooks/

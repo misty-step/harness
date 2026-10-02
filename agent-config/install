@@ -24,7 +24,7 @@ Usage: install [--agent-dir DIR] [--check] [--home DIR]
                [--skill NAME|all]...
                [--bin NAME]...
                [--guidance NAME]... --guidance-source FILE
-               [--audio-sandbox] [--desktop-guard]
+               [--audio-sandbox] [--desktop-guard] [--session-backup]
 
   --agent-dir DIR        Harness agent directory (required for agent primitives).
   --home DIR             Home for ~/.local/bin tools (default $HOME).
@@ -34,6 +34,7 @@ Usage: install [--agent-dir DIR] [--check] [--home DIR]
   --guidance-source FILE Harness AGENTS.md holding the insertion marker.
   --audio-sandbox        Silent agent sink, Claude Code env, and live proof.
   --desktop-guard        Install guard CLI and stage inactive user units/binding.
+  --session-backup       Install session backup CLI, credential references and inactive user timer.
   --check                Validate the selection; write nothing.
 EOF
 }
@@ -47,6 +48,7 @@ bins=
 guidance=
 audio_sandbox=0
 desktop_guard=0
+session_backup=0
 
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -58,6 +60,7 @@ while [ $# -gt 0 ]; do
     --guidance-source) guidance_source=${2-}; shift 2 ;;
     --audio-sandbox) audio_sandbox=1; shift ;;
     --desktop-guard) desktop_guard=1; shift ;;
+    --session-backup) session_backup=1; shift ;;
     --check) check=1; shift ;;
     -h|--help) usage; exit 0 ;;
     *) printf 'Unknown argument: %s\n' "$1" >&2; usage >&2; exit 1 ;;
@@ -77,7 +80,7 @@ require_bun() {
 
 agent_selection=0
 if [ -n "$skills$bins$guidance$guidance_source" ] || [ "$audio_sandbox" = 1 ]; then agent_selection=1; fi
-if [ -z "$agent_dir" ] && { [ "$desktop_guard" = 0 ] || [ "$agent_selection" = 1 ]; }; then
+if [ -z "$agent_dir" ] && { { [ "$desktop_guard" = 0 ] && [ "$session_backup" = 0 ]; } || [ "$agent_selection" = 1 ]; }; then
   echo "--agent-dir is required for agent primitives" >&2; usage >&2; exit 1
 fi
 
@@ -186,6 +189,41 @@ validate_desktop_guard() {
   python3 "$repo_dir/desktop-guard/install.py" stage --home "$home_dir" --check
 }
 
+session_backup_files() {
+  printf '%s\n' \
+    "backup.py:.local/bin/agent-session-backup" \
+    "env.pass:.config/agent-session-backup.env.pass" \
+    "agent-session-backup.service:.config/systemd/user/agent-session-backup.service" \
+    "agent-session-backup.timer:.config/systemd/user/agent-session-backup.timer"
+}
+
+validate_session_backup() {
+  [ "$session_backup" = 1 ] || return 0
+  command -v python3 >/dev/null 2>&1 || { echo "python3 is required for session backup" >&2; exit 1; }
+  for pair in $(session_backup_files); do
+    source="$repo_dir/session-backup/${pair%%:*}"
+    destination="$home_dir/${pair#*:}"
+    require_nonempty "$source"
+    if [ -e "$destination" ] || [ -L "$destination" ]; then
+      if [ ! -f "$destination" ] || [ -L "$destination" ] ||
+        ! grep -Fqx '# owned by misty-step/harness agent-session-backup' "$destination"; then
+        printf 'Refusing foreign session backup destination: %s\n' "$destination" >&2
+        exit 1
+      fi
+    fi
+  done
+}
+
+install_session_backup() {
+  for pair in $(session_backup_files); do
+    destination="$home_dir/${pair#*:}"
+    install -d -m 700 "$(dirname -- "$destination")"
+    mode=600
+    [ "${pair%%:*}" != backup.py ] || mode=700
+    install -m "$mode" "$repo_dir/session-backup/${pair%%:*}" "$destination"
+  done
+}
+
 install_skill() {
   name=$1
   install -d -m 700 "$agent_dir/skills"
@@ -228,6 +266,7 @@ validate_guidance
 validate_bins
 validate_audio_sandbox
 validate_desktop_guard
+validate_session_backup
 
 if [ "$check" = 1 ]; then
   exit 0
@@ -257,3 +296,4 @@ for name in $bins; do install_bin "$name"; done
 if [ -n "$guidance" ]; then install_guidance; fi
 if [ "$audio_sandbox" = 1 ]; then bun "$repo_dir/audio-sandbox/install.ts" host --home "$home_dir"; fi
 if [ "$desktop_guard" = 1 ]; then python3 "$repo_dir/desktop-guard/install.py" stage --home "$home_dir"; fi
+if [ "$session_backup" = 1 ]; then install_session_backup; fi

@@ -1,0 +1,15 @@
+# owned by misty-step/harness agent-session-backup
+[Unit]
+Description=Encrypted OMP and Kaylee session backup with SQLite restore proof
+OnFailure=kaylee-host-alert@%n.service
+OnSuccess=kaylee-host-ok@%n.service
+
+[Service]
+Type=oneshot
+Environment="PATH=%h/.local/bin:%h/.bun/bin:/usr/bin:/bin"
+ExecStart=%h/.local/bin/pass-env run -f %h/.config/agent-session-backup.env.pass -- /usr/bin/python3 %h/.local/bin/agent-session-backup --restic %h/.local/share/mise/installs/restic/latest/restic
+Nice=10
+IOSchedulingClass=idle
+MemoryHigh=768M
+MemoryMax=1G
+UMask=0077

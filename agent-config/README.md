@@ -372,6 +372,80 @@ desktop bindings and is not selected by normal Pi/OMP installs. The
 [operating runbook](../docs/desktop-memory-guard.md) owns verification and the
 operator's cutover/rollback; source lives in `desktop-guard/`.
 
+## Opt-in agent session backups
+
+`./agent-config/install --session-backup` from the workspace root installs the
+backup CLI, names-only pass references and **inactive** user units. It is not
+selected by normal Pi/OMP installs; no gateway, Kaylee or Herdr restart is needed.
+`--check` is inert; foreign destinations fail before any selected file is written.
+
+The source in `session-backup/` reuses Pile's existing encrypted workstation R2
+restic repository and four credential references. It does not initialize a new
+repository or buy a service. Snapshots have tag `agent-session-stores`; retention
+matches Pile: 30 daily and 24 monthly snapshots, scoped by tag and host. Shared
+repository pack pruning remains with the repository owner.
+
+Each run saves the entire `~/.omp/agent/sessions` tree directly, without a second
+32-GB local copy. Kaylee's `~/.hermes/profiles/kaylee/state.db`, `sessions/`,
+`cron/` and `plugin-data/kaylee/` supply her history, execution records, Glass item
+history and dispatch mappings. Every SQLite database in those selected directories
+is snapshotted through SQLite's online backup API, including committed WAL data;
+live DB files and sidecars are never copied. Snapshots are individually consistent,
+not a transaction across separate databases and transcript files. Active OMP files
+may end between turns; a subsequent night captures their later records.
+
+The nightly command restores its exact uploaded Hermes staging tree, verifies
+restored content and compares all SQLite snapshot hashes before reporting success
+or applying retention. Unreadable source files / restic exit 3 fail the run, even
+if restic created an incomplete snapshot. Staging and nightly proof scratch are
+removed on exit; `~/.local/state/agent-session-backup/last-success.json` records
+the exact successful snapshot, counts and bytes.
+
+Activate only after review and verification:
+
+```sh
+systemctl --user daemon-reload
+systemctl --user enable --now agent-session-backup.timer
+systemctl --user start agent-session-backup.service
+journalctl --user -u agent-session-backup.service --no-pager
+pass-env run -f "$HOME/.config/agent-session-backup.env.pass" -- \
+  restic snapshots --tag agent-session-stores
+```
+
+The timer runs nightly at 04:10 local time, with up to ten minutes randomized
+delay and missed-run persistence. The service uses a 1-GiB memory ceiling, idle
+I/O scheduling and the existing Kaylee host success/failure hooks. It requires
+the workstation's installed `pass-env`, Bun, Python 3, restic and Glass launcher.
+
+For a full isolated recovery drill, choose an exact snapshot and a finished item
+with a readable ledger in `glass query item ITEM --json`:
+
+```sh
+target=$(mktemp -d "$HOME/.cache/tmp/agent-session-drill.XXXXXX")
+pass-env run -f "$HOME/.config/agent-session-backup.env.pass" -- \
+  python3 agent-config/session-backup/drill.py \
+  --snapshot SNAPSHOT_ID --item FINISHED_ITEM_ID --target "$target" \
+  --glass-source "$HOME/development/misty-step/board"
+```
+
+The drill restores **all** backed-up content with restic verification, compiles
+the ledger helper against the exact Glass revision recorded in the snapshot and
+runs Glass's own ledger reader and display aggregation. Bubblewrap hides both
+live owner roots beneath restored mounts and disables network access; original
+absolute session bindings stay intact. It compares agents, parents, models,
+effort, token components, timestamps, wall time, unknown reasons and aggregate
+counts against live Glass, ignoring only transient read timestamps. It rejects a
+changed live ledger or Glass build. No alternate ledger algorithm or live source
+fallback is used. Requires Go, Git, Bubblewrap and a local Glass source repository
+containing the recorded revision.
+
+`$target/ledger-proof.json` is the accounting evidence; preserve it on the board
+before removing the owned scratch directory. The restore contains sensitive
+transcripts and is private (umask 077); do not publish raw source files. Unknown
+token rows remain unknown, not invented zeros. Recovery also requires the
+existing restic password and R2 credentials; keep their independent recovery
+path with the credential owner.
+
 ## Not yet here
 
 Single-owner or repo-local pieces that stay with their harness for now:
