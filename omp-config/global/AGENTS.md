@@ -7,10 +7,6 @@ Model defaults live in `config.yml`/`models.yml`; `omp usage` reports capacity.
 Restart after a binary/catalog update. Engineering guidance does not manage the
 fleet or prescribe review/approval choreography.
 
-Prefer Cloudflare for new edge/object-storage infrastructure and exe.dev for
-persistent Linux execution. Durable state has one authority and a proven
-restore path.
-
 Track Misty Step/personal work in Linear (team `MIS`); R90 work stays in Habitat
 and R90's own tools. Linear scope is `~/development/misty-step` and
 `~/development/moomooskycow`. Native MCP is the first path; the GraphQL fallback
