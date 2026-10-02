@@ -277,6 +277,7 @@ Updating the launcher does not retrofit existing processes. Relaunch engineers
 at their next natural exit; do not restart Herdr or forcibly move sessions.
 See [fresh-engineer proof](../docs/desktop-memory-guard.md#engineer-display-isolation-proof)
 for observed live denial, private GUI screenshot/click and compatibility checks.
+
 ## Auditors
 
 Three weekly audits read every active repository: non-archived, non-empty
