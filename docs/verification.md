@@ -53,6 +53,13 @@ owned directory. Remove only that directory once its process has ended.
   in a generated changelog link. Other commit links and findings, malformed
   results, and scanner errors fail closed without printing candidate secrets.
 - Existing shared, pi and OMP suites exercise component logic.
+- `agent-config/session-backup/test_backup.py` preserves committed WAL history
+  while excluding uncommitted writes and leaving the running writer untouched;
+  a foreign timer refuses the entire opt-in installation before any write.
+  These tests do not prove offsite storage or ledger recovery. The live backup
+  must report its exact restic snapshot and successful restored SQLite hashes;
+  the full `session-backup/drill.py` must compare canonical Glass accounting
+  from isolated restored mounts against a stable finished item's live ledger.
 - `agent-config/skills/session-close/session-close.test.ts` exercises scoped lease
   ownership and stale/corrupt review (US-004). The existing close gate also owns
   deterministic landing verification: persistent owned branch/HEAD records,

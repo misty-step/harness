@@ -1,0 +1,12 @@
+# owned by misty-step/harness agent-session-backup
+[Unit]
+Description=Back up OMP and Kaylee session history nightly
+
+[Timer]
+Unit=agent-session-backup.service
+OnCalendar=*-*-* 04:10:00
+RandomizedDelaySec=10min
+Persistent=true
+
+[Install]
+WantedBy=timers.target
