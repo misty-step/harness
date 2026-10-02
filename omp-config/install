@@ -391,6 +391,60 @@ install_cli() {
   install -m 700 "$repo_dir/bin/omp-gui.py" "$HOME/.local/bin/omp-gui"
 }
 
+# Read-only repository auditors (omp-config/auditors). Explicit only, never part
+# of `all`: it enables live systemd user timers.
+auditor_files() {
+  printf '%s\n' \
+    "bin/omp-audit.py:.local/bin/omp-audit:700" \
+    "auditors/omp-audit.env.pass:.config/omp-audit.env.pass:600" \
+    "units/omp-audit@.service:.config/systemd/user/omp-audit@.service:600" \
+    "units/omp-audit-foundations.timer:.config/systemd/user/omp-audit-foundations.timer:600" \
+    "units/omp-audit-principles.timer:.config/systemd/user/omp-audit-principles.timer:600" \
+    "units/omp-audit-simplicity.timer:.config/systemd/user/omp-audit-simplicity.timer:600"
+}
+auditor_owner='# owned by misty-step/harness omp-config auditors'
+auditor_share="$HOME/.local/share/omp-audit"
+
+validate_auditors() {
+  command -v python3 >/dev/null 2>&1 || { echo "python3 is required" >&2; exit 1; }
+  command -v systemctl >/dev/null 2>&1 || { echo "systemctl is required" >&2; exit 1; }
+  python3 -c 'import sys; compile(open(sys.argv[1]).read(), sys.argv[1], "exec")' "$repo_dir/bin/omp-audit.py"
+  for name in template.md foundations.md principles.md simplicity.md audit-tool.ts vendor/mattpocock-skills/LICENSE; do
+    require_nonempty "$repo_dir/auditors/$name"
+  done
+  for entry in $(auditor_files); do
+    source=${entry%%:*}; rest=${entry#*:}; destination="$HOME/${rest%%:*}"
+    require_nonempty "$repo_dir/$source"
+    grep -Fqx "$auditor_owner" "$repo_dir/$source" || { printf 'Unowned auditor source: %s\n' "$source" >&2; exit 1; }
+    if [ -e "$destination" ] || [ -L "$destination" ]; then
+      if [ ! -f "$destination" ] || [ -L "$destination" ] || ! grep -Fqx "$auditor_owner" "$destination"; then
+        printf 'Refusing foreign auditor destination: %s\n' "$destination" >&2; exit 1
+      fi
+    fi
+  done
+  if [ -e "$auditor_share" ] && ! grep -Fqx "// $auditor_owner" "$auditor_share/audit-tool.ts" 2>/dev/null; then
+    printf 'Refusing foreign auditor share: %s\n' "$auditor_share" >&2; exit 1
+  fi
+}
+
+install_auditors() {
+  for entry in $(auditor_files); do
+    source=${entry%%:*}; rest=${entry#*:}; destination="$HOME/${rest%%:*}"
+    install -d -m 700 "$(dirname -- "$destination")"
+    install -m "${rest##*:}" "$repo_dir/$source" "$destination"
+  done
+  # Clean-replace the owned share so a removed audit file cannot linger.
+  install -d -m 700 "$HOME/.local/share"
+  temp=$(mktemp -d "$HOME/.local/share/.omp-audit.XXXXXX")
+  cp -R "$repo_dir/auditors"/. "$temp"/
+  rm -f -- "$temp/audit-tool.test.ts" "$temp/omp-audit.env.pass"
+  chmod -R u=rwX,go= "$temp"
+  rm -rf -- "$auditor_share"
+  mv "$temp" "$auditor_share"
+  systemctl --user daemon-reload
+  systemctl --user enable --now omp-audit-foundations.timer omp-audit-principles.timer omp-audit-simplicity.timer
+}
+
 if [ "${OMP_INSTALL_GUIDANCE_ONLY+x}" = x ]; then
   printf 'OMP_INSTALL_GUIDANCE_ONLY was replaced; use OMP_INSTALL_COMPONENTS=guidance\n' >&2
   exit 1
@@ -426,6 +480,7 @@ for component do
     audio-sandbox) validate_audio_sandbox ;;
     cli) validate_cli ;;
     engineer-cage) validate_engineer_cage ;;
+    auditors) validate_auditors ;;
     skill:*) validate_skill "${component#skill:}" ;;
     *)
       printf 'Unknown install component: %s\n' "$component" >&2
@@ -446,6 +501,7 @@ if [ "$1" != all ]; then
       audio-sandbox) install_audio_sandbox ;;
       cli) install_cli ;;
       engineer-cage) install_engineer_cage ;;
+      auditors) install_auditors ;;
       skill:*) install_skill "${component#skill:}" ;;
     esac
   done

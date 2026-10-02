@@ -27,6 +27,8 @@
 !/bin/**
 !/units/
 !/units/**
+!/auditors/
+!/auditors/**
 
 # Telemetry tooling (repo-local, not deployed)
 !references/
