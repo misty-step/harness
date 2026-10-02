@@ -18,12 +18,19 @@
  *                                    the page is for or asks, so it refuses to guess.
  *   point-not-visible / ask-not-visible
  *                                    a marked element is hidden, closed inside
- *                                    <details>, or not wholly inside the first
- *                                    screen: the reader has to scroll to learn it.
+ *                                    <details>, clipped, covered, or not wholly
+ *                                    inside the first screen: the reader has to
+ *                                    scroll or hunt to learn it.
  *   dense-block                      one block of visible text holds more words
  *                                    than a glance takes in: a paragraph, not a point.
  *   dense-screen                     the first screen as a whole holds more words
  *                                    than a glance takes in: a document, not a page.
+ *
+ * Scope: it catches a first screen that is accidentally too dense or buries its
+ * point and asks, by layout and paint order with pointer-events forced on. It is
+ * not a defence against deliberately invisible styling (transparent text, zero
+ * font size); `--screenshot` saves the first screen for the eye that must still
+ * look at it.
  *
  * Exit 0 when every page passes, 1 when any finding exists, 2 when the check
  * itself could not run (no Chromium, page did not load): never a silent pass.
@@ -118,6 +125,8 @@ export function evaluate(page: string, measure: Measure, limits: Limits = DEFAUL
  */
 const PAGE_SCRIPT = (pointSelector: string, askSelector: string) => `(async () => {
 	await document.fonts.ready;
+	// Hit-testing skips pointer-events:none, so a see-through-to-the-mouse overlay would hide nothing from it.
+	document.documentElement.append(Object.assign(document.createElement("style"), { textContent: "*{pointer-events:auto!important}" }));
 	await new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done)));
 	const vw = document.documentElement.clientWidth, vh = window.innerHeight;
 	const visible = (el) => el.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true });
