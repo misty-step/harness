@@ -204,11 +204,13 @@ from pathlib import Path
 Path(os.environ["OMP_EXEC_RECEIPT"]).write_text(json.dumps({
     "pid": os.getpid(), "exe": os.readlink("/proc/self/exe"),
     "argv": sys.argv[1:], "tty": os.isatty(0),
+    "display_isolation": os.environ.get("OMP_ENGINEER_DISPLAY"),
+    "host_process_visible": Path("/proc/" + os.environ["OMP_HOST_PID"] + "/environ").exists(),
 }))
 sys.exit(23)
 '''
     DRIVER = r'''
-import importlib.util, sys
+import importlib.util, os, sys
 from pathlib import Path
 spec = importlib.util.spec_from_file_location("core", sys.argv[1])
 core = importlib.util.module_from_spec(spec)
@@ -232,6 +234,7 @@ core.native_path = lambda: native
 core.runtime_path = lambda: runtime
 core.start_scope = forbidden_registration
 sys.argv = ["omp", *argv]
+os.environ["OMP_HOST_PID"] = str(os.getpid())
 try:
     sys.exit(core.main(argv))
 except core.CageError as exc:
@@ -240,7 +243,9 @@ except core.CageError as exc:
 '''
 
     def dispatch(self, options, *, terminal, command=None):
-        with tempfile.TemporaryDirectory() as directory:
+        # The engineer's host /tmp is deliberately hidden. The receipt and fake
+        # native ELF are repository-like files in the shared home instead.
+        with tempfile.TemporaryDirectory(dir=Path.home()) as directory:
             base = Path(directory)
             native = base / "native" / "omp"
             native.parent.mkdir()
@@ -252,7 +257,9 @@ except core.CageError as exc:
             else:
                 (base / command).write_text(self.RECEIPT)
                 argv = [command, *options]
-            environment = {**os.environ, "OMP_EXEC_RECEIPT": str(receipt_file)}
+            environment = {key: value for key, value in os.environ.items()
+                           if not key.startswith("HERDR_") and not key.startswith("OMP_ENGINEER_DISPLAY")}
+            environment["OMP_EXEC_RECEIPT"] = str(receipt_file)
             master, slave = pty.openpty() if terminal else (None, None)
             try:
                 with subprocess.Popen(
@@ -289,18 +296,16 @@ except core.CageError as exc:
                 with self.subTest(args=args):
                     self.assertTrue(core.engineer_invocation(args))
 
-    def test_nonengineer_native_exec_bypasses_unavailable_containment_inspection(self):
-        cases = ((["-p"], True, None), (["--print"], True, None),
-                 (["--mode", "json"], True, None), (["--mode=rpc"], True, None),
-                 (["--mode", "acp"], True, None), (["--mode", "text"], True, None),
-                 (["--mode=rpc-ui"], True, None), (["--version"], True, None),
-                 (["--help"], True, None), ([], False, None), (["--check"], True, "update"))
+    def test_administrative_native_exec_bypasses_unavailable_containment_inspection(self):
+        cases = ((["--version"], True, None), (["--help"], True, None),
+                 (["--check"], True, "update"))
         for options, terminal, command in cases:
             with self.subTest(options=options, terminal=terminal, command=command):
                 result = self.dispatch(options, terminal=terminal, command=command)
                 self.assertEqual(result["code"], 23, result["stderr"])
                 self.assertEqual(result["receipt"], {"pid": result["pid"], "exe": result["native"],
-                                                     "argv": options, "tty": terminal})
+                                                     "argv": options, "tty": terminal,
+                                                     "display_isolation": None, "host_process_visible": True})
                 self.assertEqual(result["inspections"], [])
 
     def test_engineers_require_safe_membership_and_print_shaped_data_cannot_bypass(self):
@@ -315,6 +320,20 @@ except core.CageError as exc:
                 self.assertIsNone(result["receipt"])
                 self.assertIn("membership", result["inspections"])
 
+
+    @unittest.skipUnless(shutil.which("bwrap") and shutil.which("slirp4netns"), "display namespace dependencies")
+    def test_print_rpc_and_piped_engineers_receive_real_display_isolation(self):
+        cases = ((["-p"], True, None), (["--mode=rpc"], True, None), ([], False, None),
+                 ([], False, "cleanse"), ([], False, "bench"), ([], False, "collab"))
+        for options, terminal, command in cases:
+            with self.subTest(options=options, terminal=terminal, command=command):
+                result = self.dispatch(options, terminal=terminal, command=command)
+                self.assertEqual(result["code"], 23, result["stderr"])
+                self.assertEqual(result["receipt"]["display_isolation"], "isolated-v1")
+                self.assertFalse(result["receipt"]["host_process_visible"])
+                self.assertEqual(result["receipt"]["argv"], options)
+                self.assertEqual(result["receipt"]["tty"], terminal)
+                self.assertEqual(result["inspections"], [])
 
 class InspectionAndTerminalTests(unittest.TestCase):
     def test_staged_roster_is_unenforced_but_partial_activation_fails_closed(self):

@@ -284,20 +284,37 @@ install_audio_sandbox() {
   run_shared --audio-sandbox
 }
 
+validate_display_tools() {
+  for tool in bwrap slirp4netns Xvfb dbus-run-session; do
+    command -v "$tool" >/dev/null 2>&1 || { echo "$tool is required" >&2; exit 1; }
+  done
+  [ "$(cat /proc/sys/dev/tty/legacy_tiocsti 2>/dev/null)" = 0 ] || {
+    echo "Engineer display isolation requires dev.tty.legacy_tiocsti=0" >&2; exit 1;
+  }
+}
+
 validate_cli() {
   require_bun
   command -v flock >/dev/null 2>&1 || { echo "util-linux flock is required for experiment journal coordination" >&2; exit 1; }
   require_nonempty "$repo_dir/bin/omp-grievances.ts"
   require_nonempty "$repo_dir/bin/omp-roster.ts"
   require_nonempty "$repo_dir/bin/omp-experiments.ts"
-  require_nonempty "$repo_dir/bin/omp-engineer.py"
   command -v python3 >/dev/null 2>&1 || { echo "python3 is required" >&2; exit 1; }
-  python3 -c 'import sys; compile(open(sys.argv[1]).read(), sys.argv[1], "exec")' "$repo_dir/bin/omp-engineer.py"
-  target="$HOME/.local/bin/omp-engineer"
-  if [ -e "$target" ] || [ -L "$target" ]; then
-    [ ! -L "$target" ] && python3 -c 'import sys; f = open(sys.argv[1]); sys.exit(f.readline() + f.readline() != "#!/usr/bin/env python3\n# owned by misty-step/harness omp-config engineer-cage\n")' "$target" || {
-      echo "Refusing foreign omp-engineer entrypoint" >&2; exit 1;
-    }
+  for name in omp-engineer omp-display omp-gui; do
+    source="$repo_dir/bin/$name.py"
+    target="$HOME/.local/bin/$name"
+    require_nonempty "$source"
+    python3 -c 'import sys; compile(open(sys.argv[1]).read(), sys.argv[1], "exec")' "$source"
+    if [ -e "$target" ] || [ -L "$target" ]; then
+      [ ! -L "$target" ] && python3 -c \
+        'import sys; a = open(sys.argv[1]); b = open(sys.argv[2]); sys.exit(a.readline() + a.readline() != b.readline() + b.readline())' \
+        "$source" "$target" || {
+        echo "Refusing foreign $name entrypoint" >&2; exit 1;
+      }
+    fi
+  done
+  if [ -L "$HOME/.local/bin/omp" ] && [ "$(readlink "$HOME/.local/bin/omp")" = omp-engineer ]; then
+    validate_display_tools
   fi
 }
 
@@ -315,6 +332,7 @@ validate_engineer_cage() {
     fi
   fi
   require_nonempty "$repo_dir/units/omp.slice"
+  validate_display_tools
   for tool in systemctl systemd-run oomctl; do
     command -v "$tool" >/dev/null 2>&1 || { echo "$tool is required" >&2; exit 1; }
   done
@@ -374,6 +392,8 @@ install_cli() {
   # Deploy code only; the experiment journal and its historical prose are runtime state.
   install -m 600 "$repo_dir/bin/omp-experiments.ts" "$HOME/.local/bin/omp-experiments.ts"
   install -m 700 "$repo_dir/bin/omp-engineer.py" "$HOME/.local/bin/omp-engineer"
+  install -m 700 "$repo_dir/bin/omp-display.py" "$HOME/.local/bin/omp-display"
+  install -m 700 "$repo_dir/bin/omp-gui.py" "$HOME/.local/bin/omp-gui"
 }
 
 if [ "${OMP_INSTALL_GUIDANCE_ONLY+x}" = x ]; then

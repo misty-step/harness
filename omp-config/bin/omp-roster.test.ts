@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { createHash } from "node:crypto";
-import { chmodSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { chmodSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, dirname, join } from "node:path";
 
@@ -38,6 +38,13 @@ beforeAll(() => {
 	const core = join(root, "deploy", "omp-engineer");
 	copyFileSync(join(import.meta.dir, "omp-engineer.py"), core);
 	chmodSync(core, 0o700);
+	const installed = join(root, ".local", "bin");
+	mkdirSync(installed, { recursive: true });
+	for (const name of ["omp-engineer", "omp-display", "omp-gui"]) {
+		copyFileSync(join(import.meta.dir, `${name}.py`), join(installed, name));
+		chmodSync(join(installed, name), 0o700);
+	}
+	symlinkSync("omp-engineer", join(installed, "omp"));
 	memoryFile = join(root, "memory.json");
 	writeFileSync(memoryFile, JSON.stringify(memoryFixture()));
 });
@@ -168,6 +175,15 @@ describe("omp-roster memory admission", () => {
 });
 
 describe("omp-roster launch (US-046)", () => {
+	test("refuses unprotected launch plans even with inert memory measurements", () => {
+		const dir = scratch("no-display-boundary");
+		const state = join(dir, "state");
+		const usage = put(join(dir, "usage.json"), JSON.stringify(usageView([row("anthropic", "sonnet", "usable")])));
+		const refused = invoke(["launch", "--model", "anthropic/claude-sonnet-5-5", "--thinking", "medium",
+			"--usage-json", usage, "--state-dir", state, "--json"], { HOME: dir });
+		expect([refused.exitCode, refused.stdout, existsSync(state)]).toEqual([1, "", false]);
+		expect(refused.stderr).toContain("Engineer display isolation is not activated");
+	});
 	test("US-047 uses the roster-owned default without an export and honours an explicit override", () => {
 		const dir = scratch("fleet");
 		const agentsFile = join(dir, "agents.json");
@@ -185,7 +201,7 @@ describe("omp-roster launch (US-046)", () => {
 		const args = ["launch", "--item", "K-test", "--ticket-json", ticket, "--usage-json", usage, "--json"];
 		const env = { HERDR_TEST_AGENTS: agentsFile };
 		for (const [configured, limit, count] of [
-			[undefined, 18, 11], [undefined, 18, 17], [undefined, 18, 18], [undefined, 18, 19],
+			[undefined, 20, 11], [undefined, 20, 19], [undefined, 20, 20], [undefined, 20, 21],
 			["2", 2, 1], ["2", 2, 2], ["2", 2, 3], ["24", 24, 19],
 		] as const) {
 			put(agentsFile, JSON.stringify({ result: { agents: [...working.slice(0, count), ...settled, ...nonEngineers] } }));
@@ -502,6 +518,8 @@ describe("omp-roster launch (US-046)", () => {
 		};
 		// A closed PATH, so a real glass or board on the host cannot decide the outcome.
 		const env: Record<string, string> = { PATH: `${bin}:/usr/bin:/bin`, XDG_STATE_HOME: join(bin, "state-home"), HOME: join(bin, "home") };
+		mkdirSync(join(env.HOME, ".local"), { recursive: true });
+		symlinkSync(join(root, ".local", "bin"), join(env.HOME, ".local", "bin"));
 		const launched = () => JSON.parse(invoke(["launch", "--item", "K-test", "--json"], env).stdout).launch.model;
 		program("board", "claude-sonnet-5-5");
 		expect(launched()).toBe("claude-sonnet-5-5");

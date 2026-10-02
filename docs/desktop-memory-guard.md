@@ -41,6 +41,10 @@ alias creation, registered management roots and aliases, and stdin pipes/cron ru
 directly in their caller's cgroup. Root dispatch honors leading flag values and
 `--`; print-looking prompt data cannot evade interactive containment. This
 classification follows native OMP semantics, not named-caller exemptions.
+Display containment is independent: model/tool-capable invocations, including
+print, RPC/ACP and piped engineers, now receive the
+[live-display namespace boundary](../omp-config/README.md#engineer-display-isolation).
+Their unchanged caller cgroup is not permission to access the host screen.
 
 From the reviewed harness revision:
 
@@ -405,3 +409,100 @@ the production ceiling for a memory-hog test.
 The [incident postmortem](postmortems/2026-09-26-shared-terminal-oom.md) records
 observed evidence and its limits. A passing disposable walk is not activation of
 the real fleet.
+
+## Engineer display isolation proof
+
+Ticket `K-20261002-engineers-can-never-touch-phaedrus-s-scr`, 2026-10-02.
+The incident engineer recovered live display variables from another host
+process's `/proc/<pid>/environ`, then focused and sent input to the live
+Time Tracker window. Environment stripping alone would not prevent that path.
+
+A **fresh native OMP engineer**, launched through the changed source wrapper
+using OpenAI `gpt-6.1-sol` xhigh, ran the following proof. Its native session ID
+was `01a0fd63-fb50-7088-8328-9c59d163a723`; private transcript and raw readback
+are retained under the operator's `~/.local/state/engineer-display-proof/`.
+This was a real model/tool session, not a subprocess impersonating an engineer.
+The final landing report separately records live installation.
+
+First it gated the exact live session's sockets before attempting any input:
+Wayland, Hyprland, X11 pathname, session D-Bus and the user-manager socket
+returned `FileNotFoundError`; the host abstract X11 socket returned
+`ConnectionRefusedError`. Host compositor/app process environment was absent
+from its private `/proc`, and inherited live display variables were absent.
+Only after these gates passed did it deliberately restore the exact live
+display/signature variables to test the incident commands:
+
+| Actual command path | Observed result |
+| --- | --- |
+| `hyprctl eval` focus of the incident window | exit 4, couldn't connect to the exact live Hyprland socket |
+| `hyprctl eval` cursor movement to `(322,587)` | exit 4, same socket denial |
+| `hyprctl eval` Tab shortcut | exit 4, same socket denial |
+| `wtype -k F12` | exit 1, `Wayland connection failed` |
+| `grim` against the live Wayland session | exit 1, `failed to create display`; no screenshot file |
+
+It then started `omp-gui` with a real Zenity dialog, captured its private X11
+window, inspected the saved image and sent a mouse click at window-relative
+`(382,270)` to **Record click**. Zenity and the owned GUI service exited 0:
+
+```text
+GUI_SCREENSHOT_READY display=:0 window=6291461
+WIDTH=766 HEIGHT=320
+GUI_BUTTON_CLICK_EXIT=0
+```
+
+![Engineer-owned GUI screenshot before click](measurements/engineer-private-gui-2026-10-02.png)
+
+Screenshot SHA-256:
+`e11fe1d055db032d7a308b627f32e91e57284114ef6f4456b95759acbfd7e9b2`.
+The display number `:0` belongs to the private namespace, not the host X server.
+Private GTK portal/accessibility startup emitted unavailable FUSE/journal
+diagnostics; the actual dialog rendered and accepted the mouse click. This
+does not claim host portal, GPU or compositor integration.
+
+The same fresh engineer observed `git rev-parse --is-inside-work-tree` → `true`,
+cached pass-backed execution → exit 0 without plaintext output,
+`PULSE_SINK=agent-sandbox`, `PULSE_SOURCE=agent-sandbox.monitor`, and the
+`agent-sandbox` sink in `pactl`. Native `browser.open` opened an independent
+headless Chromium page titled **Example Domain**, produced a screenshot and
+closed its managed tab without a host CDP endpoint. Separate launcher smoke
+also read the real Herdr agent list and rejected a host `pane.send_keys`
+request before it could reach Herdr.
+
+These observations prove the exercised direct-access paths. The boundary
+retains shared writable repository/home data and credentials; it is not a
+claim that arbitrary same-UID malicious code cannot influence later external
+execution. Existing engineers are not retroactively fenced by an installer;
+they need a natural relaunch. No host desktop input or screenshot succeeded.
+
+Final independent reviews used Anthropic `claude-sonnet-5-5` (runtime model
+records confirmed), different from the OpenAI author/proof engineer. Both
+kernel/security and launcher/protocol reviews approved after these repairs:
+remove raw PipeWire access to active host video nodes, restrict GPG `GETINFO`,
+and preserve graceful termination without duplicate foreground interrupts.
+
+Additional repaired-source smoke observed:
+
+```text
+SIGTERM -> SESSION_FLUSHED -> native exit 42
+native_pipewire=hidden
+paplay -> agent-sandbox -> exit 0
+parecord <- agent-sandbox.monitor -> 4800 frames, generated-tone peak 1000
+cached_pass_exit=0
+```
+
+CI exposed Bubblewrap's devpts-driven second user namespace: slirp's network
+`setns` failed with `EPERM` when it joined the command's final user namespace.
+The launcher now gets the network namespace's owning user namespace with
+`NS_GET_USERNS` and passes that descriptor only to the host-side slirp helper.
+A throwaway smoke forced a second user namespace with `--disable-userns`;
+the private native command ran as UID 1000 and connected to
+`example.org:443` (`104.20.26.136:443`). The seven real display regressions
+passed locally, and the independent kernel reviewer approved this repair.
+The smoke-only flag is not part of the deployed boundary.
+
+Only Pulse audio crosses the boundary; `pw-*` and host ALSA/DRM/input devices
+are deliberately unavailable. Sending SIGINT/SIGQUIT only to the outer
+launcher PID is not the foreground interrupt interface; send them to the
+foreground process group. SIGTERM/SIGHUP are forwarded to the real command.
+SIGKILL of the GUI helper alone can leave private GUI descendants until the
+engineer's namespace ends; they do not regain host display access.

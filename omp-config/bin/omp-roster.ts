@@ -7,7 +7,7 @@
 // and blind verdicts. The approved model table remains here for deployed consumers.
 
 import { createHash, randomBytes } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, readlinkSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { basename, delimiter, dirname, isAbsolute, join, resolve } from "node:path";
 import { parseArgs } from "node:util";
@@ -155,6 +155,20 @@ function memorySnapshot(file?: string): MemorySnapshot {
 	return doc as MemorySnapshot;
 }
 
+function enforceDisplayBoundary(): void {
+	const bin = join(homedir(), ".local", "bin");
+	try {
+		const entry = join(bin, "omp");
+		if (!lstatSync(entry).isSymbolicLink() || readlinkSync(entry) !== "omp-engineer") throw new Error("inactive");
+		for (const name of ["omp-engineer", "omp-display", "omp-gui"]) {
+			const info = lstatSync(join(bin, name));
+			if (!info.isFile() || !(info.mode & 0o100)) throw new Error("incomplete");
+		}
+	} catch {
+		throw new CliError("Engineer display isolation is not activated; install the engineer-cage before planning a launch.");
+	}
+}
+
 function memoryCommand(options: { json?: boolean; "memory-json"?: string }): number {
 	const snapshot = memorySnapshot(options["memory-json"]);
 	if (options.json) console.log(JSON.stringify(snapshot, null, 2));
@@ -167,7 +181,7 @@ function memoryCommand(options: { json?: boolean; "memory-json"?: string }): num
 }
 // Session-wide: no workspace filter, no exclusion for the calling engineer.
 function enforceEngineerLimit(): { working: number; limit: number; agents: Record<string, unknown>[] } {
-	const configured = process.env.OMP_ROSTER_ENGINEER_LIMIT ?? "18";
+	const configured = process.env.OMP_ROSTER_ENGINEER_LIMIT ?? "20";
 	if (!/^[1-9][0-9]*$/.test(configured) || !Number.isSafeInteger(Number(configured))) {
 		throw new CliError("OMP_ROSTER_ENGINEER_LIMIT must be a positive safe integer.");
 	}
@@ -605,6 +619,7 @@ function launchCommand(options: LaunchOptions & { item?: string; model?: string;
 		({ item, roster } = adhocRoster(options.model, options.thinking));
 	}
 	const { agents, ...engineerCapacity } = enforceEngineerLimit();
+	enforceDisplayBoundary();
 	const memory = memorySnapshot(options["memory-json"]);
 	for (const warning of memory.warnings) console.error(`warning: ${plain(warning)}`);
 	const { rows, freshness } = usageView(options["usage-json"]);
