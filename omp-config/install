@@ -286,6 +286,7 @@ install_audio_sandbox() {
 
 validate_cli() {
   require_bun
+  command -v flock >/dev/null 2>&1 || { echo "util-linux flock is required for experiment journal coordination" >&2; exit 1; }
   require_nonempty "$repo_dir/bin/omp-grievances.ts"
   require_nonempty "$repo_dir/bin/omp-roster.ts"
   require_nonempty "$repo_dir/bin/omp-experiments.ts"

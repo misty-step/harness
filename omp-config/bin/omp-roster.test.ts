@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import { createHash } from "node:crypto";
 import { chmodSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, dirname, join } from "node:path";
@@ -579,9 +580,11 @@ const flag=(name)=>args[args.indexOf(name)+1];
 let result;
 if(args[0]==="agent"&&args[1]==="list") result={agents:state.agents};
 else if(args[0]==="pane"&&args[1]==="run") result={};
+else if(args[0]==="worktree"&&args[1]==="list") result={source:{repo_root:process.env.AUTO_REPO,source_workspace_id:"wParent"}};
 else if(args[0]==="worktree"&&args[1]==="create"){
+ if(flag("--workspace")!=="wParent"){console.error("linked_worktree_source");process.exit(1);}
  const n=state.worktrees.length+1, cwd=join(process.env.AUTO_ROOT,"lane-"+n);
- const git=Bun.spawnSync(["git","-C",flag("--cwd"),"worktree","add","-q","-b",flag("--branch"),cwd,flag("--base")]);
+ const git=Bun.spawnSync(["git","-C",process.env.AUTO_REPO,"worktree","add","-q","-b",flag("--branch"),cwd,flag("--base")]);
  if(git.exitCode!==0){console.error(git.stderr.toString());process.exit(1);}
  const lane={pane_id:"w"+n+":p1",workspace_id:"w"+n,cwd};
  state.worktrees.push(lane);
@@ -602,7 +605,7 @@ console.log(JSON.stringify({result}));
 		chmodSync(herdr, 0o700);
 		const ticket = put(join(dir, "ticket.json"), JSON.stringify({ nature: "research", roster: [SOL], done: [{ check: "Name the ownership boundary", proof: "Exact source evidence" }], victory: "Decidable ownership" }));
 		const usage = put(join(dir, "usage.json"), JSON.stringify(usageView([row("openai-codex", "gpt-6.1-sol", "usable")])));
-		const env = { ROSTER_AUTO_PAIR: "1", HERDR_ENV: "1", AUTO_ROOT: dir, AUTO_HERDR_STATE: state, OMP_ROSTER_EXPERIMENTS_FILE: journal, PATH: `${bin}:${process.env.PATH}` };
+		const env = { ROSTER_AUTO_PAIR: "1", HERDR_ENV: "1", AUTO_ROOT: dir, AUTO_REPO: repo, AUTO_HERDR_STATE: state, OMP_ROSTER_EXPERIMENTS_FILE: journal, PATH: `${bin}:${process.env.PATH}` };
 		const args = ["launch", "--item", "K-test", "--cwd", repo, "--ticket-json", ticket, "--usage-json", usage, "--state-dir", join(dir, "roster-state"), "--json"];
 		return { dir, repo, journal, state, env, args };
 	}
@@ -627,6 +630,13 @@ console.log(JSON.stringify({result}));
 		expect(JSON.parse(second.stdout)).toMatchObject({ started: false, pair: { status: "live" } });
 		expect(JSON.parse(readFileSync(state, "utf8")).worktrees.length).toBe(2);
 		expect(readFileSync(journal, "utf8")).toContain("Preserve the prior lesson.");
+		runtime.agents.forEach((agent: { agent_status: string }) => { agent.agent_status = "done"; });
+		writeFileSync(state, JSON.stringify(runtime));
+		const next = invoke(args, env);
+		expect(next.exitCode).toBe(0);
+		expect(JSON.parse(next.stdout)).toMatchObject({ started: true, pair: { experiment: { id: "E-020" } } });
+		expect(JSON.parse(readFileSync(state, "utf8")).worktrees.length).toBe(4);
+		expect(readFileSync(journal, "utf8")).toContain('"status": "awaiting-verdict"');
 	});
 
 	test("explicit reason skips both side effects and is retained; a bare opt-out refuses", () => {
@@ -640,11 +650,11 @@ console.log(JSON.stringify({result}));
 	});
 
 	test("unresolved starts and insufficient two-lane capacity cannot silently become singleton plans", () => {
-		const { state, env, args } = prepare();
+		const { state, repo, env, args } = prepare();
 		expect(invoke(args, { ...env, OMP_ROSTER_ENGINEER_LIMIT: "1" }).exitCode).toBe(5);
 		expect(JSON.parse(readFileSync(state, "utf8")).worktrees).toEqual([]);
 		const script = join(env.PATH.split(":")[0]!, "herdr");
-		writeFileSync(script, '#!/bin/sh\nif [ "$*" = "agent list" ]; then printf \'{"result":{"agents":[]}}\\n\'; else printf \'creation ambiguous\\n\' >&2; exit 1; fi\n');
+		writeFileSync(script, `#!/bin/sh\nif [ "$*" = "agent list" ]; then printf '{"result":{"agents":[]}}\\n'; elif [ "$1 $2" = "worktree list" ]; then printf '%s\\n' '{"result":{"source":{"repo_root":"${repo}","source_workspace_id":"wParent"}}}'; else printf 'creation ambiguous\\n' >&2; exit 1; fi\n`);
 		const failed = invoke(args, env);
 		expect(failed.exitCode).toBe(1);
 		expect(failed.stderr).toContain("remains starting");
@@ -704,9 +714,17 @@ describe("omp-roster check (US-046)", () => {
 
 	// What `launch` writes beside its overlay for one launch, with a fixed time and digest so the tests
 	// do not depend on the clock.
-	const recorded = (dir: string, roster: Entry[], launchedAt: string, digest: string, schemaVersion = 2) =>
-		put(join(dir, "state", `K-test.${digest}.launch.json`), JSON.stringify({ item: "K-test", roster, roster_sha256: "unused", launch: selectorOf(roster[0]), overlay: join(dir, "state", `K-test.${digest}.yml`), launched_at: launchedAt, ...(schemaVersion === 2 ? { schema_version: 2 } : {}) }));
+	const recorded = (dir: string, roster: Entry[], launchedAt: string, digest: string, schemaVersion = 2, ticketRoster?: Entry[]) =>
+		put(join(dir, "state", `K-test.${digest}.launch.json`), JSON.stringify({ item: "K-test", roster, roster_sha256: "unused", ticket_roster_sha256: ticketRoster ? createHash("sha256").update(JSON.stringify(ticketRoster)).digest("hex") : undefined, launch: selectorOf(roster[0]), overlay: join(dir, "state", `K-test.${digest}.yml`), launched_at: launchedAt, ...(schemaVersion === 2 ? { schema_version: 2 } : {}) }));
 	const selectorOf = (entry: Entry) => `${entry.provider}/${entry.model}:${entry.effort}`;
+
+	test("an explicit learned effort audits against the original ticket while later ticket edits remain violations", () => {
+		const dir = scratch("learned-effort-audit");
+		recorded(dir, [{ ...SOL, effort: "xhigh" }, SONNET], stamp(1), "abababab", 2, [SOL, SONNET]);
+		const session = jsonl(join(dir, "default.jsonl"), [said(2, SOL.provider, SOL.model)]);
+		expect(checkWith(dir, [SOL, SONNET], [], session).exitCode).toBe(0);
+		expect(checkWith(dir, [{ ...SOL, effort: "max" }, SONNET], [], session).exitCode).toBe(4);
+	});
 
 	test("US-046 checks retired Sol records and launch-era helper primaries without allowing new retired Sol launches", () => {
 		const dir = scratch("historical-sol");

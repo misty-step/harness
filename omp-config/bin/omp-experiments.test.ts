@@ -1,5 +1,5 @@
 import { afterEach, expect, test } from "bun:test";
-import { chmodSync, existsSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { experimentCommand, nextExperimentId, readLedger, withLedgerLock, writeLedger, type Entry, type Experiment, type Ledger, type Verdict } from "./omp-experiments.ts";
@@ -55,6 +55,7 @@ function seeded(root: string): Experiment {
 		],
 	};
 	for (const lane of experiment.lanes) {
+		mkdirSync(lane.cwd, { recursive: true });
 		writeFileSync(lane.session, [
 			{ type: "session", id: lane.workspace_id, cwd: lane.cwd },
 			{ type: "model_change", model: `${lane.entry.provider}/${lane.entry.model}`, resolvedModelIsFallback: false },
@@ -68,7 +69,7 @@ function seeded(root: string): Experiment {
 	return experiment;
 }
 function nativeFixture(root: string, mode = "complete"): { args: string[]; request: string; calls: string; a: string; b: string } {
-	const a = join(root, "deliverable-one.txt"), b = join(root, "deliverable-two.txt");
+	const a = join(root, "worktree-one", "deliverable.txt"), b = join(root, "worktree-two", "deliverable.txt");
 	writeFileSync(a, `Lane A: openai-codex/gpt-6.1-sol xhigh, ${join(root, "worktree-one")}, wTEST:p1, E-019, K-consumer\nCheck one PARTIAL: implementation asserted, no recovery response shown.\nCheck two PARTIAL: preserving state was asserted, not demonstrated.\nAuthor: Alice Operator\n`);
 	writeFileSync(b, `Lane B: GPT-6.1 Sol high, ${join(root, "worktree-two")}, wTEST:p2, E-019, K-consumer\nCheck one DELIVERED: restarted after crash and the service answered 200.\nCheck two DELIVERED: repeated twice; both recovery journals remain intact.\nAuthor: Bob Operator\nTrade-off: high risk; medium confidence; low operational overhead.\n`);
 	const request = join(root, "judge-request.json"), calls = join(root, "judge-calls.txt");
@@ -161,9 +162,54 @@ test("a real competing process cannot enter the locked launch transaction", () =
 		expect(contender.stderr.toString()).toContain("journal is busy");
 		expect(contender.stderr.toString()).not.toContain("Error: entered");
 	});
-	expect(existsSync(`${path}.lock`)).toBe(false);
 	withLedgerLock(() => { const ledger = readLedger(); ledger.opt_outs.push({ item: "K-next", reason: "explicit opt-out", at: "2026-10-02T11:00:00Z" }); writeLedger(ledger); });
 	expect(readLedger().opt_outs[0].item).toBe("K-next");
+});
+
+test("a killed lock holder cannot strand later launches", async () => {
+	fixture();
+	const module = join(import.meta.dir, "omp-experiments.ts");
+	const holder = Bun.spawn([process.execPath, "--eval", `import {withLedgerLock} from ${JSON.stringify(module)}; import {writeSync} from "node:fs"; withLedgerLock(() => {writeSync(1,"locked\\n"); Atomics.wait(new Int32Array(new SharedArrayBuffer(4)),0,0,60000);});`], { env: process.env, stdout: "pipe", stderr: "pipe" });
+	const reader = holder.stdout.getReader();
+	const ready = await reader.read();
+	expect(new TextDecoder().decode(ready.value)).toBe("locked\n");
+	holder.kill("SIGKILL");
+	await holder.exited;
+	reader.releaseLock();
+	withLedgerLock(() => {
+		const ledger = readLedger();
+		ledger.opt_outs.push({ item: "K-recovered", reason: "Recovered after interrupted dispatch", at: "2026-10-02T12:00:00Z" });
+		writeLedger(ledger);
+	});
+	expect(readLedger().opt_outs[0].item).toBe("K-recovered");
+});
+
+test("stored user evidence can quote ledger markers without corrupting the journal", () => {
+	fixture();
+	const reason = "Inspect <!-- omp-experiments:state:start --> and <!-- omp-experiments:state:end --> as source evidence.";
+	withLedgerLock(() => {
+		const ledger = readLedger();
+		ledger.opt_outs.push({ item: "K-markers", reason, at: "2026-10-02T12:00:00Z" });
+		writeLedger(ledger);
+	});
+	expect(readLedger().opt_outs[0].reason).toBe(reason);
+});
+
+test("swapped artifacts and cross-lane symlinks cannot attribute another lane's work to the default", () => {
+	const { root } = fixture();
+	seeded(root);
+	const native = nativeFixture(root);
+	const swapped = [...native.args];
+	swapped[swapped.indexOf("--artifact-a") + 1] = native.b;
+	swapped[swapped.indexOf("--artifact-b") + 1] = native.a;
+	expect(command(swapped).status).toBe(1);
+	const link = join(root, "worktree-one", "copied-report.txt");
+	symlinkSync(native.b, link);
+	const escaped = [...native.args];
+	escaped[escaped.indexOf("--artifact-a") + 1] = link;
+	expect(command(escaped).status).toBe(1);
+	expect(existsSync(native.calls)).toBe(false);
+	expect(readLedger().defaults).toEqual({});
 });
 
 test("corrupt or duplicate state blocks fail before a callback can launch anything", () => {

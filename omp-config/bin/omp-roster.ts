@@ -381,7 +381,8 @@ function importLegacyPair(ledger: Ledger, agents: Record<string, unknown>[]): vo
 			return { pane_id: binding.pane_id, session: binding.session, cwd, workspace_id: binding.pane_id.split(":")[0]!, entry: { provider: model.slice(0, slash), model: model.slice(slash + 1), effort } };
 		});
 		const sections = readFileSync(ledgerPath(), "utf8").split(/(?=^## E-[0-9]+)/m);
-		const historical = sections.find((section) => section.includes(doc.item as string));
+		const itemPattern = new RegExp(`(?<![A-Za-z0-9._-])${(doc.item as string).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?![A-Za-z0-9._-])`);
+		const historical = sections.findLast((section) => itemPattern.test(section));
 		const id = historical?.match(/^## (E-[0-9]+)/)?.[1] ?? nextExperimentId(ledger);
 		ledger.experiments.push({
 			id, item: doc.item, nature: "design", question: "Legacy pair; see the preserved journal entry. No default was preregistered.",
@@ -431,12 +432,16 @@ function startPair(ledger: Ledger, item: string, ticket: Record<string, unknown>
 	if (!candidateEffort || candidateEffort === launch.effort) throw new CliError("This model has no default-changing effort comparison; record an opt-out reason.");
 	const candidate = { ...launch, effort: candidateEffort };
 	const checks = ticket.done;
-	if (!Array.isArray(checks) || !checks.length || !checks.every((check) => isRecord(check) && typeof check.check === "string" && check.check.trim() && typeof check.proof === "string")) {
+	if (!Array.isArray(checks) || !checks.length || !checks.every((check) => isRecord(check) && typeof check.check === "string" && check.check.trim() && typeof check.proof === "string" && check.proof.trim())) {
 		throw new CliError("A useful pair requires the ticket's done checks and their proof contracts.");
 	}
 	const cwd = resolve(options.cwd ?? process.cwd());
 	const base = gitFact(cwd, ["rev-parse", "HEAD"]);
 	if (gitFact(cwd, ["status", "--porcelain"])) throw new CliError("Experiment lanes need a committed starting snapshot; commit the checkout or select a clean --cwd.");
+	const inventory = capture("herdr", ["worktree", "list", "--cwd", cwd]);
+	const source = isRecord(inventory.json) && isRecord(inventory.json.result) ? inventory.json.result.source : undefined;
+	if (inventory.exitCode !== 0 || !isRecord(source) || typeof source.repo_root !== "string") throw new CliError("Cannot resolve the Herdr repository parent for experiment worktrees.");
+	const parent = typeof source.source_workspace_id === "string" ? ["--workspace", source.source_workspace_id] : ["--cwd", source.repo_root];
 	const brief = experimentBrief(item, ticket, options["brief-file"]);
 	const experiment: Experiment = {
 		id: nextExperimentId(ledger), item, nature, variable: "effort", baseline: launch, candidate,
@@ -449,7 +454,7 @@ function startPair(ledger: Ledger, item: string, ticket: Record<string, unknown>
 	const appendix = `\n\nExperiment contract: ${experiment.question}\nRouting default tested: ${experiment.default_key}. Only effort differs. Both lanes use the same starting commit and brief. Stop after delivering evidence against each done check; do not merge, install, publish, or change live data. A blind cross-family judge chooses afterwards. On equal complete scores, lower effort wins. Write your final deliverable to experiment-result.md in this worktree.`;
 	for (const [index, entry] of [launch, candidate].entries()) {
 		const label = `${experiment.id}-${index === 0 ? "a" : "b"}`;
-		const created = capture("herdr", ["worktree", "create", "--cwd", cwd, "--branch", `phaedrus/experiment-${label.toLowerCase()}-${randomBytes(3).toString("hex")}`, "--base", base, "--label", `${basename(cwd)} ${label}`, "--no-focus"], 60_000);
+		const created = capture("herdr", ["worktree", "create", ...parent, "--branch", `phaedrus/experiment-${label.toLowerCase()}-${randomBytes(3).toString("hex")}`, "--base", base, "--label", `${basename(cwd)} ${label}`, "--no-focus"], 60_000);
 		const result = isRecord(created.json) ? created.json.result : undefined;
 		if (created.exitCode !== 0 || !isRecord(result) || !isRecord(result.root_pane) || !isRecord(result.workspace) || !isRecord(result.worktree)
 			|| typeof result.root_pane.pane_id !== "string" || typeof result.workspace.workspace_id !== "string" || typeof result.worktree.path !== "string") {
@@ -505,7 +510,7 @@ function abandonCommand(args: string[]): number {
 
 const recordName = (item: string, digest: string) => `${item}.${digest}.launch.json`;
 
-type LaunchRecord = { roster: Entry[]; launched_at: string; at: number; path: string; primaries: Record<string, string> };
+type LaunchRecord = { roster: Entry[]; ticketSha?: string; launched_at: string; at: number; path: string; primaries: Record<string, string> };
 
 function readLaunchRecord(path: string, item: string): LaunchRecord {
 	const doc = readJson(path, "launch record");
@@ -515,7 +520,8 @@ function readLaunchRecord(path: string, item: string): LaunchRecord {
 	let roster: Entry[];
 	try { roster = rosterOf({ roster: doc.roster }, item, doc.schema_version === undefined); }
 	catch { throw refused; }
-	return { roster, launched_at: doc.launched_at as string, at, path, primaries: doc.schema_version === 2 ? CHECK_PRIMARIES : HISTORICAL_CHECK_PRIMARIES };
+	if (doc.ticket_roster_sha256 !== undefined && (typeof doc.ticket_roster_sha256 !== "string" || !/^[a-f0-9]{64}$/.test(doc.ticket_roster_sha256))) throw refused;
+	return { roster, ticketSha: doc.ticket_roster_sha256 as string | undefined, launched_at: doc.launched_at as string, at, path, primaries: doc.schema_version === 2 ? CHECK_PRIMARIES : HISTORICAL_CHECK_PRIMARIES };
 }
 
 // Every launch record for the item, oldest first. The pattern is exact so an item id that is a
@@ -544,10 +550,10 @@ function adhocRoster(model: string | undefined, thinking: string | undefined): {
 	return { item, roster };
 }
 
-function writePlan(item: string, roster: Entry[], launch: Entry, explicit?: string) {
+function writePlan(item: string, roster: Entry[], launch: Entry, explicit?: string, ticketSha?: string) {
 	const sha = rosterSha(roster);
 	const dir = stateDir(explicit);
-	const body = overlayText(item, sha, roster, launch);
+	const body = overlayText(item, sha, roster, launch) + (ticketSha ? `# ticket_roster_sha256: ${ticketSha}\n` : "");
 	const digest = createHash("sha256").update(body).digest("hex").slice(0, 8);
 	const overlay = join(dir, `${item}.${digest}.yml`);
 	if (overlay.includes(delimiter)) throw new CliError(`The overlay path ${plain(overlay)} contains "${delimiter}", which PI_CONFIG_FILES cannot carry.`);
@@ -557,7 +563,7 @@ function writePlan(item: string, roster: Entry[], launch: Entry, explicit?: stri
 	try { readLaunchRecord(record, item); text = readFileSync(record, "utf8"); }
 	catch { /* new snapshot */ }
 	if (text === null) {
-		text = `${JSON.stringify({ schema_version: 2, item, roster, roster_sha256: sha, launch: plain(selector(launch)), overlay, launched_at: new Date().toISOString() }, null, 2)}\n`;
+		text = `${JSON.stringify({ schema_version: 2, item, roster, roster_sha256: sha, ticket_roster_sha256: ticketSha, launch: plain(selector(launch)), overlay, launched_at: new Date().toISOString() }, null, 2)}\n`;
 		writeStateFile(dir, basename(record), text);
 	}
 	writeStateFile(dir, `${item}.launch.json`, text);
@@ -571,6 +577,7 @@ function launchCommand(options: LaunchOptions & { item?: string; model?: string;
 	let item: string;
 	let roster: Entry[];
 	let ticket: unknown = null;
+	let defaultEvidence: string | null = null;
 	const reasons = [options.tiny, options["live-data"], options["no-experiment"]].filter((reason) => reason !== undefined);
 	if (reasons.length > 1 || reasons.some((reason) => !reason?.trim())) throw new CliError("Give one nonempty experiment opt-out reason.", 2);
 	if (options.item !== undefined) {
@@ -584,11 +591,14 @@ function launchCommand(options: LaunchOptions & { item?: string; model?: string;
 		if (options["use-default"]) {
 			if (!isRecord(ticket) || !["build", "design", "research"].includes(ticket.nature as string)) throw new CliError("--use-default requires a qualifying ticket nature.");
 			const defaults = readLedger().defaults;
-			roster = roster.map((entry) => {
+			roster = roster.map((entry, index) => {
+				if (index !== 0) return entry;
 				const learned = defaults[`${ticket.nature}:${key(entry)}`];
 				if (!learned) throw new CliError(`No verdict-backed default for ${ticket.nature}:${key(entry)}.`);
+				defaultEvidence = learned.evidence;
 				return learned.entry;
 			});
+			roster = rosterOf({ roster }, item);
 		}
 	} else {
 		if (options["ticket-json"] !== undefined) throw new CliError("--ticket-json goes with --item; a launch with --model reads no ticket.", 2);
@@ -616,7 +626,9 @@ function launchCommand(options: LaunchOptions & { item?: string; model?: string;
 	}
 	const overlayDirectory = stateDir(options["state-dir"]);
 	if (overlayDirectory.includes(delimiter)) throw new CliError(`The overlay path ${plain(overlayDirectory)} contains "${delimiter}", which PI_CONFIG_FILES cannot carry.`);
-	const outcome = withLedgerLock(() => {
+	const qualifies = isRecord(ticket) && ["build", "design", "research"].includes(ticket.nature as string);
+	const ticketSha = options["use-default"] ? rosterSha(rosterOf(ticket, item)) : undefined;
+	const outcome: { started: boolean; pair: { status: string; file: string; experiment?: Experiment }; overlay: string | null; record: string | null; env: { PI_CONFIG_FILES?: string }; args: string[] } = qualifies || reasons.length ? withLedgerLock(() => {
 		const ledger = readLedger();
 		importLegacyPair(ledger, agents);
 		let pair = currentPair(ledger, agents);
@@ -624,15 +636,14 @@ function launchCommand(options: LaunchOptions & { item?: string; model?: string;
 			ledger.opt_outs.push({ item, reason: reasons[0]!.trim(), at: new Date().toISOString() });
 			writeLedger(ledger);
 		}
-		const qualifies = isRecord(ticket) && ["build", "design", "research"].includes(ticket.nature as string);
 		if (qualifies && !reasons.length && pair.status === "starting") throw new CliError(`Experiment ${pair.experiment!.id} has an unresolved start; inspect its lanes before abandoning.`);
 		if (qualifies && !reasons.length && pair.status === "none") {
 			const experiment = startPair(ledger, item, ticket as Record<string, unknown>, launch!, options, engineerCapacity.working, engineerCapacity.limit);
 			pair = { status: "live", file: ledgerPath(), experiment };
 			return { started: true, pair, overlay: null, record: null, env: {}, args: [] as string[] };
 		}
-		return { started: false, pair, ...writePlan(item, roster, launch!, options["state-dir"]) };
-	});
+		return { started: false, pair, ...writePlan(item, roster, launch!, options["state-dir"], ticketSha) };
+	}) : { started: false, pair: { status: "not-applicable", file: ledgerPath() }, ...writePlan(item, roster, launch, options["state-dir"]) };
 	const degraded = route.degraded ?? freshness.degraded_reason;
 	if (route.verdict === "low") console.error(`warning: ${plain(selector(launch))} is low on capacity and may run out soon`);
 	if (degraded) console.error(`warning: the ai-usage reading is degraded: ${degraded}`);
@@ -640,7 +651,7 @@ function launchCommand(options: LaunchOptions & { item?: string; model?: string;
 		const usage = { ...freshness, degraded: freshness.degraded || route.degraded !== null, degraded_reason: degraded };
 		console.log(JSON.stringify({
 			item, launch: { ...launch, selector: plain(selector(launch)), verdict: route.verdict }, ...outcome, skipped, roster_sha256: sha, usage, memory, engineer_capacity: engineerCapacity,
-			default_evidence: isRecord(ticket) ? readLedger().defaults[`${ticket.nature}:${key(launch)}`]?.evidence ?? null : null,
+			default_evidence: options["use-default"] && launch === roster[0] ? defaultEvidence : null,
 		}, null, 2));
 	} else {
 		for (const skip of skipped) console.error(`skipped ${skipLine(skip)}`);
@@ -789,7 +800,7 @@ function checkCommand(item: string, paths: string[], options: CheckOptions): num
 	let changedLine: string | null = null;
 	if (launches.length > 0 && !adhoc) {
 		if (current === null) changedLine = `roster changed since launch: the board's roster could not be read (${unreadable})`;
-		else if (newest?.basis.record && rosterSha(newest.basis.record.roster) !== rosterSha(current)) {
+		else if (newest?.basis.record && (newest.basis.record.ticketSha ?? rosterSha(newest.basis.record.roster)) !== rosterSha(current)) {
 			changedLine = `roster changed since launch: the board now has roster_sha256 ${rosterSha(current)}`;
 		}
 	}

@@ -970,9 +970,10 @@ state under its lock; a successful roster preflight never reserves capacity.
    the experiment and real pane/session identities; do not dispatch an extra
    engineer from that output. JSON retains launch route, overlay/record, `env`,
    `args`, skip reasons, roster hash and usage diagnostics, and reports
-   `pair: {status: 'live' | 'none' | 'starting', file, experiment?}`. `file`
-   is the journal path; `experiment` carries the recorded lane identities.
-   Explicit `--use-default` also reports the routing evidence it consumed.
+   `pair: {status: 'live' | 'none' | 'starting' | 'not-applicable', file, experiment?}`.
+   `file` is the journal path; `experiment` carries recorded lane identities.
+   Nonqualifying/ad-hoc launches without an explicit opt-out do not read or lock
+   the journal. Explicit `--use-default` reports only the routing evidence it consumed.
    `launch` carries the entry's `verdict` (`usable` or
    `low`), `env` is `{"PI_CONFIG_FILES": OVERLAY}`, and `usage` is `{degraded,
    degraded_reason, oldest_observation, stale_after_seconds}` from the ai-usage
@@ -987,8 +988,10 @@ From the target checkout, `omp-roster launch --item ID` automatically starts
 two actual OMP lanes for qualifying **build, design or research** work when no
 experiment is reserved. This replaces the optional twin suggestion and manual
 `pair` registration/clear path; there is no `pair.json` or second experiment ledger.
-The launch uses the current checkout unless `--cwd DIR` selects another. Both
-lanes receive the same complete Glass ticket brief (title, why, description,
+The launch uses the current checkout unless `--cwd DIR` selects another.
+Worktree creation resolves the checkout's canonical Herdr parent workspace first;
+a linked checkout is a valid launch source, not a worktree-creation parent.
+Both lanes receive the same complete Glass ticket brief (title, why, description,
 scope, done checks and victory); `--brief-file FILE` optionally supplies a tailored
 brief to relay identically. A real checkout, clean shared starting HEAD and ticket
 done checks are required; missing required context refuses rather than suggesting
@@ -1016,8 +1019,11 @@ and evidence defaults; all historical prose stays intact, and new numbering
 follows the highest legacy E-id. `OMP_ROSTER_EXPERIMENTS_FILE` selects a different
 journal only for isolated proof or an explicitly selected shared home;
 `--state-dir` still redirects launch artifacts, not this fleet-wide journal.
-Writes are atomic and private (0600). A transient exclusive lock covers launch
-side effects and ledger updates; busy or malformed state fails closed.
+Writes are atomic and private (0600). Linux `util-linux flock` holds an exclusive
+kernel lease over launch side effects and ledger updates; process exit or crash
+releases it. Its persistent `.lock` inode is coordination, not another ledger:
+never unlink it while launchers may be active. Busy or malformed required journal
+state fails closed.
 Installation stages the sibling helper with the CLI, never the journal.
 
 Only one experiment may reserve a live pair (`starting` or `running`). The
@@ -1043,8 +1049,9 @@ omp-roster defaults --nature build --model openai-codex/gpt-6.1-sol
 omp-roster launch --item K-example --use-default --json
 ```
 
-Artifact A/B paths correspond to the recorded baseline/candidate lanes; they are
-not the anonymous labels the judge sees. The helper randomizes X/Y, redacts
+Artifact A/B paths must realpath inside their recorded baseline/candidate worktrees,
+respectively; swapped paths and escaping symlinks are rejected. A/B are not the
+anonymous labels the judge sees. The helper randomizes X/Y, redacts
 lane model/effort, worktree and experiment identities, and withholds the mapping.
 The approved, usable native OMP judge must be from a **different family than
 either lane**. It runs in print mode with no tools, rules, skills or extensions,
@@ -1055,14 +1062,18 @@ invalid score or incomplete verdict cannot update a default.
 The judge scores **every ticket done check for each lane, 0–2**, with evidence
 and rationale. The larger total wins; equal totals choose lower effort under the
 preregistered tie rule. An accepted verdict stores scores, check evidence, judge
-identity and raw response/hash in the same journal and changes that experiment's
-`<nature>:<provider>/<model>` effort default, citing its E-id. `defaults` reports
+identity and raw response/hash in the same journal. Only a winner scoring 2 on
+every done check changes the preregistered `<nature>:<provider>/<model>` effort
+default, citing its E-id; incomplete winners retain a no-change verdict. `defaults` reports
 usable learned entries and their evidence, optionally filtered by `--nature` and
 `--model`; there is no invented seed verdict. This is an operator query for
 future ticket routing, **not a silent rewrite of ticket-pinned rosters**.
-`launch --use-default` explicitly requests learned effort for the ticket's selected
-model and reports the evidence it used. It does not rewrite `config.yml`, native
-interactive/subagent defaults, the approved model policy or helper routes.
+`launch --use-default` explicitly requests learned effort for the ticket's first
+model entry and reports its evidence; fallback entries remain ticket-pinned.
+The immutable launch record preserves the original ticket roster hash separately
+from its effective learned effort, so audit still detects later board edits.
+It does not rewrite `config.yml`, native interactive/subagent defaults, the
+approved model policy or helper routes.
 
 **Historical assessment, not migrated verdicts:** E-007 really changed Pile's
 primary to Sonnet 5.5 medium, with its nonblind/script scoring and placement

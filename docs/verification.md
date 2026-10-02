@@ -146,6 +146,13 @@ owned directory. Remove only that directory once its process has ended.
   Check that ticket-pinned effort remains unchanged without `--use-default`,
   and explicit default consumption reports evidence without editing the ticket
   or native interactive/subagent defaults.
+  Learned effort applies only to the first roster entry; original-ticket hash
+  auditing must accept that explicit substitution but still reject later board
+  edits. Launch from a linked checkout and verify canonical parent routing.
+  Stored evidence quoting ledger markers must round-trip. Prove real competing
+  processes cannot enter and a SIGKILLed holder cannot strand the kernel lock.
+  Artifact realpaths must remain inside their own lane; swapped paths and
+  cross-lane symlinks must fail before invoking the judge.
   At the ledger/verdict boundary (`omp-config/bin/omp-experiments.ts`), isolate
   `OMP_ROSTER_EXPERIMENTS_FILE`: preserve legacy journal prose and numbering,
   reject malformed state, anonymize the lane identities and keep the key from

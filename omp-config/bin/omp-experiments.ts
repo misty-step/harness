@@ -1,9 +1,9 @@
 #!/usr/bin/env bun
 import { spawnSync } from "node:child_process";
 import { createHash, randomBytes, randomInt } from "node:crypto";
-import { closeSync, constants, fstatSync, fsyncSync, lstatSync, mkdtempSync, openSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { closeSync, constants, fsyncSync, ftruncateSync, lstatSync, mkdtempSync, openSync, readFileSync, realpathSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
-import { basename, dirname, join, resolve } from "node:path";
+import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { parseArgs } from "node:util";
 
 export type Entry = { provider: string; model: string; effort: string };
@@ -243,22 +243,25 @@ export function readLedger(): Ledger {
 	snapshots.set(state.ledger, { path, block: state.start < 0 ? "" : state.text.slice(state.start, state.end) });
 	return state.ledger;
 }
-/** A busy or interrupted lock stays fail-closed; it is coordination, never experiment state. */
+/** Kernel ownership survives the flock child and releases on parent exit/crash. Never unlink the shared lock inode. */
 export function withLedgerLock<T>(fn: () => T): T {
 	const path = ledgerPath();
 	if (heldLocks.has(path)) refuse("Experiment journal lock is already held by this process.");
 	const lock = `${path}.lock`;
 	let fd: number;
-	try { fd = openSync(lock, constants.O_CREAT | constants.O_EXCL | constants.O_WRONLY, 0o600); }
-	catch (error) {
-		if ((error as NodeJS.ErrnoException).code === "EEXIST") refuse(`Experiment journal is busy (${lock}); no launch or verdict was started.`);
-		return refuse(`Cannot lock experiment journal ${path}: ${(error as Error).message}`);
-	}
-	const owned = fstatSync(fd);
+	try { fd = openSync(lock, constants.O_CREAT | constants.O_RDWR, 0o600); }
+	catch (error) { return refuse(`Cannot open experiment journal lock ${lock}: ${(error as Error).message}`); }
 	try {
-		writeFileSync(fd, `${JSON.stringify({ pid: process.pid, token: randomBytes(16).toString("hex") })}\n`);
+		const acquired = spawnSync("flock", ["--exclusive", "--nonblock", "3"], { stdio: ["ignore", "pipe", "pipe", fd] });
+		if (acquired.error) refuse(`Cannot acquire kernel experiment lock: ${acquired.error.message}. Install util-linux flock.`);
+		if (acquired.status !== 0) {
+			let holder = "";
+			try { holder = `; holder pid ${JSON.parse(readFileSync(lock, "utf8")).pid}`; } catch { /* owner is initializing metadata */ }
+			refuse(`Experiment journal is busy (${lock}${holder}); no launch or verdict was started.`);
+		}
+		ftruncateSync(fd, 0);
+		writeFileSync(fd, `${JSON.stringify({ pid: process.pid })}\n`);
 		fsyncSync(fd);
-		// Check before a launch callback can create resources.
 		journal(path);
 		heldLocks.add(path);
 		const result = fn();
@@ -267,10 +270,6 @@ export function withLedgerLock<T>(fn: () => T): T {
 	} finally {
 		heldLocks.delete(path);
 		closeSync(fd);
-		try {
-			const current = lstatSync(lock);
-			if (current.dev === owned.dev && current.ino === owned.ino) rmSync(lock);
-		} catch (error) { if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error; }
 	}
 }
 export function writeLedger(ledger: Ledger): void {
@@ -280,7 +279,7 @@ export function writeLedger(ledger: Ledger): void {
 	const current = journal(path);
 	const snapshot = snapshots.get(ledger);
 	if (snapshot && (snapshot.path !== path || snapshot.block !== (current.start < 0 ? "" : current.text.slice(current.start, current.end)))) refuse("Experiment state block changed since it was read; refusing to overwrite it.");
-	const block = `${START}\n\`\`\`json\n${JSON.stringify(ledger, null, 2)}\n\`\`\`\n${END}`;
+	const block = `${START}\n\`\`\`json\n${JSON.stringify(ledger, null, 2).replaceAll("<", "\\u003c")}\n\`\`\`\n${END}`;
 	const body = current.start < 0 ? `${current.text}${current.text.endsWith("\n") ? "\n" : "\n\n"}${block}\n` : `${current.text.slice(0, current.start)}${block}${current.text.slice(current.end)}`;
 	const temporary = join(dirname(path), `.${basename(path)}.${process.pid}.${randomBytes(8).toString("hex")}.tmp`);
 	let fd: number | undefined;
@@ -373,7 +372,7 @@ function redact(value: string, experiment: Experiment): string {
 		.replace(/\b(?:authored|generated|created|written|reviewed)\s+by\s+[^\n]*/gi, "[identity redacted]");
 }
 type Artifact = { source: ArtifactSource; lines: string[] };
-function artifact(file: string, experiment: Experiment, sessionHash: string): Artifact {
+function artifact(file: string, experiment: Experiment, sessionHash: string, lane: Lane): Artifact {
 	const path = resolve(file);
 	let bytes: Buffer;
 	try {
@@ -386,6 +385,8 @@ function artifact(file: string, experiment: Experiment, sessionHash: string): Ar
 	}
 	let raw: string;
 	try { raw = new TextDecoder("utf-8", { fatal: true }).decode(bytes); } catch { return refuse("Judge artifacts must be valid UTF-8 text."); }
+	const contained = relative(realpathSync(lane.cwd), realpathSync(path));
+	if (contained === ".." || contained.startsWith(`..${sep}`) || isAbsolute(contained)) refuse("A verdict artifact must belong to its corresponding lane worktree, including symlink targets.");
 	if (!raw.trim() || raw.includes("\0")) refuse("Judge artifacts must contain reviewable text, not empty or binary data.");
 	const blinded = redact(raw, experiment);
 	return { source: { file: path, sha256: sha256(bytes), blinded_sha256: sha256(blinded), session_sha256: sessionHash }, lines: blinded.split(/\r?\n/) };
@@ -462,8 +463,8 @@ function verdictCommand(options: Record<string, string | boolean | undefined>, h
 		if ([family(experiment.baseline), family(experiment.candidate)].includes(judgeFamily)) refuse("The judge must belong to a different model family than BOTH lanes.");
 		if (![experiment.baseline, experiment.candidate].every((entry) => approved(entry, host))) refuse("Experiment lanes are not approved native subscription entries.");
 		const sessionHashes = experiment.lanes.map(laneSource);
-		const baseline = artifact(String(options["artifact-a"]), experiment, sessionHashes[0]);
-		const candidate = artifact(String(options["artifact-b"]), experiment, sessionHashes[1]);
+		const baseline = artifact(String(options["artifact-a"]), experiment, sessionHashes[0], experiment.lanes[0]);
+		const candidate = artifact(String(options["artifact-b"]), experiment, sessionHashes[1], experiment.lanes[1]);
 		if (baseline.source.file === candidate.source.file) refuse("Verdict artifacts must be two separate lane deliverable files.");
 		const labels: Verdict["labels"] = randomInt(2) === 0 ? { X: "baseline", Y: "candidate" } : { X: "candidate", Y: "baseline" };
 		const artifacts = { baseline, candidate };
