@@ -28,6 +28,14 @@ jobs:
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: '1.4.2'
+      - name: Install display namespace dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y bubblewrap slirp4netns xvfb dbus
+          sudo sysctl -w dev.tty.legacy_tiocsti=0
+          if [ -e /proc/sys/kernel/apparmor_restrict_unprivileged_userns ]; then
+            sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+          fi
       - name: Check workspace and all components sequentially
         run: ./scripts/check all
       - name: System One semantic review gate
