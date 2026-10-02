@@ -700,16 +700,31 @@ def habitat_module_id(label):
     return next((module.get("value") for module in (filters.get("data") or filters).get("modules") or [] if module.get("label") == label), None)
 
 
-def board_add(context, request, notes, scope, status, note):
-    """One Glass board item. Board items carry no priority; the desk grooms them, and urgent ones start as next.
-    Notes hold 2000 characters: a longer finding keeps its marker header and points at its whole record."""
+# The board refuses a title or why with a dash or an unexplained code (KEY-12, #201); the notes keep the full text.
+BOARD_CODE = re.compile(r"\b[A-Za-z]{2,}-[0-9]+\b|#[0-9]+\b")
+
+
+def plain_words(text, limit):
+    """At most `limit` characters; cut the source, never a gloss, so every code keeps its explanation."""
+    text = re.sub(r"\s*[\u2014\u2013]\s*|\s+-\s+", ", ", " ".join(text.split()))
+    while True:
+        glossed = BOARD_CODE.sub(lambda code: f"{code.group(0)} (see notes)", text)
+        if len(glossed) <= limit:
+            return glossed
+        text = text[:len(text) - (len(glossed) - limit)].rstrip()
+
+
+def board_add(context, request, notes, scope, note):
+    """One Glass board item, opened as later: board items carry no priority, and queued work needs a ticket the
+    desk writes. Notes hold 2000 characters: a longer finding keeps its marker header and points at its record."""
     if len(notes) > 2000:
         tail = f"\n\n[cut to fit; the whole finding is in {context['outputs']}]"
         notes = notes[:2000 - len(tail)] + tail
-    why = request["body"].strip().split("\n\n", 1)[0][:600]
-    receipt = run_json(["glass", "item", "add", "--title", request["title"][:160], "--kind", "task", "--status", status,
-                        "--scope", scope, "--why", why, "--why-attribution", "quoted", "--why-source", "omp-audit auditor",
-                        "--relaying", "none", "--notes", notes, "--note", note, "--caller", "omp-audit", "--json"])
+    why = plain_words(request["body"].strip().split("\n\n", 1)[0], 600)
+    receipt = run_json(["glass", "item", "add", "--title", plain_words(request["title"], 160), "--kind", "task",
+                        "--status", "later", "--scope", scope, "--why", why, "--why-attribution", "quoted",
+                        "--why-source", "omp-audit auditor", "--relaying", "none", "--notes", notes, "--note", note,
+                        "--caller", "omp-audit", "--json"])
     if not isinstance(receipt, dict) or not receipt.get("id"):
         raise Refusal("the board did not return the new item's id")
     return receipt["id"]
@@ -718,8 +733,7 @@ def board_add(context, request, notes, scope, status, note):
 def create(kind, scope, request, body, context, mark):
     rank = PRIORITIES.index(request["priority"])
     if kind == "board":
-        status = "next" if request["priority"] == "urgent" else "later"
-        return board_add(context, request, body, scope, status, f"Opened by the {context['audit']} audit"), None
+        return board_add(context, request, body, scope, f"Opened by the {context['audit']} audit, {request['priority']} priority"), None
     argv = [HABITAT, "--json", "create", "--type", "task", "--title", request["title"], "--description", body,
             "--priority", HABITAT_PRIORITY[rank], "--tags", f"audit,{context['audit']}",
             "--idempotency-key", "audit-" + hashlib.sha256(f"{mark}|{context['run']}".encode()).hexdigest()[:40]]
@@ -758,7 +772,7 @@ def propose(context, request, mark):
         return {"outcome": "declined", "ticket": found["declined"][0]["id"]}
     regression_of = [ticket["id"] for ticket in found["done"]]
     notes = ticket_body(context, request, mark, regression_of)
-    item = board_add(context, request, notes, "misty-step/harness", "later", f"Doctrine proposal from the {context['audit']} audit")
+    item = board_add(context, request, notes, "misty-step/harness", f"Doctrine proposal from the {context['audit']} audit")
     return {"outcome": "proposed", "ticket": item, "regression_of": regression_of or None}
 
 

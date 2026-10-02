@@ -202,6 +202,22 @@ class Filing(unittest.TestCase):
         self.assertTrue(audit.carries(notes, MARK))
         self.assertIn(str(self.outputs), notes)
 
+    def test_board_titles_and_whys_explain_codes_and_drop_dashes(self):
+        argv = []
+        context = json.loads(self.context.read_text())
+        coded = request(title="chrondle: close ALR-001 \u2014 the alert rule", body="US-014 (story) fails - see #201.\n\nMore.", priority="urgent")
+        with patch.object(audit, "run_json", side_effect=lambda a, **kw: argv.extend(a) or {"id": "K-20261002-new"}):
+            audit.create("board", "misty-step/chrondle", coded, audit.ticket_body(context, coded, MARK), context, MARK)
+        flag = lambda name: argv[argv.index(name) + 1]
+        self.assertEqual(flag("--title"), "chrondle: close ALR-001 (see notes), the alert rule")
+        self.assertEqual(flag("--why"), "US-014 (see notes) (story) fails, see #201 (see notes).")
+        self.assertEqual(flag("--status"), "later")
+        for source in ("a" * 150 + " ALR-001 and HA-12", "a" * 140 + " ALR-001"):
+            fitted = audit.plain_words(source, 160)
+            self.assertLessEqual(len(fitted), 160)
+            self.assertEqual(len(audit.BOARD_CODE.findall(fitted)), fitted.count(" (see notes)"))
+        self.assertTrue(fitted.endswith("ALR-001 (see notes)"))
+
     def test_a_habitat_climb_sends_the_items_current_revision(self):
         updates = []
         owner = ticket("HA-7", "open", priority=3, created="2026-09-01T00:00:00Z")
