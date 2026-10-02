@@ -5,6 +5,7 @@ import {
 	HeuristicEngine,
 	parseDiffStats,
 	resolveProvider,
+	reviewFailure,
 	TypeSafeJevProvider,
 	OpenRouterJevProvider,
 	splitDiffIntoFiles,
@@ -497,6 +498,46 @@ describe("Diff Review - getGitDiff Range Forms", () => {
 			expect(diff).not.toContain("base.txt");
 		} finally {
 			rmSync(root, { recursive: true, force: true });
+		}
+	});
+});
+
+describe("Diff Review - a review that cannot run is a failed run, never a pass", () => {
+	const diff = "diff --git a/a.ts b/a.ts\n--- a/a.ts\n+++ b/a.ts\n@@ -1 +1 @@\n-const a = 1;\n+const a = 2;\n";
+
+	test("a provider error fails the review even though no rule blocked", async () => {
+		const failing = {
+			name: "fixture" as const,
+			evaluate: async () => {
+				throw new Error("401 key unreadable");
+			},
+		};
+		const verdict = await evaluateDiff(diff, { provider: failing });
+		expect(verdict.passed).toBe(true);
+		expect(reviewFailure(verdict)).toBe("provider-error");
+		expect(reviewFailure(await evaluateDiff(diff, { provider: null }))).toBe("no-key");
+		expect(reviewFailure(await evaluateDiff(diff, { provider: new HeuristicEngine() }))).toBeNull();
+	});
+
+	test("the CLI exits 2 without a key, so callers can report the failed run", () => {
+		const { mkdtempSync, writeFileSync, rmSync } = require("node:fs");
+		const { spawnSync } = require("node:child_process");
+		const { tmpdir } = require("node:os");
+		const { join } = require("node:path");
+		const work = mkdtempSync(join(tmpdir(), "harness-diff-nokey-"));
+		try {
+			const git = (argv: string[]) => spawnSync("git", argv, { cwd: work, encoding: "utf8" });
+			git(["init", "-q"]);
+			writeFileSync(join(work, "a.ts"), "const a = 2;\n");
+			const env = { ...process.env };
+			delete env.OPENROUTER_API_KEY;
+			delete env.TYPESAFE_API_KEY;
+			delete env.MOCK_SYSTEM_ONE;
+			const cli = spawnSync("bun", [join(import.meta.dir, "omp-diff-review.ts")], { cwd: work, env, encoding: "utf8" });
+			expect(cli.status).toBe(2);
+			expect(cli.stderr).toContain("Diff review disabled");
+		} finally {
+			rmSync(work, { recursive: true, force: true });
 		}
 	});
 });

@@ -1247,6 +1247,15 @@ export async function evaluateDiff(
 }
 
 /**
+ * Why a verdict is not a review, or null when the review ran. A missing key or a provider error is a failed
+ * run of the reviewer, never a pass: callers report it as a failed outcome (docs/adr/009-nothing-fails-silently.md).
+ */
+export function reviewFailure(verdict: ReviewVerdict): "no-key" | "provider-error" | null {
+	if (!verdict.enabled) return "no-key";
+	return verdict.warnings.some((warning) => warning.rule === "provider_error") ? "provider-error" : null;
+}
+
+/**
  * Fetch git diff from repository (including untracked files by default).
  *
  * `range` is either a single rev expression ("A..B") or multiple rev-list

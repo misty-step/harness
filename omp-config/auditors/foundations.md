@@ -17,7 +17,12 @@ Judge each foundation from evidence:
 2. **Screams in production**: Sentry in code and in the bundle's projects and
    event counts, outside probes and health workflows, and whether the live
    site answers. A live product with no error reporting, a dead site, or a red
-   probe nobody owns is a gap.
+   probe nobody owns is a gap. Every job the repository schedules or installs
+   (systemd unit, Hermes cron, scheduled workflow, Fly or Cloudflare cron, Git
+   hook, reviewer, backup) reports each run through the outcome route
+   (`outcome record`, a covered scheduler, or the GitHub webhook). A scheduler
+   with no outcome reporter, or a failure swallowed into a log, `|| true` or an
+   advisory skip, is a gap.
 3. **Safe releases**: the release and deploy workflows, readback and rollback
    in them, and the last 30 days of deploy failures.
 4. **Recoverable data**: what data the product stores, and its backup and a
