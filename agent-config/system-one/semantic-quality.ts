@@ -4,7 +4,7 @@ import {
   type Question,
   type SystemOneProvider,
 } from "./engine.ts";
-import { isCredentialPath, redactText } from "./review.ts";
+import { isCredentialPath, redactText } from "./redaction.ts";
 
 export const SEMANTIC_QUALITY_SCHEMA_VERSION = "semantic-quality/v1" as const;
 export const SEMANTIC_QUESTION_PACK_VERSION = "semantic-quality-questions/v1" as const;

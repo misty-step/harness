@@ -36,7 +36,7 @@ alone isolates HOME, scope, or launcher writes.
 
 ## Verify and ship
 
-- `./scripts/bootstrap` wires the root pre-push scanners; it does not deploy.
+- `./scripts/bootstrap` wires root pre-commit/pre-push secret scans and advisory semantic checks; it does not deploy.
 - `./scripts/check [shared|pi|omp|workspace|all]` is the fixed gate entry point
   (ADR-004). It runs `./scripts/verify`, the canonical checks, and CI invokes
   it; see [verification](docs/verification.md) for bounds and postconditions.

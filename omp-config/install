@@ -245,6 +245,7 @@ install_extensions() {
   rm -rf -- "$agent_dir/extensions/continuation-nudge"
   rm -rf -- "$agent_dir/extensions/diff-review"
   rm -rf -- "$agent_dir/references/review"
+  rm -f -- "$agent_dir/extensions/loc/git-hook.sh"
   for ext_dir in "$repo_dir"/extensions/*; do
     [ -d "$ext_dir" ] || continue
     ext_name=${ext_dir##*/}
@@ -256,12 +257,6 @@ install_extensions() {
       install -m 700 "$ext_entry" "$agent_dir/extensions/$ext_name/${ext_entry##*/}"
     done
   done
-  # LOC status hooks are a per-checkout convenience; the monorepo root owns
-  # hook installation, so this installer documents the recipe instead of
-  # writing hooks into whatever repository contains it.
-  loc_hook="$repo_dir/extensions/loc/git-hook.sh"
-  [ -x "$loc_hook" ] && printf '%s\n' \
-    'note: to enable LOC status hooks in a checkout, see README (post-commit/post-merge/post-checkout symlink recipe)'
 }
 
 # Agent audio sandbox (US-026), two layers. OMP loads the agent .env before any

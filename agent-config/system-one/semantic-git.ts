@@ -7,7 +7,7 @@ import type {
   SemanticCandidate,
   TestEvidenceCandidate,
 } from "./semantic-quality.ts";
-import { isCredentialPath } from "./review.ts";
+import { isCredentialPath } from "./redaction.ts";
 
 const TEST_PATH = /(?:^|\/)(?:test|tests|__tests__)(?:\/|$)|(?:\.(?:test|spec))\.[^.\/]+$/i;
 const MAX_ANCHOR_BYTES = 40_000;

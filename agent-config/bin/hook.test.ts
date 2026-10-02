@@ -61,13 +61,14 @@ function makeRepo(): string {
 	chmodSync(join(dir, ".githooks", "pre-push"), 0o755);
 	git(dir, ["config", "core.hooksPath", ".githooks"]);
 
-	// The pre-commit hook invokes this repo-relative tool; copy it in so the
-	// temp repo is self-contained and hermetic. These copies stay untracked.
+	// Exercise the remaining advisory CLI on the real commit path. Its sources
+	// stay untracked so scanners see only the fixture's staged content.
 	mkdirSync(join(dir, "agent-config", "bin"), { recursive: true });
 	mkdirSync(join(dir, "agent-config", "system-one"), { recursive: true });
-	cpSync(join(repoRoot, "agent-config", "bin", "review-check.ts"), join(dir, "agent-config", "bin", "review-check.ts"));
-	cpSync(join(repoRoot, "agent-config", "system-one", "review.ts"), join(dir, "agent-config", "system-one", "review.ts"));
-	cpSync(join(repoRoot, "agent-config", "system-one", "engine.ts"), join(dir, "agent-config", "system-one", "engine.ts"));
+	cpSync(join(repoRoot, "agent-config", "bin", "semantic-check.ts"), join(dir, "agent-config", "bin", "semantic-check.ts"));
+	for (const file of ["engine.ts", "redaction.ts", "semantic-cache.ts", "semantic-git.ts", "semantic-quality.ts", "semantic-run.ts"]) {
+		cpSync(join(repoRoot, "agent-config", "system-one", file), join(dir, "agent-config", "system-one", file));
+	}
 	return dir;
 }
 
@@ -95,33 +96,25 @@ describe("hook policy matrix", () => {
 		expect(output(result)).toContain("gitleaks");
 	});
 
-	hookTest("t2: a taste-only change commits and prints the advisory unavailable line", () => {
+	hookTest("staged test changes commit when semantic assessment is unavailable, without reporting a clean verdict", () => {
 		const repo = makeRepo();
-		writeFileSync(join(repo, "app.ts"), "// taste tweak\nexport const app = 1;\n");
-		git(repo, ["add", "app.ts"]);
-		const result = commit(repo, "taste-only change");
+		writeFileSync(join(repo, "cache.ts"), "export const cacheKey = (value: string) => value;\n");
+		writeFileSync(join(repo, "cache.test.ts"), "import { cacheKey } from './cache';\nexpect(cacheKey('base')).toBe('base');\n");
+		git(repo, ["add", "cache.ts", "cache.test.ts"]);
+		const stagedTree = git(repo, ["write-tree"]).stdout?.toString().trim();
+		const result = commit(repo, "add staged test evidence");
 		expect(result.status).toBe(0);
-		const text = output(result);
-		expect(text).toContain("jev unavailable");
-		expect(text).toContain("no_api_key");
-		expect(text).toContain("advisory; never a gate");
+		expect(git(repo, ["rev-parse", "HEAD^{tree}"]).stdout?.toString().trim()).toBe(stagedTree);
+		expect(output(result)).toContain("provider unavailable");
+		expect(output(result)).not.toContain("assessed; no findings");
 	});
 
-	hookTest("t3: scanner enforcement is independent of Jev availability", () => {
+	hookTest("disabling advisory checks cannot bypass the staged secret scanner", () => {
 		const repo = makeRepo();
 		writeFileSync(join(repo, "secrets.txt"), `AWS_ACCESS_KEY_ID=${FAKE_AWS}\nSTRIPE_KEY=${FAKE_STRIPE}\n`);
 		git(repo, ["add", "secrets.txt"]);
-		const result = commit(repo, "add synthetic secret with no provider");
+		const result = commit(repo, "add synthetic secret with advisory checks disabled", hookEnv({ JEV_HOOK_OFF: "1" }));
 		expect(result.status).not.toBe(0);
 		expect(output(result)).toContain("gitleaks");
-	});
-
-	hookTest("t4: the commit transaction shows the review line a driving agent consumes", () => {
-		const repo = makeRepo();
-		writeFileSync(join(repo, "app.ts"), "// driving agent consumption\nexport const app = 1;\n");
-		git(repo, ["add", "app.ts"]);
-		const result = commit(repo, "driving-agent visibility");
-		expect(result.status).toBe(0);
-		expect(output(result)).toMatch(/\[jev-review review-1 (?:[0-9a-f]{7}|unresolved)\]/);
 	});
 });
