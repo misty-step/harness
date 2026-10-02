@@ -16,26 +16,41 @@ role; `designer` owns design work.
 
 ## Work records
 
-Linear owns Misty Step/personal work; R90 uses Habitat. Resolve workspace, team,
-project and the existing issue before updating a record. Team `MIS` is Misty Step.
-The Linear connector is scoped to `~/development/misty-step` and
-`~/development/moomooskycow`; R90 context stays in R90's own tools. Parlor's skill
-is repository-imported and Parlor-owned.
+Glass owns Misty Step/personal work; R90 uses Habitat and R90's own tools.
+Resolve the existing item's id and scope before updating a record. Scope is
+`misty-step/repository` or `moomooskycow/repository`, not a tracker team/project.
+Parlor's skill is repository-imported and Parlor-owned.
 
-Use mounted Linear MCP tools first. The native GraphQL fallback is:
+Read the authoritative Glass service:
 
 ```sh
-pass-env run -e TOKEN=workstation/LINEAR_API_KEY -- sh -c '
-  printf "header = \"Authorization: %s\"\n" "$TOKEN" |
-    curl -fsS https://api.linear.app/graphql --config - \
-      -H "Content-Type: application/json" -d @query.json
-'
+glass ticket show "$item"
+glass query items --scope misty-step/harness
 ```
 
-A read-only auth check is `{ viewer { name } teams { nodes { key } } }`.
-Existing issue branches use `phaedrus/mis-<number>-<slug>` and conventional
-commits include `(MIS-xx)`; otherwise use a descriptive branch. `Fixes` means the
-merge satisfies the issue; partial work uses `Refs` or `Relates to`.
+OMP engineers receive `glass-read.sock`, not the live commitments store. Relay
+proposed updates to the desk or parent with item id, scope, title, description,
+why, its actual author and evidence links. Do not use an empty/private store,
+change `--store` to evade the boundary or request another write socket.
+
+Only the authorized live-store owner runs mutations. New backlog items use
+`later`, no explicit rank, and plain title, description and why:
+
+```sh
+glass item add --scope "$scope" --kind task --status later --relaying none \
+  --title "$title" --description "$description" --why "$why" \
+  --why-attribution quoted --why-source "$author" --notes "$links"
+glass item update "$item" --append-notes "$evidence" --note "$summary"
+```
+
+`quoted` names the actual author in `--why-source`; use `phaedrus` only for his
+words and `kaylee` only for hers. Preserve a migrated issue's old URL in notes as
+historical evidence. Rank remains Kaylee/Phaedrus-owned. Keep procedures and
+version-bound knowledge in the repository, not a duplicate tracker document.
+
+Use a descriptive owned branch and conventional commits; include the Glass id
+in the PR for traceability. `Fixes` means the merge satisfies the work item;
+partial work uses `Refs` or `Relates to`.
 
 ## Host administration
 

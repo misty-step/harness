@@ -309,7 +309,7 @@ Criteria:
    actual targets with production sanity evidence, feature branches deleted,
    own worktree removed and default canonical checkout clean/up-to-date.
    THE ENGINEER SHALL update the PR and relevant existing ticket's status,
-   context and evidence using project routing: Habitat where used, Linear for
+   context and evidence using project routing: Habitat where used, Glass for
    Misty Step/personal work. These judgment facts remain doctrine, not checker
    assertions.
 

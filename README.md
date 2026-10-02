@@ -62,7 +62,7 @@ canonical checkout clean on the fetched origin default head. Shared harness
 changes deploy to both Pi and OMP through the [installers below](#deploy-explicit-live-writes);
 restart and exercise the changed installed behavior. Keep the PR and relevant
 existing ticket current with revision, status and evidence; use Habitat only
-where routed there, and Linear for Misty Step/personal work.
+where routed there, and Glass for Misty Step/personal work.
 
 Run `session-close.ts check` before yielding. It checks persistent owned landing
 records after worktree removal, fetches the authoritative origin default and
@@ -186,5 +186,6 @@ retain their original paths), or browse the archived repositories and releases.
 See [ADR-001](docs/adr/001-monorepo.md) and the
 [migration record](docs/migration.md).
 
-[linear-cli](https://github.com/misty-step/linear-cli) remains an independent host
-tool. [Landmark](https://github.com/misty-step/landmark) owns release machinery.
+[Glass](https://github.com/misty-step/glass) owns the Misty Step/personal backlog;
+R90 remains in Habitat. [Landmark](https://github.com/misty-step/landmark) owns
+release machinery.

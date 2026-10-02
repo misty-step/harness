@@ -2,6 +2,12 @@
 
 Accepted 2026-09-16.
 
+*Superseded 2026-10-02:* Misty Step/personal work now lives in Glass; R90 remains
+in Habitat. The client, commands and credential flow below are historical,
+not current access instructions. The migration owner retires the client/key
+after issue migration and consumer cutover; do not delete the workspace.
+See the [current work-record routing](../../README.md).
+
 Linear ships no official CLI. Its official agent surface is a
 hosted MCP server (`https://mcp.linear.app/mcp`). Pi has no built-in MCP, and
 this repo already omits an MCP bridge. Iron Forest's `.iron-forest/linear.py`

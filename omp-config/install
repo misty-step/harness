@@ -103,10 +103,15 @@ install_config() {
 
 validate_mcp() {
   require_jq
+  if [ -L "$agent_dir" ] || { [ -e "$agent_dir" ] && [ ! -d "$agent_dir" ]; } || \
+     [ -L "$agent_dir/mcp.json" ] || { [ -e "$agent_dir/mcp.json" ] && [ ! -f "$agent_dir/mcp.json" ]; }; then
+    printf 'Refusing non-ordinary MCP destination: %s\n' "$agent_dir/mcp.json" >&2
+    exit 1
+  fi
   require_nonempty "$repo_dir/mcp.json"
-  jq empty "$repo_dir/mcp.json" >/dev/null
+  jq -e 'type == "object" and (.mcpServers | type == "object") and ((.disabledServers // []) | type == "array")' "$repo_dir/mcp.json" >/dev/null
   if [ -f "$agent_dir/mcp.json" ]; then
-    jq empty "$agent_dir/mcp.json" >/dev/null
+    jq -e 'type == "object" and ((.mcpServers // {}) | type == "object") and ((.disabledServers // []) | type == "array")' "$agent_dir/mcp.json" >/dev/null
   fi
 }
 
@@ -119,18 +124,21 @@ install_mcp() {
     jq -s '
       .[0] as $policy
       | .[1] as $live
-      | $policy
+      | $live + $policy
       | .mcpServers = (
-          $policy.mcpServers
-          | with_entries(
-              . as $server
-              | .value += (
-                  ($live.mcpServers[$server.key] // {})
-                  | {auth, oauth}
-                  | with_entries(select(.value != null))
-                )
-            )
+          ($live.mcpServers // {}) + (
+            $policy.mcpServers
+            | with_entries(
+                . as $server
+                | .value += (
+                    ($live.mcpServers[$server.key] // {})
+                    | {auth, oauth}
+                    | with_entries(select(.value != null))
+                  )
+              )
+          )
         )
+      | .disabledServers = ((($live.disabledServers // []) + ($policy.disabledServers // [])) | unique)
     ' "$repo_dir/mcp.json" "$mcp_target" > "$temp"
     chmod 600 "$temp"
     mv "$temp" "$mcp_target"
@@ -142,7 +150,6 @@ install_mcp() {
 
 validate_scopes() {
   require_bun
-  require_nonempty "$repo_dir/workspace-mcp.json"
   require_nonempty "$repo_dir/bin/omp-install-scopes.ts"
   bun "$repo_dir/bin/omp-install-scopes.ts" \
     --agent-dir "$agent_dir" \

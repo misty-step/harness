@@ -1,6 +1,6 @@
 # Token efficiency: measured baseline and controlled changes
 
-Observed 2026-09-24. Stories: **US-018**, **US-019**. Related credential policy:
+Observed 2026-09-24. Stories: **US-018**, **US-019**. Historical credential-policy record:
 [MIS-161](https://linear.app/misty-step/issue/MIS-161/make-credential-availability-unmissable-in-global-agent-guidance).
 Baseline source: `4a2eb5888dcae5dabd96226eecef429e38da2a64`; native capture: OMP
 18.3.0. The original audit made no live deployment or model/routing/effort change.

@@ -230,10 +230,10 @@ shared guidance sections, plus `pass-env` and `openrouter-key`. `web-search`
 uses `pass-env` for its Exa key (ADR-010); `auth.json.openrouter` invokes
 `openrouter-key` when Pi first needs its credential (US-028).
 
-**The Linear CLI is a separate repo.** The client moved to
-[linear-cli](https://github.com/misty-step/linear-cli) (ADR-020, amended): a
-standalone host tool, installed to `~/.local/bin/linear` by its own `./install`.
-pi does not own or deploy it.
+**Work records stay with their owner.** Misty Step and personal scopes use
+[Glass](https://github.com/misty-step/glass); R90 stays in Habitat. The shared
+guidance and `engineering-operations` skill carry the capture/handoff contract.
+Pi does not install another tracker client or MCP bridge.
 
 ### The launch hook: `pi()` in `~/.bashrc`
 
@@ -319,8 +319,8 @@ resolves the same file into the OMP theme.
 | Approval / permission gates | **omit** | We run with full permissions by choice (pi's default is no gate). Revisit on untrusted repos |
 | OS sandbox | **omit** | Work is on a trusted workstation. Revisit for third-party code |
 | Subagents | **omit for now** | Pi ships no built-in delegation; OMP's executive covers heavy delegation. Revisit if pi-first workflows need it |
-| Linear CLI | separate repo | The `linear` CLI is the standalone [linear-cli](https://github.com/misty-step/linear-cli); pi has no MCP and does not own or deploy it (ADR-020) |
-| MCP bridge | **omit** | Prefer native tools; Linear access is the standalone `linear` CLI, not an MCP session |
+| Work records | owner-managed | Glass for Misty Step/personal scopes; Habitat for R90 |
+| MCP bridge | **omit** | Prefer native tools; Glass's CLI reads its authoritative service |
 | Persistent memory | **omit for now** | Source authority is the repo and OMP's guidance. Revisit deliberately |
 | Notifications | **omit for now** | Terminal focus is usually present; revisit for long unattended runs |
 | Plan mode | **omit for now** | Covered by prompt discipline; revisit if it earns a keybinding |
@@ -372,7 +372,7 @@ and the ecosystem:
 - Declarative `statusLine` with named segments, roles, `agentModelOverrides`,
   and five explicit retry fallback chains.
 - `executive` extension: recursive, scope-owning subagents.
-- `omp-grievances`, `pass-env` secrets launcher, Linear MCP directory scoping.
+- `omp-grievances`, `pass-env` secrets launcher, owned legacy MCP retirement.
 - Shared skills (`foundation`, `agent-design`, `engineering-operations`,
   `story-qa`), agent definitions, and guidance.
 
@@ -447,9 +447,9 @@ failover became sticky (then revisit the once-per-session latch).
   stops being an assumption on this host (then make `compress.ts` optional at
   install), or a provider ceiling below 15 MB appears (then lower
   `DEFAULT_BUDGET_BYTES`).
-- **ADR-020 (Linear CLI)**: Linear ships an official CLI, or Iron Forest grows
-  a mutation path we can share — then retire `linear-cli` and point at the one
-  owner.
+- **ADR-020 (retired tracker client)**: superseded by the 2026-10-02 Glass
+  cutover. Final CLI/key retirement follows issue migration and consumer cutover;
+  the old client is not an alternative backlog.
 - **ADR-021 (shared base)**: a harness must build without the sibling checkout
   (then pin `agent-config` as a submodule), or a primitive becomes
   harness-specific (then move it back into the harness repo).
@@ -532,8 +532,8 @@ uses `core.hooksPath=.githooks`.
 - `agent-config` owns the shared
   primitives this repo deploys.
 - `omp-config` is the sister harness.
-- [linear-cli](https://github.com/misty-step/linear-cli) is the standalone
-  Linear client (ADR-020).
+- [Glass](https://github.com/misty-step/glass) owns Misty Step/personal work;
+  R90 remains in Habitat.
 
 ## Ecosystem
 

@@ -58,7 +58,7 @@ the Foundation Standard tooling. It does not own:
 - deployed copies, which installers generate from source;
 - a project's foundations: each repository owns its adoption record, stories,
   walk runner and gate, and this repository supplies the checker;
-- work status, which lives in Linear.
+- work status, which lives in Glass for Misty Step/personal work and Habitat for R90.
 
 ## Invariants
 

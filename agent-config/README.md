@@ -362,7 +362,7 @@ See [the build, pilot, and rollback guide](../docs/semantic-quality.md).
 Clone [harness](https://github.com/misty-step/harness) once; this base and both
 consumers are sibling components. Follow the [root setup guide](../README.md).
 Harness installers invoke this component's `install`; a missing base fails closed.
-`AGENT_CONFIG_DIR` remains an advanced override. `linear-cli` is installed separately.
+`AGENT_CONFIG_DIR` remains an advanced override. Glass is installed by its own owner.
 
 ## Opt-in desktop memory guard
 
@@ -453,7 +453,7 @@ Single-owner or repo-local pieces that stay with their harness for now:
 - [Scratch-routing design](../omp-config/references/scratch-routing.md) — host
   design retained with its operational implementation.
 - [Pressure monitor](../omp-config/bin/tmp-health.py) — workstation-specific tool.
-- The Linear CLI is its own repo, [linear-cli](https://github.com/misty-step/linear-cli).
+- Glass's backlog/store is owned by [Glass](https://github.com/misty-step/glass), not this base.
 - Repository hooks and release automation belong to the monorepo root.
 
 A reference from another harness does not make machine-specific setup a portable
@@ -473,8 +473,8 @@ deployed file before trusting a change to shared guidance.
 
 - `pi-config` and
   `omp-config` consume this base.
-- [linear-cli](https://github.com/misty-step/linear-cli) is an independent host
-  tool.
+- [Glass](https://github.com/misty-step/glass) owns Misty Step/personal work;
+  R90 remains in Habitat.
 
 ## Ecosystem
 
