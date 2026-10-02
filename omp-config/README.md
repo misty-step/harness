@@ -26,6 +26,7 @@ prompt is: how can I pokayoke this so this kind of error never happens again?
 | `bin/omp-grievances.ts` | Manual grievance inbox CLI |
 | `bin/omp-roster.ts` | Launch an OMP engineer only on a board ticket's model roster and check a session stayed on it (US-046); installed as `~/.local/bin/omp-roster` |
 | `bin/omp-engineer.py`, `units/omp.slice` | Serialized live memory admission and per-engineer containment (US-043); explicit `engineer-cage` activation |
+| `bin/omp-display.py`, `bin/omp-gui.py` | Kernel-enforced live-display isolation and engineer-owned headless native GUI |
 | `bin/pass-env.ts` | Moved to `agent-config`: pass-backed launcher, installed as `~/.local/bin/pass-env` |
 | `bin/design-check.ts` | Moved to `agent-config`: player-surface copy checker, installed as `~/.local/bin/design-check` |
 | `bin/tmp-health.py`, `references/dev-exec.md` | Opt-in workstation execution limits, pressure notifications, and rollback workflow |
@@ -62,8 +63,9 @@ arguments (including `--check`); use `../scripts/verify omp` for isolated checks
 
 Preflight validates every selected input, then writes. Unset selection means
 `all`: owned config overlay, guidance, MCP, scopes, agents, skills, themes,
-extensions, `omp-grievances`, `omp-roster`, `omp-engineer`, `pass-env`, `openrouter-key`,
-`design-check`, `foundation-check`, and `ws`. Staging the cage CLI does not activate
+extensions, `omp-grievances`, `omp-roster`, `omp-engineer`, `omp-display`, `omp-gui`,
+`pass-env`, `openrouter-key`, `design-check`, `foundation-check`, and `ws`. Staging
+the cage CLI does not activate
 it on an unactivated host. It does not delete foreign skills
 or agents and does not import live secrets into this checkout. Skills, shared
 guidance sections, and those shared launchers deploy from the sibling
@@ -112,16 +114,18 @@ live units.
 
 `omp-roster memory --json` is read-only preflight, not a reservation.
 On an unactivated host, staging the CLI reports `activated: false`, no capacity
-measurement and explicitly inactive enforcement; roster launch retains its
-existing uncaged behavior without requiring a Linux user manager. A retained
-native binary, local slice unit or owned stable alias is activation evidence:
-partial/broken activation still requires full inspection and fails closed.
+measurement and explicitly inactive enforcement. `omp-roster launch` refuses
+to produce an engineer launch plan until the stable wrapper and display helpers
+are activated. A retained native binary, local slice unit or owned stable alias
+is memory activation evidence: partial/broken activation still requires full
+inspection and fails closed.
 Staged fixture inputs cannot override actual engineer containment.
 Interactive `omp` startup serializes containment inspection through authenticated
 scope registration. Native print, every explicit `--mode`, help/version/export,
 profile alias creation, registered management roots/aliases and non-TTY stdin
-run directly in their caller's cgroup. Classification follows native argument
-boundaries, not a caller allowlist.
+run in their caller's cgroup. Model/tool-capable invocations still receive the
+display boundary below; only native administration bypasses display setup.
+Classification follows native argument boundaries, not a caller allowlist.
 Memory capacity is advisory: below 20-GiB `MemAvailable` or above 36-GiB measured
 fleet use, warn and launch anyway. Missing available-memory guidance also warns.
 Warnings appear in stderr and roster launch JSON, never as Glass board items.
@@ -131,7 +135,8 @@ There is no full-leaf reservation, ancestry/RSS/PSS/smaps inspection, process-wi
 JSON reports measured `fleet_current_bytes`, `caged_count`, optional
 `available_bytes` and actual `effective_memory_max_bytes`. Per-leaf containment
 and oomd exclusion remain mandatory; existing uncaged engineers stay untouched.
-Native arguments, cwd, environment, stdio and exit status are preserved.
+Native arguments, cwd, stdio and exit status are preserved. Live desktop/session
+environment is deliberately removed for engineer invocations.
 Only a mutating native `omp update` receives an updater-local PATH pointing at
 the retained ELF; normal/nested/resumed launches and `update --check` do not.
 See the [rolling activation and recovery runbook](../docs/desktop-memory-guard.md).
@@ -201,6 +206,71 @@ exists (override with `OMP_TODOIST_OWNER`). It does not mutate `~/.claude` or
 `PI_CODING_AGENT_DIR` does not isolate hook, scope, or `~/.local/bin` writes.
 Use a disposable HOME, development root, and checkout copy for installer
 checks.
+
+## Engineer display isolation
+
+`engineer-cage` activation also installs the live-display boundary. Requires
+Linux unprivileged user namespaces, `dev.tty.legacy_tiocsti=0`, `bubblewrap`,
+`slirp4netns`, `Xvfb` and `dbus-run-session`; missing dependencies or setup failure
+refuse the launch.
+There is no unfenced fallback. Roster planning checks the installed entrypoint;
+the actual launcher independently establishes and verifies the kernel boundary.
+
+Interactive, resumed, print, RPC/ACP, non-TTY and model/tool-capable native
+commands run in private user, PID, mount, IPC and network namespaces. Live
+`DISPLAY`, `WAYLAND_*`, `HYPRLAND_*`, X authority, desktop session, D-Bus,
+GPU-vendor and browser-debug environment is stripped. A fresh `/proc`, `/dev`,
+`/run`, `/tmp` and `/var/tmp` hides host processes, display sockets and input/GPU
+devices. Private OMP daemon state and network isolation prevent reuse of an
+outside shell broker, abstract X11 socket, loopback CDP endpoint or desktop bus.
+Inherited non-stdio descriptors are closed before native execution.
+Slirp permits external network access but denies host loopback; LAN services
+are not a general security boundary.
+
+Repositories and ordinary home data remain shared and writable. Host config,
+installed executables and selected broker/runtime paths are read-only or hidden.
+Git, cached pass/signing, silent Pulse audio and the native headless `browser`
+tool remain usable. Native PipeWire/ALSA clients cannot reach the host graph or
+devices: an active screen-share video node must not be exposed alongside audio.
+Use `parecord`/`paplay` or libpulse players on `agent-sandbox`.
+A per-engineer Herdr proxy permits reads and this pane's native
+agent/session lifecycle reports; it rejects host execution, input and cross-pane
+mutations. A GPG protocol bridge pins `pinentry-mode=error`, including after
+reset, and rejects host UI options and privileged agent commands. A cold key
+fails rather than opening host pinentry: the operator unlocks it outside the
+engineer, then the engineer retries. No host desktop approval dialog is exposed.
+
+For native GUI QA, keep the app **and** screenshot/input clients under the
+same helper invocation:
+
+```sh
+omp-gui -- sh
+# Inside this private shell:
+zenity --info --title='Engineer proof' --text='Private display' &
+magick import -window root "$PWD/qa.png"
+# Inspect qa.png, then use window-relative coordinates on this display:
+xdotool search --name '^Engineer proof$'
+```
+
+`magick`, `xdotool` and `zenity` are example application/QA dependencies, not
+launcher dependencies. `omp-gui` creates an authenticated, TCP-disabled Xvfb
+display, its own D-Bus session and software Mesa environment. Mouse/keyboard
+clients use this shell's `DISPLAY`/`XAUTHORITY`; `:0` here is **not** the host
+X server. The helper requires the private kernel namespace and refuses forged
+host markers. It tears down its owned GUI processes and returns the app's exit
+status. It provides screenshots and input, not host GPU/compositor/portal
+integration. Web QA uses the native headless `browser` tool without host CDP.
+
+This is a direct live-session access boundary, **not** an adversarial
+arbitrary-code sandbox: writable source/home data and retained credentials can
+affect systems outside it if another actor later executes that data or grants
+access. Do not describe shared-UID execution as VM-grade isolation. Kaylee's
+desktop guard, Herdr's pane behavior and compositor configuration are unchanged.
+
+Updating the launcher does not retrofit existing processes. Relaunch engineers
+at their next natural exit; do not restart Herdr or forcibly move sessions.
+See [fresh-engineer proof](../docs/desktop-memory-guard.md#engineer-display-isolation-proof)
+for observed live denial, private GUI screenshot/click and compatibility checks.
 
 ## Privilege and approval
 

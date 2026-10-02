@@ -40,7 +40,8 @@ HELP = """Usage:
   omp-engineer memory --json [--fixture FILE]
   omp-engineer --help
 The installed `omp` entrypoint contains interactive engineers in verified
-4-GiB, zero-swap, group-OOM scopes. Native one-shot/stdio modes run directly.
+4-GiB, zero-swap, group-OOM scopes. One-shot/stdio modes keep their caller's
+cgroup. All engineer modes receive a private kernel-enforced display boundary.
 Memory is read-only and advisory, never a reservation or launch-capacity gate.
 Fixtures are accepted only by read-only memory; fresh engineer admission inspects live state.
 Exit: native status; 1 inspection/setup failure; 2 usage; 75 lock/readiness refusal.
@@ -475,6 +476,33 @@ def native_path():
     return path
 
 
+def display_module():
+    directory = Path(__file__).resolve().parent
+    source = directory / "omp-display.py"
+    return source if source.is_file() else directory / "omp-display"
+
+
+def display_command(native, argv):
+    boundary = display_module()
+    if not boundary.is_file():
+        raise CageError("Engineer display boundary is not installed; refusing host execution")
+    return [sys.executable, str(boundary), "--", str(native), *argv]
+
+
+def already_isolated():
+    # Use the boundary's kernel checks, not a caller-supplied marker alone.
+    if os.environ.get("OMP_ENGINEER_DISPLAY") != "isolated-v1":
+        return False
+    import importlib.util
+    from importlib.machinery import SourceFileLoader
+    boundary = display_module()
+    loader = SourceFileLoader("omp_display", str(boundary))
+    spec = importlib.util.spec_from_loader(loader.name, loader)
+    module = importlib.util.module_from_spec(spec)
+    loader.exec_module(module)
+    return module.isolated()
+
+
 class Terminal:
     RESET = b"\x1b[?2004l\x1b[?1000l\x1b[?1002l\x1b[?1003l\x1b[?1006l\x1b[?1049l\x1b[?25h\x1b[0m"
 
@@ -572,7 +600,8 @@ def enter_scope(unit, address, argv):
         if receive_line(connection) != b"EXEC\n":
             raise CageError("Native handoff was not admitted", 75)
     host.verify_registered(unit, os.getpid())
-    os.execve(native, [str(native), *argv], native_environment(argv, os.environ, native))
+    command = display_command(native, argv)
+    os.execve(command[0], command, native_environment(argv, os.environ, native))
 
 
 def start_scope(argv, runtime):
@@ -695,10 +724,43 @@ def engineer_invocation(argv):
     return os.isatty(0)
 
 
+def display_invocation(argv):
+    command = native_command_index(argv)
+    # Model/tool-capable roots (including cleanse, bench and collab) stay fenced.
+    # Only native administration may run outside when invoked by the operator.
+    administration = {"help", "auth-broker", "auth-gateway", "browser-relay",
+                      "completions", "__complete", "config", "gc", "install", "login",
+                      "models", "plugin", "plugins", "ps", "setup", "skill", "skills",
+                      "ssh", "stats", "tiny-models", "token", "toks", "ttsr", "update",
+                      "usage", "worktree", "wt"}
+    if command is not None and argv[command] in administration:
+        return False
+    for _, arg in native_arguments(argv):
+        if arg == "--":
+            break
+        if arg.split("=", 1)[0] in ("-h", "--help", "-v", "--version", "--export", "--alias"):
+            return False
+    return True
+
+
 def launch(argv):
     native = native_path()
-    if not engineer_invocation(argv):
+    if already_isolated():
+        # The manager bus is deliberately absent here. The immutable cgroupfs
+        # view still verifies that nested interactive work inherits its leaf.
+        if engineer_invocation(argv):
+            host = Host()
+            group = host.current_group()
+            unit = group.rsplit("/", 1)[-1]
+            if group != host.root + "/omp.slice/" + unit or SCOPE.fullmatch(unit) is None:
+                raise CageError("Nested engineer is outside a verified memory leaf")
+            record = host.group_controls(group)
+            if (record["memory_max"], record["memory_swap_max"], record["oom_group"]) != (LEAF_BYTES, 0, 1):
+                raise CageError("Nested engineer memory bounds changed")
         os.execve(native, [str(native), *argv], native_environment(argv, os.environ, native))
+    if not engineer_invocation(argv):
+        command = display_command(native, argv) if display_invocation(argv) else [str(native), *argv]
+        os.execve(command[0], command, native_environment(argv, os.environ, native))
     terminal = Terminal()
     terminal.recover_if_polluted()
     host = Host()
@@ -709,7 +771,7 @@ def launch(argv):
         if group != fleet + "/" + unit or SCOPE.fullmatch(unit) is None:
             raise CageError("Refusing nested OMP in an unverified cgroup")
         host.verify_registered(unit, os.getpid())
-        child = subprocess.Popen([str(native), *argv], env=native_environment(argv, os.environ, native))
+        child = subprocess.Popen(display_command(native, argv), env=native_environment(argv, os.environ, native))
         with forward_signals(child):
             result = exit_status(child.wait())
     else:
@@ -725,7 +787,7 @@ def launch(argv):
 
 
 def cage_activation_present(home):
-    # Staging must not impose cage prerequisites on unactivated roster callers.
+    # Read-only memory staging needs no live cage prerequisites.
     # Partial activation still requires enforcement, never an uncaged fallback.
     entry = home / ".local/bin/omp"
     for path in (home / ".local/lib/omp-engineer/omp",
@@ -747,7 +809,7 @@ def memory(argv):
             print(json.dumps({"schema_version": 1, "ok": True, "source": "live",
                               "activated": False, "admitted": True, "reservation": False,
                               "warnings": [], "policy": POLICY, "capacity": None,
-                              "coverage": "Engineer cage is not activated; memory enforcement is inactive. Staged roster launches retain their uncaged behavior."}, indent=2))
+                              "coverage": "Engineer cage is not activated; memory enforcement is inactive. Roster launches require activated display isolation."}, indent=2))
             return 0
         snapshot = Host().snapshot()
         source = "live"

@@ -7,7 +7,7 @@
 // model table remains here for omp-model-policy.ts and the copied CLI alike.
 
 import { createHash, randomBytes } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, readlinkSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { basename, delimiter, dirname, isAbsolute, join, resolve } from "node:path";
 import { parseArgs } from "node:util";
@@ -154,6 +154,20 @@ function memorySnapshot(file?: string): MemorySnapshot {
 		throw new CliError(`Cannot inspect launch memory: ${(isRecord(doc) && plainOrNull(doc.error)) || answer.stderr || "unrecognised memory snapshot"}.`);
 	}
 	return doc as MemorySnapshot;
+}
+
+function enforceDisplayBoundary(): void {
+	const bin = join(homedir(), ".local", "bin");
+	try {
+		const entry = join(bin, "omp");
+		if (!lstatSync(entry).isSymbolicLink() || readlinkSync(entry) !== "omp-engineer") throw new Error("inactive");
+		for (const name of ["omp-engineer", "omp-display", "omp-gui"]) {
+			const info = lstatSync(join(bin, name));
+			if (!info.isFile() || !(info.mode & 0o100)) throw new Error("incomplete");
+		}
+	} catch {
+		throw new CliError("Engineer display isolation is not activated; install the engineer-cage before planning a launch.");
+	}
 }
 
 function memoryCommand(options: { json?: boolean; "memory-json"?: string }): number {
@@ -459,6 +473,7 @@ function launchCommand(options: LaunchOptions & { item?: string; model?: string;
 		({ item, roster } = adhocRoster(options.model, options.thinking));
 	}
 	const { agents, ...engineerCapacity } = enforceEngineerLimit();
+	enforceDisplayBoundary();
 	const memory = memorySnapshot(options["memory-json"]);
 	for (const warning of memory.warnings) console.error(`warning: ${plain(warning)}`);
 	const { rows, freshness } = usageView(options["usage-json"]);

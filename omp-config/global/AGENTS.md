@@ -25,4 +25,17 @@ victory, bounded action and link in each child engineer's task context (children
 do not inherit the parent todo). A trivial fix needs only the original request;
 carry the same intent in any handoff.
 
+OMP engineers have no access to the operator's live display. Use the native
+headless `browser` tool for web QA. For native GUI QA, run the app and its
+screenshot/input commands together under `omp-gui -- sh` on the engineer's
+private Xvfb display; inspect the saved image before choosing click coordinates.
+Do not reconnect host display sockets or attach to host browser/debug endpoints.
+The launcher enforces this boundary; inherited desktop environment is removed.
+Cold pass/signing requests fail without opening host pinentry; ask the operator
+to unlock outside the engineer, then retry. Herdr reads and own-pane lifecycle
+reports work; host command execution, input and cross-pane mutations do not.
+Use Pulse clients (`parecord`, `paplay`, or libpulse players) for silent audio.
+Native PipeWire/ALSA clients cannot reach the host's graph or devices; that graph
+can include live screen-share video, so it is deliberately not exposed.
+
 <!-- shared guidance: agent-config -->
