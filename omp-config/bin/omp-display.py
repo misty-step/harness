@@ -2,6 +2,7 @@
 # owned by misty-step/harness omp-config engineer-display
 """Private engineer display/process/network namespace; no host desktop broker."""
 
+import fcntl
 import json
 import os
 from pathlib import Path
@@ -381,10 +382,22 @@ def namespace(command):
             if type(pid) is not int or pid <= 0:
                 raise DisplayError("Invalid bubblewrap namespace identity")
             private_pid_namespace = os.readlink(f"/proc/{pid}/ns/pid")
+            # --dev can make bwrap enter a second user namespace for devpts.
+            # The network still belongs to the first: joining the command's
+            # final user namespace would lose permission to configure it.
+            netns = os.open(f"/proc/{pid}/ns/net", os.O_RDONLY | os.O_CLOEXEC)
+            try:
+                network_owner = fcntl.ioctl(netns, 0xb701)  # NS_GET_USERNS
+            finally:
+                os.close(netns)
+            fds.append(network_owner)
             network = subprocess.Popen([SLIRP, "--configure", "--disable-host-loopback",
+                                        "--userns-path", f"/proc/self/fd/{network_owner}",
                                         "--ready-fd", str(ready_write), "--exit-fd", str(exit_read),
-                                        str(pid), "tap0"], pass_fds=(ready_write, exit_read),
+                                        str(pid), "tap0"], pass_fds=(ready_write, exit_read, network_owner),
                                        stdout=subprocess.DEVNULL, start_new_session=True)
+            os.close(network_owner)
+            fds.remove(network_owner)
             os.close(ready_write)
             fds.remove(ready_write)
             ready_byte(ready_read, (child, network))

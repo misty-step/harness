@@ -224,7 +224,9 @@ GPU-vendor and browser-debug environment is stripped. A fresh `/proc`, `/dev`,
 devices. Private OMP daemon state and network isolation prevent reuse of an
 outside shell broker, abstract X11 socket, loopback CDP endpoint or desktop bus.
 Inherited non-stdio descriptors are closed before native execution.
-Slirp permits external network access but denies host loopback; LAN services
+Slirp joins the network namespace's kernel-reported owning user namespace,
+including when Bubblewrap enters a second user namespace for private devpts.
+It permits external network access but denies host loopback; LAN services
 are not a general security boundary.
 
 Repositories and ordinary home data remain shared and writable. Host config,

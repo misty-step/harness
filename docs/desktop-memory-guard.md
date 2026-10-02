@@ -490,6 +490,16 @@ parecord <- agent-sandbox.monitor -> 4800 frames, generated-tone peak 1000
 cached_pass_exit=0
 ```
 
+CI exposed Bubblewrap's devpts-driven second user namespace: slirp's network
+`setns` failed with `EPERM` when it joined the command's final user namespace.
+The launcher now gets the network namespace's owning user namespace with
+`NS_GET_USERNS` and passes that descriptor only to the host-side slirp helper.
+A throwaway smoke forced a second user namespace with `--disable-userns`;
+the private native command ran as UID 1000 and connected to
+`example.org:443` (`104.20.26.136:443`). The seven real display regressions
+passed locally, and the independent kernel reviewer approved this repair.
+The smoke-only flag is not part of the deployed boundary.
+
 Only Pulse audio crosses the boundary; `pw-*` and host ALSA/DRM/input devices
 are deliberately unavailable. Sending SIGINT/SIGQUIT only to the outer
 launcher PID is not the foreground interrupt interface; send them to the
