@@ -159,11 +159,17 @@ describe("omp-roster read-only capacity", () => {
 		const checkout = join(dir, "checkout");
 		expect(Bun.spawnSync({ cmd: ["git", "init", "--quiet", checkout] }).exitCode).toBe(0);
 		put(join(checkout, "untracked.txt"), "Uncommitted work must not prevent a status read.\n");
-		// Inventory paths and bytes, including .git, exposes lock/migration/overlay writes.
-		const snapshot = () => readdirSync(dir, { recursive: true }).map(String).sort().map((path) => {
+		// Observe consumer-owned state, not Bun's startup transpiler cache.
+		const observed = ["bin", "agents.json", "checkout", "state", "home/journal", "home/.hermes", "home/.local", "retired-pair.json", "unexpected-command"];
+		const snapshot = () => observed.flatMap((path) => {
 			const file = join(dir, path);
-			const info = statSync(file);
-			return [path, info.mode, info.mtimeMs, info.isFile() ? readFileSync(file) : null];
+			if (!existsSync(file)) return [[path, null]];
+			const paths = statSync(file).isDirectory() ? [path, ...readdirSync(file, { recursive: true }).map((child) => join(path, String(child)))] : [path];
+			return paths.sort().map((child) => {
+				const target = join(dir, child);
+				const info = statSync(target);
+				return [child, info.mode, info.mtimeMs, info.isFile() ? readFileSync(target) : null];
+			});
 		});
 		const before = snapshot();
 		try {
