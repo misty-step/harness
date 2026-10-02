@@ -2,7 +2,10 @@
 
 ## Normal merge path
 
-Use one independent exact-head model review plus observed green CI. No human
+Use one independent exact-head model review plus observed affected proof.
+Repositories not yet migrated to lean CI retain their existing observed green CI;
+migrated repositories use explicit pre-main scans and main/preprod candidate proof,
+not automatic PR CI or an unrelated nightly-green requirement. No human
 approval gates or server-required checks; do not bypass or ignore a real failure.
 System One diff review and CodeRabbit are advisory, not extra approval rounds.
 Review blocks on a supported defect in the changed path, not doubt, preference,

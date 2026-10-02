@@ -253,11 +253,13 @@ changes, manually walk affected request and story criteria through the actual
 end-user surface before calling the work done. Docs-only and internal changes
 get proportionate owner-path checks; recurring runs rotate broader curated
 walks. Its [check-cadence reference](../agent-config/skills/story-qa/check-cadence.md)
-tiers repository checks by measured cost and delayed-detection risk: PR feedback
-should take minutes; expensive matrices belong to owned nightly or weekly
-runs with notification and on-demand execution. This guidance does not install
-a scheduler. Keep security and installer verification intact; agents await and
-inspect their results rather than making them server-required merge gates.
+tiers migrated repositories by catalog 1.7.0's accepted lean cadence: engineer-run
+affected proof, independent review and cheap pre-main scans; one main build with
+targeted exact-candidate preprod proof and automatic same-byte promotion; the
+complete suite nightly and on demand through the existing owned alert route.
+This guidance does not install a scheduler or migrate other repositories.
+Keep access, data, migration, privacy, artifact identity and recovery proof on
+the candidate path; an unrelated nightly failure is not a blanket shipping veto.
 
 ## Merge-rule census (2026-10-01)
 

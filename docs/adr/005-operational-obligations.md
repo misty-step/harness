@@ -9,6 +9,11 @@ and `deployed` runbook. Rollout waves are a separate proposal.
 Amended by [ADR-007](007-braver-engineers-continuous-deployment.md) on 2026-09-30:
 production-like QA/data, agent walks of every story and automatic rollback
 strengthen the release safety evidence in catalog 1.6.0.
+Catalog 1.7.0's accepted [lean CI amendment](007-braver-engineers-continuous-deployment.md#lean-ci-amendment-2026-10-02)
+replaces the blanket candidate gate with exact-candidate targeted preprod proof
+and automatic same-artifact promotion. The full suite moves to owned nightly
+detection; tenant, migration, rollback and approved alert-routing contracts stay.
+Existing pins change only by explicit adoption.
 
 ## Context
 
