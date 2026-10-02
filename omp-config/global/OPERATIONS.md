@@ -40,7 +40,7 @@ Only the authorized live-store owner runs mutations. New backlog items use
 glass item add --scope "$scope" --kind task --status later --relaying none \
   --title "$title" --description "$description" --why "$why" \
   --why-attribution quoted --why-source "$author" --notes "$links"
-glass item update "$item" --append-notes "$evidence" --note "$summary"
+glass item update "$item" --relaying none --append-notes "$evidence" --note "$summary"
 ```
 
 `quoted` names the actual author in `--why-source`; use `phaedrus` only for his

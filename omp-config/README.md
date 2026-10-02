@@ -1367,13 +1367,14 @@ exited 4 with two off-roster turns and two off-roster switches.
 
 ### Evaluations are work records
 
-The bounded Deepsec pilot and its unresolved repository, credential, cost, and
-scheduling decisions are tracked in
-[MIS-5](https://linear.app/misty-step/issue/MIS-5/evaluate-scheduled-deepsec-security-reviews).
+The bounded Deepsec pilot needs a reviewed Glass work item before repository,
+credential, cost or scheduling decisions become commissioned work. Its
+[original Linear proposal (MIS-5)](https://linear.app/misty-step/issue/MIS-5/evaluate-scheduled-deepsec-security-reviews)
+remains historical evidence, not a filing route.
 No scan or timer is installed here. A selected service's maintained configuration
 and procedure must live with that service, not grow into a proposal manual here.
 
-Memory and shared-component evaluations likewise belong in Linear until a
+Memory and shared-component evaluations likewise belong in Glass until a
 specific implementation is selected. Memory may be derived retrieval, never a
 replacement for source authority. UI source belongs to its owning library and
 consumers, not to the harness. Neither evaluation enables a provider, ingests
@@ -1396,18 +1397,19 @@ Exclude copied local MCP imports and credentials from a loading-only fixture.
 2. **Runtime config preservation.** Seed `$agent/config.yml` with source keys
    plus `dev.autoqaConsent: granted`. `OMP_INSTALL_COMPONENTS=config ./install`
    must keep that key, apply source-owned keys, and leave auth stores untouched.
-3. **MCP auth vs inventory.** Seed a live `mcp.json` with matching `auth` on
-   `openrouter` and an extra undeclared server. MCP install must keep matching
-   `auth`/`oauth` for declared servers and drop the extra server. Do not print
-   secrets.
+3. **MCP auth and foreign ownership.** Seed a live `mcp.json` with matching
+   `auth` on `openrouter`, an extra undeclared server and foreign settings.
+   MCP install must keep matching `auth`/`oauth`, the foreign server and its
+   settings. The `scopes` component removes Linear only when its complete
+   definition matches the retired owned definition. Do not print secrets.
 4. **Invalid preflight writes nothing.** Record hashes, then try a missing
    guidance file, `OMP_INSTALL_COMPONENTS=skill:not-a-skill`, invalid live YAML,
-   and a conflicting `.omp/.mcp.json`. Each must fail before creating or
-   changing destinations.
+   or a symlinked destination. Each must fail before creating or changing
+   destinations.
 5. **Scope boundaries.** Under a fake `OMP_DEVELOPMENT_ROOT`, only
-   `misty-step` and `moomooskycow` receive Linear definitions and relative
-   `.mcp.json` imports. An `r90` tree stays untouched. Symlinked `.omp`
-   directories and conflicting fallback files are refused with no writes.
+   `misty-step` and `moomooskycow` retire matching owned Linear definitions and
+   imports. An `r90` tree stays untouched. Foreign or changed fallback files
+   stay untouched. No replacement tracker imports are created.
 6. **Owned retirement.** Live `RULES.md`, `skills/ast-grep`, and
    `skills/now-next` disappear on `guidance`/`scopes`/`all`. `wrangler`
    matches this source package. Global `todoist-cli` remains while
@@ -1440,13 +1442,14 @@ model turn. Prose-only changes do not require repeating the runtime exercise.
 - `agent-config` owns the shared
   primitives this repo deploys.
 - `pi-config` is the sister harness.
-- [linear-cli](https://github.com/misty-step/linear-cli) is the standalone
-  Linear client.
+- [linear-cli](https://github.com/misty-step/linear-cli) is the retired
+  Linear client; the workspace remains for historical links.
 
 ## Ecosystem
 
-- Non-R90 work uses Linear for durable tracking and project notes for design
-  knowledge. Current operator requests remain authority; R90 stays in Habitat.
+- Misty Step and personal work use Glass for durable tracking and project notes
+  for design knowledge. Current operator requests remain authority; R90 stays
+  in Habitat.
 - **Iron Forest** — headless Builder/Verifier/Fixer factory. Mechanical
   enforcement belongs there and in CI, not in prose.
 - **Landmark** — release pipeline: conventional commits become semantic
