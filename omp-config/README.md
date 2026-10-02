@@ -869,8 +869,12 @@ usage or writing any overlay, `launch` reads `herdr agent list` for the entire
 current session. Only `agent: omp` with `agent_status: working` counts, across
 workspaces and including the caller. Other agent kinds (including Kaylee's
 Hermes window), `idle`, `done`, `blocked` and `unknown` do not count.
-`OMP_ROSTER_ENGINEER_LIMIT` is the sole limit setting, a positive integer,
-default **8**. There is no override flag. At or above the limit, exit **5**,
+`omp-config/bin/omp-roster.ts` owns the default working-engineer cap; changing
+that single value and installing the CLI changes admission for callers with no
+export. `OMP_ROSTER_ENGINEER_LIMIT` optionally overrides it with a positive safe
+integer. Successful `--json` output reports the snapshot as
+`engineer_capacity: { working, limit }`. There is no override flag.
+At or above the limit, exit **5**,
 empty stdout (including `--json`), no files written, and one stderr line:
 
 ```text
