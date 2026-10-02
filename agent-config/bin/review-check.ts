@@ -148,6 +148,13 @@ const PAGE_SCRIPT = (pointSelector: string, askSelector: string) => `(async () =
 		while (owner.parentElement && getComputedStyle(owner).display === "contents") owner = owner.parentElement;
 		return owner;
 	};
+	// A line's content box reaches past its block at the very top and bottom, and hit-testing trims a pixel or two off
+	// an inline box's ends, so probe a quarter in vertically and 3px in across: a clipped word still shows.
+	const probes = (left, top, right, bottom) => {
+		const dx = Math.min(3, (right - left) / 2), dy = (bottom - top) / 4;
+		const xs = [left + dx, (left + right) / 2, right - dx], ys = [top + dy, (top + bottom) / 2, bottom - dy];
+		return xs.flatMap((x) => ys.map((y) => [x, y]));
+	};
 	const wordsOf = (node) => {
 		const owner = ownerOf(node);
 		const range = document.createRange();
@@ -162,21 +169,14 @@ const PAGE_SCRIPT = (pointSelector: string, askSelector: string) => `(async () =
 			const [r] = range.getClientRects();
 			if (!r || !solid(r)) continue;
 			const left = Math.max(r.left, 0), right = Math.min(r.right, vw), top = Math.max(r.top, 0), bottom = Math.min(r.bottom, vh);
-			if (left < right && top < bottom && document.elementFromPoint((left + right) / 2, (top + bottom) / 2) === owner) shown++;
+			if (left < right && top < bottom && probes(left, top, right, bottom).every(([x, y]) => document.elementFromPoint(x, y) === owner)) shown++;
 		}
 		return { total, shown };
 	};
-	const boxShown = (el) => [...el.getClientRects()].filter(solid).every((r) => {
-		const inset = Math.min(2, r.width / 2, r.height / 2);
-		return [
-			[r.left + r.width / 2, r.top + r.height / 2],
-			[r.left + inset, r.top + inset], [r.right - inset, r.top + inset],
-			[r.left + inset, r.bottom - inset], [r.right - inset, r.bottom - inset],
-		].every(([x, y]) => {
-			const hit = document.elementFromPoint(x, y);
-			return hit !== null && el.contains(hit);
-		});
-	});
+	const boxShown = (el) => [...el.getClientRects()].filter(solid).every((r) => probes(r.left, r.top, r.right, r.bottom).every(([x, y]) => {
+		const hit = document.elementFromPoint(x, y);
+		return hit !== null && el.contains(hit);
+	}));
 	const box = (el) => {
 		const rect = el.getBoundingClientRect();
 		let shown = visible(el) && solid(rect);

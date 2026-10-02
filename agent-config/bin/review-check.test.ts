@@ -135,6 +135,16 @@ describe("real headless page", () => {
 		}
 	});
 
+	test("an ask whose last letters are cut off by a hair is not on the first screen", () => {
+		const hair = page(
+			"clipped-word.html",
+			`<p data-review="point">Code fixes hold.</p><p data-review="ask" style="font:20px/24px monospace;width:60px;white-space:nowrap;overflow:hidden">Approve</p>`,
+		);
+		const { code, rules } = rulesFor(hair);
+		expect(code).toBe(1);
+		expect(rules).toEqual(["ask-not-visible"]);
+	});
+
 	test("detail collapsed by overflow rather than <details> does not count as read", () => {
 		const collapsed = page(
 			"collapsed.html",
