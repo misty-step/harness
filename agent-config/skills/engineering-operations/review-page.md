@@ -14,8 +14,10 @@ Everything else folds into `<details>` whose summary says what is inside (why,
 change detail, findings, evidence with sources, method). Link each ask to its
 detail by anchor.
 
-Before the page is shared, run `review-check PAGE.html`. It loads the page in
-real headless Chromium and exits 1 naming each failure: a missing or hidden
-point or ask, a block or screen too dense. Fix the page, not the check.
-`--screenshot first.png` saves what it saw; `--viewport WxH` changes the window;
-a page without the markers passes `--point SELECTOR --ask SELECTOR`.
+Before the page is shared, run `review-check --screenshot first.png PAGE.html`.
+It loads the page in real headless Chromium and exits 1 naming each layout,
+clipping or density failure: a missing or hidden point or ask, a block or screen
+too dense. Fix the page, not the check. Inspect the saved first screen for
+visual occlusion and readability; automation does not judge overlays.
+`--viewport WxH` changes the window; a page without the markers passes
+`--point SELECTOR --ask SELECTOR`.

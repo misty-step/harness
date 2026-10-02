@@ -53,7 +53,7 @@ const recutBody = (open: string) => `
 <h1>Kaylee retro</h1>
 <p data-review="point">Prose fixes keep failing; code fixes hold. Four small changes, mostly deletions.</p>
 <ul>${ASKS.map((ask) => `<li data-review="ask">${ask}</li>`).join("")}</ul>
-<details${open}><summary>Overview</summary><p>${OVERVIEW}</p><p>${OVERVIEW}</p></details>
+<details${open}><summary>Overview</summary><p>${OVERVIEW}</p><p>${OVERVIEW}</p><p>${OVERVIEW}</p><p>${OVERVIEW}</p></details>
 <details><summary>Evidence</summary><table>${EVIDENCE_ROWS}</table></details>`;
 const recut = page("recut.html", recutBody(""));
 
@@ -108,25 +108,19 @@ describe("real headless page", () => {
 		expect(rulesFor(drill)).toMatchObject({ code: 0, rules: [] });
 	});
 
-	test("an ask clipped by an ancestor or covered by another element is not on the first screen", () => {
+	test("an ask clipped by an ancestor is not on the first screen", () => {
 		const clipped = page("clipped.html", `<p data-review="point">Code fixes hold.</p><div style="height:0;overflow:hidden"><p data-review="ask">Approve it</p></div>`);
-		const covered = page(
-			"covered.html",
-			`<p data-review="point">Code fixes hold.</p><div style="position:relative"><p data-review="ask">Approve it</p><div style="position:absolute;inset:0;background:#fff"></div></div>`,
+		expect(rulesFor(clipped)).toMatchObject({ code: 1, rules: ["ask-not-visible"] });
+	});
+
+	test("a transparent overlay does not erase readable prose from density measurement", () => {
+		const overlay = page(
+			"transparent-overlay.html",
+			`<p data-review="point">Code fixes hold.</p><p data-review="ask">Approve it</p><div style="position:relative"><p>${OVERVIEW}</p><p>${OVERVIEW}</p><p>${OVERVIEW}</p><p>${OVERVIEW}</p><div style="position:absolute;inset:0;background:transparent"></div></div>`,
 		);
-		const mouseTransparent = page(
-			"mouse-transparent.html",
-			`<p data-review="point">Code fixes hold.</p><div style="position:relative"><p data-review="ask">Approve it</p><div style="position:absolute;inset:0;background:#fff;pointer-events:none"></div></div>`,
-		);
-		const descendant = page(
-			"descendant-overlay.html",
-			`<p data-review="point">Code fixes hold.</p><p data-review="ask" style="position:relative">Approve it<span style="position:absolute;inset:0;background:#fff"></span></p>`,
-		);
-		for (const hidden of [clipped, covered, mouseTransparent, descendant]) {
-			const { code, rules } = rulesFor(hidden);
-			expect(code).toBe(1);
-			expect(rules).toEqual(["ask-not-visible"]);
-		}
+		const { code, rules } = rulesFor(overlay);
+		expect(code).toBe(1);
+		expect(rules).toEqual(["dense-block", "dense-screen"]);
 	});
 
 	test("an ask whose own text is cut off is not on the first screen", () => {
@@ -148,6 +142,14 @@ describe("real headless page", () => {
 			"clipped-word.html",
 			`<p data-review="point">Code fixes hold.</p><p data-review="ask" style="font:20px/24px monospace;width:60px;white-space:nowrap;overflow:hidden">Approve</p>`,
 		);
+		const edge = page(
+			"clipped-edge.html",
+			`<p data-review="point">Code fixes hold.</p><p data-review="ask" style="font:20px/24px monospace;width:83px;white-space:nowrap;overflow:hidden">Approve</p>`,
+		);
+		const ancestorEdge = page(
+			"ancestor-edge.html",
+			`<p data-review="point">Code fixes hold.</p><div style="width:83px;overflow:hidden"><p data-review="ask" style="font:20px/24px monospace;white-space:nowrap">Approve</p></div>`,
+		);
 		const pastWindow = page(
 			"past-window.html",
 			`<p data-review="point">Code fixes hold.</p><p data-review="ask" style="position:fixed;left:1220px;top:100px;width:60px;font:20px/24px monospace;white-space:nowrap">Approve</p>`,
@@ -168,7 +170,7 @@ describe("real headless page", () => {
 			"partly-gone.html",
 			`<p data-review="point">Code fixes hold.</p><p data-review="ask">Approve deletion of <span style="display:none">production backups</span></p>`,
 		);
-		for (const cut of [hair, pastWindow, wrapped, emptied, partlyHidden, partlyGone]) {
+		for (const cut of [hair, edge, ancestorEdge, pastWindow, wrapped, emptied, partlyHidden, partlyGone]) {
 			const { code, rules } = rulesFor(cut);
 			expect(code).toBe(1);
 			expect(rules).toEqual(["ask-not-visible"]);

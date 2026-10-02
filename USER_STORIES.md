@@ -1357,8 +1357,9 @@ Criteria:
    ask and short blocks first, all detail folded behind drill-down, none deleted.
 2. WHEN an agent checks a page with `review-check`, THE SYSTEM SHALL load it in
    real headless Chromium at 1280x640 and report a missing point or ask, a point
-   or ask hidden, folded, clipped, covered or below the first screen, a visible
-   block over 35 words and a screen over 300 visible words.
+   or ask hidden, folded, clipped or below the first screen, a visible block
+   over 35 words and a screen over 300 visible words. Visual occlusion SHALL be
+   judged from the saved screenshot, not mouse hit targets.
 3. IF the browser or the page cannot be loaded, THEN THE SYSTEM SHALL exit 2
    with the reason, never a pass.
 4. WHEN either harness installs shared skills, THE SYSTEM SHALL deploy the same

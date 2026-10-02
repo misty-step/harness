@@ -45,10 +45,11 @@ deletion/force-push protections; no bypass actors or repo exclusions.
 
 Only when a review page is requested: preserve each round under `~/review`. The
 page shows its point and every ask on the first laptop screen with detail folded
-(`skill://engineering-operations`, `review-page.md`). Run `review-check FILE` and
-publish only a page it passes; publish the exact page to its existing board item:
+(`skill://engineering-operations`, `review-page.md`). Run the layout check and
+inspect its screenshot for visual occlusion before publishing the exact page
+to its existing board item:
 ```sh
-review-check FILE
+review-check --screenshot first.png FILE
 glass review publish --item ITEM --page FILE
 ```
 Keep private context in its owning tools; R90 data stays in R90's tools. An

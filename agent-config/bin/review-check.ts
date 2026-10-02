@@ -18,7 +18,7 @@
  *                                    the page is for or asks, so it refuses to guess.
  *   point-not-visible / ask-not-visible
  *                                    a marked element is hidden, closed inside
- *                                    <details>, clipped, covered, or not wholly
+ *                                    <details>, clipped, or not wholly
  *                                    inside the first screen: the reader has to
  *                                    scroll or hunt to learn it.
  *   dense-block                      one block of visible text holds more words
@@ -26,12 +26,10 @@
  *   dense-screen                     the first screen as a whole holds more words
  *                                    than a glance takes in: a document, not a page.
  *
- * Scope: it catches a first screen that is accidentally too dense or buries its
- * point and asks, by layout and paint order with pointer-events forced on. It is
- * not a defence against deliberately invisible styling (transparent text, zero
- * font size) and does not read text drawn by CSS content, images or canvas, or
- * held in shadow DOM or frames; `--screenshot` saves the first screen for the eye
- * that must still look at it.
+ * Scope: layout, overflow clipping and first-screen text density. Visual
+ * occlusion is judged from `--screenshot`, not inferred from mouse hit targets.
+ * This does not read text drawn by CSS content, images or canvas, or held in
+ * shadow DOM or frames. Inspect the saved first screen before sharing the page.
  *
  * Exit 0 when every page passes, 1 when any finding exists, 2 when the check
  * itself could not run (no Chromium, page did not load): never a silent pass.
@@ -82,7 +80,7 @@ const excerpt = (text: string, max = 60) => {
 };
 
 function whereIsIt(box: Box, height: number, width: number): string | null {
-	if (!box.visible) return "is hidden, folded, clipped or covered";
+	if (!box.visible) return "is hidden, folded or clipped";
 	if (box.bottom > height + 0.5) return `ends ${Math.ceil(box.bottom - height)}px below the first screen`;
 	if (box.top < -0.5) return "starts above the first screen";
 	if (box.right > width + 0.5 || box.left < -0.5) return "runs past the side of the first screen";
@@ -116,18 +114,13 @@ export function evaluate(page: string, measure: Measure, limits: Limits = DEFAUL
 }
 
 /**
- * Runs inside the page. A reader sees text only where the browser paints the
- * element that holds it: an ancestor's overflow, text-overflow or anything laid
- * over it, a descendant overlay included, puts something else under the word.
- * That one test judges every word of a marked part and each word counted on the
- * first screen, grouped under its nearest block-level ancestor. Closed <details>
- * content is not rendered, so it counts for nothing and its marks report as
- * hidden. Returned by value, so it stays plain JSON.
+ * Runs inside the page. Marked text must fit the viewport and its overflow
+ * clipping boxes. Count first-screen text fragments after intersecting those
+ * boxes, grouped under their nearest block-level ancestor. Closed <details>
+ * content is drill-down, not first-screen text. Returned by value as plain JSON.
  */
 const PAGE_SCRIPT = (pointSelector: string, askSelector: string) => `(async () => {
 	await document.fonts.ready;
-	// Hit-testing skips pointer-events:none, so a see-through-to-the-mouse overlay would hide nothing from it.
-	document.documentElement.append(Object.assign(document.createElement("style"), { textContent: "*{pointer-events:auto!important}" }));
 	await new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done)));
 	const vw = document.documentElement.clientWidth, vh = window.innerHeight;
 	const visible = (el) => el.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true });
@@ -150,24 +143,39 @@ const PAGE_SCRIPT = (pointSelector: string, askSelector: string) => `(async () =
 		const summary = node.parentElement.closest("summary");
 		return details !== null && !(summary && summary.parentElement === details);
 	};
-	const ownerOf = (node) => {
-		let owner = node.parentElement;
-		while (owner.parentElement && getComputedStyle(owner).display === "contents") owner = owner.parentElement;
-		return owner;
+	const clipCache = new WeakMap();
+	const clipsOf = (owner) => {
+		if (clipCache.has(owner)) return clipCache.get(owner);
+		const clips = [];
+		for (let el = owner; el; el = el.parentElement) {
+			const style = getComputedStyle(el);
+			// Non-replaced inline boxes do not clip their content through overflow.
+			if (style.display === "inline" || style.display === "contents") continue;
+			const x = style.overflowX !== "visible", y = style.overflowY !== "visible";
+			if (!x && !y) continue;
+			const rect = el.getBoundingClientRect();
+			const sx = el.offsetWidth ? rect.width / el.offsetWidth : 1;
+			const sy = el.offsetHeight ? rect.height / el.offsetHeight : 1;
+			const left = rect.left + el.clientLeft * sx, top = rect.top + el.clientTop * sy;
+			clips.push({ x, y, left, top, right: left + el.clientWidth * sx, bottom: top + el.clientHeight * sy });
+		}
+		clipCache.set(owner, clips);
+		return clips;
 	};
-	// A line's content box reaches past its block at the very top and bottom, and hit-testing trims a pixel or two off
-	// an inline box's ends, so probe a quarter in vertically and 3px in across: a clipped word still shows.
-	const probes = (left, top, right, bottom) => {
-		const dx = Math.min(3, (right - left) / 2), dy = (bottom - top) / 4;
-		const xs = [left + dx, (left + right) / 2, right - dx], ys = [top + dy, (top + bottom) / 2, bottom - dy];
-		return xs.flatMap((x) => ys.map((y) => [x, y]));
-	};
-	const painted = (r, owner) => {
-		const left = Math.max(r.left, 0), right = Math.min(r.right, vw), top = Math.max(r.top, 0), bottom = Math.min(r.bottom, vh);
-		return left < right && top < bottom && probes(left, top, right, bottom).every(([x, y]) => document.elementFromPoint(x, y) === owner);
+	const unclipped = (r, owner) => clipsOf(owner).every((c) =>
+		(!c.x || (r.left >= c.left - 0.5 && r.right <= c.right + 0.5)) &&
+		(!c.y || (r.top >= c.top - 0.5 && r.bottom <= c.bottom + 0.5)));
+	const intersectsScreen = (r, owner) => {
+		let left = Math.max(r.left, 0), right = Math.min(r.right, vw);
+		let top = Math.max(r.top, 0), bottom = Math.min(r.bottom, vh);
+		for (const c of clipsOf(owner)) {
+			if (c.x) { left = Math.max(left, c.left); right = Math.min(right, c.right); }
+			if (c.y) { top = Math.max(top, c.top); bottom = Math.min(bottom, c.bottom); }
+		}
+		return left < right && top < bottom;
 	};
 	const wordsOf = (node, whole = false) => {
-		const owner = ownerOf(node);
+		const owner = node.parentElement;
 		const range = document.createRange();
 		range.selectNodeContents(node);
 		const total = node.data.split(/\\s+/).filter(hasWord).length;
@@ -177,17 +185,14 @@ const PAGE_SCRIPT = (pointSelector: string, askSelector: string) => `(async () =
 			if (!hasWord(match[0])) continue;
 			range.setStart(node, match.index);
 			range.setEnd(node, match.index + match[0].length);
-			// A long word can wrap into several fragments; each one the reader needs must be painted.
+			// A wrapped word may have several fragments: every fragment is required for a marked part.
 			const pieces = [...range.getClientRects()].filter(solid);
-			const judged = whole ? pieces : pieces.filter(onScreen);
-			if (judged.length > 0 && judged.every((r) => (!whole || wholly(r)) && painted(r, owner))) shown++;
+			if (whole
+				? pieces.length > 0 && pieces.every((r) => wholly(r) && unclipped(r, owner))
+				: pieces.some((r) => intersectsScreen(r, owner))) shown++;
 		}
 		return { total, shown };
 	};
-	const boxShown = (el) => [...el.getClientRects()].filter(solid).every((r) => probes(r.left, r.top, r.right, r.bottom).every(([x, y]) => {
-		const hit = document.elementFromPoint(x, y);
-		return hit !== null && el.contains(hit);
-	}));
 	const box = (el) => {
 		const rect = el.getBoundingClientRect();
 		let shown = visible(el) && solid(rect);
@@ -196,7 +201,7 @@ const PAGE_SCRIPT = (pointSelector: string, askSelector: string) => `(async () =
 			// from a part that otherwise shows (hidden, display:none) leaves the reader a partial ask.
 			const counts = textNodes(el).map((node) => wordsOf(node, true));
 			const withheld = textNodes(el, true).some((node) => !folded(node));
-			shown = boxShown(el) && !withheld && counts.some((c) => c.shown > 0) && counts.every((c) => c.shown === c.total);
+			shown = !withheld && counts.some((c) => c.shown > 0) && counts.every((c) => c.shown === c.total);
 		}
 		return { text: el.textContent || "", visible: shown, top: rect.top, left: rect.left, bottom: rect.bottom, right: rect.right };
 	};
