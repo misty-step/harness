@@ -4,7 +4,7 @@ import { createHash } from "node:crypto";
 import { posix } from "node:path";
 import { SystemOneProviderError } from "./engine.ts";
 import type { Answer, Question, SystemOneProvider } from "./engine.ts";
-import { isCredentialPath, PRIVATE_KEY_BLOCK, PRIVATE_KEY_ORPHAN, REDACTED, redactText } from "./review.ts";
+import { isCredentialPath, PRIVATE_KEY_BLOCK, PRIVATE_KEY_ORPHAN, REDACTED, redactText } from "./redaction.ts";
 import { DEFAULT_EXPECTED_RESOLVED_MODELS } from "./semantic-run.ts";
 
 export const FOUNDATION_SCHEMA = "foundation-assessment-1";

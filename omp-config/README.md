@@ -247,6 +247,8 @@ The globally deployed LOC extension provides `/loc`, `/loc-trend`, and a
 committed-`HEAD` status row across repositories. When `.git/loc_cache` is missing
 or stale relative to `HEAD`, an in-process async worker populates it in the background
 without blocking interactive turns. Explicit LOC commands also populate the cache on demand.
+Optional Git-hook warming is retired; session refresh and explicit commands own
+cache population.
 
 Disable only LOC for a large repository with project-local configuration:
 
@@ -320,31 +322,11 @@ automatically install into other harnesses or require their support for OMP's
 
 ### Selective command execution
 
-```sh
-pass-env list
-pass-env list projects/example --json
-pass-env run -e API_TOKEN=services/example/api-token -- ./scripts/sync
-pass-env run -f .env.pass -- bun run dev
-```
-
-`list [prefix] [--json]` reports entry names only, without decrypting. It is the
-current store index. `run` needs at least one mapping and a command after `--`.
-Repeat `-e` / `--env` for `NAME=entry` mappings or `-f` / `--env-file` for reference
-files. A project's `.env.pass` might contain:
-
-```text
-# References, not credential values
-API_TOKEN=services/example/api-token
-DATABASE_URL=projects/example/database-url
-```
-
-Reference files are literal data: blank lines and full-line comments are allowed;
-no shell evaluation, quoting syntax, or interpolation. Files apply in order,
-then explicit `-e` mappings override file mappings. Duplicate names within one
-file are errors. Mapped values override inherited variables; other environment
-variables, cwd, and interactive stdio are preserved. Exit status and signals
-propagate. Changes affect **newly launched children**, not already running
-processes or the parent shell. Restart callers after replacing a value.
+For command syntax, names-only discovery and selective mappings, run
+`pass-env --help` or read the shared
+[authenticated-commands skill](../agent-config/skills/authenticated-commands/SKILL.md).
+The [pass-env contract](../agent-config/skills/authenticated-commands/pass-contract.md)
+owns reference-file syntax, precedence, exact value bytes and child-process behavior.
 
 Workstation entries conventionally use `workstation/ENV_NAME`. The local
 `~/.config/pass-env/workstation.env.pass` is a names-only, static inventory, not an
@@ -395,27 +377,12 @@ explicitly authorized work.
 
 ### Agent credential management
 
-First list names; then use selective `run` mappings for the authorized command.
-Do not reveal values to inspect whether they exist. For explicitly authorized
-insertion, stream **exact bytes** from a private source into
-`pass insert -m workstation/API_TOKEN`; add `--force` only for an intentional,
-authorized replacement. Do not put values in arguments, shell history, tool
-transcripts, logs, or generated reference files. Redirect a private file or use
-the execution tool's private stdin mechanism; never copy opaque secret text
-through the model. A newline belongs in that stream only if intended.
-
-Verify without displaying plaintext: list the entry name and run a child that
-checks the required property or performs the authorized operation, returning
-only success/failure. A presence check verifies injection, not issuer validity:
-
-```sh
-pass-env run -e SECRET_CHECK=services/example/api-token -- \
-  bun -e 'process.exit(Object.hasOwn(process.env, "SECRET_CHECK") ? 0 : 1)'
-```
-
-Use ordinary `pass mv` / `pass rm` only for authorized renames/removals; update
-callers and reference inventories as above. `pass-env` deliberately has no
-additional secret-management subcommands.
+Use the shared [authenticated-commands skill](../agent-config/skills/authenticated-commands/SKILL.md)
+for discovery and authorized command execution, and its
+[credential-maintenance guide](../agent-config/skills/authenticated-commands/maintenance.md)
+for private insertion, replacement, rename and removal.
+Verify an authorized operation with the issuer: a successful injection check
+does not establish credential validity.
 
 ### Migration and security boundaries
 

@@ -152,7 +152,7 @@ describe("foundation assessment advisory", () => {
 
 	test("redacts planted credentials, including a multi-line key, before any provider receives a packet", async () => {
 		const planted = "planted-secret-value-do-not-send-123456789";
-		// Built at runtime like review-check's fixture, so the source holds no key block for the secret scanner.
+		// Built at runtime so the source holds no key block for the secret scanner.
 		const [begin, end] = [["-----BEGIN", "PRIVATE KEY-----"].join(" "), ["-----END", "PRIVATE KEY-----"].join(" ")];
 		const repo = sentryRepo({
 			"next.config.ts": `withSentryConfig({}, { authToken: "${planted}" });\n`,

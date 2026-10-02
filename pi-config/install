@@ -182,7 +182,7 @@ install_pi_chrome() {
 }
 
 validate_loc() {
-  for file in analyze.ts index.ts git-hook.sh; do
+  for file in analyze.ts index.ts; do
     require_nonempty "$repo_dir/extensions/loc/$file"
   done
 }
@@ -194,7 +194,6 @@ install_loc() {
   for file in analyze.ts index.ts loc.test.ts; do
     install -m 600 "$repo_dir/extensions/loc/$file" "$agent_dir/extensions/loc/$file"
   done
-  install -m 700 "$repo_dir/extensions/loc/git-hook.sh" "$agent_dir/extensions/loc/git-hook.sh"
 }
 
 validate_web_search() {

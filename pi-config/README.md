@@ -108,8 +108,9 @@ committed code lines, file count, and live net working-tree line movement vs
 `HEAD`. `analyze.ts` counts committed code at `HEAD`; the delta adds staged,
 unstaged, and untracked movement so it moves as you edit. It shells out to `git`
 and reads tracked/untracked files, but never writes to a repository except its
-own `.git/loc_cache`. It changes the command surface and footer output, not the
-model's tools or autonomy.
+own `.git/loc_cache`. Session-start refresh and explicit commands populate the
+cache; optional Git-hook warming is retired. It changes the command surface and
+footer output, not the model's tools or autonomy.
 
 **`web-search/` — behavioral.** One tool, `web_search` (query, num_results,
 full_text), backed by a single fetch to `api.exa.ai` — no dependencies beyond

@@ -34,6 +34,8 @@ for consumer in pi omp; do
   printf '{"synthetic":"auth sentinel","anthropic":{"type":"api_key","key":"synthetic-foreign"},"openrouter":{"type":"api_key","key":"synthetic-old"}}\n' > "$work/expected-auth"
   cp "$work/expected-skill" "$agent/skills/foreign/SKILL.md"
   cp "$work/expected-auth" "$agent/auth.json"
+  mkdir -p "$agent/extensions/loc"
+  printf 'old owned LOC warming hook\n' > "$agent/extensions/loc/git-hook.sh"
   # Claude Code settings carry foreign keys the audio sandbox must preserve.
   mkdir -p "$home/.claude"
   printf '{"env":{"OTEL_LOGS_EXPORTER":"otlp"},"hooks":{"SessionStart":[]}}\n' > "$home/.claude/settings.json"
@@ -126,6 +128,7 @@ for consumer in pi omp; do
   check "$consumer ws bytes" cmp -s "$work/source/agent-config/bin/ws.ts" "$home/.local/bin/ws"
   check "$consumer ws executable" test -x "$home/.local/bin/ws"
   check "$consumer foreign skill" cmp -s "$work/expected-skill" "$agent/skills/foreign/SKILL.md"
+  check "$consumer retires installed LOC warming hook" test ! -e "$agent/extensions/loc/git-hook.sh"
   if [ "$consumer" = pi ]; then
     # US-028: Pi replaces only its OpenRouter mapping, retaining foreign auth.
     check "pi OpenRouter auth mapping and foreign credential" \

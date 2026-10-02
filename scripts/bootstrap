@@ -11,4 +11,4 @@ done
 old=$(git -C "$root" config --local --get core.hooksPath || :)
 case "$old" in ''|.githooks) ;; *) echo "Preserving foreign core.hooksPath: $old" >&2; exit 1 ;; esac
 git -C "$root" config --local core.hooksPath .githooks
-printf 'Configured root pre-push scanners; no runtime deployment.\n'
+printf 'Configured root hooks: blocking pre-commit/pre-push secret scans and advisory semantic checks; no runtime deployment.\n'
