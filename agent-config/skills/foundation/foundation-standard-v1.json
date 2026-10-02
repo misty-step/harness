@@ -1,7 +1,7 @@
 {
   "schema": "foundation-standard/1",
   "id": "misty-step.foundation",
-  "version": "1.6.0",
+  "version": "1.7.0",
   "principles": [
     {
       "id": "FND-P-APPLICABILITY",
@@ -43,7 +43,11 @@
       "applies_when": "A repeatable defect, unsafe transition, or release path exists.",
       "required_evidence": [
         "Executable negative controls reject the named failure class.",
-        "The same path accepts a valid case, and the recovery or rollback procedure is exercised where consequential."
+        "The same path accepts a valid case, and the recovery or rollback procedure is exercised where consequential.",
+        "Engineers run changed-contract proof and independent review before merge; no CI runs automatically on pull_request or pull_request_target. Cheap secret and privacy scans still run before code reaches the default branch, locally or by explicit dispatch.",
+        "The default branch builds each immutable candidate once and proves affected journeys on isolated preprod before automatic promotion. Access-control, data-integrity, migration, artifact-identity and recovery proof cannot move to nightly; shared or uncertain impact requires broader relevant candidate proof.",
+        "The complete regression suite and every live story run nightly against a recorded default-branch revision, and remain available on demand. The owner checks completion, including missed or delayed schedules; failures and missing runs reach the existing approved agent triage intake and an owned repair or revert, never a second alert path.",
+        "Nightly breadth is background detection, not a blanket merge or release veto. A nightly failure that demonstrates a defect in a shipping candidate is that candidate's failed proof; missing or failed candidate proof never counts as passing. Use hosted runners; this cadence authorizes no server or plan purchase."
       ],
       "exception_authority": "Accountable project owner with a time-bounded substitute control and residual-risk statement."
     },
@@ -168,7 +172,7 @@
       "title": "Security baseline",
       "applies_when": "Secret scanning and dependency maintenance apply to every active repository; authorization-boundary tests additionally apply to applications (ui, cli, api or deployed).",
       "required_evidence": [
-        "The gate runs a named secret-scanning workflow job on PRs and pushes; a configured dependency bot proposes current dependencies, and a green-gated auto-merge job restricts merges to bot patch and minor updates.",
+        "A named secret scan rejects incoming changes before merge and scans pushes; pre-main scanning may be explicitly dispatched rather than automatic PR CI. A configured dependency bot proposes current dependencies, and an independently verified auto-merge job restricts merges to bot patch and minor updates.",
         "Applications name an authorization test and the workflow job that runs it, including a denied and an allowed case.",
         "The checker resolves configured files, workflow jobs, job dependencies and test references. Only a receipt can show the scan ran, updates were safely merged, and authorization was exercised with meaningful identities."
       ],
@@ -189,8 +193,9 @@
       "title": "Continuous deployment",
       "applies_when": "The repository is an application: it changes a live system (surface deployed) or ships something people run (surfaces ui, cli or api).",
       "required_evidence": [
-        "Every push to the default branch that passes the gate deploys to production automatically, whether the trunk is named main, master or otherwise: a deploy or release job waits on the gate, runs with no manual step, and a failed gate stops it.",
-        "Small, independently shippable slices pass CI, automated tests of the core journeys, agent walks of every user story and rigorous agentic QA in a production-like environment with representative, privacy-safe production-like data; a readback or smoke check verifies the shipped candidate.",
+        "Every push to the default branch selects an immutable candidate, builds it once and deploys those bytes to isolated preprod. Production promotion runs automatically only after that candidate's targeted proof succeeds; there is no manual promotion, release PR or wait for an unrelated nightly suite.",
+        "Small, independently shippable slices exercise the affected real user journeys in production-like preprod with representative, privacy-safe data. Prove allowed and denied access, data preservation, migration compatibility and recovery where consequential; shared dependencies, lockfiles, deployment configuration or uncertain impact require broader relevant proof, not a path-filter guess.",
+        "Read back preprod revision and artifact digest, retain candidate-bound proof, and promote the same tested bytes without rebuilding moving main. Serialize promotions so an older slow candidate cannot replace a newer release; do not cancel an in-progress migration. Read back production identity and a read-only critical journey, and retain the previous known-good artifact.",
         "Release health checks automatically roll a bad release back to the last healthy version without losing accepted writes or requiring destructive data restoration; a recorded drill proves rollback, and recent default-branch history shows green commits reaching production without hand steps.",
         "Evidence follows the shipped surface: hosted apps use runtime health signals; artifact-only apps smoke-check the installed artifact and automatically revert the release-channel or updater pointer to the last healthy artifact on failure, without claiming to replace copies already installed outside that channel. QA uses representative inputs and state for that surface, without inventing a database or health endpoint the product does not have.",
         "For a multi-tenant application, the deploy reaches every tenant in its complete registry; the receipt reads back every non-excluded tenant after deploy.",

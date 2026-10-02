@@ -967,15 +967,16 @@ function securityIssues(repo: string, adoption: unknown): Issue[] {
 	const problems: string[] = [];
 	const files = new Set(tracked(repo));
 	const security = record(adoption.security) ? adoption.security : {};
-	const jobAt = (claim: unknown, event: string, label: string) => {
+	const jobAt = (claim: unknown, events: string[], label: string) => {
 		if (!record(claim) || !text(claim.job)) { problems.push(`${label} needs a workflow and job`); return undefined; }
 		if (!text(claim.workflow) || !files.has(claim.workflow)) { problems.push(`${label}: workflow must be tracked at HEAD`); return undefined; }
 		const workflow = workflowAt(repo, claim.workflow);
 		if (typeof workflow === "string") { problems.push(`${label}: ${workflow}`); return undefined; }
-		if (!(event in workflow.on)) problems.push(`${label}: ${String(claim.workflow)} must run on ${event}`);
+		const event = events.find((candidate) => candidate in workflow.on);
+		if (!event) problems.push(`${label}: ${String(claim.workflow)} must run on ${events.join(" or ")}`);
 		const job = workflow.jobs[claim.job];
 		if (!record(job)) { problems.push(`${label}: ${String(claim.workflow)} has no job ${claim.job}`); return undefined; }
-		return { job, workflow };
+		return { job, workflow, event: event ?? events[0] };
 	};
 	const stepsOf = (job: Record<string, unknown>): Record<string, unknown>[] => Array.isArray(job.steps) ? job.steps.filter(record) : [];
 	const conditionAllowed = (condition: unknown, events: string[], bot = false): boolean =>
@@ -1035,7 +1036,7 @@ function securityIssues(repo: string, adoption: unknown): Issue[] {
 			(!Array.isArray(trigger.types) || !["opened", "synchronize", "reopened"].every((type) => trigger.types.includes(type))))
 			problems.push(`${label} workflow must scan opened, synchronized and reopened PRs`);
 	};
-	const secrets = jobAt(security.secrets, "pull_request", "security.secrets");
+	const secrets = jobAt(security.secrets, ["workflow_dispatch", "pull_request"], "security.secrets");
 	if (secrets) {
 		if (!("push" in secrets.workflow.on)) problems.push("security.secrets workflow must also scan pushes");
 		const push = secrets.workflow.on.push;
@@ -1045,7 +1046,7 @@ function securityIssues(repo: string, adoption: unknown): Issue[] {
 		const scanner = /^\s*(?:\S*\/)?(?:gitleaks|trufflehog|detect-secrets)(?:\s|$)/m;
 		const steps = stepsOf(secrets.job).filter((step) => text(step.run) && scanner.test(step.run));
 		if (steps.length === 0) problems.push("security.secrets job must run a secret scanner");
-		else blocking(secrets.workflow, secrets.job, steps, "security.secrets scanner", ["pull_request", "push"]);
+		else blocking(secrets.workflow, secrets.job, steps, "security.secrets scanner", [secrets.event, "push"]);
 	}
 	const dependencies = record(security.dependencies) ? security.dependencies : {};
 	if (dependencies.bot !== "dependabot" || dependencies.config !== ".github/dependabot.yml" ||
@@ -1057,14 +1058,14 @@ function securityIssues(repo: string, adoption: unknown): Issue[] {
 		if (!record(config) || !Array.isArray(config.updates) || config.updates.length === 0)
 			problems.push("security.dependencies bot config needs at least one update source");
 	}
-	const merge = jobAt(dependencies.automerge, "pull_request", "security.dependencies.automerge");
+	const merge = jobAt(dependencies.automerge, ["workflow_dispatch", "pull_request"], "security.dependencies.automerge");
 	if (merge) {
 		checkPullRequestTrigger(merge.workflow, "security.dependencies.automerge");
 		const actor = String(merge.job.if).replace(/^\s*\$\{\{([\s\S]*)\}\}\s*$/, "$1").replace(/\s+/g, "");
 		if (!/^github\.actor==['"]dependabot\[bot\]['"]$/.test(actor))
 			problems.push("security.dependencies.automerge job must be restricted to the dependency bot");
 		const gates = needsOf(merge.job);
-		if (gates.length === 0 || !prerequisitesBlock(merge.workflow, merge.job, ["pull_request"], true))
+		if (gates.length === 0 || !prerequisitesBlock(merge.workflow, merge.job, [merge.event], true))
 			problems.push("security.dependencies.automerge job needs an existing blocking gate job");
 		const steps = Array.isArray(merge.job.steps) ? merge.job.steps.filter(record) : [];
 		const mergeStep = steps.find((step) => text(step.run) && /\bgh pr merge\b[^\n]*--auto\b/.test(step.run));
@@ -1079,14 +1080,14 @@ function securityIssues(repo: string, adoption: unknown): Issue[] {
 	}
 	if (isApplication(adoption)) {
 		const auth = record(security.authorization) ? security.authorization : {};
-		const check = jobAt(auth, "pull_request", "security.authorization");
+		const check = jobAt(auth, ["pull_request", "push"], "security.authorization");
 		if (check) checkPullRequestTrigger(check.workflow, "security.authorization");
 		if (!repositoryFile(repo, auth.test) || !files.has(auth.test as string))
 			problems.push("security.authorization.test must name a tracked authorization-boundary test");
 		else if (check) {
 			const steps = stepsOf(check.job).filter((step) => text(step.run) && step.run.includes(auth.test as string));
 			if (steps.length === 0) problems.push("security.authorization job must run its named test");
-			else blocking(check.workflow, check.job, steps, "security.authorization test", ["pull_request"]);
+			else blocking(check.workflow, check.job, steps, "security.authorization test", [check.event]);
 		}
 	}
 	return problems.map((problem) => ({ message: `FND-SEC-001: satisfied, but ${problem}` }));

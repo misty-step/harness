@@ -1,12 +1,34 @@
 # Foundation Standard
 
 `foundation-standard-v1.json` is the sole normative catalog: applicability,
-evidence, dispositions, defaults and exceptions. Its current version is 1.6.0.
+evidence, dispositions, defaults and exceptions. Its current version is 1.7.0.
 The checker enforces structured claims, not product correctness.
 
 Use this standard for commissioned adoption/assessment, not as permission to
 widen a bug fix. Existing independent access, migration, privacy and recovery
 contracts remain meaningful; documentation or receipt syntax is not their proof.
+
+## Lean safety cadence
+
+The approved 2026-10-02 amendment to
+[ADR-007](https://github.com/misty-step/harness/blob/master/docs/adr/007-braver-engineers-continuous-deployment.md#lean-ci-amendment-2026-10-02)
+changes FND-CHG-002's cadence and FND-REL-001's deployment proof. No automatic
+PR or PR-target CI: engineers verify affected contracts, obtain independent
+review and run cheap secret/privacy scans before merge. Main builds one immutable
+candidate, runs it on isolated production-like preprod, proves affected journeys,
+then automatically promotes the same bytes. Mandatory access, data, migration,
+artifact identity and recovery proof stays on the candidate path.
+
+The complete suite and every live story run nightly and on demand at a recorded
+main revision. Nightly is delayed broad detection, not a blanket shipping veto.
+Failures and missed runs need an owner and the existing approved triage route;
+the alert owner designs the scream, not a second per-repository notifier.
+Failed or absent preprod proof always stops that candidate's production promotion.
+
+Existing pins keep their adopted contract until deliberately migrated. Glass is
+the first rollout; other repositories and harness CI triggers are unchanged.
+Hosted runners stay; no server or plan purchase is authorized.
+
 
 ## Existing adoption interface
 

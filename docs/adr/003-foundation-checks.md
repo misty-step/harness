@@ -2,6 +2,13 @@
 
 Accepted 2026-09-25 (MIS-150): the operator approved all three decisions below,
 relayed by Kaylee, with two changes to who approves (see Review authority).
+
+The accepted [2026-10-02 lean CI amendment](007-braver-engineers-continuous-deployment.md#lean-ci-amendment-2026-10-02)
+supersedes the automatic PR cadence below for deliberately migrated pins:
+engineer proof/review and cheap pre-main scans, one main build with targeted
+preprod proof and automatic same-artifact promotion, full suite nightly through
+the existing owned alert route. Glass is first; this historical rollout and other
+repositories' pinned contracts are not silently migrated.
 Pilot repository: Scry.
 
 ## Context

@@ -1111,6 +1111,28 @@ describe("foundation-check security baseline (ADR-006, US-024)", () => {
 		expect(errors()).not.toContain("FND-SEC-001");
 	});
 
+	test("lean security claims keep dispatched pre-main scanning and main authorization blocking", () => {
+		const repo = fixture("security-lean-cadence");
+		const value = adoption();
+		value.surfaces = ["ui"];
+		put(repo, "foundation.json", JSON.stringify(value));
+		const path = ".github/workflows/security.yml";
+		const workflow = readFileSync(join(repo, path), "utf8").replace("on: [push, pull_request]", "on: [push, workflow_dispatch]");
+		put(repo, path, workflow);
+		const dependencyPath = ".github/workflows/dependencies.yml";
+		put(repo, dependencyPath, readFileSync(join(repo, dependencyPath), "utf8").replace("on: pull_request", "on: workflow_dispatch"));
+		const securityErrors = () => cli(repo, "check").output.errors.filter((error) => error.startsWith("FND-SEC-001:"));
+		expect(securityErrors()).toEqual([]);
+		put(repo, path, workflow.replace("gitleaks detect --source .", "echo skipped"));
+		expect(securityErrors().some((error) => error.includes("secret scanner"))).toBe(true);
+		put(repo, path, workflow.replace("      - run: gitleaks detect --source .", "      - run: gitleaks detect --source .\n        continue-on-error: true"));
+		expect(securityErrors().some((error) => error.includes("block"))).toBe(true);
+		put(repo, path, workflow.replace("  auth:\n    runs-on:", "  auth:\n    if: github.event_name == 'pull_request'\n    runs-on:"));
+		expect(securityErrors().some((error) => error.includes("authorization"))).toBe(true);
+		put(repo, path, workflow.replace("on: [push, workflow_dispatch]", "on: push"));
+		expect(securityErrors().some((error) => error.includes("workflow_dispatch"))).toBe(true);
+	});
+
 	test("secret scanning and authorization reject skipped or nonblocking prerequisite jobs", () => {
 		const repo = fixture("security-prerequisites");
 		const value = adoption();

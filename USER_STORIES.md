@@ -110,20 +110,24 @@ not installed engineering guidance.
 
 ## US-023 Keep verification cadence useful
 
-Statement: When I plan repository checks, I want fast, risk-relevant pull
-request feedback and owned slower runs on a regular cadence, so a green PR
-means something without rerunning an expensive full suite each time.
+Statement: When I plan repository checks, I want engineer-run affected proof,
+one proven main candidate and owned complete nightly runs, so shipping does not
+rerun an expensive suite on every PR or wait for unrelated regressions.
 
 Criteria:
 1. WHEN Pi or OMP installs shared skills, THE SYSTEM SHALL provide
    `story-qa/check-cadence.md` and route CI tiering decisions through `story-qa`.
-2. WHEN proposing a check moved off PR, THE SYSTEM SHALL require its independent
-   contract, delayed-detection risk, scheduled trigger, owner, and failure
-   response; IF those are missing, THEN THE SYSTEM SHALL leave the gate intact.
-3. WHILE choosing PR checks, THE SYSTEM SHALL prioritize bounded meaningful
-   contracts and required security gates over duplicated or slow full suites.
-4. WHEN claiming improved cadence, THE SYSTEM SHALL distinguish measured PR
-   feedback from proposed or observed nightly/weekly coverage.
+2. WHEN migrating a repository to lean CI, THE SYSTEM SHALL retain affected local
+   proof, independent exact-head review and cheap pre-main secret/privacy scans,
+   and SHALL remove automatic PR and PR-target CI.
+3. WHEN main selects a candidate, THE SYSTEM SHALL build once, prove affected
+   journeys and consequential boundaries on isolated preprod, then automatically
+   promote the same bytes only after proof succeeds.
+4. WHEN a complete nightly suite runs, THE SYSTEM SHALL record its main revision,
+   check completion and send failures or missing runs through the existing owned
+   triage route; unrelated nightly red SHALL NOT become a blanket shipping veto.
+5. WHEN claiming improved cadence, THE SYSTEM SHALL distinguish proposed
+   schedules from observed candidate and nightly runs.
 
 No-gos: no implicit deletion of required gates, unapproved recurring spend, or
 CI change to Habitat or Tach in this harness PR.

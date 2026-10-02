@@ -8,9 +8,12 @@ Split new work rather than widening the ticket. Speed beats ceremony.
 
 Critical: a gap here can hurt people, data or money.
 
-1. **Runs and QA'd in full.** The whole app starts from its README on a fresh
-   exe.dev VM, with realistic data and a clickable dev server, and an agent
-   walks every user story on it before and after each ship.
+1. **Runs and QA'd in full.** The whole app starts from its README in a fresh
+   workspace with realistic privacy-safe data and its real consumer surface.
+   In the lean cadence, main builds once, deploys isolated production-like
+   preprod and proves affected journeys and consequential boundaries there.
+   The complete suite and every user story run nightly and on demand, not on
+   every PR. Failed or absent candidate proof never authorizes production.
 2. **Screams in production.** Every production error, failed health check or
    broken story reaches Sentry or an outside probe and starts agentic incident
    response and triage within minutes.
@@ -27,8 +30,11 @@ Table stakes: a gap here makes a project look or work unlike ours.
    says what it is and how to run and ship it, and a licence if it is public.
 7. **Written down.** The project has a short spec, user stories, and a ranked
    backlog of tickets in its tracker.
-8. **Tested on every change.** CI runs real behaviour tests on every change and
-   answers within minutes.
+8. **Tested on every change.** Engineers exercise changed contracts, obtain
+   independent review and run cheap secret/privacy scans before merge. Lean CI
+   runs no automatic PR or PR-target jobs: main proves the exact candidate before
+   automatic same-byte promotion; the full suite is an owned nightly run whose
+   failed or missing completion screams through the existing approved intake.
 9. **Public website.** A well-designed, marketing-minded site explains the
    project and holds its documentation.
 10. **In a portfolio.** The project appears on the R90 site, mistystep.io or
@@ -39,14 +45,16 @@ and 10; libraries and local apps skip 2. Phaedrus approves any other exception.
 
 ## Five principles for every change
 
-1. **Reproduce the whole product before trusting a change.** Each PR's exact
-   head runs on its own private exe.dev VM with privacy-safe, production-like
-   seeded data. Walk touched stories before merge; destroy the preview VM at
-   merge or close. No persistent QA.
+1. **Prove the real candidate before shipping it.** Main's immutable artifact
+   runs in isolated production-like preprod with representative privacy-safe
+   data. Walk touched stories and mandatory access/data/migration/recovery
+   boundaries there. Broaden relevant proof for shared or uncertain impact.
+   Existing pins adopt this lean cadence explicitly (ADR-007).
 2. **Only proven changes may alter access or accepted state.** The release
-   script ships only a proven head and reads back what shipped. Failed health
-   triggers automatic rollback to a compatible release, preserving accepted
-   writes.
+   script automatically promotes the tested bytes without rebuilding and reads
+   back identity and a critical journey. An older slow run cannot replace newer.
+   Failed health triggers automatic rollback to a compatible release, preserving
+   accepted writes.
 3. **A lost promise or silent check creates owned repair work.** Real failures
    go to the native tracker for triage and repair. Restore service before
    investigation; keep repair bounded to the failure.
