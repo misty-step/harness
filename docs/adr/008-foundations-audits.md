@@ -1,0 +1,39 @@
+# ADR-008: Ten foundations, three audits, one auditor per repository
+
+Status: Accepted 2026-10-02. Phaedrus approved foundations round 4
+(<https://mirrodin.tail5f5eb4.ts.net/review/foundations/r4.html>), relayed by
+Kaylee: "the nightly deletion pass that just gets folded in as one of a set of a
+composition of auditors that we run each with different perspectives on every
+single one of our repositories with some regularity... they're running on OMP,
+with our subscriptions, with our OMP config, like that's fine. Yes, approved."
+The Trellis viewer lockout on 1 October prompted the work: "How on Earth was
+this regression possibly deployed?"
+
+## Decision
+
+The constitution states ten foundations every project keeps, five critical and
+five table stakes, plus five principles for every change: round 2's four rules
+and "every change traces from ticket to packet". Named exceptions skip the
+website, portfolio and production-alerting foundations.
+
+Three audits apply them: Foundations, Principles and Simplicity. The deletion
+pass folds into Simplicity. They run weekly on every active `misty-step` and
+`r90group` repository. Plain code (`omp-audit`, under systemd user timers)
+launches one visible OMP auditor per repository and audit, in that repository's
+fresh checkout. Each auditor uses the fixed template, our subscriptions and the
+OMP config.
+
+Auditors are read-only. Tool scope and a tool guard enforce this, not prose.
+Their one write is the filer, which keeps one ticket per gap through a trusted
+marker. There is no ticket cap; ranking and weekly priority climb replace it.
+Auditors never fix gaps, steer engineers or message anyone; only the desk
+dispatches. Routing reuses the trackers: Habitat for R90, Linear MIS for Misty
+Step, and the board for doctrine proposals that Phaedrus decides.
+
+## Consequences
+
+Kaylee's nightly deletion-audit cron and skill retire once Simplicity is
+installed. The foundation-check catalog, `foundation.json` and the foundation
+workflows remain until their own retirement, which the audits will file.
+Gaps found on the first run arrive as tickets in the product trackers.
+Fixing them is ordinary engineering work.
