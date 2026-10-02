@@ -29,7 +29,7 @@ check() {
 for consumer in pi omp; do
   home="$work/$consumer-home"
   agent="$home/agent"
-  mkdir -p "$agent/skills/foreign" "$home/development"
+  mkdir -p "$agent/skills/foreign" "$home/development/r90group"
   printf 'foreign skill sentinel\n' > "$work/expected-skill"
   printf '{"synthetic":"auth sentinel","anthropic":{"type":"api_key","key":"synthetic-foreign"},"openrouter":{"type":"api_key","key":"synthetic-old"}}\n' > "$work/expected-auth"
   cp "$work/expected-skill" "$agent/skills/foreign/SKILL.md"
@@ -40,6 +40,8 @@ for consumer in pi omp; do
   if [ "$consumer" = omp ]; then
     mkdir -p "$agent/extensions/continuation-nudge"
     printf 'retired extension\n' > "$agent/extensions/continuation-nudge/index.ts"
+    mkdir -p "$agent/extensions/diff-review"
+    printf 'retired extension\n' > "$agent/extensions/diff-review/index.ts"
     mkdir -p "$home/.local/bin"
     printf 'foreign native executable sentinel\n' > "$work/expected-native"
     cp "$work/expected-native" "$home/.local/bin/omp"
@@ -174,11 +176,17 @@ for consumer in pi omp; do
       cat "$work/omp-stage.log" >&2
       failures=$((failures + 1))
     fi
-    check "omp OpenRouter auth override" \
+    check "omp advisor opt-in default" \
       env -i PATH="$PATH" HOME="$home" AGENT="$agent" bun -e '
-        const { readFileSync } = await import("node:fs");
-        const doc = Bun.YAML.parse(readFileSync(`${process.env.AGENT}/models.yml`, "utf8"));
-        if (doc.providers.openrouter.apiKey !== "!openrouter-key --personal workstation/OPENROUTER_OMP_HARNESS_API_KEY") throw new Error("wrong OpenRouter command");
+        const doc = Bun.YAML.parse(await Bun.file(`${process.env.AGENT}/config.yml`).text());
+        if (doc.advisor.enabled !== false) throw new Error("automatic advisor enabled");
+      '
+    check "omp OpenRouter personal billing entry" \
+      env -i PATH="$home/.local/bin:$PATH" HOME="$home" AGENT="$agent" bun -e '
+        const doc = Bun.YAML.parse(await Bun.file(`${process.env.AGENT}/models.yml`).text());
+        const command = doc.providers.openrouter.apiKey.slice(1).split(/\s+/);
+        const result = Bun.spawnSync([...command, "--which"], { cwd: process.env.HOME });
+        if (result.exitCode !== 0 || result.stdout.toString().trim() !== "workstation/OPENROUTER_MISTY_STEP_HARNESS_WORKSTATION_DIFF_REVIEW_API_KEY") throw new Error("wrong personal billing entry");
       '
   fi
   # US-026: both routing layers, the silent-sink drop-in, and Claude Code env
@@ -242,12 +250,13 @@ for consumer in pi omp; do
     check "pi continuation-nudge installed load" \
       env -i PATH="$PATH" HOME="$home" TMPDIR="$work" \
       bun -e "const m = await import('$agent/extensions/continuation-nudge/index.ts'); if (typeof m.registerContinuationNudge !== 'function') throw new Error('missing registerContinuationNudge export');"
+    check "pi diff-review installed load" \
+      env -i PATH="$PATH" HOME="$home" TMPDIR="$work" \
+      bun -e "const m = await import('$agent/extensions/diff-review/index.ts'); if (typeof m.default !== 'function') throw new Error('missing diff-review register export');"
   else
     check "omp continuation-nudge retired" test ! -e "$agent/extensions/continuation-nudge"
+    check "omp diff-review retired" test ! -e "$agent/extensions/diff-review"
   fi
-  check "$consumer diff-review installed load" \
-    env -i PATH="$PATH" HOME="$home" TMPDIR="$work" \
-    bun -e "const m = await import('$agent/extensions/diff-review/index.ts'); if (typeof m.default !== 'function') throw new Error('missing diff-review register export');"
 done
 if [ "$failures" -ne 0 ]; then
   printf 'FAIL: %s invariant(s); disposable clone removed on exit\n' "$failures" >&2
