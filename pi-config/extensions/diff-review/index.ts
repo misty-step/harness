@@ -11,7 +11,10 @@ const OUTCOME_JOB = "pi-diff-review";
 function recordOutcome(ctx: ExtensionContext, cause: string | null, detail?: string): void {
 	const args = ["record", OUTCOME_JOB, ...(cause ? ["--fail", cause, ...(detail ? ["--detail", detail.slice(0, 500)] : [])] : ["--ok"])];
 	execFile("outcome", args, (error) => {
-		if (error && ctx.hasUI) ctx.ui.notify(`diff-review: outcome recorder failed (${error.message}); this run is unreported`, "error");
+		if (!error) return;
+		const message = `diff-review: outcome recorder failed (${error.message}); this run is unreported`;
+		console.error(message);
+		if (ctx.hasUI) ctx.ui.notify(message, "error");
 	});
 }
 
