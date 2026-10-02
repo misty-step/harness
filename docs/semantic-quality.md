@@ -45,8 +45,9 @@ Each rule returns one status:
 - `abstained`: required context was missing, truncated, or outside a bound.
 - `unavailable`: transport, quota, timeout, parser, or typed-answer validation failed.
 
-The CLI exits zero for advisory outcomes. Invalid invocation exits two. Provider
-failure never becomes `no_finding`.
+The CLI exits zero for advisory outcomes and three when the provider was unavailable:
+an unavailable run is a failed run of the checker, reported as one. Invalid invocation
+exits two. Provider failure never becomes `no_finding`.
 
 ## Foundation assessment pilot
 

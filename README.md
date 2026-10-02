@@ -31,8 +31,10 @@ Bootstrap requires Git, gitleaks, trufflehog, and Python 3 and wires the tracked
 root hooks. Pre-commit blocks staged secrets with gitleaks, then runs advisory
 semantic test-evidence checks when Bun is available (`JEV_HOOK_OFF=1` skips only
 that advice). Pre-push retains blocking gitleaks/trufflehog scans, outgoing diff
-review, and advisory semantic checks. Bootstrap installs no dependencies and
-deploys no agent configuration.
+review, and advisory semantic checks. Advisory checks read keys from `.env.pass`
+and never block, but each records its run through `outcome record`; one that
+could not run is a failed run that reaches Kaylee's alert triage (ADR-009).
+Bootstrap installs no dependencies and deploys no agent configuration.
 Verification requires Bun 1.4.2 or later, Git, jq, and Python 3 (root scanner and shared gallery checks). Tests use synthetic
 credentials and isolated destinations; no provider tokens or model calls are needed.
 Keep the component directories as siblings. `AGENT_CONFIG_DIR` is an advanced
