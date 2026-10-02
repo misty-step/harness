@@ -50,7 +50,7 @@ export default function auditTool(pi: ExtensionAPI): void {
 		name: "audit_file",
 		label: "File audit gap",
 		description:
-			"Record one finding for this audit; the launcher files it after the audit ends. action=file is a gap; action=adopt names an existing open ticket (ticket=ID) that already owns it; action=propose suggests a doctrine change to Phaedrus. No cap: call once per gap. A tool error means nothing was recorded: fix the request and call again.",
+			"Record one finding for this audit; the launcher files it after the audit ends. action=file is a gap; action=adopt names an existing open ticket (ticket=ID) that already owns it; action=propose suggests a doctrine change to Phaedrus. Every finding carries a complete ticket (nature, scope_in, scope_out, done, victory) so the queue can launch it as written. No cap: call once per gap. A tool error means nothing was recorded: fix the request and call again.",
 		loadMode: "essential",
 		parameters: z.object({
 			action: z.enum(["file", "adopt", "propose"]),
@@ -60,6 +60,15 @@ export default function auditTool(pi: ExtensionAPI): void {
 			body: z.string().min(20).max(6000).describe("The gap, evidence with links, and Done when"),
 			priority: z.enum(["urgent", "high", "normal", "low"]),
 			ticket: z.string().max(60).optional().describe("Existing ticket id, required for adopt"),
+			nature: z.enum(["build", "fix", "research", "design", "visual", "communications", "sysadmin", "review"]).describe("The kind of work that closes the gap"),
+			scope_in: z.array(z.string().min(1).max(160)).min(1).max(8).describe("What the work covers, one plain line each"),
+			scope_out: z.array(z.string().min(1).max(160)).min(1).max(8).describe("What the work must not touch, one plain line each"),
+			done: z
+				.array(z.object({ check: z.string().min(1).max(200), proof: z.string().min(1).max(200) }))
+				.min(1)
+				.max(10)
+				.describe("What must be true, each with its proof: a command, URL or observation an engineer can show"),
+			victory: z.string().min(1).max(300).describe("The one outcome that matters if everything else is forgotten, in one sentence"),
 		}),
 		async execute(_toolCallId, params) {
 			const outcome = fileRequest(filer, context, params as Request);

@@ -52,6 +52,17 @@ constitution says, without any declaration in the repository.
 - Title: `<repository>: <the outcome, in plain words>`, at most 120 characters.
   Body: the gap in one or two sentences, the evidence with links, and an
   observable "Done when". No preamble.
+- Every finding carries a complete ticket, so the queue can launch an engineer
+  on it exactly as written. Write it from your evidence; nobody re-specifies it.
+  - `nature`: the work that closes the gap: build, fix, research, design,
+    visual, communications, sysadmin or review.
+  - `scope_in`: what the work covers. `scope_out`: what it must not touch, so
+    the engineer stays on this gap. One line each, at most 160 characters.
+  - `done`: each thing that must be true, with its `proof`: a command, URL or
+    observation an engineer can show. One line each.
+  - `victory`: the one outcome that matters, in one sentence.
+  - Plain words: no dashes between clauses, and say what a code such as
+    `HA-12` or `#201` is in parentheses after it.
 - Priority:
   - `urgent`: a critical-foundation gap hurting people now, such as a site
     that is down, an exposed secret or critical vulnerability on a live

@@ -18,8 +18,20 @@ MARK = "foundation-gap: foundations/misty-step/chrondle/sentry"
 
 def request(**overrides):
     base = {"action": "file", "gap": "sentry", "area": "F2", "title": "chrondle: production errors reach Sentry",
-            "body": "No Sentry SDK in the code; production failures are silent.", "priority": "high"}
+            "body": "No Sentry SDK in the code; production failures are silent.", "priority": "high",
+            "nature": "build", "scope_in": ["Report production errors from the web app to Sentry"],
+            "scope_out": ["Alert routing beyond Sentry's defaults"],
+            "done": [{"check": "A thrown production error appears in Sentry", "proof": "sentry issue URL for a test error"}],
+            "victory": "A production failure in chrondle is seen the day it happens."}
     return {**base, **overrides}
+
+
+def glass_add(added, item_id="K-20261002-new"):
+    """The board's write: record each `glass item add --body -` request and answer with the new item."""
+    def run(argv, stdin=None, **kw):
+        added.append(json.loads(stdin))
+        return audit.subprocess.CompletedProcess(argv, 0, json.dumps({"changed": True, "item": {"id": item_id}}), "")
+    return patch.object(audit, "run", side_effect=run)
 
 
 def ticket(id_, state, **extra):
@@ -164,15 +176,11 @@ class Filing(unittest.TestCase):
     def test_proposals_keep_the_gap_rules_on_whole_marker_lines(self):
         board = {"items": [{"id": "K-20261002-x", "status": "later", "notes": f"- {MARK}-drill\n\nbody"},
                            {"id": "K-20260901-old", "status": "done", "notes": f"- {MARK}\n\nbody"}]}
-        calls = []
-
-        def glass(argv, **kw):
-            calls.append(argv[2])
-            return board if argv[2] == "list" else {"id": "K-20261002-new"}
+        added = []
         context = json.loads(self.context.read_text())
-        with patch.object(audit, "run_json", side_effect=glass):
+        with patch.object(audit, "run_json", return_value=board), glass_add(added):
             outcome = audit.propose(context, request(action="propose"), MARK)
-        self.assertEqual((outcome["outcome"], outcome["regression_of"], calls), ("proposed", ["K-20260901-old"], ["list", "add"]))
+        self.assertEqual((outcome["outcome"], outcome["regression_of"], len(added)), ("proposed", ["K-20260901-old"], 1))
         self.earlier_run(action="propose", outcome="proposed", ticket="K-20260920-dropped")
         dropped = ticket("K-20260920-dropped", "declined", board=True)
         with patch.object(audit, "run_json", return_value={"items": []}), patch.object(audit, "ticket_state", return_value=dropped):
@@ -185,38 +193,62 @@ class Filing(unittest.TestCase):
         with answer(0, json.dumps(item)):
             state = audit.ticket_state("K-20261001-tach-per-pr-preview")
         self.assertEqual((state["state"], state["board"]), ("open", True))
-        self.assertIsNone(audit.recur(state, request(), {}, NOW))
         with answer(1, '{"error":"no item matches \'K-20261001-x\'"}'):
             self.assertIsNone(audit.ticket_state("K-20261001-x"))
         with answer(75, "", "glass item: the store is locked"), self.assertRaises(audit.Refusal):
             audit.ticket_state("K-20261001-tach-per-pr-preview")
 
-    def test_a_long_finding_keeps_its_marker_within_the_board_notes_limit(self):
-        argv = []
-        context = json.loads(self.context.read_text())
-        long = request(body="Evidence. " * 590)
-        with patch.object(audit, "run_json", side_effect=lambda a, **kw: argv.extend(a) or {"id": "K-20261002-new"}):
-            audit.create("board", "misty-step/chrondle", long, audit.ticket_body(context, long, MARK), context, MARK)
-        notes = argv[argv.index("--notes") + 1]
-        self.assertLessEqual(len(notes), 2000)
-        self.assertTrue(audit.carries(notes, MARK))
-        self.assertIn(str(self.outputs), notes)
+    def test_every_finding_carries_a_complete_ticket(self):
+        for broken in ({"nature": "chores"}, {"scope_out": []}, {"done": [{"check": "Sentry shows it", "proof": ""}]},
+                       {"done": [{"check": "a :: b", "proof": "c"}]}, {"victory": "two\nlines"}):
+            with self.assertRaises(audit.Refusal):
+                audit.validate(request(**broken))
 
-    def test_board_titles_and_whys_explain_codes_and_drop_dashes(self):
-        argv = []
+    def test_a_board_item_lands_with_its_whole_ticket_in_one_write(self):
+        added = []
         context = json.loads(self.context.read_text())
-        coded = request(title="chrondle: close ALR-001 \u2014 the alert rule", body="US-014 (story) fails - see #201.\n\nMore.", priority="urgent")
-        with patch.object(audit, "run_json", side_effect=lambda a, **kw: argv.extend(a) or {"id": "K-20261002-new"}):
+        coded = request(title="chrondle: close ALR-001 \u2014 the alert rule", body="US-014 (story) fails - see #201.\n\nMore.",
+                        priority="urgent", nature="review", victory="ALR-001 never fires silently again",
+                        done=[{"check": "HA-12 is closed", "proof": "habitat get HA-12  --json | jq .status"}])
+        with glass_add(added):
             audit.create("board", "misty-step/chrondle", coded, audit.ticket_body(context, coded, MARK), context, MARK)
-        flag = lambda name: argv[argv.index(name) + 1]
-        self.assertEqual(flag("--title"), "chrondle: close ALR-001 (see notes), the alert rule")
-        self.assertEqual(flag("--why"), "US-014 (see notes) (story) fails, see #201 (see notes).")
-        self.assertEqual(flag("--status"), "later")
+        body = added[0]
+        self.assertEqual((body["title"], body["status"]), ("chrondle: close ALR-001 (see notes), the alert rule", "later"))
+        self.assertEqual(body["why"]["text"], "US-014 (see notes) (story) fails, see #201 (see notes).")
+        self.assertEqual(body["ticket"]["done"], [{"check": "HA-12 (see notes) is closed", "proof": "habitat get HA-12  --json | jq .status"}])
+        self.assertEqual(body["ticket"]["victory"], "ALR-001 (see notes) never fires silently again")
+        self.assertEqual(body["ticket"]["roster"], [{"provider": "anthropic", "model": "claude-sonnet-5-5", "effort": "high"}])
+        self.assertTrue(audit.carries(body["notes"], MARK))
         for source in ("a" * 150 + " ALR-001 and HA-12", "a" * 140 + " ALR-001"):
             fitted = audit.plain_words(source, 160)
             self.assertLessEqual(len(fitted), 160)
             self.assertEqual(len(audit.BOARD_CODE.findall(fitted)), fitted.count(" (see notes)"))
         self.assertTrue(fitted.endswith("ALR-001 (see notes)"))
+
+    def test_a_long_finding_keeps_its_marker_within_the_board_notes_limit(self):
+        added = []
+        context = json.loads(self.context.read_text())
+        long = request(body="Evidence. " * 590)
+        with glass_add(added):
+            audit.create("board", "misty-step/chrondle", long, audit.ticket_body(context, long, MARK), context, MARK)
+        notes = added[0]["notes"]
+        self.assertLessEqual(len(notes), 2000)
+        self.assertTrue(audit.carries(notes, MARK))
+        self.assertIn(str(self.outputs), notes)
+
+    def test_a_bare_item_this_audit_opened_gets_its_ticket_when_seen_again(self):
+        context = json.loads(self.context.read_text())
+        calls = []
+        cases = {"bare, ours": (True, f"- {MARK}\n\nbody"), "ticketed": (False, f"- {MARK}\n\nbody"), "desk item": (True, "desk notes")}
+        for name, (bare, notes) in cases.items():
+            owner = {"id": f"K-20261002-{name.replace(' ', '').replace(',', '')}", "board": True, "bare": bare, "notes": notes}
+            with patch.object(audit, "run", side_effect=lambda argv, **kw: calls.append(argv)):
+                self.assertIsNone(audit.recur(owner, request(), context, NOW))
+        self.assertEqual([argv[3] for argv in calls], ["K-20261002-bareours"])
+        argv = calls[0]
+        self.assertEqual(argv[:3], ["glass", "ticket", "set"])
+        self.assertIn("A thrown production error appears in Sentry :: sentry issue URL for a test error", argv)
+        self.assertEqual(argv[argv.index("--roster") + 1], "openai-codex/gpt-6.1-sol:xhigh")
 
     def test_a_habitat_climb_sends_the_items_current_revision(self):
         updates = []
@@ -256,13 +288,18 @@ class Routing(unittest.TestCase):
         self.assertEqual(audit.climbed(2, NOW - timedelta(days=90), NOW), 1)
         self.assertEqual(audit.climbed(0, NOW, NOW), 0)
 
-    def test_active_repositories_are_recent_non_archived_projects(self):
+    def test_active_repositories_are_recent_projects_neither_archived_nor_set_aside(self):
         repos = [{"full_name": "misty-step/live", "pushed_at": "2026-09-30T00:00:00Z", "size": 5},
                  {"full_name": "misty-step/stale", "pushed_at": "2026-08-01T00:00:00Z", "size": 5},
                  {"full_name": "misty-step/old", "pushed_at": "2026-09-30T00:00:00Z", "size": 5, "archived": True},
                  {"full_name": "misty-step/empty", "pushed_at": "2026-09-30T00:00:00Z", "size": 0},
-                 {"full_name": "misty-step/kaylee-journal", "pushed_at": "2026-09-30T00:00:00Z", "size": 5}]
-        self.assertEqual([repo["full_name"] for repo in audit.active(repos, NOW)], ["misty-step/live"])
+                 {"full_name": "misty-step/kaylee-journal", "pushed_at": "2026-09-30T00:00:00Z", "size": 5},
+                 {"full_name": "misty-step/estate", "pushed_at": "2026-09-30T00:00:00Z", "size": 5}]
+        with tempfile.TemporaryDirectory() as folder:
+            listed = Path(folder) / "set-aside"
+            listed.write_text("# Repositories Phaedrus has set aside\n\nmisty-step/estate\n")
+            skipped = audit.EXCLUDED | audit.set_aside(listed)
+        self.assertEqual([repo["full_name"] for repo in audit.active(repos, NOW, skipped)], ["misty-step/live"])
 
 
 class Launch(unittest.TestCase):

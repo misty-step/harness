@@ -287,7 +287,10 @@ for observed live denial, private GUI screenshot/click and compatibility checks.
 
 Three weekly audits read every active repository: non-archived, non-empty
 `misty-step` and `r90group` repositories pushed within 30 days, less the
-archive mirror, test fixture and Kaylee journal named in `bin/omp-audit.py`.
+archive mirror, test fixture and Kaylee journal named in `bin/omp-audit.py` and
+the repositories Phaedrus set aside in Glass's list
+(`~/.config/glass/set-aside`). Archive a project on GitHub or set it aside there
+and no audit files work on it again.
 Foundations runs Sunday, Principles Monday and Simplicity Thursday, all at
 01:00. Simplicity replaces Kaylee's nightly deletion pass. The doctrine they
 apply is `agent-config/skills/foundation/constitution.md`.
@@ -324,9 +327,14 @@ Principles and Simplicity skip a repository with no commits since its last
 run, but its open gaps are still carried forward: seen again, and climbing.
 
 Routing is Habitat for R90 and Glass board items for Misty Step, including
-doctrine proposals; there is no Linear path. A finding that cannot be filed is
-kept in `outputs.jsonl` as `stranded`, with its whole request; it fails the
-repository and the run, so the unit's alert fires.
+doctrine proposals; there is no Linear path. Every finding carries a complete
+ticket written by its auditor: nature, scope in and out, done checks with proof
+and a victory. A board item lands with that ticket in the same write, its
+roster the desk's default for its nature; a bare item an audit opened earlier
+gets its ticket when the gap is seen again. Habitat gets the ticket as text in
+the description. A finding that cannot be filed is kept in `outputs.jsonl` as
+`stranded`, with its whole request; it fails the repository and the run, so the
+unit's alert fires.
 `omp-audit refile <run>` files a run's stranded findings without auditing again.
 Each run keeps `manifest.json`, `run.log`, `outputs.jsonl` and every bundle and
 brief under `~/.local/state/omp-audit/runs/<run>/`.
