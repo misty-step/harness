@@ -40,6 +40,8 @@ ORGS = ("misty-step", "r90group")
 ACTIVE_DAYS = 30
 # Not projects: an archive mirror, a test fixture and Kaylee's journal.
 EXCLUDED = frozenset({"misty-step/hermes-agent-archive", "misty-step/hermes-cloud-fixture", "misty-step/kaylee-journal"})
+# Glass's list of repositories Phaedrus set aside: never projects, so never audited. Archived ones GitHub already says.
+SET_ASIDE = Path(os.environ.get("XDG_CONFIG_HOME") or HOME / ".config") / "glass" / "set-aside"
 SHARE = Path(os.environ.get("OMP_AUDIT_HOME", HOME / ".local/share/omp-audit"))
 STATE = Path(os.environ.get("OMP_AUDIT_STATE", HOME / ".local/state/omp-audit"))
 # Not under ~/.cache/tmp: OMP sessions see a private copy of that tree and could not read a checkout there.
@@ -48,6 +50,15 @@ AGENT_DIR = Path(os.environ.get("PI_CODING_AGENT_DIR", HOME / ".omp/agent"))
 HABITAT = os.environ.get("OMP_AUDIT_HABITAT", str(HOME / "development/r90group/bin/habitat"))
 # Subscription routes in preference order; omp-roster checks capacity and the working-engineer cap.
 MODELS = (("openai-codex/gpt-6.1-sol", "high"), ("anthropic/claude-opus-5-5", "high"))
+# Each finding's ticket roster: the desk's default route for its kind of work (Kaylee's engineer-dispatch
+# defaults: implementation on Sol xhigh, design, visual and words on Sonnet xhigh, review on Sonnet high).
+NATURE_ROSTER = {
+    "build": "openai-codex/gpt-6.1-sol:xhigh", "fix": "openai-codex/gpt-6.1-sol:xhigh",
+    "research": "openai-codex/gpt-6.1-sol:xhigh", "sysadmin": "openai-codex/gpt-6.1-sol:xhigh",
+    "design": "anthropic/claude-sonnet-5-5:xhigh", "visual": "anthropic/claude-sonnet-5-5:xhigh",
+    "communications": "anthropic/claude-sonnet-5-5:xhigh", "review": "anthropic/claude-sonnet-5-5:high",
+}
+ROSTER_BY = "omp-audit, desk default for its nature"
 TOOLS = "read,grep,glob,audit_file"
 CONCURRENCY = 6
 AUDITOR_MINUTES = 120
@@ -129,18 +140,23 @@ def gh_pages(path, pages=5):
     return items
 
 
-def active(repositories, moment):
-    """Non-archived, non-empty repositories pushed within ACTIVE_DAYS, less named non-projects."""
+def set_aside(path=SET_ASIDE):
+    lines = Path(path).read_text().splitlines() if Path(path).exists() else []
+    return frozenset(line.strip() for line in lines if line.strip() and not line.strip().startswith("#"))
+
+
+def active(repositories, moment, skipped=EXCLUDED):
+    """Non-archived, non-empty repositories pushed within ACTIVE_DAYS, less non-projects and set-aside ones."""
     since = iso(moment - timedelta(days=ACTIVE_DAYS))
     return sorted(
         (repo for repo in repositories
-         if not repo.get("archived") and repo.get("size", 0) > 0 and repo["full_name"] not in EXCLUDED
+         if not repo.get("archived") and repo.get("size", 0) > 0 and repo["full_name"] not in skipped
          and (repo.get("pushed_at") or "") >= since),
         key=lambda repo: repo["full_name"].lower())
 
 
 def active_repositories():
-    return active([repo for org in ORGS for repo in gh_pages(f"orgs/{org}/repos?type=all", 3)], now())
+    return active([repo for org in ORGS for repo in gh_pages(f"orgs/{org}/repos?type=all", 3)], now(), EXCLUDED | set_aside())
 
 
 # --- Where tickets go ------------------------------------------------------------------------------
@@ -645,7 +661,37 @@ def validate(request):
         raise Refusal("priority must be urgent, high, normal or low")
     if action == "adopt" and not re.match(r"[A-Za-z0-9][A-Za-z0-9._-]{1,59}\Z", str(request.get("ticket", ""))):
         raise Refusal("adopt needs the existing ticket id")
+    return validate_spec(request)
+
+
+def one_line(value, limit):
+    return isinstance(value, str) and 0 < len(value.strip()) <= limit and value.isprintable()
+
+
+def validate_spec(request):
+    """The queue-ready ticket every finding carries, in Glass's shape and limits."""
+    if request.get("nature") not in NATURE_ROSTER:
+        raise Refusal(f"nature must be one of {', '.join(NATURE_ROSTER)}")
+    for field in ("scope_in", "scope_out"):
+        lines = request.get(field)
+        if not isinstance(lines, list) or not 1 <= len(lines) <= 8 or not all(one_line(line, 160) for line in lines):
+            raise Refusal(f"{field} must be 1-8 lines of at most 160 characters")
+    done = request.get("done")
+    if not isinstance(done, list) or not 1 <= len(done) <= 10 or not all(
+            isinstance(item, dict) and one_line(item.get("check"), 200) and " :: " not in item["check"]
+            and one_line(item.get("proof"), 200) for item in done):
+        raise Refusal("done must be 1-10 {check, proof} pairs, each one line of at most 200 characters; a check may not contain ' :: '")
+    if not one_line(request.get("victory"), 300):
+        raise Refusal("victory must be one line of at most 300 characters")
     return request
+
+
+def spec_text(request):
+    """The ticket as text, for a tracker without Glass's ticket fields."""
+    lines = [f"Nature: {request['nature']}", "Scope in:", *(f"- {line}" for line in request["scope_in"]),
+             "Scope out:", *(f"- {line}" for line in request["scope_out"]), "Done when:",
+             *(f"- {item['check']} :: {item['proof']}" for item in request["done"]), f"Victory: {request['victory']}"]
+    return "\n".join(lines) + "\n"
 
 
 def ticket_body(context, request, mark, regression_of=()):
@@ -679,8 +725,10 @@ def habitat_marked(mark):
 
 
 def board_state(item):
+    """An item's state; `bare` means it has no ticket yet."""
     status = item.get("status")
     return {"id": item["id"], "url": None, "board": True, "priority": None, "created": item.get("created_at"),
+            "bare": not item.get("ticket"), "notes": item.get("notes"),
             "state": "done" if status == "done" else "declined" if status == "dropped" else "open"}
 
 
@@ -714,26 +762,61 @@ def plain_words(text, limit):
         text = text[:len(text) - (len(glossed) - limit)].rstrip()
 
 
+def board_ticket(request):
+    """Glass's ticket from the finding: plain words where Glass requires them; a proof stays exactly as written."""
+    provider, route = NATURE_ROSTER[request["nature"]].split("/", 1)
+    model, effort = route.rsplit(":", 1)
+    return {"nature": request["nature"],
+            "scope_in": [plain_words(line, 160) for line in request["scope_in"]],
+            "scope_out": [plain_words(line, 160) for line in request["scope_out"]],
+            "done": [{"check": plain_words(item["check"], 200), "proof": item["proof"].strip()} for item in request["done"]],
+            "victory": plain_words(request["victory"], 300),
+            "roster": [{"provider": provider, "model": model, "effort": effort}], "roster_by": ROSTER_BY}
+
+
 def board_add(context, request, notes, scope, note):
-    """One Glass board item, opened as later: board items carry no priority, and queued work needs a ticket the
-    desk writes. Notes hold 2000 characters: a longer finding keeps its marker header and points at its record."""
+    """One Glass board item with its whole ticket, in one write, so no finding lands bare. It opens as later: the
+    desk ranks and queues it. Notes hold 2000 characters: a longer finding keeps its marker and points at its record."""
     if len(notes) > 2000:
         tail = f"\n\n[cut to fit; the whole finding is in {context['outputs']}]"
         notes = notes[:2000 - len(tail)] + tail
-    why = plain_words(request["body"].strip().split("\n\n", 1)[0], 600)
-    receipt = run_json(["glass", "item", "add", "--title", plain_words(request["title"], 160), "--kind", "task",
-                        "--status", "later", "--scope", scope, "--why", why, "--why-attribution", "quoted",
-                        "--why-source", "omp-audit auditor", "--relaying", "none", "--notes", notes, "--note", note,
-                        "--caller", "omp-audit", "--json"])
-    if not isinstance(receipt, dict) or not receipt.get("id"):
+    body = {"title": plain_words(request["title"], 160), "kind": "task", "status": "later", "scope": scope,
+            "why": {"text": plain_words(request["body"].strip().split("\n\n", 1)[0], 600), "attribution": "quoted",
+                    "source": "omp-audit auditor"},
+            "relaying": "none", "notes": notes, "note": note, "caller": "omp-audit", "ticket": board_ticket(request)}
+    receipt = json.loads(run(["glass", "item", "add", "--body", "-"], stdin=json.dumps(body)).stdout or "null")
+    item = receipt.get("item") if isinstance(receipt, dict) else None
+    if not isinstance(item, dict) or not item.get("id"):
         raise Refusal("the board did not return the new item's id")
-    return receipt["id"]
+    return item["id"]
+
+
+def fill_ticket(owner, request, context):
+    """A bare board item this audit opened gets the finding's ticket; a ticket the desk wrote is never replaced,
+    and an adopted desk item is left alone."""
+    mark = marker(context["audit"], context["repo"], request["gap"])
+    if not (owner.get("bare") and carries(owner.get("notes"), mark) and all(request.get(key) for key in SPEC_FIELDS)):
+        return False
+    ticket = board_ticket(request)
+    route = ticket["roster"][0]
+    argv = ["glass", "ticket", "set", owner["id"], "--relaying", "none", "--nature", ticket["nature"],
+            "--victory", ticket["victory"], "--roster", f"{route['provider']}/{route['model']}:{route['effort']}",
+            "--roster-by", ticket["roster_by"], "--note", f"Ticket from the {context['audit']} audit"]
+    for line in ticket["scope_in"]:
+        argv += ["--scope-in", line]
+    for line in ticket["scope_out"]:
+        argv += ["--scope-out", line]
+    for item in ticket["done"]:
+        argv += ["--done", f"{item['check']} :: {item['proof']}"]
+    run(argv)
+    return True
 
 
 def create(kind, scope, request, body, context, mark):
     rank = PRIORITIES.index(request["priority"])
     if kind == "board":
         return board_add(context, request, body, scope, f"Opened by the {context['audit']} audit, {request['priority']} priority"), None
+    body += "\n" + spec_text(request)
     argv = [HABITAT, "--json", "create", "--type", "task", "--title", request["title"], "--description", body,
             "--priority", HABITAT_PRIORITY[rank], "--tags", f"audit,{context['audit']}",
             "--idempotency-key", "audit-" + hashlib.sha256(f"{mark}|{context['run']}".encode()).hexdigest()[:40]]
@@ -749,8 +832,9 @@ def create(kind, scope, request, body, context, mark):
 
 def recur(ticket, request, context, moment):
     """An open ticket already owns this gap: a Habitat ticket's priority climbs with age. Board items carry no
-    priority; the desk grooms them."""
+    priority (the desk grooms them); a bare one this audit opened gets its ticket."""
     if ticket.get("board"):
+        fill_ticket(ticket, request, context)
         return None
     base = PRIORITIES.index(request["priority"])
     created = datetime.fromisoformat(str(ticket["created"]).replace("Z", "+00:00")) if ticket.get("created") else moment
@@ -767,6 +851,7 @@ def propose(context, request, mark):
     """A doctrine proposal keeps the gap rules, on the board: open is seen again, dropped stays dropped, done regresses."""
     found = owner_states("board", context, mark)
     if found["open"]:
+        fill_ticket(found["open"][0], request, context)
         return {"outcome": "recurrence", "ticket": found["open"][0]["id"]}
     if found["declined"]:
         return {"outcome": "declined", "ticket": found["declined"][0]["id"]}
@@ -778,7 +863,8 @@ def propose(context, request, mark):
 
 # Outcomes whose ticket owns the gap in later runs, including a declined one that must never be refiled.
 OWNING = ("created", "recurrence", "adopted", "carried", "declined", "closed-since", "proposed")
-REQUEST_FIELDS = ("action", "area", "gap", "priority", "title", "body", "ticket")
+REQUEST_FIELDS = ("action", "area", "gap", "priority", "title", "body", "ticket", "nature", "scope_in", "scope_out", "done", "victory")
+SPEC_FIELDS = ("nature", "scope_in", "scope_out", "done", "victory")
 
 
 def read_records(outputs):
