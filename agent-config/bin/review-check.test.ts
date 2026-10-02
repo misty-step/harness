@@ -110,7 +110,11 @@ describe("real headless page", () => {
 			"mouse-transparent.html",
 			`<p data-review="point">Code fixes hold.</p><div style="position:relative"><p data-review="ask">Approve it</p><div style="position:absolute;inset:0;background:#fff;pointer-events:none"></div></div>`,
 		);
-		for (const hidden of [clipped, covered, mouseTransparent]) {
+		const descendant = page(
+			"descendant-overlay.html",
+			`<p data-review="point">Code fixes hold.</p><p data-review="ask" style="position:relative">Approve it<span style="position:absolute;inset:0;background:#fff"></span></p>`,
+		);
+		for (const hidden of [clipped, covered, mouseTransparent, descendant]) {
 			const { code, rules } = rulesFor(hidden);
 			expect(code).toBe(1);
 			expect(rules).toEqual(["ask-not-visible"]);

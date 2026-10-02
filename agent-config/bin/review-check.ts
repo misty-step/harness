@@ -115,13 +115,13 @@ export function evaluate(page: string, measure: Measure, limits: Limits = DEFAUL
 }
 
 /**
- * Runs inside the page. A reader sees an element only if it is what is painted at
- * its points: an ancestor's overflow, text-overflow, or anything laid over it
- * shows something else. That one test judges a marked part (its box and every
- * line of its text) and each word counted on the first screen, grouped under its
- * nearest block-level ancestor. Closed <details> content is not rendered, so it
- * counts for nothing and its marks report as hidden. Returned by value, so it
- * stays plain JSON.
+ * Runs inside the page. A reader sees text only where the browser paints the
+ * element that holds it: an ancestor's overflow, text-overflow or anything laid
+ * over it, a descendant overlay included, puts something else under the word.
+ * That one test judges every word of a marked part and each word counted on the
+ * first screen, grouped under its nearest block-level ancestor. Closed <details>
+ * content is not rendered, so it counts for nothing and its marks report as
+ * hidden. Returned by value, so it stays plain JSON.
  */
 const PAGE_SCRIPT = (pointSelector: string, askSelector: string) => `(async () => {
 	await document.fonts.ready;
@@ -134,33 +134,27 @@ const PAGE_SCRIPT = (pointSelector: string, askSelector: string) => `(async () =
 	const solid = (r) => r.width > 0 && r.height > 0;
 	const onScreen = (r) => solid(r) && r.top < vh && r.bottom > 0 && r.left < vw && r.right > 0;
 	const wholly = (r) => r.top >= -0.5 && r.bottom <= vh + 0.5 && r.left >= -0.5 && r.right <= vw + 0.5;
-	const shows = (el, x, y) => {
-		const hit = document.elementFromPoint(x, y);
-		return hit !== null && el.contains(hit);
+	const textNodes = (root) => {
+		const found = [];
+		const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+		for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+			const parent = node.parentElement;
+			if (parent && hasWord(node.data) && !parent.closest("script,style,noscript,template") && visible(parent)) found.push(node);
+		}
+		return found;
 	};
-	const painted = (el) => {
-		const text = document.createRange();
-		text.selectNodeContents(el);
-		return [...el.getClientRects(), ...text.getClientRects()].filter(solid).every((r) => {
-			const inset = Math.min(2, r.width / 2, r.height / 2);
-			return [
-				[r.left + r.width / 2, r.top + r.height / 2],
-				[r.left + inset, r.top + inset], [r.right - inset, r.top + inset],
-				[r.left + inset, r.bottom - inset], [r.right - inset, r.bottom - inset],
-			].every(([x, y]) => shows(el, x, y));
-		});
+	const ownerOf = (node) => {
+		let owner = node.parentElement;
+		while (owner.parentElement && getComputedStyle(owner).display === "contents") owner = owner.parentElement;
+		return owner;
 	};
-	const box = (el) => {
-		const rect = el.getBoundingClientRect();
-		let shown = visible(el) && solid(rect);
-		if (shown && wholly(rect)) shown = painted(el);
-		return { text: el.textContent || "", visible: shown, top: rect.top, left: rect.left, bottom: rect.bottom, right: rect.right };
-	};
-	const visibleWords = (node, owner) => {
+	const wordsOf = (node) => {
+		const owner = ownerOf(node);
 		const range = document.createRange();
 		range.selectNodeContents(node);
-		if (![...range.getClientRects()].some(onScreen)) return 0;
-		let count = 0;
+		const total = node.data.split(/\\s+/).filter(hasWord).length;
+		if (![...range.getClientRects()].some(onScreen)) return { total, shown: 0 };
+		let shown = 0;
 		for (const match of node.data.matchAll(/\\S+/g)) {
 			if (!hasWord(match[0])) continue;
 			range.setStart(node, match.index);
@@ -168,24 +162,41 @@ const PAGE_SCRIPT = (pointSelector: string, askSelector: string) => `(async () =
 			const [r] = range.getClientRects();
 			if (!r || !solid(r)) continue;
 			const left = Math.max(r.left, 0), right = Math.min(r.right, vw), top = Math.max(r.top, 0), bottom = Math.min(r.bottom, vh);
-			if (left < right && top < bottom && shows(owner, (left + right) / 2, (top + bottom) / 2)) count++;
+			if (left < right && top < bottom && document.elementFromPoint((left + right) / 2, (top + bottom) / 2) === owner) shown++;
 		}
-		return count;
+		return { total, shown };
+	};
+	const boxShown = (el) => [...el.getClientRects()].filter(solid).every((r) => {
+		const inset = Math.min(2, r.width / 2, r.height / 2);
+		return [
+			[r.left + r.width / 2, r.top + r.height / 2],
+			[r.left + inset, r.top + inset], [r.right - inset, r.top + inset],
+			[r.left + inset, r.bottom - inset], [r.right - inset, r.bottom - inset],
+		].every(([x, y]) => {
+			const hit = document.elementFromPoint(x, y);
+			return hit !== null && el.contains(hit);
+		});
+	});
+	const box = (el) => {
+		const rect = el.getBoundingClientRect();
+		let shown = visible(el) && solid(rect);
+		if (shown && wholly(rect)) shown = boxShown(el) && textNodes(el).every((node) => {
+			const { total, shown: seen } = wordsOf(node);
+			return seen === total;
+		});
+		return { text: el.textContent || "", visible: shown, top: rect.top, left: rect.left, bottom: rect.bottom, right: rect.right };
 	};
 	const blocks = new Map();
 	let screenWords = 0;
-	const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
-	for (let node = walker.nextNode(); node; node = walker.nextNode()) {
-		const parent = node.parentElement;
-		if (!parent || !hasWord(node.data) || parent.closest("script,style,noscript,template") || !visible(parent)) continue;
-		const count = visibleWords(node, parent);
-		if (count === 0) continue;
-		let block = parent;
+	for (const node of textNodes(document.body)) {
+		const { shown } = wordsOf(node);
+		if (shown === 0) continue;
+		let block = node.parentElement;
 		while (block.parentElement && /^(inline|contents)/.test(getComputedStyle(block).display)) block = block.parentElement;
-		screenWords += count;
+		screenWords += shown;
 		const entry = blocks.get(block) || { text: "", words: 0 };
 		entry.text += " " + node.data;
-		entry.words += count;
+		entry.words += shown;
 		blocks.set(block, entry);
 	}
 	return {
