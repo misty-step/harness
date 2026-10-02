@@ -309,6 +309,10 @@ the insertion marker:
 `./install` replaces that line with the selected sections, in the order given,
 and leaves the rest of the harness file — its title, intro, and vehicle-specific
 sections — untouched. The marker is required; its absence aborts the deploy.
+
+Technology defaults live once in [shared Engineering guidance](guidance/engineering.md),
+not in each harness intro.
+
 Shared guidance references only knowledge selected by both engineering consumers.
 
 ## What each harness selects
