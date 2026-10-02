@@ -619,6 +619,13 @@ Criteria:
    refuse `--item` together with `--model` or `--thinking`, neither, and a
    `:effort` suffix on `--model`, call no board, and let `check --item adhoc-...`
    judge a session against the recorded route with no board.
+7. WHEN a launch plan has no registered pair whose two OMP sessions are working,
+   THE SYSTEM SHALL report that state and a runnable twin command changing only
+   the planning-prompt variable while retaining the same model, effort, and
+   roster; a live registered pair SHALL suppress the suggestion.
+   Missing, stale, or unreadable pair state SHALL NOT refuse or defer the launch.
+   The launcher SHALL NOT automatically start a twin or edit a ticket roster.
+   A stopped or replaced session SHALL NOT count as a live lane.
 
 No-gos: no cash routes (OpenRouter entries are never launched or used as
 recovery until a per-ticket cash cap exists, and a cash turn is never on the

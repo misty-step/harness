@@ -78,12 +78,16 @@ type Freshness = { degraded: boolean; degraded_reason: string | null; oldest_obs
 type LaunchOptions = { harness?: string; json?: boolean; "ticket-json"?: string; "usage-json"?: string; "state-dir"?: string; "memory-json"?: string };
 type CheckOptions = { "ticket-json"?: string; "state-dir"?: string; since?: string };
 type MemorySnapshot = Record<string, unknown> & { schema_version: 1; ok: true; activated: boolean; admitted: boolean; reservation: false; warnings: string[] };
+type PairOptions = { item?: string; "lane-a"?: string; "lane-b"?: string; variable?: string; clear?: boolean };
 
+const TWIN_PROMPT = "Before editing, write a short implementation plan with a concrete verification step.";
 const USAGE = `Usage:
   omp-roster launch --item ID [--ticket-json FILE] [--usage-json FILE] [--memory-json FILE] [--state-dir DIR] [--harness omp] [--json]
   omp-roster launch --model provider/model --thinking effort [--usage-json FILE] [--memory-json FILE] [--state-dir DIR] [--json]
   omp-roster memory [--json] [--memory-json FILE]
   omp-roster check --item ID --session DIR|FILE... [--ticket-json FILE] [--state-dir DIR] [--since ISO]
+  omp-roster pair --item ID --lane-a PANE --lane-b PANE --variable NAME
+  omp-roster pair --clear
 Memory fixtures are read-only guidance; the actual engineer launch rechecks live containment under lock.
 Exit: 0 done, 1 refused or unreadable input, 2 usage, 3 roster exhausted, 4 turns off the roster or the roster changed, 5 working-engineer limit reached`;
 
@@ -163,7 +167,7 @@ function memoryCommand(options: { json?: boolean; "memory-json"?: string }): num
 	return 0;
 }
 // Session-wide: no workspace filter, no exclusion for the calling engineer.
-function enforceEngineerLimit(): { working: number; limit: number } {
+function enforceEngineerLimit(): { working: number; limit: number; agents: Record<string, unknown>[] } {
 	const configured = process.env.OMP_ROSTER_ENGINEER_LIMIT ?? "18";
 	if (!/^[1-9][0-9]*$/.test(configured) || !Number.isSafeInteger(Number(configured))) {
 		throw new CliError("OMP_ROSTER_ENGINEER_LIMIT must be a positive safe integer.");
@@ -187,7 +191,7 @@ function enforceEngineerLimit(): { working: number; limit: number } {
 	if (working.length >= limit) {
 		throw new CliError(`working-engineer limit reached (${working.length}/${limit}); working: ${working.join(", ")}; queue work on the board.`, FLEET_FULL);
 	}
-	return { working: working.length, limit };
+	return { working: working.length, limit, agents: result.agents as Record<string, unknown>[] };
 }
 
 
@@ -349,6 +353,53 @@ function stateDir(explicit: string | undefined): string {
 // Paste-ready: quote only what the shell would split or expand.
 const shellWord = (value: string) => (/^[A-Za-z0-9_@%+=:,./-]+$/.test(value) ? value : `'${value.replaceAll("'", "'\\''")}'`);
 
+const PAIR_FILE = process.env.OMP_ROSTER_PAIR_FILE ? resolve(process.env.OMP_ROSTER_PAIR_FILE) : join(stateDir(undefined), "pair.json");
+
+function pairCommand(options: PairOptions): number {
+	const path = PAIR_FILE;
+	if (options.clear) {
+		if (options.item || options["lane-a"] || options["lane-b"] || options.variable) throw new CliError("--clear takes no pair fields.", 2);
+		rmSync(path, { force: true });
+	} else {
+		const item = itemOf(options.item);
+		const lanes = [options["lane-a"], options["lane-b"]];
+		if (!lanes.every((lane) => typeof lane === "string" && /^w[A-Za-z0-9]+:p[0-9]+$/.test(lane)) || lanes[0] === lanes[1]) {
+			throw new CliError("A pair needs two distinct Herdr pane ids (--lane-a and --lane-b).", 2);
+		}
+		if (!options.variable || !/^[a-z][a-z0-9-]{0,63}$/.test(options.variable)) throw new CliError("--variable needs one named experimental variable.", 2);
+		const answer = capture("herdr", ["agent", "list"]);
+		const result = isRecord(answer.json) ? answer.json.result : undefined;
+		const agents = isRecord(result) && Array.isArray(result.agents) ? result.agents : [];
+		const bindings = lanes.map((pane) => {
+			const agent = agents.find((value) => isRecord(value) && value.pane_id === pane && value.agent === "omp");
+			const session = isRecord(agent) && isRecord(agent.agent_session) ? agent.agent_session.value : undefined;
+			if (answer.exitCode !== 0 || typeof session !== "string" || !session) throw new CliError(`Cannot bind ${pane} to a live OMP session.`);
+			return { pane_id: pane, session };
+		});
+		writeStateFile(dirname(path), basename(path), `${JSON.stringify({ schema_version: 1, item, lanes: bindings, variable: options.variable, recorded_at: new Date().toISOString() }, null, 2)}\n`);
+	}
+	console.log(path);
+	return 0;
+}
+
+function pairStatus(agents: Record<string, unknown>[]): { status: "live" | "none" | "stale" | "unreadable"; file: string; item?: string; variable?: string } {
+	const file = PAIR_FILE;
+	try {
+		const pair = JSON.parse(readFileSync(file, "utf8"));
+		if (!isRecord(pair) || pair.schema_version !== 1 || typeof pair.item !== "string" ||
+			typeof pair.variable !== "string" || !Array.isArray(pair.lanes) || pair.lanes.length !== 2 ||
+			!pair.lanes.every((lane) => isRecord(lane) && typeof lane.pane_id === "string" && typeof lane.session === "string") ||
+			pair.lanes[0].pane_id === pair.lanes[1].pane_id) {
+			return { status: "unreadable", file };
+		}
+		const live = pair.lanes.every((lane) => agents.some((agent) => agent.pane_id === lane.pane_id && agent.agent === "omp" &&
+			agent.agent_status === "working" && isRecord(agent.agent_session) && agent.agent_session.value === lane.session));
+		return { status: live ? "live" : "stale", file, item: pair.item, variable: pair.variable };
+	} catch (error) {
+		return { status: (error as NodeJS.ErrnoException).code === "ENOENT" ? "none" : "unreadable", file };
+	}
+}
+
 const recordName = (item: string, digest: string) => `${item}.${digest}.launch.json`;
 
 type LaunchRecord = { roster: Entry[]; launched_at: string; at: number; path: string; primaries: Record<string, string> };
@@ -407,7 +458,7 @@ function launchCommand(options: LaunchOptions & { item?: string; model?: string;
 		if (options["ticket-json"] !== undefined) throw new CliError("--ticket-json goes with --item; a launch with --model reads no ticket.", 2);
 		({ item, roster } = adhocRoster(options.model, options.thinking));
 	}
-	const engineerCapacity = enforceEngineerLimit();
+	const { agents, ...engineerCapacity } = enforceEngineerLimit();
 	const memory = memorySnapshot(options["memory-json"]);
 	for (const warning of memory.warnings) console.error(`warning: ${plain(warning)}`);
 	const { rows, freshness } = usageView(options["usage-json"]);
@@ -450,13 +501,22 @@ function launchCommand(options: LaunchOptions & { item?: string; model?: string;
 	// Nested `omp` runs the engineer starts inherit the roster only through the environment.
 	const env = { PI_CONFIG_FILES: overlay };
 	const args = ["--model", key(launch), "--thinking", launch.effort, "--config", overlay];
+	const pair = pairStatus(agents);
+	const twin = pair.status === "live" ? null : {
+		variable: "planning-prompt",
+		command: ["env", `PI_CONFIG_FILES=${overlay}`, "omp", ...args, "--append-system-prompt", TWIN_PROMPT].map(shellWord).join(" "),
+	};
+	if (twin) {
+		console.error(`warning: no A/B pair live (${pair.status}); pair state: ${pair.file}`);
+		console.error(`twin for ${item}; change only ${twin.variable}: ${twin.command}`);
+	}
 	const degraded = route.degraded ?? freshness.degraded_reason;
 	if (route.verdict === "low") console.error(`warning: ${plain(selector(launch))} is low on capacity and may run out soon`);
 	if (degraded) console.error(`warning: the ai-usage reading is degraded: ${degraded}`);
 	if (options.json) {
 		const usage = { ...freshness, degraded: freshness.degraded || route.degraded !== null, degraded_reason: degraded };
 		console.log(JSON.stringify({
-			item, launch: { ...launch, selector: plain(selector(launch)), verdict: route.verdict }, overlay, record, env, args, skipped, roster_sha256: sha, usage, memory, engineer_capacity: engineerCapacity,
+			item, launch: { ...launch, selector: plain(selector(launch)), verdict: route.verdict }, overlay, record, env, args, skipped, roster_sha256: sha, usage, memory, engineer_capacity: engineerCapacity, pair: { ...pair, twin },
 		}, null, 2));
 	} else {
 		for (const skip of skipped) console.error(`skipped ${skipLine(skip)}`);
@@ -722,6 +782,18 @@ function run(argv: string[]): number {
 		});
 		if (values.help) { console.log(USAGE); return 0; }
 		return launchCommand(values);
+	}
+	if (command === "pair") {
+		const { values } = parseArgs({
+			args,
+			options: {
+				item: { type: "string" }, "lane-a": { type: "string" }, "lane-b": { type: "string" },
+				variable: { type: "string" }, clear: { type: "boolean" }, help: { type: "boolean", short: "h" },
+			},
+			strict: true,
+		});
+		if (values.help) { console.log(USAGE); return 0; }
+		return pairCommand(values);
 	}
 	if (command === "memory") {
 		const { values } = parseArgs({
