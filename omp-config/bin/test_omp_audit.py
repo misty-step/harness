@@ -155,17 +155,22 @@ class Filing(unittest.TestCase):
             self.assertEqual(audit.carry_forward(context, "R1"), 1)
         self.assertEqual((recurred, audit.read_records(self.outputs)[0]["outcome"]), (["HA-900"], "carried"))
 
-    def test_proposal_dedupe_matches_whole_marker_lines(self):
-        existing = {"items": [{"id": "K-20261002-x", "status": "later", "notes": f"- {MARK}-drill\n\nbody"}]}
+    def test_proposals_keep_the_gap_rules_on_whole_marker_lines(self):
+        board = {"items": [{"id": "K-20261002-x", "status": "later", "notes": f"- {MARK}-drill\n\nbody"},
+                           {"id": "K-20260901-old", "status": "done", "notes": f"- {MARK}\n\nbody"}]}
         calls = []
 
-        def board(argv, **kw):
+        def glass(argv, **kw):
             calls.append(argv[2])
-            return existing if argv[2] == "list" else {"id": "K-20261002-new"}
+            return board if argv[2] == "list" else {"id": "K-20261002-new"}
         context = json.loads(self.context.read_text())
-        with patch.object(audit, "run_json", side_effect=board):
+        with patch.object(audit, "run_json", side_effect=glass):
             outcome = audit.propose(context, request(action="propose"), MARK)
-        self.assertEqual((outcome["outcome"], calls), ("proposed", ["list", "add"]))
+        self.assertEqual((outcome["outcome"], outcome["regression_of"], calls), ("proposed", ["K-20260901-old"], ["list", "add"]))
+        self.earlier_run(action="propose", outcome="proposed", ticket="K-20260920-dropped")
+        dropped = ticket("K-20260920-dropped", "declined", board=True)
+        with patch.object(audit, "run_json", return_value={"items": []}), patch.object(audit, "ticket_state", return_value=dropped):
+            self.assertEqual(audit.propose(context, request(action="propose"), MARK)["outcome"], "declined")
 
     def test_board_owner_is_read_from_the_board_and_an_outage_is_never_a_missing_owner(self):
         def answer(code, stdout, stderr=""):

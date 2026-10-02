@@ -479,13 +479,11 @@ class Run:
             self.save()
 
     def save(self):
-        gaps = list(current(self.outputs).values())  # One entry per gap: pending, then filed or stranded.
         write_json(self.state / "manifest.json", {
             "run": self.id, "audit": self.audit, "dry_run": self.dry_run, "record_only": self.record_only, "started": iso(self.started),
             "template_sha256": hashlib.sha256(system_prompt(self.audit).encode()).hexdigest(),
             "finished": self.finished, "workspace": self.workspace, "repositories": self.repos,
-            "outputs": {"total": len(gaps), "by_outcome": {key: sum(1 for item in gaps if item.get("outcome") == key)
-                                                           for key in sorted({item.get("outcome") for item in gaps})}}})
+            "outputs": outcome_counts(self.outputs)})
 
 
 def previous_run(audit, repo, before):
@@ -749,16 +747,20 @@ def recur(ticket, request, context, moment):
 
 
 def propose(context, request, mark):
-    found = board_marked(mark)
-    if found:
-        return {"outcome": "recurrence", "ticket": found[0]["id"]}
-    notes = f"- {mark}\n\n{request['body']}"
+    """A doctrine proposal keeps the gap rules, on the board: open is seen again, dropped stays dropped, done regresses."""
+    found = owner_states("board", context, mark)
+    if found["open"]:
+        return {"outcome": "recurrence", "ticket": found["open"][0]["id"]}
+    if found["declined"]:
+        return {"outcome": "declined", "ticket": found["declined"][0]["id"]}
+    regression_of = [ticket["id"] for ticket in found["done"]]
+    notes = ticket_body(context, request, mark, regression_of)
     item = board_add(context, request, notes, "misty-step/harness", "later", f"Doctrine proposal from the {context['audit']} audit")
-    return {"outcome": "proposed", "ticket": item}
+    return {"outcome": "proposed", "ticket": item, "regression_of": regression_of or None}
 
 
 # Outcomes whose ticket owns the gap in later runs, including a declined one that must never be refiled.
-OWNING = ("created", "recurrence", "adopted", "carried", "declined", "closed-since")
+OWNING = ("created", "recurrence", "adopted", "carried", "declined", "closed-since", "proposed")
 REQUEST_FIELDS = ("action", "area", "gap", "priority", "title", "body", "ticket")
 
 
@@ -814,18 +816,22 @@ def owners(kind, mark, runs):
     return found
 
 
-def file_gap(context, request, mark, moment):
-    """Open owner: recurrence. Declined (cancelled, duplicate, closed): no write. Done: a regression gets a new one."""
-    kind, scope = destination(context["repo"])
+def owner_states(kind, context, mark):
+    """The gap's owners by state: open, declined (cancelled, dropped, closed) and done."""
     found = owners(kind, mark, Path(context["outputs"]).parent.parent)
-    current = [ticket for ticket in found if ticket["state"] == "open"]
-    if current:
-        raised = recur(current[0], request, context, moment)
-        return {"outcome": "recurrence", "ticket": current[0]["id"], "url": current[0].get("url"), "raised_to": raised}
-    declined = [ticket["id"] for ticket in found if ticket["state"] == "declined"]
-    if declined:
-        return {"outcome": "declined", "ticket": declined[0]}
-    regression_of = [ticket["id"] for ticket in found if ticket["state"] == "done"]
+    return {state: [ticket for ticket in found if ticket["state"] == state] for state in ("open", "declined", "done")}
+
+
+def file_gap(context, request, mark, moment):
+    """Open owner: recurrence. Declined: no write. Done: a regression gets a new one."""
+    kind, scope = destination(context["repo"])
+    found = owner_states(kind, context, mark)
+    if found["open"]:
+        owner = found["open"][0]
+        return {"outcome": "recurrence", "ticket": owner["id"], "url": owner.get("url"), "raised_to": recur(owner, request, context, moment)}
+    if found["declined"]:
+        return {"outcome": "declined", "ticket": found["declined"][0]["id"]}
+    regression_of = [ticket["id"] for ticket in found["done"]]
     ticket, url = create(kind, scope, request, ticket_body(context, request, mark, regression_of), context, mark)
     return {"outcome": "created", "ticket": ticket, "url": url, "tracker": kind, "regression_of": regression_of or None}
 
@@ -841,12 +847,11 @@ def adopt(context, request, mark, moment):
 
 
 def carry(context, request, mark, moment):
-    current = [ticket for ticket in owners(destination(context["repo"])[0], mark, Path(context["outputs"]).parent.parent)
-               if ticket["state"] == "open"]
-    if not current:
+    current_ = owner_states(destination(context["repo"])[0], context, mark)["open"]
+    if not current_:
         return {"outcome": "closed-since", "ticket": request.get("ticket")}
-    return {"outcome": "carried", "ticket": current[0]["id"], "url": current[0].get("url"),
-            "raised_to": recur(current[0], request, context, moment)}
+    return {"outcome": "carried", "ticket": current_[0]["id"], "url": current_[0].get("url"),
+            "raised_to": recur(current_[0], request, context, moment)}
 
 
 @contextlib.contextmanager
@@ -890,6 +895,12 @@ def stranded_count(outputs, repo=None):
                if item.get("outcome") == "stranded" and repo in (None, owner))
 
 
+def outcome_counts(outputs):
+    gaps = list(current(outputs).values())  # One entry per gap: pending, then filed or stranded.
+    return {"total": len(gaps), "by_outcome": {key: sum(1 for item in gaps if item.get("outcome") == key)
+                                               for key in sorted({item.get("outcome") for item in gaps})}}
+
+
 def deliver_run(outputs, repo=None):
     """Deliver a run's pending and stranded findings (all repositories, or one). Returns the counts by outcome."""
     counts = {}
@@ -907,7 +918,7 @@ def carry_forward(context, previous_run):
     runs = Path(context["outputs"]).parent.parent
     owned = {}
     for item in prior_records(runs, audit=context["audit"], repo=context["repo"], run=previous_run):
-        if item.get("outcome") in OWNING and item.get("ticket") and not item.get("record_only"):
+        if item.get("outcome") in OWNING and item.get("ticket") and not item.get("record_only") and item.get("action") != "propose":
             owned[item["marker"]] = item
     carried = 0
     for mark, item in owned.items():
@@ -941,6 +952,9 @@ def refile_command(run_id, repo=None):
         raise Refusal(f"no outputs for run {run_id} under {STATE / 'runs'}")
     counts = deliver_run(outputs, repo)
     stranded = stranded_count(outputs, repo)
+    manifest = outputs.parent / "manifest.json"
+    if manifest.exists():  # Keep the run's summary describing each gap's current outcome.
+        write_json(manifest, {**json.loads(manifest.read_text()), "outputs": outcome_counts(outputs)})
     print(json.dumps({"run": run_id, "delivered": counts, "still_stranded": stranded}, sort_keys=True))
     return 1 if stranded else 0
 
