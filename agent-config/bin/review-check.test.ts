@@ -144,7 +144,11 @@ describe("real headless page", () => {
 			"past-window.html",
 			`<p data-review="point">Code fixes hold.</p><p data-review="ask" style="position:fixed;left:1220px;top:100px;width:60px;font:20px/24px monospace;white-space:nowrap">Approve</p>`,
 		);
-		for (const cut of [hair, pastWindow]) {
+		const wrapped = page(
+			"wrapped-word.html",
+			`<p data-review="point">Code fixes hold.</p><p data-review="ask" style="font:20px/24px monospace;width:60px;height:24px;overflow:hidden;overflow-wrap:anywhere">Approve-the-idle-engineer-rule</p>`,
+		);
+		for (const cut of [hair, pastWindow, wrapped]) {
 			const { code, rules } = rulesFor(cut);
 			expect(code).toBe(1);
 			expect(rules).toEqual(["ask-not-visible"]);

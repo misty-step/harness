@@ -156,6 +156,10 @@ const PAGE_SCRIPT = (pointSelector: string, askSelector: string) => `(async () =
 		const xs = [left + dx, (left + right) / 2, right - dx], ys = [top + dy, (top + bottom) / 2, bottom - dy];
 		return xs.flatMap((x) => ys.map((y) => [x, y]));
 	};
+	const painted = (r, owner) => {
+		const left = Math.max(r.left, 0), right = Math.min(r.right, vw), top = Math.max(r.top, 0), bottom = Math.min(r.bottom, vh);
+		return left < right && top < bottom && probes(left, top, right, bottom).every(([x, y]) => document.elementFromPoint(x, y) === owner);
+	};
 	const wordsOf = (node, whole = false) => {
 		const owner = ownerOf(node);
 		const range = document.createRange();
@@ -167,10 +171,10 @@ const PAGE_SCRIPT = (pointSelector: string, askSelector: string) => `(async () =
 			if (!hasWord(match[0])) continue;
 			range.setStart(node, match.index);
 			range.setEnd(node, match.index + match[0].length);
-			const [r] = range.getClientRects();
-			if (!r || !solid(r) || (whole && !wholly(r))) continue;
-			const left = Math.max(r.left, 0), right = Math.min(r.right, vw), top = Math.max(r.top, 0), bottom = Math.min(r.bottom, vh);
-			if (left < right && top < bottom && probes(left, top, right, bottom).every(([x, y]) => document.elementFromPoint(x, y) === owner)) shown++;
+			// A long word can wrap into several fragments; each one the reader needs must be painted.
+			const pieces = [...range.getClientRects()].filter(solid);
+			const judged = whole ? pieces : pieces.filter(onScreen);
+			if (judged.length > 0 && judged.every((r) => (!whole || wholly(r)) && painted(r, owner))) shown++;
 		}
 		return { total, shown };
 	};
