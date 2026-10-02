@@ -19,6 +19,11 @@ Intent: [USER_STORIES.md](USER_STORIES.md). Vocabulary, boundaries and
 invariants: [DOMAIN.md](DOMAIN.md). Decisions: [docs/adr/](docs/adr/). Agent
 rules: [AGENTS.md](AGENTS.md).
 
+Approved reversible groundwork: [summon revised design](docs/design/multi-harness-r2.html)
+and [source-only dispatch contract](agent-config/candidates/summon/README.md).
+Native adapters and durable local task state change no installed runtime or
+dispatch defaults. Private lab publication and matched evals remain separate.
+
 ## Setup
 
 ```sh

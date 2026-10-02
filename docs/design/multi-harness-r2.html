@@ -1,0 +1,412 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="light">
+<meta name="robots" content="noindex,nofollow">
+<link rel="icon" href="data:,">
+<title>summon: revised dispatch design, round 2</title>
+<style>
+:root{
+	--ink:#1b2d40;--muted:#4a5e73;--line:#cbd6e0;--page:#f3f6f9;--paper:#fff;--wash:#e9eff5;
+	--core:#15385a;--core-soft:#cfdfee;--core-line:rgba(255,255,255,.22);
+	--ok:#155a39;--ok-bg:#dff0e6;--wait:#674600;--wait-bg:#fbeecf;
+	--link:#1c4f8c;--guard:#2a6a60;--guard-bg:#e3efec;--note:#8a6100;--note-bg:#fdf6e3
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
+body{margin:0;background:var(--page);color:var(--ink);font:14px/1.45 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+main{max-width:1240px;margin:0 auto;padding:16px 28px 18px}
+h1,h2,h3,p,ul,ol{margin:0}
+ul,ol{padding:0;list-style:none}
+strong{font-weight:680}
+a{color:var(--link);text-underline-offset:3px}
+a:hover{text-decoration-thickness:2px}
+a:focus-visible,summary:focus-visible,.scroll:focus-visible{outline:3px solid var(--link);outline-offset:3px;border-radius:3px}
+code{font:.92em/1.4 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;overflow-wrap:anywhere}
+.sr-only{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
+
+.top{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:28px;align-items:end;margin-bottom:12px}
+h1{font-size:28px;line-height:1.15;letter-spacing:-.4px}
+.lede{margin-top:5px;font-size:15px;color:var(--muted)}
+.round{font-size:12.5px;line-height:1.45;color:var(--muted);text-align:right}
+.round strong{display:block;color:var(--ink);font-size:13.5px}
+
+.design{display:grid;grid-template-columns:minmax(0,2fr) minmax(0,1fr);gap:14px}
+.core{background:var(--core);color:#fff;border-radius:10px;padding:11px 18px 12px}
+.core-head{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 14px;padding-bottom:8px;border-bottom:1px solid var(--core-line)}
+.core-head h2{font-size:21px;letter-spacing:-.2px}
+.core-head p{font-size:13px;color:var(--core-soft)}
+.core-row{display:grid;grid-template-columns:9.6em minmax(0,1fr);gap:16px;padding:7px 0;border-bottom:1px solid var(--core-line)}
+.core-row:last-child{border-bottom:0;padding-bottom:0}
+.core-row h3{font-size:14.5px;line-height:1.3}
+.core-row p{font-size:13px;color:var(--core-soft)}
+.core-row p strong{color:#fff}
+.track{display:flex;flex-wrap:wrap;align-items:center;row-gap:4px;margin-bottom:5px}
+.track li{display:flex;align-items:center;font-size:12.5px;font-weight:650}
+.track li+li::before{content:"";width:6px;height:6px;border-top:1.5px solid var(--core-soft);border-right:1.5px solid var(--core-soft);transform:rotate(45deg);margin:0 10px 0 7px}
+.state{display:inline-block;padding:0 8px;border:1px solid rgba(255,255,255,.55);border-radius:999px;line-height:1.55;white-space:nowrap}
+.state.final{background:#d9f0e2;border-color:#d9f0e2;color:#12482d}
+.state.risk{background:#f7d98c;border-color:#f7d98c;color:#3a2900;font-size:12.5px;font-weight:650}
+
+.lanes{display:flex;flex-direction:column;background:var(--paper);border:1px solid var(--line);border-radius:10px;padding:12px 16px}
+.lanes h2,.progress h2{font-size:16px;line-height:1.3}
+.sub{font-size:12.5px;color:var(--muted)}
+.lanes ul{margin-top:6px}
+.lanes li{display:grid;grid-template-columns:7.6em minmax(0,1fr);gap:12px;padding:7px 0;border-top:1px solid var(--line)}
+.provider{font-size:12.5px;font-weight:620;line-height:1.35;color:var(--muted)}
+.harness{font-size:16.5px;font-weight:720;line-height:1.3}
+.lane-note{font-size:12.5px;color:var(--muted)}
+.lanes .aside{margin-top:auto;padding-top:7px;border-top:1px solid var(--line);font-size:12.5px;color:var(--muted)}
+.chip{display:inline-block;padding:0 7px;border-radius:999px;font-size:12px;font-weight:650;line-height:1.55;white-space:nowrap;vertical-align:1px}
+.chip.ok{background:var(--ok-bg);color:var(--ok)}
+.chip.wait{background:var(--wait-bg);color:var(--wait)}
+
+.progress{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,.85fr);margin-top:14px;background:var(--paper);border:1px solid var(--line);border-radius:10px}
+.progress>section{padding:11px 16px 12px;min-width:0}
+.progress>section+section{border-left:1px solid var(--line)}
+.progress .sub{margin:1px 0 6px}
+.built li{display:grid;grid-template-columns:7.6em minmax(0,1fr);gap:10px;align-items:baseline;padding:2px 0;font-size:13px}
+.built .chip{justify-self:start}
+.next{list-style:decimal;padding-left:1.35em}
+.next li{padding:2px 0 2px 3px;font-size:13px}
+.next li::marker{color:var(--core);font-weight:700}
+
+.guard{margin-top:12px;padding:7px 14px;border-left:4px solid var(--guard);background:var(--guard-bg);font-size:13.5px}
+.guard strong{color:#163e38}
+
+.more{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px 10px;margin-top:12px}
+details{min-width:0;background:var(--paper);border:1px solid var(--line);border-radius:8px}
+details[open]{grid-column:1/-1}
+summary{cursor:pointer;padding:8px 12px;font-size:13.5px;font-weight:650;line-height:1.3}
+summary::marker{color:var(--core)}
+details[open] summary{border-bottom:1px solid var(--line);font-size:15px}
+.detail{max-width:1100px;padding:14px 20px 18px;font-size:14px}
+.detail>*+*{margin-top:10px}
+.detail h3{margin-top:18px;font-size:15px}
+.detail>:first-child{margin-top:0}
+.proof-table tbody th{width:23%}
+.detail ul{list-style:disc;padding-left:20px}
+.detail ol{list-style:decimal;padding-left:24px}
+.detail li+li{margin-top:5px}
+.scroll{max-width:100%;overflow-x:auto}
+.scroll table{width:100%;border-collapse:collapse;font-size:13.5px}
+.detail .table-label{margin-top:14px;font-size:12.5px;color:var(--muted)}
+.detail .table-label+.scroll{margin-top:5px}
+.detail .table-label:first-child{margin-top:0}
+th,td{padding:7px 9px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
+thead th{background:var(--wash);font-size:12.5px}
+tbody th{font-weight:650}
+.warn-note{padding:9px 12px;border-left:3px solid var(--note);background:var(--note-bg)}
+.sources li{color:var(--muted)}
+footer{display:flex;justify-content:space-between;gap:16px;margin-top:10px;font-size:12px;color:var(--muted)}
+footer p{overflow-wrap:anywhere}
+
+@media (min-width:1000px) and (max-height:820px){
+	main{padding-top:14px;padding-bottom:12px}
+	.top{margin-bottom:10px}
+	.progress,.guard,.more{margin-top:10px}
+}
+@media (max-width:1060px){
+	.design{grid-template-columns:minmax(0,1fr)}
+	.lanes ul{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:0 16px}
+	.lanes li{grid-template-columns:minmax(0,1fr);gap:2px}
+	.lanes .aside{margin-top:6px}
+}
+@media (max-width:860px){
+	main{padding:16px 16px 20px}
+	.top{grid-template-columns:minmax(0,1fr);gap:8px}
+	.round{text-align:left}
+	.round strong{display:inline;margin-right:6px}
+	h1{font-size:25px}
+	.core-row{grid-template-columns:minmax(0,1fr);gap:4px}
+	.progress{grid-template-columns:minmax(0,1fr)}
+	.progress>section+section{border-left:0;border-top:1px solid var(--line)}
+	.more{grid-template-columns:repeat(2,minmax(0,1fr))}
+	.detail{padding:14px 14px 16px}
+	.scroll table{min-width:640px}
+	.scroll tbody th{position:sticky;left:0;z-index:1;width:8.5em;background:var(--paper);box-shadow:inset -1px 0 0 var(--line)}
+	.scroll thead th:first-child{position:sticky;left:0;z-index:1;box-shadow:inset -1px 0 0 var(--line)}
+	footer{display:block}
+	footer p+p{margin-top:4px}
+}
+@media (max-width:600px){
+	h1{font-size:23px}
+	.lede{font-size:14.5px}
+	.core{padding:12px 14px}
+	.lanes ul{grid-template-columns:minmax(0,1fr)}
+	.lanes li{grid-template-columns:7.4em minmax(0,1fr);gap:10px}
+	.built li{grid-template-columns:minmax(0,1fr);gap:2px}
+	.built li+li{margin-top:5px}
+	.more{grid-template-columns:minmax(0,1fr)}
+	summary{padding:10px 12px}
+}
+@media print{
+	body{background:#fff}
+	main{max-width:none;padding:0}
+	.core{print-color-adjust:exact;-webkit-print-color-adjust:exact}
+	.more{display:block}
+	details{margin-top:10px;break-inside:avoid}
+}
+@media print{details::details-content{content-visibility:visible;display:block}}
+</style>
+</head>
+<body>
+<main>
+<header class="top">
+<div>
+<h1>summon: one durable core, each provider’s own harness</h1>
+<p class="lede">Any task, not only code. The task brings its own checks, summon keeps its state, and evals decide which harness earns each lane.</p>
+</div>
+<p class="round"><strong>Revised design, round 2</strong>Local draft for review; nothing deployed.<br>Approved groundwork, not a live cutover.</p>
+</header>
+
+<div class="design">
+<section class="core" aria-labelledby="core-title">
+<div class="core-head">
+<h2 id="core-title">summon core</h2>
+<p>Durable and general purpose: SQLite state, no built-in shell test.</p>
+</div>
+<div class="core-row">
+<h3>Takes any task, once</h3>
+<p>Kind (implementation or research), brief, workspace, route (harness, provider, model, effort), checks and outputs. A repeat returns the same run; a changed task is refused. <strong>Glass is optional provenance</strong>, never the task’s identity.</p>
+</div>
+<div class="core-row">
+<h3>Steers once per request</h3>
+<div>
+<ol class="track" role="list" aria-label="Delivery states in order">
+<li><span class="state">queued</span></li>
+<li><span class="state">dispatching</span></li>
+<li><span class="state">acknowledged</span></li>
+<li><span class="state">answered</span></li>
+</ol>
+<p>Same request ID and words return the first outcome. Queued is not acknowledged. If a crash leaves delivery unknown, the request is <span class="state risk">uncertain</span> and never resent automatically.</p>
+</div>
+</div>
+<div class="core-row">
+<h3>Finishes on the task’s checks</h3>
+<div>
+<ol class="track" role="list" aria-label="Run states in order">
+<li><span class="state">implementing or researching</span></li>
+<li><span class="state">awaiting review</span></li>
+<li><span class="state final">verified delivery</span></li>
+</ol>
+<p>Every task check must pass for the current delivery; new steering, a changed output or a new commit voids earlier results. Waiting for input, interrupted and stopped stay visible.</p>
+</div>
+</div>
+</section>
+
+<section class="lanes" aria-labelledby="lanes-title">
+<h2 id="lanes-title">Native lanes</h2>
+<p class="sub">Optional adapters; the task picks model and effort.</p>
+<ul role="list">
+<li><p class="provider">Anthropic subscriptions</p><div><p class="harness">Claude Code <span class="chip wait">Signed out</span></p><p class="lane-note">Refuses until you sign in natively.</p></div></li>
+<li><p class="provider">Google subscriptions</p><div><p class="harness">Antigravity CLI <span class="chip wait">Sign-in required</span></p><p class="lane-note">Refuses until you sign in natively.</p></div></li>
+<li><p class="provider">Codex, Grok, Cerebras, OpenRouter</p><div><p class="harness">OMP, unchanged</p><p class="lane-note">Our Pi Durable engine stays in the private lab; not migrated.</p></div></li>
+</ul>
+<p class="aside">One turn at a time in the private screen boundary. An unsupported model or effort, or a paid Anthropic key, is refused.</p>
+</section>
+</div>
+
+<div class="progress">
+<section aria-labelledby="built-title">
+<h2 id="built-title">Built for review</h2>
+<p class="sub">Source only: not merged or installed; no live dispatcher selects it. Status on 2 October 2026.</p>
+<ul class="built" role="list">
+<li id="proof-core"><span class="chip ok">Local pass</span><span>Core + CLI: persistence, steering, checks and fresh review policy tested.</span></li>
+<li id="proof-adapters"><span class="chip wait">Refusal pass</span><span>Actual native commands reached; sign-in refusals, no authenticated turn.</span></li>
+<li id="proof-glass"><span class="chip ok">Local pass</span><span>Frozen Glass intake: independent task ID; why, victory and done retained.</span></li>
+<li id="proof-history"><span class="chip ok">Verified</span><span>Private history: 8 lab commits at 91e75c6, owner-only, local origin only. gitleaks found no leaks, but it holds private run data, so it stays private.</span></li>
+<li id="proof-lab"><span class="chip ok">Passed</span><span>Lab reader check only: status.ts read a fixture while another process held it open.</span></li>
+</ul>
+</section>
+<section aria-labelledby="next-title">
+<h2 id="next-title">Proposed next</h2>
+<p class="sub">Not started. Each step waits on its own approval or prerequisite.</p>
+<ol class="next">
+<li><strong>You sign in</strong> to Claude Code and Antigravity; then a real turn, steer and resume per lane.</li>
+<li><strong>You decide</strong> what history may leave, then a private GitHub repository.</li>
+<li><strong>Matched eval</strong>: frozen eng-vibe@1, same provider, model and effort. A preregistered margin sets the sample size, not 10 or 30 tickets.</li>
+<li><strong>Canary</strong> per provider with OMP as rollback, then delete that OMP glue.</li>
+</ol>
+</section>
+</div>
+
+<p class="guard"><strong>Kaylee stays on Hermes. OMP stays until matched evidence.</strong> No live cutover, install or merge from this page. Engineers never touch your screen.</p>
+
+<section class="more" aria-labelledby="more-title">
+<h2 id="more-title" class="sr-only">Details</h2>
+
+<details id="core-detail">
+<summary>Core contract and failure states</summary>
+<div class="detail">
+<p>summon is the dispatch core, not an engineer persona or a queue. It records what was asked, what was sent and what finished. The native harness does the work and keeps its own transcript.</p>
+<p class="table-label" id="core-cap">Each operation, what it guarantees, and what happens when something goes wrong</p>
+<div class="scroll" role="region" tabindex="0" aria-labelledby="core-cap">
+<table aria-labelledby="core-cap">
+<thead><tr><th scope="col">Operation</th><th scope="col">Guarantee</th><th scope="col">When it goes wrong</th></tr></thead>
+<tbody>
+<tr><th scope="row">Start</th><td>Freezes kind, brief, workspace, route, checks, outputs and optional source; the brief is the first request. The same task again returns its run.</td><td>A changed task under the same ID is refused. At dispatch, an unsupported route or a missing sign-in stops before anything is sent; the request stays queued and the run waits for input.</td></tr>
+<tr><th scope="row">Steer</th><td>Keyed by request ID and words: the same pair returns the first outcome. Each request moves queued, dispatching, acknowledged, answered.</td><td>Changed words under a used ID are refused. Queued is not acknowledged. If a turn may have been delivered, the request turns uncertain and blocks further dispatch; nothing resends it. Only a natively acknowledged request, in its own session, can be reconciled by an explicit receipt.</td></tr>
+<tr><th scope="row">Turns</th><td>One native turn at a time; steering waits for the current turn to end.</td><td>No live interrupt is promised. A turn cut short leaves the run interrupted.</td></tr>
+<tr><th scope="row">Status</th><td>Run state, each request’s delivery state, the native session, and model and usage when the harness reports them.</td><td>Missing counters and identities stay unknown, never zero or guessed.</td></tr>
+<tr><th scope="row">Checks</th><td>Supplied by the task: a command run in the workspace, where exit 0 passes only if the delivery did not change while it ran, or a review criterion.</td><td>No universal shell test and no required Glass read. Verified delivery needs at least one check, and every check passing.</td></tr>
+<tr><th scope="row">Review receipt</th><td>Names run, check, reviewer, verdict, evidence and the delivery digest it judged.</td><td>New steering, a changed output or a new commit changes the digest, so earlier results and receipts stop counting.</td></tr>
+</tbody>
+</table>
+</div>
+<h3>Run states</h3>
+<ul>
+<li><strong>implementing</strong> or <strong>researching</strong>: a request is queued or running; the task’s kind names the state.</li>
+<li><strong>awaiting review</strong>: every request is answered; checks are still pending or blocked, and no check counts until every listed output exists.</li>
+<li><strong>verified delivery</strong>: every check the task supplied passes for the current delivery.</li>
+<li><strong>waiting for input</strong>, <strong>interrupted</strong> and <strong>stopped</strong> show as themselves and never count as delivered.</li>
+</ul>
+<p class="warn-note"><strong>Deduplicated steering is not exactly-once effects.</strong> A request ID stops duplicate steering. It does not make pushes, messages, installs or payments transactional; an uncertain irreversible step needs a person.</p>
+</div>
+</details>
+
+<details id="lanes-detail">
+<summary>Native lanes, sign-in and refusals</summary>
+<div class="detail">
+<p>Provider ownership picks the harness. The task still pins model and effort, and summon refuses rather than substitutes.</p>
+<p class="table-label" id="lanes-cap">What each lane’s help text shows, what is true on this machine today, and what is still unproven</p>
+<div class="scroll" role="region" tabindex="0" aria-labelledby="lanes-cap">
+<table aria-labelledby="lanes-cap">
+<thead><tr><th scope="col">Lane</th><th scope="col">Help text shows</th><th scope="col">Today</th><th scope="col">Still unproven</th></tr></thead>
+<tbody>
+<tr><th scope="row">Claude Code, for Anthropic subscriptions</th><td>Print mode, stream-json in and out, replayed user messages, session ID and resume, model and effort. Read from the installed executable; the shell wrapper writes global mise state, so it is not used.</td><td><code>auth status</code> reports loggedIn false, authMethod none. The adapter refuses.</td><td>Any signed-in turn, steering across turns, resume after a kill, usage reporting.</td></tr>
+<tr><th scope="row">Antigravity CLI, for Google subscriptions</th><td>Print mode, stream-json, conversation resume, model, effort low, medium or high, and sandbox.</td><td><code>agy models</code> reports sign-in required. The adapter refuses.</td><td>The same, plus any acknowledgement before a turn completes.</td></tr>
+<tr><th scope="row">OMP, for Codex, Grok, Cerebras and OpenRouter</th><td>Routes as configured today.</td><td>Unchanged: the default and the rollback.</td><td>No matched comparison yet with our Pi Durable engine, which stays in the private lab.</td></tr>
+</tbody>
+</table>
+</div>
+<ul>
+<li><strong>Refused before anything is sent:</strong> a provider the harness does not serve, an unsupported model or effort, an Anthropic API or Claude Code override variable in the environment, or no native subscription sign-in. Extra usage must remain off; the adapter does not inspect billing or quota settings.</li>
+<li><strong>Route checked every turn:</strong> the model the harness reports must match the task’s route, and Claude must report a subscription sign-in. A mismatch fails the turn.</li>
+<li><strong>Acknowledgement:</strong> Claude Code acknowledges by replaying the exact user message; Antigravity only by completing the turn. Until then the request reads dispatching.</li>
+<li><strong>Private screen:</strong> every turn runs as <code>omp-config/bin/omp-display.py -- COMMAND</code> with a minimal environment: separate user, process, IPC and network namespaces, capabilities dropped, and the host display, desktop bus, SSH agent and browser debugging out of reach. Unsetting variables or passing a flag would not be a boundary.</li>
+<li><strong>Credentials:</strong> nothing is created, borrowed or rotated, and OMP or Pi sign-ins are never copied into these lanes. A signed-in turn needs your own native login.</li>
+</ul>
+</div>
+</details>
+
+<details id="dispatch-detail">
+<summary>Dispatch changes, owners and rollback</summary>
+<div class="detail">
+<p class="table-label" id="dispatch-cap">What changes in dispatch, today versus the proposal; nothing changes before evidence</p>
+<div class="scroll" role="region" tabindex="0" aria-labelledby="dispatch-cap">
+<table aria-labelledby="dispatch-cap">
+<thead><tr><th scope="col">Concern</th><th scope="col">Today</th><th scope="col">With summon, after evidence</th></tr></thead>
+<tbody>
+<tr><th scope="row">Launch</th><td>Kaylee launches an OMP engineer in a herdr pane through omp-roster.</td><td>The commissioner writes a task; summon starts it on the harness its route names. Glass intake is optional.</td></tr>
+<tr><th scope="row">Model choice</th><td>The roster sets a default model by the kind of work.</td><td>The task pins harness, provider, model and effort. An unsupported route is refused, never swapped.</td></tr>
+<tr><th scope="row">Critics</th><td>OMP critics under the cross-family review rule.</td><td>Review is a task check whose receipt names the reviewer and the delivery it judged. Reviewer choice, including cross-family, stays with the commissioner.</td></tr>
+<tr><th scope="row">Autopilot</th><td>Jev autopilot reads fleet state in hermes-config.</td><td>Reads summon status read-only, steers only with a request ID, and never resends an uncertain request.</td></tr>
+<tr><th scope="row">Experiments</th><td>omp-roster runs automatic experiments with verdicts.</td><td>Harness comparisons live in misty-step/evals; the existing experiment journal keeps its history.</td></tr>
+<tr><th scope="row">Screen boundary</th><td>omp-display gives OMP engineers a kernel-enforced private display.</td><td>The same omp-display wraps every native turn.</td></tr>
+<tr><th scope="row">OMP glue</th><td>Roster overlays, pane-input steering and pane-scraping status.</td><td>Removed per provider only after its callers migrate and matched evidence passes. This change deletes none.</td></tr>
+</tbody>
+</table>
+</div>
+<h3>Owners</h3>
+<ul>
+<li><strong>misty-step/harness</strong>, <code>agent-config/candidates/summon</code>: core, command line, Glass intake and native adapters. Source only; no installer or caller selects it.</li>
+<li><strong>Private summon repository</strong>: the lab history and the Pi Durable engine. Owner-only; nothing imported here.</li>
+<li><strong>misty-step/evals</strong>: suites, plans, results and statistics.</li>
+<li><strong>Glass</strong>: queue and tickets. Optional intake only.</li>
+<li><strong>hermes-config</strong>: Kaylee on Hermes, the fleet reader and autopilot. Unchanged.</li>
+<li><strong>omp-config</strong> in misty-step/harness: OMP launch, roster, experiments and omp-display. Unchanged.</li>
+</ul>
+<h3>Rollback</h3>
+<p>Nothing selects summon today, so rollback now means not merging. During a later canary, new starts return to the last proven OMP route, running engineers finish where they are, and sessions and receipts are kept.</p>
+</div>
+</details>
+
+<details id="proof-detail">
+<summary>What the lab proofs show, and what they do not</summary>
+<div class="detail">
+<p>The private lab’s checks are evidence about particular runs. None of them is a general finish line for summon.</p>
+<p class="table-label" id="proof-cap">Each lab proof, what it shows, and what it cannot show</p>
+<div class="scroll" role="region" tabindex="0" aria-labelledby="proof-cap">
+<table class="proof-table" aria-labelledby="proof-cap">
+<thead><tr><th scope="col">Proof</th><th scope="col">Shows</th><th scope="col">Does not show</th></tr></thead>
+<tbody>
+<tr><th scope="row"><code>proof/check-status.ts</code>, passed again on 2 October</th><td>Copies a fixture database, holds it open with a second Pi Durable owner, runs <code>status.ts</code>, and matches conversations, no active tasks, usage and last answer against <code>expected.json</code>.</td><td>Only that the reader stays consistent on one frozen snapshot under a concurrent owner. Not crash recovery, live state changes or status in general.</td></tr>
+<tr><th scope="row"><code>proof/checks/merged-and-installed.sh</code>, hermes-config tickets only</th><td>A pull request from <code>eng/&lt;id&gt;</code> in misty-step/hermes-config merged; <code>gh pr checks</code> passed; the latest review event the engineer logged for that pull request at its head commit starts <code>VERDICT: PASS</code>; some changed path starts <code>tests/</code>; the merge is an ancestor of Kaylee’s installed SHA; changed <code>plugins/kaylee</code> files match the fetched origin/master bytes.</td><td>Reviewer independence or authenticity: the event log is the engineer’s own and editable, the script itself calls it a tripwire rather than a boundary, and cross-family review is not enforced. Test adequacy: a <code>tests/</code> path is not a good test. Tamper resistance. Files outside <code>plugins/kaylee</code>. That origin/master still equals the reviewed merge. Research quality, or done for any other task.</td></tr>
+<tr><th scope="row"><code>proof/kill9.sh</code></th><td>Kills one actual run twice, during a matching bash call and then during the restarted model response; sees systemd restart it and the run carry on to a done event; stops the unit.</td><td>Acceptance or unassisted quality: the engineer logs done for a waiting outcome too. Earlier round receipts, read separately, show that particular tasks passed. Not exactly-once external effects in general.</td></tr>
+<tr><th scope="row">gitleaks history scan</th><td>All 8 commits, about 521 KB: no leaks found.</td>
+<td>It removes nothing. Run databases, event logs, transcripts and a file named token stay in history, so the history is still not safe to publish.</td></tr><!-- design-check: ignore: names an observed file -->
+</tbody>
+</table>
+</div>
+</div>
+</details>
+
+<details id="eval-detail">
+<summary>Matched evals and public benchmarks</summary>
+<div class="detail">
+<p><strong>The question:</strong> what changes when only the harness changes? Nothing below has run; it is the plan.</p>
+<ul>
+<li><strong>Reuse the yardstick.</strong> misty-step/evals already holds the frozen <code>eng-vibe@1</code> suite: six merged harness pull requests replayed from their base, two small (h57, h77), two medium (h21, h26) and two large (h76, h93), each with a withheld code-run oracle. It also holds committed plans, sandboxing, the cash gate, quota guards and paired statistics.</li>
+<li><strong>Same provider, model and effort in both arms.</strong> Record the actual route on every call; a mismatch voids the pair. No fallback, no substitution, no renaming one effort level as another.</li>
+</ul>
+<p class="table-label" id="eval-cap">Proposed matched pairs; none has run</p>
+<div class="scroll" role="region" tabindex="0" aria-labelledby="eval-cap">
+<table aria-labelledby="eval-cap">
+<thead><tr><th scope="col">Provider</th><th scope="col">Arm A</th><th scope="col">Arm B</th><th scope="col">Note</th></tr></thead>
+<tbody>
+<tr><th scope="row">Anthropic</th><td>Claude Code through summon</td><td>OMP</td><td>OMP runs on plan limits; Pi alone cannot, because extra usage stays off.</td></tr>
+<tr><th scope="row">Google</th><td>Antigravity CLI through summon</td><td>OMP</td><td>Same Antigravity model and effort; needs your Antigravity CLI sign-in first.</td></tr>
+<tr><th scope="row">OpenAI Codex</th><td>Our Pi Durable engine</td><td>OMP</td><td>The first run you asked for. The runner still needs a real durable arm.</td></tr>
+</tbody>
+</table>
+</div>
+<h3>What each attempt records</h3>
+<ul>
+<li><strong>Pass rate</strong> on withheld checks, with every void, censored or interrupted attempt shown.</li>
+<li><strong>Hand help:</strong> requests and minutes; an assisted run is never relabelled unassisted.</li>
+<li><strong>Tokens and cost:</strong> missing counters stay unknown, and subscription cash stays separate from list-price value.</li>
+<li><strong>Wall time</strong>, with queue, work and grading kept apart.</li>
+<li><strong>Recovery from kills:</strong> a separate cohort resumes the original attempt and counts lost or duplicate effects.</li>
+</ul>
+<p><strong>Sample size:</strong> preregister the decision margin, then size the run to reach it. No fixed 10- or 30-ticket gate: the six-task pilot proves the measurement works, not that a harness wins. Research routing needs its own frozen suite first; <code>eng-vibe@1</code> is build work only.</p>
+<h3>Public benchmarks worth pulling in after the local pilot</h3>
+<ul class="sources">
+<li><a href="https://huggingface.co/datasets/princeton-nlp/SWE-bench_Verified">SWE-bench Verified</a>: 500 human-validated issue and pull request pairs, graded by each repository’s own tests in Docker, per the <a href="https://www.swebench.com/SWE-bench/guides/evaluation/">official evaluation guide</a>.</li>
+<li><a href="https://github.com/harbor-framework/terminal-bench-2">Terminal-Bench 2.0</a>, run through <a href="https://docs.harborframework.com/getting-started/quick-start">Harbor</a>: terminal tasks in containers, dataset <code>terminal-bench@2.0</code>. Its examples use API keys; our lanes stay subscription only.</li>
+<li>Pin the exact dataset version imported. Leaderboards mix models, prompts, tools and budgets, so they cannot isolate a harness; our own steering and recovery walks cover what they omit.</li>
+</ul>
+</div>
+</details>
+
+<details id="order-detail">
+<summary>Production order and private history</summary>
+<div class="detail">
+<h3>Each step names the failure it prevents</h3>
+<ol>
+<li><strong>Keep summon’s history private and decide what may leave.</strong> Prevents leaking transcripts, run data or credentials by publishing.</li>
+<li><strong>Review and land this source-only core with its canonical check.</strong> Prevents an unreviewed or unbuildable core becoming a dependency.</li>
+<li><strong>Your native sign-in, then one real turn per lane: start, steer, resume and every refusal.</strong> Prevents claiming a lane works from its help text.</li>
+<li><strong>Private screen and resource proof per lane through omp-display.</strong> Prevents an engineer touching your desktop or exhausting the workstation.</li>
+<li><strong>A crash walk at every dispatch boundary.</strong> Prevents lost input, duplicate steering and blind retries.</li>
+<li><strong>Task-supplied checks and review receipts end to end, including a stale receipt.</strong> Prevents self-reported done and approval of work that changed after review.</li>
+<li><strong>The matched eval on the frozen suite, sized to a preregistered margin.</strong> Prevents anecdotal routing and confounded model or effort claims.</li>
+<li><strong>Glass and Kaylee’s fleet reader show summon status, read-only.</strong> Prevents invisible waiting or stuck work.</li>
+<li><strong>Canary one provider at a time with OMP as rollback, then remove that provider’s OMP glue.</strong> Prevents a fleet-wide cutover and retiring OMP before evidence.</li>
+</ol>
+<p>Promotion rests on the preregistered margin and every safety step above, never on a fixed ticket count.</p>
+<h3>Private history</h3>
+<p class="warn-note">The private repository at <code>~/development/misty-step/summon</code> keeps all 8 lab commits, head <code>91e75c60</code>, owner-only with a local lab origin, no hosted remote and no checkout. Its historical tree holds run databases, event logs, transcripts and a file named token. gitleaks found no leaks; that neither removes the data nor makes the history safe to publish. Nothing from it is imported into this public repository. A GitHub repository for summon is a separate approval after an explicit history decision, never a silent rewrite.</p><!-- design-check: ignore: names an observed file -->
+</div>
+</details>
+</section>
+
+<footer>
+<p>Local revised design; round 1 designs A and B stay as history. No measured harness results here: numbers are commits, bytes scanned and suite sizes.</p>
+<p>K-20261002-engineers-run-on-the-right-harness-per-p</p>
+</footer>
+</main>
+</body>
+</html>
