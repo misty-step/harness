@@ -959,13 +959,56 @@ state under its lock; a successful roster preflight never reserves capacity.
    warnings on stderr. The dispatcher exports the variable in the engineer's
    environment so any `omp` the engineer starts from its shell reads the same
    overlay. `--json` prints `{item, launch, overlay, record, env, args, skipped,
-   roster_sha256, usage}`: `launch` carries the entry's `verdict` (`usable` or
+   roster_sha256, usage, pair}`: `launch` carries the entry's `verdict` (`usable` or
    `low`), `env` is `{"PI_CONFIG_FILES": OVERLAY}`, and `usage` is `{degraded,
    degraded_reason, oldest_observation, stale_after_seconds}` from the ai-usage
    view and the launch row (`degraded` is true when either says so). `skipped`
    covers only the entries ranked above the launch entry. A `low` verdict and a
    degraded reading are also printed as `warning:` lines on stderr. Launching does
    not act on either: the roster guarantee does not depend on them.
+
+### A/B visibility (US-046)
+
+Every successful launch plan reports `pair.status` in JSON. Unless both registered
+lanes are currently working OMP sessions, stderr shows `no A/B pair live` and a
+paste-ready twin command for this plan. Plain stdout remains the export line and
+launch arguments. Pair state never refuses a launch, reserves capacity, or starts
+an engineer; missing, stale, and unreadable markers all produce the suggestion.
+The existing roster, usage, memory-containment, and engineer-limit checks are
+unchanged.
+
+The suggested command changes only **planning-prompt**: it appends a short
+implementation-plan instruction, preserving this ticket's model, thinking level,
+overlay, and inherited roster. Run it in a separate worktree with the **same task
+brief and starting commit** as the original lane; the desk decides whether to run
+it. It is not a model or effort comparison and does not edit the ticket.
+
+After both engineers start, register the pair's real Herdr panes and its one
+variable:
+
+```sh
+omp-roster pair --item K-example --lane-a w1:p1 --lane-b w2:p1 --variable planning-prompt
+```
+
+The CLI stores a private, atomic `pair.json` beside the default roster state
+(`$XDG_STATE_HOME/omp-roster/`, else `~/.local/state/omp-roster/`). Each lane binds
+its pane id to its current OMP session identity. Launch reuses its existing Herdr
+snapshot: stopped, missing, non-OMP, or replaced sessions cannot silence the
+warning. A registered live pair may be on any ticket. `--state-dir` redirects
+launch artifacts, **not** this fleet-wide marker. `OMP_ROSTER_PAIR_FILE` overrides
+only the marker path for isolated proof or an explicitly selected shared home.
+
+Keep the pair and verdict in the existing experiment journal. Once the verdict
+is recorded, `omp-roster pair --clear` removes the marker; it does not stop either
+engineer or erase the journal. Glass's distinct missing-pair and missing-verdict
+lights belong to a separate change; this CLI does not claim either board signal.
+
+**Cost:** plans, marker registration, and warnings make no model calls. Nothing
+is automatically twinned. Running the suggested command adds one full engineer
+session against the same subscription route, plus any comparison work the desk
+commissions. Provider quota consumption depends on the task, reasoning, and cache
+usage; no fixed dollar amount or quota percentage is inferred from token counts.
+No System 1 experiment calls or cash-provider routes are added.
 
 `check --item ID --session DIR|FILE... [--ticket-json FILE] [--state-dir DIR] [--since ISO]`
 (`--session` repeatable) reads OMP session JSONL. A file brings its sibling
