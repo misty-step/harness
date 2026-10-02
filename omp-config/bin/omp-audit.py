@@ -761,13 +761,13 @@ def recur(kind, ticket, request, context, moment):
 def propose(context, request, mark, write):
     items = run_json(["glass", "item", "list"])
     for item in (items.get("items") if isinstance(items, dict) else items) or []:
-        if mark in str(item.get("notes") or ""):
+        if carries(item.get("notes"), mark):
             return {"outcome": "recurrence", "ticket": item.get("id")}
     if not write:
         return {"outcome": "would-propose"}
     receipt = run_json(["glass", "item", "add", "--title", request["title"][:160], "--kind", "task", "--status", "later",
                         "--scope", "misty-step/harness", "--why", request["body"][:600], "--why-attribution", "quoted",
-                        "--why-source", f"{context['audit']} auditor", "--notes", f"{mark}\n\n{request['body']}"[:2000],
+                        "--why-source", f"{context['audit']} auditor", "--notes", f"- {mark}\n\n{request['body']}"[:2000],
                         "--note", "Doctrine proposal from an auditor", "--caller", "omp-audit", "--json"])
     return {"outcome": "proposed", "ticket": (receipt.get("item") or receipt).get("id")}
 

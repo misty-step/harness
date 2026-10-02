@@ -145,6 +145,17 @@ class Filing(unittest.TestCase):
         outcome, writes = self.file(request(), [], declined)
         self.assertEqual((outcome["outcome"], writes[0][0]), ("created", "create"))
 
+    def test_proposal_dedupe_matches_whole_markers_only(self):
+        existing = {"items": [{"id": "K-20261002-x", "notes": "- foundation-gap: foundations/misty-step/chrondle/restore-drill\n\nbody"}]}
+        calls = []
+        def board(argv, **kw):
+            calls.append(argv[2])
+            return existing if argv[2] == "list" else {"item": {"id": "K-20261002-new"}}
+        context = json.loads(self.context.read_text())
+        with patch.object(audit, "run_json", side_effect=board):
+            outcome = audit.propose(context, request(action="propose", gap="restore"), "foundation-gap: foundations/misty-step/chrondle/restore", True)
+        self.assertEqual((outcome["outcome"], calls), ("proposed", ["list", "add"]))
+
 
 class Routing(unittest.TestCase):
     def test_trackers(self):
