@@ -828,7 +828,7 @@ def owners(kind, mark, runs):
     seen = {ticket["id"] for ticket in found}
     for item in prior_records(runs, marker_=mark):
         ticket = item.get("ticket")
-        if item.get("outcome") in OWNING and ticket and ticket not in seen:
+        if item.get("outcome") in OWNING and ticket and ticket not in seen and not item.get("record_only"):
             seen.add(ticket)
             state = ticket_state(kind, ticket)
             if state:
@@ -864,7 +864,8 @@ def locked_outcome(context, mark, fields, compute):
         if repeat:
             return repeat, True
         record = {"at": iso(now()), "run": context["run"], "audit": context["audit"], "repo": context["repo"],
-                  "commit": context["commit"], "marker": mark, **fields, **compute()}
+                  "commit": context["commit"], "marker": mark, "record_only": bool(context.get("record_only")),
+                  **fields, **compute()}
         with outputs.open("a") as handle:
             handle.write(json.dumps(record, sort_keys=True) + "\n")
         return record, False
@@ -876,7 +877,7 @@ def carry_forward(context, previous_run):
     kind, _ = destination(context["repo"])
     latest = {}
     for item in prior_records(runs, audit=context["audit"], repo=context["repo"], run=previous_run):
-        if item.get("outcome") in OWNING and item.get("ticket"):
+        if item.get("outcome") in OWNING and item.get("ticket") and not item.get("record_only"):
             latest[item["marker"]] = item
     carried = 0
     for mark, item in latest.items():

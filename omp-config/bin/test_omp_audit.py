@@ -139,6 +139,12 @@ class Filing(unittest.TestCase):
         self.assertEqual((state["state"], state["board"], calls), ("open", True, ["glass"]))
         self.assertIsNone(audit.recur("habitat", state, request(), {}, NOW))
 
+    def test_a_record_only_adoption_never_owns_a_live_gap(self):
+        self.earlier_run(action="adopt", outcome="adopted", ticket="MIS-171", record_only=True)
+        declined = {"MIS-171": {"id": "MIS-171", "uuid": "u", "url": None, "state": "declined", "priority": None, "created": None}}
+        outcome, writes = self.file(request(), [], declined)
+        self.assertEqual((outcome["outcome"], writes[0][0]), ("created", "create"))
+
 
 class Routing(unittest.TestCase):
     def test_trackers(self):
