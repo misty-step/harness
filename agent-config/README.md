@@ -4,7 +4,7 @@ Shared, harness-neutral agent primitives for the Misty Step harnesses. It is the
 base layer under `pi-config` and
 `omp-config`: portable skills, shared
 global guidance, and the `pass-env` secret launcher live here once, and each
-harness declares which primitives it selects. `design-check` and the
+harness declares which primitives it selects. `design-check`, `review-check` and the
 `openrouter-key` directory-aware credential launcher deploy on the same contract.
 
 A primitive belongs here only if it is harness-neutral and either duplicated
@@ -28,6 +28,7 @@ harness repo. When in doubt, leave it in the harness.
 | `bin/ws.ts` | Owned exe.dev project workspace launcher: snapshot, task worktrees, remote commands, evidence, browser tunnel (US-025) |
 | `bin/foundation-check.ts` | Repository foundation validator: adoption record, documents, feature map, verify skill, affected stories, walk receipts (US-024) |
 | `bin/design-check.ts` | Standalone player-surface copy checker, installed as `~/.local/bin/design-check` |
+| `bin/review-check.ts` | Standalone headless-Chromium first-screen check for operator review pages: point and every ask above the fold, no dense block; installed as `~/.local/bin/review-check` (US-050) |
 | `bin/semantic-check.ts` | Source candidate for an advisory semantic-quality CLI |
 | `bin/semantic-held-out.ts` | Source-only held-out evaluator for the semantic-quality candidate |
 | `bin/feature-map.ts` | Source-only pilot: Jev-drafted feature map and comparison against a reference `features/` map (ADR-003; not deployed) |
@@ -319,8 +320,8 @@ Shared guidance references only knowledge selected by both engineering consumers
 
 | Harness | Skills | Guidance | Launcher | Audio sandbox |
 | --- | --- | --- | --- | --- |
-| `pi-config` | all | engineering, workstation | `pass-env`, `design-check`, `foundation-check`, `ws` | component `audio-sandbox` |
-| `omp-config` | explicit engineering selection | engineering, workstation | `pass-env`, `openrouter-key`, `design-check`, `foundation-check`, `ws` | component `audio-sandbox` |
+| `pi-config` | all | engineering, workstation | `pass-env`, `design-check`, `foundation-check`, `review-check`, `ws` | component `audio-sandbox` |
+| `omp-config` | explicit engineering selection | engineering, workstation | `pass-env`, `openrouter-key`, `design-check`, `foundation-check`, `review-check`, `ws` | component `audio-sandbox` |
 
 OMP's intro carries its routing/tracker discovery facts; its `OPERATIONS.md`
 holds on-demand details. Pi's file is title and intro. Component `AGENTS.md`
