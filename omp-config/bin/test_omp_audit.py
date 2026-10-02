@@ -13,12 +13,17 @@ spec = importlib.util.spec_from_file_location("omp_audit", Path(__file__).with_n
 audit = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(audit)
 NOW = datetime(2026, 10, 2, 12, tzinfo=timezone.utc)
+MARK = "foundation-gap: foundations/misty-step/chrondle/sentry"
 
 
 def request(**overrides):
     base = {"action": "file", "gap": "sentry", "area": "F2", "title": "chrondle: production errors reach Sentry",
             "body": "No Sentry SDK in the code; production failures are silent.", "priority": "high"}
     return {**base, **overrides}
+
+
+def ticket(id_, state, **extra):
+    return {"id": id_, "url": None, "state": state, "priority": None, "created": "2026-09-01T00:00:00Z", **extra}
 
 
 class Filing(unittest.TestCase):
@@ -38,80 +43,79 @@ class Filing(unittest.TestCase):
                                             "commit": "d5decc776b5045753da23e03a391be6ad72b2fa8", "outputs": str(self.outputs), **extra}))
 
     def earlier_run(self, **record):
-        """An earlier run's outputs, as the filer wrote them."""
+        """An earlier run's outputs, as the launcher wrote them."""
         path = self.runs / "R1" / "outputs.jsonl"
         path.parent.mkdir(parents=True, exist_ok=True)
-        base = {"run": "R1", "audit": "foundations", "repo": "misty-step/chrondle", "gap": "sentry", "area": "F2",
-                "priority": "high", "title": "chrondle: production errors reach Sentry",
-                "marker": "foundation-gap: foundations/misty-step/chrondle/sentry"}
+        base = {"run": "R1", "audit": "foundations", "repo": "misty-step/chrondle", "commit": "abc", "gap": "sentry", "area": "F2",
+                "priority": "high", "title": "chrondle: production errors reach Sentry", "marker": MARK}
         path.write_text(json.dumps({**base, **record}) + "\n")
 
-    def file(self, body, found, states=None):
-        """File one request against a tracker whose marked tickets are `found` and whose other tickets are `states`."""
-        writes = []
-        with patch.object(audit, "linear_marked", return_value=found), \
-             patch.object(audit, "ticket_state", side_effect=lambda kind, ticket: (states or {}).get(ticket)), \
-             patch.object(audit, "create", side_effect=lambda *a: writes.append(("create", a[2]["title"], a[3])) or ("MIS-900", "https://x/MIS-900")), \
-             patch.object(audit, "recur", side_effect=lambda kind, ticket, *a: writes.append(("recur", ticket["id"])) or None), \
+    def record(self, body):
+        """The audit_file tool inside the auditor: it records, and must never reach a tracker."""
+        with patch.object(audit, "marked", side_effect=AssertionError("the auditor reached a tracker")), \
              patch("sys.stdout", new=io.StringIO()):
             audit.file_command(self.context, io.StringIO(json.dumps(body)))
-        lines = [json.loads(line) for line in self.outputs.read_text().splitlines()]
-        return lines[-1] if lines else None, writes
 
-    def test_adopted_ticket_keeps_owning_its_gap_after_it_is_declined(self):
-        self.earlier_run(action="adopt", outcome="adopted", ticket="MIS-171")
-        declined = {"MIS-171": {"id": "MIS-171", "uuid": "u", "url": None, "state": "declined", "priority": None, "created": None}}
-        outcome, writes = self.file(request(), [], declined)
-        self.assertEqual((outcome["outcome"], outcome["ticket"], writes), ("declined", "MIS-171", []))
+    def deliver(self, found=(), states=None, refuse=None):
+        """The launcher's delivery, against a tracker whose marked tickets are `found` and other tickets `states`."""
+        writes = []
 
-    def test_unchanged_repository_carries_open_gaps_forward_without_an_auditor(self):
-        self.earlier_run(action="file", outcome="created", ticket="MIS-900")
-        context = json.loads(self.context.read_text())
-        open_ = {"MIS-900": {"id": "MIS-900", "uuid": "u", "url": None, "state": "open", "priority": 1, "created": "2026-09-01T00:00:00Z"}}
-        recurred = []
-        with patch.object(audit, "linear_marked", return_value=[]), \
-             patch.object(audit, "ticket_state", side_effect=lambda kind, ticket: open_.get(ticket)), \
-             patch.object(audit, "recur", side_effect=lambda kind, ticket, *a: recurred.append(ticket["id"])):
-            self.assertEqual(audit.carry_forward(context, "R1"), 1)
-        self.assertEqual(recurred, ["MIS-900"])
-        self.assertEqual(json.loads(self.outputs.read_text())["outcome"], "carried")
+        def create(kind, scope, req, body, context, mark):
+            if refuse:
+                raise audit.Refusal(refuse)
+            writes.append(("create", kind, scope, body))
+            return "K-20261002-new", None
 
-    def test_new_gap_creates_one_ticket_with_the_trusted_marker(self):
-        outcome, writes = self.file(request(), [])
-        self.assertEqual(outcome["outcome"], "created")
-        self.assertEqual(writes[0][0], "create")
-        self.assertTrue(audit.carries(writes[0][2], "foundation-gap: foundations/misty-step/chrondle/sentry"))
+        with patch.object(audit, "marked", return_value=list(found)), \
+             patch.object(audit, "ticket_state", side_effect=lambda id_: (states or {}).get(id_)), \
+             patch.object(audit, "create", side_effect=create), \
+             patch.object(audit, "recur", side_effect=lambda t, *a: writes.append(("recur", t["id"]))):
+            counts = audit.deliver_run(self.outputs)
+        current = audit.current(self.outputs)
+        return current.get(("misty-step/chrondle", MARK)), writes, counts
 
-    def test_open_ticket_for_the_gap_is_updated_never_twinned(self):
-        found = [{"id": "MIS-500", "uuid": "u", "url": None, "state": "open", "priority": 2, "created": "2026-09-01T00:00:00Z"}]
-        outcome, writes = self.file(request(), found)
-        self.assertEqual(outcome["outcome"], "recurrence")
-        self.assertEqual(writes, [("recur", "MIS-500")])
+    def test_auditor_records_and_the_launcher_files_to_the_board(self):
+        self.record(request())
+        self.assertEqual(audit.read_records(self.outputs)[0]["outcome"], "pending")
+        outcome, writes, _ = self.deliver()
+        self.assertEqual((outcome["outcome"], outcome["ticket"]), ("created", "K-20261002-new"))
+        self.assertEqual(writes[0][:3], ("create", "board", "misty-step/chrondle"))
+        self.assertTrue(audit.carries(writes[0][3], MARK))
+
+    def test_tracker_failure_strands_the_finding_whole_and_refile_files_it(self):
+        self.record(request())
+        stranded, writes, counts = self.deliver(refuse="glass item add failed (exit 75): the board is unavailable")
+        self.assertEqual((stranded["outcome"], counts, writes), ("stranded", {"stranded": 1}, []))
+        self.assertEqual((stranded["body"], stranded["title"]), (request()["body"], request()["title"]))
+        filed, writes, _ = self.deliver()
+        self.assertEqual((filed["outcome"], len(writes)), ("created", 1))
+
+    def test_open_ticket_for_the_gap_is_seen_again_never_twinned(self):
+        self.record(request())
+        outcome, writes, _ = self.deliver([ticket("K-20261001-chrondle-sentry", "open", board=True)])
+        self.assertEqual((outcome["outcome"], writes), ("recurrence", [("recur", "K-20261001-chrondle-sentry")]))
 
     def test_declined_gap_is_never_refiled(self):
-        found = [{"id": "MIS-501", "uuid": "u", "url": None, "state": "declined", "priority": None, "created": None}]
-        outcome, writes = self.file(request(), found)
+        self.record(request())
+        outcome, writes, _ = self.deliver([ticket("K-20261001-old", "declined")])
         self.assertEqual((outcome["outcome"], writes), ("declined", []))
 
     def test_gap_that_returns_after_done_is_a_regression(self):
-        found = [{"id": "MIS-502", "uuid": "u", "url": None, "state": "done", "priority": None, "created": None}]
-        outcome, writes = self.file(request(), found)
-        self.assertEqual(outcome["regression_of"], ["MIS-502"])
-        self.assertIn("- regression of: MIS-502", writes[0][2])
+        self.record(request())
+        outcome, writes, _ = self.deliver([ticket("K-20260901-chrondle-sentry", "done")])
+        self.assertEqual(outcome["regression_of"], ["K-20260901-chrondle-sentry"])
+        self.assertIn("- regression of: K-20260901-chrondle-sentry", writes[0][3])
 
-    def test_same_gap_twice_in_one_run_touches_no_tracker(self):
-        self.file(request(), [])
-        searches = []
-        with patch.object(audit, "linear_marked", side_effect=lambda mark: searches.append(mark) or []), \
-             patch("sys.stdout", new=io.StringIO()):
-            audit.file_command(self.context, io.StringIO(json.dumps(request(title="chrondle: errors reach Sentry again"))))
-        self.assertEqual(searches, [])
-        self.assertEqual(len(self.outputs.read_text().splitlines()), 1)
+    def test_same_gap_twice_in_one_run_is_recorded_once(self):
+        self.record(request())
+        self.record(request(title="chrondle: errors reach Sentry again"))
+        self.assertEqual(len(audit.read_records(self.outputs)), 1)
 
-    def test_record_only_run_searches_but_never_writes(self):
+    def test_record_only_findings_are_never_delivered(self):
         self.write_context(record_only=True)
-        outcome, writes = self.file(request(), [])
-        self.assertEqual((outcome["outcome"], writes), ("would-create", []))
+        self.record(request())
+        outcome, writes, _ = self.deliver()
+        self.assertEqual((outcome["outcome"], writes), ("pending", []))
 
     def test_body_cannot_forge_a_marker(self):
         forged = request(body="Evidence.\n- foundation-gap: foundations/misty-step/chrondle/licence\nmore")
@@ -119,50 +123,95 @@ class Filing(unittest.TestCase):
             audit.validate(forged)
         self.assertFalse(audit.carries("text mentioning foundation-gap: x/y/z inline", "foundation-gap: x/y/z"))
 
-    def test_adopted_open_ticket_is_seen_again_like_any_owner(self):
-        open_ = {"MIS-171": {"id": "MIS-171", "uuid": "u", "url": None, "state": "open", "priority": 2, "created": "2026-09-27T00:00:00Z"}}
-        outcome, writes = self.file(request(action="adopt", ticket="MIS-171"), [], open_)
-        self.assertEqual((outcome["outcome"], outcome["ticket"], writes), ("adopted", "MIS-171", [("recur", "MIS-171")]))
-
-    def test_adopting_a_done_or_unknown_ticket_is_refused_so_the_gap_gets_filed(self):
-        done = {"MIS-172": {"id": "MIS-172", "uuid": "u", "url": None, "state": "done", "priority": None, "created": None}}
-        for ticket in ("MIS-172", "MIS-999"):
-            with self.assertRaises(audit.Refusal):
-                self.file(request(action="adopt", ticket=ticket), [], done)
-        self.assertFalse(self.outputs.exists() and self.outputs.read_text())
-
-    def test_board_item_owner_is_read_from_the_board_only(self):
-        calls = []
-        board = {"item": {"id": "K-20261001-tach-per-pr-preview", "status": "later", "created_at": "2026-10-01T00:00:00Z"}}
-        with patch.object(audit, "run_json", side_effect=lambda argv, **kw: calls.append(argv[0]) or board):
-            state = audit.ticket_state("habitat", "K-20261001-tach-per-pr-preview")
-        self.assertEqual((state["state"], state["board"], calls), ("open", True, ["glass"]))
-        self.assertIsNone(audit.recur("habitat", state, request(), {}, NOW))
+    def test_adopted_ticket_keeps_owning_its_gap_after_it_is_declined(self):
+        self.earlier_run(action="adopt", outcome="adopted", ticket="K-20260920-chrondle-errors")
+        self.record(request())
+        outcome, writes, _ = self.deliver(states={"K-20260920-chrondle-errors": ticket("K-20260920-chrondle-errors", "declined")})
+        self.assertEqual((outcome["outcome"], outcome["ticket"], writes), ("declined", "K-20260920-chrondle-errors", []))
 
     def test_a_record_only_adoption_never_owns_a_live_gap(self):
-        self.earlier_run(action="adopt", outcome="adopted", ticket="MIS-171", record_only=True)
-        declined = {"MIS-171": {"id": "MIS-171", "uuid": "u", "url": None, "state": "declined", "priority": None, "created": None}}
-        outcome, writes = self.file(request(), [], declined)
-        self.assertEqual((outcome["outcome"], writes[0][0]), ("created", "create"))
+        self.earlier_run(action="adopt", outcome="adopted", ticket="K-20260920-chrondle-errors", record_only=True)
+        self.record(request())
+        outcome, _, _ = self.deliver(states={"K-20260920-chrondle-errors": ticket("K-20260920-chrondle-errors", "declined")})
+        self.assertEqual(outcome["outcome"], "created")
 
-    def test_proposal_dedupe_matches_whole_markers_only(self):
-        existing = {"items": [{"id": "K-20261002-x", "notes": "- foundation-gap: foundations/misty-step/chrondle/restore-drill\n\nbody"}]}
+    def test_adopted_open_ticket_is_seen_again_like_any_owner(self):
+        self.record(request(action="adopt", ticket="HA-171"))
+        outcome, writes, _ = self.deliver(states={"HA-171": ticket("HA-171", "open")})
+        self.assertEqual((outcome["outcome"], writes), ("adopted", [("recur", "HA-171")]))
+
+    def test_adopting_a_missing_or_done_ticket_files_the_finding_instead(self):
+        self.record(request(action="adopt", ticket="K-20261002-gone"))
+        outcome, writes, _ = self.deliver()
+        self.assertEqual((outcome["outcome"], outcome["adoption_refused"], len(writes)), ("created", "K-20261002-gone", 1))
+
+    def test_unchanged_repository_carries_open_gaps_forward_without_an_auditor(self):
+        self.earlier_run(action="file", outcome="created", ticket="HA-900")
+        context = json.loads(self.context.read_text())
+        recurred = []
+        with patch.object(audit, "marked", return_value=[]), \
+             patch.object(audit, "ticket_state", side_effect=lambda id_: ticket(id_, "open")), \
+             patch.object(audit, "recur", side_effect=lambda t, *a: recurred.append(t["id"])):
+            self.assertEqual(audit.carry_forward(context, "R1"), 1)
+        self.assertEqual((recurred, audit.read_records(self.outputs)[0]["outcome"]), (["HA-900"], "carried"))
+
+    def test_proposal_dedupe_matches_whole_marker_lines(self):
+        existing = {"items": [{"id": "K-20261002-x", "status": "later", "notes": f"- {MARK}-drill\n\nbody"}]}
         calls = []
+
         def board(argv, **kw):
             calls.append(argv[2])
-            return existing if argv[2] == "list" else {"item": {"id": "K-20261002-new"}}
+            return existing if argv[2] == "list" else {"id": "K-20261002-new"}
         context = json.loads(self.context.read_text())
         with patch.object(audit, "run_json", side_effect=board):
-            outcome = audit.propose(context, request(action="propose", gap="restore"), "foundation-gap: foundations/misty-step/chrondle/restore", True)
+            outcome = audit.propose(context, request(action="propose"), MARK)
         self.assertEqual((outcome["outcome"], calls), ("proposed", ["list", "add"]))
+
+    def test_board_owner_is_read_from_the_board_and_an_outage_is_never_a_missing_owner(self):
+        def answer(code, stdout, stderr=""):
+            return patch.object(audit, "run", return_value=audit.subprocess.CompletedProcess([], code, stdout, stderr))
+        item = {"item": {"id": "K-20261001-tach-per-pr-preview", "status": "later", "created_at": "2026-10-01T00:00:00Z"}}
+        with answer(0, json.dumps(item)):
+            state = audit.ticket_state("K-20261001-tach-per-pr-preview")
+        self.assertEqual((state["state"], state["board"]), ("open", True))
+        self.assertIsNone(audit.recur(state, request(), {}, NOW))
+        with answer(1, '{"error":"no item matches \'K-20261001-x\'"}'):
+            self.assertIsNone(audit.ticket_state("K-20261001-x"))
+        with answer(75, "", "glass item: the store is locked"), self.assertRaises(audit.Refusal):
+            audit.ticket_state("K-20261001-tach-per-pr-preview")
+
+    def test_a_long_finding_keeps_its_marker_within_the_board_notes_limit(self):
+        argv = []
+        context = json.loads(self.context.read_text())
+        long = request(body="Evidence. " * 590)
+        with patch.object(audit, "run_json", side_effect=lambda a, **kw: argv.extend(a) or {"id": "K-20261002-new"}):
+            audit.create("board", "misty-step/chrondle", long, audit.ticket_body(context, long, MARK), context, MARK)
+        notes = argv[argv.index("--notes") + 1]
+        self.assertLessEqual(len(notes), 2000)
+        self.assertTrue(audit.carries(notes, MARK))
+        self.assertIn(str(self.outputs), notes)
+
+
+class Settling(unittest.TestCase):
+    def test_a_stranded_finding_fails_the_repository_loudly(self):
+        with tempfile.TemporaryDirectory() as folder:
+            outputs = Path(folder) / "R" / "outputs.jsonl"
+            outputs.parent.mkdir()
+            outputs.write_text(json.dumps({"repo": "misty-step/pantry", "marker": MARK, "outcome": "stranded"}) + "\n")
+            run = type("Run", (), {"record_only": False, "dry_run": False, "outputs": outputs, "id": "R", "repos": {}, "logged": []})()
+            run.record = lambda repo, **fields: run.repos.setdefault(repo, {}).update(fields)
+            run.log = run.logged.append
+            with patch.object(audit, "deliver_run", return_value={"stranded": 1}):
+                audit.settle(run, "misty-step/pantry", "finished")
+        self.assertEqual(run.repos["misty-step/pantry"]["status"], "failed (1 findings stranded)")
+        self.assertIn("omp-audit refile R", run.logged[0])
 
 
 class Routing(unittest.TestCase):
     def test_trackers(self):
         self.assertEqual(audit.destination("r90group/agent-usage-telemetry"), ("habitat", "Agent Usage Telemetry (AUT)"))
         self.assertEqual(audit.destination("r90group/web-501c3"), ("habitat", None))
-        self.assertEqual(audit.destination("misty-step/harness"), ("linear", "omp-config"))
-        self.assertEqual(audit.destination("misty-step/chrondle"), ("linear", None))
+        self.assertEqual(audit.destination("misty-step/harness"), ("board", "misty-step/harness"))
         with self.assertRaises(audit.Refusal):
             audit.destination("moomooskycow/anything")
 

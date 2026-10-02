@@ -57,3 +57,18 @@ test("a filing reaches the filer as JSON on stdin with fixed argv", async () => 
 		rmSync(dir, { recursive: true, force: true });
 	}
 });
+
+test("a filer failure is a tool error, never a quiet success", async () => {
+	const scratch = resolve(homedir(), ".cache/tmp");
+	mkdirSync(scratch, { recursive: true });
+	const dir = mkdtempSync(resolve(scratch, "audit-tool-"));
+	try {
+		const filer = resolve(dir, "filer.py");
+		writeFileSync(filer, "import sys\nprint('omp-audit: body must be 20-6000 characters', file=sys.stderr)\nsys.exit(1)\n");
+		const { tools } = load({ OMP_AUDIT_CONTEXT: `${dir}/context.json`, OMP_AUDIT_FILER: filer });
+		const request = { action: "file", gap: "sentry", area: "F2", title: "x: errors reach Sentry", body: "short", priority: "high" };
+		await expect(tools.audit_file.execute("id", request)).rejects.toThrow("body must be 20-6000 characters");
+	} finally {
+		rmSync(dir, { recursive: true, force: true });
+	}
+});
