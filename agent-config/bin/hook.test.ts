@@ -51,6 +51,7 @@ function makeRepo(): string {
 	git(dir, ["init", "-q", "-b", "main"]);
 	git(dir, ["config", "user.email", "hook-test@example.com"]);
 	git(dir, ["config", "user.name", "Hook Test"]);
+	git(dir, ["remote", "add", "origin", "https://github.com/misty-step/hook-fixture.git"]);
 	writeFileSync(join(dir, "README.md"), "# base\n");
 	git(dir, ["add", "README.md"]);
 	git(dir, ["commit", "-q", "-m", "base"]);
@@ -83,10 +84,11 @@ function output(result: ReturnType<typeof spawnSync>): string {
 }
 
 /** A PATH directory holding a recording `outcome` and, optionally, a key-injecting `pass-env` stand-in. */
-function fakeTools(passEnv: boolean): { env: NodeJS.ProcessEnv; outcomes: () => string[] } {
+function fakeTools(passEnv: boolean): { env: NodeJS.ProcessEnv; outcomes: () => string[]; directories: () => string[] } {
 	const bin = scratch();
 	const log = join(bin, "outcomes.log");
-	writeFileSync(join(bin, "outcome"), `#!/bin/sh\nprintf '%s\\n' "$*" >> '${log}'\n`);
+	const directories = join(bin, "directories.log");
+	writeFileSync(join(bin, "outcome"), `#!/bin/sh\nprintf '%s\\n' "$*" >> '${log}'\nprintf '%s\\n' "$PWD" >> '${directories}'\n`);
 	chmodSync(join(bin, "outcome"), 0o755);
 	if (passEnv) {
 		// Resolves every entry, injects no key: the check itself then finds its provider unavailable.
@@ -95,7 +97,11 @@ function fakeTools(passEnv: boolean): { env: NodeJS.ProcessEnv; outcomes: () => 
 	}
 	const env = hookEnv();
 	env.PATH = `${bin}:${env.PATH}`;
-	return { env, outcomes: () => readFileSync(log, "utf8").trim().split("\n") };
+	return {
+		env,
+		outcomes: () => readFileSync(log, "utf8").trim().split("\n"),
+		directories: () => readFileSync(directories, "utf8").trim().split("\n"),
+	};
 }
 
 // The AWS-shaped id alone is allowlisted by gitleaks' default config; the
@@ -120,10 +126,13 @@ describe("hook policy matrix", () => {
 		git(repo, ["add", "cache.ts"]);
 		// The fixture has no .env.pass, so key resolution fails whichever pass-env is installed.
 		const tools = fakeTools(false);
-		const result = commit(repo, "add code without a readable key", tools.env);
+		const nested = join(repo, "nested");
+		mkdirSync(nested);
+		const result = commit(nested, "add code without a readable key", tools.env);
 		expect(result.status).toBe(0);
 		expect(tools.outcomes()).toHaveLength(1);
 		expect(tools.outcomes()[0]).toStartWith("record harness-pre-commit-semantic-check --fail key-unreadable --detail ");
+		expect(tools.directories()).toEqual([repo]);
 	});
 
 	hookTest("staged test changes commit when the provider is unavailable, recording a failed run rather than a clean verdict", () => {
@@ -141,6 +150,7 @@ describe("hook policy matrix", () => {
 		expect(tools.outcomes()).toEqual([
 			"record harness-pre-commit-semantic-check --fail exit-3 --detail harness-pre-commit-semantic-check exited 3; no advice was produced",
 		]);
+		expect(tools.directories()).toEqual([repo]);
 	});
 
 	hookTest("disabling advisory checks cannot bypass the staged secret scanner", () => {
