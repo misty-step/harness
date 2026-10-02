@@ -128,10 +128,12 @@ owned directory. Remove only that directory once its process has ended.
   overlay and record, `check` on an `adhoc-` id, with a `board` that fails if run)
   (US-046). It makes no model call; the forced-outage walk against real OMP is a
   recorded manual smoke.
-  US-047 adds the session-wide working-engineer admission boundary: default
-  8 refuses at 8 and above with exit 5, empty stdout and no artifacts; 7 working
-  engineers plus settled agents succeeds; a configured limit, unnamed agents,
-  ticketless launches, malformed Herdr replies and invalid limits are covered.
+  US-047 adds the session-wide working-engineer admission boundary: the
+  roster-owned default admits eleven working engineers with no export, refuses
+  at and above its boundary with exit 5, empty stdout and no artifacts, and
+  reports the effective cap/count on success. Lower and higher overrides,
+  settled/non-OMP agents, unnamed agents, ticketless launches, malformed Herdr
+  replies and invalid limits are covered.
 - `omp-config/bin/test_omp_engineer.py` covers measured legacy accounting,
   full populated-scope reservations (including lingering helpers), the exact
   20-GiB physical scaling boundary without fictitious legacy/unused-heavy reserves,

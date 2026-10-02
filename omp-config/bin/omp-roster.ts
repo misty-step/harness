@@ -163,8 +163,8 @@ function memoryCommand(options: { json?: boolean; "memory-json"?: string }): num
 	return 0;
 }
 // Session-wide: no workspace filter, no exclusion for the calling engineer.
-function enforceEngineerLimit(): void {
-	const configured = process.env.OMP_ROSTER_ENGINEER_LIMIT ?? "8";
+function enforceEngineerLimit(): { working: number; limit: number } {
+	const configured = process.env.OMP_ROSTER_ENGINEER_LIMIT ?? "18";
 	if (!/^[1-9][0-9]*$/.test(configured) || !Number.isSafeInteger(Number(configured))) {
 		throw new CliError("OMP_ROSTER_ENGINEER_LIMIT must be a positive safe integer.");
 	}
@@ -187,6 +187,7 @@ function enforceEngineerLimit(): void {
 	if (working.length >= limit) {
 		throw new CliError(`working-engineer limit reached (${working.length}/${limit}); working: ${working.join(", ")}; queue work on the board.`, FLEET_FULL);
 	}
+	return { working: working.length, limit };
 }
 
 
@@ -406,7 +407,7 @@ function launchCommand(options: LaunchOptions & { item?: string; model?: string;
 		if (options["ticket-json"] !== undefined) throw new CliError("--ticket-json goes with --item; a launch with --model reads no ticket.", 2);
 		({ item, roster } = adhocRoster(options.model, options.thinking));
 	}
-	enforceEngineerLimit();
+	const engineerCapacity = enforceEngineerLimit();
 	const memory = memorySnapshot(options["memory-json"]);
 	for (const warning of memory.warnings) console.error(`warning: ${plain(warning)}`);
 	const { rows, freshness } = usageView(options["usage-json"]);
@@ -422,7 +423,7 @@ function launchCommand(options: LaunchOptions & { item?: string; model?: string;
 		break;
 	}
 	if (!launch || !route) {
-		if (options.json) console.log(JSON.stringify({ item, launch: null, skipped, roster_sha256: sha }, null, 2));
+		if (options.json) console.log(JSON.stringify({ item, launch: null, skipped, roster_sha256: sha, engineer_capacity: engineerCapacity }, null, 2));
 		console.error(`omp-roster: roster exhausted for ${item}; nothing was launched.\n${skipped.map((skip) => `  ${skipLine(skip)}`).join("\n")}`);
 		return EXHAUSTED;
 	}
@@ -455,7 +456,7 @@ function launchCommand(options: LaunchOptions & { item?: string; model?: string;
 	if (options.json) {
 		const usage = { ...freshness, degraded: freshness.degraded || route.degraded !== null, degraded_reason: degraded };
 		console.log(JSON.stringify({
-			item, launch: { ...launch, selector: plain(selector(launch)), verdict: route.verdict }, overlay, record, env, args, skipped, roster_sha256: sha, usage, memory,
+			item, launch: { ...launch, selector: plain(selector(launch)), verdict: route.verdict }, overlay, record, env, args, skipped, roster_sha256: sha, usage, memory, engineer_capacity: engineerCapacity,
 		}, null, 2));
 	} else {
 		for (const skip of skipped) console.error(`skipped ${skipLine(skip)}`);

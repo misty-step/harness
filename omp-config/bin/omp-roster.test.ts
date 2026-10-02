@@ -159,12 +159,12 @@ describe("omp-roster memory admission", () => {
 });
 
 describe("omp-roster launch (US-046)", () => {
-	test("US-047 refuses at or above the working-engineer limit before writing, and admits one below", () => {
+	test("US-047 uses the roster-owned default without an export and honours an explicit override", () => {
 		const dir = scratch("fleet");
 		const agentsFile = join(dir, "agents.json");
 		const ticket = put(join(dir, "ticket.json"), JSON.stringify(boardAnswer([SONNET])));
 		const usage = put(join(dir, "usage.json"), JSON.stringify(usageView([row("anthropic", "sonnet", "usable")])));
-		const working = Array.from({ length: 9 }, (_, index) => ({
+		const working = Array.from({ length: 24 }, (_, index) => ({
 			name: index === 0 ? null : `engineer-${index + 1}`,
 			pane_id: `w${index + 1}:p1`, workspace_id: `w${index + 1}`, agent: "omp", agent_status: "working",
 		}));
@@ -175,20 +175,25 @@ describe("omp-roster launch (US-046)", () => {
 		];
 		const args = ["launch", "--item", "K-test", "--ticket-json", ticket, "--usage-json", usage, "--json"];
 		const env = { HERDR_TEST_AGENTS: agentsFile };
-		for (const [limit, count] of [[8, 8], [8, 9], [2, 2]]) {
+		for (const [configured, limit, count] of [
+			[undefined, 18, 11], [undefined, 18, 17], [undefined, 18, 18], [undefined, 18, 19],
+			["2", 2, 1], ["2", 2, 2], ["2", 2, 3], ["24", 24, 19],
+		] as const) {
 			put(agentsFile, JSON.stringify({ result: { agents: [...working.slice(0, count), ...settled, ...nonEngineers] } }));
-			const state = join(dir, `refused-${limit}-${count}`);
-			const refused = invoke([...args, "--state-dir", state], { ...env, ...(limit === 8 ? {} : { OMP_ROSTER_ENGINEER_LIMIT: String(limit) }) });
-			expect([refused.exitCode, refused.stdout]).toEqual([5, ""]);
-			expect(refused.stderr).toContain(`(${count}/${limit})`);
-			for (const agent of working.slice(0, count)) expect(refused.stderr).toContain(agent.name ?? agent.pane_id);
-			expect(existsSync(state)).toBe(false);
+			const state = join(dir, `capacity-${limit}-${count}`);
+			const result = invoke([...args, "--state-dir", state], { ...env, ...(configured === undefined ? {} : { OMP_ROSTER_ENGINEER_LIMIT: configured }) });
+			if (count >= limit) {
+				expect([result.exitCode, result.stdout]).toEqual([5, ""]);
+				expect(result.stderr).toContain(`(${count}/${limit})`);
+				for (const agent of working.slice(0, count)) expect(result.stderr).toContain(agent.name ?? agent.pane_id);
+				expect(existsSync(state)).toBe(false);
+			} else {
+				expect([result.exitCode, result.stderr]).toEqual([0, ""]);
+				const out = JSON.parse(result.stdout);
+				expect(out.engineer_capacity).toEqual({ working: count, limit });
+				expect(existsSync(out.overlay)).toBe(true);
+			}
 		}
-		put(agentsFile, JSON.stringify({ result: { agents: [...working.slice(0, 7), ...settled, ...nonEngineers] } }));
-		const state = join(dir, "admitted");
-		const admitted = invoke([...args, "--state-dir", state], env);
-		expect([admitted.exitCode, admitted.stderr]).toEqual([0, ""]);
-		expect(existsSync(JSON.parse(admitted.stdout).overlay)).toBe(true);
 	});
 	test("US-047 fails closed on invalid limits or unreadable Herdr state for ticketless launches", () => {
 		const dir = scratch("fleet-unreadable");
@@ -208,7 +213,7 @@ describe("omp-roster launch (US-046)", () => {
 			expect(refused.stderr.trim().split("\n")).toHaveLength(1);
 		}
 		put(agents, JSON.stringify({ result: { agents: Array.from({ length: 8 }, (_, i) => ({ agent: "omp", name: `engineer-${i + 1}`, agent_status: "working" })) } }));
-		const full = invoke(args, { HERDR_TEST_AGENTS: agents });
+		const full = invoke(args, { HERDR_TEST_AGENTS: agents, OMP_ROSTER_ENGINEER_LIMIT: "2" });
 		expect([full.exitCode, full.stdout]).toEqual([5, ""]);
 		expect(existsSync(state)).toBe(false);
 	});

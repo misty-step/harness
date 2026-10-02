@@ -659,9 +659,11 @@ Criteria:
    5, emit one stderr line naming the working engineers (pane id for an unnamed
    engineer) and directing the caller to queue work on the board, leave stdout
    empty and write no overlay or launch record.
-3. WHERE `OMP_ROSTER_ENGINEER_LIMIT` is configured, THE SYSTEM SHALL use that
-   positive integer as its sole limit setting, default to 8 when absent, and
-   offer no override flag.
+3. WHEN `OMP_ROSTER_ENGINEER_LIMIT` is absent, THE SYSTEM SHALL use the default
+   cap owned in `omp-config/bin/omp-roster.ts`, requiring no per-call export.
+   WHERE the environment override is configured, THE SYSTEM SHALL use that
+   positive safe integer and offer no override flag. Successful `--json`
+   output SHALL report the working count and effective limit in `engineer_capacity`.
 4. WHEN the count is below the limit, THE SYSTEM SHALL retain the roster and
    usage admission checks of US-046 and write the launch artifacts when they
    pass; unreadable Herdr state or an invalid limit SHALL refuse with exit 1
