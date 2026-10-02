@@ -309,6 +309,11 @@ recognise the gap by that marker:
 - **Declined ticket:** it is not filed again.
 - **Done ticket:** it is filed again as a regression.
 
+Earlier runs' `outputs.jsonl` keep the history of which ticket owns each gap,
+so a ticket an auditor adopted rather than filed keeps its gap after it closes.
+Principles and Simplicity skip a repository with no commits since its last
+run, but its open gaps are still carried forward: seen again, and climbing.
+
 Routing is Habitat for R90 and Linear MIS for Misty Step; doctrine proposals go
 to the board. Each run keeps `manifest.json`, `run.log`, `outputs.jsonl` and
 every bundle and brief under `~/.local/state/omp-audit/runs/<run>/`.

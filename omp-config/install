@@ -422,7 +422,7 @@ validate_auditors() {
       fi
     fi
   done
-  if [ -e "$auditor_share" ] && ! grep -Fqx "// $auditor_owner" "$auditor_share/audit-tool.ts" 2>/dev/null; then
+  if [ -e "$auditor_share" ] && ! grep -Fqx "// ${auditor_owner#\# }" "$auditor_share/audit-tool.ts" 2>/dev/null; then
     printf 'Refusing foreign auditor share: %s\n' "$auditor_share" >&2; exit 1
   fi
 }

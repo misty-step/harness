@@ -24,7 +24,9 @@ def request(**overrides):
 class Filing(unittest.TestCase):
     def setUp(self):
         self.dir = tempfile.TemporaryDirectory()
-        self.outputs = Path(self.dir.name) / "outputs.jsonl"
+        self.runs = Path(self.dir.name) / "runs"
+        self.outputs = self.runs / "R2" / "outputs.jsonl"
+        self.outputs.parent.mkdir(parents=True)
         self.context = Path(self.dir.name) / "context.json"
         self.write_context()
 
@@ -32,19 +34,47 @@ class Filing(unittest.TestCase):
         self.dir.cleanup()
 
     def write_context(self, **extra):
-        self.context.write_text(json.dumps({"run": "R1", "audit": "foundations", "repo": "misty-step/chrondle",
+        self.context.write_text(json.dumps({"run": "R2", "audit": "foundations", "repo": "misty-step/chrondle",
                                             "commit": "d5decc776b5045753da23e03a391be6ad72b2fa8", "outputs": str(self.outputs), **extra}))
 
-    def file(self, body, found):
-        """File one request against a tracker whose marked tickets are `found`; return outcome and tracker writes."""
+    def earlier_run(self, **record):
+        """An earlier run's outputs, as the filer wrote them."""
+        path = self.runs / "R1" / "outputs.jsonl"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        base = {"run": "R1", "audit": "foundations", "repo": "misty-step/chrondle", "gap": "sentry", "area": "F2",
+                "priority": "high", "title": "chrondle: production errors reach Sentry",
+                "marker": "foundation-gap: foundations/misty-step/chrondle/sentry"}
+        path.write_text(json.dumps({**base, **record}) + "\n")
+
+    def file(self, body, found, states=None):
+        """File one request against a tracker whose marked tickets are `found` and whose other tickets are `states`."""
         writes = []
         with patch.object(audit, "linear_marked", return_value=found), \
+             patch.object(audit, "ticket_state", side_effect=lambda kind, ticket: (states or {}).get(ticket)), \
              patch.object(audit, "create", side_effect=lambda *a: writes.append(("create", a[2]["title"], a[3])) or ("MIS-900", "https://x/MIS-900")), \
              patch.object(audit, "recur", side_effect=lambda kind, ticket, *a: writes.append(("recur", ticket["id"])) or None), \
              patch("sys.stdout", new=io.StringIO()):
             audit.file_command(self.context, io.StringIO(json.dumps(body)))
         lines = [json.loads(line) for line in self.outputs.read_text().splitlines()]
         return lines[-1] if lines else None, writes
+
+    def test_adopted_ticket_keeps_owning_its_gap_after_it_is_declined(self):
+        self.earlier_run(action="adopt", outcome="adopted", ticket="MIS-171")
+        declined = {"MIS-171": {"id": "MIS-171", "uuid": "u", "url": None, "state": "declined", "priority": None, "created": None}}
+        outcome, writes = self.file(request(), [], declined)
+        self.assertEqual((outcome["outcome"], outcome["ticket"], writes), ("declined", "MIS-171", []))
+
+    def test_unchanged_repository_carries_open_gaps_forward_without_an_auditor(self):
+        self.earlier_run(action="file", outcome="created", ticket="MIS-900")
+        context = json.loads(self.context.read_text())
+        open_ = {"MIS-900": {"id": "MIS-900", "uuid": "u", "url": None, "state": "open", "priority": 1, "created": "2026-09-01T00:00:00Z"}}
+        recurred = []
+        with patch.object(audit, "linear_marked", return_value=[]), \
+             patch.object(audit, "ticket_state", side_effect=lambda kind, ticket: open_.get(ticket)), \
+             patch.object(audit, "recur", side_effect=lambda kind, ticket, *a: recurred.append(ticket["id"])):
+            self.assertEqual(audit.carry_forward(context, "R1"), 1)
+        self.assertEqual(recurred, ["MIS-900"])
+        self.assertEqual(json.loads(self.outputs.read_text())["outcome"], "carried")
 
     def test_new_gap_creates_one_ticket_with_the_trusted_marker(self):
         outcome, writes = self.file(request(), [])

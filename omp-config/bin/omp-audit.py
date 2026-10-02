@@ -498,18 +498,20 @@ class Run:
                                                            for key in sorted({item.get("outcome") for item in filed})}}})
 
 
-def previous_commit(audit, repo, before):
+def previous_run(audit, repo, before):
+    """The last run of this audit that actually audited the repository: (run id, commit), or (None, None)."""
     runs = sorted((STATE / "runs").glob(f"*-{audit}"), reverse=True) if (STATE / "runs").is_dir() else []
     for folder in runs:
         if folder.name >= before:
             continue
         try:
-            entry = json.loads((folder / "manifest.json").read_text())["repositories"].get(repo) or {}
+            manifest = json.loads((folder / "manifest.json").read_text())
+            entry = manifest["repositories"].get(repo) or {}
         except (OSError, ValueError, KeyError):
             continue
-        if entry.get("status") == "finished":
-            return entry.get("commit")
-    return None
+        if entry.get("status") == "finished" and not manifest.get("record_only"):
+            return folder.name, entry.get("commit")
+    return None, None
 
 
 def clone(repo, checkout):
@@ -534,16 +536,19 @@ def audit_one(context, meta, shared_path, shared, deadline):
     clone(repo, checkout)
     evidence = repo_evidence(context.audit, meta, checkout, shared)
     context.record(repo, commit=evidence["commit"])
-    if context.audit in ("principles", "simplicity") and previous_commit(context.audit, repo, context.id) == evidence["commit"]:
-        context.record(repo, status="skipped", reason="no commits since its last run", finished=iso(now()))
-        return
-    if context.audit == "principles" and not evidence["merged_prs"]["merged"]:
-        context.record(repo, status="skipped", reason="no merged changes in the last seven days", finished=iso(now()))
+    filer_context = {"run": context.id, "audit": context.audit, "repo": repo, "commit": evidence["commit"],
+                     "outputs": str(context.outputs), "record_only": context.record_only or context.dry_run}
+    last_run, last_commit = previous_run(context.audit, repo, context.id)
+    unchanged = context.audit in ("principles", "simplicity") and last_commit == evidence["commit"]
+    quiet = context.audit == "principles" and not evidence["merged_prs"]["merged"]
+    if unchanged or quiet:
+        carried = carry_forward(filer_context, last_run) if last_run else 0
+        context.record(repo, status="skipped", carried=carried, finished=iso(now()),
+                       reason="no commits since its last run" if unchanged else "no merged changes in the last seven days")
         return
     write_json(record / "bundle.json", evidence)
     (record / "brief.md").write_text(brief(context.audit, repo, checkout, record, shared_path, evidence))
-    write_json(record / "context.json", {"run": context.id, "audit": context.audit, "repo": repo, "commit": evidence["commit"],
-                                         "outputs": str(context.outputs), "record_only": context.record_only})
+    write_json(record / "context.json", filer_context)
     if context.dry_run:
         context.record(repo, status="gathered", finished=iso(now()))
         return
@@ -763,10 +768,63 @@ def propose(context, request, mark, write):
     return {"outcome": "proposed", "ticket": (receipt.get("item") or receipt).get("id")}
 
 
-def file_gap(context, request, mark, moment, write):
-    """Open ticket: recurrence. Declined (cancelled, duplicate, closed): no write. Done: a regression gets a new one."""
-    kind, scope = destination(context["repo"])
+OWNING = ("created", "recurrence", "adopted", "carried")
+
+
+def prior_records(runs, *, marker_=None, audit=None, repo=None, run=None):
+    """Earlier runs' outputs: the gap-to-ticket history, including tickets an auditor adopted rather than filed."""
+    records = []
+    for path in sorted(Path(runs).glob("*/outputs.jsonl")) if Path(runs).is_dir() else []:
+        if run and path.parent.name != run:
+            continue
+        for line in path.read_text().splitlines():
+            item = json.loads(line) if line.strip() else {}
+            if ((marker_ is None or item.get("marker") == marker_) and (audit is None or item.get("audit") == audit)
+                    and (repo is None or item.get("repo") == repo)):
+                records.append(item)
+    return records
+
+
+def ticket_state(kind, ticket):
+    """One known ticket's state, so an adopted or earlier ticket keeps owning its gap after it closes."""
+    if kind == "linear":
+        data = run_json(["linear", "gql", "query($id: String!) { issue(id: $id) { id identifier url priority createdAt state { type } } }",
+                         "--vars", json.dumps({"id": ticket})], check=False)
+        node = ((data or {}).get("data") or data or {}).get("issue")
+        if not node:
+            return None
+        kind_ = node["state"]["type"]
+        return {"id": node["identifier"], "uuid": node["id"], "url": node["url"],
+                "state": "done" if kind_ == "completed" else "declined" if kind_ in ("canceled", "duplicate") else "open",
+                "priority": node["priority"] - 1 if node.get("priority") else None, "created": node["createdAt"]}
+    item = run_json([HABITAT, "--json", "get", ticket], check=False)
+    item = (item or {}).get("data") or item
+    if not item or not item.get("external_id"):
+        return None
+    priority = item.get("priority")
+    return {"id": item["external_id"], "url": None,
+            "state": "done" if item.get("status") == "done" else "declined" if item.get("status") == "closed" else "open",
+            "priority": HABITAT_PRIORITY.index(priority) if priority in HABITAT_PRIORITY else None, "created": item.get("created_at")}
+
+
+def owners(kind, mark, runs):
+    """Tickets that carry the marker, plus tickets earlier runs filed or adopted for this gap."""
     found = (linear_marked if kind == "linear" else habitat_marked)(mark)
+    seen = {ticket["id"] for ticket in found}
+    for item in prior_records(runs, marker_=mark):
+        ticket = item.get("ticket")
+        if item.get("outcome") in OWNING and ticket and ticket not in seen:
+            seen.add(ticket)
+            state = ticket_state(kind, ticket)
+            if state:
+                found.append(state)
+    return found
+
+
+def file_gap(context, request, mark, moment, write):
+    """Open owner: recurrence. Declined (cancelled, duplicate, closed): no write. Done: a regression gets a new one."""
+    kind, scope = destination(context["repo"])
+    found = owners(kind, mark, Path(context["outputs"]).parent.parent)
     current = [ticket for ticket in found if ticket["state"] == "open"]
     if current:
         raised = recur(kind, current[0], request, context, moment) if write else None
@@ -781,32 +839,61 @@ def file_gap(context, request, mark, moment, write):
     return {"outcome": "created", "ticket": ticket, "url": url, "tracker": kind, "regression_of": regression_of or None}
 
 
+def locked_outcome(context, mark, fields, compute):
+    """Record one outcome per gap per run, serialized across the run's auditors so a race cannot file a twin."""
+    outputs = Path(context["outputs"])
+    with open(f"{outputs}.lock", "w") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        earlier = [json.loads(line) for line in outputs.read_text().splitlines() if line.strip()] if outputs.exists() else []
+        repeat = next((item for item in earlier if item.get("marker") == mark), None)
+        if repeat:
+            return repeat, True
+        record = {"at": iso(now()), "run": context["run"], "audit": context["audit"], "repo": context["repo"],
+                  "commit": context["commit"], "marker": mark, **fields, **compute()}
+        with outputs.open("a") as handle:
+            handle.write(json.dumps(record, sort_keys=True) + "\n")
+        return record, False
+
+
+def carry_forward(context, previous_run):
+    """An unchanged repository is not re-audited, but its open gaps are still seen and keep climbing."""
+    runs = Path(context["outputs"]).parent.parent
+    kind, _ = destination(context["repo"])
+    latest = {}
+    for item in prior_records(runs, audit=context["audit"], repo=context["repo"], run=previous_run):
+        if item.get("outcome") in OWNING and item.get("ticket"):
+            latest[item["marker"]] = item
+    carried = 0
+    for mark, item in latest.items():
+        def compute(item=item, mark=mark):
+            current = [ticket for ticket in owners(kind, mark, runs) if ticket["state"] == "open"]
+            if not current:
+                return {"outcome": "closed-since", "ticket": item["ticket"]}
+            raised = None if context.get("record_only") else recur(kind, current[0], item, context, now())
+            return {"outcome": "carried", "ticket": current[0]["id"], "url": current[0].get("url"), "raised_to": raised}
+        fields = {key: item.get(key) for key in ("area", "gap", "priority", "title")}
+        record, _ = locked_outcome(context, mark, {"action": "carry", **fields}, compute)
+        carried += record.get("outcome") == "carried"
+    return carried
+
+
 def file_command(context_path, stdin):
     context = json.loads(Path(context_path).read_text())
     request = validate(json.loads(stdin.read()))
     mark = marker(context["audit"], context["repo"], request["gap"])
-    outputs = Path(context["outputs"])
-    moment = now()
-    with open(f"{outputs}.lock", "w") as lock:
-        fcntl.flock(lock, fcntl.LOCK_EX)  # Serialize filing across a run's auditors: no twin from a race.
-        earlier = [json.loads(line) for line in outputs.read_text().splitlines() if line.strip()] if outputs.exists() else []
-        repeat = next((item for item in earlier if item.get("marker") == mark), None)
-        if repeat:
-            print(f"Already recorded in this run: {repeat.get('outcome')} {repeat.get('ticket') or ''}".strip())
-            return 0
+    write = not context.get("record_only")
+
+    def compute():
         if request["action"] == "adopt":
-            outcome = {"outcome": "adopted", "ticket": request["ticket"]}
-        elif request["action"] == "propose":
-            outcome = propose(context, request, mark, not context.get("record_only"))
-        else:
-            outcome = file_gap(context, request, mark, moment, not context.get("record_only"))
-        record = {"at": iso(moment), "run": context["run"], "audit": context["audit"], "repo": context["repo"],
-                  "commit": context["commit"], "action": request["action"], "area": request["area"], "gap": request["gap"],
-                  "marker": mark, "priority": request["priority"], "title": request["title"], **outcome}
-        with outputs.open("a") as handle:
-            handle.write(json.dumps(record, sort_keys=True) + "\n")
-    where = outcome.get("url") or outcome.get("ticket") or ""
-    print(f"{outcome['outcome']}: {where}".strip())
+            return {"outcome": "adopted", "ticket": request["ticket"]}
+        if request["action"] == "propose":
+            return propose(context, request, mark, write)
+        return file_gap(context, request, mark, now(), write)
+
+    fields = {key: request[key] for key in ("action", "area", "gap", "priority", "title")}
+    record, repeat = locked_outcome(context, mark, fields, compute)
+    where = record.get("url") or record.get("ticket") or ""
+    print(f"{'Already recorded in this run: ' if repeat else ''}{record['outcome']}: {where}".strip())
     return 0
 
 
