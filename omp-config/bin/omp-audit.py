@@ -770,7 +770,8 @@ def propose(context, request, mark, write):
     return {"outcome": "proposed", "ticket": (receipt.get("item") or receipt).get("id")}
 
 
-OWNING = ("created", "recurrence", "adopted", "carried")
+# Outcomes whose ticket owns the gap in later runs, including a declined one that must never be refiled.
+OWNING = ("created", "recurrence", "adopted", "carried", "declined", "closed-since")
 
 
 def prior_records(runs, *, marker_=None, audit=None, repo=None, run=None):
@@ -852,9 +853,9 @@ def file_gap(context, request, mark, moment, write):
 
 
 def locked_outcome(context, mark, fields, compute):
-    """Record one outcome per gap per run, serialized across the run's auditors so a race cannot file a twin."""
+    """Record one outcome per gap per run. The lock spans every run, so overlapping runs cannot file a twin."""
     outputs = Path(context["outputs"])
-    with open(f"{outputs}.lock", "w") as lock:
+    with open(outputs.parent.parent / "filer.lock", "w") as lock:
         fcntl.flock(lock, fcntl.LOCK_EX)
         earlier = [json.loads(line) for line in outputs.read_text().splitlines() if line.strip()] if outputs.exists() else []
         repeat = next((item for item in earlier if item.get("marker") == mark), None)

@@ -129,7 +129,7 @@ class Filing(unittest.TestCase):
         for ticket in ("MIS-172", "MIS-999"):
             with self.assertRaises(audit.Refusal):
                 self.file(request(action="adopt", ticket=ticket), [], done)
-        self.assertEqual(self.outputs.read_text(), "")
+        self.assertFalse(self.outputs.exists() and self.outputs.read_text())
 
 
 class Routing(unittest.TestCase):
