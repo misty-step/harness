@@ -22,8 +22,9 @@ Judge each foundation from evidence:
    in them, and the last 30 days of deploy failures.
 4. **Recoverable data**: what data the product stores, and its backup and a
    rehearsed restore.
-5. **Safe secrets and access**: the bundle's Dependabot and secret-scanning
-   counts, and committed secrets or broad access in code.
+5. **Safe secrets and access**: open secret-scanning alerts, committed secrets,
+   and broad access in code are gaps. Of the bundle's Dependabot counts, only
+   critical alerts are a gap; lower severities belong to ordinary upkeep.
 6. **Tidy repository**: the description, a README that says what it is and
    how to run and ship it, and a licence if public.
 7. **Written down**: the spec, user stories, and an open backlog in its tracker.
