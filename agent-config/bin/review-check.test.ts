@@ -100,6 +100,14 @@ describe("real headless page", () => {
 		expect(rules).toEqual(["ask-not-visible"]);
 	});
 
+	test("an ask that carries its own folded drill-down passes: the reader reads the whole ask", () => {
+		const drill = page(
+			"drill.html",
+			`<p data-review="point">Code fixes hold.</p><div data-review="ask">Approve the brief sender<details><summary>Why</summary><p>${OVERVIEW}</p></details></div>`,
+		);
+		expect(rulesFor(drill)).toMatchObject({ code: 0, rules: [] });
+	});
+
 	test("an ask clipped by an ancestor or covered by another element is not on the first screen", () => {
 		const clipped = page("clipped.html", `<p data-review="point">Code fixes hold.</p><div style="height:0;overflow:hidden"><p data-review="ask">Approve it</p></div>`);
 		const covered = page(
@@ -152,7 +160,15 @@ describe("real headless page", () => {
 			"emptied.html",
 			`<p data-review="point">Code fixes hold.</p><p data-review="ask"><span style="visibility:hidden">Approve deletion</span></p>`,
 		);
-		for (const cut of [hair, pastWindow, wrapped, emptied]) {
+		const partlyHidden = page(
+			"partly-hidden.html",
+			`<p data-review="point">Code fixes hold.</p><p data-review="ask">Approve deletion of <span style="visibility:hidden">production backups</span></p>`,
+		);
+		const partlyGone = page(
+			"partly-gone.html",
+			`<p data-review="point">Code fixes hold.</p><p data-review="ask">Approve deletion of <span style="display:none">production backups</span></p>`,
+		);
+		for (const cut of [hair, pastWindow, wrapped, emptied, partlyHidden, partlyGone]) {
 			const { code, rules } = rulesFor(cut);
 			expect(code).toBe(1);
 			expect(rules).toEqual(["ask-not-visible"]);

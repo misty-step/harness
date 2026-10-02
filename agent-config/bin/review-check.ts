@@ -135,14 +135,20 @@ const PAGE_SCRIPT = (pointSelector: string, askSelector: string) => `(async () =
 	const solid = (r) => r.width > 0 && r.height > 0;
 	const onScreen = (r) => solid(r) && r.top < vh && r.bottom > 0 && r.left < vw && r.right > 0;
 	const wholly = (r) => r.top >= -0.5 && r.bottom <= vh + 0.5 && r.left >= -0.5 && r.right <= vw + 0.5;
-	const textNodes = (root) => {
+	const textNodes = (root, hidden = false) => {
 		const found = [];
 		const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
 		for (let node = walker.nextNode(); node; node = walker.nextNode()) {
 			const parent = node.parentElement;
-			if (parent && hasWord(node.data) && !parent.closest("script,style,noscript,template") && visible(parent)) found.push(node);
+			if (parent && hasWord(node.data) && !parent.closest("script,style,noscript,template") && visible(parent) !== hidden) found.push(node);
 		}
 		return found;
+	};
+	// Text folded into a closed <details> is drill-down the reader chose not to open, not something withheld.
+	const folded = (node) => {
+		const details = node.parentElement.closest("details:not([open])");
+		const summary = node.parentElement.closest("summary");
+		return details !== null && !(summary && summary.parentElement === details);
 	};
 	const ownerOf = (node) => {
 		let owner = node.parentElement;
@@ -186,9 +192,11 @@ const PAGE_SCRIPT = (pointSelector: string, askSelector: string) => `(async () =
 		const rect = el.getBoundingClientRect();
 		let shown = visible(el) && solid(rect);
 		if (shown && wholly(rect)) {
-			// Empty is not shown: a part whose text is all hidden shows the reader nothing.
+			// Empty is not shown: a part whose text is all hidden shows the reader nothing; text withheld
+			// from a part that otherwise shows (hidden, display:none) leaves the reader a partial ask.
 			const counts = textNodes(el).map((node) => wordsOf(node, true));
-			shown = boxShown(el) && counts.some((c) => c.shown > 0) && counts.every((c) => c.shown === c.total);
+			const withheld = textNodes(el, true).some((node) => !folded(node));
+			shown = boxShown(el) && !withheld && counts.some((c) => c.shown > 0) && counts.every((c) => c.shown === c.total);
 		}
 		return { text: el.textContent || "", visible: shown, top: rect.top, left: rect.left, bottom: rect.bottom, right: rect.right };
 	};
