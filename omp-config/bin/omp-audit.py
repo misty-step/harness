@@ -550,7 +550,9 @@ def audit_one(context, meta, shared_path, shared, deadline):
     if context.dry_run:
         context.record(repo, status="gathered", finished=iso(now()))
         return
-    name = f"audit-{context.audit}-{repo.split('/', 1)[1]}".lower()[:60]
+    # Readable, and unique across organizations and runs: same-named repositories never share an auditor.
+    suffix = hashlib.sha256(f"{context.id}|{repo}".encode()).hexdigest()[:8]
+    name = f"{re.sub(r'[^a-z0-9-]+', '-', f'audit-{context.audit}-{repo.lower()}')[:50]}-{suffix}"
     prompt = (f"Begin the {context.audit} audit of {repo}. Read {record / 'brief.md'} first, then {record / 'bundle.json'}, "
               "then the repository. File every gap with audit_file, then finish with your summary.")
     tab_id = None
