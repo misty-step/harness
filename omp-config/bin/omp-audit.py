@@ -540,11 +540,9 @@ def audit_one(context, meta, shared_path, shared, deadline):
                      "outputs": str(context.outputs), "record_only": context.record_only or context.dry_run}
     last_run, last_commit = previous_run(context.audit, repo, context.id)
     unchanged = context.audit in ("principles", "simplicity") and last_commit == evidence["commit"]
-    quiet = context.audit == "principles" and not evidence["merged_prs"]["merged"]
-    if unchanged or quiet:
+    if unchanged:
         carried = carry_forward(filer_context, last_run) if last_run else 0
-        context.record(repo, status="skipped", carried=carried, finished=iso(now()),
-                       reason="no commits since its last run" if unchanged else "no merged changes in the last seven days")
+        context.record(repo, status="skipped", carried=carried, finished=iso(now()), reason="no commits since its last run")
         return
     write_json(record / "bundle.json", evidence)
     (record / "brief.md").write_text(brief(context.audit, repo, checkout, record, shared_path, evidence))
@@ -613,8 +611,10 @@ def run_command(audit, only, concurrency, dry_run, record_only=False):
     context.finished = iso(now())
     with context.lock:
         context.save()
-    failed = [repo for repo, entry in context.repos.items() if entry.get("status") == "failed"]
-    context.log(f"{audit} audit {context.id} finished: {len(context.repos) - len(failed)} done, {len(failed)} failed; outputs {context.outputs}")
+    # A stopped, blocked or vanished auditor is an incomplete audit: fail the unit so its alert fires.
+    failed = [repo for repo, entry in context.repos.items() if entry.get("status") not in ("finished", "skipped", "gathered")]
+    context.log(f"{audit} audit {context.id} finished: {len(context.repos) - len(failed)} complete, "
+                f"{len(failed)} incomplete ({', '.join(failed) or 'none'}); outputs {context.outputs}")
     if context.workspace:
         herdr("workspace", "close", context.workspace, check=False)
     shutil.rmtree(context.work, ignore_errors=True)  # Checkouts are scratch; the run's record stays in STATE.
