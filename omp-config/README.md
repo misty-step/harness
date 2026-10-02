@@ -988,12 +988,25 @@ when that model fails instead of hopping to Gemini. See "Launch without a
 ticket" below.
 
 ```sh
-omp-roster launch --item K-20260929-example --json  # qualifying ticket: starts both lanes in this checkout
+omp-roster capacity --json  # read-only session-wide count; never launches or reserves
+omp-roster launch --item K-20260929-example --cwd /path/to/exclusive-checkout --json  # qualifying ticket: starts both lanes
 omp-roster launch --item K-20260929-example --tiny "single typo fix"  # recorded opt-out; prints one launch plan
 omp-roster launch --model anthropic/claude-sonnet-5-5 --thinking medium --json   # no ticket: one route
 omp-roster check --item K-20260929-example --session ~/.omp/agent/sessions/<cwd>/<session>.jsonl
 omp-roster check --item adhoc-anthropic-claude-sonnet-5-5-20260929T190130Z --session <dir>   # id from the launch
 ```
+
+`capacity [--json]` is the capacity-only API. It reads only the configured
+working-engineer limit and `herdr agent list`, using the same session-wide OMP
+count policy as launch. JSON is `{ "engineer_capacity": { "working": N, "limit": L } }`;
+exit **0** includes a fleet at or above its limit. An invalid limit or unreadable
+fleet exits **1**, with the read error on stderr rather than a guessed count.
+It needs no ticket, usage route, memory measurement, display activation or clean
+checkout. It neither reads nor writes the experiment journal (even if corrupt
+or unwritable), migrates retired pair state, takes a lock, writes launch
+artifacts, nor creates worktrees, panes or agents. This is a snapshot, not
+reservation or admission: an actual launch rechecks its existing guards.
+Do not use `launch`, a fake ticket or an opt-out reason for a capacity/status read.
 
 `launch [--ticket-json FILE] [--usage-json FILE] [--state-dir DIR] [--harness omp] [--cwd DIR] [--brief-file FILE] [--use-default] [--tiny REASON | --live-data REASON | --no-experiment REASON] [--json]`:
 
@@ -1117,6 +1130,13 @@ two actual OMP lanes for qualifying **build, design or research** work when no
 experiment is reserved. This replaces the optional twin suggestion and manual
 `pair` registration/clear path; there is no `pair.json` or second experiment ledger.
 The launch uses the current checkout unless `--cwd DIR` selects another.
+Choose an exclusive checkout **before** launching and pass it with `--cwd`.
+In JSON, `started: true` means **both agents are already dispatched**:
+consume `pair.experiment.id` and the returned `pair.experiment.lanes` identities
+(`pane_id`, `session`, `workspace_id`, `cwd`); do not start or prompt a third
+engineer or manually register/log the pair. Only `started: false` returns
+`env` and `args` for **one** explicitly pinned engineer. Any `--tiny REASON`
+or `--live-data REASON` decision must be made before that launch.
 Worktree creation resolves the checkout's canonical Herdr parent workspace first;
 a linked checkout is a valid launch source, not a worktree-creation parent.
 Both lanes receive the same complete Glass ticket brief (title, why, description,
