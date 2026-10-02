@@ -734,15 +734,18 @@ def create(kind, scope, request, body, context, mark):
 
 
 def recur(ticket, request, context, moment):
-    """An open ticket already owns this gap: note it was seen again and let its priority climb with age."""
+    """An open ticket already owns this gap: a Habitat ticket's priority climbs with age. Board items carry no
+    priority; the desk grooms them."""
     if ticket.get("board"):
-        return None  # Board items carry no comments or priorities; the desk grooms them.
+        return None
     base = PRIORITIES.index(request["priority"])
     created = datetime.fromisoformat(str(ticket["created"]).replace("Z", "+00:00")) if ticket.get("created") else moment
     target = climbed(base, created, moment)
     raised = ticket.get("priority") is None or target < ticket["priority"]
-    if raised:
-        run([HABITAT, "--json", "update", ticket["id"], "--priority", HABITAT_PRIORITY[target]])
+    if raised:  # Habitat refuses an update without the item's current revision.
+        item = run_json([HABITAT, "--json", "get", ticket["id"]])
+        revision = (item.get("data") or item)["revision"]
+        run([HABITAT, "--json", "update", ticket["id"], "--priority", HABITAT_PRIORITY[target], "--expected-revision", str(revision)])
     return PRIORITIES[target] if raised else None
 
 

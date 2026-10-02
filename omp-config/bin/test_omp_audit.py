@@ -202,6 +202,14 @@ class Filing(unittest.TestCase):
         self.assertTrue(audit.carries(notes, MARK))
         self.assertIn(str(self.outputs), notes)
 
+    def test_a_habitat_climb_sends_the_items_current_revision(self):
+        updates = []
+        owner = ticket("HA-7", "open", priority=3, created="2026-09-01T00:00:00Z")
+        with patch.object(audit, "run_json", return_value={"data": {"external_id": "HA-7", "revision": 4}}), \
+             patch.object(audit, "run", side_effect=lambda argv, **kw: updates.append(argv)):
+            self.assertEqual(audit.recur(owner, request(priority="normal"), {}, NOW), "high")
+        self.assertEqual(updates[0][-4:], ["--priority", "p1", "--expected-revision", "4"])
+
 
 class Settling(unittest.TestCase):
     def test_a_stranded_finding_fails_the_repository_loudly(self):
