@@ -236,6 +236,8 @@ are not a general security boundary.
 
 Repositories and ordinary home data remain shared and writable. Host config,
 installed executables and selected broker/runtime paths are read-only or hidden.
+All of `~/.hermes` stays hidden; Kaylee hands off briefs and live-data copies through `~/.local/state/kaylee/briefs`.
+Engineers read Kaylee's source in the `hermes-config` repository, never the live profile.
 Engineer `~/.cache/tmp` is a fresh private directory on its existing disk
 filesystem, not tmpfs storage that consumes the per-engineer memory bound.
 Git, cached pass/signing, silent Pulse audio and the native headless `browser`
