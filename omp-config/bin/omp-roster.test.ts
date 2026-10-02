@@ -99,7 +99,7 @@ const usageView = (rollup: unknown[], patch: object = {}) => ({ schema_version: 
 
 type Result = { exitCode: number; stdout: string; stderr: string };
 // umask 0: a file that ends up 0600 got that mode from the CLI, not from the ambient umask.
-function invoke(args: string[], env: Record<string, string> = {}): Result {
+function invoke(args: string[], env: Record<string, string> = {}, cwd?: string): Result {
 	const inherited = { ...process.env };
 	delete inherited.OMP_ROSTER_ENGINEER_LIMIT;
 	delete inherited.OMP_ROSTER_PAIR_FILE;
@@ -112,6 +112,7 @@ function invoke(args: string[], env: Record<string, string> = {}): Result {
 	const result = Bun.spawnSync({
 		cmd: ["sh", "-c", 'umask 0; exec "$@"', "sh", process.execPath, cli, ...actualArgs],
 		env: { ...inherited, HOME: root, XDG_STATE_HOME: join(root, "xdg"), OMP_ROSTER_EXPERIMENTS_FILE: join(root, ".hermes", "profiles", "kaylee", "journal", "experiments.md"), ...env, PATH: env.PATH ? `${env.PATH}:${join(root, "bin")}` : `${join(root, "bin")}:${process.env.PATH}` },
+		cwd,
 		stdout: "pipe",
 		stderr: "pipe",
 	});
@@ -132,6 +133,53 @@ const launched = (result: Result & { state: string }) => {
 	expect(result.exitCode).toBe(0);
 	return JSON.parse(result.stdout) as Record<string, any>;
 };
+
+describe("omp-roster read-only capacity", () => {
+	test("reads a full fleet without touching dirty checkout, corrupt private journal or launch state", () => {
+		const dir = scratch("capacity-read-only");
+		const bin = join(dir, "bin");
+		const home = join(dir, "home");
+		const state = join(dir, "state");
+		const journal = put(join(home, "journal", "experiments.md"), "<!-- omp-experiments:state:start -->\nnot JSON\n");
+		chmodSync(journal, 0o400);
+		chmodSync(dirname(journal), 0o500);
+		const agents = put(join(dir, "agents.json"), JSON.stringify({ result: { agents: [
+			{ agent: "omp", agent_status: "working", name: "caller", workspace_id: "w1" },
+			{ agent: "omp", agent_status: "working", pane_id: "w2:p1", workspace_id: "w2" },
+			{ agent: "hermes", agent_status: "working", name: "kaylee" },
+			{ agent: "omp", agent_status: "idle", name: "settled" },
+		] } }));
+		const forbidden = join(dir, "unexpected-command");
+		const refuse = `printf '%s\\n' "$0 $*" >> "${forbidden}"; exit 90`;
+		const herdr = put(join(bin, "herdr"), `#!/bin/sh\nif [ "$*" = "agent list" ]; then exec /usr/bin/cat "${agents}"; fi\n${refuse}\n`);
+		chmodSync(herdr, 0o700);
+		for (const command of ["board", "glass", "ai-usage", "omp", "omp-engineer"]) {
+			chmodSync(put(join(bin, command), `#!/bin/sh\n${refuse}\n`), 0o700);
+		}
+		const checkout = join(dir, "checkout");
+		expect(Bun.spawnSync({ cmd: ["git", "init", "--quiet", checkout] }).exitCode).toBe(0);
+		put(join(checkout, "untracked.txt"), "Uncommitted work must not prevent a status read.\n");
+		// Inventory paths and bytes, including .git, exposes lock/migration/overlay writes.
+		const snapshot = () => readdirSync(dir, { recursive: true }).map(String).sort().map((path) => {
+			const file = join(dir, path);
+			const info = statSync(file);
+			return [path, info.mode, info.mtimeMs, info.isFile() ? readFileSync(file) : null];
+		});
+		const before = snapshot();
+		try {
+			const result = invoke(["capacity", "--json"], {
+				HOME: home, XDG_STATE_HOME: state, PATH: `${bin}:/usr/bin:/bin`, HERDR_TEST_AGENTS: agents,
+				OMP_ROSTER_ENGINEER_LIMIT: "2", OMP_ROSTER_EXPERIMENTS_FILE: journal,
+				OMP_ROSTER_PAIR_FILE: join(dir, "retired-pair.json"),
+			}, checkout);
+			expect([result.exitCode, result.stderr]).toEqual([0, ""]);
+			expect(JSON.parse(result.stdout)).toEqual({ engineer_capacity: { working: 2, limit: 2 } });
+			expect(snapshot()).toEqual(before);
+		} finally {
+			chmodSync(dirname(journal), 0o700);
+		}
+	});
+});
 
 describe("omp-roster memory admission", () => {
 	test("below-floor guidance warns in launch JSON while preserving overlay and record creation", () => {
@@ -205,6 +253,9 @@ describe("omp-roster launch (US-046)", () => {
 			["2", 2, 1], ["2", 2, 2], ["2", 2, 3], ["24", 24, 19],
 		] as const) {
 			put(agentsFile, JSON.stringify({ result: { agents: [...working.slice(0, count), ...settled, ...nonEngineers] } }));
+			const capacity = invoke(["capacity", "--json"], { ...env, ...(configured === undefined ? {} : { OMP_ROSTER_ENGINEER_LIMIT: configured }) });
+			expect([capacity.exitCode, capacity.stderr]).toEqual([0, ""]);
+			expect(JSON.parse(capacity.stdout)).toEqual({ engineer_capacity: { working: count, limit } });
 			const state = join(dir, `capacity-${limit}-${count}`);
 			const result = invoke([...args, "--state-dir", state], { ...env, ...(configured === undefined ? {} : { OMP_ROSTER_ENGINEER_LIMIT: configured }) });
 			if (count >= limit) {
@@ -229,6 +280,9 @@ describe("omp-roster launch (US-046)", () => {
 			const refused = invoke(args, { OMP_ROSTER_ENGINEER_LIMIT: limit });
 			expect([refused.exitCode, refused.stdout]).toEqual([1, ""]);
 			expect(refused.stderr).toContain("OMP_ROSTER_ENGINEER_LIMIT must be a positive safe integer.");
+			const capacity = invoke(["capacity", "--json"], { OMP_ROSTER_ENGINEER_LIMIT: limit });
+			expect([capacity.exitCode, capacity.stdout]).toEqual([1, ""]);
+			expect(capacity.stderr).toContain("OMP_ROSTER_ENGINEER_LIMIT must be a positive safe integer.");
 		}
 		for (const doc of ["not JSON", "{}", '{"result":{"agents":[{"agent":"omp","agent_status":"new-status"}]}}', '{"result":{"agents":[{"agent":"omp","agent_status":"working"}]}}']) {
 			put(agents, doc);
@@ -236,6 +290,9 @@ describe("omp-roster launch (US-046)", () => {
 			expect([refused.exitCode, refused.stdout]).toEqual([1, ""]);
 			expect(refused.stderr).toContain("Cannot read the Herdr agents:");
 			expect(refused.stderr.trim().split("\n")).toHaveLength(1);
+			const capacity = invoke(["capacity", "--json"], { HERDR_TEST_AGENTS: agents });
+			expect([capacity.exitCode, capacity.stdout]).toEqual([1, ""]);
+			expect(capacity.stderr).toContain("Cannot read the Herdr agents:");
 		}
 		put(agents, JSON.stringify({ result: { agents: Array.from({ length: 8 }, (_, i) => ({ agent: "omp", name: `engineer-${i + 1}`, agent_status: "working" })) } }));
 		const full = invoke(args, { HERDR_TEST_AGENTS: agents, OMP_ROSTER_ENGINEER_LIMIT: "2" });

@@ -634,6 +634,10 @@ Criteria:
    twin command. The candidate SHALL differ only by supported reasoning effort
    and SHALL be capable of changing a nature/model effort default; build lanes
    SHALL NOT merge or install before the verdict.
+   JSON `started: true` SHALL mean both lanes are already dispatched and
+   provide their identities; callers SHALL NOT dispatch a third engineer.
+   Only `started: false` SHALL return environment and arguments for one
+   explicitly pinned engineer.
 8. WHEN `--tiny REASON`, `--live-data REASON` or `--no-experiment REASON` is used,
    THE SYSTEM SHALL require a nonempty reason, record it with item and timestamp
    in the existing experiment journal and return an ordinary launch plan.
@@ -719,6 +723,15 @@ Criteria:
    usage admission checks of US-046 and write the launch artifacts when they
    pass; unreadable Herdr state or an invalid limit SHALL refuse with exit 1
    and no artifacts.
+5. WHEN a caller requests `omp-roster capacity --json`, THE SYSTEM SHALL return
+   exit 0 and `{ "engineer_capacity": { "working": N, "limit": L } }`, including
+   a fleet at or above its limit, using the same validated count and limit as
+   launch. It SHALL read no ticket, usage, memory, display or journal state;
+   write no journal, migration, lock or launch artifacts; and create no
+   worktree, pane or agent. Corrupt/unwritable journals and dirty or unrelated
+   checkouts SHALL NOT prevent this read. Unknown fleet state or an invalid
+   limit SHALL fail nonzero with a visible error, never a guessed count.
+   This snapshot SHALL NOT reserve capacity or replace actual launch admission.
 
 No-gos: no changes to Herdr or Kaylee's tools, no closing agents, no reservation
 or spawn transaction. The tool checks a live snapshot before writing; it cannot

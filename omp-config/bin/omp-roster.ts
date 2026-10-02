@@ -80,6 +80,7 @@ type LaunchOptions = { harness?: string; json?: boolean; "ticket-json"?: string;
 type CheckOptions = { "ticket-json"?: string; "state-dir"?: string; since?: string };
 type MemorySnapshot = Record<string, unknown> & { schema_version: 1; ok: true; activated: boolean; admitted: boolean; reservation: false; warnings: string[] };
 const USAGE = `Usage:
+  omp-roster capacity [--json]
   omp-roster launch --item ID [--cwd CHECKOUT] [--brief-file FILE] [--no-experiment REASON|--tiny REASON|--live-data REASON] [--use-default] [--json]
   omp-roster launch --model provider/model --thinking effort [--usage-json FILE] [--memory-json FILE] [--state-dir DIR] [--json]
   omp-roster memory [--json] [--memory-json FILE]
@@ -87,6 +88,7 @@ const USAGE = `Usage:
   omp-roster defaults [--nature build|design|research] [--model provider/model] [--json]
   omp-roster verdict --experiment E-NNN --artifact-a FILE --artifact-b FILE --judge provider/model --thinking effort [--json]
   omp-roster abandon --experiment E-NNN --reason TEXT
+Capacity is a read-only fleet snapshot, not a reservation; launch rechecks admission and may start both experiment lanes.
 Memory fixtures are read-only guidance; the actual engineer launch rechecks live containment under lock.
 Exit: 0 done, 1 refused or unreadable input, 2 usage, 3 roster exhausted, 4 turns off the roster or the roster changed, 5 working-engineer limit reached`;
 
@@ -180,7 +182,7 @@ function memoryCommand(options: { json?: boolean; "memory-json"?: string }): num
 	return 0;
 }
 // Session-wide: no workspace filter, no exclusion for the calling engineer.
-function enforceEngineerLimit(): { working: number; limit: number; agents: Record<string, unknown>[] } {
+function readEngineerCapacity(): { working: number; limit: number; agents: Record<string, unknown>[]; names: string[] } {
 	const configured = process.env.OMP_ROSTER_ENGINEER_LIMIT ?? "24";
 	if (!/^[1-9][0-9]*$/.test(configured) || !Number.isSafeInteger(Number(configured))) {
 		throw new CliError("OMP_ROSTER_ENGINEER_LIMIT must be a positive safe integer.");
@@ -201,10 +203,22 @@ function enforceEngineerLimit(): { working: number; limit: number; agents: Recor
 		if (!name) throw new CliError("Cannot read the Herdr agents: a working agent has no name or pane id.");
 		working.push(name);
 	}
-	if (working.length >= limit) {
-		throw new CliError(`working-engineer limit reached (${working.length}/${limit}); working: ${working.join(", ")}; queue work on the board.`, FLEET_FULL);
+	return { working: working.length, limit, agents: result.agents as Record<string, unknown>[], names: working };
+}
+
+function capacityCommand(options: { json?: boolean }): number {
+	const { working, limit } = readEngineerCapacity();
+	if (options.json) console.log(JSON.stringify({ engineer_capacity: { working, limit } }, null, 2));
+	else console.log(`working engineers: ${working}/${limit} (snapshot only, no reservation)`);
+	return 0;
+}
+
+function enforceEngineerLimit(): { working: number; limit: number; agents: Record<string, unknown>[] } {
+	const { names, ...snapshot } = readEngineerCapacity();
+	if (snapshot.working >= snapshot.limit) {
+		throw new CliError(`working-engineer limit reached (${snapshot.working}/${snapshot.limit}); working: ${names.join(", ")}; queue work on the board.`, FLEET_FULL);
 	}
-	return { working: working.length, limit, agents: result.agents as Record<string, unknown>[] };
+	return snapshot;
 }
 
 
@@ -923,6 +937,15 @@ function itemOf(value: string | undefined): string {
 
 function run(argv: string[]): number {
 	const [command, ...args] = argv;
+	if (command === "capacity") {
+		const { values } = parseArgs({
+			args,
+			options: { json: { type: "boolean" }, help: { type: "boolean", short: "h" } },
+			strict: true,
+		});
+		if (values.help) { console.log(USAGE); return 0; }
+		return capacityCommand(values);
+	}
 	if (command === "launch") {
 		const { values } = parseArgs({
 			args,
