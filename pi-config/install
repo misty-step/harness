@@ -151,7 +151,7 @@ run_shared() {
   set --
   if has pass-env; then set -- "$@" --bin pass-env.ts; fi
   if has guidance; then set -- "$@" --bin design-check.ts; fi
-  if has skills; then set -- "$@" --skill all --bin foundation-check.ts --bin agent-review.ts --bin ws.ts; fi
+  if has skills; then set -- "$@" --skill all --bin foundation-check.ts --bin review-check.ts --bin agent-review.ts --bin ws.ts; fi
   if has audio-sandbox; then set -- "$@" --audio-sandbox; fi
   if has guidance; then
     set -- "$@" \

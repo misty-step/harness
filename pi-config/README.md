@@ -7,7 +7,7 @@ image-budget extension, the model-fallback-chain extension, the OpenRouter
 live-model bridge, and
 the `pi()` key-injection wrapper block in `~/.bashrc`. Shared primitives —
 skill packages, global guidance, and the `pass-env`, `openrouter-key`,
-`design-check`, `foundation-check`, and `ws` launchers — come from the sibling
+`design-check`, `foundation-check`, `review-check`, and `ws` launchers — come from the sibling
 base `agent-config`. `./install`
 deploys the owned agent-directory components into `$PI_CODING_AGENT_DIR`
 (default `~/.pi/agent`); the wrapper block is applied to `~/.bashrc` by hand
@@ -69,7 +69,7 @@ presentation; "behavioral" changes agent capability, model input, or data flow.
 | `extensions/continuation-nudge/` | this repo | behavioral | yes (component `continuation-nudge`; shared modules materialized) | Bounded Jev continuation nudge at agent settle: advisory, fail-open, max 2 per prompt, `JEV_NUDGE_MODE=off` disables. Review trigger: pi gains a native anti-premature-stop or continuation control, or nudges fire on completed work |
 | `extensions/audio-sandbox/` | this repo | behavioral | yes (component `audio-sandbox`; shared contract materialized) | Agent audio routed to the silent `agent-sandbox` sink (US-026): owned `shellCommandPrefix` for the bash tool plus `process.env` for every other child |
 | `auth.json.openrouter` | this repo (only this entry) | behavioral | yes (component `openrouter-auth`) | Command key bills R90 for its checkout or linked worktrees and the existing Pi personal entry elsewhere; invalid token on failed lookup blocks fallback (US-028, ADR-023) |
-| `agent-config` (skills, guidance, `pass-env`, `openrouter-key`, `design-check`, `foundation-check`, `ws`) | external (sibling base) | behavioral | yes | Portable skills, guidance, and standalone launchers, clean-replaced from `agent-config` (ADR-021) |
+| `agent-config` (skills, guidance, `pass-env`, `openrouter-key`, `design-check`, `foundation-check`, `review-check`, `ws`) | external (sibling base) | behavioral | yes | Portable skills, guidance, and standalone launchers, clean-replaced from `agent-config` (ADR-021) |
 | `~/.bashrc` (`pi()` block) | this repo (marked block only) | behavioral | by hand | Launch hook: Exa key from pass (ADR-010); run-scoped scratch `TMPDIR` via `omp-scratch` when installed (ADR-015) |
 | `~/.config/omarchy/themed/pi.json.tpl` | this repo (hand-managed) | aesthetic | by hand | pi theme template override for every Omarchy theme: readable semantic ink, accent-derived thinking ramp, deeper surfaces (ADR-018) |
 | `extensions/agent-usage-telemetry.ts` | external (managed) | telemetry | no | Reports usage to an external endpoint |
