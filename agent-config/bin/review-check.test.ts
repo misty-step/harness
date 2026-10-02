@@ -135,7 +135,7 @@ describe("real headless page", () => {
 		}
 	});
 
-	test("an ask whose last letters are cut off, by its box or by the window, is not on the first screen", () => {
+	test("an ask the reader cannot read whole (cut by its box, the window, a wrap or hiding) is not on the first screen", () => {
 		const hair = page(
 			"clipped-word.html",
 			`<p data-review="point">Code fixes hold.</p><p data-review="ask" style="font:20px/24px monospace;width:60px;white-space:nowrap;overflow:hidden">Approve</p>`,
@@ -148,7 +148,11 @@ describe("real headless page", () => {
 			"wrapped-word.html",
 			`<p data-review="point">Code fixes hold.</p><p data-review="ask" style="font:20px/24px monospace;width:60px;height:24px;overflow:hidden;overflow-wrap:anywhere">Approve-the-idle-engineer-rule</p>`,
 		);
-		for (const cut of [hair, pastWindow, wrapped]) {
+		const emptied = page(
+			"emptied.html",
+			`<p data-review="point">Code fixes hold.</p><p data-review="ask"><span style="visibility:hidden">Approve deletion</span></p>`,
+		);
+		for (const cut of [hair, pastWindow, wrapped, emptied]) {
 			const { code, rules } = rulesFor(cut);
 			expect(code).toBe(1);
 			expect(rules).toEqual(["ask-not-visible"]);

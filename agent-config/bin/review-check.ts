@@ -185,10 +185,11 @@ const PAGE_SCRIPT = (pointSelector: string, askSelector: string) => `(async () =
 	const box = (el) => {
 		const rect = el.getBoundingClientRect();
 		let shown = visible(el) && solid(rect);
-		if (shown && wholly(rect)) shown = boxShown(el) && textNodes(el).every((node) => {
-			const { total, shown: seen } = wordsOf(node, true);
-			return seen === total;
-		});
+		if (shown && wholly(rect)) {
+			// Empty is not shown: a part whose text is all hidden shows the reader nothing.
+			const counts = textNodes(el).map((node) => wordsOf(node, true));
+			shown = boxShown(el) && counts.some((c) => c.shown > 0) && counts.every((c) => c.shown === c.total);
+		}
 		return { text: el.textContent || "", visible: shown, top: rect.top, left: rect.left, bottom: rect.bottom, right: rect.right };
 	};
 	const blocks = new Map();
