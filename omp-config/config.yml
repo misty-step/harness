@@ -12,6 +12,8 @@ modelRoles:
   tiny: openai-codex/gpt-6-luna:max
   commit: openai-codex/gpt-6-luna:max
   web: web/exa
+find:
+  credentialProvider: openrouter-find
 cycleOrder: [smol, default, extreme]
 symbolPreset: nerd
 theme:
