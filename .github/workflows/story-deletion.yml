@@ -29,10 +29,11 @@ jobs:
       GIT_NO_REPLACE_OBJECTS: "1"
       GIT_TERMINAL_PROMPT: "0"
     steps:
-      - name: Load trusted base checker
+      - name: Load trusted workflow checker
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.pull_request.base.sha }}
+          # A PR's recorded base can predate adoption; it is evidence, not the checker revision.
+          ref: ${{ github.workflow_sha }}
           path: checker
           persist-credentials: false
       - uses: oven-sh/setup-bun@v2

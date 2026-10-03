@@ -484,3 +484,35 @@ the documented local offline invocation corrected that environment, not the test
 Owned disposable homes were removed after inspection; JSON receipts and logs
 remain. No live configuration was installed.
 
+### Live rollout (2026-10-03)
+
+[PR #225](https://github.com/misty-step/harness/pull/225) landed normally as
+`bca1b7e4574c9aeb323edc2a3e1ddea5480bb433`, after an
+[exact-head Gemini 3.8 Flash high review](https://github.com/misty-step/harness/pull/225#pullrequestreview-5398278289)
+and [green CI](https://github.com/misty-step/harness/actions/runs/37083880226).
+Rebased focused checks passed 106 tests, 547 assertions, and the committed-HEAD
+installer walk passed both consumers, including their deployed browser checks.
+
+Real release [PR #224](https://github.com/misty-step/harness/pull/224), head
+`e7d844f787e94167cb75b7a0ae3ae5f43e0ebbc7`, automatically triggered the
+[live workflow](https://github.com/misty-step/harness/actions/runs/37085461382).
+Its exact additions-only proposal returned `skipped`, no model request and no
+capability hold. This proves live dispatch and the no-deletion path; paid
+loss/preservation behavior is proved by the historical replays above.
+
+The first older-PR event also exposed an adoption-window defect:
+[run 37085345651](https://github.com/misty-step/harness/actions/runs/37085345651)
+recorded base `c4a47298fde27c502cb80bc683e7b8057f15a261`, which predates the
+checker, and failed with `Module not found`. Checker source therefore loads
+from the trusted workflow's immutable `github.workflow_sha`; the PR's recorded
+base remains Git evidence for the story comparison. Candidate source is never
+executed, and no other PR or server setting is changed to repair that failure.
+
+Both real-path installer attempts stopped at the launcher write because
+`~/.local/bin` is read-only in the engineer cage. Kaylee subsequently reported
+the OMP `cli` component installed from clean `bca1b7e`; that component does not
+deploy the shared story checker, Pi review launcher, deletion guidance or
+`user-stories` skill. Those use the shared/guide/skill installer selections,
+separately from the OMP CLI deployment.
+
+

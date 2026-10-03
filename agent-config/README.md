@@ -269,8 +269,10 @@ approval path. Shared-account reviews and author claims are not authorization.
 No server-required check or GitHub setting is added.
 
 The harness's [PR workflow](../.github/workflows/story-deletion.yml) loads trusted
-base checker code and fetches candidate Git objects without checking out or
-executing them; the provider key reaches only that checker. It fails only for
+base checker code at the immutable workflow revision (`github.workflow_sha`) and
+fetches candidate Git objects without checking out or executing them. A PR's
+recorded base can predate adoption and supplies story evidence, not checker code;
+the provider key reaches only that trusted checker. It fails only for
 `hold` or an execution/protocol error, reports unavailable judgments as advisory,
 and leaves ordinary independent review in place. Fleet repositories are not
 silently deployed or re-pinned by this source change.
