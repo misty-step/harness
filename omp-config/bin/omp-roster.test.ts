@@ -29,17 +29,34 @@ beforeAll(() => {
 	root = mkdtempSync(join(tmpdir(), "omp-roster-test-"));
 	mkdirSync(join(root, "deploy"));
 	mkdirSync(join(root, "bin"));
+	mkdirSync(join(root, ".cache", "tmp"), { recursive: true });
 	writeFileSync(join(root, "bin", "herdr"), '#!/bin/sh\n[ "$*" = "agent list" ] || exit 2\nif [ -n "$HERDR_TEST_AGENTS" ]; then cat "$HERDR_TEST_AGENTS"; else printf \'%s\\n\' \'{"result":{"agents":[]}}\'; fi\n', { mode: 0o755 });
 	writeFileSync(join(root, "bin", "omp"), `#!${process.execPath}
 const args = process.argv.slice(2);
+if (process.env.ROSTER_PROBE_FENCE === "1") {
+  const home = process.env.HOME;
+  const child = Bun.spawnSync({cmd:["/usr/bin/bwrap","--unshare-user","--unshare-pid","--unshare-ipc","--unshare-net",
+    "--die-with-parent","--cap-drop","ALL","--ro-bind","/","/","--proc","/proc","--dev","/dev",
+    "--tmpfs","/run","--tmpfs","/tmp","--tmpfs",home+"/.cache/tmp","--tmpfs",home+"/.hermes",
+    "--",process.execPath,import.meta.path,...args],env:{...process.env,ROSTER_PROBE_FENCE:"0"},stdout:"pipe",stderr:"pipe"});
+  process.stdout.write(child.stdout); process.stderr.write(child.stderr); process.exit(child.exitCode);
+}
 const chosen = args[args.indexOf("--model") + 1];
 const [provider, model] = chosen.split("/");
 const mode = provider === "anthropic" ? process.env.ROSTER_PROBE_FAILURE : undefined;
 if (mode === "malformed") { console.log("not JSON"); process.exit(0); }
 if (mode === "exit") { console.error("provider unavailable"); process.exit(1); }
+if (mode === "noisy-exit") {
+  console.log("non-JSON setup output");
+  console.error("sent tapfd=5 for tap0\\n" + "683671 | async loadOverlayYaml() {}\\n".repeat(20) + "error: Cannot read provider overlay /missing/probe.json: ENOENT\\n");
+  process.exit(1);
+}
+await Bun.file(args[args.indexOf("--config") + 1]).json();
 if (mode === "fallback") console.log(JSON.stringify({type:"retry_fallback_applied"}));
-console.log(JSON.stringify({type:"message_end",message:{role:"assistant",provider,model:mode === "wrong-model" ? "other" : model,stopReason:mode === "rejected" ? "error" : "stop",errorMessage:mode === "rejected" ? "429 rate limit; resets Sunday 04:30" : undefined}}));
+const rejected = mode === "rejected" || mode === "rejected-exit";
+console.log(JSON.stringify({type:"message_end",message:{role:"assistant",provider,model:mode === "wrong-model" ? "other" : model,stopReason:rejected ? "error" : "stop",errorMessage:rejected ? "429 rate limit; resets Sunday 04:30" : undefined}}));
 if (mode !== "unterminated") console.log(JSON.stringify({type:"agent_end",isTerminal:true}));
+if (mode === "rejected-exit") process.exit(1);
 `, { mode: 0o755 });
 	cli = join(root, "deploy", "omp-roster");
 	copyFileSync(join(import.meta.dir, "omp-roster.ts"), cli);
@@ -414,14 +431,14 @@ describe("omp-roster launch (US-046)", () => {
 			row("anthropic", "sonnet", "usable"), row("openai-codex", "gpt-6.1-sol", "usable"),
 		], { degraded: "six minutes stale", oldest_observation: new Date(Date.now() - 360_000).toISOString(), stale_after_seconds: 300 })));
 		const args = ["launch", "--item", "K-test", "--ticket-json", ticket, "--usage-json", usage, "--json"];
-		for (const failure of ["rejected", "fallback", "wrong-model", "unterminated", "malformed", "exit"]) {
+		for (const failure of ["rejected", "rejected-exit", "fallback", "wrong-model", "unterminated", "malformed", "exit"]) {
 			const result = invoke([...args, "--state-dir", join(dir, failure)], { ROSTER_PROBE_FAILURE: failure });
 			expect(result.exitCode).toBe(0);
 			const out = JSON.parse(result.stdout);
 			expect(out.launch.model).toBe(SOL.model);
 			expect(out.skipped.map((skip: { selector: string }) => skip.selector)).toEqual(["anthropic/claude-sonnet-5-5:medium"]);
 			expect(out.skipped[0].reason.startsWith("live provider check:")).toBe(true);
-			if (failure === "rejected") expect(out.skipped[0].reason).toContain("429 rate limit");
+			if (failure.startsWith("rejected")) expect(out.skipped[0].reason).toContain("429 rate limit");
 		}
 		const state = join(dir, "exhausted");
 		const exhausted = invoke(["launch", "--model", "anthropic/claude-sonnet-5-5", "--thinking", "medium",
@@ -429,6 +446,33 @@ describe("omp-roster launch (US-046)", () => {
 		expect(exhausted.exitCode).toBe(3);
 		expect(JSON.parse(exhausted.stdout).launch).toBeNull();
 		expect(exhausted.stderr).toContain("429 rate limit");
+		expect(existsSync(state)).toBe(false);
+	});
+
+	test("a real fenced child can read the probe overlay after private scratch and Hermes are hidden", () => {
+		const dir = scratch("fenced-overlay");
+		const usage = put(join(dir, "usage.json"), JSON.stringify(usageView([row("openai-codex", "gpt-6.1-sol", "usable")])));
+		const result = invoke(["launch", "--model", "openai-codex/gpt-6.1-sol", "--thinking", "xhigh",
+			"--usage-json", usage, "--state-dir", join(dir, "launch"), "--json"], { ROSTER_PROBE_FENCE: "1" });
+		expect(result.exitCode).toBe(0);
+		const out = JSON.parse(result.stdout);
+		expect(out.launch.selector).toBe("openai-codex/gpt-6.1-sol:xhigh");
+		expect(out.started).toBe(false);
+		expect(readdirSync(join(root, "xdg", "omp-roster")).filter((name) => name.startsWith(".probe-"))).toEqual([]);
+	});
+
+	test("native setup failure preserves its actionable diagnostic beyond source excerpts and malformed stdout", () => {
+		const dir = scratch("probe-diagnostic");
+		const usage = put(join(dir, "usage.json"), JSON.stringify(usageView([row("anthropic", "sonnet", "usable")])));
+		const state = join(dir, "launch");
+		const result = invoke(["launch", "--model", "anthropic/claude-sonnet-5-5", "--thinking", "medium",
+			"--usage-json", usage, "--state-dir", state, "--json"], { ROSTER_PROBE_FAILURE: "noisy-exit" });
+		expect(result.exitCode).toBe(3);
+		const out = JSON.parse(result.stdout);
+		expect(out.launch).toBeNull();
+		expect(out.skipped[0].reason).toContain("Cannot read provider overlay /missing/probe.json: ENOENT");
+		expect(out.skipped[0].reason).not.toMatch(/[\u0000-\u001f\u007f]/);
+		expect(result.stderr).toContain("Cannot read provider overlay /missing/probe.json: ENOENT");
 		expect(existsSync(state)).toBe(false);
 	});
 	test("US-046 the plain launch output is an export line then paste-ready arguments, quoted only where the shell needs it", () => {

@@ -326,13 +326,15 @@ function routeState(entry: Entry, rows: UsageRow[]): { skip: Skip } | { verdict:
 // Cached quota is advisory: require one response on the exact route before committing a launch.
 function probeRoute(entry: Entry): Skip | null {
 	const refused = (reason: string): Skip => ({
-		selector: plain(selector(entry)), verdict: "unknown", reason: `live provider check: ${plain(reason)}`, next_reset: null,
+		selector: plain(selector(entry)), verdict: "unknown",
+		reason: `live provider check: ${reason.replace(/[\u0000-\u001f\u007f]+/g, " ").trim()}`, next_reset: null,
 	});
 	const binary = locate("omp");
 	if (!binary) return refused("omp is not on PATH or in ~/.local/bin");
-	const scratch = join(homedir(), ".cache", "tmp");
+	// The display fence replaces ~/.cache/tmp; use the judge's visible overlay storage.
+	const scratch = stateDir(undefined);
 	mkdirSync(scratch, { recursive: true, mode: 0o700 });
-	const cwd = mkdtempSync(join(scratch, "omp-roster-probe-"));
+	const cwd = mkdtempSync(join(scratch, ".probe-"));
 	try {
 		const overlay = join(cwd, "probe.json");
 		writeFileSync(overlay, JSON.stringify({
@@ -349,10 +351,13 @@ function probeRoute(entry: Entry): Skip | null {
 			cwd, env, stdout: "pipe", stderr: "pipe", timeout: 35_000,
 		});
 		if (result.exitedDueToTimeout) return refused("timed out after 35 seconds");
+		const diagnostic = result.stderr.toString().trim();
 		let assistants = 0, terminal = false;
 		for (const line of result.stdout.toString().split("\n")) {
 			if (!line.trim()) continue;
-			const event = JSON.parse(line);
+			let event: unknown;
+			try { event = JSON.parse(line); }
+			catch { return refused(diagnostic || `invalid OMP JSON: ${line}`); }
 			if (!isRecord(event)) return refused("unrecognised OMP event");
 			if (event.type === "retry_fallback_applied" || event.resolvedModelIsFallback === true
 				|| (event.type === "model_change" && event.model !== key(entry))) return refused("OMP changed route");
@@ -363,9 +368,11 @@ function probeRoute(entry: Entry): Skip | null {
 			if (message.role !== "assistant") continue;
 			assistants++; terminal = false;
 			if (message.provider !== entry.provider || message.model !== entry.model) return refused("OMP answered on a different route");
-			if (message.stopReason !== "stop") return refused(plainOrNull(message.errorMessage) ?? `OMP stopped with ${String(message.stopReason)}`);
+			if (message.stopReason !== "stop") return refused(
+				typeof message.errorMessage === "string" && message.errorMessage.trim()
+					? message.errorMessage : `OMP stopped with ${String(message.stopReason)}`);
 		}
-		if (result.exitCode !== 0) return refused(plainOrNull(result.stderr.toString()) ?? `OMP exited ${result.exitCode}`);
+		if (result.exitCode !== 0) return refused(diagnostic || `OMP exited ${result.exitCode}`);
 		return assistants === 1 && terminal ? null : refused("OMP did not finish one response");
 	} catch (error) {
 		return refused((error as Error).message);

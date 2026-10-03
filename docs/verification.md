@@ -120,8 +120,11 @@ owned directory. Remove only that directory once its process has ended.
   views, fake `board`, `ai-usage`, `herdr` and native `omp` commands, and
   synthetic session files: first-usable launch with skip reasons, verdict and
   degraded reporting; live rejection overriding stale usable quota, fallthrough,
-  route changes and incomplete/malformed native responses; the printed `export`
-  and arguments, exit 3 with nothing
+  route changes and incomplete/malformed native responses; a real Bubblewrap
+  child reading the probe overlay with private scratch and Hermes hidden;
+  actionable setup diagnostics after source excerpts/malformed stdout, and
+  structured nonzero-exit provider errors; the printed `export` and arguments,
+  exit 3 with nothing
   written on an exhausted roster, exact roster-only overlay chains for the
   engineer and helper roles (with a guard over every role and model-keyed chain
   of the real `config.yml`), one overlay and one launch record per launch, refusals
