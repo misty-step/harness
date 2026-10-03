@@ -137,21 +137,27 @@ def exchange(path, request):
         connection.sendall(wire)
         connection.shutdown(socket.SHUT_WR)
         data = bytearray()
-        while len(data) < MAX_REPLY:
+        newline = False
+        while True:
             remaining = deadline - time.monotonic()
             if remaining <= 0:
                 raise InstallError("host install response timed out")
             connection.settimeout(remaining)
-            block = connection.recv(min(65536, MAX_REPLY - len(data)))
+            block = connection.recv(min(65536, MAX_REPLY - len(data) + 1))
             if not block:
-                raise InstallError("incomplete host install response")
-            data.extend(block)
-            if b"\n" in block:
-                raw, trailing = bytes(data).split(b"\n", 1)
-                if trailing:
+                if not newline:
+                    raise InstallError("incomplete host install response")
+                return validate_reply(bytes(data[:-1]), request["operation"])
+            if newline:
+                raise InstallError("unexpected trailing host install response data")
+            if len(data) + len(block) > MAX_REPLY:
+                raise InstallError("host install response exceeds 8 MiB")
+            index = block.find(b"\n")
+            if index >= 0:
+                if index != len(block) - 1:
                     raise InstallError("unexpected trailing host install response data")
-                return validate_reply(raw, request["operation"])
-        raise InstallError("host install response exceeds 8 MiB")
+                newline = True
+            data.extend(block)
 
 
 def main(argv):

@@ -89,6 +89,38 @@ class ClientTransportTests(unittest.TestCase):
                 self.assertEqual(process.stdout, "")
                 self.assertIn("omp-host-install:", process.stderr)
 
+    def test_complete_success_without_reply_eof_is_not_accepted(self):
+        with tempfile.TemporaryDirectory() as directory, socket.socket(socket.AF_UNIX) as server:
+            endpoint = Path(directory) / "install.sock"
+            server.bind(str(endpoint))
+            endpoint.chmod(0o600)
+            server.listen(1)
+            server.settimeout(2)
+            release = threading.Event()
+            failures = []
+
+            def host():
+                try:
+                    connection, _ = server.accept()
+                    with connection:
+                        connection.recv(65536)
+                        connection.sendall(json.dumps(reply(capabilities={})).encode() + b"\n")
+                        release.wait(2)
+                except Exception as exc:
+                    failures.append(exc)
+
+            thread = threading.Thread(target=host, daemon=True)
+            thread.start()
+            try:
+                with patch.object(client, "TIMEOUT", 0.1):
+                    with self.assertRaises((client.InstallError, OSError)):
+                        client.exchange(endpoint, {"schema_version": 1, "operation": "capabilities"})
+            finally:
+                release.set()
+                thread.join(3)
+            self.assertFalse(thread.is_alive())
+            self.assertEqual(failures, [])
+
     def test_invalid_action_flags_never_connect(self):
         install = ["install", "--item", "K-test", "--recipe", "shared-skill",
                    "--revision", "a" * 40, "--selection", "story-qa"]

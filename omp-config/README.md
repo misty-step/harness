@@ -254,9 +254,10 @@ checkouts and claimed proofs are not accepted.
 
 The endpoint is `~/.local/lib/workbench-host-install/route.sock`, UID-owned,
 mode `0600`. The client checks socket ownership/type/mode and `SO_PEERCRED`,
-strictly validates the bounded reply and returns nonzero on denial. One JSON
-request ends with a write-half-close; no commands, environment, destinations,
-repository URLs or additional frames can cross the route. `--socket` is an
+strictly validates the bounded reply through EOF and returns nonzero on denial.
+One JSON request ends with a write-half-close; the reply must likewise close
+after its sole newline. No commands, environment, destinations, repository URLs
+or additional frames can cross the route. `--socket` is an
 explicit disposable-test override, not a destination parameter.
 
 [Workbench's bootstrap and rollback runbook](https://github.com/moomooskycow/workbench/blob/master/README.md#audited-engineer-host-installs-mirrodin-us-007)
