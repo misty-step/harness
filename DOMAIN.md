@@ -119,9 +119,12 @@ the Foundation Standard tooling. It does not own:
   destination or source-proof object, and installation cannot activate consumers.
   Enforced by `omp-config/bin/omp-host-install.py` and
   `omp-config/bin/test_omp_host_install.py`; Workbench enforces the host boundary.
-  Existing-cage library socket exposure and new-cage release protection are
-  checked by `omp-config/bin/test_omp_display.py` (US-052). Real source eligibility,
-  installation and rollback require the installed owner-path walk, not fixtures.
+  Existing-cage library socket exposure and native private/library exclusions
+  are checked by `omp-config/bin/test_omp_display.py` (US-052). Late-created
+  Workbench releases remain writable to existing same-UID cages, so new
+  `workbench-item` installs are deferred rather than adding mounts or restarts.
+  Real source eligibility, installation and rollback require the installed
+  owner-path walk, not fixtures.
 
 ## Code map
 

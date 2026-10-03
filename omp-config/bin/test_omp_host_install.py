@@ -68,6 +68,18 @@ class ClientTransportTests(unittest.TestCase):
         self.assertEqual(json.loads(process.stdout), result)
         self.assertEqual(process.stderr, "")
 
+    def test_retired_workbench_receipts_remain_readable_and_rollback_capable(self):
+        for operation, status in (("readback", "installed"), ("rollback", "rolled_back")):
+            with self.subTest(operation=operation):
+                receipt = {"receipt_id": "host-workbench-old", "recipe": "workbench-item", "status": status}
+                result = reply(receipt=receipt)
+                process = self.invoke([operation, receipt["receipt_id"]], json.dumps(result).encode() + b"\n",
+                                      {"schema_version": 1, "operation": operation,
+                                       "receipt_id": receipt["receipt_id"]})
+                self.assertEqual(process.returncode, 0, process.stderr)
+                self.assertEqual(json.loads(process.stdout), result)
+                self.assertEqual(process.stderr, "")
+
     def test_malformed_and_incomplete_host_responses_are_transport_failures(self):
         valid = reply(capabilities={"route_version": "1"})
         responses = [
@@ -134,6 +146,7 @@ class ClientTransportTests(unittest.TestCase):
                  [*install, "--revision", "abc"],
                  [*install, "--recipe", "shared-bin", "--profile", "kaylee"],
                  [*install, "--recipe", "harness-cli"],
+                 [*install, "--recipe", "workbench-item"],
                  ["install", "--item", "K-test", "--recipe", "shared-skill", "--rev", "a" * 40,
                   "--selection", "story-qa"]]
         with tempfile.TemporaryDirectory() as directory, socket.socket(socket.AF_UNIX) as server:

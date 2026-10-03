@@ -257,20 +257,6 @@ def mounts(home, dns, private_tmp, bridge=None, upstream=None, gpg=None):
                                             ".gnupg/gpg-agent.conf")]):
         if path.exists():
             args.extend(["--ro-bind", str(path), str(path)])
-    releases = home / ".local/share/workbench/releases"
-    try:
-        releases.lstat()
-    except FileNotFoundError:
-        pass
-    else:
-        # Parent aliases can re-bind data underneath an otherwise hidden mount.
-        for candidate in (home, home / ".local", home / ".local/share",
-                          releases.parent, releases):
-            info = candidate.lstat()
-            if (not stat.S_ISDIR(info.st_mode) or info.st_uid != uid
-                    or stat.S_IMODE(info.st_mode) & 0o022):
-                raise DisplayError("Workbench release directories require UID ownership, no aliases, and no group/world write")
-        args.extend(["--ro-bind", str(releases), str(releases)])
     # Do not let tools reuse out-of-namespace command/browser supervisors.
     for path in (home / ".omp/ssh-control", home / ".config/herdr",
                  home / ".config/browser-harness/runtime", home / ".hermes"):
@@ -285,18 +271,6 @@ def mounts(home, dns, private_tmp, bridge=None, upstream=None, gpg=None):
         args.extend(["--ro-bind", str(gpg), str(runtime / "gnupg/S.gpg-agent")])
     if bridge is not None:
         args.extend(["--ro-bind", str(bridge), str(upstream)])
-    # The fixed audited route lives in the existing read-only .local/lib mount.
-    # Keep the directory bind (not a socket inode bind) so socket activation can
-    # recreate the endpoint without requiring an engineer namespace restart.
-    host_install = home / ".local/lib/workbench-host-install/route.sock"
-    try:
-        info = host_install.lstat()
-    except FileNotFoundError:
-        pass  # Existing engineers remain launchable before the desk bootstrap.
-    else:
-        if (not stat.S_ISSOCK(info.st_mode) or info.st_uid != uid
-                or stat.S_IMODE(info.st_mode) != 0o600):
-            raise DisplayError("Host install requires a UID-owned Unix socket with mode 0600")
     return args
 
 

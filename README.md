@@ -164,6 +164,10 @@ Caged engineers use the [audited host-install client](omp-config/README.md#audit
 after Workbench's explicit desk-side bootstrap. It admits named installations
 from merged, independently reviewed, green source; it is not a host shell.
 Installation, host readback, rollback and consumer activation remain distinct.
+New `workbench-item` executable-release installs are deferred: launch-time
+mounts cannot protect late-created assets from existing same-UID cages.
+CLI, individual shared skills/bins, and historical receipt readback/rollback
+remain on the typed route; no cage refresh is implied.
 
 The opt-in [desktop memory guard](docs/desktop-memory-guard.md) (US-043) stages a
 native Herdr user service, bounded development slices, two-slot local-job

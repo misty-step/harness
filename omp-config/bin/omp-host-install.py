@@ -53,7 +53,7 @@ def arguments(argv):
     install = actions.add_parser("install", allow_abbrev=False)
     install.add_argument("--item", required=True, type=item_name)
     install.add_argument("--recipe", required=True,
-                         choices=("workbench-item", "harness-cli", "shared-skill", "shared-bin"))
+                         choices=("harness-cli", "shared-skill", "shared-bin"))
     install.add_argument("--revision", required=True, type=revision)
     install.add_argument("--selection", required=True, type=safe_name)
     install.add_argument("--profile", choices=("omp", "kaylee"), default="omp")

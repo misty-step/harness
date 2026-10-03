@@ -264,10 +264,11 @@ explicit disposable-test override, not a destination parameter.
 owns the desk operation that installs reviewed merged ELF/unit source and
 enables its socket outside the cage. Stage this client separately with
 `OMP_INSTALL_COMPONENTS=cli ./install`. Neither installer starts/restarts the
-desk, gateway or engineers. The existing read-only `.local/lib` mount exposes
-a host-added socket to an already-running cage; no `/run` or live-profile mount
-is added. New cages also protect Workbench's immutable release directory.
-All of `.hermes` remains hidden.
+desk, gateway or engineers. The existing read-only `.local/lib` directory mount
+exposes a host-added or recreated socket to an already-running cage; no `/run`,
+release-directory or live-profile mount is added. Missing or malformed optional
+socket state does not block unrelated cage launch: endpoint validation belongs
+to the typed client when it requests the host route. All of `.hermes` remains hidden.
 
 Set `GLASS_ITEM` to the existing commission and `MERGED_HARNESS_SHA` to its
 approved merged revision:
@@ -281,10 +282,15 @@ omp-host-install readback "$RECEIPT_ID"
 omp-host-install rollback "$RECEIPT_ID"
 ```
 
-Recipes are Workbench's allowlisted command/unit item, OMP `cli`, one genuine
-shared skill in OMP or Kaylee, or one allowlisted shared OMP launcher. Kaylee
-changes are single skill packages, never whole Hermes profile updates,
-identity/configuration, credentials, cron or live runtime replacement.
+Admitted recipes are OMP `cli`, one genuine shared skill in OMP or Kaylee, or one
+allowlisted shared OMP launcher. New `workbench-item` installs are deferred:
+releases created later under writable `.local/share` are reachable by
+already-running same-UID cages, which can chmod and write even chmod-sealed
+assets. Launch-time mounts do not establish their exclusion; cages are not
+restarted or widened to admit the recipe. Existing Workbench receipts remain
+readable and rollback-capable. Kaylee changes are single skill packages, never
+whole Hermes profile updates, identity/configuration, credentials, cron or live
+runtime replacement.
 Rollback restores only captured selected state and refuses byte/mode/link
 drift or a newer installation, even when the selected bytes are identical.
 Private Kaylee prior bytes and staging stay under her hidden profile.
