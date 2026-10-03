@@ -32,6 +32,7 @@ describe("harness secrets policy", () => {
 		const url = ["postgres://app", `${secret}@db.internal:5432/app`].join(":");
 		expect(values(["DATABASE_URL", url].join("="))).toEqual([secret]);
 		expect(values(["https://app", `${secret}@example.com?email=x@y`].join(":"))).toEqual([secret]);
+		expect(values(["postgres://", `${secret}@db.internal/app`].join(":"))).toEqual([secret]);
 	});
 
 	test("keeps ordinary values, short credentials, and following lines outside the match", () => {

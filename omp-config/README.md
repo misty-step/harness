@@ -602,8 +602,8 @@ adds two regex entries (US-039):
 - the complete value of an env-style assignment whose upper-case name contains
   KEY, TOKEN, SECRET, PASSWORD, PASS, AUTH, CREDENTIAL or PRIVATE, including bare
   keyword names, names with leading underscores, and whitespace in an unquoted value;
-- the password through the final `@` in a URL's authority, before its path,
-  query or fragment.
+- the password through the final `@` in a URL's authority, even with an empty
+  username, before its path, query or fragment.
 
 Masking happens whichever tool printed the text and whatever its ignore flags.
 It is reversible: a placeholder in a tool argument is restored before the tool

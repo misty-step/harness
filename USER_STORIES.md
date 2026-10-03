@@ -1080,8 +1080,9 @@ Criteria:
    THE SYSTEM SHALL send the provider a placeholder instead of a value of eight
    or more characters.
 2. WHEN any tool prints a URL with a password of eight or more characters in its
-   user-info field, THE SYSTEM SHALL mask the full password through the final
-   authority delimiter, including an embedded `@`, before the path, query or fragment.
+   user-info field, even with an empty username, THE SYSTEM SHALL mask the full
+   password through the final authority delimiter, including an embedded `@`,
+   before the path, query or fragment.
 3. IF the committed policy holds a plain entry or a regex that does not compile,
    THEN installation SHALL fail before deploying anything.
 4. IF the agent directory's `secrets.yml` lacks the managed first line, THEN
