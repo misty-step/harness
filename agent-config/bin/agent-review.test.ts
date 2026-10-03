@@ -63,6 +63,7 @@ let pullReads = 0;
 let changeAfterModel: Partial<Pull> | undefined;
 let labelCreateStatus = 201;
 let labelAddStatus = 200;
+let reviews: { user: { login: string }; commit_id: string; state: string; body: string }[] = [];
 
 const server = Bun.serve({
 	port: 0,
@@ -93,6 +94,12 @@ const server = Bun.serve({
 			}
 			return Response.json({ merge_base_commit: { sha: mergeBase } });
 		}
+		if (url.pathname.endsWith("/pulls/7/reviews")) {
+			if (request.method === "GET") return Response.json(url.searchParams.get("page") === "1" ? reviews : []);
+			const record = body as { commit_id: string; event: string; body: string };
+			reviews.push({ user: { login: "kaylee-agent[bot]" }, commit_id: record.commit_id, state: record.event === "REQUEST_CHANGES" ? "CHANGES_REQUESTED" : "APPROVED", body: record.body });
+			return Response.json({});
+		}
 		if (request.method === "POST" && url.pathname.endsWith("/demo/labels")) {
 			if (temporaryHead) {
 				git("update-ref", "HEAD", reviewedHead);
@@ -111,6 +118,7 @@ afterEach(() => expect(readdirSync(runtime)).toEqual([]));
 async function run(overrides: Record<string, string> = {}, slug = "misty-step/demo", args: string[] = []) {
 	pullReads = 0;
 	const env = { ...process.env };
+	delete env.OPENROUTER_API_KEY;
 	delete env.AGENT_REVIEW_MODEL;
 	delete env.AGENT_REVIEW_THINKING;
 	env.AGENT_REVIEW_VISION_MODEL = "anthropic/claude-opus-5-5";
@@ -168,6 +176,7 @@ beforeEach(() => {
 	labelAddStatus = 200;
 	calls = [];
 	pullReads = 0;
+	reviews = [];
 	writeFileSync(join(dir, "stall.txt"), "no");
 	answer(clean);
 });
@@ -454,6 +463,32 @@ describe("agent-review posting", () => {
 		// Add, then remove, so the base branch's foundation-review gate sees labeled and unlabeled.
 		expect(posted("/issues/7/labels")).toHaveLength(1);
 		expect(calls.some((call) => call.method === "DELETE" && call.path.endsWith("/labels/agent-reviewed"))).toBe(true);
+	});
+
+	test("concrete story loss holds the exact head and cannot be cleared by a clean rerun or dismissed shared-account review", async () => {
+		git("reset", "--hard", pull.base.sha);
+		put("USER_STORIES.md", "# Stories\n\n## US-001 Export saved work\n\nStatement: When I save work, I want to export it so I keep my own copy.\n\nCriteria:\n1. WHEN exporting, THE SYSTEM SHALL download saved work.\n\nEvidence: export.ts\n");
+		put("export.ts", 'export const exportWork = () => \"download saved work\";\n');
+		pull.base.sha = commit("export contract");
+		git("rm", "export.ts");
+		pull.head.sha = commit("delete export");
+		answer({ ...clean, overall_correctness: "incorrect", findings: [{ title: "Breaking capability: US-001", body: "Deleting export.ts removes the download path required by criterion 1; users cannot export saved work.", priority: 1 }] });
+		const held = await run();
+		expect(held.status).toBe(1);
+		expect(posted("/reviews")[0].body).toMatchObject({ commit_id: pull.head.sha, event: "REQUEST_CHANGES" });
+		expect(reviewBody()).toContain(`story-deletion-hold: head=${pull.head.sha} base=${pull.base.sha}`);
+		answer(clean);
+		reviews[0].state = "DISMISSED";
+		calls = [];
+		const rerun = await run();
+		expect(rerun.status).toBe(1);
+		expect(rerun.stderr).toContain("already held");
+		expect(posted("/reviews")).toEqual([]);
+		// Repairing capability at a new head resumes ordinary independent review.
+		put("export.ts", 'export const exportWork = () => \"download saved work\";\n');
+		pull.head.sha = commit("restore export");
+		expect((await run()).status).toBe(0);
+		expect(posted("/reviews")[0].body).toMatchObject({ event: "APPROVE", commit_id: pull.head.sha });
 	});
 
 	test("image content is read by a separate no-tools vision process and judged by the reviewer", async () => {

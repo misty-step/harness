@@ -198,6 +198,11 @@ directory. It preserves other packages, guidance, and configuration. Preflight
 checks Bun availability, standalone launcher syntax/imports, skill discovery
 metadata, and owned destinations before writing. Installation does not require
 a pass store or decrypt credentials; `pass` and GPG are runtime dependencies.
+`story-deletion-check` deploys with shared skills or guidance and checks deletion
+against immutable base user stories (US-051). A supported capability loss goes
+to Kaylee for Phaedrus's exact-head approval; ordinary deletion and unavailable
+judgments remain non-blocking. [The shared contract](../agent-config/README.md#story-preserving-deletion-us-051)
+owns the CLI and review handoff, not an OMP extension or server-required gate.
 Foreign binaries and symlinks at the launcher destination cause preflight to
 fail rather than being overwritten or deleted; an earlier
 `misty-step/omp-config` launcher header is accepted and upgraded in place.

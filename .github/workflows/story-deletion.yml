@@ -1,0 +1,92 @@
+name: Story deletion
+
+# Exact-head capability review, not a server-required gate. Only a supported
+# capability-loss finding fails; unavailable/uncertain judgments remain advisory.
+# pull_request_target uses trusted base code. Candidate objects are data only:
+# no checkout, project install, hooks, filters, or candidate runtime execution.
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened, ready_for_review]
+permissions:
+  contents: read
+concurrency:
+  group: story-deletion-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+jobs:
+  story-deletion:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    defaults:
+      run:
+        shell: bash
+    env:
+      PR_NUMBER: ${{ github.event.pull_request.number }}
+      HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+      BASE_SHA: ${{ github.event.pull_request.base.sha }}
+      REPOSITORY: ${{ github.repository }}
+      GIT_CONFIG_GLOBAL: /dev/null
+      GIT_CONFIG_NOSYSTEM: "1"
+      GIT_NO_REPLACE_OBJECTS: "1"
+      GIT_TERMINAL_PROMPT: "0"
+    steps:
+      - name: Load trusted base checker
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          path: checker
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1.4.2'
+      - name: Fetch candidate as Git objects
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if ! [[ "$PR_NUMBER" =~ ^[1-9][0-9]*$ && "$HEAD_SHA" =~ ^[0-9a-f]{40}$ && "$BASE_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+            echo '::error::Invalid exact-head event metadata'
+            exit 2
+          fi
+          root="$RUNNER_TEMP/story-deletion"
+          mkdir -p "$root/work"
+          git init --quiet --bare "$root/candidate.git"
+          export GIT_CONFIG_COUNT=1
+          export GIT_CONFIG_KEY_0=http.https://github.com/.extraheader
+          GIT_CONFIG_VALUE_0="Authorization: Basic $(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)"
+          export GIT_CONFIG_VALUE_0
+          git -C "$root/candidate.git" fetch --quiet --no-tags "https://github.com/$REPOSITORY.git" "$BASE_SHA" "refs/pull/$PR_NUMBER/head:refs/candidate/head"
+          test "$(git -C "$root/candidate.git" rev-parse refs/candidate/head)" = "$HEAD_SHA"
+          git -C "$root/candidate.git" merge-base "$BASE_SHA" "$HEAD_SHA" > "$root/base"
+      - name: Check base stories against deletion
+        env:
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+        run: |
+          root="$RUNNER_TEMP/story-deletion"
+          base=$(cat "$root/base")
+          checker="$GITHUB_WORKSPACE/checker/agent-config/bin/story-deletion-check.ts"
+          cd "$root/work"
+          token=$(od -An -N16 -tx1 /dev/urandom | tr -d ' \n')
+          echo "::stop-commands::$token"
+          set +e
+          bun --no-env-file --no-install "$checker" --repo "$root/candidate.git" --base "$base" --head "$HEAD_SHA" --json > "$root/record.json"
+          result=$?
+          set -e
+          cat "$root/record.json"
+          echo "::$token::"
+          jq -e --arg head "$HEAD_SHA" --arg base "$base" '.schema == "story-deletion/1" and .head == $head and .base == $base' "$root/record.json" >/dev/null
+          status=$(jq -r '.status' "$root/record.json")
+          case "$status" in
+            hold)
+              echo "::error title=Breaking capability::Held at $HEAD_SHA against $base. Send the base story criteria and deletion evidence in this record to Kaylee for Phaedrus's explicit approval. Labels, author claims, and shared-account reviews do not authorize removal."
+              test "$result" = 1
+              exit 1
+              ;;
+            pass|skipped)
+              test "$result" = 0
+              echo "::notice title=Story deletion::No capability hold for $HEAD_SHA ($status). Ordinary independent review still applies."
+              ;;
+            unavailable)
+              test "$result" = 0
+              echo "::warning title=Story deletion::No Jev clearance for $HEAD_SHA. Existing independent review must compare base stories and the full diff; provider failure is not a capability-loss finding."
+              ;;
+            *) echo '::error::Checker returned an invalid outcome'; exit 2 ;;
+          esac

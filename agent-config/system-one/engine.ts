@@ -51,6 +51,8 @@ export type ProviderEvaluation = {
 	answers: Record<string, Answer>;
 	requestedModel: string;
 	resolvedModel?: string;
+	/** Provider-reported token counts and USD cost, when supplied by the transport. */
+	usage?: { input_tokens?: number; output_tokens?: number; cost?: number };
 };
 
 export type SystemOneProviderFailureKind = "timeout" | "quota" | "transport" | "malformed_response";
@@ -616,7 +618,7 @@ export class OpenRouterJevProvider implements SystemOneProvider {
 					| { type: "choice"; choice: string; probabilities: Record<string, number>; confidence?: number }
 					| { type: "score"; score: number; legend?: Record<string, string>; probabilities: Record<string, number>; confidence?: number }
 				>;
-				usage?: { input_tokens: number; output_tokens: number };
+				usage?: ProviderEvaluation["usage"];
 			};
 			if (!data || typeof data !== "object" || !data.answers || typeof data.answers !== "object") {
 				throw new SystemOneProviderError("malformed_response", "provider returned no typed answers");
@@ -627,7 +629,7 @@ export class OpenRouterJevProvider implements SystemOneProvider {
 
 			const results = parseProviderAnswers(data.answers);
 
-			return { answers: results, requestedModel: this.requestedModel, resolvedModel: data.model };
+			return { answers: results, requestedModel: this.requestedModel, resolvedModel: data.model, usage: data.usage };
 		} catch (error) {
 			throw providerRequestError("OpenRouter Jev", error);
 		} finally {
