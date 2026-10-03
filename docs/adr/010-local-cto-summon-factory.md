@@ -25,6 +25,11 @@ release effects. Do not describe those exclusions as a delivered factory.
 The three historical probes remain bounded study evidence; this commission is
 ordinary engineering and authorizes no further formal comparison batch.
 
+October 3's updated acceptance also commissions reusable per-agent/per-attempt
+views, recursive rollups and retained evidence packets as factory outputs.
+Their factual contracts/instrumentation do not wait for visual authoring.
+The companion HTML explainer teaches those contracts; it is not their authority.
+
 ## One authority per fact
 
 | Module/actor | Owns | Independently useful contract |
@@ -52,6 +57,43 @@ no run phase, product acceptance, priorities or second mutable run history.
 An executive replacement reads Summon records and native references; it does not
 rewrite them or copy Kaylee's profile state.
 
+## Factory visibility and evidence packets
+
+One versioned read contract serves each agent, run and execution attempt. It
+references the frozen commission/standalone brief and acceptance, attributed
+author/rationale/decisions, exact native session, run/attempt lineage and original
+parent/child/dependency sources. Reads name their owner, time, revision/digest and
+failure/freshness. DO phase, native process state, input delivery, action holds
+and proof freshness remain distinct; unmanaged native sessions have no invented
+Summon phase or backfilled dispatch attempt.
+
+Recursive views are derived from owner facts, not a second status database.
+Validate identities and cycles, deduplicate shared dependencies and preserve
+unresolved/missing children or incomplete discovery. Depth is navigable/paged,
+not an arbitrary semantic cutoff or a wall of progress essays. Parent artifact
+proof does not silently bless a descendant's uncertainty, stale candidate,
+cancellation, missing verification or inaccessible source. Native observations
+cannot write machine transitions; Glass remains a replaceable viewer/client.
+
+A packet is a versioned immutable manifest plus retained evidence/artifacts,
+not a green completion badge: brief/acceptance, authored rationale/decisions,
+observable receipt/execution trace, exact candidate/deliverable, independent
+review and real consumer evidence, holds/authority and applicable release/
+observation receipts, with immutable child packet references. Bind revisions,
+digests and original receipts. Reopening verifies available bytes and exposes
+current binding/freshness separately from historical archive integrity. Retain
+failed/interrupted/incomplete outcomes too. Do not export or reconstruct private
+chain of thought. No service per agent or model call on each visibility tick.
+
+`factory/protocol` owns shared schemas/guards; the standalone Rust
+`summon/evidence` consumer owns factual reads/retention/export, without Glass or
+Mage. CTO owns source facts/integration and the maintained cross-component HTML
+explainer under `docs/factory-explainer/`; approved Claude owns visual authoring.
+These newly commissioned paths are implementation work, not exercised/source-
+landed claims in this ADR. Source/native consumer and exported/reopened packet
+receipts must establish the actual delivered boundary. Prior review rounds stay
+immutable; a small current link may select a newer round without erasing history.
+
 ## Source and replacement boundary
 
 - `agent-config/candidates/summon/`: original PR219 groundwork, inspected at
@@ -60,6 +102,9 @@ rewrite them or copy Kaylee's profile state.
   Worker/SQLite DO candidate; its README owns exact local wire/build commands.
 - `agent-config/candidates/summon/pi-runtime/`: standalone native Pi consumer
   of the shared protocol, not part of the Mage executive's run truth.
+- `agent-config/candidates/summon/evidence/`: standalone source-backed read,
+  recursive projection and immutable packet consumer of shared protocol types;
+  no mutable run/commitment/incident ledger or visual-authoring fallback.
 - `agent-config/candidates/mage/` and
   `pi-config/extensions/commission-relay/`: thin Rust client/transport and narrow
   Pi SDK extension. SDK glue is runtime-specific; other owned control is Rust.
