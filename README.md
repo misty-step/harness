@@ -191,6 +191,18 @@ started at `v0.1.0`; old component tags remain under
 component changelogs remain in place; new release notes belong at the root.
 Optional LLM synthesis is disabled, so publishing requires no model credential.
 
+## Source-only factory pilot
+
+[ADR-010](docs/adr/010-local-cto-summon-factory.md) owns the local CTO/Summon/Mage
+factory boundary for the current Glass commission. The
+[Cloudflare candidate](agent-config/candidates/summon/factory/README.md) is a Rust
+run/input/proof kernel, not the delivered end-to-end factory. Its local protocol,
+proof commands and unexercised/approval boundaries are explicit; installers do
+not select it. Summon owns runs, native runtimes own sessions, Mage owns executive
+delivery only, and Glass owns commitments rather than chat or agent control.
+No hosted activation, Jev integration, scheduler or external release effect is
+implied by source integration or merge.
+
 ## Migration and related tools
 
 The former `misty-step/{agent-config,pi-config,omp-config}` repositories are
