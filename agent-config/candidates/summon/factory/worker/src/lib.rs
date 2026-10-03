@@ -35,7 +35,7 @@ fn route(path: &str) -> Option<(&str, &str)> {
 }
 
 #[event(fetch)]
-pub async fn fetch(mut req: Request, env: Env, _ctx: Context) -> worker::Result<Response> {
+pub async fn fetch(mut req: Request, env: Env, _ctx: worker::Context) -> worker::Result<Response> {
     // This pilot has no hosted authentication boundary. Fail closed away from loopback.
     let url = req.url()?;
     if !matches!(url.host_str(), Some("localhost" | "127.0.0.1" | "[::1]")) {

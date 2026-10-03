@@ -1,7 +1,7 @@
 {
   "name": "summon-factory-local-pilot",
   "main": "worker/build/worker/shim.mjs",
-  "compatibility_date": "2026-10-02",
+  "compatibility_date": "2026-09-25",
   "workers_dev": false,
   "durable_objects": {
     "bindings": [{ "name": "SUMMON_RUNS", "class_name": "SummonRun" }]

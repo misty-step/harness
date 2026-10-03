@@ -1,9 +1,9 @@
 // Real consumer boundary: Wrangler -> Rust Worker -> workerd DO SQLite, not a mock server.
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { spawn } from 'node:child_process';
+import { spawn, execFileSync } from 'node:child_process';
 import { once } from 'node:events';
-import { mkdtemp, mkdir, writeFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, writeFile, readFile } from 'node:fs/promises';
 import { createServer } from 'node:net';
 import { homedir } from 'node:os';
 import { resolve, dirname } from 'node:path';
@@ -15,6 +15,13 @@ const hash = value => createHash('sha256').update(value).digest('hex');
 const delay = ms => new Promise(r => setTimeout(r, ms));
 
 test('exact source: local DO input/claim races, native ambiguity/cancel, scoped holds, proof and restart', { timeout: 120000 }, async t => {
+  // Reject the plausible false green: current source tested against stale generated WASM.
+  const built = JSON.parse(await readFile(resolve(root, 'worker/build/source-revision.json'), 'utf8'));
+  const head = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).trim();
+  assert.equal(built.head, head, 'Worker artifact must be built from this exact committed HEAD');
+  assert.equal(execFileSync('git', ['status', '--porcelain', '--untracked-files=normal', '--', '.'], { cwd: root, encoding: 'utf8' }), '', 'Commit current factory source before claiming exact-revision proof');
+  for (const [file, digest] of Object.entries(built.files)) assert.equal(hash(await readFile(resolve(root, 'worker/build', file))), digest, `Generated artifact changed: ${file}`);
+  t.diagnostic(`Exact source/artifact HEAD: ${head}`);
   const scratchBase = resolve(homedir(), '.cache/tmp');
   await mkdir(scratchBase, { recursive: true });
   const scratch = await mkdtemp(resolve(scratchBase, 'summon-workerd-'));
@@ -164,5 +171,20 @@ test('exact source: local DO input/claim races, native ambiguity/cancel, scoped 
   status = (await api(prefix + '/hold', dispatchHold)).run;
   await api(prefix + '/claim', { claim_id: 'held-dispatch', runner_id: 'runner', expected_revision: status.revision }, 409);
   assert.equal((await api(prefix + '/status')).inputs[2].state, 'queued');
+  // Real SQLite state bound: failed append cannot partially commit or advance revision.
+  const limitTask = { ...task, id: 'cf1:limit', checks: [], outputs: [] };
+  let limited = (await api('/v1/intake', { task: limitTask, initial_input_id: 'initial' })).run;
+  let rejected = false;
+  for (let n = 0; n < 12; n++) {
+    const response = await fetch(base + '/v1/runs/cf1:limit/input', { method: 'POST', body: JSON.stringify({ input_id: `large-${n}`, text: 'x'.repeat(64000) }) });
+    const value = await response.json();
+    if (response.status === 413) { rejected = true; assert.equal(value.code, 'state_limit'); break; }
+    assert.equal(response.status, 200);
+    limited = value.run;
+  }
+  assert.ok(rejected, 'run storage limit must reject oversized state');
+  assert.deepEqual(await api('/v1/runs/cf1:limit/status'), limited);
+  const oversized = await fetch(base + prefix + '/input', { method: 'POST', body: 'x'.repeat(512 * 1024 + 1) });
+  assert.equal(oversized.status, 413);
   t.diagnostic(`Actual Wrangler/workerd SQLite evidence: ${scratch}`);
 });
