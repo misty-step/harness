@@ -272,7 +272,8 @@ class TurnProtocol {
 function processIdentity(pid: number): string | null {
 	try {
 		const stat = readFileSync(`/proc/${pid}/stat`, "utf8");
-		return stat.slice(stat.lastIndexOf(")") + 2).split(" ")[19] ?? null;
+		const fields = stat.slice(stat.lastIndexOf(")") + 2).split(" ");
+		return fields[0] === "Z" || fields[0] === "X" ? null : fields[19] ?? null;
 	} catch { return null; }
 }
 
@@ -305,6 +306,13 @@ async function stopOwnedTree(child: ChildProcessWithoutNullStreams): Promise<voi
 			try { process.kill(descendant, "SIGKILL"); } catch { /* Already exited. */ }
 		}
 	}
+	// A signal or closed pipe is not observed descendant termination. Retain
+	// captured identities until /proc reports exit; expiry is uncertainty.
+	const deadline = performance.now() + 2000;
+	while ([...identities].some(([descendant, stamp]) => processIdentity(descendant) === stamp)) {
+		if (performance.now() >= deadline) throw new Error("Native owned descendant termination was not observed");
+		await new Promise(resolve => setTimeout(resolve, 10));
+	}
 }
 
 async function fencedProcess(binary: string, displayScript: string, args: string[], task: TaskSpec, env: NodeJS.ProcessEnv, timeoutMs: number, input: string, onChunk?: (chunk: Uint8Array) => void, signal?: AbortSignal): Promise<string> {
@@ -316,7 +324,9 @@ async function fencedProcess(binary: string, displayScript: string, args: string
 	const fail = (error: Error) => {
 		if (failure) return;
 		failure = error;
-		stopping = stopOwnedTree(child);
+		stopping = stopOwnedTree(child).catch(error => {
+			failure = new Error(`${failure!.message}; ${String(error)}`);
+		});
 	};
 	const aborted = () => fail(new Error("Native invocation aborted; delivery may be uncertain"));
 	const timer = setTimeout(() => fail(new Error("Native invocation timed out; delivery may be uncertain")), timeoutMs);
