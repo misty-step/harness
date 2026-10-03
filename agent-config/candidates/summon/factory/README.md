@@ -231,7 +231,11 @@ TaskSpec/Status/Reply/mutation wire and RuntimeAdapter are unchanged.
   TaskSpec checks/outputs or non-overridable native permissions, and never
   reconstructs private thinking. `RunMetadata` carries origin/native/lineage,
   candidate/deliverable/trace/check/review/consumer/authorization/release refs,
-  and immutable child packet refs. It is source metadata, not aggregate status.
+  and immutable child packet refs. A separate default-empty `decisions` list
+  retains later already-authored CTO dispositions without changing frozen origin;
+  decision source identity/digest and registered relationship history cannot be
+  removed or rewritten to hide a failed/interrupted child. It is source metadata,
+  not aggregate status.
 - `Lineage` explicitly states discovery completeness and unresolved inventory.
   Child/dependency edges retain stable identity, source owner/digest/reference
   and original provenance. Shared children are one node with multiple edges.
@@ -250,11 +254,58 @@ TaskSpec/Status/Reply/mutation wire and RuntimeAdapter are unchanged.
   `reopen` verifies ORIGINAL bound child archives against fresh source inventory,
   not a convenient latest archive. It never writes run phase.
 
-This checkpoint provides pure shared types/functions. The per-run metadata/read
-HTTP boundary and new recursive fixture/runtime proofs are being implemented;
-no HTTP visibility endpoint is claimed exercised by this source paragraph.
-Deep/shared/cycle graph tests are fixtures, separate from real workerd HTTP and
-from actual native delivery/materialized snapshot proof.
+### Local read/source-metadata API
+
+| Method/path | Shared Rust body/result | Fact owner |
+|---|---|---|
+| GET `/v1/runs/cf1:demo/view` | `AgentRunAttemptV1` | Existing run DO plus original referenced native/commission sources |
+| GET `.../packet` | `PacketManifestV1` | Read-only local export; absent child sources/archives remain unresolved |
+| POST `.../metadata` | `MetadataRequest` → read record | Run DO owns registered source metadata, not native truth or aggregate phase |
+| POST `/v1/visibility/page` | `PageRequest` → `GraphPage` | Pure supplied source snapshot projection |
+| POST `/v1/visibility/export` | `ExportRequest` → `PacketManifestV1` | Pure supplied records + immutable packet catalog |
+| POST `/v1/visibility/reopen` | `ReopenRequest` → `RecursiveProof` | Fresh source/candidate/child validation, no writes |
+
+Metadata body: `{expected_run_revision, expected_metadata_sha256, metadata}`.
+Read the CAS digest from `view.metadata_sha256` (`null` before metadata). Freeze
+origin before any claim; already-started runs remain explicitly missing original
+origin metadata rather than backfilling invented rationale. Original acceptance
+and brief cannot change. Later dispositions append attributed source references.
+Lineage registration preserves all original outgoing child/dependency edges,
+owned by this `summon_do:<run_id>` with original delegation provenance. Changing
+an edge identity/owner/reference or deleting it is refused. A failed source may
+retain last-good bytes with failed/stale/inaccessible state, never current.
+These local caller assertions are **not** authenticated discovery completeness.
+Collectors must actually read each source and mark missing/failed inventory;
+export independently blocks absent reachable records or child packet catalogs.
+No permission, native input state, kernel revision or phase is changed by reads,
+projection/export or metadata. Separate SQLite metadata commit has run+metadata
+CAS and the same 512KiB bound; it is not another mutable run ledger.
+
+```json
+{"root":"cf1:demo", "records":["<AgentRunAttemptV1 read from real sources>"], "packets":["<bound PacketManifestV1 archives>"]}
+```
+
+The strings above denote typed objects, not valid literal record payloads.
+`page` additionally accepts `{cursor:null,limit:64}`; `reopen` uses
+`{packet,records,packets}`. Missing discovery/child facts produce explicit issues
+and `recursive_pass:false`; exporting/reopening an interrupted archive is not an
+error or fabricated success. Read-only unmanaged native records carry
+`management:"observed_only", managed:null`, actual agent/native references and
+no run/attempt IDs. A collector must not import its executive channel as phase.
+
+`archive_sha256()` hashes the deterministic compact JSON manifest representation
+including read timestamps (write `serde_json::to_vec` bytes for exact archives).
+Semantic bindings ignore only read timestamps, CAS metadata token and child
+archive timestamp-only refresh identity; a changed child semantic binding or
+failed current reader is never fresh. Reopen still requires original immutable
+child archive bytes, not a convenient latest file.
+
+Deep/shared/cycle/failure graph tests in `protocol/tests/visibility.rs` and
+metadata history tests are **fixtures**. Workerd HTTP/SQLite read/metadata/export
+and restart paths are separate real runtime proof with synthetic native facts;
+actual native collection, snapshot materialization and independent review remain
+separate owner proofs. See reported exact-head execution receipts, not a prose
+claim that a source file or successful archive export is verified delivery.
 
 ## Local proof commands
 

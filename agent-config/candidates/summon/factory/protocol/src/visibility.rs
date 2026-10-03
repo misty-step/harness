@@ -218,6 +218,9 @@ pub struct RunMetadata {
     pub lineage: Fact<Lineage>,
     pub evidence: Vec<EvidenceRef>,
     pub child_packets: Vec<ChildPacketRef>,
+    /// Later authored technical dispositions; original commission remains frozen.
+    #[serde(default)]
+    pub decisions: Vec<AuthoredRef>,
 }
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
@@ -248,6 +251,8 @@ pub struct AgentRunAttemptV1 {
     pub lineage: Fact<Lineage>,
     pub evidence: Vec<EvidenceRef>,
     pub child_packets: Vec<ChildPacketRef>,
+    #[serde(default)]
+    pub decisions: Vec<AuthoredRef>,
     pub metadata_sha256: Option<String>,
 }
 impl AgentRunAttemptV1 {
@@ -295,6 +300,7 @@ impl AgentRunAttemptV1 {
             child_packets: metadata
                 .map(|m| m.child_packets.clone())
                 .unwrap_or_default(),
+            decisions: metadata.map(|m| m.decisions.clone()).unwrap_or_default(),
             metadata_sha256: metadata.map(content_hash),
         }
     }
@@ -396,6 +402,14 @@ impl AgentRunAttemptV1 {
                 crate::text(&gap.reason)?;
             }
         }
+        let mut decisions = BTreeSet::new();
+        for r in &self.decisions {
+            nonempty(&r.author)?;
+            r.source.validate()?;
+            if !decisions.insert((&r.source.owner, &r.source.reference)) {
+                return refuse("identity_conflict", "duplicate authored decision source");
+            }
+        }
         for e in &self.evidence {
             e.source.validate()?;
             for d in [&e.candidate_sha256, &e.coverage_sha256]
@@ -456,6 +470,9 @@ impl AgentRunAttemptV1 {
             for r in o.rationale.iter().chain(&o.decisions) {
                 source(&r.source, "authored reference not current");
             }
+        }
+        for decision in &self.decisions {
+            source(&decision.source, "authored decision source not current");
         }
         if self
             .managed
@@ -770,16 +787,41 @@ pub fn validate_metadata(
                 "original acceptance/rationale/decision source snapshot is immutable",
             );
         }
-        if let (Some(a), Some(b)) = (&old.lineage.value, &request.metadata.lineage.value) {
+        for original in &old.decisions {
+            let Some(current) = request.metadata.decisions.iter().find(|r| {
+                r.source.owner == original.source.owner
+                    && r.source.reference == original.source.reference
+            }) else {
+                return refuse(
+                    "decision_removal",
+                    "retain original authored dispositions in evidence history",
+                );
+            };
+            if current.author != original.author || current.source.sha256 != original.source.sha256
+            {
+                return refuse(
+                    "identity_conflict",
+                    "authored decision identity/source digest cannot change",
+                );
+            }
+        }
+        if let Some(a) = &old.lineage.value {
+            let Some(b) = &request.metadata.lineage.value else {
+                return refuse(
+                    "edge_removal",
+                    "retain original relationships even when discovery reader fails",
+                );
+            };
             for edge in &a.edges {
-                if b.edges
-                    .iter()
-                    .find(|e| e.edge_id == edge.edge_id)
-                    .is_some_and(|e| {
-                        e.fact_digest() != edge.fact_digest()
-                            || e.source.owner != edge.source.owner
-                            || e.original_source_ref != edge.original_source_ref
-                    })
+                let Some(current) = b.edges.iter().find(|e| e.edge_id == edge.edge_id) else {
+                    return refuse(
+                        "edge_removal",
+                        "cannot hide a failed/interrupted child by removing its original edge",
+                    );
+                };
+                if current.fact_digest() != edge.fact_digest()
+                    || current.source.owner != edge.source.owner
+                    || current.source.reference != edge.source.reference
                 {
                     return refuse(
                         "identity_conflict",
@@ -796,7 +838,11 @@ pub fn validate_metadata(
     }
     let record = AgentRunAttemptV1::from_status(status.clone(), Some(&request.metadata), 0);
     if let Some(l) = &record.lineage.value {
-        if l.edges.iter().any(|e| e.from != record.node_id) {
+        if record.lineage.source.owner != record.source.owner
+            || l.edges
+                .iter()
+                .any(|e| e.from != record.node_id || e.source.owner != record.source.owner)
+        {
             return refuse(
                 "edge_owner",
                 "this DO registers only its outgoing relationship facts",

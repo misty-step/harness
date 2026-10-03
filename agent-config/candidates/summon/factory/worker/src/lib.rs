@@ -1,4 +1,8 @@
 use serde::Deserialize;
+use summon_protocol::evidence::{ExportRequest, PacketManifestV1, PageRequest, ReopenRequest};
+use summon_protocol::visibility::{
+    AgentRunAttemptV1, MetadataRequest, RunMetadata, VisibilityGraph, validate_metadata,
+};
 use summon_protocol::*;
 use worker::*;
 
@@ -58,16 +62,26 @@ pub async fn fetch(mut req: Request, env: Env, _ctx: worker::Context) -> worker:
             Err(_) => return error("invalid_json", "body must be UTF-8 JSON", 400),
         };
     }
+    if path.starts_with("/v1/visibility/") && req.method() == Method::Post {
+        return project(path, &body);
+    }
     let run_id = if path == "/v1/intake" && req.method() == Method::Post {
         match parse::<Intake>(&body) {
             Ok(r) => r.task.id,
             Err(e) => return refusal(e),
         }
     } else if let Some((id, action)) = route(path) {
-        if (action == "status" && req.method() == Method::Get)
+        if (matches!(action, "status" | "view" | "packet") && req.method() == Method::Get)
             || (matches!(
                 action,
-                "input" | "claim" | "observe" | "reconcile" | "hold" | "proof" | "cancel"
+                "input"
+                    | "claim"
+                    | "observe"
+                    | "reconcile"
+                    | "hold"
+                    | "proof"
+                    | "cancel"
+                    | "metadata"
             ) && req.method() == Method::Post)
         {
             id.to_owned()
@@ -93,6 +107,39 @@ pub async fn fetch(mut req: Request, env: Env, _ctx: worker::Context) -> worker:
         .await
 }
 
+fn derived<T: serde::Serialize>(result: summon_protocol::Result<T>) -> worker::Result<Response> {
+    match result {
+        Ok(value) => Response::from_json(&value),
+        Err(e) => refusal(e),
+    }
+}
+fn project(path: &str, body: &str) -> worker::Result<Response> {
+    match path {
+        "/v1/visibility/page" => derived((|| {
+            let request: PageRequest = parse(body)?;
+            VisibilityGraph::new(request.records)?.page(
+                &request.root,
+                request.cursor.as_ref(),
+                request.limit,
+            )
+        })()),
+        "/v1/visibility/export" => derived((|| {
+            let request: ExportRequest = parse(body)?;
+            PacketManifestV1::export(
+                &VisibilityGraph::new(request.records)?,
+                &request.root,
+                &request.packets,
+            )
+        })()),
+        "/v1/visibility/reopen" => derived((|| {
+            let request: ReopenRequest = parse(body)?;
+            request
+                .packet
+                .reopen(&VisibilityGraph::new(request.records)?, &request.packets)
+        })()),
+        _ => error("not_found", "unknown projection endpoint", 404),
+    }
+}
 #[durable_object]
 pub struct SummonRun {
     state: State,
@@ -115,6 +162,29 @@ impl SummonRun {
             .next()
             .map(|r| serde_json::from_str::<Run>(&r.snapshot).map_err(Error::from))
             .transpose()
+    }
+    fn metadata(&self) -> worker::Result<Option<RunMetadata>> {
+        let rows = self
+            .state
+            .storage()
+            .sql()
+            .exec(
+                "SELECT snapshot FROM source_metadata WHERE singleton=1",
+                None,
+            )?
+            .to_array::<Row>()?;
+        rows.into_iter()
+            .next()
+            .map(|r| serde_json::from_str(&r.snapshot).map_err(Error::from))
+            .transpose()
+    }
+    fn save_metadata(&self, metadata: &RunMetadata) -> worker::Result<bool> {
+        let snapshot = serde_json::to_string(metadata)?;
+        if snapshot.len() > MAX_BYTES {
+            return Ok(false);
+        }
+        self.state.storage().sql().exec("INSERT INTO source_metadata(singleton,snapshot) VALUES(1,?) ON CONFLICT(singleton) DO UPDATE SET snapshot=excluded.snapshot", vec![snapshot.into()])?;
+        Ok(true)
     }
     fn save(&self, run: &Run) -> worker::Result<bool> {
         let snapshot = serde_json::to_string(run)?;
@@ -167,6 +237,46 @@ impl SummonRun {
         if action == "status" {
             return Response::from_json(&run.status());
         }
+        if matches!(action, "view" | "packet" | "metadata") {
+            let metadata = self.metadata()?;
+            if action == "metadata" {
+                let request: MetadataRequest = match parse(body) {
+                    Ok(r) => r,
+                    Err(e) => return refusal(e),
+                };
+                if let Err(e) = validate_metadata(&run.status(), metadata.as_ref(), &request) {
+                    return refusal(e);
+                }
+                if !self.save_metadata(&request.metadata)? {
+                    return error(
+                        "state_limit",
+                        "metadata exceeds 512KiB; no mutation committed",
+                        413,
+                    );
+                }
+                return Response::from_json(&AgentRunAttemptV1::from_status(
+                    run.status(),
+                    Some(&request.metadata),
+                    Date::now().as_millis(),
+                ));
+            }
+            let view = AgentRunAttemptV1::from_status(
+                run.status(),
+                metadata.as_ref(),
+                Date::now().as_millis(),
+            );
+            if action == "view" {
+                return Response::from_json(&view);
+            }
+            return derived(PacketManifestV1::export(
+                &match VisibilityGraph::new(vec![view]) {
+                    Ok(g) => g,
+                    Err(e) => return refusal(e),
+                },
+                run_id,
+                &[],
+            ));
+        }
         let result: summon_protocol::Result<(Option<Dispatch>, bool)> = (|| {
             Ok(match action {
                 "input" => (None, run.input(parse(body)?)?),
@@ -215,6 +325,7 @@ impl DurableObject for SummonRun {
             String::new()
         };
         self.state.storage().sql().exec("CREATE TABLE IF NOT EXISTS run(singleton INTEGER PRIMARY KEY CHECK(singleton=1), snapshot TEXT NOT NULL)", None)?;
+        self.state.storage().sql().exec("CREATE TABLE IF NOT EXISTS source_metadata(singleton INTEGER PRIMARY KEY CHECK(singleton=1), snapshot TEXT NOT NULL)", None)?;
         self.apply(&path, &body)
     }
 }

@@ -12,6 +12,10 @@ import { createHash } from 'node:crypto';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const hash = value => createHash('sha256').update(value).digest('hex');
+// Independent HTTP fixture encoding, not another product schema. Shared Rust owns types.
+const semantic = value => Array.isArray(value) ? value.map(semantic) : value && typeof value === 'object'
+  ? Object.fromEntries(Object.keys(value).filter(k => k !== 'read_at_unix_ms').sort().map(k => [k, semantic(value[k])])) : value;
+const fact = (owner, reference, value, time = 1000) => ({ source: { owner, reference, read_at_unix_ms: time, sha256: hash(JSON.stringify(semantic(value))), state: 'current', detail: null }, value });
 const delay = ms => new Promise(r => setTimeout(r, ms));
 
 test('exact source: local DO input/claim races, native ambiguity/cancel, scoped holds, proof and restart', { timeout: 120000 }, async t => {
@@ -81,6 +85,23 @@ test('exact source: local DO input/claim races, native ambiguity/cancel, scoped 
   assert.deepEqual(status.task.context, { instructions: [], skills: [] });
   await api('/v1/intake', { ...intake, task: { ...task, brief: 'conflict' } }, 409);
   await api('/v1/intake', { ...intake, task: { ...task, id: 'ts-run' } }, 400);
+  const missingView = await api(prefix + '/view');
+  assert.equal(missingView.management, 'summon');
+  assert.equal(missingView.origin.source.state, 'missing');
+  assert.equal(missingView.metadata_sha256, null);
+  assert.equal((await api(prefix + '/packet')).proof.recursive_pass, false);
+  const metadata = {
+    origin: fact('fixture-commissioner', 'frozen-original-source', { agent_id: 'fixture-agent', brief: task.brief, acceptance: ['Original descriptive acceptance, never check override'], rationale: [], decisions: [] }),
+    native: { source: { owner: 'pi', reference: 'native-state-unavailable', read_at_unix_ms: 1000, sha256: null, state: 'missing', detail: 'No native presence observation' }, value: null },
+    lineage: fact('summon_do:cf1:walk', 'registered-lineage', { complete: false, unresolved: [{ reference: 'commission child inventory', state: 'missing', reason: 'Discovery not yet supplied' }], edges: [] }),
+    evidence: [], child_packets: [],
+  };
+  let view = await api(prefix + '/metadata', { expected_run_revision: status.revision, expected_metadata_sha256: null, metadata });
+  assert.equal(view.managed.revision, status.revision); // metadata never writes phase/revision
+  await api(prefix + '/metadata', { expected_run_revision: status.revision, expected_metadata_sha256: null, metadata }, 409);
+  const conflictingOrigin = structuredClone(metadata);
+  conflictingOrigin.origin = fact('fixture-commissioner', 'frozen-original-source', { ...metadata.origin.value, acceptance: ['Replacement acceptance'] });
+  await api(prefix + '/metadata', { expected_run_revision: status.revision, expected_metadata_sha256: view.metadata_sha256, metadata: conflictingOrigin }, 409);
   await api(prefix + '/input', { input_id: 'initial', text: 'different' }, 409);
   const initialRetry = await api(prefix + '/input', { input_id: 'initial', text: task.brief });
   assert.equal(initialRetry.replayed, true);
@@ -120,6 +141,10 @@ test('exact source: local DO input/claim races, native ambiguity/cancel, scoped 
   status = (await api(prefix + '/observe', observation('termination', { kind: 'terminated', termination: { session, evidence_ref: 'independently-observed-exit' } }))).run;
   assert.equal(status.inputs[0].state, 'uncertain');
   assert.equal(status.phase, 'interrupted'); // actual termination is NOT delivery reconciliation
+  const interruptedPacket = await api(prefix + '/packet');
+  assert.equal(interruptedPacket.record.managed.phase, 'interrupted');
+  assert.equal(interruptedPacket.record.managed.inputs[0].termination.evidence_ref, 'independently-observed-exit');
+  assert.equal(interruptedPacket.proof.recursive_pass, false); // failed/interrupted archive remains exportable
   await api(prefix + '/claim', { claim_id: 'no-resend', runner_id: 'new-runner', expected_revision: status.revision }, 409);
   const answer = observation('recovered-answer', { kind: 'answered', receipt, text: 'Native final answer', answer_ref: 'assistant-entry-1' });
   await api(prefix + '/observe', answer, 409);
@@ -159,10 +184,39 @@ test('exact source: local DO input/claim races, native ambiguity/cancel, scoped 
   status = (await api(prefix + '/proof', proof('command-B', 'consumer', 'verifier'))).run;
   status = (await api(prefix + '/proof', proof('review-B', 'review', 'reviewer'))).run;
   assert.equal(status.phase, 'verified_delivery');
+  // Actual Worker read/export path, but native/commission evidence below remains synthetic.
+  view = await api(prefix + '/view');
+  metadata.native = fact('pi', 'fixture-independent-native-state', 'settled');
+  metadata.lineage = fact('summon_do:cf1:walk', 'registered-lineage', { complete: true, unresolved: [], edges: [] });
+  view = await api(prefix + '/metadata', { expected_run_revision: status.revision, expected_metadata_sha256: view.metadata_sha256, metadata });
+  const archive = await api(prefix + '/packet');
+  assert.equal(archive.proof.recursive_pass, true);
+  assert.equal(archive.record.origin.value.brief, task.brief);
+  assert.deepEqual(archive.record.managed.task.checks, task.checks);
+  const page = await api('/v1/visibility/page', { root: view.node_id, records: [view], cursor: null, limit: 1 });
+  assert.equal(page.records.length, 1);
+  const portable = await api('/v1/visibility/export', { root: view.node_id, records: [view], packets: [] });
+  assert.equal(portable.binding_sha256, archive.binding_sha256);
+  assert.equal((await api('/v1/visibility/reopen', { packet: archive, records: [view], packets: [] })).recursive_pass, true);
+  // Timestamp refresh only: same semantic evidence, different actual archive snapshot bytes.
+  metadata.origin.source.read_at_unix_ms += 10;
+  metadata.native.source.read_at_unix_ms += 10;
+  view = await api(prefix + '/metadata', { expected_run_revision: status.revision, expected_metadata_sha256: view.metadata_sha256, metadata });
+  const refreshedArchive = await api(prefix + '/packet');
+  assert.equal(refreshedArchive.binding_sha256, archive.binding_sha256);
+  assert.equal((await api('/v1/visibility/reopen', { packet: archive, records: [view], packets: [] })).recursive_pass, true);
+  metadata.native.source.state = 'failed'; metadata.native.source.detail = 'Current reader failed; retained settled fact is not current';
+  view = await api(prefix + '/metadata', { expected_run_revision: status.revision, expected_metadata_sha256: view.metadata_sha256, metadata });
+  const failure = await api('/v1/visibility/reopen', { packet: archive, records: [view], packets: [] });
+  assert.equal(failure.recursive_pass, false);
+  assert.ok(failure.issues.some(i => i.state === 'failed'));
+  assert.deepEqual(await api(prefix + '/status'), status); // read/export/native read failure never writes DO phase
   const beforeRestart = status;
+  const metadataBeforeRestart = view.metadata_sha256;
   await stop();
   await boot();
   assert.deepEqual(await api(prefix + '/status'), beforeRestart); // SQLite durability through real runtime restart
+  assert.equal((await api(prefix + '/view')).metadata_sha256, metadataBeforeRestart);
   assert.equal((await api(prefix + '/claim', winner.request)).replayed, true);
   status = (await api(prefix + '/input', { input_id: 'new-generation', text: 'New steering invalidates all old proof.' })).run;
   assert.equal(status.coverage_sha256, null);

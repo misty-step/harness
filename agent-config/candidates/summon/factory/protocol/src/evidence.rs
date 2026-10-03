@@ -36,6 +36,13 @@ pub struct PageRequest {
     pub cursor: Option<PageCursor>,
     pub limit: usize,
 }
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ReopenRequest {
+    pub packet: PacketManifestV1,
+    pub records: Vec<AgentRunAttemptV1>,
+    pub packets: Vec<PacketManifestV1>,
+}
 impl PacketManifestV1 {
     /// Hash actual archive bytes (including source read timestamps). Semantic
     /// currentness is separately bound by binding_sha256, which excludes read time.
