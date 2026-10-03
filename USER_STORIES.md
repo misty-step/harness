@@ -1344,3 +1344,33 @@ Evidence and ownership:
   in [Habitat PR #692](https://github.com/r90group/habitat/pull/692), not this
   shared skill alone. The refreshed #641 loop must prove automatic deployment
   and teardown before end-to-end acceptance.
+
+## US-050 Understand every review page at a glance
+
+Statement: When an agent hands me a review page, I want its whole point and every
+ask on the first laptop screen, in short lines, with detail one click down, so I
+can decide without scrolling or reading a book.
+
+Criteria:
+1. WHEN an agent is asked for an operator review page, THE SYSTEM SHALL carry
+   the one-screen rule on demand through `engineering-operations`: point, each
+   ask and short blocks first, all detail folded behind drill-down, none deleted.
+2. WHEN an agent checks a page with `review-check`, THE SYSTEM SHALL load it in
+   real headless Chromium at 1280x640 and report a missing point or ask, a point
+   or ask hidden, folded, clipped or below the first screen, a visible block
+   over 35 words and a screen over 300 visible words. Visual occlusion SHALL be
+   judged from the saved screenshot, not mouse hit targets.
+3. IF the browser or the page cannot be loaded, THEN THE SYSTEM SHALL exit 2
+   with the reason, never a pass.
+4. WHEN either harness installs shared skills, THE SYSTEM SHALL deploy the same
+   `review-check` launcher and the guidance beside it.
+5. WHEN the maintainer procedure publishes a review round, THE SYSTEM SHALL direct
+   `review-check` before `glass review publish`, with each round its own file
+   beside the earlier rounds.
+
+No-gos: no restyling of pages, no content rules beyond the first screen, no model
+call, no change to Glass, no second registry of pages.
+
+Evidence: `agent-config/bin/review-check.test.ts`, `scripts/verify-installers`,
+`agent-config/skills/engineering-operations/review-page.md`,
+`agent-config/review/README.md`.

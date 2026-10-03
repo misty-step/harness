@@ -10,7 +10,7 @@ const OUTCOME_JOB = "pi-diff-review";
  */
 function recordOutcome(ctx: ExtensionContext, cause: string | null, detail?: string): void {
 	const args = ["record", OUTCOME_JOB, ...(cause ? ["--fail", cause, ...(detail ? ["--detail", detail.slice(0, 500)] : [])] : ["--ok"])];
-	execFile("outcome", args, (error) => {
+	execFile("outcome", args, { cwd: ctx.cwd }, (error) => {
 		if (!error) return;
 		const message = `diff-review: outcome recorder failed (${error.message}); this run is unreported`;
 		console.error(message);
@@ -47,7 +47,7 @@ export async function checkDiffReview(ctx: ExtensionContext): Promise<ReviewVerd
 
 	inFlightReview = (async () => {
 		try {
-			const diff = getGitDiff({});
+			const diff = getGitDiff({ cwd: ctx.cwd });
 			if (!diff.trim()) {
 				if (ctx.hasUI) ctx.ui.setStatus("diff-review", undefined);
 				return null;
@@ -85,7 +85,7 @@ export default function registerDiffReviewExtension(pi: ExtensionAPI): void {
 			const batteryName = (args?.trim() as BatteryName) || "all";
 			if (ctx.hasUI) ctx.ui.setStatus("diff-review", "Reviewing diff…");
 			try {
-				const diff = getGitDiff({});
+				const diff = getGitDiff({ cwd: ctx.cwd });
 				if (!diff.trim()) {
 					pi.sendMessage({
 						customType: RESULT_TYPE,

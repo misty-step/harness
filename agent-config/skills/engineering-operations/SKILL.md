@@ -1,6 +1,6 @@
 ---
 name: engineering-operations
-description: Use workstation execution tools, remote workspaces and silent audio without mistaking them for product proof.
+description: Use for workstation execution, remote workspaces, silent audio or operator review pages; none of them is product proof.
 ---
 
 # Engineering operations
@@ -26,6 +26,7 @@ Only quote Phaedrus when they are his words. Keep one record, not a second ledge
 
 Non-obvious workstation/release facts:
 - [workstation.md](workstation.md): `ws`, resource bounds and silent audio.
+- [review-page.md](review-page.md): operator review pages, one screen, `review-check`.
 - `authenticated-commands`: pass/native credential discovery.
 
 Exercise the affected owner path and report the result and risk. Missing

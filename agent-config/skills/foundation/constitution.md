@@ -44,7 +44,12 @@ Table stakes: a gap here makes a project look or work unlike ours.
 
 Internal tools, infrastructure, config repositories and private betas skip 9
 and 10; libraries and local apps skip 2's production clause, never its
-machinery clause. Phaedrus approves any other exception.
+machinery clause. Phaedrus approves any other exception. Approved: Cantrip
+keeps recordings, transcripts, logs and history on the user's machine, so its
+4 is durable local storage that no crash, update or migration loses, never an
+off-disk backup. External backup is the user's choice, and accounts, automatic
+backup and cloud sync are outside its scope (Phaedrus, 2 October 2026). Any
+hosted service keeps 4 in full.
 
 ## Five principles for every change
 

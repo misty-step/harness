@@ -6,6 +6,13 @@ ticket; do not make it a prerequisite unless the original fix actually needs it.
 Honor explicit review stops; bring material choices about intent, cost or authority
 to the operator with a recommendation.
 
+Write everything that can be written in Rust in Rust. Default new services to
+Rust on Cloudflare and infrastructure to Cloudflare. Preserve approved exceptions,
+including exe.dev for required persistent Linux execution. Keep working deployments
+and describe their actual stack, not the target doctrine. Plan rewrites project by
+project as each is groomed; execute them only as part of that project's rollout,
+never ahead of it. Durable state has one authority and a proven restore path.
+
 Good code has Torvalds's good taste: remove special cases with the right shape.
 Ousterhout's deep modules hide necessary complexity behind simple interfaces and
 define errors out of existence. Jobs's simplicity keeps only what serves the user.

@@ -67,7 +67,7 @@ Preflight validates every selected input, then writes. Unset selection means
 `all`: owned config overlay, guidance, MCP, scopes, agents, skills, themes,
 extensions, `omp-grievances`, `omp-roster`, its sibling `omp-experiments.ts`,
 `omp-engineer`, `omp-display`, `omp-gui`, `pass-env`, `openrouter-key`,
-`design-check`, `foundation-check`, and `ws`. CLI installation deploys code only:
+`design-check`, `foundation-check`, `review-check`, and `ws`. CLI installation deploys code only:
 it never overwrites the runtime experiment journal or copies history into a
 second ledger. Staging the cage CLI does not activate
 it on an unactivated host. It does not delete foreign skills

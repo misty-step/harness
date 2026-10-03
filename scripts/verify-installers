@@ -105,6 +105,34 @@ for consumer in pi omp; do
   rm -f "$home/dirty.html"
   check "$consumer foundation-check bytes" cmp -s "$work/source/agent-config/bin/foundation-check.ts" "$home/.local/bin/foundation-check"
   check "$consumer foundation-check executable" test -x "$home/.local/bin/foundation-check"
+  check "$consumer review-check bytes" cmp -s "$work/source/agent-config/bin/review-check.ts" "$home/.local/bin/review-check"
+  check "$consumer review-check executable" test -x "$home/.local/bin/review-check"
+  check "$consumer engineering-operations ships review-page guidance" test -s "$agent/skills/engineering-operations/review-page.md"
+  # The deployed review-check must gate in a real browser: a ninety-word opening
+  # paragraph fails, the same words folded behind the point and the ask pass.
+  prose=$(i=0; while [ "$i" -lt 6 ]; do printf 'Each fix landed as one more sentence in a skill and the same few mistakes kept coming back every week. '; i=$((i + 1)); done)
+  printf '<p>%s</p>\n<p data-review="point">Code fixes hold.</p>\n<p data-review="ask">Approve it.</p>\n' "$prose" > "$home/dense-review.html"
+  printf '<p data-review="point">Code fixes hold.</p>\n<p data-review="ask">Approve it.</p>\n<details><summary>Why</summary><p>%s</p></details>\n' "$prose" > "$home/recut-review.html"
+  if env -i PATH="$PATH" HOME="$home" TMPDIR="$work" \
+    bun "$home/.local/bin/review-check" "$home/dense-review.html" >"$work/review-check-dense.log" 2>&1; then
+    printf 'FAIL %s review-check gate (exited 0 on a dense first screen)\n' "$consumer" >&2
+    failures=$((failures + 1))
+  elif grep -q '\[dense-block\]' "$work/review-check-dense.log"; then
+    printf 'PASS %s review-check rejects a dense first screen\n' "$consumer"
+  else
+    printf 'FAIL %s review-check gate (missing finding)\n' "$consumer" >&2
+    cat "$work/review-check-dense.log" >&2
+    failures=$((failures + 1))
+  fi
+  if env -i PATH="$PATH" HOME="$home" TMPDIR="$work" \
+    bun "$home/.local/bin/review-check" "$home/recut-review.html" >"$work/review-check-recut.log" 2>&1; then
+    printf 'PASS %s review-check accepts the concise recut\n' "$consumer"
+  else
+    printf 'FAIL %s review-check rejected the concise recut\n' "$consumer" >&2
+    cat "$work/review-check-recut.log" >&2
+    failures=$((failures + 1))
+  fi
+  rm -f "$home/dense-review.html" "$home/recut-review.html"
   if [ "$consumer" = pi ]; then
     check "$consumer agent-review bytes" cmp -s "$work/source/agent-config/bin/agent-review.ts" "$home/.local/bin/agent-review"
     check "$consumer agent-review executable" test -x "$home/.local/bin/agent-review"

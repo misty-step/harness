@@ -17,16 +17,24 @@ that make silence a data-shape error rather than a monitoring gap:
    cause when not ok. Reporters adapt each scheduler (systemd and Hermes on
    mirrodin, Nopalito's Hermes, GitHub Actions through the signed webhook,
    Cloudflare cron triggers) and `outcome record` covers hooks and reviewers.
+   Repository event identity is `<host>/events/<org>/<repo>/<name>`: the CLI
+   resolves the current checkout's GitHub origin, or accepts trusted `--owner`.
+   Unknown ownership fails loudly; it never assigns repository machinery to the
+   host's fallback owner. Pi reads the diff and records it in the session's
+   `ctx.cwd`; hooks run in the repository root.
 2. **Expected runs are declared by the scheduler that owns the schedule.** Each
    reporter sends its scheduler's complete job list with `every`, the longest
    allowed gap. A job past its gap is a `missed` failure; a missed parent
    (a silent host or scheduler) explains its children, so it screams once.
 3. **One path from failure to incident, deduplicated by cause.** The alert
    intake (hermes-config Worker and D1) keeps jobs, runs and episodes. The first
-   failure of a (job, cause) opens one episode and one alert; repeats count; an
-   ok run closes it. Alert triage turns the alert into one ticket per cause
-   marker and a Glass item. The ticket closes only with a postmortem and a
-   class-closing change (FND-INC-001); the desk dispatches the investigation.
+   failure of a (job, cause) creates one episode and one alert; repeats count.
+   A recovery closes the episode, never suppresses its incident: a failure
+   delivered after recovery still leaves an owned pending alert. An old success
+   cannot clear a newer failure or a later silence episode. Alert triage turns
+   the alert into one ticket per cause marker and a Glass item. The ticket
+   closes only with a postmortem and a class-closing change (FND-INC-001);
+   the desk dispatches the investigation.
 
 The Worker's five-minute cron is the outside dead-man for every reporter; the
 route guard fails if that checker stops.
