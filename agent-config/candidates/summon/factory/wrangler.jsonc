@@ -1,0 +1,11 @@
+{
+  "name": "summon-factory-local-pilot",
+  "main": "worker/build/worker/shim.mjs",
+  "compatibility_date": "2026-10-02",
+  "workers_dev": false,
+  "durable_objects": {
+    "bindings": [{ "name": "SUMMON_RUNS", "class_name": "SummonRun" }]
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["SummonRun"] }],
+  "dev": { "ip": "127.0.0.1", "port": 8791 }
+}

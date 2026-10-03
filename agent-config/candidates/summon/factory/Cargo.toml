@@ -1,0 +1,19 @@
+[workspace]
+members = ["protocol", "worker"]
+resolver = "2"
+
+[workspace.package]
+edition = "2024"
+license = "MIT"
+
+[workspace.dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sha2 = "0.10"
+summon-protocol = { path = "protocol" }
+
+[profile.release]
+lto = true
+opt-level = "s"
+codegen-units = 1
+strip = true
