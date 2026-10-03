@@ -1115,8 +1115,9 @@ at Gemini 3.8 Flash. `omp-roster` gives an OMP engineer launched for a ticket
 only that roster and stops it when the roster runs out. It extends the
 approved routing of US-014. Planning checks each usable candidate with one
 bounded native provider call before selecting it; `check` makes no model call.
-Qualifying launches start an experiment and `verdict` makes a native judge
-call (see below). The installed `~/.local/bin/omp-roster` uses the siblings
+Qualifying launches start an experiment and schedule automatic adjudication;
+`verdict` makes a native judge call (see below). The installed
+`~/.local/bin/omp-roster` uses the siblings
 `omp-engineer` for memory preflight and `omp-experiments.ts` for journal state.
 
 A launch with no ticket goes through the same tool: `--model provider/model
@@ -1190,7 +1191,7 @@ state under its lock; a successful roster preflight never reserves capacity.
    writes by about a second, so a `launch` straight after a roster edit can read
    the roster it just replaced: compare the `roster_sha256` it reports with the
    roster you wrote.
-2. Refusal (exit 1, one plain sentence, nothing written): no ticket or an empty
+2. Refusal (exit 1, nothing written): no ticket or an empty
    roster; an entry outside the approved model list (`approvedModels` in
    `bin/omp-roster.ts`, the table `bin/omp-model-policy.ts` holds `config.yml`
    to) or asking for an effort that model lacks; the same model and effort
@@ -1266,6 +1267,10 @@ state under its lock; a successful roster preflight never reserves capacity.
    `args`, skip reasons, roster hash and usage diagnostics, and reports
    `pair: {status: 'live' | 'none' | 'starting' | 'not-applicable', file, experiment?}`.
    `file` is the journal path; `experiment` carries recorded lane identities.
+   A new pair also returns `adjudication: {unit, judge, scheduled, status, state,
+   error, logs}`; ordinary launch plans return `adjudication: null`. `scheduled`
+   reports systemd start admission, not a completed verdict; `status` and
+   `state: {active, sub, result, exit_code}` are the actual unit snapshot.
    Nonqualifying/ad-hoc launches without an explicit opt-out do not read or lock
    the journal. Explicit `--use-default` reports only the routing evidence it consumed.
    `launch` carries the entry's `verdict` (`usable` or
@@ -1297,6 +1302,55 @@ scope, done checks and victory); `--brief-file FILE` optionally supplies a tailo
 brief to relay identically. A real checkout, clean shared starting HEAD and ticket
 done checks are required; missing required context refuses rather than suggesting
 another command.
+
+After both dispatches succeed and the journal lock is released, launch starts
+one named **transient user systemd service** running
+`omp-roster await-verdict --experiment E-NNN --json`. No daemon or installed unit
+file is added, and launch does not wait for either engineer or the judge:
+`started: true` remains the immediate two-engineer response. The service is
+`omp-verdict-e-nnn-<digest>.service`, where the digest is the first 16 hex digits
+of SHA-256 over the absolute journal path. Its name identifies that journal and
+experiment, not whichever pane is currently focused.
+
+The returned `adjudication` includes the pinned judge, actual scheduling result
+and unit-state snapshot, and a `logs` argv array for
+`journalctl --user --unit UNIT --no-pager`. A scheduling or status-inspection
+failure exits **1 while still returning `started: true`**, explicitly says the
+pair is already started, and leaves both engineers and their journal bindings
+intact. Do not interpret that failure as permission to roll back, relaunch or
+start a third engineer. Recorded opt-outs and ordinary singleton plans never
+schedule a watcher.
+
+The service receives the explicit absolute journal path and allowlisted native
+HOME/PATH, XDG state/config/runtime paths, `PI_CODING_AGENT_DIR`, `OMP_PROFILE`,
+Herdr socket/config and user-bus context. Environment values are passed by name,
+not disclosed in command arguments; API keys and arbitrary caller environment
+are not forwarded. It starts from `/`, so removing the dispatch checkout cannot
+invalidate its working directory.
+
+The watcher uses native `herdr agent wait` for the **two recorded bindings**,
+checking pane, workspace, cwd, concrete session path and native agent state
+before and after waiting. Only `idle` or `done` can proceed; blocked, unknown,
+missing, moved, replaced or still-working lanes refuse rather than score old
+files. No journal lock is held during native waiting. There is no arbitrary
+engineer deadline or provider retry loop: it waits until those lanes settle, and an
+operator can stop it with `systemctl --user stop UNIT`. Failures remain visible
+in the named unit and journalctl output; the experiment stays pending, with no
+invented verdict or default. Successful units retain their exit state as well.
+At settlement and verdict admission, the watcher waits for the kernel journal
+lock rather than failing on ordinary contention with another dispatch or verdict.
+Immutable bindings, native readiness and the judge route are revalidated after
+acquisition; no judge call is retried. Interactive launch/manual verdict commands
+retain their immediate busy-lock refusal.
+
+For non-Anthropic lanes, the automatic judge is native
+`anthropic/claude-sonnet-5-5:high`; Anthropic lanes use native
+`openai-codex/gpt-6.1-sol:high`. There is no fallback judge. The approved table,
+fresh usage route, independence from **both** lanes, session identity, artifact
+and citation guards remain authoritative. Native settlement and fresh route
+are rechecked under the verdict owner's lock before acceptance. A verdict
+already accepted in the journal makes the watcher a no-op, not a second model
+call.
 
 The preregistered question is whether the candidate effort meets those done
 checks as well as the baseline for this nature/model. The candidate changes only
@@ -1332,20 +1386,33 @@ launcher reserves `starting` before spawning and binds actual pane/session
 identities before recording `running`. Once the bound lanes are settled it
 records `awaiting-verdict` and may start the next live pair; the unfinished
 verdict remains in the ledger. A stopped, missing or replaced session cannot
-masquerade as a live lane. Definite launch failure rolls back only resources
-created by that launch; ambiguous failure retains `starting` to avoid duplicates.
+masquerade as a live lane or be automatically adjudicated from old files.
+An ambiguous launch failure retains `starting` to avoid duplicates.
 Other launches return their ordinary ticket launch plans while a live reservation
 exists. To record abandonment, use
 `omp-roster abandon --experiment E-NNN --reason "why this cannot be judged"`:
 it preserves the record and refuses while a bound lane is still working.
 There is no bare pair-clear operation that erases unfinished evidence.
 
-Submit the real lane deliverables for a blind verdict:
+Each lane writes its final evidence to `experiment-result.md` inside its bound
+worktree. After native settlement, the supervised watcher passes those exact
+paths to the existing blind verdict command. Normal launches need no manual
+adjudication. To inspect or explicitly resume an unfinished experiment without
+dispatching more engineers, the same supported blocking CLI is available:
+
+```sh
+omp-roster await-verdict --experiment E-019 --json
+```
+
+It uses `OMP_ROSTER_EXPERIMENTS_FILE` when a journal was explicitly selected;
+restarting a failed watcher is an operator decision, never an automatic retry.
+Manual verdicts can still select other real deliverable paths and an approved
+independent native judge:
 
 ```sh
 omp-roster verdict --experiment E-019 \
-  --artifact-a /path/to/lane-a-deliverable --artifact-b /path/to/lane-b-deliverable \
-  --judge xai-oauth/grok-4.7 --thinking high --json
+  --artifact-a /path/to/lane-a/experiment-result.md --artifact-b /path/to/lane-b/experiment-result.md \
+  --judge anthropic/claude-sonnet-5-5 --thinking high --json
 omp-roster defaults --nature build --model openai-codex/gpt-6.1-sol
 omp-roster launch --item K-example --use-default --json
 ```
@@ -1361,6 +1428,12 @@ judge identity must match the requested route; a same-family judge, fallback,
 invalid score or incomplete verdict cannot update a default.
 Its temporary overlay lives privately under the routing state directory, outside
 the native boundary's replaced TMPDIR, and is removed after the judge exits.
+
+A failed native judge reports its exact command and cwd, complete stderr, and
+the native JSONL error cause before exiting nonzero. Provider rate-limit and
+retry-window details are not replaced with a generic `exit 1`. No failed call
+writes a verdict or effort default, and the watcher does not retry the provider.
+Honor the provider's reported window before authorizing another attempt.
 
 The judge scores **every ticket done check for each lane, 0–2**, with evidence
 and rationale. The larger total wins; equal totals choose lower effort under the
@@ -1392,8 +1465,9 @@ to an automated default. Keep these distinctions in the original journal: do
 not retroactively unblind, invent verdicts or import them as automated defaults.
 
 **Cost:** a qualifying launch adds a full subscription engineer session, and
-`verdict` makes one native subscription judge call. Planning, checking, opt-out
-recording and `defaults` do not call a model. Quota consumption depends on the
+its watcher (or an explicit `verdict`) makes one native subscription judge call.
+Planning, checking, opt-out recording and `defaults` do not call a model.
+Quota consumption depends on the
 task, reasoning and cache use; no fixed dollars or quota percentage are inferred
 from token counts. No System One, TypeSafe or cash-provider experiment route is
 added. Glass missing-pair/verdict lights are not claimed by this CLI.

@@ -533,7 +533,9 @@ time.sleep(30)
                         self.assertTrue(select.select([child.stdout], [], [], 5)[0])
                         self.assertEqual(child.stdout.readline().strip(), "INTERRUPTED")
                         child.send_signal(signal.SIGTERM)
-                        output, errors = child.communicate(timeout=5)
+                        # Network termination and bridge joins each have three-second cleanup bounds.
+                        # This wait covers teardown, not a five-second graceful-command contract.
+                        output, errors = child.communicate(timeout=15)
                         self.assertEqual(child.returncode, 42, errors)
                         self.assertEqual(output.strip(), "FLUSHED interrupts=1")
                     finally:

@@ -723,7 +723,11 @@ describe("omp-roster launch (US-046)", () => {
 });
 
 describe("automatic experiment lifecycle", () => {
-	function prepare() {
+	type AutomaticPairFixture = {
+		dir: string; repo: string; journal: string; state: string;
+		env: Record<string, string> & { PATH: string }; args: string[];
+	};
+	function prepare(entry = SOL): AutomaticPairFixture {
 		const dir = scratch("automatic-pair");
 		const repo = join(dir, "repo");
 		mkdirSync(repo);
@@ -731,7 +735,7 @@ describe("automatic experiment lifecycle", () => {
 			expect(Bun.spawnSync(["git", "-C", repo, ...args]).exitCode).toBe(0);
 		}
 		const journal = put(join(dir, "experiments.md"), "# Experiments\n\n## E-018 Existing history\nPreserve the prior lesson.\n");
-		const state = put(join(dir, "herdr.json"), JSON.stringify({ agents: [], worktrees: [], prompts: [] }));
+		const state = put(join(dir, "herdr.json"), JSON.stringify({ agents: [], worktrees: [], prompts: [], waits: [], schedules: [], judge_calls: [] }));
 		const bin = join(dir, "bin");
 		const herdr = put(join(bin, "herdr"), `#!${process.execPath}
 import {readFileSync,writeFileSync,mkdirSync} from "node:fs";
@@ -756,21 +760,114 @@ else if(args[0]==="worktree"&&args[1]==="create"){
  const pane=flag("--pane"), lane=state.worktrees.find(x=>x.pane_id===pane);
  const session=join(process.env.AUTO_ROOT,pane.replace(":","-")+".jsonl");
  writeFileSync(session,[{type:"session",cwd:lane.cwd},{type:"model_change",model:flag("--model")},{type:"thinking_level_change",thinkingLevel:flag("--thinking")}].map(x=>JSON.stringify(x)).join("\\n")+"\\n");
- const agent={agent:"omp",pane_id:pane,agent_status:"idle",agent_session:{value:session}};
+ const agent={agent:"omp",pane_id:pane,workspace_id:lane.workspace_id,cwd:lane.cwd,agent_status:"idle",agent_session:{kind:"path",agent:"omp",value:session}};
  state.agents.push(agent); result={agent};
 }else if(args[0]==="agent"&&args[1]==="prompt"){
  const agent=state.agents.find(x=>x.pane_id===args[2]);agent.agent_status="working";
  state.prompts.push({pane:args[2],text:args[3]});result={agent};
+}else if(args[0]==="agent"&&args[1]==="wait"){
+ const unlocked=Bun.spawnSync(["flock","--exclusive","--nonblock",process.env.OMP_ROSTER_EXPERIMENTS_FILE+".lock","true"]);
+ if(unlocked.exitCode!==0){console.error("journal held during native wait");process.exit(1);}
+ const agent=state.agents.find(x=>x.pane_id===args[2]);
+ if(!agent){console.error("bound pane is missing");process.exit(1);}
+ state.waits.push({pane:agent.pane_id,session:agent.agent_session.value});
+ if(state.wait_settle) agent.agent_status=state.agents.indexOf(agent)===0?"idle":"done";
+ if(state.wait_replace) agent.agent_session.value=agent.agent_session.value+".replacement";
+ result={agent};
 }else {console.error("unsupported Herdr command");process.exit(2);}
 writeFileSync(path,JSON.stringify(state));
 console.log(JSON.stringify({result}));
 `);
 		chmodSync(herdr, 0o700);
-		const ticket = put(join(dir, "ticket.json"), JSON.stringify({ nature: "research", roster: [SOL], done: [{ check: "Name the ownership boundary", proof: "Exact source evidence" }], victory: "Decidable ownership" }));
-		const usage = put(join(dir, "usage.json"), JSON.stringify(usageView([row("openai-codex", "gpt-6.1-sol", "usable")])));
-		const env = { ROSTER_AUTO_PAIR: "1", HERDR_ENV: "1", AUTO_ROOT: dir, AUTO_REPO: repo, AUTO_HERDR_STATE: state, OMP_ROSTER_EXPERIMENTS_FILE: journal, PATH: `${bin}:${process.env.PATH}` };
+		const supervisor = put(join(bin, "systemd-run"), `#!${process.execPath}
+import {readFileSync,writeFileSync} from "node:fs";
+const path=process.env.AUTO_HERDR_STATE,state=JSON.parse(readFileSync(path,"utf8")),args=process.argv.slice(2);
+const at=args.indexOf("await-verdict"),unit=args[args.indexOf("--unit")+1];
+if(at<2){console.error("no supported watcher command");process.exit(2);}
+const environment=Object.fromEntries(args.filter(x=>x.startsWith("--setenv=")).map(x=>{const name=x.slice(9);return [name,process.env[name]];}));
+state.schedules.push({unit,command:args.slice(at-2),options:args.slice(0,at-2),environment});
+writeFileSync(path,JSON.stringify(state));
+if(state.schedule_failure){console.error("Fixture user bus admission failed before engineer supervision.\\nFailed to connect to fixture user bus");process.exit(1);}
+console.log("Running as unit: "+unit);
+`);
+		chmodSync(supervisor, 0o700);
+		const control = put(join(bin, "systemctl"), `#!${process.execPath}
+import {readFileSync} from "node:fs";
+const state=JSON.parse(readFileSync(process.env.AUTO_HERDR_STATE,"utf8")),args=process.argv.slice(2);
+if(args[0]!=="--user"||args[1]!=="show"||!state.schedules.some(x=>x.unit===args[2])){console.error("unknown fixture unit");process.exit(1);}
+console.log("ActiveState=active\\nSubState=running\\nResult=success\\nExecMainStatus=0");
+`);
+		chmodSync(control, 0o700);
+		const usage = put(join(dir, "usage.json"), JSON.stringify(usageView([
+			row("openai-codex", "gpt-6.1-sol", "usable"), row("anthropic", "sonnet", "usable"), row("anthropic", "opus", "usable"),
+		])));
+		const liveUsage = put(join(bin, "ai-usage"), `#!${process.execPath}
+import {readFileSync} from "node:fs";
+const state=JSON.parse(readFileSync(process.env.AUTO_HERDR_STATE,"utf8"));
+if(state.usage_error){console.error("fixture usage route unavailable");console.log(JSON.stringify({ok:false,error:"fixture usage route unavailable"}));process.exit(1);}
+console.log(readFileSync(process.env.AUTO_USAGE,"utf8"));
+`);
+		chmodSync(liveUsage, 0o700);
+		const judge = put(join(bin, "omp"), `#!${process.execPath}
+import {readFileSync,writeFileSync} from "node:fs";
+const args=process.argv.slice(2),flag=name=>args[args.indexOf(name)+1];
+if(args.at(-1)==="Reply exactly OK."){
+ const path=process.env.AUTO_HERDR_STATE,state=JSON.parse(readFileSync(path,"utf8"));
+ if(state.interleaved_launch && !state.interleaved_started){
+  state.interleaved_started=true;writeFileSync(path,JSON.stringify(state));
+  const child=Bun.spawnSync(state.interleaved_launch,{env:process.env,stdout:"pipe",stderr:"pipe"});
+  writeFileSync(path+".interleaved",JSON.stringify({exitCode:child.exitCode,stdout:child.stdout.toString(),stderr:child.stderr.toString()}));
+  if(child.exitCode!==0){console.error(child.stderr.toString());process.exit(1);}
+ }
+ const requested=flag("--model"),slash=requested.indexOf("/");
+ console.log(JSON.stringify({type:"message_end",message:{role:"assistant",provider:requested.slice(0,slash),model:requested.slice(slash+1),stopReason:"stop",content:[{type:"text",text:"OK"}]}}));
+ console.log(JSON.stringify({type:"agent_end",isTerminal:true}));
+ process.exit(0);
+}
+const input=await Bun.stdin.text();
+const path=process.env.AUTO_HERDR_STATE,state=JSON.parse(readFileSync(path,"utf8"));
+state.judge_calls.push({model:flag("--model"),effort:flag("--thinking"),request:JSON.parse(input)});
+if(state.judge_mode==="resume") state.agents[1].agent_status="working";
+if(state.judge_mode==="usage-unavailable") state.usage_error=true;
+writeFileSync(path,JSON.stringify(state));
+if(state.judge_mode==="failure"){console.error("fixture native transport failure\\nfixture quota diagnostic");process.exit(23);}
+const prompt=JSON.parse(input),answer={};
+for(const label of ["X","Y"]) answer[label]=prompt.done.map((check,index)=>{
+ const line=prompt.artifacts[label].find(x=>x.text.includes("Ownership boundary"));
+ return {check:index+1,score:line.text.includes("DELIVERED")?2:1,evidence:[{line:line.line,quote:line.text}],rationale:"Exact ownership evidence distinguishes delivered proof from assertion."};
+});
+const requested=flag("--model"),slash=requested.indexOf("/");
+console.log(JSON.stringify({type:"message_end",message:{role:"assistant",provider:requested.slice(0,slash),model:requested.slice(slash+1),stopReason:"stop",content:[{type:"text",text:JSON.stringify(answer)}]}}));
+console.log(JSON.stringify({type:"agent_end",isTerminal:true}));
+`);
+		chmodSync(judge, 0o700);
+		const ticket = put(join(dir, "ticket.json"), JSON.stringify({ nature: "research", roster: [entry], done: [{ check: "Name the ownership boundary", proof: "Exact source evidence" }], victory: "Decidable ownership" }));
+		const env = { ROSTER_AUTO_PAIR: "1", HERDR_ENV: "1", AUTO_ROOT: dir, AUTO_REPO: repo, AUTO_HERDR_STATE: state, AUTO_USAGE: usage, OMP_ROSTER_EXPERIMENTS_FILE: journal, PATH: `${bin}:${process.env.PATH}` };
 		const args = ["launch", "--item", "K-test", "--cwd", repo, "--ticket-json", ticket, "--usage-json", usage, "--state-dir", join(dir, "roster-state"), "--json"];
 		return { dir, repo, journal, state, env, args };
+	}
+
+	function journalState(path: string): Record<string, any> {
+		const block = readFileSync(path, "utf8").match(/<!-- omp-experiments:state:start -->\s*```json\s*([\s\S]*?)\s*```\s*<!-- omp-experiments:state:end -->/);
+		if (!block) throw new Error("No experiment state in fixture journal");
+		return JSON.parse(block[1]!);
+	}
+
+	function completedDeliverables(fixture: AutomaticPairFixture) {
+		const launched = invoke(fixture.args, fixture.env);
+		expect(launched.exitCode).toBe(0);
+		const experiment = JSON.parse(launched.stdout).pair.experiment;
+		for (const [index, lane] of experiment.lanes.entries()) {
+			const records = readFileSync(lane.session, "utf8");
+			writeFileSync(lane.session, records + JSON.stringify({ type: "message", message: {
+				role: "assistant", provider: lane.entry.provider, model: lane.entry.model, stopReason: "stop",
+				content: [{ type: "text", text: "Delivered the ownership evidence." }],
+			} }) + "\n");
+			put(join(lane.cwd, "experiment-result.md"), index === 0
+				? "Ownership boundary PARTIAL: routing ownership asserted without source evidence.\n"
+				: "Ownership boundary DELIVERED: omp-roster owns dispatch; omp-experiments owns the durable journal and blind scoring.\n");
+		}
+		return experiment;
 	}
 
 	test("one qualifying command starts isolated lanes; a surviving lane prevents another pair", () => {
@@ -783,6 +880,14 @@ console.log(JSON.stringify({result}));
 		expect(result.pair.experiment).toMatchObject({ id: "E-019", variable: "effort", default_key: "research:openai-codex/gpt-6.1-sol", status: "running" });
 		const runtime = JSON.parse(readFileSync(state, "utf8"));
 		expect(runtime.worktrees.length).toBe(2);
+		expect(runtime.agents.map((agent: { agent_status: string }) => agent.agent_status)).toEqual(["working", "working"]);
+		expect(result.adjudication).toMatchObject({
+			scheduled: true, status: "active", judge: { provider: "anthropic", model: "claude-sonnet-5-5", effort: "high" },
+			state: { active: "active", sub: "running", result: "success", exit_code: 0 },
+		});
+		expect(runtime.schedules.map((scheduled: { unit: string }) => scheduled.unit)).toEqual([result.adjudication.unit]);
+		expect(runtime.waits).toEqual([]);
+		expect(runtime.judge_calls).toEqual([]);
 		expect(runtime.prompts[0].text).toBe(runtime.prompts[1].text);
 		const commits = runtime.worktrees.map((lane: { cwd: string }) => Bun.spawnSync(["git", "-C", lane.cwd, "rev-parse", "HEAD"]).stdout.toString().trim());
 		expect(commits).toEqual([result.pair.experiment.base_commit, result.pair.experiment.base_commit]);
@@ -792,6 +897,8 @@ console.log(JSON.stringify({result}));
 		expect(second.exitCode).toBe(0);
 		expect(JSON.parse(second.stdout)).toMatchObject({ started: false, pair: { status: "live" } });
 		expect(JSON.parse(readFileSync(state, "utf8")).worktrees.length).toBe(2);
+		expect(JSON.parse(second.stdout).adjudication).toBeNull();
+		expect(JSON.parse(readFileSync(state, "utf8")).schedules).toHaveLength(1);
 		expect(readFileSync(journal, "utf8")).toContain("Preserve the prior lesson.");
 		runtime.agents.forEach((agent: { agent_status: string }) => { agent.agent_status = "done"; });
 		writeFileSync(state, JSON.stringify(runtime));
@@ -808,6 +915,7 @@ console.log(JSON.stringify({result}));
 		expect(skipped.exitCode).toBe(0);
 		expect(JSON.parse(skipped.stdout).started).toBe(false);
 		expect(JSON.parse(readFileSync(state, "utf8")).worktrees).toEqual([]);
+		expect(JSON.parse(readFileSync(state, "utf8")).schedules).toEqual([]);
 		expect(readFileSync(journal, "utf8")).toContain("Writes financial observations to the live ledger");
 		expect(invoke([...args, "--no-experiment", " "], env).exitCode).toBe(2);
 	});
@@ -824,6 +932,212 @@ console.log(JSON.stringify({result}));
 		const retry = invoke(args, env);
 		expect(retry.exitCode).toBe(1);
 		expect(retry.stderr).toContain("unresolved start");
+	});
+
+	test("a launch that read capacity before another pair started reuses the fresh reservation without dispatching a third lane", () => {
+		const fixture = prepare();
+		const runtime = JSON.parse(readFileSync(fixture.state, "utf8"));
+		runtime.interleaved_launch = [process.execPath, cli, ...fixture.args];
+		writeFileSync(fixture.state, JSON.stringify(runtime));
+		const result = invoke(fixture.args, fixture.env);
+		expect([result.exitCode, result.stderr]).toEqual([0, ""]);
+		const first = JSON.parse(readFileSync(fixture.state + ".interleaved", "utf8"));
+		expect([first.exitCode, first.stderr]).toEqual([0, ""]);
+		const created = JSON.parse(first.stdout), reused = JSON.parse(result.stdout);
+		expect(created.started).toBe(true);
+		expect(reused.started).toBe(false);
+		expect(reused.pair.experiment.id).toBe(created.pair.experiment.id);
+		const final = JSON.parse(readFileSync(fixture.state, "utf8"));
+		expect(final.agents.map((agent: { pane_id: string }) => agent.pane_id)).toEqual(created.pair.experiment.lanes.map((lane: { pane_id: string }) => lane.pane_id));
+		expect(final.worktrees).toHaveLength(2);
+		expect(final.prompts).toHaveLength(2);
+		expect(final.schedules).toHaveLength(1);
+		expect(journalState(fixture.journal).experiments).toHaveLength(1);
+	});
+
+	test("scheduling failure preserves the two already-started engineers and cannot invite a relaunch", () => {
+		const fixture = prepare();
+		const runtime = JSON.parse(readFileSync(fixture.state, "utf8"));
+		runtime.schedule_failure = true;
+		writeFileSync(fixture.state, JSON.stringify(runtime));
+		const failed = invoke(fixture.args, fixture.env);
+		expect(failed.exitCode).toBe(1);
+		const output = JSON.parse(failed.stdout);
+		expect(output).toMatchObject({ started: true, args: [], adjudication: { scheduled: false, status: "schedule-failed" } });
+		expect(failed.stderr).toContain("pair is already started");
+		expect(failed.stderr).toContain("Fixture user bus admission failed before engineer supervision.\nFailed to connect to fixture user bus");
+		const started = JSON.parse(readFileSync(fixture.state, "utf8"));
+		expect(started.agents.map((agent: { pane_id: string }) => agent.pane_id)).toEqual(output.pair.experiment.lanes.map((lane: { pane_id: string }) => lane.pane_id));
+		expect(journalState(fixture.journal).experiments[0].status).toBe("running");
+		const again = invoke(fixture.args, fixture.env);
+		expect(JSON.parse(again.stdout).started).toBe(false);
+		expect(JSON.parse(readFileSync(fixture.state, "utf8")).agents).toHaveLength(2);
+		expect(JSON.parse(readFileSync(fixture.state, "utf8")).schedules).toHaveLength(1);
+	});
+
+	test("supervision isolates journal identity and passes native context without secret argv or logs", () => {
+		const fixture = prepare();
+		const result = invoke(fixture.args, {
+			...fixture.env, OMP_ROSTER_EXPERIMENTS_FILE: "experiments.md",
+			PI_CODING_AGENT_DIR: join(fixture.dir, "native-profile"), OMP_PROFILE: "fixture-profile",
+			[["OPENROUTER", "API", "KEY"].join("_")]: "fixture-private-token",
+		}, fixture.dir);
+		expect(result.exitCode).toBe(0);
+		const scheduled = JSON.parse(readFileSync(fixture.state, "utf8")).schedules[0];
+		expect(scheduled.environment).toMatchObject({
+			OMP_ROSTER_EXPERIMENTS_FILE: fixture.journal, PI_CODING_AGENT_DIR: join(fixture.dir, "native-profile"),
+			OMP_PROFILE: "fixture-profile", XDG_STATE_HOME: join(root, "xdg"), HOME: root,
+		});
+		expect(scheduled.environment.OPENROUTER_API_KEY).toBeUndefined();
+		expect(JSON.stringify(scheduled.options) + result.stdout + result.stderr).not.toContain("fixture-private-token");
+		const other = prepare();
+		const next = invoke(other.args, other.env);
+		expect(next.exitCode).toBe(0);
+		expect(JSON.parse(next.stdout).adjudication.unit).not.toBe(JSON.parse(result.stdout).adjudication.unit);
+	});
+
+	test("completed files are not enough while a lane is active; settling both runs one blind cross-family verdict", () => {
+		const fixture = prepare();
+		const experiment = completedDeliverables(fixture);
+		const args = ["await-verdict", "--experiment", experiment.id, "--json"];
+		const active = invoke(args, fixture.env);
+		expect(active.exitCode).toBe(1);
+		expect(JSON.parse(readFileSync(fixture.state, "utf8")).judge_calls).toEqual([]);
+		expect(journalState(fixture.journal).defaults).toEqual({});
+		const runtime = JSON.parse(readFileSync(fixture.state, "utf8"));
+		runtime.wait_settle = true;
+		writeFileSync(fixture.state, JSON.stringify(runtime));
+		const settled = invoke(args, fixture.env);
+		expect([settled.exitCode, settled.stderr]).toEqual([0, ""]);
+		const output = JSON.parse(settled.stdout);
+		expect(output.verdict).toMatchObject({
+			winner: "candidate", default_changed: true, judge: { provider: "anthropic", model: "claude-sonnet-5-5", effort: "high" },
+			scores: { baseline: 1, candidate: 2 },
+		});
+		expect(journalState(fixture.journal).defaults[experiment.default_key]).toEqual({ entry: experiment.candidate, evidence: experiment.id });
+		const judged = JSON.parse(readFileSync(fixture.state, "utf8"));
+		expect(judged.waits.slice(-2)).toEqual(experiment.lanes.map((lane: { pane_id: string; session: string }) => ({ pane: lane.pane_id, session: lane.session })));
+		expect(judged.judge_calls).toHaveLength(1);
+		for (const identity of [experiment.id, fixture.dir, "gpt-6.1-sol", "openai-codex"]) expect(JSON.stringify(judged.judge_calls[0].request)).not.toContain(identity);
+		const before = readFileSync(fixture.journal, "utf8");
+		judged.agents = [];
+		writeFileSync(fixture.state, JSON.stringify(judged));
+		const duplicate = invoke(args, fixture.env);
+		expect(duplicate.exitCode).toBe(0);
+		expect(JSON.parse(duplicate.stdout).status).toBe("already-accepted");
+		expect(JSON.parse(readFileSync(fixture.state, "utf8")).judge_calls).toHaveLength(1);
+		expect(readFileSync(fixture.journal, "utf8")).toBe(before);
+	});
+
+	test("automatic adjudication survives kernel journal contention at both settlement and verdict acquisition", () => {
+		const flock = Bun.which("flock");
+		expect(flock).not.toBeNull();
+		for (const acquisition of [1, 2]) {
+			const fixture = prepare();
+			const experiment = completedDeliverables(fixture);
+			const runtime = JSON.parse(readFileSync(fixture.state, "utf8"));
+			runtime.wait_settle = true;
+			writeFileSync(fixture.state, JSON.stringify(runtime));
+			const wrapper = put(join(fixture.env.PATH.split(":")[0]!, "flock"), `#!${process.execPath}
+import {spawn,spawnSync} from "node:child_process";
+import {openSync,closeSync,readFileSync,writeFileSync,existsSync} from "node:fs";
+const args=process.argv.slice(2),real=${JSON.stringify(flock)};
+const counter=${JSON.stringify(join(fixture.dir, "lock-acquisitions"))};
+let holding;
+if(args.at(-1)==="3"){
+ const attempt=existsSync(counter)?Number(readFileSync(counter,"utf8"))+1:1;
+ writeFileSync(counter,String(attempt));
+ if(attempt===${acquisition}){
+  holding=openSync(process.env.OMP_ROSTER_EXPERIMENTS_FILE+".lock","r+");
+  const owner=spawnSync(real,["--exclusive","4"],{stdio:["ignore","inherit","inherit","ignore",holding]});
+  if(owner.status!==0)process.exit(2);
+ }
+}
+if(holding===undefined){
+ const result=spawnSync(real,args,{stdio:args.at(-1)==="3"?["ignore","inherit","inherit",3]:"inherit"});
+ process.exit(result.status??2);
+}
+// The competing owner remains locked through a nonblocking rejection.
+// Release for a blocking waiter on its real spawn event, never a guessed delay.
+const child=spawn(real,args,{stdio:["ignore","inherit","inherit",3]});
+const {promise,resolve,reject}=Promise.withResolvers();
+child.once("exit",resolve);child.once("error",reject);
+child.once("spawn",()=>{if(!args.includes("--nonblock")){closeSync(holding);holding=undefined;}});
+const status=await promise;
+if(holding!==undefined)closeSync(holding);
+process.exit(status??2);
+`);
+			chmodSync(wrapper, 0o700);
+			const result = invoke(["await-verdict", "--experiment", experiment.id, "--json"], fixture.env);
+			expect([result.exitCode, result.stderr], `acquisition ${acquisition}`).toEqual([0, ""]);
+			expect(JSON.parse(result.stdout).verdict.winner).toBe("candidate");
+			expect(JSON.parse(readFileSync(fixture.state, "utf8")).judge_calls).toHaveLength(1);
+			expect(journalState(fixture.journal).defaults[experiment.default_key]).toEqual({ entry: experiment.candidate, evidence: experiment.id });
+		}
+	});
+
+	test("Anthropic lanes use the independent native Sol high judge", () => {
+		const fixture = prepare(SONNET);
+		const experiment = completedDeliverables(fixture);
+		const runtime = JSON.parse(readFileSync(fixture.state, "utf8"));
+		runtime.agents.forEach((agent: { agent_status: string }) => { agent.agent_status = "done"; });
+		writeFileSync(fixture.state, JSON.stringify(runtime));
+		const result = invoke(["await-verdict", "--experiment", experiment.id, "--json"], fixture.env);
+		expect(result.exitCode).toBe(0);
+		expect(JSON.parse(result.stdout).verdict.judge).toEqual({ provider: "openai-codex", model: "gpt-6.1-sol", effort: "high" });
+		expect(JSON.parse(readFileSync(fixture.state, "utf8")).judge_calls).toHaveLength(1);
+	});
+
+	test("missing, replaced, moved and blocked native lanes cannot be adjudicated from old completed files", () => {
+		for (const change of ["missing", "session", "cwd", "workspace", "pane", "blocked", "unknown"]) {
+			const fixture = prepare();
+			const experiment = completedDeliverables(fixture);
+			const runtime = JSON.parse(readFileSync(fixture.state, "utf8"));
+			runtime.agents.forEach((agent: { agent_status: string }) => { agent.agent_status = "done"; });
+			if (change === "missing") runtime.agents.pop();
+			else if (change === "session") runtime.agents[1].agent_session.value += ".replacement";
+			else if (change === "cwd") runtime.agents[1].cwd = fixture.repo;
+			else if (change === "workspace") runtime.agents[1].workspace_id = "wReplacement";
+			else if (change === "pane") runtime.agents[1].pane_id = "wReplacement:p1";
+			else runtime.agents[1].agent_status = change;
+			writeFileSync(fixture.state, JSON.stringify(runtime));
+			const before = readFileSync(fixture.journal, "utf8");
+			const refused = invoke(["await-verdict", "--experiment", experiment.id, "--json"], fixture.env);
+			expect(refused.exitCode, change).toBe(1);
+			expect(JSON.parse(readFileSync(fixture.state, "utf8")).judge_calls, change).toEqual([]);
+			expect(readFileSync(fixture.journal, "utf8"), change).toBe(before);
+		}
+		const fixture = prepare();
+		const experiment = completedDeliverables(fixture);
+		const runtime = JSON.parse(readFileSync(fixture.state, "utf8"));
+		runtime.wait_settle = true;
+		runtime.wait_replace = true;
+		writeFileSync(fixture.state, JSON.stringify(runtime));
+		expect(invoke(["await-verdict", "--experiment", experiment.id], fixture.env).exitCode).toBe(1);
+		expect(JSON.parse(readFileSync(fixture.state, "utf8")).judge_calls).toEqual([]);
+		expect(journalState(fixture.journal).defaults).toEqual({});
+	});
+
+	test("native judge failure, lane resume and fresh route failure leave the experiment pending without defaults", () => {
+		for (const mode of ["failure", "resume", "usage-unavailable", "usage-before-judge"]) {
+			const fixture = prepare();
+			const experiment = completedDeliverables(fixture);
+			const runtime = JSON.parse(readFileSync(fixture.state, "utf8"));
+			runtime.wait_settle = true;
+			runtime.judge_mode = mode;
+			if (mode === "usage-before-judge") runtime.usage_error = true;
+			writeFileSync(fixture.state, JSON.stringify(runtime));
+			const refused = invoke(["await-verdict", "--experiment", experiment.id, "--json"], fixture.env);
+			expect(refused.exitCode, mode).toBe(1);
+			expect(refused.stdout, mode).toBe("");
+			const pending = journalState(fixture.journal);
+			expect(pending.defaults, mode).toEqual({});
+			expect(pending.experiments[0].status, mode).toBe("awaiting-verdict");
+			expect(pending.experiments[0].verdict, mode).toBeUndefined();
+			if (mode === "failure") expect(refused.stderr).toContain("fixture quota diagnostic");
+			if (mode.startsWith("usage")) expect(refused.stderr).toContain("fixture usage route unavailable");
+			expect(JSON.parse(readFileSync(fixture.state, "utf8")).judge_calls, mode).toHaveLength(mode === "usage-before-judge" ? 0 : 1);
+		}
 	});
 
 	test("cutover preserves the old live pair in the same journal without promoting its unregistered default", () => {
@@ -1343,12 +1657,11 @@ describe("omp-roster without a ticket (US-046)", () => {
 
 		test("US-046 check on an adhoc id judges against the recorded one-route roster, with no board and no roster-changed finding", () => {
 			const dir = scratch("adhoc-check");
-			const { item, record } = launchedOn(dir, "anthropic/claude-sonnet-5-5", "medium");
+			const { item } = launchedOn(dir, "anthropic/claude-sonnet-5-5", "medium");
 			const clean = jsonl(join(dir, "sessions", "Clean.jsonl"), [opened(iso(10_000)), said(iso(11_000), "anthropic", "claude-sonnet-5-5"), said(iso(12_000), "anthropic", "claude-sonnet-5-5")]);
 			const ok = checkAdhoc(dir, item, "--session", clean);
 			expect([ok.exitCode, ok.stderr]).toEqual([0, ""]);
 			expect(ok.stdout).toContain("launch records: 1");
-			expect(ok.stdout).toContain(`judged against launch record ${record} (launched `);
 			expect(ok.stdout).toContain("roster: 1 anthropic/claude-sonnet-5-5:medium");
 			expect(ok.stdout).toContain("turns on the roster: 2");
 			expect(ok.stdout).not.toContain("roster changed");

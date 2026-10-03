@@ -78,6 +78,11 @@ type Skip = { selector: string; verdict: string | null; reason: string; next_res
 type Freshness = { degraded: boolean; degraded_reason: string | null; oldest_observation: string | null; stale_after_seconds: number | null };
 type LaunchOptions = { harness?: string; json?: boolean; "ticket-json"?: string; "usage-json"?: string; "state-dir"?: string; "memory-json"?: string; cwd?: string; "brief-file"?: string; tiny?: string; "live-data"?: string; "no-experiment"?: string; "use-default"?: boolean };
 type CheckOptions = { "ticket-json"?: string; "state-dir"?: string; since?: string };
+type AdjudicationSchedule = {
+	unit: string; judge: Entry; scheduled: boolean; status: string; error: string | null;
+	state: { active: string; sub: string; result: string; exit_code: number } | null;
+	logs: string[];
+};
 type MemorySnapshot = Record<string, unknown> & { schema_version: 1; ok: true; activated: boolean; admitted: boolean; reservation: false; warnings: string[] };
 const USAGE = `Usage:
   omp-roster capacity [--json]
@@ -87,6 +92,7 @@ const USAGE = `Usage:
   omp-roster check --item ID --session DIR|FILE... [--ticket-json FILE] [--state-dir DIR] [--since ISO]
   omp-roster defaults [--nature build|design|research] [--model provider/model] [--json]
   omp-roster verdict --experiment E-NNN --artifact-a FILE --artifact-b FILE --judge provider/model --thinking effort [--json]
+  omp-roster await-verdict --experiment E-NNN [--json]
   omp-roster abandon --experiment E-NNN --reason TEXT
 Capacity is a read-only fleet snapshot, not a reservation; launch rechecks admission and may start both experiment lanes.
 Memory fixtures are read-only guidance; the actual engineer launch rechecks live containment under lock.
@@ -133,15 +139,15 @@ export function boardProgram(env: Record<string, string | undefined> = process.e
 	return locate("glass") ? "glass" : "board";
 }
 
-function capture(name: string, args: string[], timeout = READ_TIMEOUT_MS): { json: unknown; stderr: string; exitCode: number } {
+function capture(name: string, args: string[], timeout: number | null = READ_TIMEOUT_MS): { json: unknown; stderr: string; exitCode: number } {
 	const binary = locate(name);
 	if (!binary) throw new CliError(`${name} is not on PATH or in ~/.local/bin.`);
-	const result = Bun.spawnSync({ cmd: [binary, ...args], stdout: "pipe", stderr: "pipe", timeout });
-	if (result.exitedDueToTimeout) throw new CliError(`${name} did not answer within ${timeout / 1000} seconds; inspect its state before retrying.`);
+	const result = Bun.spawnSync({ cmd: [binary, ...args], stdout: "pipe", stderr: "pipe", ...(timeout === null ? {} : { timeout }) });
+	if (result.exitedDueToTimeout) throw new CliError(`${name} did not answer within ${timeout! / 1000} seconds; inspect its state before retrying.\nStderr:\n${result.stderr.toString() || "(empty)"}`);
 	let json: unknown = null;
 	try { json = JSON.parse(result.stdout.toString()); }
 	catch { /* not JSON: the caller reports stderr */ }
-	return { json, stderr: plain(result.stderr.toString().trim().split("\n").at(-1) ?? ""), exitCode: result.exitCode ?? -1 };
+	return { json, stderr: result.stderr.toString(), exitCode: result.exitCode ?? -1 };
 }
 
 function memorySnapshot(file?: string): MemorySnapshot {
@@ -526,7 +532,7 @@ function startPair(ledger: Ledger, item: string, ticket: Record<string, unknown>
 	if (gitFact(cwd, ["status", "--porcelain"])) throw new CliError("Experiment lanes need a committed starting snapshot; commit the checkout or select a clean --cwd.");
 	const inventory = capture("herdr", ["worktree", "list", "--cwd", cwd]);
 	const source = isRecord(inventory.json) && isRecord(inventory.json.result) ? inventory.json.result.source : undefined;
-	if (inventory.exitCode !== 0 || !isRecord(source) || typeof source.repo_root !== "string") throw new CliError("Cannot resolve the Herdr repository parent for experiment worktrees.");
+	if (inventory.exitCode !== 0 || !isRecord(source) || typeof source.repo_root !== "string") throw new CliError(`Cannot resolve the Herdr repository parent for experiment worktrees (exit ${inventory.exitCode}).\nStderr:\n${inventory.stderr || "(empty or unrecognised parent response)"}`);
 	const parent = typeof source.source_workspace_id === "string" ? ["--workspace", source.source_workspace_id] : ["--cwd", source.repo_root];
 	const brief = experimentBrief(item, ticket, options["brief-file"]);
 	const experiment: Experiment = {
@@ -569,6 +575,133 @@ function startPair(ledger: Ledger, item: string, ticket: Record<string, unknown>
 	experiment.status = "running";
 	writeLedger(ledger);
 	return experiment;
+}
+
+function automaticJudge(experiment: Experiment): Entry {
+	return experiment.lanes.some((lane) => lane.entry.provider === "anthropic")
+		? { provider: "openai-codex", model: "gpt-6.1-sol", effort: "high" }
+		: { provider: "anthropic", model: "claude-sonnet-5-5", effort: "high" };
+}
+
+function scheduleVerdict(experiment: Experiment): AdjudicationSchedule {
+	const unit = `omp-verdict-${experiment.id.toLowerCase()}-${createHash("sha256").update(ledgerPath()).digest("hex").slice(0, 16)}.service`;
+	const scheduled: AdjudicationSchedule = {
+		unit, judge: automaticJudge(experiment), scheduled: false, status: "schedule-failed", error: null,
+		state: null, logs: ["journalctl", "--user", "--unit", unit, "--no-pager"],
+	};
+	try {
+		const binary = locate("systemd-run");
+		if (!binary) throw new CliError("systemd-run is not on PATH or in ~/.local/bin.");
+		const env: Record<string, string | undefined> = { ...process.env, HOME: process.env.HOME ?? homedir(), OMP_ROSTER_EXPERIMENTS_FILE: ledgerPath() };
+		// Copy only native path/profile context. Passing names, not values, keeps secrets out of argv.
+		const context = ["HOME", "PATH", "XDG_STATE_HOME", "XDG_CONFIG_HOME", "XDG_DATA_HOME", "XDG_CACHE_HOME", "XDG_RUNTIME_DIR",
+			"PI_CODING_AGENT_DIR", "OMP_PROFILE", "HERDR_CONFIG_PATH", "HERDR_SOCKET_PATH", "DBUS_SESSION_BUS_ADDRESS"];
+		const args = ["--no-ask-password", "--user", "--unit", unit, "--service-type=exec", "--expand-environment=no",
+			"--remain-after-exit", "--working-directory=/", "--property=Restart=no",
+			"--property=TimeoutStopSec=15s", "--property=KillMode=control-group", "--property=UMask=0077",
+			"--property=StandardOutput=journal", "--property=StandardError=journal",
+			...context.filter((name) => env[name] !== undefined).map((name) => `--setenv=${name}`),
+			"--setenv=OMP_ROSTER_EXPERIMENTS_FILE", process.execPath, import.meta.path, "await-verdict", "--experiment", experiment.id, "--json"];
+		// Wait only for service exec/start admission, never for the watcher or its engineers.
+		const result = Bun.spawnSync({ cmd: [binary, ...args], env, stdout: "pipe", stderr: "pipe", timeout: READ_TIMEOUT_MS });
+		if (result.exitedDueToTimeout || result.exitCode !== 0) {
+			if (result.exitedDueToTimeout) scheduled.status = "schedule-unknown";
+			throw new CliError(`systemd-run ${result.exitedDueToTimeout ? "start admission timed out" : `exited ${result.exitCode}`}.\nCommand: ${[binary, ...args].map(shellWord).join(" ")}\nStderr:\n${result.stderr.toString().trim() || "(empty)"}`);
+		}
+		scheduled.scheduled = true;
+		scheduled.status = "status-unavailable";
+		const control = locate("systemctl");
+		if (!control) throw new CliError("The service was scheduled, but systemctl is unavailable to inspect it.");
+		const shown = Bun.spawnSync({
+			cmd: [control, "--user", "show", unit, "--no-pager", "--property=ActiveState", "--property=SubState", "--property=Result", "--property=ExecMainStatus"],
+			env, stdout: "pipe", stderr: "pipe", timeout: READ_TIMEOUT_MS,
+		});
+		if (shown.exitedDueToTimeout || shown.exitCode !== 0) throw new CliError(`The service was scheduled, but its status could not be read: ${shown.stderr.toString().trim() || `systemctl exit ${shown.exitCode}`}.`);
+		const properties = Object.fromEntries(shown.stdout.toString().trim().split("\n").map((line) => {
+			const equals = line.indexOf("=");
+			return [line.slice(0, equals), line.slice(equals + 1)];
+		}));
+		if (!properties.ActiveState || !properties.SubState || !properties.Result || !/^[0-9]+$/.test(properties.ExecMainStatus ?? "")) throw new CliError("The service was scheduled, but systemctl returned an unrecognised unit status.");
+		scheduled.state = { active: properties.ActiveState, sub: properties.SubState, result: properties.Result, exit_code: Number(properties.ExecMainStatus) };
+		scheduled.status = properties.ActiveState;
+		if (properties.ActiveState === "failed" || properties.Result !== "success") scheduled.error = `Watcher ${properties.ActiveState}/${properties.SubState}: ${properties.Result}, exit ${properties.ExecMainStatus}.`;
+	} catch (error) {
+		scheduled.error = (error as Error).message;
+	}
+	return scheduled;
+}
+
+function boundLaneStatuses(experiment: Experiment): string[] {
+	const snapshot = capture("herdr", ["agent", "list"]);
+	const result = isRecord(snapshot.json) ? snapshot.json.result : undefined;
+	if (snapshot.exitCode !== 0 || !isRecord(result) || !Array.isArray(result.agents)) throw new CliError(`Cannot inspect ${experiment.id}'s bound native agents: ${snapshot.stderr || "unrecognised agent list"}; no verdict or default was written.`);
+	const agents = result.agents;
+	return experiment.lanes.map((lane) => {
+		const matches = agents.filter((agent) => isRecord(agent) && agent.pane_id === lane.pane_id);
+		const agent = matches[0];
+		if (matches.length !== 1 || !isRecord(agent) || agent.agent !== "omp" || agent.workspace_id !== lane.workspace_id
+			|| typeof agent.cwd !== "string" || !isAbsolute(agent.cwd) || resolve(agent.cwd) !== resolve(lane.cwd)
+			|| !isRecord(agent.agent_session) || agent.agent_session.kind !== "path" || agent.agent_session.value !== lane.session) {
+			throw new CliError(`${experiment.id}: bound lane ${lane.pane_id} is missing or its workspace/cwd/session identity changed; inspect the recorded lane, do not relaunch it. No verdict or default was written.`);
+		}
+		const status = agent.agent_status;
+		if (status !== "working" && status !== "idle" && status !== "done") throw new CliError(`${experiment.id}: bound lane ${lane.pane_id} is ${plainOrNull(status) ?? "unrecognised"}, not a settled lane; inspect it. No verdict or default was written.`);
+		return status;
+	});
+}
+
+function awaitVerdictCommand(args: string[]): number {
+	const { values } = parseArgs({ args, options: { experiment: { type: "string" }, json: { type: "boolean" }, help: { type: "boolean", short: "h" } }, strict: true });
+	if (values.help) { console.log(USAGE); return 0; }
+	if (!values.experiment || !/^E-[0-9]{3,}$/.test(values.experiment)) throw new CliError("await-verdict requires --experiment E-NNN.", 2);
+	const experiment = readLedger().experiments.find((record) => record.id === values.experiment);
+	if (!experiment) throw new CliError(`Unknown experiment ${values.experiment}; no watcher or judge was started.`);
+	const accepted = (record: Experiment): boolean => {
+		if (record.status !== "verdict") return false;
+		if (values.json) console.log(JSON.stringify({ experiment: record.id, status: "already-accepted", verdict: record.verdict }, null, 2));
+		else console.log(`${record.id}: verdict already accepted; no second judge was run.`);
+		return true;
+	};
+	if (accepted(experiment)) return 0;
+	const unchanged = (record: Experiment | undefined): Experiment => {
+		if (!record || !["running", "awaiting-verdict", "verdict"].includes(record.status)) throw new CliError(`${experiment.id} is ${record?.status ?? "missing"}, not ready for automatic adjudication.`);
+		if (JSON.stringify(record.lanes) !== JSON.stringify(experiment.lanes)) throw new CliError(`${experiment.id}'s bound lanes changed while awaiting completion; no verdict or default was written.`);
+		return record;
+	};
+	unchanged(experiment);
+	for (const [index, lane] of experiment.lanes.entries()) {
+		const current = unchanged(readLedger().experiments.find((record) => record.id === experiment.id));
+		if (accepted(current)) return 0;
+		boundLaneStatuses(experiment);
+		// Native waiting has no journal lock or deadline; the named unit is explicitly stoppable.
+		// Wake on invalid states as well, so blocked/unknown cannot be mistaken for success.
+		const waitArgs = ["agent", "wait", lane.pane_id, "--until", "idle", "--until", "done", "--until", "blocked", "--until", "unknown"];
+		const waited = capture("herdr", waitArgs, null);
+		if (waited.exitCode !== 0) throw new CliError(`${experiment.id}: native wait failed for bound lane ${lane.pane_id} (exit ${waited.exitCode}).\nCommand: herdr ${waitArgs.map(shellWord).join(" ")}\nStderr: ${waited.stderr || "(empty)"}\nExperiment remains pending; no verdict or default was written.`);
+		if (boundLaneStatuses(experiment)[index] === "working") throw new CliError(`${experiment.id}: native wait returned while ${lane.pane_id} is still working; no verdict or default was written.`);
+	}
+	const ready = withLedgerLock(() => {
+		const ledger = readLedger();
+		const current = unchanged(ledger.experiments.find((record) => record.id === experiment.id));
+		if (current.status === "verdict") return current;
+		if (boundLaneStatuses(experiment).some((status) => status === "working")) throw new CliError(`${experiment.id}: a bound lane resumed work; no verdict or default was written.`);
+		if (current.status === "running") { current.status = "awaiting-verdict"; writeLedger(ledger); }
+		return current;
+	}, true);
+	if (accepted(ready)) return 0;
+	const judge = automaticJudge(experiment);
+	return experimentCommand(["verdict", "--experiment", experiment.id,
+		"--artifact-a", join(experiment.lanes[0]!.cwd, "experiment-result.md"), "--artifact-b", join(experiment.lanes[1]!.cwd, "experiment-result.md"),
+		"--judge", key(judge), "--thinking", judge.effort, ...(values.json ? ["--json"] : [])], {
+		approvedModels,
+		waitForLock: true,
+		routeUsable: (entry) => {
+			// The verdict owner invokes this inside its lock, including its final acceptance check.
+			unchanged(readLedger().experiments.find((record) => record.id === experiment.id));
+			if (boundLaneStatuses(experiment).some((status) => status === "working")) throw new CliError(`${experiment.id}: a bound lane is working, not ready for a verdict; no default was written.`);
+			return !("skip" in routeState(entry, usageView(undefined).rows));
+		},
+	});
 }
 
 function abandonCommand(args: string[]): number {
@@ -690,7 +823,8 @@ function launchCommand(options: LaunchOptions & { item?: string; model?: string;
 		if (options["ticket-json"] !== undefined) throw new CliError("--ticket-json goes with --item; a launch with --model reads no ticket.", 2);
 		({ item, roster } = adhocRoster(options.model, options.thinking));
 	}
-	const { agents, ...engineerCapacity } = enforceEngineerLimit();
+	const { working, limit } = enforceEngineerLimit();
+	const engineerCapacity = { working, limit };
 	enforceDisplayBoundary();
 	const memory = memorySnapshot(options["memory-json"]);
 	for (const warning of memory.warnings) console.error(`warning: ${plain(warning)}`);
@@ -719,8 +853,12 @@ function launchCommand(options: LaunchOptions & { item?: string; model?: string;
 	const ticketSha = options["use-default"] ? rosterSha(rosterOf(ticket, item)) : undefined;
 	const outcome: { started: boolean; pair: { status: string; file: string; experiment?: Experiment }; overlay: string | null; record: string | null; env: { PI_CONFIG_FILES?: string }; args: string[] } = qualifies || reasons.length ? withLedgerLock(() => {
 		const ledger = readLedger();
-		importLegacyPair(ledger, agents);
-		let pair = currentPair(ledger, agents);
+		// Route probing happens before this lock; its earlier agent snapshot cannot settle a new reservation.
+		const fresh = readEngineerCapacity();
+		engineerCapacity.working = fresh.working;
+		engineerCapacity.limit = fresh.limit;
+		importLegacyPair(ledger, fresh.agents);
+		let pair = currentPair(ledger, fresh.agents);
 		if (reasons.length) {
 			ledger.opt_outs.push({ item, reason: reasons[0]!.trim(), at: new Date().toISOString() });
 			writeLedger(ledger);
@@ -733,24 +871,29 @@ function launchCommand(options: LaunchOptions & { item?: string; model?: string;
 		}
 		return { started: false, pair, ...writePlan(item, roster, launch!, options["state-dir"], ticketSha) };
 	}) : { started: false, pair: { status: "not-applicable", file: ledgerPath() }, ...writePlan(item, roster, launch, options["state-dir"]) };
+	const adjudication = outcome.started ? scheduleVerdict(outcome.pair.experiment!) : null;
+	if (adjudication?.error) console.error(`omp-roster: ${outcome.pair.experiment!.id}'s pair is already started; automatic adjudication ${adjudication.status}: ${adjudication.error}\nInspect ${adjudication.logs.map(shellWord).join(" ")}. Do not roll back, relaunch, or dispatch another engineer.`);
 	const degraded = route.degraded ?? freshness.degraded_reason;
 	if (route.verdict === "low") console.error(`warning: ${plain(selector(launch))} is low on capacity and may run out soon`);
 	if (degraded) console.error(`warning: the ai-usage reading is degraded: ${degraded}`);
 	if (options.json) {
 		const usage = { ...freshness, degraded: freshness.degraded || route.degraded !== null, degraded_reason: degraded };
 		console.log(JSON.stringify({
-			item, launch: { ...launch, selector: plain(selector(launch)), verdict: route.verdict }, ...outcome, skipped, roster_sha256: sha, usage, memory, engineer_capacity: engineerCapacity,
+			item, launch: { ...launch, selector: plain(selector(launch)), verdict: route.verdict }, ...outcome, adjudication, skipped, roster_sha256: sha, usage, memory, engineer_capacity: engineerCapacity,
 			default_evidence: options["use-default"] && launch === roster[0] ? defaultEvidence : null,
 		}, null, 2));
 	} else {
 		for (const skip of skipped) console.error(`skipped ${skipLine(skip)}`);
-		if (outcome.started) console.log(`Started ${outcome.pair.experiment!.id}: ${outcome.pair.experiment!.lanes.map((lane) => lane.pane_id).join(", ")}`);
+		if (outcome.started) {
+			console.log(`Started ${outcome.pair.experiment!.id}: ${outcome.pair.experiment!.lanes.map((lane) => lane.pane_id).join(", ")}`);
+			console.log(`Automatic adjudication: ${adjudication!.unit} (${adjudication!.status}); ${adjudication!.logs.map(shellWord).join(" ")}`);
+		}
 		else {
 			console.log(`export PI_CONFIG_FILES=${shellWord(outcome.env.PI_CONFIG_FILES!)}`);
 			console.log(outcome.args.map(shellWord).join(" "));
 		}
 	}
-	return 0;
+	return adjudication?.error ? 1 : 0;
 }
 
 // A session file plus the sibling directory OMP keeps its subagent files in, or a whole directory.
@@ -1021,6 +1164,7 @@ function run(argv: string[]): number {
 		return launchCommand(values);
 	}
 	if (command === "abandon") return abandonCommand(args);
+	if (command === "await-verdict") return awaitVerdictCommand(args);
 	if (command === "defaults" || command === "verdict") {
 		return experimentCommand([command, ...args], {
 			approvedModels,

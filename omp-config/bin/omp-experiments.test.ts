@@ -82,6 +82,13 @@ writeFileSync(process.env.FAKE_EXPERIMENT_REQUEST, input);
 appendFileSync(process.env.FAKE_EXPERIMENT_CALLS, "called\\n");
 const prompt = JSON.parse(input);
 const mode = process.env.FAKE_EXPERIMENT_MODE;
+if (mode === "native-failure" || mode === "protocol-failure") {
+  console.error("Native transport refused the request.");
+  console.error("No fallback was attempted.");
+  console.log(JSON.stringify({type: "message_end", message: {role: "assistant", provider: "anthropic", model: "claude-sonnet-5-5", stopReason: "error",
+    errorMessage: '429 {"error":{"type":"rate_limit_error","message":"Account rate limit exceeded"}} retry-after-ms=2261000'}}));
+  process.exit(mode === "protocol-failure" ? 0 : 17);
+}
 const answer = {};
 for (const label of ["X", "Y"]) answer[label] = prompt.done.map((check, index) => {
   const line = prompt.artifacts[label].find((line) => line.text.includes(index === 0 ? "Check one" : "Check two"));
@@ -94,7 +101,9 @@ if (mode === "extra-key") answer.winner = "X";
 if (process.env.FAKE_EXPERIMENT_MUTATE) appendFileSync(process.env.FAKE_EXPERIMENT_MUTATE, "changed during judge\\n");
 if (mode === "fallback") console.log(JSON.stringify({type: "retry_fallback_applied"}));
 if (mode === "changed-model") console.log(JSON.stringify({type: "model_change", model: "openai-codex/gpt-6-luna"}));
+if (mode === "changed-effort") console.log(JSON.stringify({type: "thinking_level_change", thinkingLevel: "medium"}));
 if (mode === "malformed-event") { console.log("not native JSON"); process.exit(0); }
+if (mode === "fenced-json") console.error("Native score response context.\\nNative completion emitted an invalid score payload.");
 const message = {role: "assistant", provider: mode === "wrong-provider" || mode === "grok" ? "xai-oauth" : "anthropic",
   model: mode === "grok" ? "grok-4.7" : mode === "wrong-model" ? "claude-opus-5-5" : "claude-sonnet-5-5", stopReason: mode === "failed-stop" ? "error" : "stop",
   content: [{type: "text", text: mode === "fenced-json" ? "\\u0060\\u0060\\u0060json\\n" + JSON.stringify(answer) + "\\n\\u0060\\u0060\\u0060" : JSON.stringify(answer)}]};
@@ -337,14 +346,36 @@ test("lane model, effort and fallback confounds are rejected using actual sessio
 	}
 });
 
+test("native judge failures report the command, complete stderr and protocol cause without committing evidence", () => {
+	const { root, path } = fixture();
+	seeded(root);
+	const before = readFileSync(path, "utf8");
+	for (const mode of ["native-failure", "protocol-failure"]) {
+		const native = nativeFixture(root, mode);
+		const result = command(native.args);
+		expect(result.status).toBe(1);
+		if (mode === "native-failure") expect(result.stderr).toContain("exit 17");
+		expect(result.stderr).toContain("Command: 'omp' '--mode' 'json' '--print' '--no-session' '--model' 'anthropic/claude-sonnet-5-5' '--thinking' 'high'");
+		expect(result.stderr).toContain("Native transport refused the request.\nNo fallback was attempted.");
+		expect(result.stderr).toContain('429 {"error":{"type":"rate_limit_error","message":"Account rate limit exceeded"}} retry-after-ms=2261000');
+		expect(readFileSync(path, "utf8")).toBe(before);
+		expect(readLedger().defaults).toEqual({});
+	}
+	expect(command(nativeFixture(root).args).status).toBe(0);
+	const recovered = readLedger();
+	expect(recovered.experiments[0].status).toBe("verdict");
+	expect(recovered.defaults["build:openai-codex/gpt-6.1-sol"]).toEqual({ entry: CANDIDATE, evidence: "E-019" });
+});
+
 test("malformed native output, fallback, nonterminal and duplicate responses never commit verdicts", () => {
 	const { root, path } = fixture();
 	seeded(root);
 	const before = readFileSync(path, "utf8");
-	for (const mode of ["fallback", "changed-model", "wrong-provider", "wrong-model", "failed-stop", "malformed-event", "duplicate-answer", "not-terminal", "fenced-json"]) {
+	for (const mode of ["fallback", "changed-model", "changed-effort", "wrong-provider", "wrong-model", "failed-stop", "malformed-event", "duplicate-answer", "not-terminal", "fenced-json"]) {
 		const native = nativeFixture(root, mode);
 		const result = command(native.args);
 		expect(result.status, mode).toBe(1);
+		if (mode === "fenced-json") expect(result.stderr).toContain("Native score response context.\nNative completion emitted an invalid score payload.");
 		expect(readFileSync(path, "utf8"), mode).toBe(before);
 	}
 });
