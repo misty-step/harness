@@ -1,5 +1,22 @@
+import { execFile } from "node:child_process";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
-import { evaluateDiff, getGitDiff, resolveProvider, type ReviewVerdict, type BatteryName } from "./engine.ts";
+import { evaluateDiff, getGitDiff, resolveProvider, reviewFailure, type ReviewVerdict, type BatteryName } from "./engine.ts";
+
+const OUTCOME_JOB = "pi-diff-review";
+
+/**
+ * One outcome record per automatic review (docs/adr/009-nothing-fails-silently.md): a review that could not run is a
+ * failed run that screams through Kaylee's outcome route, never a hidden status. A missing recorder is shown, not swallowed.
+ */
+function recordOutcome(ctx: ExtensionContext, cause: string | null, detail?: string): void {
+	const args = ["record", OUTCOME_JOB, ...(cause ? ["--fail", cause, ...(detail ? ["--detail", detail.slice(0, 500)] : [])] : ["--ok"])];
+	execFile("outcome", args, { cwd: ctx.cwd }, (error) => {
+		if (!error) return;
+		const message = `diff-review: outcome recorder failed (${error.message}); this run is unreported`;
+		console.error(message);
+		if (ctx.hasUI) ctx.ui.notify(message, "error");
+	});
+}
 
 const RESULT_TYPE = "diff-review/report";
 
@@ -30,18 +47,16 @@ export async function checkDiffReview(ctx: ExtensionContext): Promise<ReviewVerd
 
 	inFlightReview = (async () => {
 		try {
-			const diff = getGitDiff({});
+			const diff = getGitDiff({ cwd: ctx.cwd });
 			if (!diff.trim()) {
 				if (ctx.hasUI) ctx.ui.setStatus("diff-review", undefined);
 				return null;
 			}
 			const provider = resolveProvider();
 			const verdict = await evaluateDiff(diff, { provider });
+			const failure = reviewFailure(verdict);
+			recordOutcome(ctx, failure, failure ? verdict.summary : undefined);
 			if (ctx.hasUI) {
-				if (!verdict.enabled) {
-					ctx.ui.setStatus("diff-review", undefined);
-					return verdict;
-				}
 				ctx.ui.setStatus("diff-review", formatStatus(verdict, ctx.ui.theme));
 				if (verdict.blocks.length > 0) {
 					const first = verdict.blocks[0];
@@ -52,7 +67,8 @@ export async function checkDiffReview(ctx: ExtensionContext): Promise<ReviewVerd
 				}
 			}
 			return verdict;
-		} catch {
+		} catch (error) {
+			recordOutcome(ctx, "exception", error instanceof Error ? error.message : String(error));
 			return null;
 		} finally {
 			inFlightReview = null;
@@ -69,7 +85,7 @@ export default function registerDiffReviewExtension(pi: ExtensionAPI): void {
 			const batteryName = (args?.trim() as BatteryName) || "all";
 			if (ctx.hasUI) ctx.ui.setStatus("diff-review", "Reviewing diff…");
 			try {
-				const diff = getGitDiff({});
+				const diff = getGitDiff({ cwd: ctx.cwd });
 				if (!diff.trim()) {
 					pi.sendMessage({
 						customType: RESULT_TYPE,

@@ -7,7 +7,7 @@ image-budget extension, the model-fallback-chain extension, the OpenRouter
 live-model bridge, and
 the `pi()` key-injection wrapper block in `~/.bashrc`. Shared primitives —
 skill packages, global guidance, and the `pass-env`, `openrouter-key`,
-`design-check`, `foundation-check`, and `ws` launchers — come from the sibling
+`design-check`, `foundation-check`, `review-check`, and `ws` launchers — come from the sibling
 base `agent-config`. `./install`
 deploys the owned agent-directory components into `$PI_CODING_AGENT_DIR`
 (default `~/.pi/agent`); the wrapper block is applied to `~/.bashrc` by hand
@@ -57,33 +57,33 @@ presentation; "behavioral" changes agent capability, model input, or data flow.
 
 | Component | Owner | Class | Installed by `./install` | Divergence |
 | --- | --- | --- | --- | --- |
-| `settings.json` | this repo | config | yes | Default model/thinking, editor padding, markdown, theme name, retry budget |
-| `settings.subscription.json` | this repo | config | yes, only when Pi's Anthropic and Codex logins are ready | Operator model policy: Opus 5.5 default at medium, GPT-6 Sol/Luna at max (ADR-011 amendment 2026-09-25) |
+| `settings.json` | this repo | config | yes | GPT-6.1 Sol xhigh default (US-014); default and chain run through `openai-pool`/`xai-pool` (ADR-026); editor padding, markdown, theme name, retry budget (ADR-011 amendment 2026-09-28) |
 | `global/AGENTS.md` | this repo | behavioral | yes | Global `~/.pi/agent/AGENTS.md`: pi's intro plus shared sections spliced from `agent-config` |
 | `extensions/pi-chrome.ts` | this repo | aesthetic | yes | Session card, composer rail layout, live working state, footer |
 | `extensions/loc/` | this repo | behavioral (read-only) | yes | `/loc`, `/loc-trend`, LOC status row |
 | `extensions/web-search/` | this repo | behavioral | yes | `web_search` tool (Exa); registers nothing without `EXA_API_KEY` |
-| `extensions/failover/` | this repo | behavioral | yes | Fallback chain: run dies on a link after stock retry → session moves to the next, strictly forward (ADR-011/013) |
+| `extensions/failover/` | this repo | behavioral | yes | Subscription-only agent turns and forward recovery after stock retry; blocks native paid startup fallback (ADR-011/013) |
+| `extensions/accounts/` | this repo | behavioral | yes | Extra account slots (`openai-codex-2`…`-4`, `xai-2`, `openrouter-2`): built-in login, refresh and streaming under their own `auth.json` keys, plus `openai-pool`/`xai-pool`/`openrouter-pool` that balance a request across a provider's accounts, block one at its usage limit until reset and share that state in `account-pool.json`; `/pool` lists them; no shared OMP credentials (US-045, ADR-024/026) |
 | `extensions/image-budget/` | this repo | behavioral | yes | Inline-image ceiling: oldest images dropped over 15 MB per request; large images shrunk with ffmpeg at ingest (ADR-019) |
 | `extensions/openrouter-live/` | this repo | behavioral | yes | Live OpenRouter bridge: models the `pi.dev` mirror lacks are appended to `models.json`, additive-only, at session start (≥2 h) and `/models-live` (ADR-022) |
 | `extensions/continuation-nudge/` | this repo | behavioral | yes (component `continuation-nudge`; shared modules materialized) | Bounded Jev continuation nudge at agent settle: advisory, fail-open, max 2 per prompt, `JEV_NUDGE_MODE=off` disables. Review trigger: pi gains a native anti-premature-stop or continuation control, or nudges fire on completed work |
 | `extensions/audio-sandbox/` | this repo | behavioral | yes (component `audio-sandbox`; shared contract materialized) | Agent audio routed to the silent `agent-sandbox` sink (US-026): owned `shellCommandPrefix` for the bash tool plus `process.env` for every other child |
 | `auth.json.openrouter` | this repo (only this entry) | behavioral | yes (component `openrouter-auth`) | Command key bills R90 for its checkout or linked worktrees and the existing Pi personal entry elsewhere; invalid token on failed lookup blocks fallback (US-028, ADR-023) |
-| `agent-config` (skills, guidance, `pass-env`, `openrouter-key`, `design-check`, `foundation-check`, `ws`) | external (sibling base) | behavioral | yes | Portable skills, guidance, and standalone launchers, clean-replaced from `agent-config` (ADR-021) |
+| `agent-config` (skills, guidance, `pass-env`, `openrouter-key`, `design-check`, `foundation-check`, `review-check`, `ws`) | external (sibling base) | behavioral | yes | Portable skills, guidance, and standalone launchers, clean-replaced from `agent-config` (ADR-021) |
 | `~/.bashrc` (`pi()` block) | this repo (marked block only) | behavioral | by hand | Launch hook: Exa key from pass (ADR-010); run-scoped scratch `TMPDIR` via `omp-scratch` when installed (ADR-015) |
 | `~/.config/omarchy/themed/pi.json.tpl` | this repo (hand-managed) | aesthetic | by hand | pi theme template override for every Omarchy theme: readable semantic ink, accent-derived thinking ramp, deeper surfaces (ADR-018) |
 | `extensions/agent-usage-telemetry.ts` | external (managed) | telemetry | no | Reports usage to an external endpoint |
 | `extensions/herdr-agent-state.ts` | herdr (managed) | integration | no | Reports pane agent state to herdr |
 | `skills/omarchy`, `skills/diagnose-crash` | Omarchy (symlinks) | skills | no | Omarchy-owned agent skills |
 | `themes/omarchy-system.json` | Omarchy (generated) | generated | no | Theme regenerated on every theme change |
-| `auth.json` (except `openrouter`), `models-store.json`, `sessions/`, `trust.json`, `usage-outbox/` | pi (runtime) | runtime | no | Other credentials, sessions, state |
+| `auth.json` (except `openrouter`), `account-pool.json`, `models-store.json`, `sessions/`, `trust.json`, `usage-outbox/` | pi (runtime) | runtime | no | Other credentials (including slot logins), sessions, state |
 
 ### Global guidance
 
 **`global/AGENTS.md` — behavioral.** Deploys `~/.pi/agent/AGENTS.md`, the file
 pi concatenates into every session in every repository (ADR-012). The file is
 composed at install time: pi's title and intro, then `agent-config`'s shared
-sections — pokayoke, communication and verification, host resources, user stories, session close, and design routing —
+sections — engineering principles and workstation facts —
 spliced at the marker line (ADR-021). The shared sections carry the conventions
 every session inherits; the intro is pi's own. `./install` overwrites the
 deployed copy, and the file tells agents not to hand-edit it.
@@ -108,8 +108,9 @@ committed code lines, file count, and live net working-tree line movement vs
 `HEAD`. `analyze.ts` counts committed code at `HEAD`; the delta adds staged,
 unstaged, and untracked movement so it moves as you edit. It shells out to `git`
 and reads tracked/untracked files, but never writes to a repository except its
-own `.git/loc_cache`. It changes the command surface and footer output, not the
-model's tools or autonomy.
+own `.git/loc_cache`. Session-start refresh and explicit commands populate the
+cache; optional Git-hook warming is retired. It changes the command surface and
+footer output, not the model's tools or autonomy.
 
 **`web-search/` — behavioral.** One tool, `web_search` (query, num_results,
 full_text), backed by a single fetch to `api.exa.ai` — no dependencies beyond
@@ -139,13 +140,24 @@ notification says so. The walk is strictly forward: one link per failed run,
 no flapping, no automatic return; a run that dies on the last link reports
 chain exhaustion instead of looping. The walk is keyed to the session's
 current model — never to a remembered position — so it cannot drift out of
-sync with what the session actually runs. It never touches a model the user
-chose, and never re-sends the user's prompt — a run that dies mid-turn may
-already have executed tools. The chain is the `CHAIN` constant in `index.ts`
-(`anthropic/claude-opus-5-5` → `openai-codex/gpt-6-sol` →
-`openai-codex/gpt-6-luna` → `openrouter/deepseek/deepseek-v4.1-flash` →
-`openrouter/inception/mercury-2.5`; the walk starts from the current model, so
-a DeepSeek session still advances only to Mercury); extend it there and redeploy. `decide.ts` is pure and bun-tested;
+sync with what the session actually runs. It never automatically switches a
+model outside the chain and never re-sends the user's prompt — a run that dies
+mid-turn may already have executed tools. The chain is the `CHAIN` constant in `index.ts`
+(`openai-pool/gpt-6.1-sol` at xhigh → `gpt-6-luna` at max →
+`xai-pool/grok-4.7`). Astra remains available by explicit selection only. Pi uses
+only OpenAI, Grok and OpenRouter: Anthropic models, direct or through OpenRouter,
+are refused (ADR-025). The Pi-native
+Codex login is required; the installer reports a missing login without
+restoring a paid default.
+Pi can otherwise skip an unauthenticated default and select an available paid
+provider. The extension consumes input on unapproved selections before a turn
+starts, with a native request-abort backstop for extension-originated turns.
+Native compaction and summarized tree navigation are cancelled on those
+selections too; navigation without a summary remains available.
+Only approved Codex models, xAI and non-Anthropic OpenRouter routes may run;
+credentials and model catalogs remain untouched. Headless refusals print the
+login instruction to stderr. Removing the extension removes this protection.
+`decide.ts` is pure and bun-tested;
 `index.ts` is the harness-facing half. Removing the directory leaves stock
 retry + compaction recovery exactly intact.
 
@@ -361,8 +373,8 @@ and the ecosystem:
   and five explicit retry fallback chains.
 - `executive` extension: recursive, scope-owning subagents.
 - `omp-grievances`, `pass-env` secrets launcher, Linear MCP directory scoping.
-- Homebrew skills (`foundation`, `agent-ergonomics`, `verification-
-  infrastructure`, `capture`), agent definitions, and guidance.
+- Shared skills (`foundation`, `agent-design`, `engineering-operations`,
+  `story-qa`), agent definitions, and guidance.
 
 Our stance: keep pi lean. Port only what is independently valuable (`loc`,
 compact cwd) and let OMP keep the heavy orchestration. This is the main
@@ -460,8 +472,8 @@ failover became sticky (then revisit the once-per-session latch).
 
 Unset `PI_CONFIG_COMPONENTS` means `all`. Select a subset with a space-separated
 list: `config`, `guidance`, `pi-chrome`, `loc`, `web-search`, `failover`,
-`image-budget`, `openrouter-live`, `continuation-nudge`, `diff-review`,
-`audio-sandbox`, `pass-env`, `skills`, `openrouter-auth`.
+`accounts`, `image-budget`, `openrouter-live`, `continuation-nudge`,
+`diff-review`, `audio-sandbox`, `pass-env`, `skills`, `openrouter-auth`.
 
 `agent-config` must be checked out beside this repo (default
 `$repo_dir/../agent-config`; override with `AGENT_CONFIG_DIR`). `guidance`,
@@ -476,16 +488,16 @@ PI_CONFIG_COMPONENTS=openrouter-auth ./install  # only OpenRouter auth and the s
 
 Preflight validates bun, jq for `openrouter-auth`, source presence, settings,
 and the whole `agent-config` selection before any write. The `loc`,
-`web-search`, `failover`, and `image-budget` packages and every shared skill
-package are clean-replaced so obsolete files cannot survive.
+`web-search`, `failover`, `accounts`, and `image-budget` packages and every
+shared skill package are clean-replaced so obsolete files cannot survive.
 Restart pi after deploying.
 
 `openrouter-auth` requires jq and overlays only `auth.json.openrouter` (mode
 0600), preserving every other provider and rejecting malformed or symlinked
 auth files before any write. The command is
-`!openrouter-key --personal workstation/OPENROUTER_API_KEY_MIRRODIN_PI`.
+`!openrouter-key --personal workstation/OPENROUTER_MISTY_STEP_HARNESS_WORKSTATION_RECOVERY_API_KEY`.
 R90 checkouts (including Git linked worktrees) use
-`workstation/OPENROUTER_R90_HARNESS_API_KEY`; all other directories use the Pi
+`workstation/OPENROUTER_R90_HARNESS_WORKSTATION_INFERENCE_API_KEY`; all other directories use the Pi
 personal entry. A missing/invalid entry emits a deliberately invalid token so
 Pi's ambient `OPENROUTER_API_KEY` cannot take over. Restart Pi on account
 changes; verify usage from fresh sessions rather than inferring from file
@@ -505,9 +517,9 @@ loading is proved by a fresh session, not by file presence. `web_search`
 presence additionally requires `EXA_API_KEY` in the environment — an
 interactive-shell `pi` gets it from the `~/.bashrc` wrapper (pass entry
 `workstation/EXA_API_KEY`); a session started without the key degrades to no
-tool. `failover` needs no configuration or key: a fresh
-`openrouter/deepseek/deepseek-v4.1-flash` session is the proof that the
-extension loaded (it registers nothing visible).
+`web_search` tool. `failover` needs no configuration or key: a fresh
+`openai-pool/gpt-6.1-sol` session proves the extension loaded (it registers
+nothing visible); an `anthropic/*` selection is refused before inference.
 `image-budget` is proved by reading one large image: the stored tool result is
 a JPEG an order of magnitude smaller, and the footer shows `img-budget N
 dropped` only when the request budget is actually crossed. Workspace Git hooks

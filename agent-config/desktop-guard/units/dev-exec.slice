@@ -1,0 +1,9 @@
+# owned by misty-step/harness agent-config desktop-guard
+[Unit]
+Description=Bounded development jobs
+
+[Slice]
+# Two 8G job scopes fit inside this aggregate; the runner owns their admission.
+MemoryHigh=infinity
+MemoryMax=16G
+MemorySwapMax=2G

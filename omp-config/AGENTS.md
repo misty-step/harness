@@ -1,30 +1,13 @@
 # omp-config
 
-Edit harness sources here. Run `./install` to deploy owned components to
-`$(omp config path)`; keep live deployed files out of manual edits. The
-installer overlays source-owned config keys and removes retired owned keys
-without deleting foreign config entries, merges matching MCP authentication,
-and clean-replaces selected owned agent packages without deleting foreign
-packages.
+Own OMP routing, config/models/MCP, extensions, themes and the global intro.
+Edit source; `./install` overlays selected components into `omp config path`,
+preserving foreign config, credentials and runtime state.
 
-## Shared primitives
+Shared primitives belong in sibling `../agent-config` (`AGENT_CONFIG_DIR`
+overrides it); this installer declares selection. External skills retain
+upstream provenance; homebrew skills carry distinct outcomes or local knowledge.
 
-Skill packages, shared global-guidance sections, and the `pass-env` launcher are
-owned by `agent-config`, checked out
-as the sibling `../agent-config` (override with `AGENT_CONFIG_DIR`). This repo
-declares its selection in `install` and keeps only OMP-specific guidance (model
-roles, execution vehicles, tracker routing) in its own file. Add a
-harness-neutral primitive there, not here.
-
-## Skill provenance
-
-Skill provenance lives in `agent-config` now. External skills
-(`frontend-design`, `show-me`, `wrangler`, `herdr`, and `using-exe-dev`) stay
-verbatim there; Wrangler is the Cloudflare package at
-`cloudflare/skills@d924cd8`. Update from upstream or remove the whole package.
-Use a distinctly named homebrew skill when different behavior is needed.
-
-Homebrew skills explain non-obvious knowledge or a distinct outcome, favoring
-why over a prescribed itinerary. Keep interactive assistance separate from
-scheduled review and delivery systems. When replacing a skill, migrate callers
-and remove obsolete directories in the same change.
+Run `../scripts/check omp`; shared changes exercise both consumers.
+`README.md` records ownership and operations. Global `OPERATIONS.md` is an
+on-demand reference, deployed beside composed `AGENTS.md`.

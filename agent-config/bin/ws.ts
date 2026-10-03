@@ -86,10 +86,10 @@ function leaseScript(): string {
 	return path;
 }
 function lease(args: string[]): string {
-	return utf8.decode(command(["bun", leaseScript(), ...args], { acceptCodes: args.includes("check") ? [2] : [] })).trim();
+	return utf8.decode(command(["bun", leaseScript(), ...args], { acceptCodes: args.includes("leases") ? [2] : [] })).trim();
 }
 function owned(): void {
-	const data = JSON.parse(lease(["--json", "check"])) as { leases: { kind: string; target: string; owner?: string }[]; own: { kind: string; target: string }[] };
+	const data = JSON.parse(lease(["--json", "leases"])) as { leases: { kind: string; target: string; owner?: string }[]; own: { kind: string; target: string }[] };
 	if (!data.own.some((item) => item.kind === "exe.dev-worktree" && item.target === remoteTarget())) fail(`${taskDir} is not leased to this session; inspect session-close review`);
 }
 function ensureVM(): void {
@@ -264,7 +264,7 @@ try {
 	} else if (action === "up") {
 		leaseScript(); ensureVM();
 		const leaseTarget = remoteTarget();
-		const data = JSON.parse(lease(["--json", "check"])) as { leases: { target: string; kind: string }[]; own: { target: string; kind: string }[] };
+		const data = JSON.parse(lease(["--json", "leases"])) as { leases: { target: string; kind: string }[]; own: { target: string; kind: string }[] };
 		if (data.leases.some((item) => item.target === leaseTarget && item.kind === "exe.dev-worktree") && !data.own.some((item) => item.target === leaseTarget && item.kind === "exe.dev-worktree")) fail(`${task} has a foreign or stale lease; review it before up`);
 		console.log(lease(["add", "--kind", "exe.dev-worktree", "--target", leaseTarget]));
 		sync();

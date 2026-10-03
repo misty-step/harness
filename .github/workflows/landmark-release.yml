@@ -83,10 +83,4 @@ jobs:
           commit-message: ${{ steps.prepare.outputs.commit-message }}
           body: |
             Automated changelog for `${{ steps.prepare.outputs.release-tag }}` (US-015).
-            Required `verify` must pass before GitHub auto-merges this PR.
-      - name: Merge only after required verification
-        if: steps.release-pr.outputs.pull-request-number != ''
-        env:
-          GH_TOKEN: ${{ steps.bot-token.outputs.token }}
-          PR_NUMBER: ${{ steps.release-pr.outputs.pull-request-number }}
-        run: gh pr merge "$PR_NUMBER" --auto --squash --repo "$GITHUB_REPOSITORY"
+            An agent obtains independent model review, observes green CI and verifies the current base before merging this exact head normally; no human approval or server-required check gates it.

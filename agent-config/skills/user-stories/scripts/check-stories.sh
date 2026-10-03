@@ -1,18 +1,20 @@
 #!/bin/sh
 # check-stories.sh — fail-closed validation for a repository's USER_STORIES.md.
 #
-# Usage: sh check-stories.sh [--tests] [repo-root]
+# Usage: sh check-stories.sh [--tests] [--strict-evidence] [repo-root]
 #
-# Structure, ids, and supersede/retire targets fail the run. Evidence paths and
-# per-story test coverage warn while repositories migrate (advisory-first);
-# make those warnings failures once the repository has lived with stories.
+# Structure, ids, and supersede/retire targets fail the run. Evidence paths
+# warn during bootstrap and fail when foundation-check passes --strict-evidence
+# for an enforced adoption. Per-story test coverage remains advisory.
 set -eu
 
 tests=0
+strict_evidence=0
 root=.
 while [ $# -gt 0 ]; do
   case "$1" in
     --tests) tests=1 ;;
+    --strict-evidence) strict_evidence=1 ;;
     -h|--help) sed -n '2,8p' "$0"; exit 0 ;;
     *) root=$1 ;;
   esac
@@ -69,13 +71,23 @@ for target in $(grep -hoE 'Superseded by US-[0-9]{3}' $files | awk '{print $3}' 
   printf '%s\n' $ids | grep -qx "$target" || err "supersede target $target does not resolve"
 done
 
-grep -h '^Evidence:' $files | grep -o '`[^`]*`' | tr -d '`' | sort -u | while IFS= read -r p; do
+missing=$(grep -h '^Evidence:' $files | grep -o '`[^`]*`' | tr -d '`' | sort -u | while IFS= read -r p; do
   case "$p" in
     *" "*) continue ;;
     *"/"*|*.go|*.ts|*.tsx|*.py|*.sh|*.md|*.json|*.sql|*.css|*.html|*.yml|*.yaml)
-      [ -e "$p" ] || warn "evidence path missing: $p" ;;
+      [ -e "$p" ] || printf '%s\n' "$p" ;;
   esac
-done
+done)
+if [ -n "$missing" ]; then
+  old_ifs=$IFS
+  IFS='
+'
+  for p in $missing; do
+    if [ "$strict_evidence" -eq 1 ]; then err "evidence path missing: $p"
+    else warn "evidence path missing: $p"; fi
+  done
+  IFS=$old_ifs
+fi
 
 if [ "$tests" -eq 1 ]; then
   found=$(find . -type f \( -name '*_test.go' -o -name '*.test.ts' -o -name '*.test.tsx' -o -name 'test_*.py' -o -name '*_test.py' \) \

@@ -53,6 +53,7 @@ test("full config retirement removes only absent owned leaves and preserves fore
 	const astra = "openai-codex/gpt-6-astra:high";
 	const flash = "google-antigravity/gemini-3.8-flash:high";
 	const source = {
+		providers: { webSearchOrder: ["exa"] },
 		modelRoles: {
 			default: astra, slow: astra, extreme: "openai-codex/gpt-6-astra:max",
 			plan: astra, advisor: astra, task: astra, reviewer: astra, "security-reviewer": astra,
@@ -79,6 +80,9 @@ test("full config retirement removes only absent owned leaves and preserves fore
   default: old/default
   designer: old/designer
   fast: foreign/fast
+providers:
+  tinyModel: lfm2-350m
+  custom: keep
 retry:
   fallbackChains:
     default: [old/default]
@@ -106,6 +110,7 @@ foreign: {keep: true}
 	expect(result.stderr.toString()).toBe("");
 	expect(result.exitCode).toBe(0);
 	expect(parsed(files)).toEqual({
+		providers: { ...source.providers, custom: "keep" },
 		modelRoles: { ...source.modelRoles, fast: "foreign/fast" },
 		retry: { fallbackChains: { ...source.retry.fallbackChains, custom: ["foreign/custom"] } },
 		task: {
@@ -113,5 +118,62 @@ foreign: {keep: true}
 			agentModelOverrides: { ...source.task.agentModelOverrides, other: "foreign/other" },
 		},
 		foreign: { keep: true },
+	});
+});
+
+test("US-014 Opus guards fail closed, retire on cutover, and preserve allowed recovery", () => {
+	const source = readFileSync(join(import.meta.dir, "../config.yml"), "utf8");
+	const files = fixture(source, `retry:
+  fallbackChains:
+    anthropic/claude-opus-5-5: [openrouter/deepseek/deepseek-v4.1-flash:max]
+    anthropic/claude-opus-4-6: []
+`);
+	expect(invoke(files).exitCode).toBe(0);
+	const installed = parsed(files) as {
+		modelRoles: Record<string, string>;
+		retry: { modelFallback?: boolean; fallbackChains: Record<string, string[]> };
+	};
+	const opusModels = new Set(Object.values(installed.modelRoles)
+		.filter(selector => selector.includes("/claude-opus-"))
+		.map(selector => selector.replace(/:[^/:]+$/, "")));
+	// Fail rather than silently passing if the policy no longer selects any Opus.
+	expect(opusModels.size).toBeGreaterThan(0);
+	for (const model of opusModels) {
+		expect(installed.retry.fallbackChains[model]).toEqual([]);
+	}
+	expect(installed.retry.modelFallback).not.toBe(false);
+	for (const chain of Object.values(installed.retry.fallbackChains)) {
+		const paid = chain.findIndex(selector => selector.startsWith("openrouter/"));
+		if (paid !== -1) {
+			expect(chain.slice(paid).every(selector => selector.startsWith("openrouter/"))).toBe(true);
+		}
+	}
+	const successor = "anthropic/claude-opus-next";
+	const next = Bun.YAML.parse(source) as typeof installed;
+	for (const [role, selector] of Object.entries(next.modelRoles)) {
+		const model = selector.replace(/:[^/:]+$/, "");
+		if (opusModels.has(model)) next.modelRoles[role] = selector.replace(model, successor);
+	}
+	for (const model of opusModels) delete next.retry.fallbackChains[model];
+	next.retry.fallbackChains[successor] = [];
+	writeFileSync(files.source, Bun.YAML.stringify(next));
+	expect(invoke(files).exitCode).toBe(0);
+	const migrated = parsed(files) as typeof installed;
+	for (const model of opusModels) {
+		expect(Object.hasOwn(migrated.retry.fallbackChains, model)).toBe(false);
+	}
+	expect(migrated.retry.fallbackChains[successor]).toEqual([]);
+	expect(migrated.retry.fallbackChains["anthropic/claude-opus-4-6"]).toEqual([]);
+});
+
+test("installing the specialist gate preserves foreign disabled agents without duplicating existing denies", () => {
+	const files = fixture("task:\n  disabledAgents: [reviewer, security-reviewer, designer]\n",
+		"task:\n  disabledAgents: [foreign-agent, reviewer]\n  foreign-setting: keep\n");
+	expect(invoke(files).exitCode).toBe(0);
+	expect(parsed(files)).toEqual({
+		task: {
+			disabledAgents: ["reviewer", "security-reviewer", "designer", "foreign-agent"],
+			"foreign-setting": "keep",
+		},
 	});
 });

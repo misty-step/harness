@@ -11,6 +11,7 @@ zero=0000000000000000000000000000000000000000
 updates_file=$(mktemp)
 trap 'rm -f "$updates_file"' 0 HUP INT TERM
 tee "$updates_file" >/dev/null
+. .githooks/outcome.sh
 while read -r local_ref local_oid remote_ref remote_oid; do
   [ "$local_oid" = "$zero" ] && continue
   # Scan exactly the commits that no remote ref has ever contained — the same
@@ -27,26 +28,19 @@ while read -r local_ref local_oid remote_ref remote_oid; do
   # Jev diff review is advisory context only: a model probability is never the
   # sole gate, and an outage changes nothing about the blocking scanners above.
   if command -v bun >/dev/null 2>&1 && [ -f "omp-config/bin/omp-diff-review.ts" ]; then
-    if command -v pass-env >/dev/null 2>&1 && [ -f ".env.pass" ]; then
-      pass-env run -f .env.pass -- bun omp-config/bin/omp-diff-review.ts --range "$log_opts" || \
-        printf 'jev diff-review: advisory context only — never blocks (deterministic scanners above remain blocking)\n'
-    else
-      bun omp-config/bin/omp-diff-review.ts --range "$log_opts" || \
-        printf 'jev diff-review: advisory context only — never blocks (deterministic scanners above remain blocking)\n'
-    fi
+    advise harness-pre-push-review bun omp-config/bin/omp-diff-review.ts --range "$log_opts" </dev/null
   fi
 done < "$updates_file"
 # Use the exact buffered ref updates. Never guess the pushed head or replace
 # the gitleaks/trufflehog gate with a model result.
 if command -v bun >/dev/null 2>&1 && [ -f agent-config/bin/semantic-check.ts ]; then
-  bun agent-config/bin/semantic-check.ts --repo "$PWD" --outgoing < "$updates_file" || \
-    printf 'semantic-check: advisory unavailable; deterministic scanners remain blocking\n'
+  advise harness-pre-push-semantic-check bun agent-config/bin/semantic-check.ts --repo "$PWD" --outgoing < "$updates_file"
 fi
 command -v trufflehog >/dev/null 2>&1 || {
   printf 'trufflehog is required for pre-push secret scanning\n' >&2
   exit 1
 }
-trufflehog filesystem . --exclude-paths=.githooks/trufflehog-exclude.txt --no-verification --no-update --fail >/dev/null 2>&1 || {
+python3 .githooks/trufflehog-gate.py || {
   printf 'trufflehog found a potential secret; inspect locally before pushing\n' >&2
   exit 1
 }

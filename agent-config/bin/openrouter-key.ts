@@ -6,7 +6,7 @@ import { lstatSync, realpathSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join, sep } from "node:path";
 
-const R90_ENTRY = "workstation/OPENROUTER_R90_HARNESS_API_KEY";
+const R90_ENTRY = "workstation/OPENROUTER_R90_HARNESS_WORKSTATION_INFERENCE_API_KEY";
 const INVALID_KEY = "sk-or-v1-invalid-openrouter-key";
 
 function real(path: string): string | undefined {

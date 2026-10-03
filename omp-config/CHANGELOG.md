@@ -42,6 +42,7 @@
 * **workstation:** add a user-scope bounded execution workflow and tracked disk/inode, RAM, swap-growth, and slice-pressure notifier; document the 1 GiB containment and visible alert proof.
 
 ### Bug Fixes
+* **routing:** reject retired or unapproved OMP role and recovery models before deployment, probe provider acceptance on demand, and remove unapproved paid and local tiny routes (US-014).
 
 * **workstation:** latch pressure alerts with hysteresis and per-key cooldown so a parked `/tmp` or flapping swap-growth key cannot restack desktop notifications.
 

@@ -105,7 +105,7 @@ describe("semantic-check CLI", () => {
     expect(record.snapshots[0].tree).toMatch(/^[0-9a-f]{40,64}$/);
   });
 
-  test("returns unavailable advisory outcomes when the provider credential is absent", () => {
+  test("exits 3 with the unavailable record when the provider credential is absent", () => {
     const repo = repository();
     writeFileSync(
       join(repo, "src/example.test.ts"),
@@ -128,7 +128,7 @@ describe("semantic-check CLI", () => {
       },
     );
 
-    expect(result.status).toBe(0);
+    expect(result.status).toBe(3);
     const record = JSON.parse(result.stdout);
     expect(record.status).toBe("unavailable");
     expect(record.outcomes).toEqual([]);

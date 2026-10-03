@@ -21,33 +21,76 @@
  * user chose that is outside the chain. Removing this directory leaves
  * stock pi behavior (retry + compaction) intact.
  */
-import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { modelKey, nextInChain, runError, summarize } from "./decide.ts";
 
 /**
  * The fallback chain, in order; a failure advances from the current model's
- * link. Operator model policy (2026-09-25): Opus 5.5 first, then GPT-6 Sol and
- * Luna at max, then the existing paid OpenRouter recovery. Grok is last in the
- * policy and Pi reaches it only through a paid API key, so it is not a link.
- * The subscription links apply once Pi-native Anthropic and Codex logins are
- * ready and `./install` selects the Opus startup default; until then startup
- * is DeepSeek flash and a failure advances to mercury. Every link must be a
- * model the session can resolve and authenticate, with a modelThinkingLevels
- * entry so a switch keeps posture. Cerebras is out of the fleet (operator
- * 2026-09-18: too expensive). Extend by editing this list and redeploying
- * (ADR-013).
+ * link. Pi uses only OpenAI, Grok and OpenRouter, never Anthropic. GPT-6.1 Sol
+ * xhigh, then Luna max, then Grok 4.7, all through Pi-native subscription
+ * logins. Astra remains available only by explicit selection. Paid
+ * DeepSeek/Mercury recovery is retired; missing authentication never opts
+ * into a paid route. Each link has a modelThinkingLevels entry in settings.json
+ * where it needs one (ADR-011/013/025).
  */
 const CHAIN = [
-	"anthropic/claude-opus-5-5",
-	"openai-codex/gpt-6-sol",
-	"openai-codex/gpt-6-luna",
-	"openrouter/deepseek/deepseek-v4.1-flash",
-	"openrouter/inception/mercury-2.5",
+	"openai-pool/gpt-6.1-sol",
+	"openai-pool/gpt-6-luna",
+	"xai-pool/grok-4.7",
 ];
+
+/**
+ * Approved routes: the pools and account slots from extensions/accounts
+ * (ADR-024/026) plus the base providers. Matched by an exact id pattern, so a
+ * custom provider that merely looks like a slot stays refused. Codex permits
+ * Sol 6.1, Luna, and explicit Astra; xAI any model; OpenRouter any model except
+ * Anthropic's, which it bills as paid API tokens.
+ */
+const CODEX_PROVIDER = /^(openai-pool|openai-codex(-[2-4])?)$/;
+const CODEX_MODELS = ["gpt-6.1-sol", "gpt-6-astra", "gpt-6-luna"];
+const XAI_PROVIDER = /^(xai-pool|xai(-2)?)$/;
+const OPENROUTER_PROVIDER = /^(openrouter-pool|openrouter(-2)?)$/;
+const anthropicModel = /(^|\/)~?anthropic\//;
+
+function approved(model: ExtensionContext["model"]) {
+	const provider = model?.provider ?? "";
+	const id = model?.id ?? "";
+	if (CODEX_PROVIDER.test(provider)) return CODEX_MODELS.includes(id);
+	if (XAI_PROVIDER.test(provider)) return id !== "";
+	if (OPENROUTER_PROVIDER.test(provider)) return id !== "" && !anthropicModel.test(id);
+	return false;
+}
+const blockedRoute = "Model policy: Pi uses only OpenAI, Grok and OpenRouter (never Anthropic); select one and sign in with /login.";
+
+function allowsInference(ctx: ExtensionContext) {
+	if (approved(ctx.model)) return true;
+	ctx.ui.notify(blockedRoute, "error");
+	if (!ctx.hasUI) console.error(blockedRoute);
+	return false;
+}
 
 export default function (pi: ExtensionAPI) {
 	let hadError = false;
 	let errorText = "";
+
+	// Pi may skip an unauthenticated default and pick any authenticated
+	// provider. Consume input before that implicit selection can spend.
+	pi.on("input", (_event, ctx) => {
+		if (allowsInference(ctx)) return;
+		return { action: "handled" };
+	});
+	// Extension-originated agent requests also carry the native abort signal.
+	// Throwing here would fail open: Pi catches provider-hook exceptions.
+	pi.on("before_provider_request", (_event, ctx) => {
+		if (!allowsInference(ctx)) ctx.abort();
+	});
+	// Native summaries bypass both input and the agent payload hook.
+	pi.on("session_before_compact", (_event, ctx) => {
+		if (!allowsInference(ctx)) return { cancel: true };
+	});
+	pi.on("session_before_tree", (event, ctx) => {
+		if (event.preparation.userWantsSummary && !allowsInference(ctx)) return { cancel: true };
+	});
 
 	pi.on("agent_end", async (event) => {
 		const error = runError((event as { messages?: unknown })?.messages);

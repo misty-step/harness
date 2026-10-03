@@ -24,6 +24,11 @@ prompt is: how can I pokayoke this so this kind of error never happens again?
 | `install` | Ownership-aware deployment into `$(omp config path)` |
 | `bin/omp-merge-config.ts` | Overlay source-owned YAML keys and remove retired owned keys while preserving foreign config entries |
 | `bin/omp-grievances.ts` | Manual grievance inbox CLI |
+| `bin/omp-roster.ts` | Launch an OMP engineer only on a board ticket's model roster and check a session stayed on it (US-046); installed as `~/.local/bin/omp-roster` |
+| `bin/omp-experiments.ts` | Automatic one-variable pairs, blind native verdicts and evidence-backed effort defaults in the existing experiment journal; installed beside the roster CLI as `~/.local/bin/omp-experiments.ts` |
+| `bin/omp-engineer.py`, `units/omp.slice` | Serialized live memory admission and per-engineer containment (US-043); explicit `engineer-cage` activation |
+| `bin/omp-display.py`, `bin/omp-gui.py` | Kernel-enforced live-display isolation and engineer-owned headless native GUI |
+| `auditors/`, `bin/omp-audit.py`, `units/omp-audit*` | Weekly read-only repository audits (foundations, principles, simplicity): one visible OMP auditor per active repository; explicit `auditors` activation |
 | `bin/pass-env.ts` | Moved to `agent-config`: pass-backed launcher, installed as `~/.local/bin/pass-env` |
 | `bin/design-check.ts` | Moved to `agent-config`: player-surface copy checker, installed as `~/.local/bin/design-check` |
 | `bin/tmp-health.py`, `references/dev-exec.md` | Opt-in workstation execution limits, pressure notifications, and rollback workflow |
@@ -32,12 +37,12 @@ prompt is: how can I pokayoke this so this kind of error never happens again?
 | `mcp.json` | Global MCP inventory; Linear is deliberately absent |
 | `workspace-mcp.json`, `bin/omp-install-scopes.ts` | Linear directory scopes, native project-local imports, owned skill retirement |
 | `global/AGENTS.md` | OMP-specific guidance; `./install` composes it with shared sections from `agent-config` |
-| `global/WATCHDOG.md`, `global/WATCHDOG.yml` | One read-only Steward advisor |
+| `global/WATCHDOG.md`, `global/WATCHDOG.yml` | Read-only Steward advisor, enabled only on demand |
 | `themes/` | TUI themes (`tokyonight`, `everforest`, `everforest-light`) |
 | `skills/` | Moved to `agent-config`: portable skill packages, clean-replaced when selected |
 | `../.githooks/pre-push` | Root scanners; wired by `../scripts/bootstrap`, not runtime deployment |
 | `extensions/loc/` | Session-resident LOC status and commands |
-| `extensions/credentials/` | Full pass-name inventory by default; opt-in discovery pointer; targeted auth-failure and deduplicated unavailable-credential reminders (MIS-161, US-019) |
+| `extensions/credentials/` | Names-only pass inventory at agent start by default; opt-in discovery pointer. Neither agent prose nor tool results inject credential reminders (MIS-161, US-019) |
 
 `config.yml` selects the Omarchy-generated `omarchy-system` theme for both
 terminal background modes. On this workstation,
@@ -55,16 +60,20 @@ Repository setup and releases belong to the root. `./install` rejects positional
 arguments (including `--check`); use `../scripts/verify omp` for isolated checks.
 
 ```sh
-./install   # requires jq, bun, and omp
+./install   # requires jq, bun, Python 3, and omp
 ```
 
 Preflight validates every selected input, then writes. Unset selection means
 `all`: owned config overlay, guidance, MCP, scopes, agents, skills, themes,
-extensions, `omp-grievances`, `pass-env`, `openrouter-key`, `design-check`,
-`foundation-check`, and `ws`. It does not delete foreign skills or agents and
-does not import live secrets into this checkout. Skills, shared guidance
-sections, and those shared launchers deploy from the sibling `agent-config`
-checkout (default `$repo_dir/../agent-config`; override with
+extensions, `omp-grievances`, `omp-roster`, its sibling `omp-experiments.ts`,
+`omp-engineer`, `omp-display`, `omp-gui`, `pass-env`, `openrouter-key`,
+`design-check`, `foundation-check`, `review-check`, and `ws`. CLI installation deploys code only:
+it never overwrites the runtime experiment journal or copies history into a
+second ledger. Staging the cage CLI does not activate
+it on an unactivated host. It does not delete foreign skills
+or agents and does not import live secrets into this checkout. Skills, shared
+guidance sections, and those shared launchers deploy from the sibling
+`agent-config` checkout (default `$repo_dir/../agent-config`; override with
 `AGENT_CONFIG_DIR`); the installer fails closed when it is missing.
 
 ```sh
@@ -74,15 +83,68 @@ OMP_INSTALL_COMPONENTS=agents ./install
 OMP_INSTALL_COMPONENTS=secrets ./install
 OMP_INSTALL_COMPONENTS=mcp ./install
 OMP_INSTALL_COMPONENTS=audio-sandbox ./install
-OMP_INSTALL_COMPONENTS="guidance mcp scopes skill:capture" ./install
+OMP_INSTALL_COMPONENTS=cli ./install             # stage/refresh owned OMP launchers
+OMP_INSTALL_COMPONENTS=engineer-cage ./install   # explicit live rolling activation
+OMP_INSTALL_COMPONENTS=auditors ./install        # explicit: enables the weekly audit timers
+OMP_INSTALL_COMPONENTS="guidance mcp scopes skill:engineering-operations" ./install
 ```
 
 Supported components are `guidance`, `config`, `mcp`, `scopes`, `agents`,
-`secrets`, `audio-sandbox`, and `skill:<source-directory-name>`. `all` cannot be combined with another
-component. Empty, unknown, missing-skill, invalid-name, and invalid YAML
+`secrets`, `audio-sandbox`, `cli`, `engineer-cage`, `auditors`, and `skill:<source-directory-name>`.
+`all` cannot be combined with another component. Empty, unknown, missing-skill, invalid-name, and invalid YAML
 selections fail before any writes. The retired `OMP_INSTALL_GUIDANCE_ONLY`
 variable fails with migration instructions rather than silently triggering a
 full install.
+
+`engineer-cage` retains the owned native ELF at `~/.local/lib/omp-engineer/omp`
+and makes `~/.local/bin/omp` the relative `omp-engineer` symlink. Every new,
+direct, continued or resumed interactive engineer enters a
+verified 4-GiB, zero-swap, group-OOM scope below the standalone `omp.slice`,
+with unlimited `MemoryMax`/`MemoryHigh`, zero swap and ungrouped parent OOM.
+Existing processes stay in their original cgroups until natural exit; activation
+does not restart Herdr or any engineer. Never prepend the retained native
+directory to ordinary shells or call that ELF directly.
+An installed Workbench updater must advertise `harness-engineer-cage-v1` through
+its inert `omp-install-layouts` query before explicit activation writes anything.
+Deploy that reviewed consumer first; source-only compatibility is insufficient.
+
+Explicit `engineer-cage` refresh also migrates an already active 36-GiB parent:
+it installs the canonical infinity source unit, reloads the user manager, starts
+the slice only if needed, and applies
+`systemctl --user set-property --runtime omp.slice MemoryMax=infinity` before
+read-only inspection. This raises the live cap in place without restarting the
+slice, touching existing leaf limits or moving PIDs; the source unit preserves
+infinity across reboot. Default installation and `cli` staging do not reconcile
+live units.
+
+`omp-roster memory --json` is read-only preflight, not a reservation.
+On an unactivated host, staging the CLI reports `activated: false`, no capacity
+measurement and explicitly inactive enforcement. `omp-roster launch` refuses
+to produce an engineer launch plan until the stable wrapper and display helpers
+are activated. A retained native binary, local slice unit or owned stable alias
+is memory activation evidence: partial/broken activation still requires full
+inspection and fails closed.
+Staged fixture inputs cannot override actual engineer containment.
+Interactive `omp` startup serializes containment inspection through authenticated
+scope registration. Native print, every explicit `--mode`, help/version/export,
+profile alias creation, registered management roots/aliases and non-TTY stdin
+run in their caller's cgroup. Model/tool-capable invocations still receive the
+display boundary below; only native administration bypasses display setup.
+Classification follows native argument boundaries, not a caller allowlist.
+Memory capacity is advisory: below 20-GiB `MemAvailable` or above 36-GiB measured
+fleet use, warn and launch anyway. Missing available-memory guidance also warns.
+Warnings appear in stderr and roster launch JSON, never as Glass board items.
+They change neither admission nor containment and create no backlog work.
+There is no full-leaf reservation, ancestry/RSS/PSS/smaps inspection, process-wide
+`/proc` walk, `legacy.json`, or heavy-job inventory in engineer startup.
+JSON reports measured `fleet_current_bytes`, `caged_count`, optional
+`available_bytes` and actual `effective_memory_max_bytes`. Per-leaf containment
+and oomd exclusion remain mandatory; existing uncaged engineers stay untouched.
+Native arguments, cwd, stdio and exit status are preserved. Live desktop/session
+environment is deliberately removed for engineer invocations.
+Only a mutating native `omp update` receives an updater-local PATH pointing at
+the retained ELF; normal/nested/resumed launches and `update --check` do not.
+See the [rolling activation and recovery runbook](../docs/desktop-memory-guard.md).
 
 Owned skill packages are replaced, not overlaid, so obsolete files cannot
 survive inside a selected package. Foreign packages in the live skills or
@@ -96,8 +158,10 @@ servers only. OMP's managed OAuth tokens remain in its auth storage, never in
 this repository.
 
 OpenRouter auth (US-028): `models.yml` resolves `openrouter-key --personal
-workstation/OPENROUTER_OMP_HARNESS_API_KEY` on first use. The shared launcher
-chooses `workstation/OPENROUTER_R90_HARNESS_API_KEY` when the process directory
+workstation/OPENROUTER_MISTY_STEP_HARNESS_WORKSTATION_DIFF_REVIEW_API_KEY` on first use.
+The existing workstation entry supplies OMP's Jev-backed `find`; its name does
+not enable the retired automatic diff review. The shared launcher
+chooses `workstation/OPENROUTER_R90_HARNESS_WORKSTATION_INFERENCE_API_KEY` when the process directory
 or its Git common directory is under `~/development/r90group` (linked
 worktrees included). A failed pass lookup, damaged Git metadata or timeout
 emits a fixed invalid token rather than exiting without a key: OMP omits
@@ -108,8 +172,8 @@ keeps existing `agent.db` credentials untouched, while a broken R90 entry
 receives an OpenRouter 401 instead of personal billing. Explicit runtime
 `--api-key` overrides remain higher priority and are outside this policy.
 `OMP_INSTALL_COMPONENTS=config ./install` deploys both the override and the
-launcher. Restart OMP after installation; see root verification guide for
-real-path billing checks.
+launcher. Start a fresh OMP process after installation; running engineers keep
+their current configuration. See root verification guide for real-path billing checks.
 
 Configuration preservation is semantic, not preservation of YAML comments or
 formatting. Package preflight checks syntax and local imports; native loading
@@ -147,6 +211,135 @@ exists (override with `OMP_TODOIST_OWNER`). It does not mutate `~/.claude` or
 `PI_CODING_AGENT_DIR` does not isolate hook, scope, or `~/.local/bin` writes.
 Use a disposable HOME, development root, and checkout copy for installer
 checks.
+
+## Engineer display isolation
+
+`engineer-cage` activation also installs the live-display boundary. Requires
+Linux unprivileged user namespaces, `dev.tty.legacy_tiocsti=0`, `bubblewrap`,
+`slirp4netns`, `Xvfb` and `dbus-run-session`; missing dependencies or setup failure
+refuse the launch.
+There is no unfenced fallback. Roster planning checks the installed entrypoint;
+the actual launcher independently establishes and verifies the kernel boundary.
+
+Interactive, resumed, print, RPC/ACP, non-TTY and model/tool-capable native
+commands run in private user, PID, mount, IPC and network namespaces. Live
+`DISPLAY`, `WAYLAND_*`, `HYPRLAND_*`, X authority, desktop session, D-Bus,
+GPU-vendor and browser-debug environment is stripped. A fresh `/proc`, `/dev`,
+`/run`, `/tmp` and `/var/tmp` hides host processes, display sockets and input/GPU
+devices. Private OMP daemon state and network isolation prevent reuse of an
+outside shell broker, abstract X11 socket, loopback CDP endpoint or desktop bus.
+Inherited non-stdio descriptors are closed before native execution.
+Slirp joins the network namespace's kernel-reported owning user namespace,
+including when Bubblewrap enters a second user namespace for private devpts.
+It permits external network access but denies host loopback; LAN services
+are not a general security boundary.
+
+Repositories and ordinary home data remain shared and writable. Host config,
+installed executables and selected broker/runtime paths are read-only or hidden.
+All of `~/.hermes` stays hidden; Kaylee hands off briefs and live-data copies through `~/.local/state/kaylee/briefs`.
+Engineers read Kaylee's source in the `hermes-config` repository, never the live profile.
+Engineer `~/.cache/tmp` is a fresh private directory on its existing disk
+filesystem, not tmpfs storage that consumes the per-engineer memory bound.
+Git, cached pass/signing, silent Pulse audio and the native headless `browser`
+tool remain usable. Native PipeWire/ALSA clients cannot reach the host graph or
+devices: an active screen-share video node must not be exposed alongside audio.
+Use `parecord`/`paplay` or libpulse players on `agent-sandbox`.
+A per-engineer Herdr proxy permits reads and this pane's native
+agent/session lifecycle reports; it rejects host execution, input and cross-pane
+mutations. A GPG protocol bridge pins `pinentry-mode=error`, including after
+reset, and rejects host UI options and privileged agent commands. A cold key
+fails rather than opening host pinentry: the operator unlocks it outside the
+engineer, then the engineer retries. No host desktop approval dialog is exposed.
+
+For native GUI QA, keep the app **and** screenshot/input clients under the
+same helper invocation:
+
+```sh
+omp-gui -- sh
+# Inside this private shell:
+zenity --info --title='Engineer proof' --text='Private display' &
+magick import -window root "$PWD/qa.png"
+# Inspect qa.png, then use window-relative coordinates on this display:
+xdotool search --name '^Engineer proof$'
+```
+
+`magick`, `xdotool` and `zenity` are example application/QA dependencies, not
+launcher dependencies. `omp-gui` creates an authenticated, TCP-disabled Xvfb
+display, its own D-Bus session and software Mesa environment. Mouse/keyboard
+clients use this shell's `DISPLAY`/`XAUTHORITY`; `:0` here is **not** the host
+X server. The helper requires the private kernel namespace and refuses forged
+host markers. It tears down its owned GUI processes and returns the app's exit
+status. It provides screenshots and input, not host GPU/compositor/portal
+integration. Web QA uses the native headless `browser` tool without host CDP.
+
+This is a direct live-session access boundary, **not** an adversarial
+arbitrary-code sandbox: writable source/home data and retained credentials can
+affect systems outside it if another actor later executes that data or grants
+access. Do not describe shared-UID execution as VM-grade isolation. Kaylee's
+desktop guard, Herdr's pane behavior and compositor configuration are unchanged.
+
+Updating the launcher does not retrofit existing processes. Relaunch engineers
+at their next natural exit; do not restart Herdr or forcibly move sessions.
+See [fresh-engineer proof](../docs/desktop-memory-guard.md#engineer-display-isolation-proof)
+for observed live denial, private GUI screenshot/click and compatibility checks.
+
+## Auditors
+
+Three weekly audits read every active repository: non-archived, non-empty
+`misty-step` and `r90group` repositories pushed within 30 days, less the
+archive mirror, test fixture and Kaylee journal named in `bin/omp-audit.py` and
+the repositories Phaedrus set aside in Glass's list
+(`~/.config/glass/set-aside`). Archive a project on GitHub or set it aside there
+and no audit files work on it again.
+Foundations runs Sunday, Principles Monday and Simplicity Thursday, all at
+01:00. Simplicity replaces Kaylee's nightly deletion pass. The doctrine they
+apply is `agent-config/skills/foundation/constitution.md`.
+
+`omp-audit run <audit>` works like this:
+
+- Code gathers each repository's evidence: CI runs, releases, Sentry, security
+  alerts, the live site, portfolio pages and open tickets.
+- It checks the repository out fresh under `~/.cache/omp-audit`. OMP sessions
+  cannot see `~/.cache/tmp`.
+- It starts one OMP auditor per repository in its own Herdr tab, six at a
+  time. Each auditor runs inside `omp-roster`'s working-engineer cap and model
+  route, from `auditors/template.md` plus the audit's file.
+
+Auditors get `read`, `grep`, `glob` and `audit_file` only;
+`auditors/audit-tool.ts` refuses every other tool. They file as many tickets as
+the gaps need, and never fix, steer or message anyone.
+
+`audit_file` records each finding in the run; the auditor's sandbox cannot see
+the board, and a tracker outage must not lose findings. When each auditor ends,
+the launcher files its findings (`omp-audit` itself, outside the sandbox) with a
+trusted `foundation-gap: <audit>/<repo>/<gap>` marker in each ticket. Later runs
+recognise the gap by that marker:
+
+- **Open ticket:** no twin is filed. A Habitat ticket's priority climbs a step
+  a week, never to urgent unless an auditor says so; board items carry no
+  priority, so the desk grooms them.
+- **Declined ticket:** it is not filed again.
+- **Done ticket:** it is filed again as a regression.
+
+Earlier runs' `outputs.jsonl` keep the history of which ticket owns each gap,
+so a ticket an auditor adopted rather than filed keeps its gap after it closes.
+Principles and Simplicity skip a repository with no commits since its last
+run, but its open gaps are still carried forward: seen again, and climbing.
+
+Routing is Habitat for R90 and Glass board items for Misty Step, including
+doctrine proposals; there is no Linear path. Every finding carries a complete
+ticket written by its auditor: nature, scope in and out, done checks with proof
+and a victory. A board item lands with that ticket in the same write, its
+roster the desk's default for its nature; a bare item an audit opened earlier
+gets its ticket when the gap is seen again. Habitat gets the ticket as text in
+the description. A finding that cannot be filed is kept in `outputs.jsonl` as
+`stranded`, with its whole request; it fails the repository and the run, so the
+unit's alert fires.
+`omp-audit refile <run>` files a run's stranded findings without auditing again.
+Each run keeps `manifest.json`, `run.log`, `outputs.jsonl` and every bundle and
+brief under `~/.local/state/omp-audit/runs/<run>/`.
+`--dry-run` gathers evidence without launching anything.
+`--record-only` launches auditors but only records what they would file.
 
 ## Privilege and approval
 
@@ -193,6 +386,8 @@ The globally deployed LOC extension provides `/loc`, `/loc-trend`, and a
 committed-`HEAD` status row across repositories. When `.git/loc_cache` is missing
 or stale relative to `HEAD`, an in-process async worker populates it in the background
 without blocking interactive turns. Explicit LOC commands also populate the cache on demand.
+Optional Git-hook warming is retired; session refresh and explicit commands own
+cache population.
 
 Disable only LOC for a large repository with project-local configuration:
 
@@ -266,31 +461,11 @@ automatically install into other harnesses or require their support for OMP's
 
 ### Selective command execution
 
-```sh
-pass-env list
-pass-env list projects/example --json
-pass-env run -e API_TOKEN=services/example/api-token -- ./scripts/sync
-pass-env run -f .env.pass -- bun run dev
-```
-
-`list [prefix] [--json]` reports entry names only, without decrypting. It is the
-current store index. `run` needs at least one mapping and a command after `--`.
-Repeat `-e` / `--env` for `NAME=entry` mappings or `-f` / `--env-file` for reference
-files. A project's `.env.pass` might contain:
-
-```text
-# References, not credential values
-API_TOKEN=services/example/api-token
-DATABASE_URL=projects/example/database-url
-```
-
-Reference files are literal data: blank lines and full-line comments are allowed;
-no shell evaluation, quoting syntax, or interpolation. Files apply in order,
-then explicit `-e` mappings override file mappings. Duplicate names within one
-file are errors. Mapped values override inherited variables; other environment
-variables, cwd, and interactive stdio are preserved. Exit status and signals
-propagate. Changes affect **newly launched children**, not already running
-processes or the parent shell. Restart callers after replacing a value.
+For command syntax, names-only discovery and selective mappings, run
+`pass-env --help` or read the shared
+[authenticated-commands skill](../agent-config/skills/authenticated-commands/SKILL.md).
+The [pass-env contract](../agent-config/skills/authenticated-commands/pass-contract.md)
+owns reference-file syntax, precedence, exact value bytes and child-process behavior.
 
 Workstation entries conventionally use `workstation/ENV_NAME`. The local
 `~/.config/pass-env/workstation.env.pass` is a names-only, static inventory, not an
@@ -341,27 +516,12 @@ explicitly authorized work.
 
 ### Agent credential management
 
-First list names; then use selective `run` mappings for the authorized command.
-Do not reveal values to inspect whether they exist. For explicitly authorized
-insertion, stream **exact bytes** from a private source into
-`pass insert -m workstation/API_TOKEN`; add `--force` only for an intentional,
-authorized replacement. Do not put values in arguments, shell history, tool
-transcripts, logs, or generated reference files. Redirect a private file or use
-the execution tool's private stdin mechanism; never copy opaque secret text
-through the model. A newline belongs in that stream only if intended.
-
-Verify without displaying plaintext: list the entry name and run a child that
-checks the required property or performs the authorized operation, returning
-only success/failure. A presence check verifies injection, not issuer validity:
-
-```sh
-pass-env run -e SECRET_CHECK=services/example/api-token -- \
-  bun -e 'process.exit(Object.hasOwn(process.env, "SECRET_CHECK") ? 0 : 1)'
-```
-
-Use ordinary `pass mv` / `pass rm` only for authorized renames/removals; update
-callers and reference inventories as above. `pass-env` deliberately has no
-additional secret-management subcommands.
+Use the shared [authenticated-commands skill](../agent-config/skills/authenticated-commands/SKILL.md)
+for discovery and authorized command execution, and its
+[credential-maintenance guide](../agent-config/skills/authenticated-commands/maintenance.md)
+for private insertion, replacement, rename and removal.
+Verify an authorized operation with the issuer: a successful injection check
+does not establish credential validity.
 
 ### Migration and security boundaries
 
@@ -414,9 +574,8 @@ credential or call a model. Other harnesses use their own import/read mechanism.
 After deploying the source extension, `OMP_CREDENTIAL_CONTEXT=on-demand omp`
 uses a compact discovery pointer instead of listing every pass entry at startup.
 This experiment is off by default and fixed for each extension instance. Unset
-the variable and start a fresh session to restore the full inventory. Targeted
-authentication recovery remains enabled in both modes; repeated claims about
-an already-reminded entry do not schedule a second generic follow-up.
+the variable and start a fresh session to restore the full inventory. The
+extension does not react to tool results or assistant prose or inject turns.
 
 `bun bin/omp-task-usage.ts --sessions DIR --manifest FILE` reads explicitly
 selected local task trees and reports separate input/output/cache costs, including
@@ -435,13 +594,19 @@ built-in token shapes. So a broad search that prints an env file can still send
 a database password or an unrecognised token to the provider. `secrets.yml` here
 adds two regex entries (US-039):
 
-- the value of an env-style assignment whose upper-case name contains KEY,
-  TOKEN, SECRET, PASSWORD, PASS, AUTH, CREDENTIAL or PRIVATE;
-- the password in a `scheme://user:password@host` URL.
+- the complete value of an env-style assignment whose upper-case name contains
+  KEY, TOKEN, SECRET, PASSWORD, PASS, AUTH, CREDENTIAL or PRIVATE, including bare
+  keyword names and whitespace in an unquoted value;
+- the password through the final `@` in a URL's authority, before its path,
+  query or fragment.
 
 Masking happens whichever tool printed the text and whatever its ignore flags.
 It is reversible: a placeholder in a tool argument is restored before the tool
 runs.
+
+Unquoted assignments mask the remainder of their line; quoted assignments mask
+the quoted value. Whitespace after the delimiter is not part of the value,
+and an empty assignment never consumes the following line.
 
 The `config` component validates the policy (regex entries only, each compiles)
 and installs it to the agent directory's `secrets.yml`. It fails closed rather
@@ -450,10 +615,14 @@ plain entries in a project `.omp/secrets.yml`. Not covered: values shorter than
 eight characters, lower-case keys (`password: …`), and credentials in other
 shapes.
 
+This policy applies to OMP's native provider pipeline, not arbitrary direct HTTP
+clients such as the separate System One diff-review transport. Start a fresh OMP
+process after deployment; existing sessions retain their loaded policy.
+
 ## Linear
 
 Use the [official Linear MCP server](https://linear.app/docs/mcp) for access and
-the existing `/skill:capture` for capture judgment. The connector is not a
+the shared `/skill:engineering-operations` for durable capture and handoff judgment. The connector is not a
 scheduler, authorization to start work, or a second system-documentation store.
 
 `workspace-mcp.json` owns `https://mcp.linear.app/mcp`. `install` deploys it only
@@ -511,9 +680,8 @@ inviting collaborators. No paid plan or GitHub integration is enabled here.
 
 Maintained engineering and visual preferences live in `global/AGENTS.md`.
 `VISION.md` is retired (harness ADR-004): a repository's purpose and non-goals
-live in its README, and authorized direction in Linear. The unchanged `show-me`
-skill provides diagrams and code-shape explanations; choose evidence for the
-actual change rather than requiring a fixed artifact packet.
+live in its README, and authorized direction in Linear. Diagrams are optional
+explanations of the actual change, not a required artifact packet.
 
 ASCII support is currently **aesthetic guidance and browser-based asset authoring**,
 not a dedicated conversion tool, skill, or automatic asset pipeline.
@@ -526,155 +694,48 @@ there is no documented public automation API, and video exports are silent.
 
 Keep controls and essential text accessible. Referencing
 [U.S. Graphics](https://usgraphics.com/) or Berkeley Mono does not grant asset or
-font licenses. The external `frontend-design` and `show-me` packages stay verbatim.
+font licenses.
 
-## Skills and agents
+## Engineering skills
 
-Twelve homebrew skills are explicitly invoked:
+OMP selects engineering craft and non-obvious tool knowledge, not every shared
+package. The startup [engineering page](../agent-config/guidance/engineering.md)
+is the philosophy: smallest fix today; good taste, deep modules and simplicity;
+question, delete, simplify; checks earn their place; never widen a ticket.
 
-| Command | Outcome |
-| --- | --- |
-| `/skill:foundation` | Recommend a coherent project direction and practical transition without changing the project |
-| `/skill:agent-ergonomics` | Synthesize grounded findings into prioritized improvements in the project's existing backlog and roadmap |
-| `/skill:verification-infrastructure` | Create or repair repository-owned runnable verification and its discoverable skill, preserving existing interfaces |
-| `/skill:story-qa` | Walk a curated set of root user stories through the real product surface and report outcomes and gaps |
-| `/skill:check-cadence` | Tier checks into fast PR feedback and owned nightly/weekly runs without dropping meaningful gates |
-| `/skill:capture` | Save durable findings to project notes, or the required tracker, without duplicating or claiming work |
-| `/skill:pokayoke` | Make a class of error impossible (shape, type, ownership, missing affordance, or a failing-closed check) instead of warning about it |
-| `/skill:decide` | Synthesize current context, tradeoffs, and candidate paths into an executive decision brief |
-| `/skill:sachstand` | Orient the operator as chief executive: status verdict, verified progress, critical context, and the decisions that need them |
-| `/skill:user-stories` | Draft, extend, or reconcile a repository's root user stories |
-| `/skill:visual-state-review` | Capture every named UI state as screenshots, organise them, and look before claiming frontend work verified |
-| `/skill:design-studio` | Run the divergent-concepts → critique → recombine → handoff loop for real UI/UX design work before production code |
+On-demand owners: `design-studio`/`visual-state-review` for rendered design,
+`test-audit`/`story-qa` for real consumer proof, `foundation` for commissioned
+assessment, `user-stories` for its checker grammar, `agent-design` for prompt
+loading/cache traps, `authenticated-commands` for pass/native auth,
+`cloudflare-workers`/`remote-execution` for platform traps, `system-one` for Jev
+wiring, `engineering-operations` for workstation tools, and `pokayoke` for the
+existing incident template. No generic process manuals or required concept rounds.
 
-`disable-model-invocation: true` hides these descriptions from the automatic
-skill index. It does not prevent an explicit `skill://` read or grant authority
-to act. Read-only requests remain read-only. These skills are owned by
-`agent-config` and deployed through its contract; this repo no longer carries a
-`skills/` directory.
+The existing todo phase carries ticket why/victory and its link. Native state
+restores it on resume; engineers read `todo view` after compaction before changing
+course. Child assignments carry the same intent because they do not inherit
+parent todos. No daemon, extra queue, intent file or repeating reminder.
 
-The automatically routed `test-audit` skill (US-021) gates new tests and
-supports focused pruning; its whole-subsystem campaign requires commissioned
-scope. `story-qa` (US-022) guides actual agent interaction with the user
-surface, and `check-cadence` (US-023) guides risk-based PR and scheduled check
-selection. Neither automatically installs a product scheduler. These are
-distinct from `verification-infrastructure`, which creates runnable
-verification capability, and the not-yet-deployed `effective-verification`
-candidate, which judges evidence and completion claims.
+Kaylee owns dispatch, fleet, review choreography and approvals. OMP does not
+install `herdr`, `pr-preview`, `sachstand`, `session-close` or the `agent-review`
+launcher. Full deployment retires their old skill copies, preserves foreign
+packages, and rejects explicit management-skill selections. Review source and its
+gate template remain under `agent-config/review/` for the owner to evaluate;
+their presence is not an engineering obligation.
 
-`authenticated-commands` is a portable homebrew skill for API tokens,
-authenticated scripts, pass entries, `.env.pass`, and migrated project execution.
-OMP automatically discovers it when installed together with `pass-env` by the
-`secrets` component (or `all`), without a global AGENTS secret policy.
+`frontend-design` and `show-me` are removed whole. The old Wrangler/exe.dev manuals
+are replaced by distinct short homebrew skills; Cloudflare attribution/license
+remain. Omarchy's `omarchy`/`diagnose-crash` retain their independent owner.
 
-`foundation` is a first-principles assessment and repair procedure, not an
-implementation pass or a second policy source. It reads the canonical
-[Foundation Standard v1](../agent-config/skills/foundation/foundation-standard-v1.md),
-maps only obligations applicable to the project's capabilities, and distinguishes
-an ideal destination from a practical transition; preserving a sound system is a
-valid conclusion. The [operating pointer](../agent-config/skills/foundation/operating-foundations.md)
-keeps older links valid without redefining the standard. Invoke
-`/skill:foundation` with context or constraints the repository cannot supply;
-select the model separately. Backlog changes and implementation remain separately
-authorized work.
-
-Use `/skill:agent-ergonomics [optional scope or focus]` to consider the project
-from the agent driver's seat: accurate understanding and effective control at
-the least total cost. By default, it synthesizes and prioritizes grounded findings
-into the existing backlog and roadmap, reconciling work rather than duplicating
-it. Documentation supports those improvements only where needed. Existing scope
-and authority govern writes; otherwise it proposes updates. Use `review-only` for
-no writes.
-Repeated use should converge, not accumulate instructions or speculative work.
-
-Use `/skill:pokayoke [optional error class or incident]` after a defect,
-incident, or near-miss. The outcome is a mechanism that makes that class of
-error impossible—not a warning, comment, or extra instruction layer. A reminder
-is not pokayoke. The postmortem template in `skill://pokayoke` requires the same close.
-
-Use `/skill:decide [optional fork, question, or decision topic]` to request a
-dense, high-context executive brief in ASD-STE100 style when facing a technical
-decision point. It is read-only analysis. It leads with facts, root causes,
-invariants, viable candidate paths, and a structured tradeoff matrix across
-reversibility, blast radius, effort, operational cost, and primary risk. It
-states a clear technical recommendation with an explicit decision boundary, and
-ends with the exact next action to take upon approval.
-
-Use `/skill:sachstand [optional scope: session, repo, initiative, or portfolio] [quiet]`
-for a sixty-second orientation. It is read-only. It opens by naming the project,
-the task, and the repository, branch, and worktree, so briefs from parallel
-sessions are distinguishable. Then it gives a verdict, verified outcomes, open and
-blocked work, critical context, each needed decision with its missing
-information, and what happens next without input. A decision that needs
-deeper analysis is handed to `/skill:decide`. Unless `quiet` is given, it also
-speaks a one-minute version with Gemini 3.8 Flash-Lite TTS (about $0.01) through
-`pass-env` and `GEMINI_API_KEY`, and saves the audio under `~/.cache/tts-play/`.
-
-Use `/skill:user-stories [optional repository, capability, or story id]` to
-keep a repository's root `USER_STORIES.md` honest: draft stories from observed
-behavior, extend them with the feature PR that ships the change, or audit gaps
-read-only. Stories are the root artifact; downstream work cites the story id.
-
-Five vendored packages remain unchanged except by whole-package refresh:
-`frontend-design`, `herdr`, `show-me`, `wrangler`, and `using-exe-dev`.
-Wrangler is refreshed from [cloudflare/skills](https://github.com/cloudflare/skills)
-at `d924cd8` with its Apache 2.0 license. `using-exe-dev` is the
-[official skill](https://exe.dev/docs/agent-skill.md), vendored unchanged from
-[`boldsoftware/exe.dev` at `9af0789cf2417fc16cab7684cc401967a17060d0`](https://github.com/boldsoftware/exe.dev/blob/9af0789cf2417fc16cab7684cc401967a17060d0/skill/SKILL.md)
-(skill blob `5c3018342ee964c0c5384772e42e30256e10def8`).
-Update them from upstream or remove the whole package; use a distinctly named
-homebrew skill for different behavior. These packages are owned by
-`agent-config`; provenance and refresh live there. Omarchy's `omarchy` and
-`diagnose-crash` retain their own owners and discovery paths; this installer
-does not replace them. Todoist is owned by Daybook and is not shipped here.
-
-### Repository verification
-
-From the product checkout, invoke:
-
-```text
-/skill:verification-infrastructure
-```
-
-The [authoring skill](../agent-config/skills/verification-infrastructure/SKILL.md) discovers
-existing setup, fixtures, smoke commands, CI, and specialized skills before
-creating anything. It establishes or repairs a capability; it does not require
-a new CLI, a particular browser vendor, or a uniform receipt schema. Keep a
-sufficient existing skill rather than generating a competing one.
-Its [runtime](../agent-config/skills/verification-infrastructure/runtime.md) and
-[journey](../agent-config/skills/verification-infrastructure/journeys.md) references are read
-when those concerns are in scope, not as a mandatory packet. Selected skill
-installation copies the complete package, including these adjacent references.
-
-`foundation` assesses whether a fresh agent can exercise the core outcome,
-distinguish success from failure, and clean up. It recommends missing capability
-without implementing it. Ordinary executable work uses the product's skill and
-updates affected procedures and checks in the same change. Use the authoring
-skill again for a substantial repair, not for every feature edit.
-
-Repository onboarding and a wider adoption pass need an explicit scope.
-Recurring drift checks belong to an authorized execution system, not a timer
-installed by this skill. Explicit-resource workers need their own skill-loading
-integration; installing a global package does not override disabled discovery.
-This harness change does not provision workspaces, start repository rollouts,
-or activate factory work.
-
-To deploy only this capability and its guidance:
-
-```sh
-OMP_INSTALL_COMPONENTS="guidance skill:foundation skill:verification-infrastructure" ./install
-```
-
-Start a fresh OMP session after installation to discover the new slash command.
+Missing verification infrastructure is separate work unless it prevents proving
+this change. Use the existing product commands; docs/internal changes get
+composition or real owner-path checks, not a pretend product journey.
+Start a fresh session after deployment to discover current skills.
 
 ### Persistent workspaces and exe.dev
 
-`using-exe-dev` is advertised automatically for exe.dev and `*.exe.xyz` work.
-Refresh the whole upstream skill package and update this provenance together.
-Local workspace, authorization, hosting, and recovery policy lives in
-`global/AGENTS.md`. `foundation` examines the practical transition and
-`WATCHDOG.md` challenges missed ownership or recovery risks. No extra SYSTEM
-prompt, scheduler, or automatic migration is installed.
+`remote-execution` distinguishes the exe.dev lobby from a VM shell; `ws` owns
+project workspaces. No scheduler or automatic migration is installed.
 
 Before first SSH access, verify the
 [published host key](https://exe.dev/docs/faq/host-key.md). Read current
@@ -713,48 +774,75 @@ do not maintain another skill copy in omp-config or install it globally.
 
 ### Model routing (US-014)
 
-OMP follows the operator's model policy (2026-09-25), subscriptions before paid
-API routes: Claude Opus 5.5 is preferred in general and orchestrates; anything
-visual goes to Opus at high or above; GPT-6 models are the workhorse subagents
-and Sol and Luna always run at max; Astra runs at high or above for system
-design, architecture, and code review; Grok 4.7 is last. The native roles and
-provider-failure chains live in `config.yml`; changing them does not switch
-the selected model in an existing session.
+OMP follows the operator's lower-spend model policy (US-014, updated
+2026-10-01): Sonnet 5.5 medium handles ordinary work and orchestration;
+GPT-6.1 Sol defaults to xhigh for Codex work and recovery; explicit high
+remains allowed, with Astra only by explicit selection. Visual work stays on
+Opus at high or above. Ordinary `task`
+children use their configured agent routes rather than the live parent's model.
+Grok 4.7 is allowed only for read-only advisory recovery, never as a
+builder fallback. Gemini 3.8 Flash is the last resort where cross-model
+recovery is allowed; Opus has none. Native roles and provider-failure
+chains live in `config.yml`; changing them does not switch the selected model
+in an existing session. A running OMP process also retains its in-memory model
+catalog across binary updates: an old process can fuzzy-resolve a new model ID
+to a different, retired model. Restart that process after a catalog upgrade.
 
-| Entry point or role | Primary selection |
+For a model-routing deployment, run
+`OMP_MODEL_PROBE=1 OMP_INSTALL_COMPONENTS=all ./omp-config/install`
+from the repository root. Before writing live config, the installer overlays
+the source onto a disposable copy of the effective config and rejects retired
+or unapproved chat selectors in every role, task agent override, and fallback,
+including model-key chains. The online probe then requires an exact OMP catalog
+match and a successful provider response for each distinct selector and
+effort, including preserved foreign routes. Existing provider logins are
+required; offline `./scripts/verify` invokes the same policy without a
+network probe. An installed config cannot update the in-memory catalog in
+already-running engineers; restart only after preserving each session and
+confirming it is idle or complete.
+
+The `web` role is a search route rather than a chat model. Its recovery chain
+keeps the existing `web/*` search providers but drops older chat models; the
+policy check rejects any chat selector added back to that chain.
+
+| Direct selection or configured agent route | Primary selection |
 | --- | --- |
-| Fresh `omp`, `@default` (orchestrator) | `anthropic/claude-opus-5-5:medium` |
-| Ordinary `task` workers, `@task` | `openai-codex/gpt-6-sol:max` |
-| `@smol`, `@commit`; bundled `scout` and `sonic` | `openai-codex/gpt-6-luna:max` |
-| `@tiny` | local LFM2.5-350m first, then configured `openai-codex/gpt-6-luna:max` |
-| `@plan` (system design, architecture) | `openai-codex/gpt-6-astra:high` |
-| `reviewer` (code review) | `openai-codex/gpt-6-astra:high` |
-| `security-reviewer` | `openai-codex/gpt-6-astra:max` |
-| `@advisor` | `openai-codex/gpt-6-luna:max` |
-| `@slow` (explicit thorough pass, hard problems) | `anthropic/claude-opus-5-5:xhigh` |
-| `@extreme` (rare unconstrained reasoning) | `anthropic/claude-opus-5-5:max` |
-| `@vision`, `designer` agent (visual and design work) | `anthropic/claude-opus-5-5:high` |
+| Fresh `omp`, `@default` (orchestrator) | `anthropic/claude-sonnet-5-5:medium` |
+| `@task` | `anthropic/claude-sonnet-5-5:medium` |
+| `@smol`, `@commit`; `scout` and `sonic` | `openai-codex/gpt-6-luna:max` |
+| `@tiny` | configured `openai-codex/gpt-6-luna:max` |
+| `@plan` (system design, architecture) | `openai-codex/gpt-6.1-sol:xhigh` |
+| `reviewer`, `security-reviewer` | Author-family selection in `extensions/subagent-inheritance`; no recovery |
+| `@advisor` | `anthropic/claude-sonnet-5-5:medium` |
+| `@slow` (explicit thorough pass, hard problems) | `anthropic/claude-sonnet-5-5:high` |
+| `@extreme` (rare unconstrained reasoning) | `anthropic/claude-opus-5-5:xhigh` |
+| `@vision`, `designer` (visual and design work) | `anthropic/claude-opus-5-5:high` minimum |
 
-Opus medium orchestrates; raise effort with `@slow` or `@extreme` for hard
-problems, and to xhigh or max for design and visual-language work. Delegated
-implementation goes to Sol max workers; visual work goes to the owned
-`designer` agent (`agents/designer.md`, `model: "@vision"`), never to `task`.
-Luna max serves the cloud cheap tier. OMP prepends its on-device LFM2.5-350m to
-the effective `tiny` role before the configured Luna option. Two of four Codex
-logins and one of three Anthropic logins authenticated in OMP when last
-counted; do not count disabled or missing logins as capacity. A configured role
-does not create an agent. Native OMP bundles `task`, `scout`, `sonic`,
+Sonnet medium orchestrates; use `@slow` or `@extreme` for harder problems.
+Visual work runs on Opus high or above, raising to xhigh or max for design
+and visual-language work. Delegate it to the owned `designer` agent
+(`agents/designer.md`), never to `task`. Luna max serves the cheap tier,
+including `tiny`; the local LFM selector is disabled to keep every configured
+chat role within the approved model set. All shared subscription accounts
+are authorized for any work. Native `auth.accountPolicies` gives priority 1
+to `phaedrus@r90.dev` for Anthropic and OpenAI Codex. Priority boosts eligible
+accounts; blocked-account and reserve rules still govern selection. It is not
+exclusive account pinning, proof of remaining quota, or a promise that each
+request will use that account. See native [policy resolution](https://raw.githubusercontent.com/can1357/oh-my-pi/main/packages/ai/src/auth/policy.ts)
+and [account ranking](https://raw.githubusercontent.com/can1357/oh-my-pi/main/packages/ai/src/auth/rank.ts).
+A configured
+role does not create an agent. Native OMP bundles `task`, `scout`, `sonic`,
 `reviewer`, and `security-reviewer`; this repo adds `designer`. Main uses the
 session model.
 
 For a new session:
 
 ```sh
-omp                         # ordinary work and orchestration: Opus 5.5 medium
-omp --model @plan           # system design, architecture: Astra high
-omp --model @slow           # hard problems, thorough pass: Opus 5.5 xhigh
+omp                         # ordinary work and orchestration: Sonnet 5.5 medium
+omp --model @plan           # system design, architecture: GPT-6.1 Sol xhigh
+omp --model @slow           # hard problems, thorough pass: Sonnet 5.5 high
 omp --slow                  # shorthand for @slow
-omp --model @extreme        # rare unconstrained reasoning: Opus 5.5 max
+omp --model @extreme        # rare unconstrained reasoning: Opus 5.5 xhigh
 omp --model @smol           # explicitly choose Luna max
 omp --model @vision         # visual inspection and design: Opus 5.5 high
 ```
@@ -767,61 +855,128 @@ picker; select a concrete model without rewriting the default.
 default keybindings; local bindings can override them. Explicit CLI selections,
 project config, and one-run `--config` overlays can override the global default.
 
-Task dispatch selects an **agent**, not a per-item model. Native precedence is
-`task.agentModelOverrides` → agent frontmatter → parent/default fallback.
-Explicit `scout`/`sonic` overrides use `@smol`; its `:max` suffix takes
-precedence over their bundled `medium` thinking defaults. New task/eval
-dispatches reload persisted routing settings, but changing Main's model alone
-does not remap workers. Ordinary workers use Sol max; Astra high serves
-`reviewer`, Astra max `security-reviewer`; Opus high serves `vision` and the
-`designer` agent; Luna serves `smol`, `commit`, and `scout`/`sonic` through
-`@smol`. `tiny` may select the on-device model before Luna. Git commit, rebase,
-push, and similar mechanical ship steps use bundled `sonic` (`@smol`). Omitting
-`agent` selects `@task`/Sol max. Choose agents for their roles, not as
-differently priced implementation workers.
+Task dispatch selects an **agent**, not a direct model selector. Native
+precedence is `task.agentModelOverrides` → agent frontmatter → parent/default
+fallback. Ordinary children retain their configured agent routes rather than
+being overwritten by the live parent's model and thinking.
+`extensions/subagent-inheritance` uses the supported `before_subagent_spawn`
+hook to select reviewers and preserve the `designer` Opus 5.5 high minimum: a non-Opus parent
+or an Opus parent below high selects Opus high; Opus high/xhigh/max parents
+retain their thinking level. A task's `agent` can name a model tagged with
+`^` in the composer (`m1`, `m2`, …); that remains an explicit model choice.
+`task.enableEffort` exposes per-item `effort: "lo" | "med" | "hi"`, mapped
+to the selected model's supported range. Designer `lo` and `med` are refused
+before spawn. Designer routing applies to `task`, not eval `agent()` or direct
+role selection.
+Designer dispatch also resolves Opus credentials before spawn. Missing models,
+missing credentials, lookup failures, and lookups exceeding five seconds return
+an explicit block; otherwise native startup can silently select the authenticated
+parent before retry chains apply. This checks authentication, not remaining quota.
 
-The twelve explicit retry chains are `default`, `task`, `advisor`, `plan`,
-`reviewer`, `slow`, `extreme`, `security-reviewer`, `vision`, `smol`, `tiny`,
-and `commit`. Opus's default chain tries Sol max, then Luna max, then Opus
-medium (so a session running a Codex model reaches Anthropic before xAI), then
-Grok 4.7, and finally paid OpenRouter DeepSeek V4.1 Flash. Sol's `task` chain
-tries Luna, Opus medium, then Grok. Astra's `plan`, `reviewer`, and security
-chains try Opus high, Sol max, then Grok. Opus's `slow` and `extreme` chains try
-Astra (high, max), Sol max, then Grok. The `vision` chain lists only Opus, so
-the vision role never degrades to another model. A spawned `designer` child
-under a forced Anthropic outage (2026-09-25, Sol parent) failed closed after its
-retry budget ("Connection error") instead of switching models, so delegated
-visual work stays on Opus. Under the same outage, a Sol main session's
-`read red.png?q=…` image question returned `Connection error` instead of
-switching models, so image questions through the `vision` role also fail
-closed. A main session's own model follows `default` and would move to Sol, so
-guidance routes visual judgment through `?q=` or `designer`. Luna's mechanical chains try Opus
-medium, then Grok. Advisor uses Luna max, then Gemini 3.8 Flash high on Google
-Antigravity, then Grok 4.7 xhigh. Every other chain ends with paid DeepSeek, and
-each link accepts images. Task quality and whole-task cost effects of this
-policy remain unmeasured.
+Reviewer and security-reviewer routing also covers eval `agent()` dispatch.
+The hook compares native model-family identities against the live author and
+blocks unavailable reviewer authentication before native parent-model fallback.
+Reviewer `session_start` pins effort and empties every inherited recovery key,
+including model, effort-specific and provider-wildcard keys. Registry record
+overrides merge keys, so an empty role alone is insufficient. The public
+`findScopedSettings` resolver selects the active child's settings;
+`pi.pi.settings` is the root singleton and would also change builder recovery.
+No parent recovery or persisted config is mutated.
+`task.disabledAgents` denies reviewers and designer until the loaded guard
+initializes their runtime permission. A missing/unloadable extension therefore
+cannot silently expose unguarded specialists. Failed child initialization
+aborts before a provider request; isolated extension errors never grant review
+permission. Other disabled agents are preserved.
+Changing `extensions` or `disabledExtensions` revokes this permission, including
+an in-flight spawn's auth result. Public setting listeners survive native hook
+suspension; dispatch remains closed until fresh guard initialization.
+The caller records its chosen reviewer against native spawn/parent identities
+before core resolution; the child consumes that immutable dispatch pin and
+persists it as a custom session entry for cold revival. `session_init.resolvedModel`
+already includes startup auth substitution and is not authoritative intent.
+The reviewer disables model switching in its own scope and checks the pinned
+identity before every provider request. Sol medium is a review-only approval
+exception; engineer rosters and ordinary config/recovery still allow explicit
+high, while harness-selected Sol routes use xhigh.
 
-Fallbacks recover provider failures, not hard prompts; they require working
-credentials. A session's model falls back through its session role's chain:
-a main session started with `--model @smol` follows `default`, not `smol`.
-Forced outages on 2026-09-25 (`PI_PROXY_<PROVIDER>` pointed at a dead local
-port, `retry.maxRetries: 1`) showed an Anthropic outage moving default Opus to
-Sol max, and a Codex outage moving a Luna session through Sol to Opus medium.
-A main session started with `--model @vision` also follows `default`. Grok is
-the last subscription provider before the paid
-OpenRouter recovery link. If a subscription is exhausted or
-its login expires, the chain can still reach a paid route. Existing sessions
-keep their selected model and Pi's separate OpenRouter default is unchanged:
-Pi has no Codex or Anthropic OAuth configuration. Do not copy OMP OAuth tokens
-into Pi; authorize that harness separately before moving its default.
+The native task result already records the actual resolved model identity,
+thinking level, and fallback status (`resolvedModelIdentity`,
+`resolvedThinkingLevel`, `resolvedModelIsFallback` in
+`TaskToolDetails.results[]`); `task.showResolvedModelBadge` displays the
+resolved model and thinking on each task row. Read these rather than
+inferring the child model from its agent name. Ordinary task workers use
+Sonnet 5.5 medium even when the parent is on a more expensive route.
+Git commit, rebase, push, and similar mechanical ship steps use `@smol`.
+
+Visual, motion, UX and communications work must start on Opus and stop on an
+outage rather than switch models (US-014, operator decision 2026-09-27).
+`retry.fallbackChains` has an empty chain keyed by the configured Opus model,
+without an effort suffix. Native OMP model-selector keys outrank role chains:
+this covers direct selection and role aliases at every reasoning level,
+including a main session whose session role is `default`. Normal same-model
+retries remain available; exhausting them surfaces the provider error.
+
+This is deliberately a model boundary, not a task-purpose classifier. It also
+stops automatic fallback for coding sessions started on that Opus model.
+Select a non-Opus primary explicitly when cross-model recovery is appropriate.
+Do not use an extension that throws during startup as a substitute: OMP can
+isolate extension failures and continue.
+
+The role chains remain in `config.yml` for allowed non-Opus recovery, using
+approved subscription providers. Grok is restricted to read-only `advisor`
+recovery; `scout` shares the Luna/smol route without Grok. Gemini
+3.8 Flash is last where cross-model recovery is allowed. Reviewers have no
+recovery chain. The dedicated
+`vision` chain also remains Opus-only. Unlike an absent chain, an explicit
+empty model chain means no fallback candidates; there is no need to disable
+`retry.modelFallback` globally.
+
+The guard is not a universal current-model veto: an Opus entered as a recovery
+hop from a non-Opus primary can still follow that original pinned chain.
+Nor does it repair a saved session already running DeepSeek, protect other
+Opus model/provider identities, or override more-specific local selectors or
+project/run settings. An effort-specific key such as
+`anthropic/claude-opus-5-5:max` outranks this suffixless guard; installers
+preserve foreign keys. Before deployment, inspect effective selectors for
+such overrides. Start guarded work on the configured Opus primary, not on a
+recovery hop.
+Changing the configured Opus version requires updating its model-key guard
+and registering the new key in `bin/omp-merge-config.ts`'s owned retirement
+list. Keep prior owned keys there so removal from source also removes them
+from live config. The regression checks every configured Opus primary and
+a successor cutover while preserving an unrelated model guard.
+
+Fallbacks recover provider failures, not hard prompts, and require working
+credentials. A main session selected with a role alias still carries the
+`default` session role; the model-specific guard is what closes that gap.
+The 2026-09-25 forced-outage observation of default Opus moving to Sol described
+the old configuration, not the guarded policy. The separate `designer` and
+image-question outage checks on that date already stopped on Opus.
+Task quality and whole-task cost effects remain unmeasured.
+
+Existing sessions retain their selected model; deployment is not a retrofit
+of active fallback state. After installing, restart guarded work on an explicit
+Opus primary and verify the selected model before continuing. Pi now defaults
+to Sonnet 5.5 medium while preserving its native authentication stores and
+boundaries. Missing logins are reported, not replaced with the retired DeepSeek
+default. Do not copy OMP OAuth tokens into Pi.
 Exa search, approval mode, and the local title-model setting are unchanged.
 
-Use `omp models find anthropic/claude-opus-5-5 --json` to inspect the
-exact catalog entry and supported thinking levels. After routing changes, deploy
+For outage verification, use the real OMP CLI with disposable HOME/agent state
+and a network-disabled synthetic provider extension, not live account exhaustion.
+Keep model fallback enabled and every recovery candidate available. Compare
+guarded Opus with a control that removes only its model-key guard; the control
+must actually reach its final approved recovery candidate. Also walk a non-Opus
+recovery and a healthy Opus turn. Preserve the original error, attempted-model
+trace and exit status as PR evidence, then remove the disposable state.
+
+Use `omp models find openai-codex/gpt-6.1-sol --json` to confirm the
+native catalog entry and supported high/xhigh/max levels before routing changes.
+After routing changes, deploy
 the changed owned components and inspect the effective settings:
 
 ```sh
-OMP_INSTALL_COMPONENTS="config guidance" ./install
+OMP_INSTALL_COMPONENTS=all ./install
 omp config get modelRoles --json
 omp config get cycleOrder --json
 omp config get task.agentModelOverrides --json
@@ -844,10 +999,446 @@ there are no review or delivery skill entry points here. The bundled OMP
 reviewers remain available for explicitly requested work. Linear is an interactive
 provider integration, not a scheduler or an autonomous delivery service.
 
-`Steward` remains a read-only observer, not a release gate. Its native
-`advisor.syncBacklog: "off"` setting avoids waiting for catch-up while preserving
-background review and ordinary advice delivery. Print-mode can still drain a
-final review. Subagents are unadvised unless they opt in.
+`Steward` remains a read-only observer, not a release gate. Automatic review is
+off (`advisor.enabled: false`); use `omp --advisor` or `/advisor on` when requested.
+The definition, model role, and recovery chain remain available on demand.
+`advisor.syncBacklog: "off"` still avoids waiting for catch-up in an opted-in session.
+
+The automatic turn-end `extensions/diff-review` package is retired and removed
+by the full installer. The 2026-10-01 retro recorded 467 runs, 463 disabled, and
+no prevented failure; repairing `find` is not a reason to revive that check.
+The explicit `bin/omp-diff-review.ts` CLI and Pi's extension retain the shared
+System One engine. The roster, per-engineer 4-GiB cage, and visual model floor
+are unchanged.
+
+### Ticket rosters (US-046)
+
+A board item can carry a ranked model roster on its ticket (`ticket.roster`:
+`provider`, `model` and `effort`, best first). Left alone, the role chains in
+`config.yml` recover a failing model onto models the ticket never named, ending
+at Gemini 3.8 Flash. `omp-roster` gives an OMP engineer launched for a ticket
+only that roster and stops it when the roster runs out. It extends the
+approved routing of US-014. Roster planning and checking make no model call;
+qualifying launches now start an experiment and `verdict` makes a native judge
+call (see below). The installed `~/.local/bin/omp-roster` uses the siblings
+`omp-engineer` for memory preflight and `omp-experiments.ts` for journal state.
+
+A launch with no ticket goes through the same tool: `--model provider/model
+--thinking effort` (no `--item`) builds a one-entry roster, so the engineer stops
+when that model fails instead of hopping to Gemini. See "Launch without a
+ticket" below.
+
+```sh
+omp-roster capacity --json  # read-only session-wide count; never launches or reserves
+omp-roster launch --item K-20260929-example --cwd /path/to/exclusive-checkout --json  # qualifying ticket: starts both lanes
+omp-roster launch --item K-20260929-example --tiny "single typo fix"  # recorded opt-out; prints one launch plan
+omp-roster launch --model anthropic/claude-sonnet-5-5 --thinking medium --json   # no ticket: one route
+omp-roster check --item K-20260929-example --session ~/.omp/agent/sessions/<cwd>/<session>.jsonl
+omp-roster check --item adhoc-anthropic-claude-sonnet-5-5-20260929T190130Z --session <dir>   # id from the launch
+```
+
+`capacity [--json]` is the capacity-only API. It reads only the configured
+working-engineer limit and `herdr agent list`, using the same session-wide OMP
+count policy as launch. JSON is `{ "engineer_capacity": { "working": N, "limit": L } }`;
+exit **0** includes a fleet at or above its limit. An invalid limit or unreadable
+fleet exits **1**, with the read error on stderr rather than a guessed count.
+It needs no ticket, usage route, memory measurement, display activation or clean
+checkout. It neither reads nor writes the experiment journal (even if corrupt
+or unwritable), migrates retired pair state, takes a lock, writes launch
+artifacts, nor creates worktrees, panes or agents. This is a snapshot, not
+reservation or admission: an actual launch rechecks its existing guards.
+Do not use `launch`, a fake ticket or an opt-out reason for a capacity/status read.
+
+`launch [--ticket-json FILE] [--usage-json FILE] [--state-dir DIR] [--harness omp] [--cwd DIR] [--brief-file FILE] [--use-default] [--tiny REASON | --live-data REASON | --no-experiment REASON] [--json]`:
+
+Fleet admission (US-047): after validating the requested roster, before reading
+usage or writing any overlay, `launch` reads `herdr agent list` for the entire
+current session. Only `agent: omp` with `agent_status: working` counts, across
+workspaces and including the caller. Other agent kinds (including Kaylee's
+Hermes window), `idle`, `done`, `blocked` and `unknown` do not count.
+`omp-config/bin/omp-roster.ts` owns the default working-engineer cap; changing
+that single value and installing the CLI changes admission for callers with no
+export. `OMP_ROSTER_ENGINEER_LIMIT` optionally overrides it with a positive safe
+integer. Successful `--json` output reports the snapshot as
+`engineer_capacity: { working, limit }`. There is no override flag.
+At or above the limit, exit **5**,
+empty stdout (including `--json`), no files written, and one stderr line:
+
+```text
+omp-roster: working-engineer limit reached (8/8); working: engineer-a, engineer-b, ...; queue work on the board.
+```
+
+Unnamed working agents use their pane ids. Unreadable Herdr state or an invalid
+limit refuses with exit 1 and no files written. Below the limit, normal roster
+and usage admission continues. The fleet count itself is a snapshot gate, not a
+reservation: simultaneous dispatches below the limit can both pass, and an
+overlay does not reserve a future slot. This is distinct from the experiment's
+serialized one-pair reservation below; qualifying launches create their own
+Herdr lanes, but do not close unrelated agents or edit the board.
+
+Memory admission (US-043) follows the working-status gate, before usage or
+overlay/record writes. `omp-roster memory --json` prints live measurements and
+reasons; an unsafe launch exits **6** with empty stdout and no files written.
+`--memory-json FILE` supplies a read-only measurement fixture for isolated checks,
+not a real-launch override. The final `omp` entrypoint always reinspects live
+state under its lock; a successful roster preflight never reserves capacity.
+
+
+1. Roster: `<board program> query items --item ID --json` (`data.value.ticket.roster`).
+   The program is `glass` when it is installed (the board's name after its one-time
+   cutover, ADR 0004 of the board repository), else `board`, and
+   `OMP_ROSTER_BOARD_BIN` overrides both, so the launcher needs no change at the
+   cutover.
+   `--ticket-json FILE` replaces the board call with a file holding the
+   board's answer document or just the ticket. The board's read socket lags its
+   writes by about a second, so a `launch` straight after a roster edit can read
+   the roster it just replaced: compare the `roster_sha256` it reports with the
+   roster you wrote.
+2. Refusal (exit 1, one plain sentence, nothing written): no ticket or an empty
+   roster; an entry outside the approved model list (`approvedModels` in
+   `bin/omp-roster.ts`, the table `bin/omp-model-policy.ts` holds `config.yml`
+   to) or asking for an effort that model lacks; the same model and effort
+   twice; a usage view that is not ok or has an unrecognised shape; `--harness`
+   other than `omp` (Pi enforcement is a later slice); an overlay path holding a
+   colon (`PI_CONFIG_FILES` is a colon-separated list).
+3. Usability comes from `ai-usage dispatch --json` (or `--usage-json`): the rows
+   for the entry's model on harness `omp`, else the harness `any` rows. When
+   several rows name the route, every one must be `usable` or `low`. `usable`
+   and `low` can launch; `exhausted`, `blocked`, `unknown` and a missing row are
+   skipped with the row's reason and `next_reset`. ai-usage names differ:
+   `claude-opus-5-5` is `anthropic/opus`, `claude-sonnet-5-5` is
+   `anthropic/sonnet`, `xai-oauth/grok-4.7` is `xai/grok`, and
+   `openai-codex/gpt-6-*` keep their ids. Gemini has no row, so it is never
+   launched but can be a recovery hop. `openrouter/*` entries are cash routes: a
+   roster may name them, but they are never launched or used as recovery until
+   a per-ticket cash cap exists, and `check` never counts a turn on one as on
+   the roster.
+4. Without explicit `--use-default`, the first launchable ticket entry in rank
+   order wins. If none is launchable,
+   `launch` exits 3 with "roster exhausted", each entry's skip reason and reset
+   time on stderr, and writes nothing; with `--json` stdout also carries
+   `{item, launch: null, skipped, roster_sha256}`, without it stdout is empty.
+5. Otherwise it writes, in `<state-dir>` (default `$XDG_STATE_HOME/omp-roster/`
+   when that is an absolute path, else `~/.local/state/omp-roster/`; files mode
+   0600, written atomically):
+   - `<item>.<digest>.yml`, the overlay. The digest is the first 8 hex digits of
+     the overlay's own SHA-256, which covers the roster and the launch entry, so
+     a relaunch that changes either writes a new file and never rewrites the one
+     a running session reads. Old overlays are kept.
+   - `<item>.<digest>.launch.json`, the launch record, with the same digest as its
+     overlay: the roster as launched, `roster_sha256`, the launch selector, the
+     overlay path and `launched_at` (ISO). One per launch, so `check` can judge
+     each session against its own launch. A relaunch with the same roster and
+     launch entry has the same digest and keeps the first record: its earlier
+     `launched_at` judges the same roster.
+   - `<item>.launch.json`, a copy of the newest launch's record, for people.
+     `check` does not read it.
+
+   The overlay sets `modelRoles.default|slow|task|extreme` to the launch entry
+   (`provider/model:effort`) and `retry.fallbackChains` for each roster model, for
+   those four roles and for each helper role (see Helper roles below). Each
+   engineer chain names only the other roster models in rank order, never the
+   model itself and never a cash route, so a hop cannot leave the roster. A
+   single-model roster gets empty engineer chains, and OMP stops with the provider's
+   error. `retry.modelFallback` stays on. `roster_sha256` hashes the roster as
+   compact JSON (entries in rank order, keys `provider`, `model`, `effort`) and
+   is recorded in the overlay's header comment.
+6. For nonqualifying launches, recorded opt-outs, or an existing experiment
+   reservation, output is still a launch plan. Plain: a line
+   `export PI_CONFIG_FILES=OVERLAY`, then `--model provider/model --thinking effort --config OVERLAY`,
+   with `skipped` reasons and warnings on stderr. The dispatcher exports the
+   variable in the engineer's environment so nested `omp` reads the same overlay.
+   Qualifying launches without a reservation instead start both lanes and report
+   the experiment and real pane/session identities; do not dispatch an extra
+   engineer from that output. JSON retains launch route, overlay/record, `env`,
+   `args`, skip reasons, roster hash and usage diagnostics, and reports
+   `pair: {status: 'live' | 'none' | 'starting' | 'not-applicable', file, experiment?}`.
+   `file` is the journal path; `experiment` carries recorded lane identities.
+   Nonqualifying/ad-hoc launches without an explicit opt-out do not read or lock
+   the journal. Explicit `--use-default` reports only the routing evidence it consumed.
+   `launch` carries the entry's `verdict` (`usable` or
+   `low`), `env` is `{"PI_CONFIG_FILES": OVERLAY}`, and `usage` is `{degraded,
+   degraded_reason, oldest_observation, stale_after_seconds}` from the ai-usage
+   view and the launch row (`degraded` is true when either says so). `skipped`
+   covers only the entries ranked above the launch entry. A `low` verdict and a
+   degraded reading are also printed as `warning:` lines on stderr. Launching does
+   not act on either: the roster guarantee does not depend on them.
+
+### Automatic experiments and evidence defaults (US-046)
+
+From the target checkout, `omp-roster launch --item ID` automatically starts
+two actual OMP lanes for qualifying **build, design or research** work when no
+experiment is reserved. This replaces the optional twin suggestion and manual
+`pair` registration/clear path; there is no `pair.json` or second experiment ledger.
+The launch uses the current checkout unless `--cwd DIR` selects another.
+Choose an exclusive checkout **before** launching and pass it with `--cwd`.
+In JSON, `started: true` means **both agents are already dispatched**:
+consume `pair.experiment.id` and the returned `pair.experiment.lanes` identities
+(`pane_id`, `session`, `workspace_id`, `cwd`); do not start or prompt a third
+engineer or manually register/log the pair. Only `started: false` returns
+`env` and `args` for **one** explicitly pinned engineer. Any `--tiny REASON`
+or `--live-data REASON` decision must be made before that launch.
+Worktree creation resolves the checkout's canonical Herdr parent workspace first;
+a linked checkout is a valid launch source, not a worktree-creation parent.
+Both lanes receive the same complete Glass ticket brief (title, why, description,
+scope, done checks and victory); `--brief-file FILE` optionally supplies a tailored
+brief to relay identically. A real checkout, clean shared starting HEAD and ticket
+done checks are required; missing required context refuses rather than suggesting
+another command.
+
+The preregistered question is whether the candidate effort meets those done
+checks as well as the baseline for this nature/model. The candidate changes only
+supported **reasoning effort**, never model, family or planning prompt:
+`xhigh` compares with `high`, `high` with `xhigh` when supported, otherwise an
+adjacent supported effort. Both lanes use separate Herdr worktrees from the same
+commit, the same brief and instructions, and pinned native subscription routes.
+No pair starts without a usable, default-changing candidate. Build lanes must
+not merge or install before the verdict. Existing approved-model, usage,
+ticket-roster, helper-role, memory and fleet-admission boundaries still apply.
+
+For genuinely tiny work, live-data work unsuitable for identical snapshots, or
+an explicit operator exception, use `--tiny REASON`, `--live-data REASON` or
+`--no-experiment REASON`. Each requires a nonempty stated reason and records it
+with the item and timestamp in the journal before returning an ordinary launch
+plan. A bare opt-out flag is not accepted.
+
+The existing `~/.hermes/profiles/kaylee/journal/experiments.md` remains the sole
+durable ledger. One marked JSON block stores current experiments, opt-out reasons
+and evidence defaults; all historical prose stays intact, and new numbering
+follows the highest legacy E-id. `OMP_ROSTER_EXPERIMENTS_FILE` selects a different
+journal only for isolated proof or an explicitly selected shared home;
+`--state-dir` still redirects launch artifacts, not this fleet-wide journal.
+Writes are atomic and private (0600). Linux `util-linux flock` holds an exclusive
+kernel lease over launch side effects and ledger updates; process exit or crash
+releases it. Its persistent `.lock` inode is coordination, not another ledger:
+never unlink it while launchers may be active. Busy or malformed required journal
+state fails closed.
+Installation stages the sibling helper with the CLI, never the journal.
+
+Only one experiment may reserve a live pair (`starting` or `running`). The
+launcher reserves `starting` before spawning and binds actual pane/session
+identities before recording `running`. Once the bound lanes are settled it
+records `awaiting-verdict` and may start the next live pair; the unfinished
+verdict remains in the ledger. A stopped, missing or replaced session cannot
+masquerade as a live lane. Definite launch failure rolls back only resources
+created by that launch; ambiguous failure retains `starting` to avoid duplicates.
+Other launches return their ordinary ticket launch plans while a live reservation
+exists. To record abandonment, use
+`omp-roster abandon --experiment E-NNN --reason "why this cannot be judged"`:
+it preserves the record and refuses while a bound lane is still working.
+There is no bare pair-clear operation that erases unfinished evidence.
+
+Submit the real lane deliverables for a blind verdict:
+
+```sh
+omp-roster verdict --experiment E-019 \
+  --artifact-a /path/to/lane-a-deliverable --artifact-b /path/to/lane-b-deliverable \
+  --judge xai-oauth/grok-4.7 --thinking high --json
+omp-roster defaults --nature build --model openai-codex/gpt-6.1-sol
+omp-roster launch --item K-example --use-default --json
+```
+
+Artifact A/B paths must realpath inside their recorded baseline/candidate worktrees,
+respectively; swapped paths and escaping symlinks are rejected. A/B are not the
+anonymous labels the judge sees. The helper randomizes X/Y, redacts
+lane model/effort, worktree and experiment identities, and withholds the mapping.
+The approved, usable native OMP judge must be from a **different family than
+either lane**. It runs in print mode with no tools, rules, skills or extensions,
+an isolated no-fallback overlay and a minimal blind prompt. The recorded actual
+judge identity must match the requested route; a same-family judge, fallback,
+invalid score or incomplete verdict cannot update a default.
+Its temporary overlay lives privately under the routing state directory, outside
+the native boundary's replaced TMPDIR, and is removed after the judge exits.
+
+The judge scores **every ticket done check for each lane, 0–2**, with evidence
+and rationale. The larger total wins; equal totals choose lower effort under the
+preregistered tie rule. An accepted verdict stores scores, check evidence, judge
+identity and raw response/hash in the same journal. Only a winner scoring 2 on
+every done check changes the preregistered `<nature>:<provider>/<model>` effort
+default, citing its E-id; incomplete winners retain a no-change verdict. `defaults` reports
+usable learned entries and their evidence, optionally filtered by `--nature` and
+`--model`; there is no invented seed verdict. This is an operator query for
+future ticket routing, **not a silent rewrite of ticket-pinned rosters**.
+`launch --use-default` explicitly requests learned effort for the ticket's first
+model entry and reports its evidence; fallback entries remain ticket-pinned.
+The immutable launch record preserves the original ticket roster hash separately
+from its effective learned effort, so audit still detects later board edits.
+It does not rewrite `config.yml`, native interactive/subagent defaults, the
+approved model policy or helper routes.
+
+**Historical assessment, not migrated verdicts:** E-007 really changed Pile's
+primary to Sonnet 5.5 medium, with its nonblind/script scoring and placement
+caveats. E-013's blind cross-family result supports high for discovery-heavy,
+underspecified UX work; it explicitly leaves medium for well-shaped tickets.
+E-014 records a Luna win but the Sol judge shared Luna's family, a confound.
+E-015 was abandoned with no verdict after the fleet crash, not a routing result.
+E-017 records a manual blind judgment attributed to Kaylee and an exploratory
+Opus win, not a verified native cross-family judge/default update. E-018 is
+pending with no result; its existing model comparison can be tracked as a
+`legacy: true` pair without a preregistered effort default and cannot be promoted
+to an automated default. Keep these distinctions in the original journal: do
+not retroactively unblind, invent verdicts or import them as automated defaults.
+
+**Cost:** a qualifying launch adds a full subscription engineer session, and
+`verdict` makes one native subscription judge call. Planning, checking, opt-out
+recording and `defaults` do not call a model. Quota consumption depends on the
+task, reasoning and cache use; no fixed dollars or quota percentage are inferred
+from token counts. No System One, TypeSafe or cash-provider experiment route is
+added. Glass missing-pair/verdict lights are not claimed by this CLI.
+
+### Checking the launched roster
+
+`check --item ID --session DIR|FILE... [--ticket-json FILE] [--state-dir DIR] [--since ISO]`
+(`--session` repeatable) reads OMP session JSONL. A file brings its sibling
+subagent directory along; a directory is searched recursively.
+
+- Each session file is judged against the launch that started it, not the
+  ticket as it is now. `check` reads every `<item>.<digest>.launch.json` in the
+  state dir and gives a file the record with the greatest `launched_at` at or
+  before the file's first timestamp. A subagent file (scout, reviewer, advisor,
+  task agent) takes the start of its session file, the outermost `X.jsonl` whose
+  sibling directory `X/` holds it, and the file's own start only when that
+  session file is not among the paths. The report names which record judged
+  which files, with each record's roster, so a relaunch (or two near-simultaneous
+  launches) never changes what an earlier session is judged against. A file that
+  started before every record, or whose start cannot be read, is judged against
+  the ticket's current roster and the report says so; pass a session file or
+  `--since` to keep older sessions in the same directory out.
+- Only records at or after the chosen launch's `launched_at` are judged. If the
+  board's roster now hashes differently from the record chosen for the newest
+  session file, it says `roster changed since launch` and exits 4 even when every
+  turn was on the roster. If the board cannot give the roster at all (unreadable,
+  invalid, or no ticket) and any launch record exists, that is the same finding:
+  every turn is still judged against the records (a file from before every record
+  against the earliest one) and the per-turn findings are printed. Without a
+  launch record an unreadable roster is an error (exit 1). A file judged against a
+  record that has assistant turns of which none was judged (`--since` later than
+  all of them) makes the check exit 4 with `nothing was judged in FILE`, not pass.
+- `--since ISO` replaces the record's `launched_at` as the time floor for every
+  file (which record judges a file is unchanged). A record with no readable
+  timestamp is judged, not skipped. With no launch record at all it says so and
+  judges every record against the ticket's current roster, and the reported
+  `roster_sha256` is only worth comparing with the one `launch` printed.
+- The board's read socket follows its store by about a second, so a `check` run
+  within two seconds of a roster edit can still see the old roster; a later
+  `check` catches the change because the launch record persists.
+- It reports every assistant turn on a model outside the roster and every
+  `model_change` with `resolvedModelIsFallback: true`, each with its roster
+  position or "off roster". A fallback switch to a model off the roster is a
+  violation in any file, helper files included. A cash (`openrouter`) turn or hop
+  is always off the roster, even when the ticket names it.
+- A turn in a helper file that ran on that role's approved primary (see Helper
+  roles) is counted as a helper turn and not judged. A helper file is
+  `__advisor*` (role `advisor`) or a subagent file whose `session_init` record
+  carries a helper `modelRole` (a scout or sonic reports `smol`, a reviewer
+  `reviewer`). The designer (`session_init` agent `designer` or `modelRole`
+  `vision`) is treated as a helper whose primary is `anthropic/claude-opus-5-5`,
+  the model the subagent-inheritance extension forces on it. Every other turn,
+  including a task agent's or the main session's, is judged against the roster,
+  and a helper turn on neither its primary nor the roster is a violation.
+- A last line with no trailing newline (a session still being written) is
+  skipped; a corrupt line elsewhere, or a directory with no engineer file (only
+  helper files), is an error, not a pass.
+- It prints files, timestamps, models and positions, never prompt text.
+
+Exit codes: 0 launched or clean; 1 refused, or unreadable input (a `check` with
+no engineer session file, or a line that is not JSON, must not pass); 2 usage
+error; 3 roster exhausted; 4 a turn or fallback switch left the roster, or the
+roster changed since launch.
+
+Launch without a ticket. `launch --model provider/model --thinking effort
+[--usage-json FILE] [--state-dir DIR] [--json]` (no `--item`) makes a roster of that
+one entry and runs the ticketed path on it: the approved-model, effort, cash-route
+and ai-usage checks, exit 3 with the reason and nothing written when the route is
+exhausted, blocked, unknown or a cash route, and otherwise the same overlay, launch
+record, `PI_CONFIG_FILES` line and `--json` shape (`launch`, `overlay`, `record`,
+`env`, `args`, `usage`). No board call is made. The launch gets a synthetic id
+`adhoc-<provider>-<model>-<yyyymmddThhmmssZ>` (the model's slash becomes a dash, so
+it names files safely), which is what `check --item` takes. With one route, the
+engineer's chains and the model's own chain are empty, so the engineer stops with
+the provider's error when its model fails. A helper keeps its US-014 primary and can
+recover only onto that one route (for a Sonnet launch, the Luna, Sol and Astra
+helpers may hop to Sonnet and never to Gemini or Grok). Refused with a plain sentence
+and nothing written: `--item` together with `--model` or `--thinking` (exit 2);
+neither `--item` nor `--model` with `--thinking` (exit 2); `--model` with a `:effort`
+suffix or without a provider (exit 2, give the effort with `--thinking`); an
+unapproved model or an effort it lacks (exit 1); `--ticket-json` (exit 2, it goes
+with `--item`). A board item id cannot start with `adhoc-`.
+
+`check --item adhoc-…` reads only the launch records for that id from the state dir
+and refuses with a plain sentence when there is none; it reads no board (a fake
+`board` that fails on any call is part of the test), reports no `roster changed`
+finding because there is no board roster, and judges as usual: each file against
+the newest record at or before its start (a file before every record against the
+earliest, and the report says so), `--since`, helper and designer primaries, cash
+always a violation.
+
+Helper roles. The overlay writes `modelRoles` only for `default`, `slow`, `task`
+and `extreme`. Other helpers retain the routes owned by `config.yml` and
+`extensions/subagent-inheritance`. Reviewer and security-reviewer role chains
+are explicitly empty. Their child-scoped runtime pin also empties inherited
+model-key chains, which otherwise outrank those roles.
+
+For other helpers the overlay writes `retry.fallbackChains.<role>` as the
+roster in rank order, minus the role's primary model. `HELPER_PRIMARIES` in
+`bin/omp-roster.ts` owns that table. The roster checker recognizes both
+configured reviewer primaries as helper turns. `omp-roster.test.ts` exercises
+the roster-only recovery boundary and the reviewer exception.
+
+Designer and Opus. `vision` is deliberately untouched: its `config.yml` chain is
+empty and the designer agent uses it. OMP chains are keyed by model, and a model
+key outranks a role key, so a roster that names Opus is authoritative for the
+whole ticket: the overlay's `anthropic/claude-opus-5-5` chain (the rest of the
+roster) applies to every Opus turn, a designer's included, and the designer may
+hop onto the roster. Without Opus on the roster the designer stays on its
+Opus-only route and `check` does not flag it.
+
+What the guarantee does not cover. It holds for lanes started automatically by
+`omp-roster launch`, and for an engineer dispatched from its ordinary ticketed
+or `--model` launch plan with the printed arguments and `PI_CONFIG_FILES` exported.
+It does not hold for:
+
+- a Pi lane, and any `omp` not launched through `omp-roster launch` (including one
+  an engineer starts without inheriting the environment): those still use the
+  deployed `config.yml` chains, whose builder chains end at Gemini 3.8 Flash. An
+  item with no ticket is covered only if it is launched with `--model` and
+  `--thinking`; a bare `omp` on it is not;
+- a model key that is not on the roster: OMP consults model keys before role
+  keys, so a model-keyed chain in `config.yml` (today only Opus 5.5, `[]`) or in a
+  project's `.omp/config.yml` would still apply; this is why the guard above
+  requires them to be empty;
+- agent definitions that pin their own model in frontmatter (for example a
+  repo's `.omp/agents/*.md`), the `find` judge's `model_usage` calls, and other
+  model-kind roles: these are outside both the overlay and `check`, which reads
+  assistant turns and `model_change` records only;
+- `check` itself, which detects after the fact. A roster guard extension on
+  `before_subagent_spawn` (the hook `subagent-inheritance` already uses to block)
+  would prevent off-roster spawns instead; it is not built.
+
+Nothing enforces the roster unless dispatch goes through `omp-roster launch`:
+use its automatically started lanes, or pass its ordinary launch plan's printed
+arguments and environment to the engineer.
+
+Forced-outage observation (2026-09-29, `omp` 18.4.3, Codex exhausted): a
+Sol-then-Sonnet roster launched Sonnet; `omp -p --model openai-codex/gpt-6-sol
+--config OVERLAY` then hopped to Sonnet only, while a Sol-only overlay stopped
+with the usage-limit error. `check` was clean for both and flagged the unguarded
+run that hopped to Luna and Gemini. A second run (a Sonnet engineer on that
+overlay spawning a scout, with `PI_CONFIG_FILES` exported and `--config` given the
+same file) put the scout on its Luna primary; Codex was exhausted, so it hopped to
+Sol and then Sonnet, never Gemini, and `check` was clean. The chain precedence
+above is the behavior of that version: re-run the smoke after an OMP upgrade.
+
+Launch without a ticket, same day and version. `omp-roster launch --model
+openai-codex/gpt-6-sol --thinking medium` exited 3 ("exhausted, 5h 0%, weekly 53%;
+resets 2026-09-29T19:42:20Z") and wrote nothing. `launch --model
+anthropic/claude-sonnet-5-5 --thinking medium --json` wrote an overlay and a launch
+record, and `omp -p` with its arguments and `PI_CONFIG_FILES` answered on Sonnet
+only; `check --item adhoc-anthropic-claude-sonnet-5-5-<time>` was clean. The
+contrast control, `omp -p --model openai-codex/gpt-6-sol` with no overlay, hopped
+Sol to Luna to Gemini 3.8 Flash (`model_change` records with
+`resolvedModelIsFallback: true`), and `check` against a Sol-only launch record
+exited 4 with two off-roster turns and two off-roster switches.
 
 ### Evaluations are work records
 

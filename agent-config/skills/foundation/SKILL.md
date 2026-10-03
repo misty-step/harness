@@ -1,63 +1,16 @@
 ---
 name: foundation
-description: Recommend a project's direction and practical transition without changing it.
+description: Assess a project's direction and recommend the simplest practical transition.
 disable-model-invocation: true
 ---
 
 # Foundation
 
-Reassess the project as a whole: is it pursuing the right outcome, and what is
-the simplest complete system to achieve it? Distinguish what we would build
-starting today from the sensible path out of the current system.
+For a commissioned assessment, compare keeping, deleting, reusing and replacing
+against the original outcome and observed behavior. Recommend the smallest
+transition preserving users and data; do not implement hidden compliance work.
 
-This is read-only judgment, not implementation. Do not change project files,
-backlog records, or deployed state. Isolated experiments may strengthen the
-assessment; they do not authorize shared-state changes.
-
-## Basis for judgment
-
-Use the repository, its root `USER_STORIES.md` when present, the relevant
-backlog, and available product evidence to examine intended users, promised
-outcomes, and actual behavior. Vision, stories, and backlog are claims, not
-proof of necessity. Preserve explicit obligations and
-operator-owned constraints; distinguish them from inherited choices. Missing
-product evidence is an uncertainty, not permission to invent needs.
-
-Reason from behavior, data, invariants, and operating needs rather than the
-current decomposition. Consider product scope, architecture, stack, dependencies,
-and operations together. Remove unnecessary concepts and competing owners instead
-of shifting complexity onto callers, users, or operators. Compare meaningful
-alternatives—including doing less, reusing a capability, or keeping the system.
-Sunk effort is not a benefit; migration, compatibility, and data safety are costs.
-
-
-Exercise System One strategy review (`omp-diff-review --battery strategy`) to evaluate
-complected concerns, deletable surface (erasure), and platform sprawl before proposing
-new structural mechanisms.
-Inspect or exercise evidence that could change a consequential recommendation.
-Consult current primary sources for external technology claims. Distinguish
-observations, inferences, preferences, and unknowns; identify inaccessible or
-unexercised claims. Keeping a sound foundation is a valid conclusion.
-
-This skill is an assessment and repair procedure, not a second policy source.
-Read the canonical [Foundation Standard v1](foundation-standard-v1.md) when
-verification, deployment, hosting, data, or product operation could change the
-recommendation. Map only obligations whose applicability predicates are true;
-record uncertainty rather than inventing proof or exemptions. The concise
-[operating pointer](operating-foundations.md) preserves compatibility for existing
-links.
-
-For enforceable repository checks, use the standalone `foundation-check`
-launcher on the target repository: `foundation-check check`,
-`foundation-check affected --base <rev>`, and
-`foundation-check receipt <path> --base <rev>`. The skill remains a read-only
-assessment, not the validator or an authorization to change the project's
-adoption record.
-
-## Complete recommendation
-
-Deliver a coherent judgment with project-specific evidence: what to preserve,
-remove, simplify, or replace, the alternatives and tradeoffs, backlog implications,
-and a practical transition with its major risks. Identify operator decisions,
-unresolved questions, and the smallest useful evidence that would change the
-recommendation. Choose the presentation for the findings, not a fixed template.
+[constitution.md](constitution.md) keeps intent;
+[foundation-standard-v1.md](foundation-standard-v1.md) routes to the normative
+catalog and existing checker. [authoring.md](authoring.md) owns rule changes.
+Report concrete evidence, consequential tradeoffs and remaining uncertainty.

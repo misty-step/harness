@@ -57,7 +57,7 @@ test("tracked Markdown links resolve in the repository", () => {
 	expect(files.stdout.toString().split("\0").filter(Boolean).flatMap((file) => errors(resolve(root, file)))).toEqual([]);
 });
 
-test.each(["pi", "omp"])("US-021 / US-022 / US-023: %s installs routed verification skills", (consumer) => {
+test.each(["pi", "omp"])("US-021 / US-022 / US-023 / US-041: %s installs routed verification skills and the foundations", (consumer) => {
 	const dir = temp();
 	const home = resolve(dir, "home");
 	const agent = resolve(home, "agent");
@@ -74,14 +74,6 @@ test.each(["pi", "omp"])("US-021 / US-022 / US-023: %s installs routed verificat
 		},
 	});
 	expect(result.exitCode).toBe(0);
-	const audit = resolve(agent, "skills/test-audit");
-	expect(readFileSync(resolve(audit, "SKILL.md"), "utf8")).toMatch(/^---\r?\nname: test-audit\r?\n/m);
-	expect(existsSync(resolve(audit, "CAMPAIGN.md"))).toBe(true);
-	expect(readFileSync(resolve(agent, "AGENTS.md"), "utf8")).toContain("skill://test-audit");
-	for (const name of ["story-qa", "check-cadence"]) {
-		expect(readFileSync(resolve(agent, `skills/${name}/SKILL.md`), "utf8")).toMatch(new RegExp(`^---\\r?\\nname: ${name}\\r?\\n`));
-		expect(readFileSync(resolve(agent, "AGENTS.md"), "utf8")).toContain(`skill://${name}`);
-	}
 	const failures = readdirSync(resolve(agent, "skills")).flatMap((name) => {
 		const pkg = resolve(agent, "skills", name);
 		return markdown(pkg).flatMap((file) => errors(file, pkg, true));

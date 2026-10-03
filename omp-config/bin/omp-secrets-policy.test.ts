@@ -7,38 +7,46 @@ import { MANAGED_MARKER, compileEntry, installPolicy, parsePolicy } from "./omp-
 const policyPath = join(import.meta.dir, "..", "secrets.yml");
 const policyText = await readFile(policyPath, "utf8");
 
-// OMP's obfuscate mode replaces every regex match of eight or more characters.
-function mask(text: string): string {
-	let masked = text;
-	for (const entry of parsePolicy(policyText)) {
-		masked = masked.replace(compileEntry(entry), (match) => (match.length >= 8 ? "<masked>" : match));
-	}
-	return masked;
+// Assert the secret spans, not a copy of OMP's masking implementation.
+function values(text: string): string[] {
+	return parsePolicy(policyText).flatMap((entry) => [...text.matchAll(compileEntry(entry))].map((match) => match[0]));
 }
 
 describe("harness secrets policy", () => {
-	test("masks credential values in env-style lines as grep and read print them", () => {
-		expect(mask(" 12:SUPABASE_ACCESS_TOKEN=placeholder-value-one")).toBe(" 12:SUPABASE_ACCESS_TOKEN=<masked>");
-		expect(mask("*3:export OPENROUTER_MANAGEMENT_KEY=placeholder-value-two")).toBe(
-			"*3:export OPENROUTER_MANAGEMENT_KEY=<masked>",
-		);
-		expect(mask('DB_PASSWORD="several words here"')).toBe("DB_PASSWORD=<masked>");
-		expect(mask("DB_PASSWORD=abc#defghijkl")).toBe("DB_PASSWORD=<masked>");
-		expect(mask('"STRIPE_SECRET": "placeholder-value"')).toBe('"STRIPE_SECRET": <masked>');
-		// Joined at runtime so the repository's secret scanners do not flag the fixture.
-		const url = ["DATABASE_URL=postgres://app", "placeholderpw@db.internal:5432/app"].join(":");
-		expect(mask(url)).toBe("DATABASE_URL=postgres://app:<masked>@db.internal:5432/app");
+	test("matches complete credential values, including unquoted whitespace and bare keyword names", () => {
+		const secret = ["fixture", "password"].join("-");
+		for (const name of ["KEY", "TOKEN", "SECRET", "PASSWORD", "PASS", "AUTH", "CREDENTIAL", "PRIVATE", "DB_PASSWORD"]) {
+			expect(values([name, secret].join("="))).toEqual([secret]);
+		}
+		expect(values([" 12:SUPABASE_ACCESS_TOKEN", secret].join("="))).toEqual([secret]);
+		expect(values(["*3:export OPENROUTER_MANAGEMENT_KEY", secret].join("="))).toEqual([secret]);
+		expect(values(["DB_PASSWORD", `"${secret} with spaces"`].join("="))).toEqual([`"${secret} with spaces"`]);
+		expect(values(["DB_PASSWORD", `'${secret} with spaces'`].join("="))).toEqual([`'${secret} with spaces'`]);
+		expect(values(['"STRIPE_SECRET"', `"${secret}"`].join(": "))).toEqual([`"${secret}"`]);
+		const spaced = `${secret} with spaces`;
+		expect(values(["DB_PASSWORD", spaced].join("="))).toEqual([spaced]);
 	});
 
-	test("leaves identifiers and ordinary values readable", () => {
+	test("matches the entire URL password through its final authority delimiter", () => {
+		const secret = ["fixture", "password@segment"].join("-");
+		const url = ["postgres://app", `${secret}@db.internal:5432/app`].join(":");
+		expect(values(["DATABASE_URL", url].join("="))).toEqual([secret]);
+		expect(values(["https://app", `${secret}@example.com?email=x@y`].join(":"))).toEqual([secret]);
+	});
+
+	test("keeps ordinary values, short credentials, and following lines outside the match", () => {
 		for (const line of [
 			"VERCEL_TEAM_ID=team_placeholder",
 			"QA_EMAIL=qa@example.com",
 			"PASSWORD_MIN_LENGTH=12",
+			["KEY", "1234567"].join("="),
+			["KEY", '"1234567"'].join("="),
 			"see https://example.com/docs/page",
+			["KEY", "\nordinary value on the next line"].join("="),
 		]) {
-			expect(mask(line)).toBe(line);
+			expect(values(line)).toEqual([]);
 		}
+		expect(values([["KEY", "12345678"].join("="), "QA_EMAIL=qa@example.com"].join("\n"))).toEqual(["12345678"]);
 	});
 
 	test("rejects a policy that would commit a literal secret or stop masking", () => {

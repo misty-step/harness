@@ -4,7 +4,7 @@ Shared, harness-neutral agent primitives for the Misty Step harnesses. It is the
 base layer under `pi-config` and
 `omp-config`: portable skills, shared
 global guidance, and the `pass-env` secret launcher live here once, and each
-harness declares which primitives it selects. `design-check` and the
+harness declares which primitives it selects. `design-check`, `review-check` and the
 `openrouter-key` directory-aware credential launcher deploy on the same contract.
 
 A primitive belongs here only if it is harness-neutral and either duplicated
@@ -18,15 +18,17 @@ harness repo. When in doubt, leave it in the harness.
 | --- | --- |
 | `install` | The single deploy contract: skills, guidance, launchers, and the audio sandbox |
 | `skills/` | Portable skill packages, clean-replaced when selected |
-| `skills/test-audit/` | Shared authoring gate and focused test audit; subsystem campaign is opt-in (US-021) |
-| `skills/story-qa/` | Curated user-story walks by agents on the real product surface (US-022) |
-| `skills/check-cadence/` | Risk-based PR/nightly/weekly check selection without losing owned gates (US-023) |
+| `skills/test-audit/` | Concise independent consumer-proof guidance, no per-test ledger |
+| `skills/story-qa/` | Short real-path proof and check-cadence guidance |
+| `skills/pr-preview/` | Legacy preview controller source; not selected by OMP engineering |
+| `review/` | Undeployed review choreography/template, owned by Kaylee rather than engineers |
 | `guidance/*.md` | Shared global-guidance sections, spliced at the harness marker |
 | `bin/pass-env.ts` | Standalone pass-backed environment launcher |
 | `bin/openrouter-key.ts` | Shared OMP/Pi key resolver: R90 checkout or Git-common-dir gets the R90 pass entry; other directories use `--personal` (US-028) |
 | `bin/ws.ts` | Owned exe.dev project workspace launcher: snapshot, task worktrees, remote commands, evidence, browser tunnel (US-025) |
 | `bin/foundation-check.ts` | Repository foundation validator: adoption record, documents, feature map, verify skill, affected stories, walk receipts (US-024) |
 | `bin/design-check.ts` | Standalone player-surface copy checker, installed as `~/.local/bin/design-check` |
+| `bin/review-check.ts` | Standalone headless-Chromium first-screen check for operator review pages: point and every ask above the fold, no dense block; installed as `~/.local/bin/review-check` (US-050) |
 | `bin/semantic-check.ts` | Source candidate for an advisory semantic-quality CLI |
 | `bin/semantic-held-out.ts` | Source-only held-out evaluator for the semantic-quality candidate |
 | `bin/feature-map.ts` | Source-only pilot: Jev-drafted feature map and comparison against a reference `features/` map (ADR-003; not deployed) |
@@ -50,12 +52,41 @@ refuses unpulled or changed evidence, then removes the worktree and lease,
 not the VM. `ws attach --task T` opens a remote shell; `ws status` checks
 VM presence. Agent sessions and model credentials stay local.
 
+## PR previews
+
+[`pr-preview`](skills/pr-preview/SKILL.md) supplies the small Bun controller:
+`bun /absolute/skill/pr-preview.ts up|down --repo OWNER/REPO --pr NUMBER`
+(`up` accepts `--sha HEAD_SHA`). Run it outside candidate code with
+`--no-env-file --no-install`; `PR_PREVIEW_CHECKOUT` identifies the trusted
+default-branch checkout and `PR_PREVIEW_OUTPUT_DIR` names a fresh controller
+temp directory for deployment facts. It streams exact-head source and Git
+objects to a deterministically owned private exe.dev VM. The application's
+`.exe/preview` builds production, seeds existing synthetic QA data, checks
+health, and stays foreground under supervision. CI serializes deployment and
+merge/close teardown only; the ordinary job token may post deployment facts.
+The agent walks every affected story/claimed adapter from its own session,
+fixes any verification gaps, marks untouched scope not affected, and posts
+revision-bound screenshots/video with its existing signed-in GitHub CLI
+2.101 `gh pr comment --attach`. No upload token goes into CI; no Actions
+artifacts or preview-hosted evidence. Merge/close destroys only the owned VM,
+not the durable native PR assets. Agents author the rationale.
+Pi retains this controller package; OMP engineering no longer selects it.
+
+The operator-approved boundary is trusted same-repo PRs on every target;
+forks get explicit no-execution exception facts. Controller GitHub/SSH/model
+credentials are never transported. Existing exe.dev account policy is unchanged:
+trusted VMs may inherit its notification/model/reflection integrations, so they
+are not claimed to have zero model authority. The controller transfers no media;
+agent-session QA captures sanitized native evidence on the actual surface.
+
 ## Foundation check (US-024)
 
 `foundation-check check --repo DIR` validates `foundation.json` against the
 Foundation Standard catalog, the first-class documents, `check-stories.sh`,
 the `features/` map, and a verify skill with Launch/Doctor/Drive/Evidence/Cleanup
-sections. `affected --base REV` prints the live stories a diff touches;
+sections. `affected --base REV` prints the live stories a diff touches (feature
+files in the change that first creates `features/` do not count; source and
+story edits do);
 `receipt PATH --base REV` validates a same-job story-walk receipt against HEAD,
 its tree, the affected stories, and artifact digests. Repository CI pins this
 file from a harness revision; the deployed launcher resolves the catalog and
@@ -71,21 +102,119 @@ baselined, and fails an expired entry or one whose gap is fixed. In PR CI,
 needs an added `foundation/extensions/*.json` record
 (`foundation-baseline-extension/1`: reason plus gap and expiry per entry),
 approved by the designated agent reviewer, and a story the PR edits cannot stay
-unmapped. Against a change, `receipt` accepts `unwalked` only for a mapped,
-unaffected story with an unexpired `walk:` entry: an unmapped story's impact is
-unknown, so it must be walked. The nightly full walk uses `receipt --all`, which
-requires every live story and flags walk entries whose story now passes.
+unmapped. `receipt` accepts `unwalked` for any story with an unexpired `walk:`
+entry (no walk yet), affected by the change or not, and prints it as
+`advisory:`; a walk that ran and failed, or an `unwalked` story without an
+entry, fails. A repository's walk runner therefore reports what it cannot walk
+as `unwalked` and exits non-zero only for a failed walk or a crash. The nightly
+full walk uses `receipt --all`, which requires every live story and flags walk
+entries whose story now passes.
 
-`review --pr N` is the gate for the two approvals an author cannot give
-(ADR-003 Review authority). From the GitHub API it reads the PR's base, head,
-author and reviews, and passes at once unless the PR gives `USER_STORIES.md`
-its first stories or adds a `foundation/extensions/` record. Then it needs an
-approving review on the PR head from the organisation's agent reviewer, written
-into the checker (misty-step: `kaylee-agent[bot]`). After that reviewer's
-`foundation-escalation: product-direction` review on the head, only its later
-approval recording the operator's decision and opening with
-`foundation-escalation: resolved` as its exact first line counts; approvals from the operator's shared account never do. Copy
-[`skills/foundation/foundation-review.yml`](skills/foundation/foundation-review.yml)
+Every application owes three operational obligations (US-040, ADR-005):
+continuous deployment (FND-REL-001), loud production alerting (FND-ALR-001) and
+incident response that closes the class (FND-INC-001), with no `exception` and
+no `not_applicable` for an application. A record whose `surfaces` include `ui`,
+`cli`, `api` or `deployed`, or that has no `surfaces`, is an application. Each
+obligation still pending is the gap `ops:ship`, `ops:alert` or `ops:incident`,
+timed by the ratchet like any other. A `satisfied` claim must hold up: the
+record's `operations.ship` names the confirmed default branch (trunk) and a
+workflow and job that fires on every push to it (no path or tag-only filters)
+and waits on the gate, with an `if:` limited to default-branch push guards
+(or a platform for a single-tenant app, proved in the receipt). Its `tenancy`
+declares `{"model":"single"}` or, for multi-tenant apps:
+
+```json
+{
+  "model": "multi",
+  "registry": "tenants/registry.json",
+  "state": "scripts/tenant-state.sh",
+  "migrate": "migrate",
+  "excluded": [{ "tenant": "id", "reason": "reviewed reason" }]
+}
+```
+
+For multi-tenancy, the registry and state files must exist, a workflow ship
+must transitively `needs` the migration job, and every excluded tenant must
+appear in the registry with a reason; edits to exclusions are reviewable
+adoption-record changes. Migrations run before the deploy against each tenant
+and stay backward-compatible with the running code; failure stops rollout.
+The checker cannot prove actual fan-out from files: the receipt reads back
+every non-excluded tenant's deployed revision and migration level, while the
+state command reports all tenants including those excluded.
+
+`operations.alert` names the error-capture file, a scheduled health workflow or
+external monitor, and an approved agent triage route as the destination (currently
+`kaylee-alert-intake`, never a person's inbox or phone). For Sentry, every alert
+rule targets the intake and no alert email goes to org members; the route itself
+is owned in `hermes-config/docs/alert-routing.md`. The triage agent opens the
+incident ticket for a real alert and starts an engineer or escalates to Kaylee;
+`docs/runbook.md` has an `## Incidents` section, and a ticket closes only with
+its linked postmortem and class-closing fix. For a
+pin bump, `baseline --owner NAME --revision SHA --write` re-pins the standard
+and adds new catalog obligations as `pending`, keeping existing walk entries;
+`--surfaces a,b` sets the record's surfaces. Declaring an application's record a
+non-application is a review trigger, like a baseline extension.
+
+`review --pr N` diagnoses foundation review records (ADR-003 Review authority),
+not a server merge prerequisite. It reads the PR's immutable base/head and
+submitted reviews. On misty-step, inspectable content needs the App's independent
+model-review record. That same exact-head approval supplies the delegated agent
+decision for first stories, baseline extensions, invariants-ledger changes,
+surface changes and disposition approvals; no second App approval is required.
+The existing r90group record reader accepts a model decision published under
+`moomooskycow` with the exact `foundation-review: approved <head sha>` marker,
+not a required human approval. An explicit product-direction escalation still
+needs a later approval opening with `foundation-escalation: resolved` as its
+exact first line; approvals from the operator's shared account never do on
+misty-step. A bare App approval is not a model-review record. The App's latest
+binding change request or dismissal on the head stands: a metadata comment
+cannot clear it or revive an older approval.
+Metadata-only review cannot clear a binding rejection on the same head; fix the
+candidate and move the head, not just its description.
+
+The reviewing agent runs `agent-review --repo misty-step/NAME --pr N
+--author-model provider/model` under `pass-env` with `KAYLEE_GITHUB_APP_ID`
+and `KAYLEE_GITHUB_APP_PEM`, or supplies `AGENT_REVIEW_AUTHOR_MODEL`.
+The dispatcher selects Sonnet 5.5 high for an OpenAI author and Sol medium
+for an Anthropic author. Missing/unknown author evidence and same-family
+`AGENT_REVIEW_MODEL` overrides refuse before GitHub mutation;
+`AGENT_REVIEW_THINKING` remains an explicit effort override. The record identifies
+the caller's declared author selector, not an authenticated author identity.
+Both text and vision processes use a disposable supported OMP config
+that disables model fallback and clears the selected model's bare, effort,
+provider-wildcard and reviewer/default recovery chains. Native response identity
+and terminal successful completion are checked before any review is recorded.
+No model outage, fallback or incomplete response produces an approval.
+
+Paths are classified from immutable Git raw mode/object records and blob-based
+numstats, never unified-diff wording: quoted/tab paths and rename-only images
+retain their review surface, and ordinary `Subproject commit` text or a file
+replacing a gitlink remains reviewable. Supported PNG, JPEG, GIF and WebP head
+blobs are attached to a separate no-tools Opus/high process. Its complete
+inspection reaches the text reviewer; an inspection over 20,000 characters
+refuses the review rather than discarding evidence. The posted body names only
+images actually inspected, with native model identity verified.
+
+Opaque asset classification additionally requires mode `100644`, a matching
+format suffix and signature: WOFF/WOFF2, TTF/OTF/TTC, WebAssembly, ZIP, gzip,
+7z and RAR. Headers are recognized, not payloads security-audited. Source/config
+made Git-binary by an embedded NUL, unknown formats and executable artifacts
+are refused, never granted a metadata-only waiver. Signature reads share the
+64 MB Git output bound.
+
+If every changed path is a recognized inert opaque asset or gitlink pointer, the model judges
+the PR description and immutable pointer/blob metadata. A clean verdict posts
+`COMMENT` with `agent-review-scope: metadata-only`, never an opaque content
+approval; a defect posts `REQUEST_CHANGES`. `foundation-check review` requires
+that clean exact-head, current-state metadata record before reporting content
+as advisory. Missing/stale/dismissed records or explicit blocking decisions
+fail it. Mixed opaque/reviewable changes must be split.
+
+CodeRabbit is advisory. The 2026-09-30 uniform policy removes human approval and
+server-required CI merge gates across all three owners without changing plans
+or granting repository exemptions; model review, green checks and real-flow
+proof remain the agent's merge procedure (ADR-003 amendment). Copy
+[`review/foundation-review.yml`](review/foundation-review.yml)
 into a repository's workflows and pin the same harness revision as its
 `foundation` job. It runs on `pull_request_target`, so the base branch's copy of
 the gate judges each PR; after any review action the reviewer toggles a label to
@@ -162,8 +291,7 @@ all fail closed.
 ./install --check --agent-dir DIR \
   --skill all \
   --bin pass-env.ts \
-  --guidance pokayoke --guidance communication-and-verification --guidance host-resources --guidance credentials \
-  --guidance user-stories --guidance session-close --guidance design-routing \
+  --guidance engineering --guidance workstation \
   --guidance-source ../pi-config/global/AGENTS.md
 ```
 
@@ -182,38 +310,55 @@ the insertion marker:
 `./install` replaces that line with the selected sections, in the order given,
 and leaves the rest of the harness file — its title, intro, and vehicle-specific
 sections — untouched. The marker is required; its absence aborts the deploy.
-Shared guidance sections may reference shared primitives and vehicles deployed across both harnesses, such as `skill://using-exe-dev`.
+
+Technology defaults live once in [shared Engineering guidance](guidance/engineering.md),
+not in each harness intro.
+
+Shared guidance references only knowledge selected by both engineering consumers.
 
 ## What each harness selects
 
 | Harness | Skills | Guidance | Launcher | Audio sandbox |
 | --- | --- | --- | --- | --- |
-| `pi-config` | all | pokayoke, communication-and-verification, host-resources, user-stories, session-close, design-routing | `pass-env`, `design-check`, `foundation-check`, `ws` | component `audio-sandbox` |
-| `omp-config` | all | pokayoke, communication-and-verification, host-resources, user-stories, session-close, design-routing | `pass-env`, `design-check`, `foundation-check`, `ws` | component `audio-sandbox` |
+| `pi-config` | all | engineering, workstation | `pass-env`, `design-check`, `foundation-check`, `review-check`, `ws` | component `audio-sandbox` |
+| `omp-config` | explicit engineering selection | engineering, workstation | `pass-env`, `openrouter-key`, `design-check`, `foundation-check`, `review-check`, `ws` | component `audio-sandbox` |
 
-`omp-config`'s own guidance file adds Working together (including model roles),
-Execution environments (exe.dev vehicle), and Authority
-and operations. `pi-config`'s file is title and intro only.
+OMP's intro carries its routing/tracker discovery facts; its `OPERATIONS.md`
+holds on-demand details. Pi's file is title and intro. Component `AGENTS.md`
+files are maintainer instructions, separate from these generated globals.
 
-`test-audit` owns test authoring, consolidation, and pruning decisions for both
-harnesses; it avoids repeated verification of the same contract. Shared
-guidance requires adversarial self-review of every change and invokes
-`story-qa` for affected user-facing story walks before done. Docs-only and
-internal changes get proportionate owner-path checks, not artificial browser
-walks. `check-cadence` guides fast PR checks and owned nightly/weekly coverage.
-The shared guidance routes all three; it does not schedule a run. Their scope
-is distinct from `verification-infrastructure`, which creates repository-owned
-runnable verification. The `effective-verification` candidate below judges
-test and execution evidence; it is not deployed.
+OMP carries craft only: quality code, product intent, foundations, actual consumer
+proof and non-obvious tooling facts. Dispatch, fleet management, review
+choreography and approval gates belong to Kaylee; neither the shared engineering
+page nor OMP's selected skills prescribes them. Review docs/template remain
+maintainer-only in `review/`; the OMP installer does not install `agent-review`.
+Existing access/data-safety code and the normative catalog remain unchanged.
+
+The installer retires `agent-ergonomics`, `capture`, `decide`, `check-cadence`
+and `verification-infrastructure` after migrating their useful content.
+`effective-verification` remains an undeployed source candidate.
+
+### Official TypeSafe skill
+
+`skills/typesafe-ai/` is the complete, unmodified MIT-licensed package from
+[`typesafe-ai/skills`](https://github.com/typesafe-ai/skills/tree/65a39f393687675ce170e6094757de20370365b9/skills/typesafe-ai),
+pinned at `65a39f393687675ce170e6094757de20370365b9` (`SKILL.md` and `LICENSE`).
+The [official installation guide](https://docs.typesafe.ai/agent-skill.md) supports
+copying that entire directory. Both harness installers select it through
+`--skill all`; no registry install or duplicate copy is needed.
+
+`system-one` remains a thin fleet companion: OpenRouter Decisions, credential
+separation, and deployed consumers. Upstream owns primitive/question/confidence
+guidance. Refresh by replacing the entire upstream directory, retaining its
+license, updating this pin, and reviewing the companion against current docs.
+The official SDKs (`@typesafe-ai/sdk` on npm and `typesafe-sdk` on PyPI) are
+clients, not the agent skill; no SDK dependency is needed for this adoption.
 
 ## Semantic-quality source candidate
 
-The semantic-quality files are not selected by either installer. Candidate skills
-stay outside `skills/`, because both consumers currently select every directory there.
-They remain a
-source candidate until a separate rollout completes repository pilots and fresh-process
-Hermes verification. The engine uses fixed Choice questions through OpenRouter
-Decisions. Its findings remain advisory, and deterministic exits stay authoritative.
+Semantic-quality files remain undeployed source candidates, outside the
+engineering skill selection. Typed findings advise; deterministic product
+contracts own actual failures.
 
 See [the build, pilot, and rollback guide](../docs/semantic-quality.md).
 
@@ -224,13 +369,94 @@ consumers are sibling components. Follow the [root setup guide](../README.md).
 Harness installers invoke this component's `install`; a missing base fails closed.
 `AGENT_CONFIG_DIR` remains an advanced override. `linear-cli` is installed separately.
 
+## Opt-in desktop memory guard
+
+`./install --desktop-guard` stages the harness-neutral native Herdr boundary
+and two-slot local-job launcher (US-043). It does not activate user units or
+desktop bindings and is not selected by normal Pi/OMP installs. The
+[operating runbook](../docs/desktop-memory-guard.md) owns verification and the
+operator's cutover/rollback; source lives in `desktop-guard/`.
+
+## Opt-in agent session backups
+
+`./agent-config/install --session-backup` from the workspace root installs the
+backup CLI, names-only pass references and **inactive** user units. It is not
+selected by normal Pi/OMP installs; no gateway, Kaylee or Herdr restart is needed.
+`--check` is inert; foreign destinations fail before any selected file is written.
+
+The source in `session-backup/` reuses Pile's existing encrypted workstation R2
+restic repository and four credential references. It does not initialize a new
+repository or buy a service. Snapshots have tag `agent-session-stores`; retention
+matches Pile: 30 daily and 24 monthly snapshots, scoped by tag and host. Shared
+repository pack pruning remains with the repository owner.
+
+Each run saves the entire `~/.omp/agent/sessions` tree directly, without a second
+32-GB local copy. Kaylee's `~/.hermes/profiles/kaylee/state.db`, `sessions/`,
+`cron/` and `plugin-data/kaylee/` supply her history, execution records, Glass item
+history and dispatch mappings. Every SQLite database in those selected directories
+is snapshotted through SQLite's online backup API, including committed WAL data;
+live DB files and sidecars are never copied. Snapshots are individually consistent,
+not a transaction across separate databases and transcript files. Active OMP files
+may end between turns; a subsequent night captures their later records.
+
+The nightly command restores its exact uploaded Hermes staging tree, verifies
+restored content and compares all SQLite snapshot hashes before reporting success
+or applying retention. Unreadable source files / restic exit 3 fail the run, even
+if restic created an incomplete snapshot. Staging and nightly proof scratch are
+removed on exit; `~/.local/state/agent-session-backup/last-success.json` records
+the exact successful snapshot, counts and bytes.
+
+Activate only after review and verification:
+
+```sh
+systemctl --user daemon-reload
+systemctl --user enable --now agent-session-backup.timer
+systemctl --user start agent-session-backup.service
+journalctl --user -u agent-session-backup.service --no-pager
+pass-env run -f "$HOME/.config/agent-session-backup.env.pass" -- \
+  restic snapshots --tag agent-session-stores
+```
+
+The timer runs nightly at 04:10 local time, with up to ten minutes randomized
+delay and missed-run persistence. The service uses a 1-GiB memory ceiling, idle
+I/O scheduling and the existing Kaylee host success/failure hooks. It requires
+the workstation's installed `pass-env`, Bun, Python 3, restic and Glass launcher.
+
+For a full isolated recovery drill, choose an exact snapshot and a finished item
+with a readable ledger in `glass query item ITEM --json`:
+
+```sh
+target=$(mktemp -d "$HOME/.cache/tmp/agent-session-drill.XXXXXX")
+pass-env run -f "$HOME/.config/agent-session-backup.env.pass" -- \
+  python3 agent-config/session-backup/drill.py \
+  --snapshot SNAPSHOT_ID --item FINISHED_ITEM_ID --target "$target" \
+  --glass-source "$HOME/development/misty-step/board"
+```
+
+The drill restores **all** backed-up content with restic verification, compiles
+the ledger helper against the exact Glass revision recorded in the snapshot and
+runs Glass's own ledger reader and display aggregation. Bubblewrap hides both
+live owner roots beneath restored mounts and disables network access; original
+absolute session bindings stay intact. It compares agents, parents, models,
+effort, token components, timestamps, wall time, unknown reasons and aggregate
+counts against live Glass, ignoring only transient read timestamps. It rejects a
+changed live ledger or Glass build. No alternate ledger algorithm or live source
+fallback is used. Requires Go, Git, Bubblewrap and a local Glass source repository
+containing the recorded revision.
+
+`$target/ledger-proof.json` is the accounting evidence; preserve it on the board
+before removing the owned scratch directory. The restore contains sensitive
+transcripts and is private (umask 077); do not publish raw source files. Unknown
+token rows remain unknown, not invented zeros. Recovery also requires the
+existing restic password and R2 credentials; keep their independent recovery
+path with the credential owner.
+
 ## Not yet here
 
 Single-owner or repo-local pieces that stay with their harness for now:
 
-- [Workstation runbook](../omp-config/references/dev-exec.md) and
-  [scratch-routing design](../omp-config/references/scratch-routing.md) — host docs,
-  retained with their operational implementation; linked by both harnesses.
+- [Scratch-routing design](../omp-config/references/scratch-routing.md) — host
+  design retained with its operational implementation.
 - [Pressure monitor](../omp-config/bin/tmp-health.py) — workstation-specific tool.
 - The Linear CLI is its own repo, [linear-cli](https://github.com/misty-step/linear-cli).
 - Repository hooks and release automation belong to the monorepo root.

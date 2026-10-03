@@ -47,7 +47,7 @@ require_base() {
   }
 }
 
-components_all="config guidance pi-chrome loc web-search failover image-budget openrouter-live continuation-nudge diff-review audio-sandbox pass-env skills openrouter-auth"
+components_all="config guidance pi-chrome loc web-search failover accounts image-budget openrouter-live continuation-nudge diff-review audio-sandbox pass-env skills openrouter-auth"
 
 selected=${PI_CONFIG_COMPONENTS:-all}
 case "$selected" in
@@ -73,24 +73,30 @@ has() {
 validate_config() {
   require_bun
   require_nonempty "$repo_dir/settings.json"
-  require_nonempty "$repo_dir/settings.subscription.json"
+  supports_default_model || {
+    echo 'Pi must list openai-pool/gpt-6.1-sol; upgrade Pi to 0.99.1 or newer before installing this default.' >&2
+    exit 1
+  }
   bun "$repo_dir/bin/pi-merge-settings.ts" \
     --source "$repo_dir/settings.json" \
     --dest "$agent_dir/settings.json" \
     --check
-  bun "$repo_dir/bin/pi-merge-settings.ts" \
-    --source "$repo_dir/settings.subscription.json" \
-    --dest "$agent_dir/settings.json" \
-    --check
 }
 
-# The operator model policy (Opus 5.5 first, GPT-6 Sol/Luna at max) needs
-# Pi-native Anthropic and Codex logins; OMP tokens are never copied here.
-# Select it only when both are ready, so an unauthenticated default is
-# impossible.
+# Pool and slot providers clone Pi's bundled Codex catalog, not the separately
+# refreshed pi.dev overlay. Refuse a binary that cannot resolve this default.
+supports_default_model() {
+  command -v pi >/dev/null 2>&1 || return 0
+  listed=$(PI_CODING_AGENT_DIR="$agent_dir" pi --no-extensions \
+    --extension "$repo_dir/extensions/accounts/index.ts" \
+    --list-models openai-pool/gpt-6.1-sol 2>/dev/null) || return 1
+  printf '%s\n' "$listed" | grep -Eq '^openai-pool[[:space:]]+gpt-6\.1-sol[[:space:]]'
+}
+
+# Subscription routes require Pi-native logins; OMP tokens are never copied.
+# Missing logins are reported without restoring a retired paid default.
 subscriptions_ready() {
   command -v pi >/dev/null 2>&1 || return 1
-  PI_CODING_AGENT_DIR="$agent_dir" pi auth check --provider anthropic --no-refresh >/dev/null 2>&1 || return 1
   PI_CODING_AGENT_DIR="$agent_dir" pi auth check --provider openai-codex --no-refresh >/dev/null 2>&1
 }
 
@@ -100,12 +106,9 @@ install_config() {
     --source "$repo_dir/settings.json" \
     --dest "$agent_dir/settings.json"
   if subscriptions_ready; then
-    bun "$repo_dir/bin/pi-merge-settings.ts" \
-      --source "$repo_dir/settings.subscription.json" \
-      --dest "$agent_dir/settings.json"
-    printf 'pi: Anthropic and Codex logins ready; default Opus 5.5 (model policy)\n'
+    printf 'pi: Codex login ready; default GPT-6.1 Sol xhigh (model policy)\n'
   else
-    printf 'pi: Anthropic/Codex logins not ready; default stays DeepSeek. Run /login for anthropic and openai-codex in pi, then ./install.\n'
+    printf 'pi: default GPT-6.1 Sol xhigh installed; Codex login missing. Run /login for openai-codex in pi before use.\n'
   fi
 }
 
@@ -132,9 +135,9 @@ install_openrouter_auth() {
   temp=$(mktemp "$agent_dir/.auth.json.XXXXXX")
   trap 'rm -f -- "$temp"' 0 1 2 15
   if [ -f "$target" ]; then
-    jq '.openrouter = {type:"api_key",key:"!openrouter-key --personal workstation/OPENROUTER_API_KEY_MIRRODIN_PI"}' "$target" > "$temp"
+    jq '.openrouter = {type:"api_key",key:"!openrouter-key --personal workstation/OPENROUTER_MISTY_STEP_HARNESS_WORKSTATION_RECOVERY_API_KEY"}' "$target" > "$temp"
   else
-    printf '{}\n' | jq '.openrouter = {type:"api_key",key:"!openrouter-key --personal workstation/OPENROUTER_API_KEY_MIRRODIN_PI"}' > "$temp"
+    printf '{}\n' | jq '.openrouter = {type:"api_key",key:"!openrouter-key --personal workstation/OPENROUTER_MISTY_STEP_HARNESS_WORKSTATION_RECOVERY_API_KEY"}' > "$temp"
   fi
   chmod 600 "$temp"
   mv -- "$temp" "$target"
@@ -148,17 +151,12 @@ run_shared() {
   set --
   if has pass-env; then set -- "$@" --bin pass-env.ts; fi
   if has guidance; then set -- "$@" --bin design-check.ts; fi
-  if has skills; then set -- "$@" --skill all --bin foundation-check.ts --bin ws.ts; fi
+  if has skills; then set -- "$@" --skill all --bin foundation-check.ts --bin review-check.ts --bin agent-review.ts --bin ws.ts; fi
   if has audio-sandbox; then set -- "$@" --audio-sandbox; fi
   if has guidance; then
     set -- "$@" \
-      --guidance pokayoke \
-      --guidance communication-and-verification \
-      --guidance host-resources \
-      --guidance credentials \
-      --guidance user-stories \
-      --guidance session-close \
-      --guidance design-routing \
+      --guidance engineering \
+      --guidance workstation \
       --guidance-source "$repo_dir/global/AGENTS.md"
   fi
   [ $# -gt 0 ] || return 0
@@ -184,7 +182,7 @@ install_pi_chrome() {
 }
 
 validate_loc() {
-  for file in analyze.ts index.ts git-hook.sh; do
+  for file in analyze.ts index.ts; do
     require_nonempty "$repo_dir/extensions/loc/$file"
   done
 }
@@ -196,7 +194,6 @@ install_loc() {
   for file in analyze.ts index.ts loc.test.ts; do
     install -m 600 "$repo_dir/extensions/loc/$file" "$agent_dir/extensions/loc/$file"
   done
-  install -m 700 "$repo_dir/extensions/loc/git-hook.sh" "$agent_dir/extensions/loc/git-hook.sh"
 }
 
 validate_web_search() {
@@ -226,6 +223,22 @@ install_failover() {
   install -d -m 700 "$agent_dir/extensions/failover"
   for file in index.ts decide.ts decide.test.ts; do
     install -m 600 "$repo_dir/extensions/failover/$file" "$agent_dir/extensions/failover/$file"
+  done
+}
+
+validate_accounts() {
+  for file in index.ts pool.ts pool.test.ts slots.ts slots.test.ts; do
+    require_nonempty "$repo_dir/extensions/accounts/$file"
+  done
+}
+
+install_accounts() {
+  # Pokayoke: clean-replace the owned package so obsolete files cannot survive.
+  # Slot logins live in auth.json under the slot ids and are never touched here.
+  rm -rf "$agent_dir/extensions/accounts"
+  install -d -m 700 "$agent_dir/extensions/accounts"
+  for file in index.ts pool.ts pool.test.ts slots.ts slots.test.ts; do
+    install -m 600 "$repo_dir/extensions/accounts/$file" "$agent_dir/extensions/accounts/$file"
   done
 }
 
@@ -330,6 +343,7 @@ if has pi-chrome; then validate_pi_chrome; fi
 if has loc; then validate_loc; fi
 if has web-search; then validate_web_search; fi
 if has failover; then validate_failover; fi
+if has accounts; then validate_accounts; fi
 if has image-budget; then validate_image_budget; fi
 if has openrouter-live; then validate_openrouter_live; fi
 if has continuation-nudge; then validate_continuation_nudge; fi
@@ -343,6 +357,7 @@ if has pi-chrome; then install_pi_chrome; fi
 if has loc; then install_loc; fi
 if has web-search; then install_web_search; fi
 if has failover; then install_failover; fi
+if has accounts; then install_accounts; fi
 if has image-budget; then install_image_budget; fi
 if has openrouter-live; then install_openrouter_live; fi
 if has continuation-nudge; then install_continuation_nudge; fi

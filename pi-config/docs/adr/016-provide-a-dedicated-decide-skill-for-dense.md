@@ -2,6 +2,11 @@
 
 Accepted 2026-09-15.
 
+Package ownership superseded 2026-09-30 by [lean shared guidance](../../../docs/lean-agent-guidance.md)
+(US-048). Generic decision prose was subsequently removed in the 2026-10-01
+code-red cut; `sachstand` retains only the optional speech path. The historical
+`/skill:decide` entrypoint is retired.
+
 When an operator asks an agent to "help me make a high
 quality decision here," the agent frequently defaults to conversational filler,
 false balance, or open-ended clarifying questions. For frontier reasoning models

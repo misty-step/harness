@@ -1,16 +1,17 @@
 modelRoles:
-  default: anthropic/claude-opus-5-5:medium
-  slow: anthropic/claude-opus-5-5:xhigh
-  extreme: anthropic/claude-opus-5-5:max
-  plan: openai-codex/gpt-6-astra:high
-  advisor: openai-codex/gpt-6-luna:max
-  task: openai-codex/gpt-6-sol:max
-  reviewer: openai-codex/gpt-6-astra:high
-  security-reviewer: openai-codex/gpt-6-astra:max
+  default: anthropic/claude-sonnet-5-5:medium
+  slow: anthropic/claude-sonnet-5-5:high
+  extreme: anthropic/claude-opus-5-5:xhigh
+  plan: openai-codex/gpt-6.1-sol:xhigh
+  advisor: anthropic/claude-sonnet-5-5:medium
+  task: anthropic/claude-sonnet-5-5:medium
+  reviewer: openai-codex/gpt-6.1-sol:medium
+  security-reviewer: openai-codex/gpt-6.1-sol:medium
   vision: anthropic/claude-opus-5-5:high
   smol: openai-codex/gpt-6-luna:max
   tiny: openai-codex/gpt-6-luna:max
   commit: openai-codex/gpt-6-luna:max
+  web: web/exa
 cycleOrder: [smol, default, extreme]
 symbolPreset: nerd
 theme:
@@ -66,74 +67,91 @@ secrets:
 tools:
   approvalMode: yolo
 advisor:
-  enabled: true
+  enabled: false
   syncBacklog: "off"
 providers:
-  tinyModel: lfm2-350m
   webSearchOrder:
     - exa
+auth:
+  # Shared subscription pool; native usage/reserve checks still apply.
+  accountPolicies:
+    - provider: anthropic
+      account:
+        email: phaedrus@r90.dev
+      priority: 1
+    - provider: openai-codex
+      account:
+        email: phaedrus@r90.dev
+      priority: 1
 retry:
   fallbackChains:
+    # Model keys outrank role chains, including a main session's `default`.
+    # No effort suffix: every Opus 5.5 reasoning level stops on an outage.
+    anthropic/claude-opus-5-5: []
     advisor:
+      - openai-codex/gpt-6.1-sol:xhigh
+      - xai-oauth/grok-4.7:xhigh
       - google-antigravity/gemini-3.8-flash:high
-      - xai-oauth/grok-4.7:xhigh
-      - openrouter/deepseek/deepseek-v4.1-flash:max
+    # Web search recovery stays on search providers, never retired chat models.
+    web:
+      - web/parallel
+      - web/perplexity
+      - web/zai
+      - web/tinyfish
+      - web/jina
+      - web/kagi
+      - web/tavily
+      - web/firecrawl
+      - web/brave
+      - web/kimi
+      - web/synthetic
+      - web/ollama
+      - web/searxng
+      - web/startpage
+      - web/duckduckgo
+      - web/ecosia
+      - web/google
+      - web/mojeek
+      - web/public
+    # Builders never fall through to Grok. Cross-provider recovery uses the
+    # shared account pool above; Gemini is the final subscription route.
     default:
-      - openai-codex/gpt-6-sol:max
+      - openai-codex/gpt-6.1-sol:xhigh
       - openai-codex/gpt-6-luna:max
-      - anthropic/claude-opus-5-5:medium
-      - xai-oauth/grok-4.7:xhigh
-      - openrouter/deepseek/deepseek-v4.1-flash:max
+      - google-antigravity/gemini-3.8-flash:high
     task:
+      - openai-codex/gpt-6.1-sol:xhigh
       - openai-codex/gpt-6-luna:max
-      - anthropic/claude-opus-5-5:medium
-      - xai-oauth/grok-4.7:xhigh
-      - openrouter/deepseek/deepseek-v4.1-flash:max
+      - google-antigravity/gemini-3.8-flash:high
     plan:
-      - anthropic/claude-opus-5-5:high
-      - openai-codex/gpt-6-sol:max
-      - xai-oauth/grok-4.7:xhigh
-      - openrouter/deepseek/deepseek-v4.1-flash:max
-    reviewer:
-      - anthropic/claude-opus-5-5:high
-      - openai-codex/gpt-6-sol:max
-      - xai-oauth/grok-4.7:xhigh
-      - openrouter/deepseek/deepseek-v4.1-flash:max
+      - anthropic/claude-sonnet-5-5:medium
+      - google-antigravity/gemini-3.8-flash:high
+    reviewer: []
     slow:
-      - openai-codex/gpt-6-astra:high
-      - openai-codex/gpt-6-sol:max
-      - xai-oauth/grok-4.7:xhigh
-      - openrouter/deepseek/deepseek-v4.1-flash:max
-    extreme:
-      - openai-codex/gpt-6-astra:max
-      - openai-codex/gpt-6-sol:max
-      - xai-oauth/grok-4.7:xhigh
-      - openrouter/deepseek/deepseek-v4.1-flash:max
-    security-reviewer:
-      - anthropic/claude-opus-5-5:high
-      - openai-codex/gpt-6-sol:max
-      - xai-oauth/grok-4.7:xhigh
-      - openrouter/deepseek/deepseek-v4.1-flash:max
-    # Visual work always stays on Opus: an empty chain would inherit `default`,
-    # so the only link is Opus itself and an Anthropic outage exhausts instead.
-    vision:
-      - anthropic/claude-opus-5-5:xhigh
+      - openai-codex/gpt-6.1-sol:xhigh
+      - google-antigravity/gemini-3.8-flash:high
+    extreme: []
+    security-reviewer: []
+    vision: []
     smol:
-      - anthropic/claude-opus-5-5:medium
-      - xai-oauth/grok-4.7:xhigh
-      - openrouter/deepseek/deepseek-v4.1-flash:max
+      - anthropic/claude-sonnet-5-5:medium
+      - google-antigravity/gemini-3.8-flash:high
     tiny:
-      - anthropic/claude-opus-5-5:medium
-      - xai-oauth/grok-4.7:xhigh
-      - openrouter/deepseek/deepseek-v4.1-flash:max
+      - anthropic/claude-sonnet-5-5:medium
+      - google-antigravity/gemini-3.8-flash:high
     commit:
-      - anthropic/claude-opus-5-5:medium
-      - xai-oauth/grok-4.7:xhigh
-      - openrouter/deepseek/deepseek-v4.1-flash:max
+      - anthropic/claude-sonnet-5-5:medium
+      - google-antigravity/gemini-3.8-flash:high
 task:
   maxRecursionDepth: 3
   showResolvedModelBadge: true
+  enableEffort: true
   enableLsp: true
+  # The supported specialist guard enables these only after initialization.
+  disabledAgents:
+    - reviewer
+    - security-reviewer
+    - designer
   # Opt-in per task item (`isolated: true`). Workspaces are copy-on-write under
   # ~/.omp/wt (btrfs/reflink on this host) and removed when the child yields;
   # no git worktree is registered. 0e0083c disabled this when `auto` produced

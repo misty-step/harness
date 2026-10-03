@@ -45,7 +45,7 @@ run_shared() {
   "$base_dir/install" $mode --agent-dir "$agent_dir" "$@"
 }
 
-guidance_files='AGENTS.md WATCHDOG.md WATCHDOG.yml'
+guidance_files='AGENTS.md OPERATIONS.md WATCHDOG.md WATCHDOG.yml'
 
 validate_guidance() {
   for file in $guidance_files; do
@@ -54,18 +54,18 @@ validate_guidance() {
   require_base
   run_shared --check \
     --bin design-check.ts \
-    --guidance pokayoke --guidance communication-and-verification --guidance host-resources --guidance credentials --guidance user-stories --guidance session-close --guidance design-routing \
+    --guidance engineering --guidance workstation \
     --guidance-source "$repo_dir/global/AGENTS.md"
 }
 install_guidance() {
   install -d -m 700 "$agent_dir"
-  for file in WATCHDOG.md WATCHDOG.yml; do
+  for file in OPERATIONS.md WATCHDOG.md WATCHDOG.yml; do
     install -m 600 "$repo_dir/global/$file" "$agent_dir/$file"
   done
   rm -f -- "$agent_dir/RULES.md"
   run_shared \
     --bin design-check.ts \
-    --guidance pokayoke --guidance communication-and-verification --guidance host-resources --guidance credentials --guidance user-stories --guidance session-close --guidance design-routing \
+    --guidance engineering --guidance workstation \
     --guidance-source "$repo_dir/global/AGENTS.md"
 }
 validate_config() {
@@ -74,6 +74,22 @@ validate_config() {
   require_nonempty "$repo_dir/models.yml"
   bun "$repo_dir/bin/omp-merge-config.ts" --source "$repo_dir/config.yml" --dest "$agent_dir/config.yml" --check
   bun "$repo_dir/bin/omp-merge-config.ts" --source "$repo_dir/models.yml" --dest "$agent_dir/models.yml" --check
+  # Validate the effective overlay before touching live config, including
+  # foreign model roles and chains that the installer preserves.
+  (
+    mkdir -p "$HOME/.cache/tmp"
+    candidate=$(mktemp -d "$HOME/.cache/tmp/omp-model-policy.XXXXXX")
+    trap 'rm -rf -- "$candidate"' 0 1 2 15
+    if [ -f "$agent_dir/config.yml" ]; then
+      cp "$agent_dir/config.yml" "$candidate/config.yml"
+    fi
+    bun "$repo_dir/bin/omp-merge-config.ts" --source "$repo_dir/config.yml" --dest "$candidate/config.yml"
+    case ${OMP_MODEL_PROBE-0} in
+      0) bun "$repo_dir/bin/omp-model-policy.ts" --config "$candidate/config.yml" ;;
+      1) bun "$repo_dir/bin/omp-model-policy.ts" --config "$candidate/config.yml" --probe ;;
+      *) echo 'OMP_MODEL_PROBE must be 0 or 1' >&2; exit 1 ;;
+    esac
+  )
   require_base
   run_shared --check --bin openrouter-key.ts
   require_nonempty "$repo_dir/secrets.yml"
@@ -143,8 +159,15 @@ install_scopes() {
     --development-root "$development_root"
 }
 
+
+# Engineering craft only. Management/review packages belong to Kaylee.
+engineering_skills='agent-design authenticated-commands cloudflare-workers design-studio engineering-operations foundation pokayoke remote-execution story-qa system-one test-audit typesafe-ai user-stories visual-state-review'
 validate_skill() {
   case "${1-}" in
+    herdr|pr-preview|sachstand|session-close|frontend-design|show-me|wrangler|using-exe-dev|all)
+      printf 'Not an OMP engineering skill: %s\n' "$1" >&2
+      exit 1
+      ;;
     ''|*[!a-zA-Z0-9_-]*)
       printf 'Invalid skill name: %s\n' "${1-}" >&2
       exit 1
@@ -160,11 +183,18 @@ install_skill() {
 
 validate_shared() {
   require_base
-  run_shared --check --skill all --bin pass-env.ts --bin openrouter-key.ts --bin design-check.ts --bin foundation-check.ts --bin ws.ts
+  set -- --check --bin pass-env.ts --bin openrouter-key.ts --bin design-check.ts --bin foundation-check.ts --bin review-check.ts --bin ws.ts
+  for skill in $engineering_skills; do set -- "$@" --skill "$skill"; done
+  run_shared "$@"
 }
 
 install_shared() {
-  run_shared --skill all --bin pass-env.ts --bin openrouter-key.ts --bin design-check.ts --bin foundation-check.ts --bin ws.ts
+  set -- --bin pass-env.ts --bin openrouter-key.ts --bin design-check.ts --bin foundation-check.ts --bin review-check.ts --bin ws.ts
+  for skill in $engineering_skills; do set -- "$@" --skill "$skill"; done
+  run_shared "$@"
+  for skill in herdr pr-preview sachstand session-close decide; do
+    rm -rf -- "$agent_dir/skills/$skill"
+  done
 }
 
 validate_secrets() {
@@ -216,7 +246,9 @@ install_extensions() {
   rm -f "$agent_dir/extensions/evidence-packet.ts"
   rm -rf -- "$agent_dir/extensions/executive"
   rm -rf -- "$agent_dir/extensions/continuation-nudge"
+  rm -rf -- "$agent_dir/extensions/diff-review"
   rm -rf -- "$agent_dir/references/review"
+  rm -f -- "$agent_dir/extensions/loc/git-hook.sh"
   for ext_dir in "$repo_dir"/extensions/*; do
     [ -d "$ext_dir" ] || continue
     ext_name=${ext_dir##*/}
@@ -228,16 +260,6 @@ install_extensions() {
       install -m 700 "$ext_entry" "$agent_dir/extensions/$ext_name/${ext_entry##*/}"
     done
   done
-  # Canonical System One shared engine deployment
-  if [ -d "$agent_dir/extensions/diff-review" ] && [ -f "$base_dir/system-one/engine.ts" ]; then
-    install -m 600 "$base_dir/system-one/engine.ts" "$agent_dir/extensions/diff-review/engine.ts"
-  fi
-  # LOC status hooks are a per-checkout convenience; the monorepo root owns
-  # hook installation, so this installer documents the recipe instead of
-  # writing hooks into whatever repository contains it.
-  loc_hook="$repo_dir/extensions/loc/git-hook.sh"
-  [ -x "$loc_hook" ] && printf '%s\n' \
-    'note: to enable LOC status hooks in a checkout, see README (post-commit/post-merge/post-checkout symlink recipe)'
 }
 
 # Agent audio sandbox (US-026), two layers. OMP loads the agent .env before any
@@ -265,10 +287,170 @@ install_audio_sandbox() {
   run_shared --audio-sandbox
 }
 
+validate_display_tools() {
+  for tool in bwrap slirp4netns Xvfb dbus-run-session; do
+    command -v "$tool" >/dev/null 2>&1 || { echo "$tool is required" >&2; exit 1; }
+  done
+  [ "$(cat /proc/sys/dev/tty/legacy_tiocsti 2>/dev/null)" = 0 ] || {
+    echo "Engineer display isolation requires dev.tty.legacy_tiocsti=0" >&2; exit 1;
+  }
+}
+
+validate_cli() {
+  require_bun
+  command -v flock >/dev/null 2>&1 || { echo "util-linux flock is required for experiment journal coordination" >&2; exit 1; }
+  require_nonempty "$repo_dir/bin/omp-grievances.ts"
+  require_nonempty "$repo_dir/bin/omp-roster.ts"
+  require_nonempty "$repo_dir/bin/omp-experiments.ts"
+  command -v python3 >/dev/null 2>&1 || { echo "python3 is required" >&2; exit 1; }
+  for name in omp-engineer omp-display omp-gui; do
+    source="$repo_dir/bin/$name.py"
+    target="$HOME/.local/bin/$name"
+    require_nonempty "$source"
+    python3 -c 'import sys; compile(open(sys.argv[1]).read(), sys.argv[1], "exec")' "$source"
+    if [ -e "$target" ] || [ -L "$target" ]; then
+      [ ! -L "$target" ] && python3 -c \
+        'import sys; a = open(sys.argv[1]); b = open(sys.argv[2]); sys.exit(a.readline() + a.readline() != b.readline() + b.readline())' \
+        "$source" "$target" || {
+        echo "Refusing foreign $name entrypoint" >&2; exit 1;
+      }
+    fi
+  done
+  if [ -L "$HOME/.local/bin/omp" ] && [ "$(readlink "$HOME/.local/bin/omp")" = omp-engineer ]; then
+    validate_display_tools
+  fi
+}
+
+validate_engineer_cage() {
+  validate_cli
+  # Reject a layout cutover before writes when its installed updater has not
+  # accepted this versioned contract. The query is inert in Workbench.
+  updater="$HOME/.local/bin/workbench-host-update"
+  if [ -e "$updater" ] || [ -L "$updater" ]; then
+    if ! layouts=$(timeout 5 "$updater" omp-install-layouts) ||
+      ! printf '%s\n' "$layouts" | jq -e \
+        '.schema_version == 1 and (.layouts | type == "array") and (.layouts | index("harness-engineer-cage-v1") != null)' >/dev/null; then
+      echo "Workbench does not support harness-engineer-cage-v1; upgrade its host-update release before activation" >&2
+      exit 1
+    fi
+  fi
+  require_nonempty "$repo_dir/units/omp.slice"
+  validate_display_tools
+  for tool in systemctl systemd-run oomctl; do
+    command -v "$tool" >/dev/null 2>&1 || { echo "$tool is required" >&2; exit 1; }
+  done
+  entry="$HOME/.local/bin/omp"
+  native="$HOME/.local/lib/omp-engineer/omp"
+  if [ -L "$entry" ]; then
+    [ "$(readlink "$entry")" = omp-engineer ] && [ -x "$native" ] || {
+      echo "Refusing foreign omp symlink or missing retained native binary" >&2; exit 1;
+    }
+  else
+    [ -f "$entry" ] && [ -x "$entry" ] && [ ! -e "$native" ] || {
+      echo "Expected an executable native omp and an unused native destination" >&2; exit 1;
+    }
+    [ "$(od -An -tx1 -N4 "$entry" | tr -d ' \n')" = 7f454c46 ] || {
+      echo "Refusing to replace a non-ELF omp entrypoint" >&2; exit 1;
+    }
+    case "$("$entry" --version)" in
+      omp/[0-9]*) ;;
+      *) echo "Refusing an unrecognised native omp binary" >&2; exit 1 ;;
+    esac
+  fi
+  unit="$HOME/.config/systemd/user/omp.slice"
+  if [ -e "$unit" ] || [ -L "$unit" ]; then
+    [ ! -L "$unit" ] && [ "$(IFS= read -r line < "$unit"; printf '%s' "$line")" = \
+      '# owned by misty-step/harness omp-config engineer-cage' ] || {
+      echo "Refusing foreign omp.slice configuration" >&2; exit 1;
+    }
+  fi
+}
+
+install_engineer_cage() {
+  # Explicit live cutover of future starts only. Never relocate running PIDs.
+  install_cli
+  install -d -m 700 "$HOME/.config/systemd/user" "$HOME/.local/lib/omp-engineer"
+  install -m 600 "$repo_dir/units/omp.slice" "$HOME/.config/systemd/user/omp.slice"
+  systemctl --user daemon-reload
+  systemctl --user start omp.slice
+  # Refresh a populated former 36-GiB parent in place; start is inert if active.
+  # The source unit persists infinity; this only converges its live property.
+  systemctl --user set-property --runtime omp.slice MemoryMax=infinity
+  "$HOME/.local/bin/omp-engineer" memory --json
+  entry="$HOME/.local/bin/omp"
+  native="$HOME/.local/lib/omp-engineer/omp"
+  if [ ! -L "$entry" ]; then
+    mv -- "$entry" "$native"
+    ln -s omp-engineer "$entry"
+  fi
+}
+
 install_cli() {
   require_nonempty "$repo_dir/bin/omp-grievances.ts"
+  require_nonempty "$repo_dir/bin/omp-roster.ts"
+  require_nonempty "$repo_dir/bin/omp-experiments.ts"
   install -d -m 700 "$HOME/.local/bin"
   install -m 700 "$repo_dir/bin/omp-grievances.ts" "$HOME/.local/bin/omp-grievances"
+  install -m 700 "$repo_dir/bin/omp-roster.ts" "$HOME/.local/bin/omp-roster"
+  # Deploy code only; the experiment journal and its historical prose are runtime state.
+  install -m 600 "$repo_dir/bin/omp-experiments.ts" "$HOME/.local/bin/omp-experiments.ts"
+  install -m 700 "$repo_dir/bin/omp-engineer.py" "$HOME/.local/bin/omp-engineer"
+  install -m 700 "$repo_dir/bin/omp-display.py" "$HOME/.local/bin/omp-display"
+  install -m 700 "$repo_dir/bin/omp-gui.py" "$HOME/.local/bin/omp-gui"
+}
+
+# Read-only repository auditors (omp-config/auditors). Explicit only, never part
+# of `all`: it enables live systemd user timers.
+auditor_files() {
+  printf '%s\n' \
+    "bin/omp-audit.py:.local/bin/omp-audit:700" \
+    "auditors/omp-audit.env.pass:.config/omp-audit.env.pass:600" \
+    "units/omp-audit@.service:.config/systemd/user/omp-audit@.service:600" \
+    "units/omp-audit-foundations.timer:.config/systemd/user/omp-audit-foundations.timer:600" \
+    "units/omp-audit-principles.timer:.config/systemd/user/omp-audit-principles.timer:600" \
+    "units/omp-audit-simplicity.timer:.config/systemd/user/omp-audit-simplicity.timer:600"
+}
+auditor_owner='# owned by misty-step/harness omp-config auditors'
+auditor_share="$HOME/.local/share/omp-audit"
+
+validate_auditors() {
+  command -v python3 >/dev/null 2>&1 || { echo "python3 is required" >&2; exit 1; }
+  command -v systemctl >/dev/null 2>&1 || { echo "systemctl is required" >&2; exit 1; }
+  python3 -c 'import sys; compile(open(sys.argv[1]).read(), sys.argv[1], "exec")' "$repo_dir/bin/omp-audit.py"
+  for name in template.md foundations.md principles.md simplicity.md audit-tool.ts vendor/mattpocock-skills/LICENSE; do
+    require_nonempty "$repo_dir/auditors/$name"
+  done
+  for entry in $(auditor_files); do
+    source=${entry%%:*}; rest=${entry#*:}; destination="$HOME/${rest%%:*}"
+    require_nonempty "$repo_dir/$source"
+    grep -Fqx "$auditor_owner" "$repo_dir/$source" || { printf 'Unowned auditor source: %s\n' "$source" >&2; exit 1; }
+    if [ -e "$destination" ] || [ -L "$destination" ]; then
+      if [ ! -f "$destination" ] || [ -L "$destination" ] || ! grep -Fqx "$auditor_owner" "$destination"; then
+        printf 'Refusing foreign auditor destination: %s\n' "$destination" >&2; exit 1
+      fi
+    fi
+  done
+  if [ -e "$auditor_share" ] && ! grep -Fqx "// ${auditor_owner#\# }" "$auditor_share/audit-tool.ts" 2>/dev/null; then
+    printf 'Refusing foreign auditor share: %s\n' "$auditor_share" >&2; exit 1
+  fi
+}
+
+install_auditors() {
+  for entry in $(auditor_files); do
+    source=${entry%%:*}; rest=${entry#*:}; destination="$HOME/${rest%%:*}"
+    install -d -m 700 "$(dirname -- "$destination")"
+    install -m "${rest##*:}" "$repo_dir/$source" "$destination"
+  done
+  # Clean-replace the owned share so a removed audit file cannot linger.
+  install -d -m 700 "$HOME/.local/share"
+  temp=$(mktemp -d "$HOME/.local/share/.omp-audit.XXXXXX")
+  cp -R "$repo_dir/auditors"/. "$temp"/
+  rm -f -- "$temp/audit-tool.test.ts" "$temp/omp-audit.env.pass"
+  chmod -R u=rwX,go= "$temp"
+  rm -rf -- "$auditor_share"
+  mv "$temp" "$auditor_share"
+  systemctl --user daemon-reload
+  systemctl --user enable --now omp-audit-foundations.timer omp-audit-principles.timer omp-audit-simplicity.timer
 }
 
 if [ "${OMP_INSTALL_GUIDANCE_ONLY+x}" = x ]; then
@@ -295,7 +477,7 @@ for component do
       validate_agents
       validate_themes
       validate_audio_sandbox
-      require_nonempty "$repo_dir/bin/omp-grievances.ts"
+      validate_cli
       ;;
     guidance) validate_guidance ;;
     config) validate_config ;;
@@ -304,6 +486,9 @@ for component do
     agents) validate_agents ;;
     secrets) validate_secrets ;;
     audio-sandbox) validate_audio_sandbox ;;
+    cli) validate_cli ;;
+    engineer-cage) validate_engineer_cage ;;
+    auditors) validate_auditors ;;
     skill:*) validate_skill "${component#skill:}" ;;
     *)
       printf 'Unknown install component: %s\n' "$component" >&2
@@ -322,6 +507,9 @@ if [ "$1" != all ]; then
       agents) install_agents ;;
       secrets) install_secrets ;;
       audio-sandbox) install_audio_sandbox ;;
+      cli) install_cli ;;
+      engineer-cage) install_engineer_cage ;;
+      auditors) install_auditors ;;
       skill:*) install_skill "${component#skill:}" ;;
     esac
   done

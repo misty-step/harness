@@ -1,7 +1,7 @@
 {
   "schema": "foundation-standard/1",
   "id": "misty-step.foundation",
-  "version": "1.1.0",
+  "version": "1.7.0",
   "principles": [
     {
       "id": "FND-P-APPLICABILITY",
@@ -43,7 +43,11 @@
       "applies_when": "A repeatable defect, unsafe transition, or release path exists.",
       "required_evidence": [
         "Executable negative controls reject the named failure class.",
-        "The same path accepts a valid case, and the recovery or rollback procedure is exercised where consequential."
+        "The same path accepts a valid case, and the recovery or rollback procedure is exercised where consequential.",
+        "Engineers run changed-contract proof and independent review before merge; no CI runs automatically on pull_request or pull_request_target. Cheap secret and privacy scans still run before code reaches the default branch, locally or by explicit dispatch.",
+        "The default branch builds each immutable candidate once and proves affected journeys on isolated preprod before automatic promotion. Access-control, data-integrity, migration, artifact-identity and recovery proof cannot move to nightly; shared or uncertain impact requires broader relevant candidate proof.",
+        "The complete regression suite and every live story run nightly against a recorded default-branch revision, and remain available on demand. The owner checks completion, including missed or delayed schedules; failures and missing runs reach the existing approved agent triage intake and an owned repair or revert, never a second alert path.",
+        "Nightly breadth is background detection, not a blanket merge or release veto. A nightly failure that demonstrates a defect in a shipping candidate is that candidate's failed proof; missing or failed candidate proof never counts as passing. Use hosted runners; this cadence authorizes no server or plan purchase."
       ],
       "exception_authority": "Accountable project owner with a time-bounded substitute control and residual-risk statement."
     },
@@ -117,8 +121,9 @@
       "title": "First-class project documents",
       "applies_when": "The repository is maintained as a project.",
       "required_evidence": [
-        "Root README.md, DESIGN.md, and USER_STORIES.md describe the product, design, and promised outcomes.",
-        "docs/adr/ contains at least one decision record; docs/postmortems/ contains a README or TEMPLATE for incident learning."
+        "Root README.md, AGENTS.md, DOMAIN.md with its invariants ledger, and USER_STORIES.md own orientation, operating instructions, boundaries and user intent; every repository has an executable scripts/check invoked by CI.",
+        "Surface-specific evidence: DESIGN.md for ui, a Release/Rollback/Recover runbook for deployed, a content schema and lint for content; ADRs, when present, have unique numbers, status and resolvable supersessions under docs/adr/.",
+        "Aliases are symlinks to AGENTS.md; core Markdown links and AGENTS routing commands resolve at HEAD. A committed .env.pass, when present, contains names-only credential references. Other generated references and the public face remain follow-up checks (ADR-004)."
       ],
       "exception_authority": "Accountable project owner with a documented substitute for the missing project record."
     },
@@ -138,19 +143,91 @@
       "applies_when": "A change affects a mapped story or story definition.",
       "required_evidence": [
         "A same-job walk receipt binds the candidate head and tree and passes every affected story and criterion.",
-        "Every cited evidence artifact has a retained path and matching digest; unwalked stories never pass."
+        "Every cited evidence artifact has a retained path and matching digest; unwalked stories stay advisory only with a current walk: baseline and never count as passing."
       ],
       "exception_authority": "Accountable project owner with an independently reviewed, time-bounded substitute walk."
     },
     {
       "id": "FND-WS-001",
       "title": "Workspace-ready bootstrap",
-      "applies_when": "A project uses an owned exe.dev workspace for checks and development.",
+      "applies_when": "Every active repository (ADR-004): checks run in a fresh Ubuntu LTS exe.dev VM and GitHub-hosted Ubuntu runner.",
       "required_evidence": [
-        ".exe/setup.sh is credential-free and idempotent on a fresh workspace.",
+        ".exe/setup.sh is credential-free and idempotent in both a fresh Ubuntu LTS exe.dev VM and GitHub-hosted Ubuntu runner.",
         "Bootstrap installs or configures the toolchain required for the project's checks without desktop credentials."
       ],
       "exception_authority": "Accountable project owner with an equivalent reproducible, credential-free workspace bootstrap."
+    },
+    {
+      "id": "FND-REV-001",
+      "title": "Independent review against project judgement rules",
+      "applies_when": "Every change to a maintained repository.",
+      "required_evidence": [
+        "A reviewer other than the PR author approves the candidate head after examining the Foundation constitution, the invariants ledger at the base revision, and the story the change serves.",
+        "The repository's review gate checks an independent approving review on the head; only the review receipt shows the actual judgement against the constitution, base ledger and story."
+      ],
+      "exception_authority": "Designated reviewer under ADR-003, with a time-bounded substitute independent review."
+    },
+    {
+      "id": "FND-SEC-001",
+      "title": "Security baseline",
+      "applies_when": "Secret scanning and dependency maintenance apply to every active repository; authorization-boundary tests additionally apply to applications (ui, cli, api or deployed).",
+      "required_evidence": [
+        "A named secret scan rejects incoming changes before merge and scans pushes; pre-main scanning may be explicitly dispatched rather than automatic PR CI. A configured dependency bot proposes current dependencies, and an independently verified auto-merge job restricts merges to bot patch and minor updates.",
+        "Applications name an authorization test and the workflow job that runs it, including a denied and an allowed case.",
+        "The checker resolves configured files, workflow jobs, job dependencies and test references. Only a receipt can show the scan ran, updates were safely merged, and authorization was exercised with meaningful identities."
+      ],
+      "exception_authority": "Designated reviewer and security owner with residual risk and an expiring substitute control."
+    },
+    {
+      "id": "FND-CIT-001",
+      "title": "Affected-story citation",
+      "applies_when": "A pull request changes source mapped to live stories in a feature map.",
+      "required_evidence": [
+        "The pull request description cites every affected live story id returned by foundation-check affected --base <base> for mapped source changes, in a Stories: US-001, US-002 line.",
+        "The review gate computes affected ids from the PR's base and candidate head and compares them with the description; the story's actual relevance and implementation are judged in review and the walk receipt."
+      ],
+      "exception_authority": "Designated reviewer with an explanation of an unmapped change and a dated mapping gap."
+    },
+    {
+      "id": "FND-REL-001",
+      "title": "Continuous deployment",
+      "applies_when": "The repository is an application: it changes a live system (surface deployed) or ships something people run (surfaces ui, cli or api).",
+      "required_evidence": [
+        "Every push to the default branch selects an immutable candidate, builds it once and deploys those bytes to isolated preprod. Production promotion runs automatically only after that candidate's targeted proof succeeds; there is no manual promotion, release PR or wait for an unrelated nightly suite.",
+        "Small, independently shippable slices exercise the affected real user journeys in production-like preprod with representative, privacy-safe data. Prove allowed and denied access, data preservation, migration compatibility and recovery where consequential; shared dependencies, lockfiles, deployment configuration or uncertain impact require broader relevant proof, not a path-filter guess.",
+        "Read back preprod revision and artifact digest, retain candidate-bound proof, and promote the same tested bytes without rebuilding moving main. Serialize promotions so an older slow candidate cannot replace a newer release; do not cancel an in-progress migration. Read back production identity and a read-only critical journey, and retain the previous known-good artifact.",
+        "Release health checks automatically roll a bad release back to the last healthy version without losing accepted writes or requiring destructive data restoration; a recorded drill proves rollback, and recent default-branch history shows green commits reaching production without hand steps.",
+        "Evidence follows the shipped surface: hosted apps use runtime health signals; artifact-only apps smoke-check the installed artifact and automatically revert the release-channel or updater pointer to the last healthy artifact on failure, without claiming to replace copies already installed outside that channel. QA uses representative inputs and state for that surface, without inventing a database or health endpoint the product does not have.",
+        "For a multi-tenant application, the deploy reaches every tenant in its complete registry; the receipt reads back every non-excluded tenant after deploy.",
+        "Any tenant excluded from the multi-tenant rollout is explicitly named in the adoption record with a non-empty reason; an exclusion is a reviewable record change, not an implicit deploy filter.",
+        "Before deployment, migrations run for each non-excluded tenant, remain backward-compatible with the still-running code (expand/contract), and a failed tenant migration stops the rollout.",
+        "The repository can report every tenant's production state, including each tenant's deployed revision and migration level, with excluded tenants still visible."
+      ],
+      "exception_authority": "None. Operator decision 2026-09-25 (ADR-005): no exception for an application; not_applicable only when the repository is not an application."
+    },
+    {
+      "id": "FND-ALR-001",
+      "title": "Loud production alerting",
+      "applies_when": "The repository is an application: it changes a live system (surface deployed) or ships something people run (surfaces ui, cli or api).",
+      "required_evidence": [
+        "Production errors are captured remotely with release and environment: Sentry by default (FND-DEF-SENTRY-001) or an approved equivalent that captures errors, checks health and raises incidents.",
+        "Health is checked from outside the application on a schedule; a released artifact without a live service instead reports crashes and errors from real installs.",
+        "Errors and failed health checks alert loudly only to an approved agent triage intake, never a person's inbox or phone; a controlled failure proves the alert was seen and handled.",
+        "For Sentry, every alert rule's actions target the approved intake, and no alert email goes to organization members."
+      ],
+      "exception_authority": "None. Operator decision 2026-09-25 (ADR-005): no exception for an application; not_applicable only when the repository is not an application."
+    },
+    {
+      "id": "FND-INC-001",
+      "title": "Incident response closes the class",
+      "applies_when": "The repository is an application: it changes a live system (surface deployed) or ships something people run (surfaces ui, cli or api).",
+      "required_evidence": [
+        "The runbook's Incidents section says how an alert becomes an owned incident, who responds, and where its postmortem goes.",
+        "The triage agent reads each alert, opens the incident ticket, and starts an engineer or escalates to Kaylee only when the alert is real.",
+        "Every production incident ends in a postmortem under docs/postmortems/ from the harness template in the pokayoke skill.",
+        "An incident ticket closes only with the postmortem it links and the structural change that postmortem links to rule out the whole class of error (shape, type, ownership, a removed affordance or a failing-closed check), together with its regression check; a warning or instruction is not a fix."
+      ],
+      "exception_authority": "None. Operator decision 2026-09-25 (ADR-005): no exception for an application; not_applicable only when the repository is not an application."
     }
   ],
   "approved_defaults": [
@@ -171,9 +248,13 @@
   ],
   "exception_policy": {
     "pending_requires": [
-      "reason",
+      "missing",
       "owner",
-      "next_action"
+      "next",
+      "unexpired baseline gap obl:<ID> for each applicable pending obligation, except FND-REL-001, FND-ALR-001 and FND-INC-001 use ops:ship, ops:alert and ops:incident (ADR-005)"
+    ],
+    "satisfied_requires": [
+      "untracked foundation/receipts/*.json with foundation-evidence/1 schema, obligation, HEAD revision, check, run, exit 0, path and sha256 of the retained payload in the same receipt directory"
     ],
     "not_applicable_requires": [
       "reason",
@@ -187,7 +268,11 @@
       "expires"
     ],
     "approval_record_schema": "foundation-approval/1",
+    "approval_record_requires": [
+      "tracked foundation/approvals/*.json at HEAD with schema, obligation, disposition, reason, substitute and matching exception expiry if applicable",
+      "designated reviewer approval of the introducing or amended record on the PR head"
+    ],
     "review_trigger": "Reassess when project capability, data scope, hosting, or release path changes.",
-    "trust_boundary": "Approval records must be separately reviewed owner decisions. Their actor identity is trusted through repository review and protection; a committed name or allowlist is not authentication or permission by itself."
+    "trust_boundary": "The checker verifies receipt bytes and record shape; GitHub review authenticates the approver. Committed names, approvals and receipts cannot prove the underlying runtime practice or review substance."
   }
 }

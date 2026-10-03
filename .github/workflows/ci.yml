@@ -17,19 +17,38 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
+      # Local-only validation uses the same candidate classifier as publication.
+      # Any newly generated changelog stays in this disposable checkout.
+      - name: Validate protected release candidate before merge
+        uses: misty-step/landmark@0be932f9fd775f826427eb5ada2f24efb9a393d8 # v0.28.9
+        with:
+          mode: prepare-protected
+          github-token: ${{ github.token }}
+          synthesis: 'false'
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: '1.4.2'
+      - name: Install display namespace dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y bubblewrap slirp4netns xvfb dbus
+          sudo sysctl -w dev.tty.legacy_tiocsti=0
+          if [ -e /proc/sys/kernel/apparmor_restrict_unprivileged_userns ]; then
+            sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+          fi
       - name: Check workspace and all components sequentially
         run: ./scripts/check all
+      # A review that cannot run fails this step (exit 2); only fork pull requests,
+      # which receive no secrets by design, skip it.
       - name: System One semantic review gate
         env:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          FORK: ${{ github.event.pull_request.head.repo.fork }}
         run: |
-          if [ -n "$OPENROUTER_API_KEY" ] && [ "${{ github.event_name }}" = "pull_request" ]; then
+          if [ "$FORK" = "true" ]; then
+            echo "Semantic review gate skipped: fork pull requests receive no secrets."
+          elif [ "${{ github.event_name }}" = "pull_request" ]; then
             bun omp-config/bin/omp-diff-review.ts --range "origin/${{ github.base_ref }}..HEAD" --strict
-          elif [ -n "$OPENROUTER_API_KEY" ]; then
-            bun omp-config/bin/omp-diff-review.ts --commit HEAD --strict
           else
-            echo "Semantic review gate skipped in uncredentialed CI run."
+            bun omp-config/bin/omp-diff-review.ts --commit HEAD --strict
           fi

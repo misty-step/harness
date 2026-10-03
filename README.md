@@ -27,14 +27,20 @@ cd harness
 ./scripts/bootstrap
 ```
 
-Bootstrap requires Git, gitleaks, and trufflehog and wires the tracked root
-pre-push hook. It installs no dependencies and deploys no agent configuration.
-Verification requires Bun 1.4.2 or later, Git, jq, and Python 3 (shared gallery checks). Tests use synthetic
+Bootstrap requires Git, gitleaks, trufflehog, and Python 3 and wires the tracked
+root hooks. Pre-commit blocks staged secrets with gitleaks, then runs advisory
+semantic test-evidence checks when Bun is available (`JEV_HOOK_OFF=1` skips only
+that advice). Pre-push retains blocking gitleaks/trufflehog scans, outgoing diff
+review, and advisory semantic checks. Advisory checks read keys from `.env.pass`
+and never block, but each records its run through `outcome record`; one that
+could not run is a failed run that reaches Kaylee's alert triage (ADR-009).
+Bootstrap installs no dependencies and deploys no agent configuration.
+Verification requires Bun 1.4.2 or later, Git, jq, and Python 3 (root scanner and shared gallery checks). Tests use synthetic
 credentials and isolated destinations; no provider tokens or model calls are needed.
 Keep the component directories as siblings. `AGENT_CONFIG_DIR` is an advanced
 base-source override, not required for a normal clone.
 
-## Workspace hygiene (US-016)
+## Workspace hygiene (US-016, US-004)
 
 Keep one canonical checkout per repository. Before making another worktree,
 inspect registered checkouts rather than cloning the same repository again:
@@ -46,13 +52,40 @@ git worktree list --porcelain   # from the affected repository
 
 The inventory is read-only and reports Git-visible dirty and prunable states;
 `clean` does not mean merged, published, inactive, or free of ignored build
-outputs. For a finished task, verify its branch and any untracked/evidence files,
-then use `git worktree remove <path>` without `--force`; retain uncertain work.
-Run `git worktree prune --dry-run` to inspect missing registrations before
-pruning them. Never delete another agent's active worktree or a standing VM on
-the basis of age. Session-created worktrees and VMs require create-time leases
-and a successful `skill://session-close` check; an empty lease store says
-nothing about older or unleased resources.
+outputs. Use the existing `skill://session-close` gate, not a parallel cleanup
+tool. At the start of owned repository work, including inherited worktrees, run
+`bun path/to/session-close.ts track [--repo PATH]` before switching or deletion.
+Its `check` auto-enrollment is a safety net, not a replacement for early tracking.
+
+A finished session means merged after observed green CI and independent exact-head
+model review, deployed to the repository's actual targets with production sanity
+evidence, local/origin feature branches deleted, own worktree removed, and the
+canonical checkout clean on the fetched origin default head. Shared harness
+changes deploy to both Pi and OMP through the [installers below](#deploy-explicit-live-writes);
+restart and exercise the changed installed behavior. Keep the PR and relevant
+existing ticket current with revision, status and evidence; use Habitat only
+where routed there, and Linear for Misty Step/personal work.
+
+Run `session-close.ts check` before yielding. It checks persistent owned landing
+records after worktree removal, fetches the authoritative origin default and
+uses live GitHub/origin facts; auth, command and malformed-data errors fail
+closed. Explicit `park --repo PATH --note TEXT` permits unfinished close with a
+meaningful reason, owner and resume steps; report **parked**, retained resources
+and PR/ticket status, never done. `unpark --repo PATH` resumes work. Parking keeps
+matching owned worktree leases; live non-worktree leases still block.
+
+Session-created worktrees and non-standing VMs still require create-time leases.
+Inspect branch changes, untracked/ignored files and evidence before
+`git worktree remove <path>` without `--force`; retain uncertain work. Run
+`git worktree prune --dry-run` to inspect missing registrations before pruning
+only confirmed owned stale registrations. Never delete another agent's active
+worktree or a standing VM on the basis of age. Foreign records are informational;
+stale leases require manual review, and lease expiry does not erase landing
+obligations. `leases --json` is read-only lease introspection, not landing proof;
+an empty lease store says nothing about older or unleased resources.
+
+Update affected documentation with behavioral changes; root Landmark release
+automation owns `CHANGELOG.md`, so do not manually edit it.
 
 ## Verify
 
@@ -68,6 +101,24 @@ nothing about older or unleased resources.
 `./scripts/verify` with the same arguments, and CI invokes it. See
 [verification and local resource limits](docs/verification.md). The root owns
 CI, hooks, and releases; component directories retain their focused tests.
+
+## Foundation Standard
+
+Catalog [1.6.0](agent-config/skills/foundation/foundation-standard-v1.json)
+and its [rationale](agent-config/skills/foundation/foundation-standard-v1.md)
+ship with the pinned `foundation-check` checker (ADR-006). A repository's
+`foundation.json` pins its catalog digest and harness revision. Run
+`foundation-check check --repo <path>` for documents, mapped stories, dated
+`obl:`/`ops:` gaps, repository-side security and evidence shape;
+`foundation-check affected --base <rev> --repo <path>` identifies stories to
+walk and cite as `Stories: US-001` in a mapped-source PR. The separate
+`foundation-check review --pr N` diagnoses independent model-review records and
+designated decisions on the candidate head, not a server merge prerequisite.
+One exact-head model approval supplies the delegated decision. Structural checks
+cannot prove runtime coverage or what a reviewer judged: preserve execution and
+review receipts. Existing adopters re-pin explicitly only after their
+2026-10-25 cliff entries close or are extended (ADR-006).
+
 
 ## Token-cost evidence (US-018, US-019)
 
@@ -101,6 +152,12 @@ Restart the relevant harness to load changed extensions, guidance and OpenRouter
 credentials. Only Pi's `auth.json.openrouter` mapping is source-owned; other
 credentials, sessions, foreign packages, and generated desktop themes are not.
 See [US-028](USER_STORIES.md) for project-aware billing and failure behavior.
+
+The opt-in [desktop memory guard](docs/desktop-memory-guard.md) (US-043) stages a
+native Herdr user service, bounded development slices, two-slot local-job
+admission and an Omarchy launcher override. Staging never activates or restarts
+the fleet. Its runbook owns the operator-only cutover and rollback.
+
 
 ## Contributing and releases
 

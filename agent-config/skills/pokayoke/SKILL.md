@@ -1,41 +1,17 @@
 ---
 name: pokayoke
-description: Make a class of error impossible instead of warning about it.
+description: Close an error class structurally after a defect, incident, or near-miss.
 disable-model-invocation: true
-argument-hint: "[optional error class or incident]"
+argument-hint: "[error class or incident]"
 ---
 
 # Pokayoke
 
-Pokayoke is error-proofing: a structural change that makes a specific class of
-mistake impossible. A comment, warning, checklist, or reminder is not pokayoke.
+Prefer removing the dangerous affordance or fixing ownership/type shape over
+adding a warning. Keep the repair within the incident's original outcome;
+"close the class" is not permission to build a framework.
 
-After a defect, incident, or near-miss, ask:
-
-> how can I pokayoke this so this kind of error never happens again
-
-The object is the *class* of error, not the latest instance. Prefer the cheapest
-mechanism that removes the affordance:
-
-- Shape or type, so the wrong value cannot be represented
-- Ownership, so the wrong writer cannot reach the state
-- Absence, so the dangerous operation does not exist
-- An executable check that fails closed before the mistake can complete
-
-Do not add a parallel instruction layer over a system that still permits the
-failure. If a reminder is the only available control, say so; do not call it
-pokayoke.
-
-This authors or selects the mechanism. It does not authorize unrelated cleanup,
-a portfolio rollout, or a second framework. Honor existing scope and write
-authority; without write authority, propose the pokayoke instead.
-
-Deliver the error class, the mechanism, proof that the original mistake path is
-closed, and any residual class that remains possible.
-
-A user-story criterion enforced by a fail-closed check is a pokayoke; cite the
-story id where the check runs.
-
-A written postmortem uses [postmortem-template.md](postmortem-template.md), the
-single copy. A repository keeps its real postmortems in `docs/postmortems/`,
-not a copy of the template (harness ADR-004).
+The existing catalog's postmortem path uses
+[postmortem-template.md](postmortem-template.md) under the product's
+`docs/postmortems/`, linked to the fix and regression proof. State residual risk
+honestly; do not demand an impossible universal cure to ship a bounded fix.

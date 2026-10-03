@@ -1,10 +1,10 @@
 #!/bin/sh
 # Deploy shared agent primitives into a harness agent directory.
 #
-# This repo owns harness-neutral primitives: skill packages, shared global
-# guidance sections, the pass-env secret launcher, and the host agent audio
-# sandbox. A harness declares which primitives it selects; this installer is
-# the single deployment mechanism.
+# This repo owns harness-neutral primitives: skill packages, shared guidance
+# sections, standalone launchers, and the host agent audio sandbox. The opt-in
+# desktop guard installs a native CLI and stages inactive user units and a
+# Hyprland override. A harness declares which primitives it selects.
 #
 # Preflight validates the whole selection before any write. Owned skill
 # packages are clean-replaced, so obsolete files cannot survive. Foreign skill
@@ -20,19 +20,21 @@ marker='<!-- shared guidance: agent-config -->'
 
 usage() {
   cat <<'EOF'
-Usage: install --agent-dir DIR [--check] [--home DIR]
+Usage: install [--agent-dir DIR] [--check] [--home DIR]
                [--skill NAME|all]...
                [--bin NAME]...
                [--guidance NAME]... --guidance-source FILE
-               [--audio-sandbox]
+               [--audio-sandbox] [--desktop-guard] [--session-backup]
 
-  --agent-dir DIR        Harness agent directory (required).
+  --agent-dir DIR        Harness agent directory (required for agent primitives).
   --home DIR             Home for ~/.local/bin tools (default $HOME).
   --skill NAME|all       Skill package to clean-replace; repeatable.
   --bin NAME             Standalone launcher to install; repeatable.
   --guidance NAME        Shared guidance section to inject; repeatable.
   --guidance-source FILE Harness AGENTS.md holding the insertion marker.
   --audio-sandbox        Silent agent sink, Claude Code env, and live proof.
+  --desktop-guard        Install guard CLI and stage inactive user units/binding.
+  --session-backup       Install session backup CLI, credential references and inactive user timer.
   --check                Validate the selection; write nothing.
 EOF
 }
@@ -45,6 +47,8 @@ skills=
 bins=
 guidance=
 audio_sandbox=0
+desktop_guard=0
+session_backup=0
 
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -55,6 +59,8 @@ while [ $# -gt 0 ]; do
     --guidance) guidance="$guidance ${2-}"; shift 2 ;;
     --guidance-source) guidance_source=${2-}; shift 2 ;;
     --audio-sandbox) audio_sandbox=1; shift ;;
+    --desktop-guard) desktop_guard=1; shift ;;
+    --session-backup) session_backup=1; shift ;;
     --check) check=1; shift ;;
     -h|--help) usage; exit 0 ;;
     *) printf 'Unknown argument: %s\n' "$1" >&2; usage >&2; exit 1 ;;
@@ -72,7 +78,11 @@ require_bun() {
   command -v bun >/dev/null 2>&1 || { echo "bun is required" >&2; exit 1; }
 }
 
-[ -n "$agent_dir" ] || { echo "--agent-dir is required" >&2; usage >&2; exit 1; }
+agent_selection=0
+if [ -n "$skills$bins$guidance$guidance_source" ] || [ "$audio_sandbox" = 1 ]; then agent_selection=1; fi
+if [ -z "$agent_dir" ] && { { [ "$desktop_guard" = 0 ] && [ "$session_backup" = 0 ]; } || [ "$agent_selection" = 1 ]; }; then
+  echo "--agent-dir is required for agent primitives" >&2; usage >&2; exit 1
+fi
 
 # Expand "all" to every skill package, preserving the declared order otherwise.
 skill_list=
@@ -172,6 +182,48 @@ validate_audio_sandbox() {
   bun "$repo_dir/audio-sandbox/install.ts" host --home "$home_dir" --check
 }
 
+validate_desktop_guard() {
+  [ "$desktop_guard" = 1 ] || return 0
+  command -v python3 >/dev/null 2>&1 || { echo "python3 is required for desktop-guard" >&2; exit 1; }
+  require_nonempty "$repo_dir/desktop-guard/install.py"
+  python3 "$repo_dir/desktop-guard/install.py" stage --home "$home_dir" --check
+}
+
+session_backup_files() {
+  printf '%s\n' \
+    "backup.py:.local/bin/agent-session-backup" \
+    "env.pass:.config/agent-session-backup.env.pass" \
+    "agent-session-backup.service:.config/systemd/user/agent-session-backup.service" \
+    "agent-session-backup.timer:.config/systemd/user/agent-session-backup.timer"
+}
+
+validate_session_backup() {
+  [ "$session_backup" = 1 ] || return 0
+  command -v python3 >/dev/null 2>&1 || { echo "python3 is required for session backup" >&2; exit 1; }
+  for pair in $(session_backup_files); do
+    source="$repo_dir/session-backup/${pair%%:*}"
+    destination="$home_dir/${pair#*:}"
+    require_nonempty "$source"
+    if [ -e "$destination" ] || [ -L "$destination" ]; then
+      if [ ! -f "$destination" ] || [ -L "$destination" ] ||
+        ! grep -Fqx '# owned by misty-step/harness agent-session-backup' "$destination"; then
+        printf 'Refusing foreign session backup destination: %s\n' "$destination" >&2
+        exit 1
+      fi
+    fi
+  done
+}
+
+install_session_backup() {
+  for pair in $(session_backup_files); do
+    destination="$home_dir/${pair#*:}"
+    install -d -m 700 "$(dirname -- "$destination")"
+    mode=600
+    [ "${pair%%:*}" != backup.py ] || mode=700
+    install -m "$mode" "$repo_dir/session-backup/${pair%%:*}" "$destination"
+  done
+}
+
 install_skill() {
   name=$1
   install -d -m 700 "$agent_dir/skills"
@@ -213,15 +265,35 @@ validate_skills
 validate_guidance
 validate_bins
 validate_audio_sandbox
+validate_desktop_guard
+validate_session_backup
 
 if [ "$check" = 1 ]; then
   exit 0
 fi
 
-for retired in dev-exec; do
-  rm -rf -- "$agent_dir/skills/$retired"
+if [ -n "$agent_dir" ] && { [ "$desktop_guard" = 0 ] || [ "$agent_selection" = 1 ]; }; then
+  rm -rf -- "$agent_dir/skills/dev-exec"
+fi
+for name in $skill_list; do
+  install_skill "$name"
+  case "$name" in
+    engineering-operations)
+      rm -rf -- "$agent_dir/skills/agent-ergonomics" "$agent_dir/skills/capture" ;;
+    cloudflare-workers)
+      rm -rf -- "$agent_dir/skills/wrangler" ;;
+    remote-execution)
+      rm -rf -- "$agent_dir/skills/using-exe-dev" ;;
+    design-studio)
+      rm -rf -- "$agent_dir/skills/frontend-design" "$agent_dir/skills/show-me" "$agent_dir/skills/herdr" ;;
+    sachstand)
+      rm -rf -- "$agent_dir/skills/decide" ;;
+    story-qa)
+      rm -rf -- "$agent_dir/skills/check-cadence" "$agent_dir/skills/verification-infrastructure" ;;
+  esac
 done
-for name in $skill_list; do install_skill "$name"; done
 for name in $bins; do install_bin "$name"; done
 if [ -n "$guidance" ]; then install_guidance; fi
 if [ "$audio_sandbox" = 1 ]; then bun "$repo_dir/audio-sandbox/install.ts" host --home "$home_dir"; fi
+if [ "$desktop_guard" = 1 ]; then python3 "$repo_dir/desktop-guard/install.py" stage --home "$home_dir"; fi
+if [ "$session_backup" = 1 ]; then install_session_backup; fi

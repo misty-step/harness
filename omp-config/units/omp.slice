@@ -1,0 +1,9 @@
+# owned by misty-step/harness omp-config engineer-cage
+[Unit]
+Description=OMP engineer containment parent
+
+[Slice]
+MemoryAccounting=yes
+MemoryMax=infinity
+MemoryHigh=infinity
+MemorySwapMax=0

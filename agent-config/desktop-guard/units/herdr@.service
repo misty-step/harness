@@ -1,0 +1,14 @@
+# owned by misty-step/harness agent-config desktop-guard
+[Unit]
+Description=Guarded Herdr session %i
+After=graphical-session.target
+
+[Service]
+Type=exec
+Slice=dev-fleet.slice
+ExecStart=%h/.local/bin/desktop-guard serve --session %i
+OOMPolicy=continue
+Restart=no
+
+[Install]
+WantedBy=graphical-session.target

@@ -1,3 +1,243 @@
+# [0.1.79](https://github.com/misty-step/harness/compare/v0.1.78...v0.1.79) (2026-10-01)
+<!-- landmark:protected-release previous=v0.1.78 source=89f5c34bd6d2051d23007ebfa7a75c31245761cec5cac545bee66c06969d1e49 -->
+
+### Features
+
+* **shared:** agent-owned PR previews and native evidence (US-049) (#183) ([6519719](https://github.com/misty-step/harness/commit/65197199971d04aa8e58b71a9116a9050539c1c8))
+# [0.1.78](https://github.com/misty-step/harness/compare/v0.1.77...v0.1.78) (2026-09-30)
+<!-- landmark:protected-release previous=v0.1.77 source=3b1432168b89359a826525319f3a40b7cfe1854ec3e7af3d0d898c24018208e2 -->
+
+### Bug Fixes
+
+* **omp-roster:** count only working OMP engineers (US-047) (#179) ([82d1424](https://github.com/misty-step/harness/commit/82d1424755dd1d73b56712541f405dd3af053719))
+# [0.1.77](https://github.com/misty-step/harness/compare/v0.1.76...v0.1.77) (2026-09-30)
+<!-- landmark:protected-release previous=v0.1.76 source=23dec38646816841755391cda0f6d84821d670e7eff62e3eb4a2fda3c3cc7496 -->
+
+### Features
+
+* **session-close:** require landed or explicitly parked sessions (US-004) (#176) ([0a4696e](https://github.com/misty-step/harness/commit/0a4696e25484c806075c06a89eb58a69184999ce))
+# [0.1.76](https://github.com/misty-step/harness/compare/v0.1.75...v0.1.76) (2026-09-30)
+<!-- landmark:protected-release previous=v0.1.75 source=fc533d19453227ba6df2ad426227f9f18bff6856c66e0ced08e485dbcd3a3628 -->
+
+### Features
+
+* **doctrine:** braver engineers and safe continuous deployment (#174) ([e48d880](https://github.com/misty-step/harness/commit/e48d88069c9331aad89a8121c9b2ff76cc4261d2))
+# [0.1.75](https://github.com/misty-step/harness/compare/v0.1.74...v0.1.75) (2026-09-29)
+<!-- landmark:protected-release previous=v0.1.74 source=6f0aeede4ef884bd678146f673eb8d5d3720107902bb5cec4309feb2df2d831d -->
+
+### Features
+
+* **foundation:** the reviewing agent approves as kaylee-agent[bot]; CodeRabbit is advisory (US-027) (#169) ([d57543b](https://github.com/misty-step/harness/commit/d57543b157c7e301a6f2f0a36fa628633c05ad0f))
+# [0.1.74](https://github.com/misty-step/harness/compare/v0.1.73...v0.1.74) (2026-09-29)
+<!-- landmark:protected-release previous=v0.1.73 source=a394c2135e68f14c28dd9284c928edb2188b343806b9065d99a64d86cbc4c124 -->
+
+### Features
+
+* **omp-roster:** enforce working-engineer fleet limit (US-047) (#170) ([a9406db](https://github.com/misty-step/harness/commit/a9406db07dca50fd25221ffc37464703b64356e1))
+# [0.1.73](https://github.com/misty-step/harness/compare/v0.1.72...v0.1.73) (2026-09-29)
+<!-- landmark:protected-release previous=v0.1.72 source=b3062869a142d821f9bd65b58bd32c7d1a75215385ca6a3c4e5fc1b14d43919b -->
+
+### Features
+
+* **foundation:** a registered model reviewer's passing status satisfies FND-REV-001 (US-027) (#164) ([e1cd424](https://github.com/misty-step/harness/commit/e1cd424ea6e108d29d5854efb7d4cd24bd39e94a))
+# [0.1.72](https://github.com/misty-step/harness/compare/v0.1.71...v0.1.72) (2026-09-29)
+<!-- landmark:protected-release previous=v0.1.71 source=67d2ac98c5186c7472dbc2ca635df63dfeb0c70135a2a75c14f2a0310c95f783 -->
+
+### Features
+
+* **harness:** route Codex seats to GPT-6.1 Sol (#162) ([fd483f6](https://github.com/misty-step/harness/commit/fd483f627146cb74717d56f5200573a6094a0b2d))
+# [0.1.71](https://github.com/misty-step/harness/compare/v0.1.70...v0.1.71) (2026-09-29)
+<!-- landmark:protected-release previous=v0.1.70 source=ce15f27345a50edcf2bee34ca89a574423093a24e9c8e3b3168a0890c2425239 -->
+
+### Features
+
+* **guidance:** publish review rounds with glass review publish (US-045) ([f811936](https://github.com/misty-step/harness/commit/f811936aaca326444c82afcc89fcb4ff85b75082))
+# [0.1.70](https://github.com/misty-step/harness/compare/v0.1.69...v0.1.70) (2026-09-29)
+<!-- landmark:protected-release previous=v0.1.69 source=3c66f7442e16e399e67cae8455bcb97b6a4c719943d123ac6c6151debe9b7ffb -->
+
+### Features
+
+* **omp-config:** omp-roster reads the board as glass once installed, else board (US-046) (#160) ([654a744](https://github.com/misty-step/harness/commit/654a74466db9e1b2dc938163e65069684f4d2302))
+# [0.1.69](https://github.com/misty-step/harness/compare/v0.1.68...v0.1.69) (2026-09-29)
+<!-- landmark:protected-release previous=v0.1.68 source=64e3188ac444c687cdbbc034ceb96fd64780202aecc2f603bf3a0ae20cdf469d -->
+
+### Features
+
+* **omp-config:** launch OMP engineers without a ticket on one route (US-046, US-014) (#158) ([e5745ea](https://github.com/misty-step/harness/commit/e5745ea3daa4a56ca4dcddeba435cd4b205d609b))
+# [0.1.68](https://github.com/misty-step/harness/compare/v0.1.67...v0.1.68) (2026-09-29)
+<!-- landmark:protected-release previous=v0.1.67 source=e4b16182a0f587d8258d792a14116da71983a911bba2732739ae5d80804c2ea5 -->
+
+### Features
+
+* **omp-config:** launch OMP engineers only on the ticket's model roster (US-046, US-014) (#155) ([0c5fc6e](https://github.com/misty-step/harness/commit/0c5fc6e19020267a8075f60a040b948012cf2aa3))
+# [0.1.67](https://github.com/misty-step/harness/compare/v0.1.66...v0.1.67) (2026-09-29)
+<!-- landmark:protected-release previous=v0.1.66 source=0922cdd0d1d33fc37b346833187c99fed127e2bc5085918c0ec59017b164bd9b -->
+
+### Bug Fixes
+
+* **openrouter:** point the R90 launcher entry at the existing pass key (#151) ([461b37c](https://github.com/misty-step/harness/commit/461b37cc056281d579b44c12bb3fcf15e34f669d))
+# [0.1.66](https://github.com/misty-step/harness/compare/v0.1.65...v0.1.66) (2026-09-29)
+<!-- landmark:protected-release previous=v0.1.65 source=4a8f24295881301c1d6db8e6cf5e3eb98d8061278d8676914fa18980696cc48a -->
+
+### Bug Fixes
+
+* **pi:** start on the pool when startup resolves Anthropic (US-045) (#149) ([69cc3cb](https://github.com/misty-step/harness/commit/69cc3cbfbfd6cfe3552edb2969d5ca1fc671b014))
+# [0.1.65](https://github.com/misty-step/harness/compare/v0.1.64...v0.1.65) (2026-09-29)
+<!-- landmark:protected-release previous=v0.1.64 source=1f808cd23337971c5fdf2e3ce8fb33bf890d7348a12c553b2bab2629e584f21d -->
+
+### Features
+
+* **pi:** balance accounts per provider with shared blocks (US-045) (#147) ([5f585e4](https://github.com/misty-step/harness/commit/5f585e44a89e355a1a188f0cfb8ea5db18020f0a))
+# [0.1.64](https://github.com/misty-step/harness/compare/v0.1.63...v0.1.64) (2026-09-29)
+<!-- landmark:protected-release previous=v0.1.63 source=771dcb890158e3de96fc0f96a21ea1ccb2909817689e895c20586c7346a3bc88 -->
+
+### Features
+
+* **pi:** use only OpenAI, Grok and OpenRouter; refuse Anthropic (#145) ([4c14be0](https://github.com/misty-step/harness/commit/4c14be0c817255e4837952dfabbf6324cfca08ea))
+# [0.1.63](https://github.com/misty-step/harness/compare/v0.1.62...v0.1.63) (2026-09-29)
+<!-- landmark:protected-release previous=v0.1.62 source=050f57d67ea4f6c0e9b7e0ebeb08b44720c29e3958bc840bf55859f0f4cb3f38 -->
+
+### Bug Fixes
+
+* **omp:** make credential awareness non-interrupting (MIS-161) ([0251673](https://github.com/misty-step/harness/commit/025167356a36a0753e6d28617563e09ae1e1f69e))
+# [0.1.62](https://github.com/misty-step/harness/compare/v0.1.61...v0.1.62) (2026-09-29)
+<!-- landmark:protected-release previous=v0.1.61 source=f9e5ae1e808119318726d02b85435a5286309e9177af0a447d86860797c30d2f -->
+
+### Features
+
+* **guidance:** publish board review rounds (US-045) (#132) ([ece8005](https://github.com/misty-step/harness/commit/ece80056c49f0a0db8941508318731bd31587eac))
+# [0.1.61](https://github.com/misty-step/harness/compare/v0.1.60...v0.1.61) (2026-09-29)
+<!-- landmark:protected-release previous=v0.1.60 source=6c6a8a9bb42af9aa1ceb313e6332ea5529827faa37ead6cd4ecd400b15fc4096 -->
+
+### Features
+
+* **pi:** add extra account slots for OpenAI Codex (US-045) (#140) ([6e284b7](https://github.com/misty-step/harness/commit/6e284b750b276a09dd1cebe34bca5cf4143d180b))
+# [0.1.60](https://github.com/misty-step/harness/compare/v0.1.59...v0.1.60) (2026-09-28)
+<!-- landmark:protected-release previous=v0.1.59 source=37685f53c109e73a2e8f9f0ccd90fc5a7452a1769d731c0562985257568dcdff -->
+
+### Features
+
+* **guidance:** codify taste, strategic design, and agile delivery (US-041) (#137) ([02a2d69](https://github.com/misty-step/harness/commit/02a2d69b228ba9d8d583129464f9f798681870a6))
+# [0.1.59](https://github.com/misty-step/harness/compare/v0.1.58...v0.1.59) (2026-09-28)
+<!-- landmark:protected-release previous=v0.1.58 source=76e74effe52f6ee1cd563dc2aa29082831cdf16f290bd6ced7289ea19708abe8 -->
+
+### Features
+
+* **routing:** lower subscription spend without downgrading visual work (#135) ([4d5378d](https://github.com/misty-step/harness/commit/4d5378d9fb5c0228dc74a9214a6ad5bb12f261cf))
+# [0.1.58](https://github.com/misty-step/harness/compare/v0.1.57...v0.1.58) (2026-09-28)
+<!-- landmark:protected-release previous=v0.1.57 source=847b62bed6052669578a93e4b1cd811c5b9d85de1fd64c38e026aee4af67a50f -->
+
+### Bug Fixes
+
+* **omp:** reject retired model routes (#133) ([725d476](https://github.com/misty-step/harness/commit/725d476fbbb050fce540398ad6560ed117013ac5))
+# [0.1.57](https://github.com/misty-step/harness/compare/v0.1.56...v0.1.57) (2026-09-28)
+<!-- landmark:protected-release previous=v0.1.56 source=ddef4dbddf44ed04f11acf879538c5f9021783df1bcb0e41b25868426224e82b -->
+
+### Bug Fixes
+
+* **harness:** narrow subtraction and keep visual floor (US-044, US-014) (#130) ([27280a9](https://github.com/misty-step/harness/commit/27280a984cf1bcf24af23bbacf21d33313c63021))
+# [0.1.56](https://github.com/misty-step/harness/compare/v0.1.55...v0.1.56) (2026-09-28)
+<!-- landmark:protected-release previous=v0.1.55 source=b5ad12d6c47af486bfa6e2ddcdd30bba292e9225e0f4e613264299e0cbb1f9a8 -->
+
+### Features
+
+* **omp:** focus Steward on the task victory (#127) ([44595ea](https://github.com/misty-step/harness/commit/44595eab7f4c42e5b26d20b2487bed469b84ecfa))
+# [0.1.55](https://github.com/misty-step/harness/compare/v0.1.54...v0.1.55) (2026-09-28)
+<!-- landmark:protected-release previous=v0.1.54 source=74d939ac268852b8de599582b6d349c0d3678925d0586d8524aa66d563b79f19 -->
+
+### Bug Fixes
+
+* **omp:** inherit parent task model and thinking (US-014) (#126) ([7a88ce1](https://github.com/misty-step/harness/commit/7a88ce12bb7ec80664ddbd0e30c2ae4e656435aa))
+# [0.1.54](https://github.com/misty-step/harness/compare/v0.1.53...v0.1.54) (2026-09-28)
+<!-- landmark:protected-release previous=v0.1.53 source=c01af7a8d1fd885286b75f8c5e843ec308fd50c72394883ad85dd5a8e476526a -->
+
+### Bug Fixes
+
+* **gallery:** require source on subtraction pairs (US-044) (#123) ([f91e790](https://github.com/misty-step/harness/commit/f91e7904444689dd52e66a22fa97a747bc1492c6))
+# [0.1.53](https://github.com/misty-step/harness/compare/v0.1.52...v0.1.53) (2026-09-28)
+<!-- landmark:protected-release previous=v0.1.52 source=c91ec6a82d19987fe2930918d4d22eccacb35cf25a39ddd8d7804b4b1fbbea99 -->
+
+### Bug Fixes
+
+* **hooks:** admit one public release SHA false positive (US-025) (#121) ([94cfde0](https://github.com/misty-step/harness/commit/94cfde098dff35a61122359dd469e4f1b51cb659))
+# [0.1.52](https://github.com/misty-step/harness/compare/v0.1.51...v0.1.52) (2026-09-28)
+<!-- landmark:protected-release previous=v0.1.51 source=1c95f206987ee19c839fa1d025252f09b33c4ea575b3d3eb79f7a4e1b81d58b9 -->
+
+### Bug Fixes
+
+* **gallery:** preserve optional capture kind in pairs (US-044) (#119) ([d21e5da](https://github.com/misty-step/harness/commit/d21e5daa244f2f0ed88bbaaffa0c4b3449c7a265))
+# [0.1.51](https://github.com/misty-step/harness/compare/v0.1.50...v0.1.51) (2026-09-28)
+<!-- landmark:protected-release previous=v0.1.50 source=22d1c4d0725ce13808e519d7133834936474d374aa9e6fd32d14c125782d3650 -->
+
+### Bug Fixes
+
+* **gallery:** require matched capture provenance (US-044) (#117) ([301aaae](https://github.com/misty-step/harness/commit/301aaae004b3ad470805a99f44e0130bc7280e3c))
+# [0.1.50](https://github.com/misty-step/harness/compare/v0.1.49...v0.1.50) (2026-09-28)
+<!-- landmark:protected-release previous=v0.1.49 source=4d522a49e10abebe9629faa47dc8f4b05a3996678ec631f69c6f4da84365abf6 -->
+
+### Features
+
+* **design:** require subtraction evidence before handoff (US-044) ([70c8cd1](https://github.com/misty-step/harness/commit/70c8cd177fcaaba6255350d030b9efb52a29f723))
+# [0.1.49](https://github.com/misty-step/harness/compare/v0.1.48...v0.1.49) (2026-09-28)
+<!-- landmark:protected-release previous=v0.1.48 source=788b62f95f6d98da66c3ae128ae53c7b6588cfd08e802133a206cfb6b93f7b33 -->
+
+### Features
+
+* **agent-config:** hold every application to continuous deployment, loud alerting and incident response (ADR-005, US-040, MIS-150) ([4de8e17](https://github.com/misty-step/harness/commit/4de8e17e7b541f75142d84ba9557a60e4f869dde))
+* **foundation:** require agent alert intake (US-040, MIS-150) ([c2187e3](https://github.com/misty-step/harness/commit/c2187e36eef1e33416278ccf4f99f2d84b5faa1c))
+* **foundation:** require tenant-wide continuous delivery (US-040, MIS-150) ([5823063](https://github.com/misty-step/harness/commit/5823063a21c61b113117d5c89fdff34b1c952209))
+* **agent-config:** route every agent to the foundations constitution (US-041, MIS-150) ([59edd24](https://github.com/misty-step/harness/commit/59edd24708bdf5a32b56b01fae607a2893cff78b))
+* **system-one:** advisory foundation assessment pilot (US-042, MIS-150) ([8b3449e](https://github.com/misty-step/harness/commit/8b3449e95b658423e14257b27c480db7b3cc55cc))
+* **foundation:** catalog 1.5.0 per ADR-006 (US-024, US-027, US-040, MIS-150) ([42ad4cf](https://github.com/misty-step/harness/commit/42ad4cfdae9da96e1bb45a9b23f3a05b43ba3d00))
+* **workstation:** stage native fleet memory containment (US-043) (#110) ([4487bbf](https://github.com/misty-step/harness/commit/4487bbfaaa06e4bf7e4ea0a54555720a05febaa3))
+
+### Bug Fixes
+
+* **agent-config:** close ship-trigger loopholes and require review to leave ADR-005 (ADR-005, US-040, MIS-150) ([9f1622f](https://github.com/misty-step/harness/commit/9f1622fba9a7cd89121bd5bce0c88b9942f5bec0))
+* **agent-config:** accept only ship conditions and upstream gates that keep every green push shipping (ADR-005, US-040, MIS-150) ([2faccb8](https://github.com/misty-step/harness/commit/2faccb8009ab890bc05c0a845f228d9d56bf0546))
+* **agent-config:** hold the jobs a ship job needs to the same gate rules (ADR-005, US-040, MIS-150) ([678bf98](https://github.com/misty-step/harness/commit/678bf986db61de80d4f9df6ec46cbca7fde395a2))
+* **agent-config:** report a story with no walk yet as advisory instead of failing the story walk (US-027, MIS-150) ([41f0e8e](https://github.com/misty-step/harness/commit/41f0e8ec83294424cbc29ea6b8453e729845d000))
+* **agent-config:** give Pi a readable constitution path and keep escape removal with Phaedrus (US-041, MIS-150) ([a308564](https://github.com/misty-step/harness/commit/a30856438b6e32963d192abf032ec364088d56f1))
+* **agent-config:** stop promising dated gaps before catalog 1.5.0 ships (US-041, MIS-150) ([0eb31db](https://github.com/misty-step/harness/commit/0eb31db1cac38aefeab41a5f1291c53f162d2bcf))
+* **system-one:** abstain on any unapproved Jev revision in the foundation pilot (US-042, MIS-150) ([597de35](https://github.com/misty-step/harness/commit/597de353798a64dad385f1fc79e53d797d093dc4))
+* **system-one:** close foundation pilot review findings (US-042, MIS-150) ([db084f0](https://github.com/misty-step/harness/commit/db084f080f747378753037f77e5664cdfb3cbf44))
+* **system-one:** mask keys at read, find real function bodies, pin the requested model (US-042, MIS-150) ([7265d16](https://github.com/misty-step/harness/commit/7265d168605792152f4fe21739f0aafb52a923ce))
+* **system-one:** take the brace group that ends the declaration as a function body (US-042, MIS-150) ([8b03101](https://github.com/misty-step/harness/commit/8b0310138f08b54ca534b9253599c63dc45a03b0))
+* **system-one:** read past comments before deciding a declaration ended (US-042, MIS-150) ([b53030c](https://github.com/misty-step/harness/commit/b53030c6a28c109b9d5ebf6dc508f2380b94fe58))
+* **system-one:** scan to the next code token, not a fixed window, to find a declaration's end (US-042, MIS-150) ([8e5b559](https://github.com/misty-step/harness/commit/8e5b5595f3d4ae3786db56db69b0f455d3757415))
+* **system-one:** never conclude an absence from Sentry code excerpts (US-042, MIS-150) ([2862dc3](https://github.com/misty-step/harness/commit/2862dc32b69f5ae3ec895716a3745b95d72e3b53))
+* **system-one:** skip commented-out code at every evidence site; hidden maps are not private (US-042, MIS-150) ([ba58787](https://github.com/misty-step/harness/commit/ba5878715bd81bbc3bf0919bbf989c6bc1767cd4))
+* **system-one:** filter Python comments on every definition lookup (US-042, MIS-150) ([ac7a50f](https://github.com/misty-step/harness/commit/ac7a50f32eecde0f05f21b42f997fd998c052bc9))
+* **system-one:** close foundation pilot follow-ups (US-042, MIS-150) ([4e44133](https://github.com/misty-step/harness/commit/4e441332b487b04eba844eef716935ac35801081))
+* **system-one:** tell overloads from bodies ending in ';', never take another scope's function (US-042, MIS-150) ([52d3f36](https://github.com/misty-step/harness/commit/52d3f36fc4f2d03aa2dd6002a297504a0babe981))
+* **foundation:** allow step-level always() in the dependency gate job (US-040, MIS-150) ([c68744f](https://github.com/misty-step/harness/commit/c68744f556d9140a28aecc784c71016ce745ebba))
+* **foundation:** enforce catalog 1.5.0 review edges (US-024, US-027, US-040, MIS-150) ([4cf87d3](https://github.com/misty-step/harness/commit/4cf87d321edac91f4d3fa9dd0761bd84489393bd))
+* **foundation:** handle unborn installer smoke repository (US-024, MIS-150) ([4c95169](https://github.com/misty-step/harness/commit/4c9516934d9a24f7aa730705fd2446131f638601))
+* **foundation:** close review gate bypasses (US-024, US-027, US-040, MIS-150) ([4e0f604](https://github.com/misty-step/harness/commit/4e0f60454121c5927ce34ccf5b8da62aeacbba3b))
+* **foundation:** resolve committed enforcement symlinks (US-024, MIS-150) ([1befb10](https://github.com/misty-step/harness/commit/1befb1082255be6c47da6842080c60200c640827))
+* **foundation:** judge ship guards per shipping event and accept a manual trunk re-run (US-040, MIS-150) ([5866131](https://github.com/misty-step/harness/commit/5866131812606ee31fe73200bfaaa6fbf7f3eb01))
+* **foundation:** keep ship-guard literals exact (US-040, MIS-150) ([3a4f709](https://github.com/misty-step/harness/commit/3a4f709119918f462526588152184284370f54ac))
+* **foundation:** require one shipping event across the ship chain (US-040, MIS-150) ([2addd4e](https://github.com/misty-step/harness/commit/2addd4e466606efeebfe4d2a00af560485848bb2))
+* **omp:** fail closed for Opus-primary sessions (#113) ([4ec7ab4](https://github.com/misty-step/harness/commit/4ec7ab4f1c3fdee3960536b79699ef008d8031b1))
+* **release:** reject stale candidates before merge (MIS-177) (#114) ([8c704a3](https://github.com/misty-step/harness/commit/8c704a3755cad41fe28cef0d58604af149e0ce06))
+# [0.1.48](https://github.com/misty-step/harness/compare/v0.1.47...v0.1.48) (2026-09-25)
+<!-- landmark:protected-release previous=v0.1.47 source=4197fbc3464a2b7e8c6d426a69ed62af927e79708f24777c426b3e11f1827181 -->
+
+### Bug Fixes
+
+* **agent-config:** fetch the reviewed PR as git objects instead of checking it out (US-027, MIS-150) ([d6287e8](https://github.com/misty-step/harness/commit/d6287e8858749b078672e50df8d9edca2e517ed4))
+# [0.1.47](https://github.com/misty-step/harness/compare/v0.1.46...v0.1.47) (2026-09-25)
+<!-- landmark:protected-release previous=v0.1.46 source=1a274b9e1cb4282b49e48ae7488f2f9e3d5cf177655bd8824dd55b1155b1ffe0 -->
+
+### Features
+
+* **agent-config:** record r90group review decisions under the operator's account and stop a first map marking every story (US-024, US-027, MIS-150) ([efdbaa8](https://github.com/misty-step/harness/commit/efdbaa8cb06b070ca18971782bca08748b2e85b3))
+
+### Bug Fixes
+
+* **agent-config:** a pending review records no r90group decision (US-027, MIS-150) ([acead6b](https://github.com/misty-step/harness/commit/acead6b9ea6aa3cc1605724f958ac8b7ad275190))
+* **agent-config:** keep pre-existing feature edits and timestamp ties conservative (US-024, US-027, MIS-150) ([d55f8ed](https://github.com/misty-step/harness/commit/d55f8edd75b849224c8a2f1004bf3fd8946cbadc))
+* **agent-config:** exempt a first map only when no map file existed at the merge base (US-024, MIS-150) ([dc00ddb](https://github.com/misty-step/harness/commit/dc00ddb325aac73e8a3f06596ce3b6603c8517e4))
 # [0.1.46](https://github.com/misty-step/harness/compare/v0.1.45...v0.1.46) (2026-09-25)
 <!-- landmark:protected-release previous=v0.1.45 source=967e6106ba20962002e1985e019f3c6b0d93d3b7fda81dfe4a7499d6037040e3 -->
 

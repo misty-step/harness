@@ -44,7 +44,7 @@ These are measured tokenizer counts from the parent, not estimates from characte
 - The OMP source has the marker at line 40; pi's source is a short intro ending with the marker at line 9. Repo-local AGENTS files add to these global files, as both intros state.
 - `effective-verification.md` is not named by either installer. The corresponding `agent-config/candidates/effective-verification/SKILL.md` is explicitly outside automatic skill deployment. It is not part of the measured default prompt baseline.
 - OMP defaults `OMP_INSTALL_COMPONENTS` to `all`; the `all` path installs guidance, `--skill all`, and all extension directories. Pi defaults `PI_CONFIG_COMPONENTS` to `all`; it selects the same seven guidance sections and `--skill all`. Skill **availability** is deployed separately from global guidance; actual skill invocation/loading follows the native harness and is bounded as upstream behavior.
-- OMP's `extensions/credentials/index.ts` uses the native `before_agent_start` event to append the inventory. The same extension adds matching-entry advice only on auth-looking bash results and matching unavailable-credential claims. Pi has the shared static `credentials.md` guidance but no corresponding credentials extension in the inspected installer selection.
+- OMP's `extensions/credentials/index.ts` uses the native `before_agent_start` event to append the inventory. Runtime reminder hooks (assistant prose and failed bash output) were removed after false positives; the shared `credentials.md` guidance owns recovery. Pi has that static guidance but no credentials extension in the inspected installer selection.
 
 ## Complete nonblank source-line audit
 
@@ -153,7 +153,7 @@ Disposition key: **keep** = preserve; **rewrite** = candidate concise/corrected 
 
 ### `omp-config/extensions/credentials/index.ts`
 
-This table includes all nonblank source ranges in the file so implementation comments and hook behavior are not mistaken for prompt text. “Not injected” means source code/comments, not a live prompt instruction.
+This historical table records the original audit, not current code. “Not injected” means source comments, not a live prompt instruction; the later MIS-161 note supersedes its runtime-reminder recommendations.
 
 | Original lines | Disposition | Reason |
 |---|---|---|
@@ -215,14 +215,14 @@ The inventory had 90 names when measured; names are not reproduced here.
 
 The flag is sampled once per extension instance, not on each request. Changing
 the environment of a running session does not rewrite its prefix. Restart with
-the flag unset to restore the inventory. Auth-failure result text is unchanged.
+the flag unset to restore the inventory.
 
-A focused regression found the old claim-reminder implementation violated its
-own once-per-entry intent: after filtering already-reminded entries, an empty
-list was treated as an unmatched claim and sent a second generic follow-up.
-The direct fix separates matched-entry state from unmatched-claim state. The
-prompt wording is unchanged; the unnecessary second generated turn is removed.
-This supersedes the audit table's assumption that the old deduplication worked.
+The source-line table above records the original audit, not current code.
+MIS-161 removed both runtime reminder paths: the assistant-claim matcher
+interrupted unrelated research and parser work, while auth-looking failed
+bash output cannot establish that a matching pass entry is needed. The startup
+inventory (or opt-in discovery pointer) and standing credential guidance
+remain; tool results and assistant prose are left untouched.
 
 Measured section size: 1,124 → 74 `o200k_base` tokens and 2,354 → 126
 `claude-v5` tokens. These are tokenizer measurements, not billed task savings.

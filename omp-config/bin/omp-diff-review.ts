@@ -4,12 +4,15 @@
  *
  * Evaluates code diffs against our standing harness guidance, security rules,
  * pokayoke invariants, and verification contracts in a single parallel pass.
+ * Exit 0: reviewed and passed. Exit 1: reviewed and failed. Exit 2: the review
+ * did not run (no key, provider error) — a failed reviewer run, never a pass.
  */
 
 import {
 	evaluateDiff,
 	getGitDiff,
 	resolveProvider,
+	reviewFailure,
 	HARNESS_BATTERY,
 	BATTERIES,
 	SECURITY_BATTERY,
@@ -26,7 +29,7 @@ import {
 	routeBatteryForChunk,
 	generateStructuralMap,
 	MACRO_BATTERY,
-} from "../extensions/diff-review/engine.ts";
+} from "../../agent-config/system-one/engine.ts";
 import type {
 	SystemOneProvider,
 	ReviewVerdict,
@@ -36,12 +39,13 @@ import type {
 	ChoiceQuestion,
 	ScoreQuestion,
 	RuleFinding,
-} from "../extensions/diff-review/engine.ts";
+} from "../../agent-config/system-one/engine.ts";
 
 export {
 	evaluateDiff,
 	getGitDiff,
 	resolveProvider,
+	reviewFailure,
 	HARNESS_BATTERY,
 	BATTERIES,
 	SECURITY_BATTERY,
@@ -130,11 +134,11 @@ Options:
 		);
 
 		if (!verdict.enabled) {
-			console.log(`\x1b[33m⚠ ${verdict.summary}\x1b[0m\n`);
-			console.log(
-				`To enable live System One evaluations, export OPENROUTER_API_KEY (or TYPESAFE_API_KEY), or pass --provider heuristic for offline evaluation.\n`,
+			console.error(`\x1b[31m✖ ${verdict.summary}\x1b[0m\n`);
+			console.error(
+				`Export OPENROUTER_API_KEY (or TYPESAFE_API_KEY), or pass --provider heuristic for offline evaluation.\n`,
 			);
-			process.exit(0);
+			process.exit(2);
 		}
 
 		if (verdict.blocks.length > 0) {
@@ -157,7 +161,9 @@ Options:
 			console.log("");
 		}
 
-		if (verdict.clean) {
+		if (reviewFailure(verdict)) {
+			console.error(`\x1b[31m✖ The review did not run: System One provider error.\x1b[0m\n`);
+		} else if (verdict.clean) {
 			console.log(`\x1b[32m✔ Clean: Diff satisfies all harness principles.\x1b[0m\n`);
 		} else if (verdict.passed) {
 			console.log(`\x1b[33m✔ Passed with warnings.\x1b[0m\n`);
@@ -166,6 +172,7 @@ Options:
 		}
 	}
 
+	if (reviewFailure(verdict)) process.exit(2);
 	if (!verdict.passed || (failOnWarnings && !verdict.clean)) {
 		process.exit(1);
 	}

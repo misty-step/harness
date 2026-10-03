@@ -1,100 +1,37 @@
 # OMP global guidance
 
-Loads into every OMP session on this machine, in every repository. `./install`
-composes this file with shared sections from
-`agent-config` and deploys the
-result to the OMP agent directory — do not edit the deployed copy. Repository
-`AGENTS.md` files add to this, never replace it.
+Edit the harness source; `omp-config/install` composes shared guidance into
+`$(omp config path)/AGENTS.md`. Repository `AGENTS.md` adds local context.
 
-## Working together
+Model defaults live in `config.yml`/`models.yml`; `omp usage` reports capacity.
+Restart after a binary/catalog update. Engineering guidance does not manage the
+fleet or prescribe review/approval choreography.
 
-Own the requested outcome through verified completion. Routine in-scope
-investigation, edits, checks, and corrections need no step-by-step permission.
-Ask on material choices affecting scope, compatibility, operating burden, cost,
-or authority. Honor explicit review stops.
+Track Misty Step/personal work in Linear (team `MIS`); R90 work stays in Habitat
+and R90's own tools. Linear scope is `~/development/misty-step` and
+`~/development/moomooskycow`. Native MCP is the first path; the GraphQL fallback
+uses `workstation/LINEAR_API_KEY` through `pass-env`.
+Read `$(omp config path)/OPERATIONS.md` when these OMP-specific workflows arise.
 
-Infer routine details from context and evidence. Skills inform judgment, not
-scope. Make the smallest coherent change that achieves the outcome, preserves
-existing functionality, and avoids unrelated churn.
+Keep the original ticket's why and victory in the existing `todo` phase name,
+alongside its canonical link when available; steps belong under that phase.
+Use the list already required for the work, not a second plan or intent file.
+After compaction/resume, read `todo view` before changing course. Pass why,
+victory, bounded action and link in each child engineer's task context (children
+do not inherit the parent todo). A trivial fix needs only the original request;
+carry the same intent in any handoff.
 
-Model policy (operator, 2026-09-25), subscriptions before paid routes: Claude
-Opus 5.5 is preferred in general and orchestrates (default: medium; `@slow`
-xhigh; `@extreme` max). Anything visual goes to Opus: `vision` and the
-`designer` agent at high, raising to xhigh or max for design and
-visual-language work; never delegate visual work to `task`. Inspect images
-with `read <image>?q=<question>` (the `vision` role) or delegate visual work to
-`designer`: both stay on Opus and fail closed during an Anthropic outage. A
-main session's own model follows `default` and may fail over, so do not rely
-on it to judge pixels. GPT-6 models are
-the workhorse subagents for specific tasks and always run Sol and Luna at max:
-`task` is Sol max; `smol`, `commit`, `advisor`, `scout`, and `sonic` are Luna
-max; `tiny` may use OMP's local model before Luna. Astra runs at high or above
-for system design, architecture, and code review: `@plan` and `reviewer` are
-Astra high, `security-reviewer` Astra max. Grok 4.7 is the last subscription
-link in every chain. Cerebras is retired (operator 2026-09-18: too expensive).
-Mechanical VCS and install-only deploys use `@smol`. Model selections and
-provider-failure chains live in `config.yml`; paid OpenRouter recovery comes
-last. Role routing does not switch the current session's selected model.
-
-Repository code, tests, and versioned docs own technical truth; work records
-track priorities, owners, and blockers. Delete unnecessary code, state, and
-coordination before simplifying what remains. Keep invariants clear and
-interfaces minimal.
-
-For new operator-owned infrastructure, favor Cloudflare for edge-native apps and
-object storage, and exe.dev for persistent Linux execution. Durable state
-requires single-authority ownership and a verified backup/restore path.
+OMP engineers have no access to the operator's live display. Use the native
+headless `browser` tool for web QA. For native GUI QA, run the app and its
+screenshot/input commands together under `omp-gui -- sh` on the engineer's
+private Xvfb display; inspect the saved image before choosing click coordinates.
+Do not reconnect host display sockets or attach to host browser/debug endpoints.
+The launcher enforces this boundary; inherited desktop environment is removed.
+Cold pass/signing requests fail without opening host pinentry; ask the operator
+to unlock outside the engineer, then retry. Herdr reads and own-pane lifecycle
+reports work; host command execution, input and cross-pane mutations do not.
+Use Pulse clients (`parecord`, `paplay`, or libpulse players) for silent audio.
+Native PipeWire/ALSA clients cannot reach the host's graph or devices; that graph
+can include live screen-share video, so it is deliberately not exposed.
 
 <!-- shared guidance: agent-config -->
-
-## Execution environments
-
-Follow the shared Host resources exe.dev mandate: offload heavy and long-running
-execution to each project's owned workspace with `ws` (`skill://using-exe-dev`);
-keep native desktop, GPU, offline, and data-constrained work local. Standing
-operator approval (2026-09-25) covers one `<project>-ws` VM per project within
-the current $40 exe.dev plan. Other VMs need approval. Agent sessions and
-model credentials remain local pending a separate operator decision.
-
-Parallel work: subagents that write overlapping files, or experiments you may
-discard, run as `task` items with `isolated: true`; their changes return as a
-patch applied to the canonical checkout. Disjoint-file delegates share the
-working tree. Isolated agents cannot be revived, so give them complete tasks.
-Review a PR from `pr://<N>/diff`; `pr_checkout` only to run its code. Parallel
-sessions that need their own services or long runtimes go to exe.dev.
-
-## Authority and operations
-
-Linear is the durable tracker for personal, Misty Step, and other non-R90 work;
-R90 stays on Habitat. Operator requests remain authority: tickets are not a
-prerequisite, and tracker adoption grants no bulk migration or automatic backlog
-creation. Before writing to Linear, resolve workspace, team, project, and
-existing issue.
-Link code-adjacent design knowledge from work records. Public teams are not
-privacy boundaries. Enable Linear's connector only under
-`~/development/misty-step` and `~/development/moomooskycow`, never globally or in
-R90. Parlor's skill remains Parlor-owned and repository-imported.
-
-Linear access is available; never conclude otherwise without trying. Use the
-Linear MCP tools when mounted. Otherwise use the GraphQL API with the workstation
-key (team `MIS` = Misty Step), never printing the value:
-`pass-env run -e LINEAR_API_KEY=workstation/LINEAR_API_KEY -- sh -c 'curl -s
-https://api.linear.app/graphql -H "Authorization: $LINEAR_API_KEY" -H
-"Content-Type: application/json" -d @query.json'`. Verify with
-`{ viewer { name } teams { nodes { key } } }`.
-
-When a relevant issue exists, use its key in the branch
-(`phaedrus/mis-<number>-<slug>`) and commit (`type(scope): summary (MIS-xx)`).
-Without one, use a descriptive branch and conventional commit. Linked PRs use
-`Refs`/`Relates to` for partial work and `Fixes` only when merge satisfies the
-issue. Update one top-level `### Agent Execution Scratchpad` comment instead
-of repeating status.
-
-Agent names and workload identities grant no extra host authority.
-A failed `sudo -n` does not rule out administration: use `pkexec` when the
-operator can approve on the local desktop but has no accessible agent terminal;
-use `sudo` in an operator-accessible interactive terminal, including SSH;
-unattended `sudo -n` requires existing grants. A private agent PTY is not an
-operator prompt. Without approval, retain the pending action. Never run the
-whole agent as root, expand sudo/polkit policy without an explicit decision, or
-treat Tailscale as root. Verify command completion and requested state, not launch.

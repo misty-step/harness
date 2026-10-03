@@ -1,10 +1,19 @@
 {
   "theme": "omarchy-system",
-  "defaultProvider": "openrouter",
-  "defaultModel": "deepseek/deepseek-v4.1-flash",
+  "defaultProvider": "openai-pool",
+  "defaultModel": "gpt-6.1-sol",
   "modelThinkingLevels": {
-    "openrouter/deepseek/deepseek-v4.1-flash": "xhigh",
-    "openrouter/inception/mercury-2.5": "high"
+    "openai-pool/gpt-6-astra": "xhigh",
+    "openai-pool/gpt-6.1-sol": "xhigh",
+    "openai-codex/gpt-6-astra": "xhigh",
+    "openai-codex/gpt-6.1-sol": "xhigh",
+    "openai-codex-2/gpt-6-astra": "xhigh",
+    "openai-codex-2/gpt-6.1-sol": "xhigh",
+    "openai-codex-3/gpt-6-astra": "xhigh",
+    "openai-codex-3/gpt-6.1-sol": "xhigh",
+    "openai-codex-4/gpt-6-astra": "xhigh",
+    "openai-codex-4/gpt-6.1-sol": "xhigh",
+    "openai-pool/gpt-6-luna": "max"
   },
   "retry": {
     "enabled": true,

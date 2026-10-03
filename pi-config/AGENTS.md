@@ -1,73 +1,14 @@
 # pi-config
 
-Edit harness sources here. Run `./install` to deploy owned components to
-`$PI_CODING_AGENT_DIR`; keep live deployed files out of manual edits. The
-installer overlays source-owned settings keys without deleting foreign live
-keys, clean-replaces owned extension packages, and deploys shared primitives
-through the sibling `agent-config`.
+Own Pi settings, extensions and the global intro. Edit source; `./install`
+deploys selected components to `$PI_CODING_AGENT_DIR` (default `~/.pi/agent`).
+Owned keys/packages overlay foreign settings, sessions and credentials.
 
-## What this repo owns
+Shared primitives come from sibling `../agent-config` (`AGENT_CONFIG_DIR`
+overrides it). `README.md` owns the component/divergence ledger and foreign
+paths; `docs/adr/` records architectural decisions.
 
-- `settings.json` — global pi preferences (theme, paddings, default model, thinking, retry budget).
-- `global/AGENTS.md` — pi's global session-guidance intro. `./install` composes
-  it with shared sections from `agent-config` and deploys the result to
-  `~/.pi/agent/AGENTS.md`.
-- `extensions/pi-chrome.ts` — composer chrome.
-- `extensions/loc/` — LOC status extension.
-- `extensions/web-search/` — Exa web-search extension (registers `web_search`
-  only when `EXA_API_KEY` is in the environment).
-- `extensions/failover/` — fallback chain: a run that dies on a link after
-  stock retry + compaction recovery moves the session to the next link,
-  strictly forward; chain lives in the extension source (ADR-011/013).
-- `extensions/openrouter-live/` — live OpenRouter bridge: appended to
-  `models.json` (additive-only, fail-closed) the models the `pi.dev` mirror
-  lacks, so model launches land on the provider's schedule, not the
-  mirror's (ADR-022).
-- `~/.bashrc` (marked block only; snippet in the README) — `pi()` wrapper that
-  injects the Exa key from pass for interactive-shell launches (ADR-010).
-
-Everything else under `~/.pi/agent` is foreign except the `openrouter` entry
-in `auth.json`. The `openrouter-auth` component overlays only that entry and
-preserves every other credential; do not replace the whole file. Sessions,
-`models-store.json`, `usage-outbox/`, telemetry (`agent-usage-telemetry.ts`),
-the herdr-managed `herdr-agent-state.ts`, Omarchy-owned `omarchy` /
-`diagnose-crash` skill symlinks, and generated `themes/omarchy-system.json`
-remain foreign.
-
-## Shared primitives
-
-Skill packages, global-guidance sections, and the `pass-env` launcher are owned
-by `agent-config`, checked out as
-the sibling `../agent-config` (override with `AGENT_CONFIG_DIR`). This repo
-declares its selection in `install`; it does not carry those files. Add a
-harness-neutral primitive there, not here.
-
-The Linear CLI is a separate host tool, [linear-cli](https://github.com/misty-step/linear-cli);
-this repo neither owns nor deploys it (ADR-020, amended).
-
-## Conventions
-
-- Keep the divergence ledger in `README.md` honest. When you add, remove, or
-  reclassify an extension or setting, update the ledger and add or amend an ADR
-  in `docs/adr/`. A change absent from the ledger is not finished.
-- Prefer small, single-purpose extensions over one large one. `pi-chrome.ts`
-  owns the rails; `loc/` owns codebase metrics.
-- Keep the composer's bottom border empty. Identity is right-aligned on the top
-  rail; everything else belongs in the footer.
-- Align rails to the editor's text column via a single padding constant.
-- Nerd-font glyphs and semantic color are welcome; keep them legible and
-  left-to-right in reading order.
-- Extensions must degrade to stock behavior when removed.
-
-## Verification
-
-- `../scripts/verify pi` covers shell syntax, extension logic, and both consumers'
-  fresh-clone installer checks, including settings validation. Installer checks
-  exercise committed HEAD; commit installer changes before using that evidence.
-- Extension loading is proved by a fresh pi session, not by file presence.
-
-## Shipping
-
-Use conventional commits. [Landmark](https://github.com/misty-step/landmark)
-turns them into releases. Pre-push runs gitleaks and trufflehog; do not bypass
-it for convenience.
+Run `../scripts/check pi`, including both committed-HEAD installer compositions.
+Observe a fresh Pi session to prove extension loading. Keep extensions focused
+and removable, composer identity on the top rail, and footer content below.
+Root automation owns hooks, secret scanning and releases.

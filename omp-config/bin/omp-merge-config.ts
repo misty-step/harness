@@ -46,6 +46,7 @@ function overlay(source: Yaml, live: Yaml): Yaml {
 function pruneRetiredKeys(source: Yaml, merged: Yaml): void {
 	// Retire only these owned leaves; other live-only config remains foreign.
 	const paths = [
+		["providers", "tinyModel"],
 		["modelRoles", "designer"],
 		["task", "agentModelOverrides", "designer"],
 		["retry", "fallbackChains", "slow"],
@@ -56,6 +57,7 @@ function pruneRetiredKeys(source: Yaml, merged: Yaml): void {
 		["retry", "fallbackChains", "designer"],
 		["retry", "fallbackChains", "reviewer"],
 		["retry", "fallbackChains", "security-reviewer"],
+		["retry", "fallbackChains", "anthropic/claude-opus-5-5"],
 	];
 	for (const path of paths) {
 		let sourceParent: Yaml | undefined = source;
@@ -102,6 +104,17 @@ if (live === null) {
 } else {
 	const merged = overlay(source, live ?? {});
 	pruneRetiredKeys(source, merged);
+	// Adding the fail-closed specialist gate must not enable a foreign agent
+	// that the operator already disabled.
+	const task = merged && typeof merged === "object" && !Array.isArray(merged) ? merged.task : undefined;
+	const liveTask = live.task;
+	if (task && liveTask && typeof task === "object" && typeof liveTask === "object"
+		&& !Array.isArray(task) && !Array.isArray(liveTask)
+		&& Array.isArray(task.disabledAgents) && Array.isArray(liveTask.disabledAgents)) {
+		const disabled = new Set(task.disabledAgents);
+		for (const agent of liveTask.disabledAgents) disabled.add(agent);
+		task.disabledAgents = [...disabled];
+	}
 	body = `${Bun.YAML.stringify(merged)}\n`;
 }
 const temporary = `${destPath}.${process.pid}.tmp`;
