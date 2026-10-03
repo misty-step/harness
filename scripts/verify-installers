@@ -48,6 +48,9 @@ for consumer in pi omp; do
     printf 'foreign native executable sentinel\n' > "$work/expected-native"
     cp "$work/expected-native" "$home/.local/bin/omp"
     mkdir -p "$home/.hermes/profiles/kaylee/journal"
+    # The global overlay must preserve foreign MCP state while scopes retires
+    # only the former owned Linear transport, including its inline OAuth grant.
+    printf '{"foreignSetting":"keep","mcpServers":{"foreign":{"type":"http","url":"https://foreign.example/mcp","auth":{"client":"keep"}},"linear":{"type":"http","url":"https://mcp.linear.app/mcp","oauth":{"clientId":"retired"}},"openrouter":{"type":"http","url":"https://old.example/mcp","oauth":{"clientId":"keep-openrouter"}}},"disabledServers":["foreign-disabled"]}\n' > "$agent/mcp.json"
     printf '# Experiments\n\n## E-018 Preserved runtime journal sentinel\n' > "$work/expected-experiments"
     cp "$work/expected-experiments" "$home/.hermes/profiles/kaylee/journal/experiments.md"
     for skill in herdr pr-preview sachstand session-close; do
@@ -168,6 +171,8 @@ for consumer in pi omp; do
   else
     check "omp auth untouched" cmp -s "$work/expected-auth" "$agent/auth.json"
     check "omp default install preserves native entrypoint" cmp -s "$work/expected-native" "$home/.local/bin/omp"
+    check "omp MCP foreign state and owned tracker retirement" \
+      jq -e '.foreignSetting == "keep" and .mcpServers.foreign == {type:"http",url:"https://foreign.example/mcp",auth:{client:"keep"}} and (.mcpServers | has("linear") | not) and .mcpServers.openrouter.url == "https://mcp.openrouter.ai/mcp" and .mcpServers.openrouter.oauth == {clientId:"keep-openrouter"} and (.disabledServers | index("foreign-disabled") != null)' "$agent/mcp.json"
     check "omp default install does not activate memory units" test ! -e "$home/.config/systemd/user/omp.slice"
     check "omp engineer launcher bytes" cmp -s "$work/source/omp-config/bin/omp-engineer.py" "$home/.local/bin/omp-engineer"
     check "omp engineer launcher executable" test -x "$home/.local/bin/omp-engineer"
@@ -224,6 +229,23 @@ for consumer in pi omp; do
         const result = Bun.spawnSync([...command, "--which"], { cwd: process.env.HOME });
         if (result.exitCode !== 0 || result.stdout.toString().trim() !== "workstation/OPENROUTER_MISTY_STEP_HARNESS_WORKSTATION_DIFF_REVIEW_API_KEY") throw new Error("wrong personal billing entry");
       '
+    # A foreign symlinked MCP destination must fail before overwriting its target.
+    cp "$agent/mcp.json" "$work/expected-mcp"
+    mv "$agent/mcp.json" "$home/foreign-mcp.json"
+    ln -s "$home/foreign-mcp.json" "$agent/mcp.json"
+    if env -i PATH="$PATH" HOME="$home" TMPDIR="$work" PI_CODING_AGENT_DIR="$agent" \
+      OMP_INSTALL_COMPONENTS=mcp \
+      "$work/source/omp-config/install" >"$work/omp-mcp.log" 2>&1; then
+      printf 'FAIL omp MCP refuses symlinked destination\n' >&2
+      failures=$((failures + 1))
+    elif [ -L "$agent/mcp.json" ] && cmp -s "$work/expected-mcp" "$home/foreign-mcp.json"; then
+      printf 'PASS omp MCP preserves symlinked foreign destination\n'
+    else
+      printf 'FAIL omp MCP mutated symlinked foreign destination\n' >&2
+      failures=$((failures + 1))
+    fi
+    rm "$agent/mcp.json"
+    mv "$home/foreign-mcp.json" "$agent/mcp.json"
   fi
   # US-026: both routing layers, the silent-sink drop-in, and Claude Code env
   # deploy; the installed extension applies the contract self-contained; and

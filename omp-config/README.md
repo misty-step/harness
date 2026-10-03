@@ -34,8 +34,8 @@ prompt is: how can I pokayoke this so this kind of error never happens again?
 | `bin/tmp-health.py`, `references/dev-exec.md` | Opt-in workstation execution limits, pressure notifications, and rollback workflow |
 | `config.yml` | Model roles, fallbacks, theme/TUI, providers, task/LSP settings |
 | `models.yml` | Local Ollama discovery and command-resolved OpenRouter key; cloud models remain in omp's bundled catalog |
-| `mcp.json` | Global MCP inventory; Linear is deliberately absent |
-| `workspace-mcp.json`, `bin/omp-install-scopes.ts` | Linear directory scopes, native project-local imports, owned skill retirement |
+| `mcp.json` | Global MCP policy overlay; preserves foreign servers, settings and auth |
+| `bin/omp-install-scopes.ts` | Owned legacy tracker definition/import retirement and owned skill retirement |
 | `global/AGENTS.md` | OMP-specific guidance; `./install` composes it with shared sections from `agent-config` |
 | `global/WATCHDOG.md`, `global/WATCHDOG.yml` | Read-only Steward advisor, enabled only on demand |
 | `themes/` | TUI themes (`tokyonight`, `everforest`, `everforest-light`) |
@@ -202,15 +202,18 @@ Foreign binaries and symlinks at the launcher destination cause preflight to
 fail rather than being overwritten or deleted; an earlier
 `misty-step/omp-config` launcher header is accepted and upgraded in place.
 
-`scopes` installs Linear only under `~/development/misty-step` and
-`~/development/moomooskycow`, retires the owned global `parlor`, `ast-grep`,
-and `now-next` packages, and retires global `todoist-cli` only after
+`scopes` retires the former owned tracker transport from global OMP config and
+the `misty-step`/`moomooskycow` development roots. It removes only the recognized
+HTTP definition and owned relative project imports whose scope no longer carries
+foreign state. Foreign servers, settings, customized transports and imports remain;
+R90 and other development trees are untouched. It never creates new tracker scopes.
+It also retires the owned global `parlor`, `ast-grep` and `now-next` packages,
+and retires global `todoist-cli` only after
 `$OMP_DEVELOPMENT_ROOT/moomooskycow/daybook/.agents/skills/todoist-cli/SKILL.md`
 exists (override with `OMP_TODOIST_OWNER`). It does not mutate `~/.claude` or
-`~/.codex`; those live aliases are Main-owned. Redirecting
-`PI_CODING_AGENT_DIR` does not isolate hook, scope, or `~/.local/bin` writes.
-Use a disposable HOME, development root, and checkout copy for installer
-checks.
+`~/.codex`; those live aliases are Main-owned. Redirecting `PI_CODING_AGENT_DIR`
+does not isolate hook, scope, or `~/.local/bin` writes. Use a disposable HOME,
+development root, and checkout copy for installer checks.
 
 ## Engineer display isolation
 
@@ -414,7 +417,7 @@ omp-grievances unack 294
 ```
 
 Outcomes are `ticketed`, `no-action`, and `historic`. `ticketed` requires an
-opaque external reference such as a Linear or Habitat item. The ledger stores
+opaque external reference such as a Glass or Habitat item. The ledger stores
 grievance IDs, outcomes, references, and notes; raw reports remain owned by
 `~/.omp/autoqa.db`. A salted source fingerprint prevents acknowledgements from
 silently attaching to a replaced or rewritten grievance history.
@@ -586,68 +589,60 @@ It does not call a provider or replace foreign runtime telemetry.
 See the [baseline, prompt diff, scope and promotion procedure](../docs/token-efficiency.md).
 No live deployment or task-quality parity is implied by the offline checks.
 
-## Linear
+## Glass work records and tracker retirement
 
-Use the [official Linear MCP server](https://linear.app/docs/mcp) for access and
-the shared `/skill:engineering-operations` for durable capture and handoff judgment. The connector is not a
-scheduler, authorization to start work, or a second system-documentation store.
+Glass is the one backlog for Misty Step and personal scopes. R90 stays in
+Habitat; neither this migration nor Glass filing copies its work into another
+tracker. The existing item owns intent and evidence; procedures and
+version-bound knowledge remain in the repository.
 
-`workspace-mcp.json` owns `https://mcp.linear.app/mcp`. `install` deploys it only
-under `~/development/misty-step/.omp/mcp.json` and
-`~/development/moomooskycow/.omp/mcp.json`; global `mcp.json` does not declare it.
+Read the live service with `glass ticket show ID` or
+`glass query items --scope misty-step/harness`. The installed
+`OPERATIONS.md` gives the real CLI flags for authorized owner writes. OMP's
+engineer namespace exposes only Glass's read socket and masks the live store:
+send proposed changes to the desk/parent for the authorized owner to apply.
+Do not create a private fallback backlog or expose another write socket.
+New backlog records use plain title, description and why with honest attribution,
+status `later`, no explicit rank, and historical source links in notes.
 
-OMP's native MCP discovery is cwd-local, not ancestor-inherited. The `scopes`
-installer adds a relative `.omp/.mcp.json` import in each existing direct-child
-Git checkout under those two roots. It leaves a primary `.omp/mcp.json` untouched,
-refuses conflicting fallback files or symlinked configuration directories, and
-adds its local import to Git's `info/exclude`. R90 and other development trees
-receive no definition or import. Re-run `OMP_INSTALL_COMPONENTS=scopes ./install`
-after adding a checkout. Launch OMP from the repository root; an arbitrary nested
-working directory does not inherit its MCP definition. `OMP_DEVELOPMENT_ROOT`
-exists for alternate local layouts and isolated installer checks.
+`scopes` is now a retirement pass, not an MCP installer. It recognizes only the
+former `linear` HTTP server at `https://mcp.linear.app/mcp`, with the former
+installer's optional `auth`/`oauth` fields. A different URL/transport or extra
+options is foreign: it is retained and reported for its owner to inspect.
+The pass refuses symlinked/non-file definitions and symlinked configuration
+directories before writing. If the scoped file contains nothing else, it removes
+that file, exact owned `.omp/.mcp.json` symlinks and their `info/exclude` line.
+If foreign servers/settings remain, their existing discovery imports remain.
+Primary project `.omp/mcp.json` files and foreign fallback files are not owned.
+The removed `workspace-mcp.json` source is not replaced with a Glass MCP bridge.
 
-After deployment, run these **inside OMP**, not in the shell:
+### Owner installation after review and issue migration
 
-```text
-/mcp reload
-/mcp test linear
+Run outside the engineer sandbox, from the merged harness checkout:
+
+```sh
+OMP_INSTALL_COMPONENTS="guidance mcp scopes cli skill:engineering-operations" ./omp-config/install
+PI_CONFIG_COMPONENTS=guidance ./pi-config/install
+./agent-config/install --agent-dir "${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}" --skill engineering-operations
 ```
 
-New sessions discover the local definition. Already-running sessions retain their
-loaded tools until reloaded or restarted. Authorize only from an approved scope:
+This deploys both guidance compositions, the shared capture skill, the
+foreign-preserving MCP overlay, scoped retirement and the existing engineer
+launcher. The launcher stops forwarding inherited `LINEAR_API_KEY`; Habitat
+credentials and the read-only `glass-read.sock` mount are unchanged. Restart
+engineers so loaded MCP tools and guidance are no longer stale.
 
-```text
-/mcp reauth linear
-```
-
-Select the intended workspace. OAuth credentials remain in OMP's managed auth
-storage, not in this repo. Directory scoping prevents normal connector discovery;
-it is not a credential sandbox against another process under the same account.
-Use separate OMP profiles when credential isolation is required.
-
-### Authentication recovery
-
-`/mcp reload` rediscovers configuration; `/mcp reconnect linear` reconnects an
-existing binding. If an existing session reports `HTTP 401 invalid_token` after
-authorization completed in another OMP process, use `/mcp reauth linear` in the
-failing session. That recovery was observed during setup; the underlying runtime
-cause is unconfirmed. Do not repeat a reported failure merely to confirm it or
-add a hard-coded token-header workaround. Team creation is not exposed by the
-current server; use Linear's settings for that administration.
-
-Work conventions and project navigation live in the
-[Misty Step work tracking guide](https://linear.app/misty-step/document/misty-step-work-tracking-guide-d3a627ae6395),
-[Misty Step Issue Templates and Work Conventions](https://linear.app/misty-step/document/misty-step-issue-templates-and-work-conventions-d976aa9e94e8),
-and [omp-config project](https://linear.app/misty-step/project/omp-config-47a74679f980).
-Keep procedures and version-bound knowledge here; link them from work records.
-Check [current plan limits](https://linear.app/pricing) before changing a plan or
-inviting collaborators. No paid plan or GitHub integration is enabled here.
+The pass entry, standalone migration CLI and OMP-managed OAuth storage are not
+deleted here. Their final retirement belongs to the owner only after every live
+issue is mapped/closed and the audit-owned consumer has cut over. Preserve the
+Linear workspace and historical issue URLs. Do not retire credentials merely
+because a definition is absent.
 
 ## Review explanations and ASCII assets
 
 Maintained engineering and visual preferences live in `global/AGENTS.md`.
 `VISION.md` is retired (harness ADR-004): a repository's purpose and non-goals
-live in its README, and authorized direction in Linear. Diagrams are optional
+live in its README, and authorized direction in Glass. Diagrams are optional
 explanations of the actual change, not a required artifact packet.
 
 ASCII support is currently **aesthetic guidance and browser-based asset authoring**,
@@ -963,8 +958,8 @@ Security scanning, release automation, and recurring repository work belong to
 separately configured systems with their own triggers, scope, credentials, and
 evidence. PR explanation and evidence remain part of ordinary interactive work;
 there are no review or delivery skill entry points here. The bundled OMP
-reviewers remain available for explicitly requested work. Linear is an interactive
-provider integration, not a scheduler or an autonomous delivery service.
+reviewers remain available for explicitly requested work. Glass is the work-record
+authority, not authorization to start work or an autonomous delivery service.
 
 `Steward` remains a read-only observer, not a release gate. Automatic review is
 off (`advisor.enabled: false`); use `omp --advisor` or `/advisor on` when requested.
@@ -1409,13 +1404,14 @@ exited 4 with two off-roster turns and two off-roster switches.
 
 ### Evaluations are work records
 
-The bounded Deepsec pilot and its unresolved repository, credential, cost, and
-scheduling decisions are tracked in
-[MIS-5](https://linear.app/misty-step/issue/MIS-5/evaluate-scheduled-deepsec-security-reviews).
+The bounded Deepsec pilot needs a reviewed Glass work item before repository,
+credential, cost or scheduling decisions become commissioned work. Its
+[original Linear proposal (MIS-5)](https://linear.app/misty-step/issue/MIS-5/evaluate-scheduled-deepsec-security-reviews)
+remains historical evidence, not a filing route.
 No scan or timer is installed here. A selected service's maintained configuration
 and procedure must live with that service, not grow into a proposal manual here.
 
-Memory and shared-component evaluations likewise belong in Linear until a
+Memory and shared-component evaluations likewise belong in Glass until a
 specific implementation is selected. Memory may be derived retrieval, never a
 replacement for source authority. UI source belongs to its owning library and
 consumers, not to the harness. Neither evaluation enables a provider, ingests
@@ -1438,18 +1434,19 @@ Exclude copied local MCP imports and credentials from a loading-only fixture.
 2. **Runtime config preservation.** Seed `$agent/config.yml` with source keys
    plus `dev.autoqaConsent: granted`. `OMP_INSTALL_COMPONENTS=config ./install`
    must keep that key, apply source-owned keys, and leave auth stores untouched.
-3. **MCP auth vs inventory.** Seed a live `mcp.json` with matching `auth` on
-   `openrouter` and an extra undeclared server. MCP install must keep matching
-   `auth`/`oauth` for declared servers and drop the extra server. Do not print
-   secrets.
+3. **MCP auth and foreign ownership.** Seed a live `mcp.json` with matching
+   `auth` on `openrouter`, an extra undeclared server and foreign settings.
+   MCP install must keep matching `auth`/`oauth`, the foreign server and its
+   settings. The `scopes` component removes Linear only when its complete
+   definition matches the retired owned definition. Do not print secrets.
 4. **Invalid preflight writes nothing.** Record hashes, then try a missing
    guidance file, `OMP_INSTALL_COMPONENTS=skill:not-a-skill`, invalid live YAML,
-   and a conflicting `.omp/.mcp.json`. Each must fail before creating or
-   changing destinations.
+   or a symlinked destination. Each must fail before creating or changing
+   destinations.
 5. **Scope boundaries.** Under a fake `OMP_DEVELOPMENT_ROOT`, only
-   `misty-step` and `moomooskycow` receive Linear definitions and relative
-   `.mcp.json` imports. An `r90` tree stays untouched. Symlinked `.omp`
-   directories and conflicting fallback files are refused with no writes.
+   `misty-step` and `moomooskycow` retire matching owned Linear definitions and
+   imports. An `r90` tree stays untouched. Foreign or changed fallback files
+   stay untouched. No replacement tracker imports are created.
 6. **Owned retirement.** Live `RULES.md`, `skills/ast-grep`, and
    `skills/now-next` disappear on `guidance`/`scopes`/`all`. `wrangler`
    matches this source package. Global `todoist-cli` remains while
@@ -1482,13 +1479,14 @@ model turn. Prose-only changes do not require repeating the runtime exercise.
 - `agent-config` owns the shared
   primitives this repo deploys.
 - `pi-config` is the sister harness.
-- [linear-cli](https://github.com/misty-step/linear-cli) is the standalone
-  Linear client.
+- [linear-cli](https://github.com/misty-step/linear-cli) is the retired
+  Linear client; the workspace remains for historical links.
 
 ## Ecosystem
 
-- Non-R90 work uses Linear for durable tracking and project notes for design
-  knowledge. Current operator requests remain authority; R90 stays in Habitat.
+- Misty Step and personal work use Glass for durable tracking and project notes
+  for design knowledge. Current operator requests remain authority; R90 stays
+  in Habitat.
 - **Iron Forest** — headless Builder/Verifier/Fixer factory. Mechanical
   enforcement belongs there and in CI, not in prose.
 - **Landmark** — release pipeline: conventional commits become semantic

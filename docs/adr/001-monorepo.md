@@ -22,7 +22,8 @@ inert --check contract.
 
 Use one release stream, with v0.1.0 as the migration baseline. Legacy repositories
 retain issues, releases, branches, and historical browsing, then become read-only
-archives with destination notices. linear-cli stays independent.
+archives with destination notices. The then-independent `linear-cli` is historical;
+the 2026-10-02 cutover routes Misty Step/personal work to Glass and R90 to Habitat.
 
 Alternatives: sibling repos retain coordination and unpinned compatibility;
 a submodule parent records pins but introduces a fourth repo and does not make

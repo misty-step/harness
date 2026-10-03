@@ -1,9 +1,9 @@
 # Postmortem: stale release candidates could pass the merge gate
 
 - **Incident date:** 2026-09-25; reported again 2026-09-27
-- **Status:** Prevention implemented; production recovery tracked in MIS-177
+- **Status at incident time:** Prevention implemented; production recovery tracked in the historical MIS-177 record.
 - **Operational owner:** Harness release automation / Misty Step
-- **Tracker:** [MIS-177](https://linear.app/misty-step/issue/MIS-177/github-production-failure)
+- **Historical tracker:** [MIS-177](https://linear.app/misty-step/issue/MIS-177/github-production-failure); current work belongs in Glass.
 
 ## Summary
 
@@ -102,8 +102,9 @@ This mechanism does not claim arbitrary release infrastructure cannot fail.
 
 ## Follow-up
 
-[MIS-177](https://linear.app/misty-step/issue/MIS-177/github-production-failure)
-owns the fix PR, actual master run, replacement release PR/tag, and final closure
-evidence. It stays open until those online postconditions are observed. The
+The historical [MIS-177](https://linear.app/misty-step/issue/MIS-177/github-production-failure)
+record owned the fix PR, actual master run, replacement release PR/tag and closure
+evidence. Its closure criterion was observing those online postconditions.
+Current work-record updates belong in Glass, not the historical tracker. The
 [verification procedure](../verification.md#protected-release-walk-us-015)
-records the repeatable checks, recovery path, and read-only ruleset inspection.
+records the repeatable checks, recovery path and read-only ruleset inspection.

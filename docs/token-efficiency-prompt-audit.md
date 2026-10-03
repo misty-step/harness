@@ -2,6 +2,10 @@
 
 Baseline source: `4a2eb5888dcae5dabd96226eecef429e38da2a64`. Line numbers below refer to that revision, not the changed extension. This audit is a disposition proposal, not an instruction change. The only prompt change implemented is the off-by-default inventory experiment described below.
 
+Historical disposition only: its Linear access proposal below is superseded by
+the 2026-10-02 Glass cutover. Current tracker instructions live in the composed
+guidance and OMP `OPERATIONS.md`; R90 remains in Habitat.
+
 ## Scope, evidence, and boundaries
 
 Read-only audit of the requested source files, the three installer/composition paths, and relevant local skill-source references. The semantic `find` attempt returned no hits (Jev unavailable); exact `glob`, `grep`, and bounded `read` calls located and read the targets. No files were edited; no build, test, formatter, runtime, live credential inventory, or transcript was read. The reported 90-entry inventory and token measurements below were provided by the parent agent, not re-run here. No entry names or transcript content are reproduced.

@@ -88,7 +88,7 @@ owned directory. Remove only that directory once its process has ended.
      revision through both Pi/OMP installers for shared changes, restart and
      exercise the affected installed path. Record revision, target and observed
      production sanity result in the PR and relevant existing routed ticket
-     (Habitat where used; Misty Step remains Linear).
+     (Habitat where used; Misty Step/personal work uses Glass).
   3. Delete only the owned merged local/origin branch, remove only the owned
      worktree without force and resolve its lease after evidence inspection;
      preserve `ws pull` before evidence-gated `ws down`. Leave the canonical

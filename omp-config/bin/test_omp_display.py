@@ -212,6 +212,8 @@ try:
 except OSError:
     result["inherited_fd"] = "denied"
 result["display_env"] = [name for name in ("DISPLAY", "WAYLAND_DISPLAY", "HYPRLAND_INSTANCE_SIGNATURE", "DBUS_SESSION_BUS_ADDRESS") if name in os.environ]
+result["retired_tracker_key"] = "LINEAR_API_KEY" in os.environ
+result["habitat_key_preserved"] = os.environ.get("HABITAT_API_TOKEN") == "synthetic-habitat"
 result["no_input_devices"] = not Path("/dev/input").exists() and not Path("/dev/uinput").exists()
 result["native_media_hidden"] = not Path("/run/user/" + str(os.getuid()) + "/pipewire-0").exists()
 result["scratch_backing_preserved"] = (Path.home() / ".cache/tmp").stat().st_dev == int(scratch_device)
@@ -221,7 +223,8 @@ sys.exit(73)
 '''
             environment = {key: value for key, value in os.environ.items() if not key.startswith("HERDR_")}
             environment.update(DISPLAY=":777", WAYLAND_DISPLAY=path,
-                               HYPRLAND_INSTANCE_SIGNATURE="synthetic", DBUS_SESSION_BUS_ADDRESS="unix:path=" + path)
+                               HYPRLAND_INSTANCE_SIGNATURE="synthetic", DBUS_SESSION_BUS_ADDRESS="unix:path=" + path,
+                               LINEAR_API_KEY="synthetic-linear", HABITAT_API_TOKEN="synthetic-habitat")
             child = subprocess.run(
                 [sys.executable, str(DIRECTORY / "omp-display.py"), "--", sys.executable, "-c", code,
                  path, abstract_name[1:], str(os.getpid()), str(tcp.getsockname()[1]),
@@ -232,6 +235,7 @@ sys.exit(73)
                 "pathname": "denied", "abstract": "denied", "host_loopback": "denied",
                 "slirp_host_gateway": "denied", "host_proc": "denied", "inherited_fd": "denied",
                 "display_env": [], "no_input_devices": True,
+                "retired_tracker_key": False, "habitat_key_preserved": True,
                 "native_media_hidden": True,
                 "scratch_backing_preserved": True,
                 "default_scratch_private": True,

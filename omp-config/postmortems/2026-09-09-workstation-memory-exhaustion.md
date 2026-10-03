@@ -7,8 +7,8 @@
   recorded in the [2026-09-14 deployment runbook](../references/dev-exec.md);
   automatic routing and admission control remain unimplemented.
 - **Operational owner:** operator / omp-config; individual follow-up owners unassigned
-- **Intended tracker:** [omp-config in Misty Step Linear](https://linear.app/misty-step/project/omp-config-47a74679f980)
-- **Publication:** repository draft; not yet published to Linear
+- **Historical intended tracker:** [omp-config in Misty Step Linear](https://linear.app/misty-step/project/omp-config-47a74679f980); current work belongs in Glass.
+- **Publication at incident time:** repository draft; not yet published to the then-current tracker.
 
 ## Summary
 

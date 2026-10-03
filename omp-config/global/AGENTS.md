@@ -7,10 +7,10 @@ Model defaults live in `config.yml`/`models.yml`; `omp usage` reports capacity.
 Restart after a binary/catalog update. Engineering guidance does not manage the
 fleet or prescribe review/approval choreography.
 
-Track Misty Step/personal work in Linear (team `MIS`); R90 work stays in Habitat
-and R90's own tools. Linear scope is `~/development/misty-step` and
-`~/development/moomooskycow`. Native MCP is the first path; the GraphQL fallback
-uses `workstation/LINEAR_API_KEY` through `pass-env`.
+Track Misty Step/personal work in Glass; R90 work stays in Habitat and R90's
+own tools. Read the existing item with `glass ticket show ID`. The engineer
+boundary exposes Glass's read socket, not its live commitments store; relay
+record changes to the desk/parent rather than writing a private backlog.
 Read `$(omp config path)/OPERATIONS.md` when these OMP-specific workflows arise.
 
 Keep the original ticket's why and victory in the existing `todo` phase name,

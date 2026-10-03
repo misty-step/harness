@@ -36,7 +36,7 @@ retain their existing enforcement contracts.
 | `decide` | `sachstand`, quiet decisions; only speech needs the skill |
 | `check-cadence`, `verification-infrastructure` | `story-qa`; missing infrastructure is separate work |
 | Direct UI fixes and deterministic copy checks | `visual-state-review` |
-| Model/account discovery, Linear/Host commands | OMP `OPERATIONS.md` sidecar |
+| Model/account discovery, Glass/Host commands | OMP `OPERATIONS.md` sidecar |
 | Agent architecture and post-training source links | `agent-design` |
 
 Retirement follows successful deployment of each selected replacement. A narrow
@@ -93,9 +93,10 @@ claiming delivery parity or treating first turns as permissions controls.
 The actual narrow shared installer reproduced deletion of all five legacy
 procedures before repair, and preserved all five afterward. The 11 bounded
 installer tests pass, including all three replacement-retirement mappings and
-foreign-state preservation. The exact documented Linear GraphQL fallback ran
-against the real issuer: authenticated viewer and `MIS` team returned, with the
-header supplied over stdin rather than secret-valued argv. Staged OMP/Pi
+foreign-state preservation. Historically, the then-documented Linear GraphQL
+fallback ran against the real issuer: authenticated viewer and `MIS` team returned,
+with the header supplied over stdin rather than secret-valued argv. That access
+path is retired by the 2026-10-02 Glass cutover. Staged OMP/Pi
 composition and full skill deployment produced the measured files above.
 
 Required pre-merge/full checks and post-merge live native-consumer evidence are

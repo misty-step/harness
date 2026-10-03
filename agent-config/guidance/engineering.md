@@ -34,6 +34,12 @@ Repository code owns technical truth; the existing ticket owns why and victory.
 Use `foundation` for a commissioned assessment, not to expand an ordinary fix into
 repository-wide compliance work.
 
+Work records live in Glass for Misty Step/personal scopes, and Habitat for R90.
+Read `glass ticket show ID` and `glass query items --scope company/repository`.
+The authorized store owner writes Glass; inside OMP's read-only engineer boundary,
+relay updates instead of creating a private backlog. `engineering-operations`
+owns the capture and handoff facts.
+
 Load tool-specific knowledge only when needed. Exercise the affected path and use
 the repository's normal change route. Kaylee owns dispatch, fleet management,
 review choreography and approvals; they are not engineering craft.

@@ -15,7 +15,7 @@ before editing. Cross-component changes land in one commit/PR.
 Share a primitive only when it is harness-neutral and duplicated across, or
 consumed by, multiple harnesses. Otherwise keep it with its consumer. Harness
 policy stays with its harness; similar-looking code alone does not justify an
-abstraction. `linear-cli` remains an independent host tool.
+abstraction. Glass owns Misty Step/personal work; R90 remains in Habitat.
 
 ## Source and deployment
 

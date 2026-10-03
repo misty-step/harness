@@ -177,7 +177,7 @@ What already works:
   - a link, repository path or script target fails to resolve;
   - a generated block differs from its re-render.
 - Replaces: `VISION.md` (purpose and non-goals move here; direction moves to
-  Linear) and `CONTRIBUTING.md`. Hand-kept ADR indexes give way to the
+  Glass for Misty Step/personal work, Habitat for R90) and `CONTRIBUTING.md`. Hand-kept ADR indexes give way to the
   generated `docs/adr/` index.
 
 **`AGENTS.md`: operating contract.** `CLAUDE.md` and `GEMINI.md` are symlinks
@@ -478,7 +478,7 @@ Stage 1, the next pin bump, handed to the harness engineer:
   - Add a `scripts/check` wrapper around `npm run ci`, name its walk runner in
     the AGENTS routing table, and add an `.env.pass` for release secrets.
   - Retire `VISION.md`: purpose and non-goals move to README, authorized
-    direction to Linear.
+    direction to Glass.
   - Fix the README link to the superseded concept study.
   - Remove release chronology from the runbook.
   - A follow-up decision settles the future of the `SPEC.md` S-ids.

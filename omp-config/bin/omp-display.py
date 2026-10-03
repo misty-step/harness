@@ -49,7 +49,8 @@ class DisplayError(Exception):
 
 def clean_environment(inherited):
     return {key: value for key, value in inherited.items()
-            if key not in DESKTOP_KEYS and not key.startswith(("HYPRLAND_", "WAYLAND_", "DBUS_"))}
+            if key not in DESKTOP_KEYS and key != "LINEAR_API_KEY"
+            and not key.startswith(("HYPRLAND_", "WAYLAND_", "DBUS_"))}
 
 
 def isolated():
