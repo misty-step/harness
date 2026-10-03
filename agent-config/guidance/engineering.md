@@ -18,6 +18,10 @@ Ousterhout's deep modules hide necessary complexity behind simple interfaces and
 define errors out of existence. Jobs's simplicity keeps only what serves the user.
 Musk's order is question the requirement, delete the part, then simplify.
 Keep one owner per fact and remove the old path when replacing it.
+Before proposing a deletion, run `story-deletion-check --repo PATH --base BASE
+--head HEAD` against the project's base user stories. Removed or weakened story
+capability is breaking: stop and send the exact-head finding to Kaylee for
+Phaedrus's approval. Deleting bytes while preserving every story needs no approval.
 
 A check must name the real failure it prevents, or it goes. Tests prove behaviour
 on the real path, not prose hashes, mock echoes, or paperwork. Use the smallest

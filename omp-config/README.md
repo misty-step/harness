@@ -198,6 +198,11 @@ directory. It preserves other packages, guidance, and configuration. Preflight
 checks Bun availability, standalone launcher syntax/imports, skill discovery
 metadata, and owned destinations before writing. Installation does not require
 a pass store or decrypt credentials; `pass` and GPG are runtime dependencies.
+`story-deletion-check` deploys with shared skills or guidance and checks deletion
+against immutable base user stories (US-051). A supported capability loss goes
+to Kaylee for Phaedrus's exact-head approval; ordinary deletion and unavailable
+judgments remain non-blocking. [The shared contract](../agent-config/README.md#story-preserving-deletion-us-051)
+owns the CLI and review handoff, not an OMP extension or server-required gate.
 Foreign binaries and symlinks at the launcher destination cause preflight to
 fail rather than being overwritten or deleted; an earlier
 `misty-step/omp-config` launcher header is accepted and upgraded in place.
@@ -1018,8 +1023,9 @@ A board item can carry a ranked model roster on its ticket (`ticket.roster`:
 `config.yml` recover a failing model onto models the ticket never named, ending
 at Gemini 3.8 Flash. `omp-roster` gives an OMP engineer launched for a ticket
 only that roster and stops it when the roster runs out. It extends the
-approved routing of US-014. Roster planning and checking make no model call;
-qualifying launches now start an experiment and `verdict` makes a native judge
+approved routing of US-014. Planning checks each usable candidate with one
+bounded native provider call before selecting it; `check` makes no model call.
+Qualifying launches start an experiment and `verdict` makes a native judge
 call (see below). The installed `~/.local/bin/omp-roster` uses the siblings
 `omp-engineer` for memory preflight and `omp-experiments.ts` for journal state.
 
@@ -1113,6 +1119,15 @@ state under its lock; a successful roster preflight never reserves capacity.
    roster may name them, but they are never launched or used as recovery until
    a per-ticket cash cap exists, and `check` never counts a turn on one as on
    the roster.
+   Before selecting a `usable`/`low` candidate, launch requires one completed
+   response from that exact provider/model/effort through native OMP (25-second
+   session bound, 35-second process bound; no tools, session, extensions, retries,
+   advisor or model fallback). This also applies to `--usage-json`: stale or
+   degraded quota cannot authorize a launch on its own. A rejection, timeout,
+   unreadable response or route change skips the candidate with a
+   `live provider check:` reason, before any overlay, record or experiment write.
+   The next roster entry is checked in rank order. This is a point-in-time
+   admission check, not a quota reservation; capacity can change afterward.
 4. Without explicit `--use-default`, the first launchable ticket entry in rank
    order wins. If none is launchable,
    `launch` exits 3 with "roster exhausted", each entry's skip reason and reset

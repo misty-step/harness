@@ -1,12 +1,29 @@
 # Foundation Standard
 
 `foundation-standard-v1.json` is the sole normative catalog: applicability,
-evidence, dispositions, defaults and exceptions. Its current version is 1.7.0.
+evidence, dispositions, defaults and exceptions. Its current version is 1.8.0.
 The checker enforces structured claims, not product correctness.
 
 Use this standard for commissioned adoption/assessment, not as permission to
 widen a bug fix. Existing independent access, migration, privacy and recovery
 contracts remain meaningful; documentation or receipt syntax is not their proof.
+
+## Application feedback and brand kit
+
+The K-20260929-experiment-with-an-agent-feedback-endpoi commission adds two
+obligations, each with one check in the catalog:
+
+| Obligation | Auditor check |
+| --- | --- |
+| FND-FBK-001: Agent feedback loop | Trace an exercised structured bug or missing-feature report from the agent endpoint to the project backlog, an agent's draft fix and a person's approval before application. |
+| FND-BRD-001: Brand and marketing kit | Inspect the complete kit named in the catalog, including the custom-art marketing page and playable promo video; placeholders are not assets. |
+
+The scheduled Foundations auditor checks both on every application, including
+internal tools and private betas; the constitution's website and portfolio
+exceptions do not waive them. It files one backlog ticket per missing obligation,
+not one per asset or workflow step. This amendment builds neither in individual
+projects. Existing catalog pins migrate explicitly; scheduled audits use the
+installed current standard without requiring an adoption record.
 
 ## Lean safety cadence
 

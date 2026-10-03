@@ -143,18 +143,7 @@ validate_bin() {
         printf 'Standalone launcher lacks its ownership header: %s\n' "$name" >&2
         exit 1
       }
-      BIN_SOURCE="$repo_dir/bin/$name" bun -e '
-        import { readFileSync } from "node:fs";
-        import { isBuiltin } from "node:module";
-        const text = readFileSync(process.env.BIN_SOURCE, "utf8");
-        const transpiler = new Bun.Transpiler({ loader: "ts" });
-        transpiler.transformSync(text);
-        for (const imported of transpiler.scan(text).imports) {
-          if (imported.path !== "bun" && !isBuiltin(imported.path)) {
-            throw new Error(`Standalone launcher cannot depend on external modules: ${imported.path}`);
-          }
-        }
-      '
+      bun --no-env-file --no-install "$repo_dir/bin/launcher-build.ts" "$repo_dir/bin/$name"
       dest="$home_dir/.local/bin/${name%.ts}"
       if [ -e "$dest" ] || [ -L "$dest" ]; then
         if [ ! -f "$dest" ] || [ -L "$dest" ] || ! validate_launcher_header "$dest"; then
@@ -239,7 +228,17 @@ install_skill() {
 install_bin() {
   name=$1
   install -d -m 700 "$home_dir/.local/bin"
-  install -m 700 "$repo_dir/bin/$name" "$home_dir/.local/bin/${name%.ts}"
+  case "$name" in
+    *.ts)
+      temp=$(mktemp "$home_dir/.local/bin/.${name%.ts}.XXXXXX")
+      trap 'rm -f "$temp"' 0 1 2 15
+      bun --no-env-file --no-install "$repo_dir/bin/launcher-build.ts" "$repo_dir/bin/$name" "$temp"
+      chmod 700 "$temp"
+      mv "$temp" "$home_dir/.local/bin/${name%.ts}"
+      trap - 0 1 2 15
+      ;;
+    *) install -m 700 "$repo_dir/bin/$name" "$home_dir/.local/bin/$name" ;;
+  esac
 }
 
 install_guidance() {

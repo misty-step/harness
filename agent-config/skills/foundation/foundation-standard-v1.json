@@ -1,7 +1,7 @@
 {
   "schema": "foundation-standard/1",
   "id": "misty-step.foundation",
-  "version": "1.7.0",
+  "version": "1.8.0",
   "principles": [
     {
       "id": "FND-P-APPLICABILITY",
@@ -228,6 +228,24 @@
         "An incident ticket closes only with the postmortem it links and the structural change that postmortem links to rule out the whole class of error (shape, type, ownership, a removed affordance or a failing-closed check), together with its regression check; a warning or instruction is not a fix."
       ],
       "exception_authority": "None. Operator decision 2026-09-25 (ADR-005): no exception for an application; not_applicable only when the repository is not an application."
+    },
+    {
+      "id": "FND-FBK-001",
+      "title": "Agent feedback loop",
+      "applies_when": "The repository is an application: it changes a live system (surface deployed) or ships something people run (surfaces ui, cli or api), including internal tools and private betas.",
+      "required_evidence": [
+        "An exercised agent feedback endpoint accepts structured bug and missing-feature reports into the project's backlog, where an agent drafts the fix and a person approves it before it is applied."
+      ],
+      "exception_authority": "Phaedrus approves any exception; not_applicable only when the repository is not an application."
+    },
+    {
+      "id": "FND-BRD-001",
+      "title": "Brand and marketing kit",
+      "applies_when": "The repository is an application: it changes a live system (surface deployed) or ships something people run (surfaces ui, cli or api), including internal tools and private betas.",
+      "required_evidence": [
+        "An inspectable brand and marketing kit contains a tagline, a marketing page with custom art rather than emoji, generic icons or colour slabs, internal and customer documentation, a brand kit, design tokens and a design system, DESIGN.md, and a playable promo video."
+      ],
+      "exception_authority": "Phaedrus approves any exception; not_applicable only when the repository is not an application."
     }
   ],
   "approved_defaults": [

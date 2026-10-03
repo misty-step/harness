@@ -316,3 +316,35 @@ rulesets. Eighty private repositories returned the explicit GitHub Pro/public
 The `includes_parents=true` endpoints disclosed no inherited organisation rule.
 Settings evidence is separate from execution proof: source checks, exact-head
 model review and normal live merges own the latter.
+
+## Story-capability deletion amendment (2026-10-02, US-051)
+
+Commission K-20261002-deletions-that-remove-a-user-story-need authorizes one
+narrow exception to advisory-only semantic findings: a deletion that removes or
+weakens base user-story capability is breaking and is held for Phaedrus's
+explicit approval. The failure prevented is loss of a promised user action
+hidden inside “cleanup,” including a PR that rewrites the story to excuse its
+own implementation removal. Deleted bytes without capability loss do not earn
+a gate.
+
+The operator's delegate selected **Kaylee-owned release**, not a server-required
+check or a settings change. `story-deletion-check` uses one bounded Jev Decisions
+request over immutable base stories and the complete proposal. Choice removal
+probability ≥0.80 holds with story criteria and patch evidence. Confidence and
+probabilities remain visible; uncertainty, outages and incomplete evidence stay
+non-blocking and reach the existing independent reviewer, not a fabricated pass.
+This changes neither the ordinary merge procedure nor unrelated semantic rules.
+
+`agent-review` records supported loss as `REQUEST_CHANGES` and refuses to erase
+an existing exact-head/base capability hold on a model rerun. Dismissals, labels,
+PR text, bot approvals, and Phaedrus's shared GitHub account do not prove his
+authorization. Repair at a new head is reassessed. Kaylee obtains his direct
+approval for any intentional removal and owns that authorized merge outside the
+automatic approval command; this command provides no bypass.
+
+The two public historical replays, model identity, timing and measured cost are
+recorded in [verification](../verification.md#story-deletion-replays-us-051).
+They establish the commissioned loss/preservation cases, not general classifier
+accuracy or server enforcement. Existing fleet pins and live installations are
+unchanged until their owner explicitly deploys the source change.
+

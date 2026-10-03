@@ -26,6 +26,7 @@ function fixture(): Fixture {
 	mkdirSync(join(source, "skills/authenticated-commands"), { recursive: true });
 	copyFileSync(join(repo, "install"), join(source, "install"));
 	copyFileSync(join(repo, "bin/pass-env.ts"), join(source, "bin/pass-env.ts"));
+	copyFileSync(join(repo, "bin/launcher-build.ts"), join(source, "bin/launcher-build.ts"));
 	copyFileSync(join(repo, "guidance/engineering.md"), join(source, "guidance/engineering.md"));
 	copyFileSync(
 		join(repo, "skills/authenticated-commands/SKILL.md"),
@@ -97,10 +98,7 @@ describe("install", () => {
 		expect(withoutOwned(snapshot(files.home), ".local/bin/pass-env"))
 			.toEqual(withoutOwned(beforeHome, ".local/bin/pass-env"));
 		expect(existsSync(join(files.target, "skills/authenticated-commands/obsolete.txt"))).toBe(false);
-		expect(readFileSync(join(files.target, "skills/authenticated-commands/SKILL.md"), "utf8"))
-			.toBe(readFileSync(join(files.source, "skills/authenticated-commands/SKILL.md"), "utf8"));
 		const launcher = join(files.home, ".local/bin/pass-env");
-		expect(readFileSync(launcher, "utf8")).toBe(readFileSync(join(files.source, "bin/pass-env.ts"), "utf8"));
 		expect(lstatSync(launcher).mode & 0o777).toBe(0o700);
 		expect(existsSync(join(files.home, ".password-store"))).toBe(false);
 		expect(invoke(files).exitCode).toBe(0);
@@ -126,6 +124,23 @@ describe("install", () => {
 		const beforeAgent = snapshot(files.target);
 		const beforeHome = snapshot(files.home);
 		expect(invoke(files, ["--check"]).exitCode).toBe(0);
+		expect(snapshot(files.target)).toEqual(beforeAgent);
+		expect(snapshot(files.home)).toEqual(beforeHome);
+	});
+
+	test("bundled local modules survive removal of the source; foreign dependencies fail before writes", () => {
+		const files = fixture();
+		put(files.source, "bin/local.ts", '#!/usr/bin/env bun\n// local: owned standalone launcher (misty-step/harness).\nimport { value } from "../lib/value.ts";\nconsole.log(value);\n');
+		put(files.source, "lib/value.ts", 'export const value = "owned capability";\n');
+		expect(invoke(files, ["--bin", "local.ts"]).exitCode).toBe(0);
+		rmSync(join(files.source, "lib"), { recursive: true });
+		const smoke = Bun.spawnSync(["bun", join(files.home, ".local/bin/local")]);
+		expect(smoke.exitCode).toBe(0);
+		expect(smoke.stdout.toString().trim()).toBe("owned capability");
+		put(files.source, "bin/local.ts", '#!/usr/bin/env bun\n// local: owned standalone launcher (misty-step/harness).\nimport "unowned-package";\n');
+		const beforeAgent = snapshot(files.target);
+		const beforeHome = snapshot(files.home);
+		expect(invoke(files, ["--bin", "local.ts"]).exitCode).not.toBe(0);
 		expect(snapshot(files.target)).toEqual(beforeAgent);
 		expect(snapshot(files.home)).toEqual(beforeHome);
 	});
