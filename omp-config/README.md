@@ -1131,7 +1131,7 @@ state under its lock; a successful roster preflight never reserves capacity.
    writes by about a second, so a `launch` straight after a roster edit can read
    the roster it just replaced: compare the `roster_sha256` it reports with the
    roster you wrote.
-2. Refusal (exit 1, one plain sentence, nothing written): no ticket or an empty
+2. Refusal (exit 1, nothing written): no ticket or an empty
    roster; an entry outside the approved model list (`approvedModels` in
    `bin/omp-roster.ts`, the table `bin/omp-model-policy.ts` holds `config.yml`
    to) or asking for an effort that model lacks; the same model and effort
