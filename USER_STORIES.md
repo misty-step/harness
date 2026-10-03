@@ -592,8 +592,10 @@ future routing with cited evidence instead of experiments remaining optional pro
 Criteria:
 1. WHEN a ticket has a roster and Kaylee launches an OMP engineer, THE SYSTEM
    SHALL launch it on the first roster entry whose ai-usage verdict is `usable`
-   or `low`, and SHALL refuse with exit status 3 and write no launch overlay
-   when no entry qualifies, naming each entry's skip reason and reset time.
+   or `low` AND whose bounded native provider check completes on the exact route,
+   with retry and fallback disabled. Stale/degraded quota alone SHALL NOT authorize
+   launch. Rejected or unverified candidates SHALL fall through with a clear reason;
+   when none qualifies, exit status 3 SHALL write no launch overlay.
 2. IF the launched model fails, or the approved primary of a recoverable
    helper (scout, sonic, plan, smol, tiny, commit or the advisor sidecar) fails,
    THEN THE SYSTEM SHALL switch that call only to roster models, in rank order,
@@ -624,7 +626,7 @@ Criteria:
    launch with one plain sentence and write nothing.
 6. WHEN an OMP engineer is launched without a ticket, THE SYSTEM SHALL accept
    `--model provider/model --thinking effort` and no `--item`, run the same
-   approved-model, effort, cash and ai-usage checks on that one route, refuse with
+   approved-model, effort, cash, ai-usage and live provider checks on that one route, refuse with
    exit status 3 and write nothing when the route cannot launch, and otherwise
    write the overlay and launch record under a synthetic `adhoc-` id with every
    engineer chain empty so the engineer stops when its model fails; it SHALL
