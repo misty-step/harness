@@ -30,6 +30,17 @@ beforeAll(() => {
 	mkdirSync(join(root, "deploy"));
 	mkdirSync(join(root, "bin"));
 	writeFileSync(join(root, "bin", "herdr"), '#!/bin/sh\n[ "$*" = "agent list" ] || exit 2\nif [ -n "$HERDR_TEST_AGENTS" ]; then cat "$HERDR_TEST_AGENTS"; else printf \'%s\\n\' \'{"result":{"agents":[]}}\'; fi\n', { mode: 0o755 });
+	writeFileSync(join(root, "bin", "omp"), `#!${process.execPath}
+const args = process.argv.slice(2);
+const chosen = args[args.indexOf("--model") + 1];
+const [provider, model] = chosen.split("/");
+const mode = provider === "anthropic" ? process.env.ROSTER_PROBE_FAILURE : undefined;
+if (mode === "malformed") { console.log("not JSON"); process.exit(0); }
+if (mode === "exit") { console.error("provider unavailable"); process.exit(1); }
+if (mode === "fallback") console.log(JSON.stringify({type:"retry_fallback_applied"}));
+console.log(JSON.stringify({type:"message_end",message:{role:"assistant",provider,model:mode === "wrong-model" ? "other" : model,stopReason:mode === "rejected" ? "error" : "stop",errorMessage:mode === "rejected" ? "429 rate limit; resets Sunday 04:30" : undefined}}));
+if (mode !== "unterminated") console.log(JSON.stringify({type:"agent_end",isTerminal:true}));
+`, { mode: 0o755 });
 	cli = join(root, "deploy", "omp-roster");
 	copyFileSync(join(import.meta.dir, "omp-roster.ts"), cli);
 	copyFileSync(join(import.meta.dir, "omp-experiments.ts"), join(root, "deploy", "omp-experiments.ts"));
@@ -109,9 +120,11 @@ function invoke(args: string[], env: Record<string, string> = {}, cwd?: string):
 		...(!args.includes("--memory-json") ? ["--memory-json", memoryFile] : []),
 		...(!env.ROSTER_AUTO_PAIR && args.includes("--item") && !args.some((arg) => ["--tiny", "--live-data", "--no-experiment"].includes(arg)) ? ["--no-experiment", "Isolated roster admission/audit fixture"] : []),
 	] : args;
+	const searchPath = env.PATH?.split(":") ?? [];
+	searchPath.splice(env.PATH ? 1 : 0, 0, join(root, "bin"));
 	const result = Bun.spawnSync({
 		cmd: ["sh", "-c", 'umask 0; exec "$@"', "sh", process.execPath, cli, ...actualArgs],
-		env: { ...inherited, HOME: root, XDG_STATE_HOME: join(root, "xdg"), OMP_ROSTER_EXPERIMENTS_FILE: join(root, ".hermes", "profiles", "kaylee", "journal", "experiments.md"), ...env, PATH: env.PATH ? `${env.PATH}:${join(root, "bin")}` : `${join(root, "bin")}:${process.env.PATH}` },
+		env: { ...inherited, HOME: root, XDG_STATE_HOME: join(root, "xdg"), OMP_ROSTER_EXPERIMENTS_FILE: join(root, ".hermes", "profiles", "kaylee", "journal", "experiments.md"), ...env, PATH: env.PATH ? searchPath.join(":") : `${join(root, "bin")}:${process.env.PATH}` },
 		cwd,
 		stdout: "pipe",
 		stderr: "pipe",
@@ -393,6 +406,31 @@ describe("omp-roster launch (US-046)", () => {
 		expect(fresh.usage).toEqual({ degraded: false, degraded_reason: null, oldest_observation: null, stale_after_seconds: null });
 	});
 
+
+	test("live rejection overrides stale usable quota, falls through, and writes nothing when exhausted", () => {
+		const dir = scratch("live-rate-limit");
+		const ticket = put(join(dir, "ticket.json"), JSON.stringify({ nature: "fix", roster: [SONNET, SOL] }));
+		const usage = put(join(dir, "usage.json"), JSON.stringify(usageView([
+			row("anthropic", "sonnet", "usable"), row("openai-codex", "gpt-6.1-sol", "usable"),
+		], { degraded: "six minutes stale", oldest_observation: new Date(Date.now() - 360_000).toISOString(), stale_after_seconds: 300 })));
+		const args = ["launch", "--item", "K-test", "--ticket-json", ticket, "--usage-json", usage, "--json"];
+		for (const failure of ["rejected", "fallback", "wrong-model", "unterminated", "malformed", "exit"]) {
+			const result = invoke([...args, "--state-dir", join(dir, failure)], { ROSTER_PROBE_FAILURE: failure });
+			expect(result.exitCode).toBe(0);
+			const out = JSON.parse(result.stdout);
+			expect(out.launch.model).toBe(SOL.model);
+			expect(out.skipped.map((skip: { selector: string }) => skip.selector)).toEqual(["anthropic/claude-sonnet-5-5:medium"]);
+			expect(out.skipped[0].reason.startsWith("live provider check:")).toBe(true);
+			if (failure === "rejected") expect(out.skipped[0].reason).toContain("429 rate limit");
+		}
+		const state = join(dir, "exhausted");
+		const exhausted = invoke(["launch", "--model", "anthropic/claude-sonnet-5-5", "--thinking", "medium",
+			"--usage-json", usage, "--state-dir", state, "--json"], { ROSTER_PROBE_FAILURE: "rejected" });
+		expect(exhausted.exitCode).toBe(3);
+		expect(JSON.parse(exhausted.stdout).launch).toBeNull();
+		expect(exhausted.stderr).toContain("429 rate limit");
+		expect(existsSync(state)).toBe(false);
+	});
 	test("US-046 the plain launch output is an export line then paste-ready arguments, quoted only where the shell needs it", () => {
 		const dir = scratch("plain");
 		const state = join(dir, "state dir's");
