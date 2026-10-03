@@ -1040,8 +1040,9 @@ search cannot leak a secret whichever tool or ignore flag produced it.
 Criteria:
 1. WHEN any tool prints an env-style assignment whose upper-case name contains
    KEY, TOKEN, SECRET, PASSWORD, PASS, AUTH, CREDENTIAL or PRIVATE, including a
-   bare keyword name or an unquoted value containing spaces, THE SYSTEM SHALL
-   send the provider a placeholder instead of a value of eight or more characters.
+   bare keyword name, a leading underscore or an unquoted value containing spaces,
+   THE SYSTEM SHALL send the provider a placeholder instead of a value of eight
+   or more characters.
 2. WHEN any tool prints a URL with a password of eight or more characters in its
    user-info field, THE SYSTEM SHALL mask the full password through the final
    authority delimiter, including an embedded `@`, before the path, query or fragment.

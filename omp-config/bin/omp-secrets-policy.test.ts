@@ -13,9 +13,9 @@ function values(text: string): string[] {
 }
 
 describe("harness secrets policy", () => {
-	test("matches complete credential values, including unquoted whitespace and bare keyword names", () => {
+	test("matches complete credential values, including whitespace, bare keywords, and leading underscores", () => {
 		const secret = ["fixture", "password"].join("-");
-		for (const name of ["KEY", "TOKEN", "SECRET", "PASSWORD", "PASS", "AUTH", "CREDENTIAL", "PRIVATE", "DB_PASSWORD"]) {
+		for (const name of ["KEY", "TOKEN", "SECRET", "PASSWORD", "PASS", "AUTH", "CREDENTIAL", "PRIVATE", "DB_PASSWORD", "_API_KEY"]) {
 			expect(values([name, secret].join("="))).toEqual([secret]);
 		}
 		expect(values([" 12:SUPABASE_ACCESS_TOKEN", secret].join("="))).toEqual([secret]);
