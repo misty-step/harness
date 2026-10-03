@@ -1,6 +1,6 @@
 # Foundations audit
 
-Question: does this project keep each of the ten foundations that applies to it?
+Question: does this project keep each applicable foundation and application obligation?
 
 First decide the project's kind from the repository and bundle: product (people
 outside us use it), public tool, internal tool, site, infrastructure or config,
@@ -39,3 +39,22 @@ Judge each foundation from evidence:
    documentation.
 10. **In a portfolio**: the project is named on one of the portfolio pages in
     the bundle.
+
+## Application obligations
+
+For every application (ui, cli, api or deployed, including internal tools and
+private betas), also check these two obligations in the installed
+`foundation-standard-v1.json`. The website and portfolio exceptions above do not
+skip them. Each obligation has one required-evidence check; missing evidence
+means unknown, not proof of absence. Inspect the implementation and assets
+before filing one ticket for the missing obligation, not one per part.
+
+- **FND-FBK-001: Agent feedback loop**: check the endpoint-to-backlog-to-draft-to-
+  human-approval chain against the catalog evidence. Use `area: "F7"` and
+  `gap: "agent-feedback"` for a missing loop.
+- **FND-BRD-001: Brand and marketing kit**: inspect the complete kit against the
+  catalog evidence. Use `area: "F9"` and `gap: "brand-marketing-kit"` for an
+  incomplete kit.
+
+Include both obligations as met, gap (ticket), not applicable or unknown in the
+final summary.
