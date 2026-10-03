@@ -237,6 +237,39 @@ sys.exit(73)
                 "default_scratch_private": True,
             })
 
+    def test_hidden_caller_interpreter_bootstraps_without_exposing_hermes(self):
+        hidden = Path.home() / ".hermes"
+        hidden.mkdir(exist_ok=True)
+        with tempfile.TemporaryDirectory(prefix="omp-display-interpreter-", dir=hidden) as directory:
+            interpreter = Path(directory) / "python3"
+            interpreter.symlink_to("/usr/bin/python3")
+            environment = {key: value for key, value in os.environ.items()
+                           if not key.startswith(("HERDR_", "OMP_ENGINEER_DISPLAY"))}
+            environment["DISPLAY"] = ":777"
+            namespaces = [os.readlink(f"/proc/self/ns/{name}") for name in ("mnt", "pid", "net")]
+            code = r'''
+import json, os, sys
+from pathlib import Path
+print(json.dumps({
+    "caller_interpreter_hidden": not Path(sys.argv[1]).exists(),
+    "display_env_removed": "DISPLAY" not in os.environ,
+    "private_namespaces": [
+        os.readlink("/proc/self/ns/" + name) != parent
+        for name, parent in zip(("mnt", "pid", "net"), sys.argv[2:])
+    ],
+}))
+sys.exit(73)
+'''
+            child = subprocess.run(
+                [str(interpreter), str(DIRECTORY / "omp-display.py"), "--",
+                 "/usr/bin/python3", "-c", code, str(interpreter), *namespaces],
+                env=environment, capture_output=True, text=True, timeout=25)
+            self.assertEqual(child.returncode, 73, child.stderr)
+            self.assertEqual(json.loads(child.stdout), {
+                "caller_interpreter_hidden": True, "display_env_removed": True,
+                "private_namespaces": [True, True, True],
+            })
+
     def test_group_interrupt_is_single_and_term_reaches_command_for_graceful_flush(self):
         code = r'''
 import signal, sys, time
