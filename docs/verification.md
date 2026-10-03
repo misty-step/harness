@@ -21,7 +21,11 @@ CI uses one job, `./scripts/check all`, and a 15-minute timeout. Before that che
 the pinned Landmark action validates the prospective release candidate with
 `prepare-protected` and supplies its checksum-verified binary for the release
 race replay. CI therefore also needs access to GitHub release downloads.
-No browser, Electron, model, cloud resource, or installed harness is needed.
+The canonical checks need no browser, Electron, model, cloud resource or installed
+harness. The subsequent semantic review gate does need `OPENROUTER_API_KEY`.
+Reusable CI declares that secret required, and `Verify and Release` forwards only
+that named secret; repository secrets do not cross a `workflow_call` automatically.
+Missing credentials fail the review rather than silently skip it.
 All scratch is run-scoped under `~/.cache/tmp` and removed on ordinary exit; interrupted runs may leave an
 owned directory. Remove only that directory once its process has ended.
 

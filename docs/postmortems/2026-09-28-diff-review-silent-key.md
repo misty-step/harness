@@ -76,6 +76,26 @@ What remains possible: a job that is not wired to any covered scheduler and
 never calls `outcome record` is still invisible. The foundations audit treats
 such a job as a gap (constitution foundation 2).
 
+## Post-cutover release credential gap, 2 October
+
+PR #213 made a missing CI review key fail closed, exposing a second credential
+boundary: `Verify and Release` called reusable CI without forwarding its
+`OPENROUTER_API_KEY`. Direct pull-request CI had the repository secret; the
+release caller did not pass it to the called workflow.
+
+The [first failed master run](https://github.com/misty-step/harness/actions/runs/37065518871)
+and [fifth failed run](https://github.com/misty-step/harness/actions/runs/37080007565)
+both completed all canonical checks, then logged an empty `OPENROUTER_API_KEY`
+and exited 2 in semantic review. Last green master was `b4b49f0`; five pushes
+failed after `78ee784`. Four alerts remained pending when the route guard checked.
+
+The correction declares the reusable workflow's review secret required and
+explicitly forwards only that secret from the release caller. It preserves
+fail-closed review, fork isolation and existing release gates, rather than
+restoring the old missing-key skip or inheriting every release credential.
+Recovery requires a reviewed normal PR and a successful master Verify and
+Release run; a direct pull-request check alone does not exercise this boundary.
+
 ## Follow-up
 
 - The outcome route and this repository's wiring: ADR-009, this change.

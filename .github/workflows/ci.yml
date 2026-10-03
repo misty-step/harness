@@ -2,6 +2,9 @@ name: CI
 on:
   pull_request:
   workflow_call:
+    secrets:
+      OPENROUTER_API_KEY:
+        required: true
   workflow_dispatch:
 permissions:
   contents: read
