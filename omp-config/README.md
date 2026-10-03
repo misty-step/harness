@@ -610,7 +610,8 @@ It is reversible: a placeholder in a tool argument is restored before the tool
 runs.
 
 Unquoted assignments mask the remainder of their line; quoted assignments mask
-the quoted value. Whitespace after the delimiter is not part of the value,
+the complete quoted value, including backslash escapes in double quotes and
+doubled single quotes. Whitespace after the delimiter is not part of the value,
 and an empty assignment never consumes the following line.
 
 The `config` component validates the policy (regex entries only, each compiles)

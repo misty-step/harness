@@ -23,6 +23,12 @@ describe("harness secrets policy", () => {
 		expect(values(["DB_PASSWORD", `"${secret} with spaces"`].join("="))).toEqual([`"${secret} with spaces"`]);
 		expect(values(["DB_PASSWORD", `'${secret} with spaces'`].join("="))).toEqual([`'${secret} with spaces'`]);
 		expect(values(['"STRIPE_SECRET"', `"${secret}"`].join(": "))).toEqual([`"${secret}"`]);
+		const escaped = JSON.stringify(`${secret}"suffix`);
+		expect(values(["DB_PASSWORD", escaped].join("="))).toEqual([escaped]);
+		const boundary = JSON.stringify('123456"7');
+		expect(values(["KEY", boundary].join("="))).toEqual([boundary]);
+		const doubled = `'${secret}''suffix'`;
+		expect(values(["DB_PASSWORD", doubled].join("="))).toEqual([doubled]);
 		const spaced = `${secret} with spaces`;
 		expect(values(["DB_PASSWORD", spaced].join("="))).toEqual([spaced]);
 	});
@@ -42,6 +48,7 @@ describe("harness secrets policy", () => {
 			"PASSWORD_MIN_LENGTH=12",
 			["KEY", "1234567"].join("="),
 			["KEY", '"1234567"'].join("="),
+			["KEY", JSON.stringify('12345"6')].join("="),
 			"see https://example.com/docs/page",
 			["KEY", "\nordinary value on the next line"].join("="),
 		]) {
