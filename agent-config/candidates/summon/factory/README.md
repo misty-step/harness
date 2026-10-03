@@ -210,6 +210,52 @@ and current revision. Expected revision is required for every state mutation
 except append-only exact-ID intake/input. Conflicts require a status read and
 re-evaluation, not silent CAS retry of external work.
 
+## Recursive read/export contract (shared Rust source)
+
+`visibility::AgentRunAttemptV1` is the single version-1 agent/run/attempt read
+schema; `evidence::PacketManifestV1` is the single packet schema. Native/Mage
+collectors must import these types, not create parallel author schemas. Existing
+TaskSpec/Status/Reply/mutation wire and RuntimeAdapter are unchanged.
+
+- `management: summon|observed_only`; `managed: Option<Status>` retains the
+  original DO facts, not a second phase machine. An observed-only native CTO or
+  worker has `managed:null`, no invented run/attempt and unknown Summon phase.
+  A failed managed reader may retain a known run reference with no Status and an
+  explicitly unavailable source; it cannot invent an attempt.
+- Each `SourceStamp` includes owner, original reference, read timestamp in Unix
+  milliseconds, digest, `current|missing|stale|failed|uncertain|cancelled|inaccessible`
+  and optional detail. `Fact<T>` binds supplied source/value bytes. Freshness is
+  a source observation, not automatic lease-age logic or authenticated identity.
+- `Origin` freezes original brief, descriptive acceptance, agent identity and
+  attributed already-authored rationale/decision source refs. It never replaces
+  TaskSpec checks/outputs or non-overridable native permissions, and never
+  reconstructs private thinking. `RunMetadata` carries origin/native/lineage,
+  candidate/deliverable/trace/check/review/consumer/authorization/release refs,
+  and immutable child packet refs. It is source metadata, not aggregate status.
+- `Lineage` explicitly states discovery completeness and unresolved inventory.
+  Child/dependency edges retain stable identity, source owner/digest/reference
+  and original provenance. Shared children are one node with multiple edges.
+- `VisibilityGraph::new` rejects conflicting identities/edge owners/provenance
+  and known cycles before projection/export. Iterative traversal is stack-safe;
+  snapshots are bounded to 10,000 records, pages to 128, with digest-bound cursors.
+  More work is explicit drill-down/incomplete discovery, never a green parent.
+- Packets retain failed/interrupted/unavailable records; successful export is
+  archive construction, not verification. Recursive pass is freshly derived
+  from source/current managed proof, complete discovered inventory and bound
+  child archives. It is not product Done, release authority or authenticated
+  independent review. Missing child/catalog/evidence or reader failure blocks it.
+- `binding_sha256` excludes read timestamps and child archive timestamp-only
+  refreshes; actual archive hash includes every byte. Candidate/coverage/edge/
+  native/source-state/semantic child changes invalidate recursive currentness.
+  `reopen` verifies ORIGINAL bound child archives against fresh source inventory,
+  not a convenient latest archive. It never writes run phase.
+
+This checkpoint provides pure shared types/functions. The per-run metadata/read
+HTTP boundary and new recursive fixture/runtime proofs are being implemented;
+no HTTP visibility endpoint is claimed exercised by this source paragraph.
+Deep/shared/cycle graph tests are fixtures, separate from real workerd HTTP and
+from actual native delivery/materialized snapshot proof.
+
 ## Local proof commands
 
 Pinned dependencies live here only. Use run-scoped TMPDIR under `~/.cache/tmp`.
