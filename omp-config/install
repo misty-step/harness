@@ -303,7 +303,7 @@ validate_cli() {
   require_nonempty "$repo_dir/bin/omp-roster.ts"
   require_nonempty "$repo_dir/bin/omp-experiments.ts"
   command -v python3 >/dev/null 2>&1 || { echo "python3 is required" >&2; exit 1; }
-  for name in omp-engineer omp-display omp-gui; do
+  for name in omp-engineer omp-display omp-gui omp-host-install; do
     source="$repo_dir/bin/$name.py"
     target="$HOME/.local/bin/$name"
     require_nonempty "$source"
@@ -397,6 +397,7 @@ install_cli() {
   install -m 700 "$repo_dir/bin/omp-engineer.py" "$HOME/.local/bin/omp-engineer"
   install -m 700 "$repo_dir/bin/omp-display.py" "$HOME/.local/bin/omp-display"
   install -m 700 "$repo_dir/bin/omp-gui.py" "$HOME/.local/bin/omp-gui"
+  install -m 700 "$repo_dir/bin/omp-host-install.py" "$HOME/.local/bin/omp-host-install"
 }
 
 # Read-only repository auditors (omp-config/auditors). Explicit only, never part

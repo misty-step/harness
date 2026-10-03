@@ -8,11 +8,14 @@ import select
 import signal
 import shutil
 import socket
+import stat
 import subprocess
 import sys
 import tempfile
 import threading
+from types import SimpleNamespace
 import unittest
+from unittest.mock import patch
 
 DIRECTORY = Path(__file__).resolve().parent
 spec = importlib.util.spec_from_file_location("omp_display", DIRECTORY / "omp-display.py")
@@ -170,6 +173,183 @@ class GpgAuthorityTests(unittest.TestCase):
                 bridge.close()
                 upstream.close()
 
+
+class HostInstallExposureTests(unittest.TestCase):
+    def fixture_mounts(self, root):
+        home = root / "home"
+        home.mkdir()
+        (home / ".omp/run").mkdir(parents=True)
+        (home / ".cache/tmp").mkdir(parents=True)
+        (home / ".local/lib/workbench-host-install").mkdir(parents=True)
+        private = root / "private"
+        private.mkdir()
+        dns = root / "resolv.conf"
+        dns.write_text("nameserver 10.0.2.3\n")
+        runtime = root / "runtime"
+        runtime.mkdir()
+        return home, private, dns, runtime
+
+    def mounts(self, home, dns, private, runtime):
+        # Relocate only the fixed runtime path into a disposable fixture. No
+        # live runtime socket or host installer is created or replaced.
+        original = Path
+        def fixture_path(value):
+            return runtime if str(value) == f"/run/user/{os.getuid()}" else original(value)
+        with patch.object(display, "Path", side_effect=fixture_path):
+            args = display.mounts(home, dns, private)
+        # Match /run masking for the relocated synthetic runtime too.
+        index = args.index("/run") + 1
+        args[index:index] = ["--tmpfs", str(runtime)]
+        return args
+
+    def test_wrong_type_mode_symlink_and_owner_abort_mount_construction(self):
+        with tempfile.TemporaryDirectory() as directory, socket.socket(socket.AF_UNIX) as server:
+            root = Path(directory)
+            home, private, dns, runtime = self.fixture_mounts(root)
+            endpoint = home / ".local/lib/workbench-host-install/route.sock"
+            endpoint.write_text("not a socket")
+            with self.assertRaises(display.DisplayError):
+                self.mounts(home, dns, private, runtime)
+            endpoint.unlink()
+            server.bind(str(endpoint))
+            endpoint.chmod(0o660)
+            with self.assertRaises(display.DisplayError):
+                self.mounts(home, dns, private, runtime)
+            endpoint.chmod(0o600)
+            wrong_owner = SimpleNamespace(st_mode=stat.S_IFSOCK | 0o600, st_uid=os.getuid() + 1)
+            real_lstat = Path.lstat
+            def fixture_lstat(path, *args, **kwargs):
+                return wrong_owner if path == endpoint else real_lstat(path, *args, **kwargs)
+            with patch.object(Path, "lstat", fixture_lstat):
+                with self.assertRaises(display.DisplayError):
+                    self.mounts(home, dns, private, runtime)
+            endpoint.unlink()
+            endpoint.symlink_to(runtime / "other.sock")
+            with self.assertRaises(display.DisplayError):
+                self.mounts(home, dns, private, runtime)
+
+    def test_release_aliases_cannot_rebind_hidden_runtime_data(self):
+        for alias in ("leaf", "parent"):
+            with self.subTest(alias=alias), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                home, private, dns, runtime = self.fixture_mounts(root)
+                hidden = runtime / "releases"
+                hidden.mkdir()
+                (hidden / "private").write_text("synthetic private runtime state")
+                releases = home / ".local/share/workbench/releases"
+                if alias == "leaf":
+                    releases.parent.mkdir(parents=True)
+                    releases.symlink_to(hidden, target_is_directory=True)
+                else:
+                    releases.parent.parent.mkdir(parents=True)
+                    releases.parent.symlink_to(runtime, target_is_directory=True)
+                with self.assertRaises(display.DisplayError):
+                    self.mounts(home, dns, private, runtime)
+
+    @unittest.skipUnless(shutil.which("bwrap"), "bubblewrap namespace dependency")
+    def test_only_installed_socket_crosses_and_selected_host_artifacts_are_readonly(self):
+        scratch = Path.home() / ".cache/tmp"
+        scratch.mkdir(parents=True, exist_ok=True)
+        with tempfile.TemporaryDirectory(dir=scratch) as directory, socket.socket(socket.AF_UNIX) as server:
+            root = Path(directory)
+            home, private, dns, runtime = self.fixture_mounts(root)
+            protected = [
+                home / ".local/lib/workbench-host-install/audit",
+                home / ".local/share/workbench/releases",
+                home / ".local/lib/workbench-host-install/sources",
+            ]
+            for path in protected:
+                path.mkdir(parents=True)
+                (path / "sentinel").write_text("host-owned")
+            (home / ".hermes/profiles/kaylee").mkdir(parents=True)
+            (home / ".hermes/profiles/kaylee/private").write_text("hidden")
+            unrelated = home / ".local/state/workbench/engineer-state"
+            unrelated.parent.mkdir(parents=True)
+            unrelated.write_text("engineer-owned")
+            (runtime / "unrelated-secret").write_text("not exposed")
+            endpoint = home / ".local/lib/workbench-host-install/route.sock"
+            server.bind(str(endpoint))
+            endpoint.chmod(0o600)
+            server.listen(1)
+            server.settimeout(5)
+            failures = []
+            def host():
+                try:
+                    connection, _ = server.accept()
+                    with connection, socket.socket(socket.AF_UNIX) as replacement:
+                        self.assertEqual(connection.recv(32), b"capabilities\n")
+                        # Activation may recreate its owned socket while an
+                        # already launched engineer keeps the directory mount.
+                        server.close()
+                        endpoint.unlink()
+                        replacement.bind(str(endpoint))
+                        endpoint.chmod(0o600)
+                        replacement.listen(1)
+                        replacement.settimeout(5)
+                        connection.sendall(b"host-route\n")
+                        second, _ = replacement.accept()
+                        with second:
+                            self.assertEqual(second.recv(32), b"readback\n")
+                            second.sendall(b"recreated-route\n")
+                except Exception as exc:
+                    failures.append(exc)
+            thread = threading.Thread(target=host, daemon=True)
+            thread.start()
+            code = r'''
+import json, socket, sys
+from pathlib import Path
+endpoint, secret, hermes, unrelated, *protected = map(Path, sys.argv[1:])
+with socket.socket(socket.AF_UNIX) as connection:
+    connection.settimeout(3)
+    connection.connect(str(endpoint))
+    connection.sendall(b"capabilities\n")
+    response = connection.recv(32).decode()
+with socket.socket(socket.AF_UNIX) as connection:
+    connection.settimeout(3)
+    connection.connect(str(endpoint))
+    connection.sendall(b"readback\n")
+    recreated = connection.recv(32).decode()
+try:
+    endpoint.unlink()
+    socket_protected = False
+except OSError:
+    socket_protected = True
+denied = []
+for path in protected:
+    operations = [
+        lambda: (path / "sentinel").write_text("tampered"),
+        lambda: (path / "new-file").write_text("tampered"),
+        lambda: path.rename(path.with_name(path.name + "-moved")),
+    ]
+    for operation in operations:
+        try:
+            operation()
+            denied.append(False)
+        except OSError:
+            denied.append(True)
+unrelated.write_text("still writable")
+print(json.dumps({"reply": response, "recreated": recreated, "socket_protected": socket_protected,
+                  "secret_hidden": not secret.exists(), "hermes_hidden": not hermes.exists(),
+                  "denied": denied, "unrelated_writable": unrelated.read_text() == "still writable"}))
+'''
+            process = subprocess.run(
+                [display.BWRAP, "--unshare-user", "--unshare-pid", "--unshare-net",
+                 "--die-with-parent", "--cap-drop", "ALL",
+                 *self.mounts(home, dns, private, runtime), "--", "/usr/bin/python3", "-c", code,
+                 str(endpoint), str(runtime / "unrelated-secret"), str(home / ".hermes/profiles/kaylee/private"),
+                 str(unrelated), *map(str, protected)],
+                capture_output=True, text=True, timeout=10)
+            thread.join(6)
+            self.assertFalse(thread.is_alive())
+            self.assertEqual(failures, [])
+            self.assertEqual(process.returncode, 0, process.stderr)
+            self.assertEqual(json.loads(process.stdout), {
+                "reply": "host-route\n", "recreated": "recreated-route\n", "socket_protected": True,
+                "secret_hidden": True, "hermes_hidden": True,
+                "denied": [True] * 9, "unrelated_writable": True,
+            })
+            for path in protected:
+                self.assertEqual((path / "sentinel").read_text(), "host-owned")
 
 @unittest.skipUnless(shutil.which("bwrap") and shutil.which("slirp4netns"), "display namespace dependencies")
 class NamespaceAuthorityTests(unittest.TestCase):

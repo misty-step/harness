@@ -28,6 +28,7 @@ prompt is: how can I pokayoke this so this kind of error never happens again?
 | `bin/omp-experiments.ts` | Automatic one-variable pairs, blind native verdicts and evidence-backed effort defaults in the existing experiment journal; installed beside the roster CLI as `~/.local/bin/omp-experiments.ts` |
 | `bin/omp-engineer.py`, `units/omp.slice` | Serialized live memory admission and per-engineer containment (US-043); explicit `engineer-cage` activation |
 | `bin/omp-display.py`, `bin/omp-gui.py` | Kernel-enforced live-display isolation and engineer-owned headless native GUI |
+| `bin/omp-host-install.py` | Typed client for Workbench's audited host installer (US-052); deployed by `cli`, not a host shell |
 | `auditors/`, `bin/omp-audit.py`, `units/omp-audit*` | Weekly read-only repository audits (foundations, principles, simplicity): one visible OMP auditor per active repository; explicit `auditors` activation |
 | `bin/pass-env.ts` | Moved to `agent-config`: pass-backed launcher, installed as `~/.local/bin/pass-env` |
 | `bin/design-check.ts` | Moved to `agent-config`: player-surface copy checker, installed as `~/.local/bin/design-check` |
@@ -67,7 +68,7 @@ arguments (including `--check`); use `../scripts/verify omp` for isolated checks
 Preflight validates every selected input, then writes. Unset selection means
 `all`: owned config overlay, guidance, MCP, scopes, agents, skills, themes,
 extensions, `omp-grievances`, `omp-roster`, its sibling `omp-experiments.ts`,
-`omp-engineer`, `omp-display`, `omp-gui`, `pass-env`, `openrouter-key`,
+`omp-engineer`, `omp-display`, `omp-gui`, `omp-host-install`, `pass-env`, `openrouter-key`,
 `design-check`, `foundation-check`, `review-check`, and `ws`. CLI installation deploys code only:
 it never overwrites the runtime experiment journal or copies history into a
 second ledger. Staging the cage CLI does not activate
@@ -241,6 +242,58 @@ exists (override with `OMP_TODOIST_OWNER`). It does not mutate `~/.claude` or
 `PI_CODING_AGENT_DIR` does not isolate hook, scope, or `~/.local/bin` writes.
 Use a disposable HOME, development root, and checkout copy for installer
 checks.
+
+## Audited host installation (US-052)
+
+`omp-host-install` submits only `capabilities`, `install`, `readback` and
+`rollback` to Workbench's compiled user service. Workbench owns source
+eligibility, fixed recipes, existing-installer execution, snapshots and audit.
+The host fetches two fixed repositories and verifies merged default-branch
+ancestry, independent exact-head approval and canonical green checks; caller
+checkouts and claimed proofs are not accepted.
+
+The endpoint is `~/.local/lib/workbench-host-install/route.sock`, UID-owned,
+mode `0600`. The client checks socket ownership/type/mode and `SO_PEERCRED`,
+strictly validates the bounded reply and returns nonzero on denial. One JSON
+request ends with a write-half-close; no commands, environment, destinations,
+repository URLs or additional frames can cross the route. `--socket` is an
+explicit disposable-test override, not a destination parameter.
+
+[Workbench's bootstrap and rollback runbook](https://github.com/moomooskycow/workbench/blob/master/README.md#audited-engineer-host-installs-mirrodin-us-007)
+owns the desk operation that installs reviewed merged ELF/unit source and
+enables its socket outside the cage. Stage this client separately with
+`OMP_INSTALL_COMPONENTS=cli ./install`. Neither installer starts/restarts the
+desk, gateway or engineers. The existing read-only `.local/lib` mount exposes
+a host-added socket to an already-running cage; no `/run` or live-profile mount
+is added. New cages also protect Workbench's immutable release directory.
+All of `.hermes` remains hidden.
+
+Set `GLASS_ITEM` to the existing commission and `MERGED_HARNESS_SHA` to its
+approved merged revision:
+
+```sh
+omp-host-install capabilities
+omp-host-install install --item "$GLASS_ITEM" --recipe harness-cli \
+  --revision "$MERGED_HARNESS_SHA" --selection cli
+# Use receipt.receipt_id from the structured reply:
+omp-host-install readback "$RECEIPT_ID"
+omp-host-install rollback "$RECEIPT_ID"
+```
+
+Recipes are Workbench's allowlisted command/unit item, OMP `cli`, one genuine
+shared skill in OMP or Kaylee, or one allowlisted shared OMP launcher. Kaylee
+changes are single skill packages, never whole Hermes profile updates,
+identity/configuration, credentials, cron or live runtime replacement.
+Rollback restores only captured selected state and refuses byte/mode/link
+drift or a newer installation, even when the selected bytes are identical.
+Private Kaylee prior bytes and staging stay under her hidden profile.
+
+Receipts, source proofs and hashes live in protected host audit storage. Native
+Glass appends compact receipt pointers and detailed generated history to the
+same commission; full notes or unavailable audit fail closed without replacing
+user words. `activation: not_requested` means no service reload, timer enable
+or consumer restart was requested. Installation is not evidence that an
+existing consumer has adopted the new code.
 
 ## Engineer display isolation
 

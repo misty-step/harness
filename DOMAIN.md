@@ -21,6 +21,10 @@ and agent rules in [AGENTS.md](AGENTS.md).
   harness installer declares for deployment.
 - **Deploy (install):** a live mutation of an agent directory and `~/.local/bin`.
   It is never verification.
+- **Audited host-install route:** Workbench's typed user socket for named
+  existing-installer recipes from merged, reviewed, green source. OMP owns its
+  client and cage exposure; Workbench owns eligibility, selected transactions,
+  readback, rollback and durable generated Glass receipts.
 - **Foundation Standard:** the versioned obligation catalog in
   `agent-config/skills/foundation/`. `foundation-check` enforces it, and a
   project repository pins a harness revision to adopt it.
@@ -111,6 +115,13 @@ the Foundation Standard tooling. It does not own:
   Explicit layout activation also requires the installed Workbench updater's
   versioned capability before writes (`omp-config/install`,
   `scripts/verify-installers`; MIS-203).
+- **INV-013** The host-install client cannot submit a shell, caller environment,
+  destination or source-proof object, and installation cannot activate consumers.
+  Enforced by `omp-config/bin/omp-host-install.py` and
+  `omp-config/bin/test_omp_host_install.py`; Workbench enforces the host boundary.
+  Existing-cage library socket exposure and new-cage release protection are
+  checked by `omp-config/bin/test_omp_display.py` (US-052). Real source eligibility,
+  installation and rollback require the installed owner-path walk, not fixtures.
 
 ## Code map
 
