@@ -365,10 +365,12 @@ def namespace(command):
             exit_read, exit_write = os.pipe()
             fds.extend((info_read, info_write, gate_read, gate_write,
                         ready_read, ready_write, exit_read, exit_write))
+            # The caller's Python may live under ~/.hermes, which mounts() hides.
+            # Bootstrap inside the fence with the system interpreter instead.
             args = [BWRAP, "--unshare-user", "--unshare-pid", "--unshare-ipc", "--unshare-net",
                     "--die-with-parent", "--cap-drop", "ALL", "--info-fd", str(info_write),
                     "--block-fd", str(gate_read), *mounts(home, dns, private_tmp, endpoint, upstream, gpg_endpoint),
-                    "--", sys.executable, str(Path(__file__).resolve()), "--_exec", *command]
+                    "--", "/usr/bin/python3", str(Path(__file__).resolve()), "--_exec", *command]
             # bwrap's monitor must survive foreground/caller signals so the real
             # command can flush and stop gracefully instead of receiving SIGKILL.
             child = subprocess.Popen([sys.executable, str(Path(__file__).resolve()), "--_bwrap", *args[1:]],

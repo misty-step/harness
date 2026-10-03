@@ -243,6 +243,10 @@ Repositories and ordinary home data remain shared and writable. Host config,
 installed executables and selected broker/runtime paths are read-only or hidden.
 All of `~/.hermes` stays hidden; Kaylee hands off briefs and live-data copies through `~/.local/state/kaylee/briefs`.
 Engineers read Kaylee's source in the `hermes-config` repository, never the live profile.
+The inner namespace bootstrap uses `/usr/bin/python3`, not the caller's
+`sys.executable`: host-side roster probes can inherit Hermes's virtualenv Python,
+but that interpreter's path must remain hidden inside the fence. The system
+interpreter runs only the owned bootstrap; it grants no unfenced provider route.
 Engineer `~/.cache/tmp` is a fresh private directory on its existing disk
 filesystem, not tmpfs storage that consumes the per-engineer memory bound.
 Git, cached pass/signing, silent Pulse audio and the native headless `browser`
