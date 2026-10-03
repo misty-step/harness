@@ -1273,10 +1273,15 @@ checking pane, workspace, cwd, concrete session path and native agent state
 before and after waiting. Only `idle` or `done` can proceed; blocked, unknown,
 missing, moved, replaced or still-working lanes refuse rather than score old
 files. No journal lock is held during native waiting. There is no arbitrary
-engineer deadline or retry loop: it waits until those lanes settle, and an
+engineer deadline or provider retry loop: it waits until those lanes settle, and an
 operator can stop it with `systemctl --user stop UNIT`. Failures remain visible
 in the named unit and journalctl output; the experiment stays pending, with no
 invented verdict or default. Successful units retain their exit state as well.
+At settlement and verdict admission, the watcher waits for the kernel journal
+lock rather than failing on ordinary contention with another dispatch or verdict.
+Immutable bindings, native readiness and the judge route are revalidated after
+acquisition; no judge call is retried. Interactive launch/manual verdict commands
+retain their immediate busy-lock refusal.
 
 For non-Anthropic lanes, the automatic judge is native
 `anthropic/claude-sonnet-5-5:high`; Anthropic lanes use native

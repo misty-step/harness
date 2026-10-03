@@ -1029,6 +1029,53 @@ console.log(JSON.stringify({type:"agent_end",isTerminal:true}));
 		expect(readFileSync(fixture.journal, "utf8")).toBe(before);
 	});
 
+	test("automatic adjudication survives kernel journal contention at both settlement and verdict acquisition", () => {
+		const flock = Bun.which("flock");
+		expect(flock).not.toBeNull();
+		for (const acquisition of [1, 2]) {
+			const fixture = prepare();
+			const experiment = completedDeliverables(fixture);
+			const runtime = JSON.parse(readFileSync(fixture.state, "utf8"));
+			runtime.wait_settle = true;
+			writeFileSync(fixture.state, JSON.stringify(runtime));
+			const wrapper = put(join(fixture.env.PATH.split(":")[0]!, "flock"), `#!${process.execPath}
+import {spawn,spawnSync} from "node:child_process";
+import {openSync,closeSync,readFileSync,writeFileSync,existsSync} from "node:fs";
+const args=process.argv.slice(2),real=${JSON.stringify(flock)};
+const counter=${JSON.stringify(join(fixture.dir, "lock-acquisitions"))};
+let holding;
+if(args.at(-1)==="3"){
+ const attempt=existsSync(counter)?Number(readFileSync(counter,"utf8"))+1:1;
+ writeFileSync(counter,String(attempt));
+ if(attempt===${acquisition}){
+  holding=openSync(process.env.OMP_ROSTER_EXPERIMENTS_FILE+".lock","r+");
+  const owner=spawnSync(real,["--exclusive","4"],{stdio:["ignore","inherit","inherit","ignore",holding]});
+  if(owner.status!==0)process.exit(2);
+ }
+}
+if(holding===undefined){
+ const result=spawnSync(real,args,{stdio:args.at(-1)==="3"?["ignore","inherit","inherit",3]:"inherit"});
+ process.exit(result.status??2);
+}
+// The competing owner remains locked through a nonblocking rejection.
+// Release for a blocking waiter on its real spawn event, never a guessed delay.
+const child=spawn(real,args,{stdio:["ignore","inherit","inherit",3]});
+const {promise,resolve,reject}=Promise.withResolvers();
+child.once("exit",resolve);child.once("error",reject);
+child.once("spawn",()=>{if(!args.includes("--nonblock")){closeSync(holding);holding=undefined;}});
+const status=await promise;
+if(holding!==undefined)closeSync(holding);
+process.exit(status??2);
+`);
+			chmodSync(wrapper, 0o700);
+			const result = invoke(["await-verdict", "--experiment", experiment.id, "--json"], fixture.env);
+			expect([result.exitCode, result.stderr], `acquisition ${acquisition}`).toEqual([0, ""]);
+			expect(JSON.parse(result.stdout).verdict.winner).toBe("candidate");
+			expect(JSON.parse(readFileSync(fixture.state, "utf8")).judge_calls).toHaveLength(1);
+			expect(journalState(fixture.journal).defaults[experiment.default_key]).toEqual({ entry: experiment.candidate, evidence: experiment.id });
+		}
+	});
+
 	test("Anthropic lanes use the independent native Sol high judge", () => {
 		const fixture = prepare(SONNET);
 		const experiment = completedDeliverables(fixture);
