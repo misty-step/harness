@@ -33,7 +33,8 @@ prompt is: how can I pokayoke this so this kind of error never happens again?
 | `bin/design-check.ts` | Moved to `agent-config`: player-surface copy checker, installed as `~/.local/bin/design-check` |
 | `bin/tmp-health.py`, `references/dev-exec.md` | Opt-in workstation execution limits, pressure notifications, and rollback workflow |
 | `config.yml` | Model roles, fallbacks, theme/TUI, providers, task/LSP settings |
-| `models.yml` | Local Ollama discovery and command-resolved OpenRouter key; cloud models remain in omp's bundled catalog |
+| `models.yml` | Local Ollama discovery and separate command-resolved find/shared-judge credentials; cloud models remain in omp's bundled catalog |
+| `patches/oh-my-pi-18.4.12-find.patch` | Version-pinned, local-only native find diagnostics and credential-isolation patch; not an upstream OMP PR |
 | `mcp.json` | Global MCP inventory; Linear is deliberately absent |
 | `workspace-mcp.json`, `bin/omp-install-scopes.ts` | Linear directory scopes, native project-local imports, owned skill retirement |
 | `global/AGENTS.md` | OMP-specific guidance; `./install` composes it with shared sections from `agent-config` |
@@ -157,10 +158,34 @@ declared server inventory and preserves live `auth`/`oauth` metadata for those
 servers only. OMP's managed OAuth tokens remain in its auth storage, never in
 this repository.
 
-OpenRouter auth (US-028): `models.yml` resolves `openrouter-key --personal
-workstation/OPENROUTER_MISTY_STEP_HARNESS_WORKSTATION_DIFF_REVIEW_API_KEY` on first use.
-The existing workstation entry supplies OMP's Jev-backed `find`; its name does
-not enable the retired automatic diff review. The shared launcher
+OpenRouter auth (US-028): the ordinary `openrouter` provider retains
+`workstation/OPENROUTER_MISTY_STEP_HARNESS_WORKSTATION_DIFF_REVIEW_API_KEY`.
+`find.credentialProvider: openrouter-find` scopes both `omp find` and the agent
+`find` tool to
+`workstation/OPENROUTER_MISTY_STEP_HARNESS_WORKSTATION_FIND_API_KEY`, resolved
+by its own `models.yml` provider override. The approved personal find key is
+`misty-step/harness/workstation/find`, $1.00 daily with BYOK counted. This
+route neither manages nor changes the ordinary judgment key's issuer limit.
+Native Jev model metadata, probabilities
+and relevance thresholds stay unchanged. Missing, rejected or unavailable
+dedicated credentials/models never fall through to the shared judge account
+or a prompted subscription/chat model. Find's headers, account rejection
+cooldowns and cached answers are provider-scoped; unrelated native judgments
+keep their existing route. No secret values belong in this repository.
+
+The local source patch is pinned to native OMP 18.4.12, upstream commit
+`7318a70cf4ed04133366884d2723f72d9d490a15`. Apply it to that source with
+`git apply --check` followed by `git apply`, run the coding-agent checks and
+`test/judgment-chain.test.ts` plus `test/tools/jfind.test.ts`, and build with
+`bun run --cwd packages/coding-agent build` on the project-owned portable
+workspace. Retain and verify the artifact checksum before atomically replacing
+`~/.local/lib/omp-engineer/omp`; preserve the stable cage launcher, auth store
+and rollback binary. The config installer does not build or apply this patch.
+A native upgrade requires reviewing/reapplying it before enabling find; an
+unpatched upstream binary does not implement the isolated route or loud
+all-failed diagnostics. No upstream PR is published.
+
+Both provider commands use the shared `openrouter-key` launcher, which
 chooses `workstation/OPENROUTER_R90_HARNESS_WORKSTATION_INFERENCE_API_KEY` when the process directory
 or its Git common directory is under `~/development/r90group` (linked
 worktrees included). A failed pass lookup, damaged Git metadata or timeout

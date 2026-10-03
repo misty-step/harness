@@ -30,6 +30,11 @@
 !/auditors/
 !/auditors/**
 
+# Version-pinned local native source patch, not generated runtime output.
+!/patches/
+/patches/*
+!/patches/oh-my-pi-18.4.12-find.patch
+
 # Telemetry tooling (repo-local, not deployed)
 !references/
 !references/**

@@ -1,0 +1,363 @@
+diff --git c/packages/coding-agent/CHANGELOG.md w/packages/coding-agent/CHANGELOG.md
+index 44630263a51db04a340695a11d110ef767975b7d..ad5c658fdd0f7f8753e697d1c3ce906f7d5c54a7 100644
+--- c/packages/coding-agent/CHANGELOG.md
++++ w/packages/coding-agent/CHANGELOG.md
+@@ -2,6 +2,11 @@
+ 
+ ## [Unreleased]
+ 
++### Fixed
++
++- Local-only patch: semantic `find` reports all-failed judge requests as failures with their provider causes, rather than claiming there were no hits; JSON CLI failures also explain their nonzero exit on stderr.
++- Local-only patch: `find.credentialProvider` isolates calibrated CLI and agent-tool find judgments, authentication headers, rejection cooldowns and cached answers from the shared judge provider; missing or rejected dedicated credentials never use the shared account or a prompted session fallback.
++
+ ## [18.4.12] - 2026-10-02
+ 
+ ### Added
+diff --git c/packages/coding-agent/src/cli/find-cli.ts w/packages/coding-agent/src/cli/find-cli.ts
+index f966a71fcebcfdaebdd028634dd63e8953e77323..a6076b2c72435369399632e6ce61e7099885faae 100644
+--- c/packages/coding-agent/src/cli/find-cli.ts
++++ w/packages/coding-agent/src/cli/find-cli.ts
+@@ -37,8 +37,15 @@ function gauge(p: number): string {
+ 
+ function printReport(cmd: FindCommandArgs, rel: string, result: CascadeResult, elapsedMs: number): void {
+ 	const { hits, stats, threshold } = result;
++	const failed = stats.requests > 0 && stats.errors === stats.requests;
+ 	console.log("");
+-	if (hits.length === 0) {
++	if (failed && hits.length === 0) {
++		console.error(
++			chalk.red(
++				`find failed for "${cmd.query}" in ${rel}: every judge request failed; no semantic result is available`,
++			),
++		);
++	} else if (hits.length === 0) {
+ 		console.log(
+ 			`${chalk.yellow("no hits")} ${chalk.dim(`for "${cmd.query}" in ${rel} · τ ${threshold.toFixed(2)}`)}`,
+ 		);
+@@ -66,7 +73,10 @@ function printReport(cmd: FindCommandArgs, rel: string, result: CascadeResult, e
+ 			`listed ${stats.listed} · judged ${stats.judged} · read ${stats.filesRead} files (${formatBytes(stats.fileBytes)}) · ${stats.requests} requests · ${formatNumber(stats.inputTokens)} tokens · $${stats.cost.toFixed(4)} · ${formatDuration(elapsedMs)} wall / ${formatDuration(stats.apiMs)} api`,
+ 		),
+ 	);
+-	for (const failure of stats.failures) console.log(chalk.yellow(failure));
++	for (const failure of stats.failures) {
++		if (failed) console.error(chalk.red(failure));
++		else console.log(chalk.yellow(failure));
++	}
+ }
+ 
+ /** Run one search and print it. Exits non-zero on a bad root or when every judgment failed. */
+@@ -119,7 +129,10 @@ export async function runFindCommand(cmd: FindCommandArgs): Promise<void> {
+ 			printReport(cmd, formatPathRelativeToCwd(root.path, cwd), result, elapsedMs);
+ 		}
+ 		// `exitCode`, not `exit`: process.exit skips the finally below, and with it close().
+-		if (result.stats.requests > 0 && result.stats.errors === result.stats.requests) process.exitCode = 1;
++		if (result.stats.requests > 0 && result.stats.errors === result.stats.requests) {
++			process.exitCode = 1;
++			if (cmd.json) console.error(`find failed: every judge request failed\n${result.stats.failures.join("\n")}`);
++		}
+ 	} finally {
+ 		close();
+ 	}
+diff --git c/packages/coding-agent/src/judgment/index.ts w/packages/coding-agent/src/judgment/index.ts
+index 36c388ffd52e79e883493111291087fc4258c6ba..182afac37f0e6cb89e7299394338de6b60ea8a35 100644
+--- c/packages/coding-agent/src/judgment/index.ts
++++ w/packages/coding-agent/src/judgment/index.ts
+@@ -46,6 +46,7 @@ import { roleCandidatePool } from "../config/model-roles";
+ import type { Settings } from "../config/settings";
+ import type { SessionManager } from "../session/session-manager";
+ import { getTinyLocalModelSpec } from "../tiny/models";
++import { cfgFindCredentialProvider } from "../tools/settings";
+ import localPromptTemplate from "../prompts/system/judgment-local.md" with { type: "text" };
+ import { tinyModelClient } from "../tiny/title-client";
+ import type { JudgmentCache } from "./cache";
+@@ -148,16 +149,31 @@ const kRejections = Symbol("judgment.rejections");
+ const kRoleChain = Symbol("judgment.roleChain");
+ interface RegistryWithRejections extends ModelRegistry {
+ 	[kRejections]?: Map<string, number>;
+-	[kRoleChain]?: { settings: Settings; list: RoleChainCandidate[]; expiresAt: number };
++	[kRoleChain]?: {
++		settings: Settings;
++		credentialProvider: string | undefined;
++		list: RoleChainCandidate[];
++		expiresAt: number;
++	};
+ }
+ 
+ /** {@link judgeRoleChain}, reused for {@link CANDIDATE_TTL_MS} across judges over the same settings and registry. */
+-function cachedJudgeRoleChain(settings: Settings, registry: RegistryWithRejections): RoleChainCandidate[] {
++function cachedJudgeRoleChain(
++	settings: Settings,
++	registry: RegistryWithRejections,
++	credentialProvider?: string,
++): RoleChainCandidate[] {
+ 	const now = Date.now();
+ 	const cached = registry[kRoleChain];
+-	if (cached && cached.settings === settings && now < cached.expiresAt) return cached.list;
+-	const list = judgeRoleChain(settings, registry);
+-	registry[kRoleChain] = { settings, list, expiresAt: now + CANDIDATE_TTL_MS };
++	if (
++		cached &&
++		cached.settings === settings &&
++		cached.credentialProvider === credentialProvider &&
++		now < cached.expiresAt
++	)
++		return cached.list;
++	const list = judgeRoleChain(settings, registry, credentialProvider);
++	registry[kRoleChain] = { settings, credentialProvider, list, expiresAt: now + CANDIDATE_TTL_MS };
+ 	return list;
+ }
+ 
+@@ -184,13 +200,42 @@ export function kindOf(value: RoleChainCandidate | Model): JudgeKind {
+ 	return "online";
+ }
+ 
++function findCredentialProvider(settings: Settings, purpose: string | undefined): string | undefined {
++	if (purpose !== "find") return undefined;
++	const configured = cfgFindCredentialProvider.get(settings);
++	if (configured === undefined) return undefined;
++	const provider = configured.trim();
++	if (!provider) throw new Error("find.credentialProvider is empty; refusing shared judge credentials");
++	return provider;
++}
++
+ /**
+  * The `judge` role's candidates in attempt order, drawn from credentialed
+  * judge-capable models. From the first native candidate on, only native
+  * candidates remain: a prompted model never stands in for a failed native
+  * judgment, whose calibrated probabilities it cannot reproduce.
+  */
+-function judgeRoleChain(settings: Settings, registry: ModelRegistry): RoleChainCandidate[] {
++function judgeRoleChain(
++	settings: Settings,
++	registry: ModelRegistry,
++	credentialProvider?: string,
++): RoleChainCandidate[] {
++	if (credentialProvider !== undefined) {
++		// Catalog metadata is independent of the shared provider's credential or billing state.
++		const pool = registry.getProviderModels("openrouter").filter(model => model.api === "openrouter-decisions");
++		return resolveRoleChain("judge", settings, pool)
++			.filter(candidate => candidate.model.api === "openrouter-decisions")
++			.map(candidate => ({
++				...candidate,
++				model: {
++					...candidate.model,
++					provider: credentialProvider,
++					headers: undefined,
++					accountAccess: undefined,
++					resolveHeaders: () => registry.getProviderHeaders(credentialProvider),
++				},
++			}));
++	}
+ 	const chain = resolveRoleChain("judge", settings, roleCandidatePool("judge", settings, registry));
+ 	const firstNative = chain.findIndex(candidate => kindOf(candidate) === "native");
+ 	if (firstNative < 0) return chain;
+@@ -203,8 +248,8 @@ function judgeRoleChain(settings: Settings, registry: ModelRegistry): RoleChainC
+  * on-device or chat model. Judge-heavy features gate on it, e.g. the `find`
+  * tool under `find.enabled: auto`.
+  */
+-export function hasNativeJudge(settings: Settings, registry: ModelRegistry): boolean {
+-	const [primary] = judgeRoleChain(settings, registry);
++export function hasNativeJudge(settings: Settings, registry: ModelRegistry, purpose?: string): boolean {
++	const [primary] = judgeRoleChain(settings, registry, findCredentialProvider(settings, purpose));
+ 	return primary !== undefined && kindOf(primary) === "native";
+ }
+ 
+@@ -316,10 +361,11 @@ export class ChainJudge implements Judge {
+ 	}
+ 
+ 	#resolveCandidates(): RoleChainCandidate[] {
+-		const { settings, registry, sessionModel } = this.#deps;
+-		const candidates = cachedJudgeRoleChain(settings, registry);
++		const { settings, registry, sessionModel, purpose } = this.#deps;
++		const credentialProvider = findCredentialProvider(settings, purpose);
++		const candidates = cachedJudgeRoleChain(settings, registry, credentialProvider);
+ 		if (candidates === this.#candidates?.chain) return this.#candidates.list;
+-		const list = withSessionFallback(candidates, sessionModel);
++		const list = credentialProvider === undefined ? withSessionFallback(candidates, sessionModel) : candidates;
+ 		this.#candidates = { chain: candidates, list };
+ 		return list;
+ 	}
+diff --git c/packages/coding-agent/src/judgment/standalone.ts w/packages/coding-agent/src/judgment/standalone.ts
+index 9d6b1f78d1e5f7588d2b79ea73060f97b1280876..ff3de0b4ec06a118ac8dfd70d486943b0a35fb8b 100644
+--- c/packages/coding-agent/src/judgment/standalone.ts
++++ w/packages/coding-agent/src/judgment/standalone.ts
+@@ -16,8 +16,8 @@ export interface StandaloneJudge {
+ 
+ /**
+  * Resolve the `judge` role chain for `cwd`'s project settings and extensions.
+- * No session ledger exists here, so `purpose` only labels telemetry; native
+- * answers still go through the shared answer cache.
++ * `purpose` scopes find credentials and labels telemetry; native answers
++ * still go through the shared, provider-scoped answer cache.
+  */
+ export async function openStandaloneJudge(cwd: string, purpose: string): Promise<StandaloneJudge> {
+ 	const settings = await Settings.init({ cwd });
+diff --git c/packages/coding-agent/src/tools/jfind/index.ts w/packages/coding-agent/src/tools/jfind/index.ts
+index 33d9e2beba51e200340c9c2657476d799b2774cd..6cc1a45975a835726ff97211d0a7f48a882ea7de 100644
+--- c/packages/coding-agent/src/tools/jfind/index.ts
++++ w/packages/coding-agent/src/tools/jfind/index.ts
+@@ -46,7 +46,7 @@ const FIND_TIMEOUT_MS = 20_000;
+ export function isFindEnabled(session: ToolSession): boolean {
+ 	const mode = cfgFindEnabled.get(session.settings);
+ 	if (mode !== "auto") return mode === "on";
+-	return session.modelRegistry !== undefined && hasNativeJudge(session.settings, session.modelRegistry);
++	return session.modelRegistry !== undefined && hasNativeJudge(session.settings, session.modelRegistry, "find");
+ }
+ 
+ /** Semantic search tool: describe a behavior, get files and line ranges that implement it. */
+@@ -126,8 +126,13 @@ export class FindTool implements AgentTool<typeof findSchema, FindToolDetails> {
+ 		const details: FindToolDetails = { query, keywords, threshold, hits, stats, elapsedMs, cwd, scopePath };
+ 		const where = scopePath === undefined ? "" : ` in ${scopePath}`;
+ 		const out: string[] = [];
++		const failed = stats.requests > 0 && stats.errors === stats.requests;
+ 		if (hits.length === 0) {
+-			out.push(`no hits for "${query}"${where} (τ ${threshold.toFixed(2)})`);
++			out.push(
++				failed
++					? `find failed for "${query}"${where}: ${stats.failures[0] ?? "every judge request failed; no semantic result is available"}`
++					: `no hits for "${query}"${where} (τ ${threshold.toFixed(2)})`,
++			);
+ 		} else {
+ 			out.push(`${hits.length} hit(s) for "${query}"${where} (τ ${threshold.toFixed(2)}), strongest first`, "");
+ 			for (const hit of hits) {
+@@ -150,7 +155,7 @@ export class FindTool implements AgentTool<typeof findSchema, FindToolDetails> {
+ 			);
+ 		}
+ 		const builder = toolResult(details).text(out.join("\n"));
+-		if (stats.requests > 0 && stats.errors === stats.requests) builder.error();
++		if (failed) builder.error();
+ 		else if (hits.length === 0) builder.useless();
+ 		return builder.done();
+ 	}
+diff --git c/packages/coding-agent/src/tools/settings.ts w/packages/coding-agent/src/tools/settings.ts
+index 288891cee4a172a0972064cf43175e3da3405d0d..2f85034fc546c7aabfacd63f0d1d777b8111ae7d 100644
+--- c/packages/coding-agent/src/tools/settings.ts
++++ w/packages/coding-agent/src/tools/settings.ts
+@@ -540,6 +540,13 @@ export const cfgFindEnabled = register({
+ 	},
+ });
+ 
++/** Separate provider credential namespace for calibrated find judgments. */
++export const cfgFindCredentialProvider = register({
++	id: "find.credentialProvider",
++	type: "string",
++	default: undefined,
++});
++
+ // Optional tools
+ 
+ export const cfgDebugEnabled = register({
+diff --git c/packages/coding-agent/test/judgment-chain.test.ts w/packages/coding-agent/test/judgment-chain.test.ts
+index 9ca3b554cb264a858ab0828ad9e51e0a43762569..3a21c80c1cd04b77d2bb5bdb59b3c2aaad593c54 100644
+--- c/packages/coding-agent/test/judgment-chain.test.ts
++++ w/packages/coding-agent/test/judgment-chain.test.ts
+@@ -87,6 +87,108 @@ afterEach(() => {
+ });
+ 
+ describe("ChainJudge", () => {
++	it("keeps find credentials, calibrated answers and answer-cache billing separate from ordinary judgments", async () => {
++		using tempDir = TempDir.createSync("@omp-find-credentials-");
++		const cache = JudgmentCache.open(path.join(tempDir.path(), "answers.db"));
++		const settings = Settings.isolated({
++			modelRoles: { judge: `${DECISIONS.provider}/${DECISIONS.id}` },
++			"find.credentialProvider": "openrouter-find",
++		});
++		const model = { ...DECISIONS, headers: { Authorization: "Bearer diff-key" } };
++		const registry = makeRegistry([model], { openrouter: "diff-key", "openrouter-find": "find-key" });
++		vi.spyOn(registry, "getProviderModels").mockReturnValue([model]);
++		const charged: string[] = [];
++		vi.spyOn(globalThis, "fetch").mockImplementation(
++			asGlobalFetch(async (_url, init) => {
++				const authorization = new Headers(init?.headers).get("authorization") ?? "";
++				if (authorization !== "Bearer find-key" && authorization !== "Bearer diff-key") {
++					return new Response("unauthorized", { status: 401 });
++				}
++				charged.push(authorization);
++				return Response.json({
++					model: "jev-1.13.0",
++					answers: { relevant: { type: "noul", noul: authorization === "Bearer find-key" ? 0.73 : 0.31 } },
++					usage: { input_tokens: 8, output_tokens: 2 },
++				});
++			}),
++		);
++		const request = {
++			state: "locate the capacity counter",
++			questions: { relevant: { type: "noul" as const, instructions: "Relevant?" } },
++		};
++		try {
++			const find = new ChainJudge({ settings, registry, purpose: "find", cache, sessionModel: ONLINE });
++			const general = new ChainJudge({ settings, registry, purpose: "stats", cache });
++			expect((await find.judge(request)).answers.relevant.noul).toBe(0.73);
++			expect((await general.judge(request)).answers.relevant.noul).toBe(0.31);
++			expect((await find.judge(request)).answers.relevant.noul).toBe(0.73);
++			expect(charged).toEqual(["Bearer find-key", "Bearer diff-key"]);
++		} finally {
++			cache.close();
++		}
++	});
++
++	it.each(["missing", "rejected"] as const)(
++		"never charges shared credentials or a session fallback when find credentials are %s",
++		async mode => {
++			const settings = Settings.isolated({
++				modelRoles: { judge: `${DECISIONS.provider}/${DECISIONS.id}` },
++				"find.credentialProvider": "openrouter-find",
++				"retry.fallbackChains": { judge: [`${ONLINE.provider}/${ONLINE.id}`] },
++			});
++			const registry = makeRegistry([DECISIONS, ONLINE], {
++				openrouter: "diff-key",
++				[ONLINE.provider]: "session-key",
++				...(mode === "rejected" ? { "openrouter-find": "find-key" } : {}),
++			});
++			vi.spyOn(registry, "getProviderModels").mockReturnValue([DECISIONS]);
++			const charged: string[] = [];
++			vi.spyOn(globalThis, "fetch").mockImplementation(
++				asGlobalFetch(async (_url, init) => {
++					const authorization = new Headers(init?.headers).get("authorization") ?? "";
++					charged.push(authorization);
++					if (authorization === "Bearer find-key") return new Response("find budget exhausted", { status: 402 });
++					return Response.json({
++						model: "jev-1.13.0",
++						answers: { level: { type: "choice", choice: "low" } },
++						usage: { input_tokens: 8 },
++					});
++				}),
++			);
++			const chat = vi.spyOn(ai, "completeSimple");
++			const request = { state: "locate the capacity counter", questions: { level: TIER_QUESTION } };
++			await expect(
++				new ChainJudge({ settings, registry, purpose: "find", sessionModel: ONLINE }).judge(request),
++			).rejects.toThrow();
++			expect(charged).toEqual(mode === "rejected" ? ["Bearer find-key"] : []);
++			expect(chat).not.toHaveBeenCalled();
++			// A rejected dedicated account must not poison or borrow the ordinary account.
++			expect(
++				(await new ChainJudge({ settings, registry, purpose: "stats" }).judge(request)).answers.level.choice,
++			).toBe("low");
++			expect(charged.at(-1)).toBe("Bearer diff-key");
++		},
++	);
++
++	it("refuses session fallback when the dedicated find route has no calibrated candidate", async () => {
++		const settings = Settings.isolated({
++			modelRoles: { judge: `${ONLINE.provider}/${ONLINE.id}` },
++			"find.credentialProvider": "openrouter-find",
++		});
++		const registry = makeRegistry([ONLINE], { [ONLINE.provider]: "session-key", openrouter: "diff-key" });
++		vi.spyOn(registry, "getProviderModels").mockReturnValue([]);
++		const fetch = vi.spyOn(globalThis, "fetch");
++		const chat = vi.spyOn(ai, "completeSimple");
++		await expect(
++			new ChainJudge({ settings, registry, purpose: "find", sessionModel: ONLINE }).judge({
++				state: "locate the capacity counter",
++				questions: { level: TIER_QUESTION },
++			}),
++		).rejects.toThrow("no judge model available");
++		expect(fetch).not.toHaveBeenCalled();
++		expect(chat).not.toHaveBeenCalled();
++	});
++
+ 	it("falls from a coarse local question to a tiered online question", async () => {
+ 		const settings = Settings.isolated({
+ 			modelRoles: { judge: `${LOCAL.provider}/${LOCAL.id}` },
