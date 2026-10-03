@@ -104,7 +104,7 @@ CI, hooks, and releases; component directories retain their focused tests.
 
 ## Foundation Standard
 
-Catalog [1.6.0](agent-config/skills/foundation/foundation-standard-v1.json)
+Catalog [1.8.0](agent-config/skills/foundation/foundation-standard-v1.json)
 and its [rationale](agent-config/skills/foundation/foundation-standard-v1.md)
 ship with the pinned `foundation-check` checker (ADR-006). A repository's
 `foundation.json` pins its catalog digest and harness revision. Run
