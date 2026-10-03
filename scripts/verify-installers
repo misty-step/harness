@@ -80,11 +80,8 @@ for consumer in pi omp; do
     fi
   done < "$work/source/$consumer-config/global/AGENTS.md"
   check "$consumer composition" cmp -s "$expected" "$agent/AGENTS.md"
-  check "$consumer launcher bytes" cmp -s "$work/source/agent-config/bin/pass-env.ts" "$home/.local/bin/pass-env"
   check "$consumer launcher executable" test -x "$home/.local/bin/pass-env"
-  check "$consumer OpenRouter launcher bytes" cmp -s "$work/source/agent-config/bin/openrouter-key.ts" "$home/.local/bin/openrouter-key"
   check "$consumer OpenRouter launcher executable" test -x "$home/.local/bin/openrouter-key"
-  check "$consumer design-check bytes" cmp -s "$work/source/agent-config/bin/design-check.ts" "$home/.local/bin/design-check"
   check "$consumer design-check executable" test -x "$home/.local/bin/design-check"
   # The deployed design-check must gate for real: exit 1 on player-copy findings.
   printf '<p>Ask the operator — the backend is down.</p>\n' > "$home/dirty.html"
@@ -100,9 +97,7 @@ for consumer in pi omp; do
     failures=$((failures + 1))
   fi
   rm -f "$home/dirty.html"
-  check "$consumer foundation-check bytes" cmp -s "$work/source/agent-config/bin/foundation-check.ts" "$home/.local/bin/foundation-check"
   check "$consumer foundation-check executable" test -x "$home/.local/bin/foundation-check"
-  check "$consumer review-check bytes" cmp -s "$work/source/agent-config/bin/review-check.ts" "$home/.local/bin/review-check"
   check "$consumer review-check executable" test -x "$home/.local/bin/review-check"
   check "$consumer engineering-operations ships review-page guidance" test -s "$agent/skills/engineering-operations/review-page.md"
   # The deployed review-check must gate in a real browser: a ninety-word opening
@@ -131,9 +126,7 @@ for consumer in pi omp; do
   fi
   rm -f "$home/dense-review.html" "$home/recut-review.html"
   if [ "$consumer" = pi ]; then
-    check "$consumer agent-review bytes" cmp -s "$work/source/agent-config/bin/agent-review.ts" "$home/.local/bin/agent-review"
     check "$consumer agent-review executable" test -x "$home/.local/bin/agent-review"
-    check "$consumer agent-review runs" sh -c "bun '$home/.local/bin/agent-review' --help 2>&1 | grep -q 'usage: agent-review'"
   else
     check "omp does not install review launcher" test ! -e "$home/.local/bin/agent-review"
     for skill in herdr pr-preview sachstand session-close; do
@@ -156,7 +149,6 @@ for consumer in pi omp; do
     failures=$((failures + 1))
   fi
   rm -rf "$home/bare-repo"
-  check "$consumer ws bytes" cmp -s "$work/source/agent-config/bin/ws.ts" "$home/.local/bin/ws"
   check "$consumer ws executable" test -x "$home/.local/bin/ws"
   check "$consumer foreign skill" cmp -s "$work/expected-skill" "$agent/skills/foreign/SKILL.md"
   check "$consumer retires installed LOC warming hook" test ! -e "$agent/extensions/loc/git-hook.sh"

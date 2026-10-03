@@ -363,6 +363,40 @@ live credential storage on disk; no uncredentialed blocking of interactive turns
 no silent truncation of multi-file diffs; no unreported review that did not run.
 Evidence: `omp-config/bin/omp-diff-review.test.ts`, `agent-config/bin/hook.test.ts`, `agent-config/bin/semantic-check.test.ts`, `scripts/verify-installers`, `pi-config/extensions/diff-review/diff-review.test.ts`
 
+## US-051 Preserve story capability when deleting
+
+Statement: When an agent proposes or reviews deletion, I want the project's
+base user stories checked for removed or weakened capability, so no story
+disappears without Phaedrus's explicit approval through Kaylee.
+
+Criteria:
+1. WHEN a deletion proposal or PR is assessed, THE SYSTEM SHALL compare its
+   exact base/head Git objects with live statements and numbered criteria in
+   base `USER_STORIES.md`; editing or retiring a story in that proposal SHALL
+   NOT authorize removal of its capability.
+2. IF the proposal contains no deletion, THEN THE SYSTEM SHALL make no model
+   request; a behaviour-preserving deletion SHALL pass without an approval hold.
+3. IF Jev selects capability removal with removal probability at least 0.80,
+   THEN THE SYSTEM SHALL hold the exact head with the base story criteria and
+   deletion evidence, routed to Kaylee for Phaedrus's explicit approval.
+4. WHEN independent review encounters uncertainty or an unavailable Jev check,
+   THE SYSTEM SHALL assess the base-story contract itself; missing keys,
+   provider failures, and incomplete evidence SHALL NOT become capability-loss
+   findings or fabricated clearance.
+5. IF an exact-head/base capability hold has already been recorded, THEN
+   `agent-review` SHALL refuse to erase it on a clean rerun, dismissal, label
+   change, or shared-account review. Repair at a new head SHALL be reassessed;
+   Kaylee SHALL own an explicitly authorized intentional removal.
+6. WHEN Pi or OMP installs shared skills, THE SYSTEM SHALL provide the
+   self-contained `story-deletion-check` CLI and deletion-proposal guidance.
+
+No-gos: no server-required gate, shared-account approval inference, authorization
+flag, unapproved provider call, or blocking ordinary capability-preserving deletion.
+
+Evidence: `agent-config/system-one/story-deletion.test.ts`,
+`agent-config/bin/agent-review.test.ts`, `.github/workflows/story-deletion.yml`,
+real past-PR replays and isolated installed CLI walks in `docs/verification.md`.
+
 ## US-010 Bounded continuation nudge
 
 Statement: When an agent settles with unfinished actionable work inside the

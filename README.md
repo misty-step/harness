@@ -119,6 +119,13 @@ cannot prove runtime coverage or what a reviewer judged: preserve execution and
 review receipts. Existing adopters re-pin explicitly only after their
 2026-10-25 cliff entries close or are extended (ADR-006).
 
+Deletion proposals and PRs also have a narrow
+[story-capability check](agent-config/README.md#story-preserving-deletion-us-051)
+(US-051). Jev compares the exact change with base story criteria; only supported
+capability removal is held for Phaedrus's explicit approval through Kaylee.
+Ordinary deletion and unavailable judgments do not acquire an approval gate.
+The independent reviewer handles uncertainty; no server setting is changed.
+
 
 ## Token-cost evidence (US-018, US-019)
 

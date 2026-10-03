@@ -429,3 +429,58 @@ first 20 hex characters of one public full commit SHA in a generated
 still blocks. Runtime installers do not configure Git hooks. Prose-only edits
 call for consistency review; changed deployed guidance also needs composition
 inspection, not a model run.
+
+## Story deletion replays (US-051)
+
+Commission K-20261002-deletions-that-remove-a-user-story-need was exercised
+against two **real public past PRs**, with their original immutable PR heads and
+base story registries. These are counterfactual replays, not claims that the
+historical PRs were held by this newly built check.
+
+| Case | Exact base → PR head | Observed CLI outcome | Jev receipt |
+| --- | --- | --- | --- |
+| [Harness #199](https://github.com/misty-step/harness/pull/199): delete automatic OMP turn-end review and weaken its story in the same PR | `3a1a6103b5b4fb36e41b36029e00883c7a1d4f62` → `81b7e347961d8526edae91f7bb74b17fa01856c1` | **hold**, exit **1**, **US-005**; base criterion 5 still requires OMP/Pi extension review and criterion 9 requires the OMP review/key path | Choice `removes`; probability **0.86**, confidence **0.80**; **597 ms**, **31,073** input tokens, **$0.001305066** |
+| [Harness #138](https://github.com/misty-step/harness/pull/138): consolidate redundant verification/design guidance | `02a2d69b228ba9d8d583129464f9f798681870a6` → `2690da0c98a8c5a0844828f141a2ab0502e19c03` | **pass**, exit **0**; all **29** base stories selected `preserved`, no approval hold | **462 ms**, **16,501** input tokens, **$0.000693042** |
+
+Both resolved `typesafe/jev-1.13-20260917` through the existing harness
+OpenRouter Decisions engine. #199 removes the actual OMP extension and installer
+path while retaining Pi and explicit CLI review: retained manual access does
+not replace the promised continuous OMP capability. The same PR's story edits
+did not hide that loss. #138 folds overlapping prose into retained rules,
+without removing the named consumer capabilities.
+
+The provisional confidence ≥0.90 rule missed #199 (`removes` probability 0.87,
+confidence 0.80). The admitted rule uses **removal probability ≥0.80**, not
+distribution confidence, for escalation. This is calibration on two labeled
+cases, **not a holdout accuracy estimate**. Uncertain/service-unavailable results
+remain non-blocking and are supplied to the existing independent reviewer.
+
+Working-source installers were also exercised in separate disposable homes:
+Pi's installed bundled CLI held #199 (exit 1, 655 ms); OMP's guidance-only
+installed bundled CLI passed #138 (exit 0, 494 ms). Neither executable depended
+on a sibling source module at runtime. Five actual paid requests, including
+the provisional evaluation and installed replays, cost **$0.005301282** total;
+dry/unavailable-before-egress attempts incurred no model request.
+
+Raw exact-head records and installation logs were retained in
+`~/.cache/tmp/story-deletion-proof.nTggUq/`: `pr-199-live.json`,
+`pr-138-live.json`, `replay-summary.json`, `pi-pr-199-installed.json`,
+`omp-pr-138-installed.json`, and `installed-summary.json`. The focused consumer
+checks exercise same-PR story retirement, replacement, renamed entrypoints,
+provider/shape failure, safe egress, and durable review holds. The PR workflow
+was validated with `actionlint`; no GitHub workflow run, review publication,
+server-setting mutation, or live harness deployment was performed.
+
+Final affected checks: **85 pass, 0 fail**, 458 assertions across the deletion,
+engine, review, installer and reference suites; shell syntax and `actionlint`
+pass. The broader local offline `env -u CI ./scripts/check all` passed 669 Bun
+tests (one optional Landmark binary replay skipped) and nine shared Python tests,
+then stopped at nine OMP display-isolation failure cases: missing `/dev/net/tun`
+and namespace-boundary assertions. Those display/engineer files were untouched;
+the complete gate is **not reported green**, and its committed-HEAD installer
+stage was not reached. Working-source disposable installation was proved above.
+The first broad invocation inherited `CI=true` without CI's `LANDMARK_BIN`;
+the documented local offline invocation corrected that environment, not the test.
+Owned disposable homes were removed after inspection; JSON receipts and logs
+remain. No live configuration was installed.
+

@@ -30,6 +30,7 @@ harness repo. When in doubt, leave it in the harness.
 | `bin/design-check.ts` | Standalone player-surface copy checker, installed as `~/.local/bin/design-check` |
 | `bin/review-check.ts` | Standalone headless-Chromium first-screen check for operator review pages: point and every ask above the fold, no dense block; installed as `~/.local/bin/review-check` (US-050) |
 | `bin/semantic-check.ts` | Source candidate for an advisory semantic-quality CLI |
+| `bin/story-deletion-check.ts` | Exact-commit base-story capability check, bundled for both harnesses (US-051) |
 | `bin/semantic-held-out.ts` | Source-only held-out evaluator for the semantic-quality candidate |
 | `bin/feature-map.ts` | Source-only pilot: Jev-drafted feature map and comparison against a reference `features/` map (ADR-003; not deployed) |
 | `system-one/` | Shared typed judgments, immutable Git adapters, fixtures, and local cache |
@@ -220,6 +221,65 @@ into a repository's workflows and pin the same harness revision as its
 the gate judges each PR; after any review action the reviewer toggles a label to
 re-run it. Land it in the adoption PR on its own, before any PR adds first
 stories or an extension record: a gate that is not yet on the base branch judges nothing.
+
+## Story-preserving deletion (US-051)
+
+Before proposing deletion, run the installed `story-deletion-check --repo PATH
+--base BASE --head HEAD`. From a trusted harness checkout:
+
+```sh
+pass-env run -f .env.pass -- bun --no-env-file --no-install \
+  agent-config/bin/story-deletion-check.ts \
+  --repo /path/to/project --base BASE --head HEAD --json
+```
+
+Use the merge base and exact PR head, not moving branch names in a receipt.
+The checker reads base `USER_STORIES.md` as immutable data: live `## US-NNN`
+statements and numbered criteria remain binding when the proposal deletes,
+retires, or weakens the story text. The root file remains the discovery contract;
+capability sections and existing `features/` specs organize it without a second
+story registry. Reconcile criteria/evidence with the actual product when intent
+changes; only Phaedrus authorizes capability removal.
+
+No deletion makes no provider request. Deletion, replacement, and rename are
+judged by capability, not byte count; identical bytes moved away from an
+entrypoint can still break a story. One bounded OpenRouter Decisions call uses
+the existing engine and pinned Jev revision. All base stories and the full patch
+are included; nothing is silently truncated or excluded by a candidate map.
+Limits: 64 live stories, 96 KB state, 128 KB request, 15-second provider timeout.
+Credential files, binary/submodule content, missing contracts, and oversized or
+malformed evidence produce explicit `unavailable`. Suspected secret values are
+redacted before egress; redacted evidence may identify loss but cannot grant
+clearance. Credentials are never model state.
+
+Only Choice `removes` with removal probability ≥0.80 creates `hold` and exit 1.
+Confidence is recorded, not confused with removal probability. `pass`, `skipped`,
+and `unavailable` exit 0; bad invocation/Git failure exits 2. Uncertainty and
+service failure do not invent a capability-loss finding or block ordinary
+deletion. `agent-review` supplies base stories to its existing independent
+reviewer for semantic fallback; a concrete loss produces `REQUEST_CHANGES`.
+
+A hold names base/head, affected story criteria, raw judgment and deletion
+evidence. Send it to Kaylee for Phaedrus's explicit approval of that exact change.
+The review launcher cannot clear a recorded same-head/base hold—even after
+dismissal, a label change or a clean model rerun—and has no `--approved` bypass.
+Restore capability at a new head for ordinary reassessment. For an intentional
+removal, Kaylee owns the explicitly authorized merge outside this automatic
+approval path. Shared-account reviews and author claims are not authorization.
+No server-required check or GitHub setting is added.
+
+The harness's [PR workflow](../.github/workflows/story-deletion.yml) loads trusted
+base checker code and fetches candidate Git objects without checking out or
+executing them; the provider key reaches only that checker. It fails only for
+`hold` or an execution/protocol error, reports unavailable judgments as advisory,
+and leaves ordinary independent review in place. Fleet repositories are not
+silently deployed or re-pinned by this source change.
+
+Both installers bundle launchers with their owned local modules into one
+self-contained executable, preserving the ownership header and foreign
+destination guard. Package imports and source escapes are rejected in inert
+preflight; candidate source is never executed by that preflight.
+
 
 ## Agent audio sandbox (US-026)
 
