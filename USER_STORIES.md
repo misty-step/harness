@@ -1065,6 +1065,35 @@ Evidence: `agent-config/bin/openrouter-key.test.ts`,
 `scripts/verify-installers`, and the real OMP/Pi calls and OpenRouter billing
 checks recorded in the PR.
 
+## Capability: Credential hygiene
+
+## US-039 Keep credential values out of model context
+
+Statement: When an agent's search or read prints a file that holds credentials,
+I want the values replaced before any text reaches a model provider, so a broad
+search cannot leak a secret whichever tool or ignore flag produced it.
+
+Criteria:
+1. WHEN any tool prints an env-style assignment whose upper-case name contains
+   KEY, TOKEN, SECRET, PASSWORD, PASS, AUTH, CREDENTIAL or PRIVATE, including a
+   bare keyword name, a leading underscore or an unquoted value containing spaces,
+   THE SYSTEM SHALL send the provider a placeholder instead of a value of eight
+   or more characters.
+2. WHEN any tool prints a URL with a password of eight or more characters in its
+   user-info field, even with an empty username, THE SYSTEM SHALL mask the full
+   password through the final authority delimiter, including an embedded `@`,
+   before the path, query or fragment.
+3. IF the committed policy holds a plain entry or a regex that does not compile,
+   THEN installation SHALL fail before deploying anything.
+4. IF the agent directory's `secrets.yml` lacks the managed first line, THEN
+   installation SHALL fail without replacing it.
+
+No-gos: no secret values in the repository; no change to where credentials are
+stored; no network or model call in the check.
+
+Evidence: `omp-config/bin/omp-secrets-policy.test.ts`,
+`scripts/verify-installers`
+
 ## US-040 Hold every application to shipping, alerting and incident response
 
 Statement: When I run an application in either org, I want the foundation

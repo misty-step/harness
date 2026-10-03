@@ -7,6 +7,7 @@
 !/mcp.json
 !/workspace-mcp.json
 !/models.yml
+!/secrets.yml
 !/global/
 !/global/**
 !/.agents/
