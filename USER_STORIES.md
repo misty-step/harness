@@ -202,6 +202,37 @@ No-gos: no unowned file deletion or live credential tampering.
 
 Evidence: `./scripts/verify-installers`
 
+## US-052 Finish approved host installations from the engineer cage
+
+Statement: While an engineer is caged, I want it to finish installing merged,
+independently reviewed, green source with host readback and reversible rollback,
+so routine approved installations stop waiting on the desk.
+
+Criteria:
+1. THE SYSTEM SHALL expose only typed capabilities, named installation,
+   receipt readback and receipt rollback through Workbench's owned socket,
+   rejecting arbitrary command, destination, environment and repository fields.
+2. THE SYSTEM SHALL preserve host display isolation, hidden live Hermes state
+   and read-only installed code; a host-added socket under the existing library
+   mount SHALL be usable without restarting an active engineer.
+3. WHEN `cli` is selected, THE SYSTEM SHALL stage the client without activating
+   the cage, altering the retained native OMP binary or restarting consumers.
+4. THE SYSTEM SHALL delegate source eligibility, selected existing-installer
+   execution, host byte/mode/link checks and drift-safe rollback to Workbench,
+   with durable receipts appended to the existing Glass commission.
+5. THE SYSTEM SHALL distinguish installed code from requested activation and
+   SHALL permit Kaylee skill installation without whole-profile, identity,
+   credential, other-profile, cron-runtime or live-state replacement.
+
+No-gos: No arbitrary host shell, caller-authored source proof, new live-profile
+mount, desk/gateway restart or second deployment engine. Initial reviewed,
+merged broker bootstrap remains an explicitly authorized desk operation.
+
+Evidence: `omp-config/bin/omp-host-install.py`,
+`omp-config/bin/test_omp_host_install.py`,
+`omp-config/bin/test_omp_display.py`; installed `omp-host-install` requests with
+Workbench host readback and audited rollback on the existing Glass commission.
+
 ## Capability: Execution offload
 
 ## US-003 Offload heavy execution to exe.dev

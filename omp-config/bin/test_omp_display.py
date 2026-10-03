@@ -8,11 +8,13 @@ import select
 import signal
 import shutil
 import socket
+import stat
 import subprocess
 import sys
 import tempfile
 import threading
 import unittest
+from unittest.mock import patch
 
 DIRECTORY = Path(__file__).resolve().parent
 spec = importlib.util.spec_from_file_location("omp_display", DIRECTORY / "omp-display.py")
@@ -170,6 +172,236 @@ class GpgAuthorityTests(unittest.TestCase):
                 bridge.close()
                 upstream.close()
 
+
+class HostInstallExposureTests(unittest.TestCase):
+    def fixture_mounts(self, root):
+        home = root / "home"
+        home.mkdir()
+        (home / ".omp/run").mkdir(parents=True)
+        (home / ".cache/tmp").mkdir(parents=True)
+        (home / ".local/lib/workbench-host-install").mkdir(parents=True)
+        private = root / "private"
+        private.mkdir()
+        dns = root / "resolv.conf"
+        dns.write_text("nameserver 10.0.2.3\n")
+        runtime = root / "runtime"
+        runtime.mkdir()
+        return home, private, dns, runtime
+
+    def mounts(self, home, dns, private, runtime):
+        # Relocate only the fixed runtime path into a disposable fixture. No
+        # live runtime socket or host installer is created or replaced.
+        original = Path
+        def fixture_path(value):
+            return runtime if str(value) == f"/run/user/{os.getuid()}" else original(value)
+        with patch.object(display, "Path", side_effect=fixture_path):
+            args = display.mounts(home, dns, private)
+        # Match /run masking for the relocated synthetic runtime too.
+        index = args.index("/run") + 1
+        args[index:index] = ["--tmpfs", str(runtime)]
+        return args
+
+    @unittest.skipUnless(shutil.which("bwrap"), "bubblewrap namespace dependency")
+    def test_missing_or_invalid_optional_endpoint_does_not_block_unrelated_cage_launch(self):
+        scratch = Path.home() / ".cache/tmp"
+        scratch.mkdir(parents=True, exist_ok=True)
+        for state in ("missing", "regular", "socket", "symlink"):
+            with self.subTest(state=state), tempfile.TemporaryDirectory(dir=scratch) as directory, \
+                    socket.socket(socket.AF_UNIX) as server:
+                root = Path(directory)
+                home, private, dns, runtime = self.fixture_mounts(root)
+                endpoint = home / ".local/lib/workbench-host-install/route.sock"
+                if state == "regular":
+                    endpoint.write_text("not a socket")
+                elif state == "socket":
+                    server.bind(str(endpoint))
+                    endpoint.chmod(0o660)
+                elif state == "symlink":
+                    endpoint.symlink_to(runtime / "missing.sock")
+                unrelated = home / ".local/state/engineer-state"
+                unrelated.parent.mkdir(parents=True)
+                code = r'''
+from pathlib import Path
+import sys
+path = Path(sys.argv[1])
+path.write_text("unrelated cage launched")
+print(path.read_text())
+'''
+                process = subprocess.run(
+                    [display.BWRAP, "--unshare-user", "--unshare-pid", "--unshare-net",
+                     "--die-with-parent", "--cap-drop", "ALL",
+                     *self.mounts(home, dns, private, runtime), "--", "/usr/bin/python3", "-c", code,
+                     str(unrelated)], capture_output=True, text=True, timeout=10)
+                self.assertEqual(process.returncode, 0, process.stderr)
+                self.assertEqual(process.stdout, "unrelated cage launched\n")
+                self.assertEqual(unrelated.read_text(), "unrelated cage launched")
+
+    @unittest.skipUnless(shutil.which("bwrap"), "bubblewrap namespace dependency")
+    def test_already_running_same_uid_cage_can_change_chmod_sealed_late_release(self):
+        scratch = Path.home() / ".cache/tmp"
+        scratch.mkdir(parents=True, exist_ok=True)
+        with tempfile.TemporaryDirectory(dir=scratch) as directory:
+            root = Path(directory)
+            home, private, dns, runtime = self.fixture_mounts(root)
+            (home / ".local/share").mkdir(parents=True)
+            releases = home / ".local/share/workbench/releases"
+            release = releases / ("a" * 40)
+            asset = release / "synthetic-tool"
+            self.assertFalse(releases.exists())
+            code = r'''
+import json, os, stat, sys
+from pathlib import Path
+releases, release, asset = map(Path, sys.argv[1:])
+print(json.dumps({"uid": os.getuid(), "release_absent": not releases.exists(),
+                  "mount_namespace": os.readlink("/proc/self/ns/mnt")}), flush=True)
+if sys.stdin.readline() != "created\n":
+    raise RuntimeError("late release was not created")
+sealed_modes = [stat.S_IMODE(path.stat().st_mode) for path in (releases, release, asset)]
+releases.chmod(0o755)
+release.chmod(0o755)
+asset.chmod(0o755)
+asset.write_text("changed by already-running same-UID cage")
+print(json.dumps({"sealed_modes": sealed_modes, "changed": asset.read_text()}), flush=True)
+'''
+            with subprocess.Popen(
+                    [display.BWRAP, "--unshare-user", "--unshare-pid", "--unshare-net",
+                     "--die-with-parent", "--cap-drop", "ALL",
+                     *self.mounts(home, dns, private, runtime), "--", "/usr/bin/python3", "-c", code,
+                     str(releases), str(release), str(asset)],
+                    stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True) as child:
+                try:
+                    self.assertTrue(select.select([child.stdout], [], [], 10)[0])
+                    ready = json.loads(child.stdout.readline())
+                    self.assertEqual(ready["uid"], os.getuid())
+                    self.assertTrue(ready["release_absent"])
+                    self.assertNotEqual(ready["mount_namespace"], os.readlink("/proc/self/ns/mnt"))
+                    # Create and seal only after the normal cage is running.
+                    # This is the exclusion blocker, not an added mount grant.
+                    release.mkdir(parents=True)
+                    asset.write_text("#!/bin/sh\nprintf 'reviewed synthetic release\\n'\n")
+                    asset.chmod(0o555)
+                    release.chmod(0o555)
+                    releases.chmod(0o555)
+                    self.assertEqual(asset.stat().st_uid, os.getuid())
+                    self.assertEqual([stat.S_IMODE(path.stat().st_mode)
+                                      for path in (releases, release, asset)], [0o555] * 3)
+                    output, errors = child.communicate("created\n", timeout=10)
+                    self.assertEqual(child.returncode, 0, errors)
+                    self.assertEqual(json.loads(output), {
+                        "sealed_modes": [0o555] * 3,
+                        "changed": "changed by already-running same-UID cage",
+                    })
+                    self.assertEqual(asset.read_text(), "changed by already-running same-UID cage")
+                    self.assertEqual([stat.S_IMODE(path.stat().st_mode)
+                                      for path in (releases, release, asset)], [0o755] * 3)
+                finally:
+                    if child.poll() is None:
+                        child.kill()
+                        child.communicate(timeout=5)
+
+    @unittest.skipUnless(shutil.which("bwrap"), "bubblewrap namespace dependency")
+    def test_installed_socket_recreation_and_library_private_state_are_protected(self):
+        scratch = Path.home() / ".cache/tmp"
+        scratch.mkdir(parents=True, exist_ok=True)
+        with tempfile.TemporaryDirectory(dir=scratch) as directory, socket.socket(socket.AF_UNIX) as server:
+            root = Path(directory)
+            home, private, dns, runtime = self.fixture_mounts(root)
+            protected = [
+                home / ".local/lib/workbench-host-install/audit",
+                home / ".local/lib/workbench-host-install/sources",
+            ]
+            for path in protected:
+                path.mkdir(parents=True)
+                (path / "sentinel").write_text("host-owned")
+            (home / ".hermes/profiles/kaylee").mkdir(parents=True)
+            (home / ".hermes/profiles/kaylee/private").write_text("hidden")
+            unrelated = home / ".local/state/workbench/engineer-state"
+            unrelated.parent.mkdir(parents=True)
+            unrelated.write_text("engineer-owned")
+            (runtime / "unrelated-secret").write_text("not exposed")
+            endpoint = home / ".local/lib/workbench-host-install/route.sock"
+            server.bind(str(endpoint))
+            endpoint.chmod(0o600)
+            server.listen(1)
+            server.settimeout(5)
+            failures = []
+            def host():
+                try:
+                    connection, _ = server.accept()
+                    with connection, socket.socket(socket.AF_UNIX) as replacement:
+                        self.assertEqual(connection.recv(32), b"capabilities\n")
+                        # Activation may recreate its owned socket while an
+                        # already launched engineer keeps the directory mount.
+                        server.close()
+                        endpoint.unlink()
+                        replacement.bind(str(endpoint))
+                        endpoint.chmod(0o600)
+                        replacement.listen(1)
+                        replacement.settimeout(5)
+                        connection.sendall(b"host-route\n")
+                        second, _ = replacement.accept()
+                        with second:
+                            self.assertEqual(second.recv(32), b"readback\n")
+                            second.sendall(b"recreated-route\n")
+                except Exception as exc:
+                    failures.append(exc)
+            thread = threading.Thread(target=host, daemon=True)
+            thread.start()
+            code = r'''
+import json, socket, sys
+from pathlib import Path
+endpoint, secret, hermes, unrelated, *protected = map(Path, sys.argv[1:])
+with socket.socket(socket.AF_UNIX) as connection:
+    connection.settimeout(3)
+    connection.connect(str(endpoint))
+    connection.sendall(b"capabilities\n")
+    response = connection.recv(32).decode()
+with socket.socket(socket.AF_UNIX) as connection:
+    connection.settimeout(3)
+    connection.connect(str(endpoint))
+    connection.sendall(b"readback\n")
+    recreated = connection.recv(32).decode()
+try:
+    endpoint.unlink()
+    socket_protected = False
+except OSError:
+    socket_protected = True
+denied = []
+for path in protected:
+    operations = [
+        lambda: (path / "sentinel").write_text("tampered"),
+        lambda: (path / "new-file").write_text("tampered"),
+        lambda: path.rename(path.with_name(path.name + "-moved")),
+    ]
+    for operation in operations:
+        try:
+            operation()
+            denied.append(False)
+        except OSError:
+            denied.append(True)
+unrelated.write_text("still writable")
+print(json.dumps({"reply": response, "recreated": recreated, "socket_protected": socket_protected,
+                  "secret_hidden": not secret.exists(), "hermes_hidden": not hermes.exists(),
+                  "denied": denied, "unrelated_writable": unrelated.read_text() == "still writable"}))
+'''
+            process = subprocess.run(
+                [display.BWRAP, "--unshare-user", "--unshare-pid", "--unshare-net",
+                 "--die-with-parent", "--cap-drop", "ALL",
+                 *self.mounts(home, dns, private, runtime), "--", "/usr/bin/python3", "-c", code,
+                 str(endpoint), str(runtime / "unrelated-secret"), str(home / ".hermes/profiles/kaylee/private"),
+                 str(unrelated), *map(str, protected)],
+                capture_output=True, text=True, timeout=10)
+            thread.join(6)
+            self.assertFalse(thread.is_alive())
+            self.assertEqual(failures, [])
+            self.assertEqual(process.returncode, 0, process.stderr)
+            self.assertEqual(json.loads(process.stdout), {
+                "reply": "host-route\n", "recreated": "recreated-route\n", "socket_protected": True,
+                "secret_hidden": True, "hermes_hidden": True,
+                "denied": [True] * 6, "unrelated_writable": True,
+            })
+            for path in protected:
+                self.assertEqual((path / "sentinel").read_text(), "host-owned")
 
 @unittest.skipUnless(shutil.which("bwrap") and shutil.which("slirp4netns"), "display namespace dependencies")
 class NamespaceAuthorityTests(unittest.TestCase):
