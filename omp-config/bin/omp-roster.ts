@@ -687,13 +687,14 @@ function awaitVerdictCommand(args: string[]): number {
 		if (boundLaneStatuses(experiment).some((status) => status === "working")) throw new CliError(`${experiment.id}: a bound lane resumed work; no verdict or default was written.`);
 		if (current.status === "running") { current.status = "awaiting-verdict"; writeLedger(ledger); }
 		return current;
-	});
+	}, true);
 	if (accepted(ready)) return 0;
 	const judge = automaticJudge(experiment);
 	return experimentCommand(["verdict", "--experiment", experiment.id,
 		"--artifact-a", join(experiment.lanes[0]!.cwd, "experiment-result.md"), "--artifact-b", join(experiment.lanes[1]!.cwd, "experiment-result.md"),
 		"--judge", key(judge), "--thinking", judge.effort, ...(values.json ? ["--json"] : [])], {
 		approvedModels,
+		waitForLock: true,
 		routeUsable: (entry) => {
 			// The verdict owner invokes this inside its lock, including its final acceptance check.
 			unchanged(readLedger().experiments.find((record) => record.id === experiment.id));

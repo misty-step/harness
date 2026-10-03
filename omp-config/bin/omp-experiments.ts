@@ -34,7 +34,7 @@ export type Verdict = {
 	raw_source: string; raw_sha256: string;
 };
 type ArtifactSource = { file: string; sha256: string; blinded_sha256: string; session_sha256: string };
-type Host = { approvedModels: Record<string, { efforts: readonly string[]; usage: unknown }>; routeUsable: (entry: Entry) => boolean };
+type Host = { approvedModels: Record<string, { efforts: readonly string[]; usage: unknown }>; routeUsable: (entry: Entry) => boolean; waitForLock?: boolean };
 
 const START = "<!-- omp-experiments:state:start -->";
 const END = "<!-- omp-experiments:state:end -->";
@@ -244,7 +244,7 @@ export function readLedger(): Ledger {
 	return state.ledger;
 }
 /** Kernel ownership survives the flock child and releases on parent exit/crash. Never unlink the shared lock inode. */
-export function withLedgerLock<T>(fn: () => T): T {
+export function withLedgerLock<T>(fn: () => T, wait = false): T {
 	const path = ledgerPath();
 	if (heldLocks.has(path)) refuse("Experiment journal lock is already held by this process.");
 	const lock = `${path}.lock`;
@@ -252,7 +252,7 @@ export function withLedgerLock<T>(fn: () => T): T {
 	try { fd = openSync(lock, constants.O_CREAT | constants.O_RDWR, 0o600); }
 	catch (error) { return refuse(`Cannot open experiment journal lock ${lock}: ${(error as Error).message}`); }
 	try {
-		const acquired = spawnSync("flock", ["--exclusive", "--nonblock", "3"], { stdio: ["ignore", "pipe", "pipe", fd] });
+		const acquired = spawnSync("flock", wait ? ["--exclusive", "3"] : ["--exclusive", "--nonblock", "3"], { stdio: ["ignore", "pipe", "pipe", fd] });
 		if (acquired.error) refuse(`Cannot acquire kernel experiment lock: ${acquired.error.message}. Install util-linux flock.`);
 		if (acquired.status !== 0) {
 			let holder = "";
@@ -519,7 +519,7 @@ function verdictCommand(options: Record<string, string | boolean | undefined>, h
 		if (options.json) console.log(JSON.stringify(output, null, 2));
 		else console.log(`${experiment.id}: ${winner} wins ${sums.baseline}:${sums.candidate}; ${qualifies ? `${experiment.default_key} = ${key(experiment[winner])}:${experiment[winner].effort}, evidence ${experiment.id}` : "no default change (incomplete done checks or historical comparison)"}.`);
 		return 0;
-	});
+	}, host.waitForLock === true);
 }
 export function experimentCommand(argv: string[], host: Host): number {
 	try {
