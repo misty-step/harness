@@ -1096,9 +1096,16 @@ state under its lock; a successful roster preflight never reserves capacity.
    advisor or model fallback). This also applies to `--usage-json`: stale or
    degraded quota cannot authorize a launch on its own. A rejection, timeout,
    unreadable response or route change skips the candidate with a
-   `live provider check:` reason, before any overlay, record or experiment write.
+   `live provider check:` reason, before any launch overlay, record or experiment write.
    The next roster entry is checked in rank order. This is a point-in-time
    admission check, not a quota reservation; capacity can change afterward.
+   Probe configuration lives in a temporary `.probe-*` directory under the
+   existing roster state directory, alongside the native judge's visible overlay
+   storage, and is removed after the check. It must not live in `~/.cache/tmp`,
+   which the display fence replaces. Native failure diagnostics stay complete
+   (control characters normalized to spaces), rather than clipping the exception
+   behind source excerpts; structured provider rejections retain their error
+   even when the native process exits nonzero.
 4. Without explicit `--use-default`, the first launchable ticket entry in rank
    order wins. If none is launchable,
    `launch` exits 3 with "roster exhausted", each entry's skip reason and reset
