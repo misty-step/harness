@@ -118,8 +118,13 @@ non-owning API meter is neither charged nor held by another account's unknown
 cost. Shared resource/cash meters still aggregate every request that owns them;
 physically duplicated meter aliases remain forbidden. A
 zero final/not-started receipt cannot erase a later positive cost; original receipts
-remain immutable. Missing response cost is not zero, but independent owner-final
-actual usage can reconcile it without fabricating or rewriting a response. Admission funds the actual snapshot plus each
+remain immutable. Missing response cost is not zero: only an independently verified
+original `owner_final` actual figure on that exact meter reconciles it, including
+genuine actual zero or positive usage, before or after the raw response. A retained
+`proven_not_started` zero receipt is not that billing fact; missing-cost observations
+keep the owning API meter held in either order, without rewriting receipt/response
+or poisoning foreign meters. No positive minimum or temporal ledger is invented.
+Admission funds the actual snapshot plus each
 reservation's still-recordable bounded plan/response/failure, uncertainty and
 final/not-started usage, including worst allowed JSON escaping and revision growth.
 Recording consumes only that operation's remaining components; every competitor's

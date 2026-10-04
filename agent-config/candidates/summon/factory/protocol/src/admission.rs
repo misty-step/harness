@@ -338,15 +338,18 @@ impl AccountLedger {
                             // observed positive cost/overrun. Arrival order must
                             // not lower the known actual cash debit.
                             amount = amount.max(crate::judgment::usd_micros(cost)?);
-                        } else if r.final_receipt.is_none() {
+                        } else if r.final_receipt.as_ref().is_none_or(|f| {
+                            f.disposition != FinalDisposition::OwnerFinal
+                        }) {
                             return refuse(
                                 "cost_unavailable",
-                                "observed response has no actual cost; account remains held",
+                                "observed response has no reconciled actual cost; owning meter remains held",
                             );
                         }
-                        // Missing cost is NOT zero. Independently verified owner
-                        // final usage can reconcile that unknown without changing
-                        // the original raw missing-cost response.
+                        // Only independently verified original OWNER-FINAL actual
+                        // usage (including genuine zero) reconciles missing cost,
+                        // in either arrival order. Not-started zeros are NOT that
+                        // billing fact; retain both original receipt and raw response.
                     }
                 }
             }
