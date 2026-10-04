@@ -1,3 +1,52 @@
+# [0.1.80](https://github.com/misty-step/harness/compare/v0.1.79...v0.1.80) (2026-10-04)
+<!-- landmark:protected-release previous=v0.1.79 source=64c97273b060fad45809a39664dabca4fed26d67cfc9fdf0a13abd0fbb785ecc -->
+
+### Features
+
+* **skills:** adopt TypeSafe's official Jev skill (#190) ([18b4902](https://github.com/misty-step/harness/commit/18b490205706e8575c7eeded635e8f3e2d7da7ec))
+* back up agent session history and prove restored ledgers (#198) ([f9ec17a](https://github.com/misty-step/harness/commit/f9ec17a8e3d965691b2f9552d05ae8a49cfc1d0e))
+* **omp:** surface missing A/B pairs in launch plans (#202) ([f4df994](https://github.com/misty-step/harness/commit/f4df9948351d671cf5fb02c537376f5f053b6267))
+* **omp:** weekly read-only repository auditors, one per repository (#206) ([6a674ec](https://github.com/misty-step/harness/commit/6a674ecfbd9fc4f10d7ec80378f5addf0352ed6b))
+* **skills:** video, a repeatable explainer and intro film method (#182) ([6f0d1d9](https://github.com/misty-step/harness/commit/6f0d1d9e985c22b96ffc8b92f45798b22fac977e))
+* **foundation:** lean candidate proof and nightly safety cadence (#209) ([4af8f99](https://github.com/misty-step/harness/commit/4af8f993680bad75ff13446302e3669cc4308ee4))
+* **omp-roster:** make experiments automatic and evidence-backed ([fab05bf](https://github.com/misty-step/harness/commit/fab05bf88c0b80aa2a0fba883d8a42f9207c2842))
+* **omp:** audit findings land ticket-complete on Glass; set-aside projects are not audited (#216) ([b4b49f0](https://github.com/misty-step/harness/commit/b4b49f0e0b95a99118b8d5c03faa43533c6de2f2))
+* nothing fails silently — reviewers record their runs (K-20261002) (#213) ([78ee784](https://github.com/misty-step/harness/commit/78ee7843148047695fa4d8f692b33aafc28a4c15))
+* **agent-config:** review-check keeps a review page's point and every ask on one screen (#220) ([c4a4729](https://github.com/misty-step/harness/commit/c4a47298fde27c502cb80bc683e7b8057f15a261))
+* **foundation:** audit agent feedback and brand kits (#223) ([cc42793](https://github.com/misty-step/harness/commit/cc42793b4a24e0a4fd102fd2a1657fa109d480fc))
+* **shared:** hold story-removing deletions for operator approval (US-051) (#225) ([bca1b7e](https://github.com/misty-step/harness/commit/bca1b7e4574c9aeb323edc2a3e1ddea5480bb433))
+* **omp-config:** mask credential assignment values before they reach providers (US-039) (#92) ([cf4f957](https://github.com/misty-step/harness/commit/cf4f957e0e1f716d9860ca65c879cbf972a83fee))
+* **omp:** audited engineer host-install client (#233) ([2bedb8d](https://github.com/misty-step/harness/commit/2bedb8d726cdf9a13bb2f29107e9574cfd9e5f2e))
+* **factory:** add reviewed bounded Summon and native source (#234) ([36b1ce2](https://github.com/misty-step/harness/commit/36b1ce26dc154bf270a31a5bb08641896f576fd4))
+* **factory:** retain observed evidence and named commission gaps (#235) ([d56cdcd](https://github.com/misty-step/harness/commit/d56cdcd266b1f6f834ff1ebd415097c8ad0c0990))
+
+### Bug Fixes
+
+* **merge:** remove server approval and CI gates uniformly (#187) ([94d8984](https://github.com/misty-step/harness/commit/94d8984ada87a68022d62de46fc4ce3008b81121))
+* **foundation:** read images through the vision role; keep the designated decision separate (US-027) (#173) ([20062c5](https://github.com/misty-step/harness/commit/20062c5271c695006e1a02fc2f9f3c1ddf978a7e))
+* **review:** enforce cross-family reviewers without fallback (#186) ([6057c72](https://github.com/misty-step/harness/commit/6057c7274e761b0b232ddbdd6487ae54080cb8ac))
+* **omp:** default Sol implementation recovery to xhigh ([3e20bc1](https://github.com/misty-step/harness/commit/3e20bc155c309d42fcf36b861199cd84afeab388))
+* **omp:** restore fleet launches at the 20-GiB floor (#191) ([a78dc72](https://github.com/misty-step/harness/commit/a78dc7285a446081a919578705e0bf0fdc5be555))
+* **foundation:** preserve approved preview and rollback outcomes (#195) ([172792b](https://github.com/misty-step/harness/commit/172792b45c32954c02f630491690ca0c1d42736b))
+* **omp:** warn on memory capacity and launch anyway (#196) ([921b36e](https://github.com/misty-step/harness/commit/921b36e3ea7ba019874ee322dad808718d6aed70))
+* **omp:** isolate only native engineers and remove reservation diagnostics (#193) ([53b6510](https://github.com/misty-step/harness/commit/53b651023f0b4aec2b772657e19f0c02472f4b47))
+* **omp:** keep memory advisories off Glass (US-043) (#197) ([3a1a610](https://github.com/misty-step/harness/commit/3a1a6103b5b4fb36e41b36029e00883c7a1d4f62))
+* **omp:** make Steward opt-in and restore semantic find (#199) ([ecb0b6d](https://github.com/misty-step/harness/commit/ecb0b6d4963d2e91fabd1d8e962151ec40a768bc))
+* **omp-roster:** own the working-engineer cap default (#201) ([59c5f0e](https://github.com/misty-step/harness/commit/59c5f0ed2c4d91ebb57160353197a6e162c3436c))
+* **omp:** fence engineers from the live desktop (#204) ([8e2e85a](https://github.com/misty-step/harness/commit/8e2e85aa99594969e0c6795009e00094ccf57639))
+* **omp:** auditor names fit Herdr's 32-character agent names (#207) ([9c7f332](https://github.com/misty-step/harness/commit/9c7f33208ee0ac1e3c5b583ef60ba959d0944e48))
+* **omp:** auditors record; the launcher files to Glass or Habitat and fails loudly (#210) ([dea18b8](https://github.com/misty-step/harness/commit/dea18b8a0f1eb5f24746da8b32ca639c3b91c24b))
+* **omp:** board titles and whys are plain words; audit items open as later (#214) ([f2d76bc](https://github.com/misty-step/harness/commit/f2d76bc7d49c424b9a8c2501f5d5cea5a3aa0365))
+* **omp-roster:** separate capacity reads from dispatch (#212) ([29907be](https://github.com/misty-step/harness/commit/29907beefb2cff7971d8f379bae832235d039e53))
+* **review:** record outcomes in the reviewed repository context (#217) ([76d873b](https://github.com/misty-step/harness/commit/76d873b4956ea0b2b6faff477d11ba7f241c2277))
+* **ci:** forward review secret to reusable release verification (#222) ([1c1f8b8](https://github.com/misty-step/harness/commit/1c1f8b81d38e78be8e614a471b3bd38c70646b9b))
+* **omp-roster:** probe provider before selecting launch route (US-046) (#226) ([821879a](https://github.com/misty-step/harness/commit/821879af11e20d660634355ea8c0753da9acd37a))
+* **omp-display:** bootstrap probes with visible system Python (US-043, US-046) (#228) ([e95f630](https://github.com/misty-step/harness/commit/e95f630350318d752f356be79a28fabb495f03f1))
+* **ci:** load story checker from trusted workflow revision (US-051) (#229) ([ebf4115](https://github.com/misty-step/harness/commit/ebf41157d60c2984276e6eeb4721d11fea7bfbe1))
+* **omp:** keep admission overlays visible across the display fence (#230) ([cb9a964](https://github.com/misty-step/harness/commit/cb9a964b0d15c9901fff741103ae7e02f1b4a1fc))
+* **omp:** isolate native find billing from shared judgment credentials (#231) ([15a9bba](https://github.com/misty-step/harness/commit/15a9bba99b9a176055105603f91327586294bb69))
+* **omp:** own paired native verdicts and expose provider failures (#227) ([a1b4514](https://github.com/misty-step/harness/commit/a1b4514eefde70178f698e8a171d079f8959ac94))
+* **omp:** wait for journal admission in verdict watchers (#232) ([e7dd29f](https://github.com/misty-step/harness/commit/e7dd29ff3cf516d97f273f017409094bb59f76d2))
 # [0.1.79](https://github.com/misty-step/harness/compare/v0.1.78...v0.1.79) (2026-10-01)
 <!-- landmark:protected-release previous=v0.1.78 source=89f5c34bd6d2051d23007ebfa7a75c31245761cec5cac545bee66c06969d1e49 -->
 
