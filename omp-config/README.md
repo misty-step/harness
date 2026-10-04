@@ -768,7 +768,8 @@ current server; use Linear's settings for that administration.
 Global `mcp.json` declares Mobbin (`https://api.mobbin.com/mcp`, streamable HTTP)
 for real-world UI references before UI work. Its tools are read-only
 (`search_screens`, `search_flows`, `search_sections`) and limited to 60 requests
-per 60 seconds per user. It has no API key: each client signs in once through
+per 60 seconds per user. Every client signs in to the same account, so that budget
+is shared across all harnesses and concurrent agents. It has no API key: each client signs in once through
 browser OAuth against Phaedrus's Mobbin Pro account. After deployment, run inside
 OMP:
 
