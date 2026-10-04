@@ -70,6 +70,18 @@ fn role_tools_refuse_before_any_effect_or_cross_role_context() {
         .to_string()
         .contains("instance_scope_refused"));
     assert_eq!(b.effects("cto").unwrap(), json!([]));
+    // An internal run command must not poison the unique external-grant slot,
+    // even before a gateway binding or valid command body is available.
+    for capability in ["factory_intake", "factory_steer", "factory_cancel"] {
+        let mut r = request("cto", capability, "poison-grant", json!({}));
+        r.grant_id = Some("coo-effect-approval".into());
+        assert!(b
+            .execute(&c, &r)
+            .unwrap_err()
+            .to_string()
+            .contains("cannot_consume_external_grant"));
+    }
+    assert_eq!(b.effects("cto").unwrap(), json!([]));
 }
 #[test]
 fn memory_is_persisted_sourced_correctable_and_role_scoped() {

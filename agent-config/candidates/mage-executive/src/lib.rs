@@ -388,6 +388,10 @@ impl Broker {
                 Ok(serde_json::to_value(client.read(&a.run, &a.endpoint)?)?)
             }
             "factory_intake" | "factory_steer" | "factory_cancel" => {
+                ensure!(
+                    r.grant_id.is_none(),
+                    "factory_command_cannot_consume_external_grant"
+                );
                 #[derive(Deserialize)]
                 #[serde(deny_unknown_fields)]
                 struct Args {
