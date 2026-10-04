@@ -113,7 +113,7 @@ const topics = {
   sources: {
     kind:"Source, privacy and maintenance", title:"Follow the claim to its owner.",
     body:`<p class="lede">A frozen educational artifact. No polling, fake live lights or parallel authored run ledger.</p><p>Evidence was read on <strong>4 October 2026</strong>: the complete current parent and companion through Glass revision <strong>7226</strong>, and GitHub merges PR234 through PR237. CTO’s later 4 October checkpoint confirms the accounting candidate is still held and unadopted. Source links are pinned to <code>${revision}</code>.</p><p>The shared read and packet contracts own technical truth. This explainer teaches them; it does not substitute a diagram for their actual source observations. CTO maintains canonical source under <code>docs/factory-explainer/</code>.</p><details><summary>Governing items and visual policy</summary><p>Parent: <code>K-20261002-engineers-run-on-the-right-harness-per-p</code>.</p><p>Companion: <code>K-20261003-factory-architecture-stays-clear-in-a-ma</code>.</p><p>The latest companion roster and 4 October direction supersede old asks: strongly prefer Claude; GPT is allowed when Anthropic is unavailable. This artifact is authored on native Sol xhigh. The old exception request is resolved, not a hold.</p></details><details><summary>Private publication and historical evidence</summary><p>The existing Tailnet HTTPS review surface requires authorized Tailnet access. Private fleet evidence stays private; no raw transcripts, credentials or chain of thought are embedded.</p><p>Earlier rounds remain unchanged. Their historical observations and synthetic examples are references, not proof of this factory’s current completion.</p></details>${related([["landed","Canonical source merges"],["packets","The actual read contract"]])}`,
-    sources:[["publication.json","Published artifact · exact source revision and asset byte manifest"],[glass,"Private Glass · current parent and companion"],[adr,"Pinned architecture source · historical visual hold is superseded"],[evidence,"Shared source-backed reader"],["https://mirrodin.tail5f5eb4.ts.net/review/summon-architectures-2026-10-03/handoff.md","Preserved architecture handoff · historical context, not current authority"],["https://mirrodin.tail5f5eb4.ts.net/review/harness/laboratory/factory.html","Preserved factory laboratory · teaching draft, not live proof"],["https://www.ascii-magic.com/","ASCII Magic · visual inspiration, no copied assets"]]
+    sources:[["README.md#private-immutable-publication","Publication · exact source revision and asset-byte manifest"],[glass,"Private Glass · current parent and companion"],[adr,"Pinned architecture source · historical visual hold is superseded"],[evidence,"Shared source-backed reader"],["https://mirrodin.tail5f5eb4.ts.net/review/summon-architectures-2026-10-03/handoff.md","Preserved architecture handoff · historical context, not current authority"],["https://mirrodin.tail5f5eb4.ts.net/review/harness/laboratory/factory.html","Preserved factory laboratory · teaching draft, not live proof"],["https://www.ascii-magic.com/","ASCII Magic · visual inspiration, no copied assets"]]
   }
 };
 const steps = [
@@ -177,6 +177,26 @@ document.addEventListener("click",event => {
   if (button.dataset.topic) showTopic(button.dataset.topic);
   if (button.dataset.step !== undefined) showStep(Number(button.dataset.step));
   if (button.dataset.scenario) showScenario(button.dataset.scenario);
+});
+// Preserve keyboard focus within the native modal, including browsers that briefly
+// report <body> at the end of the tab order. Escape remains the native dialog action.
+document.addEventListener("keydown",event => {
+  if (event.key !== "Tab" || !dialog.open) return;
+  const focusable = [...dialog.querySelectorAll('a[href],button:not([disabled]),summary,input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])')]
+    .filter(element => element.tabIndex >= 0 && element.getClientRects().length > 0 && getComputedStyle(element).visibility !== "hidden");
+  if (focusable.length === 0) return;
+  const first = focusable[0];
+  const last = focusable[focusable.length - 1];
+  if (!dialog.contains(document.activeElement)) {
+    event.preventDefault();
+    (event.shiftKey ? last : first).focus();
+  } else if (event.shiftKey && document.activeElement === first) {
+    event.preventDefault();
+    last.focus();
+  } else if (!event.shiftKey && document.activeElement === last) {
+    event.preventDefault();
+    first.focus();
+  }
 });
 document.querySelector("#close-detail").addEventListener("click",() => dialog.close());
 document.querySelector("#previous-detail").addEventListener("click",() => {if (step !== null) showStep(step - 1);});

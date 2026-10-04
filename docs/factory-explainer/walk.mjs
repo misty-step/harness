@@ -90,7 +90,7 @@ try {
     await page.keyboard.press("Enter");
     for (let i=0;i<16;i++) {
       await page.keyboard.press("Tab");
-      assert.equal(await page.evaluate(() => document.activeElement === document.body || document.activeElement.closest("dialog") !== null),true,"Modal focus reaches a background control");
+      assert.equal(await page.evaluate(() => document.activeElement.closest("dialog[open]") !== null),true,"Modal keyboard focus escapes the open dialog");
     }
     assert.equal(await page.evaluate(() => matchMedia("(prefers-reduced-motion: reduce)").matches),true);
     const animated = await page.evaluate(() => document.getAnimations().filter(a => a.playState === "running").length);
