@@ -168,7 +168,7 @@ pub fn native_args(
     );
     ensure!(
         Path::new(&config.extension).is_absolute() && Path::new(&config.extension).is_file(),
-        "explicit native SDK extension source required"
+        "explicit pi-durable RPC bridge source required"
     );
     ensure!(
         !config.host.is_empty() && session.runtime == "pi" && session.host == config.host,
@@ -186,6 +186,10 @@ pub fn native_args(
     let mut args = vec![
         "--mode".into(),
         "rpc".into(),
+        "--run-id".into(),
+        dispatch.run_id.clone(),
+        "--session-id".into(),
+        session.session_id.clone(),
         "--offline".into(),
         "--provider".into(),
         dispatch.task.route.provider.clone(),
@@ -209,8 +213,6 @@ pub fn native_args(
             "exact native resume file unavailable; never create a replacement"
         );
         args.extend(["--session".into(), session.session_file.clone()]);
-    } else {
-        args.extend(["--session-id".into(), session.session_id.clone()]);
     }
     if let Some(context) = &dispatch.task.context {
         if let Some(instructions) = &context.instructions {
@@ -224,14 +226,11 @@ pub fn native_args(
             }
         }
         if let Some(skills) = &context.skills {
+            ensure!(
+                skills.is_empty(),
+                "pi-durable pilot has no skill loader; explicit host integration required"
+            );
             args.push("--no-skills".into());
-            for skill in skills {
-                ensure!(
-                    Path::new(skill).is_absolute() && Path::new(skill).exists(),
-                    "skill requires existing absolute native reference"
-                );
-                args.extend(["--skill".into(), skill.clone()]);
-            }
         }
     }
     Ok(args)
@@ -297,8 +296,9 @@ impl NativePi {
         let task_sha256 = sha256(&serde_json::to_vec(&dispatch.task)?);
         let owner = owner::Owner::reserve(&root, lock)?;
         let fd = owner.inherited_fd();
-        let mut command = Command::new("pi");
+        let mut command = Command::new("node");
         command
+            .arg(&config.extension)
             .args(args)
             .current_dir(&dispatch.task.workspace)
             .stdin(Stdio::piped())
@@ -561,7 +561,7 @@ impl NativePi {
             receipt["data"]["messageEntryId"] == branch[position]["id"],
             "native receipt/message conflict"
         );
-        // The SDK command verified disk and fsynced before persisting this receipt.
+        // The bridge commits a receipt only after durable submission admission.
         let native = NativeReceipt {
             session: self.session.clone(),
             native_message_ref: branch[position]["id"]

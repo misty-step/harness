@@ -1,4 +1,74 @@
-# summon-pi-runtime — standalone native Pi candidate
+# summon-pi-runtime
+
+## pi-durable WIP
+
+This branch dispatches the Rust-owned child through `node durable-rpc.ts`, with
+`@earendil-works/pi-durable` pinned to **1.0.2**. One root conversation lives in
+`sessions/<Summon session ID>.sqlite` per run, under the existing hashed run
+directory. Pi-durable owns execution checkpoints, input deduplication and its
+transcript. Summon owns run/input/proof records; Glass retains its existing state
+ownership. Nothing here introduces a second run ledger or proves acceptance.
+
+`config.extension` now names the absolute source `durable-rpc.ts` bridge, rather
+than `commission-relay/native-input.ts`. The existing JSONL command and observation
+contract remains at the Rust boundary. The bridge projects committed durable
+entries for that observer; it does not write a parallel Pi JSONL transcript.
+Native receipt references identify the SQLite file and committed durable entry.
+Legacy plain Pi session files are refused, never converted or replaced silently.
+
+The factory agent host must provide `SUMMON_PI_MODELS_MODULE`, an absolute module
+exporting `createSummonModels()` that returns its selected pi-ai `Models` instance
+with the native credential store. The bridge performs no login, credential copy,
+provider/model fallback or automatic provider retry. This host/account integration
+is a required capability, not delivered by the offline fixture. Route, working
+directory, instructions and tool selection are frozen and checked on reopen.
+The Pi session identifier remains the Summon transport identity; pi-durable also
+persists its own conversation/provider session identity.
+
+The fixed tools are `read,grep,find,ls`. All four are idempotent and declare
+`replay:"safe"`; `grep` and `find` require `rg`. No writable tool is installed.
+Read-only exposure still runs as the trusted same user, without filesystem
+confinement. Context discovery and Pi extensions/templates are disabled. Frozen
+instruction text is supported; selected skills are refused until a host loader
+exists. Omitted context selects the bridge's empty defaults.
+
+Submission `requestId` is the existing Summon `inputId`. A committed binding checks
+the exact run, attempt, input, text/hash and session before reuse. Changed bytes
+or identities are refused. A receipt follows durable input admission, never merely
+an RPC success. Recovery inspects first, and resumes only an admitted submission.
+A binding without admission stays uncertain and observation never resends it.
+The Rust immutable-intent and observed-child-exit guards remain in force. If the
+Rust owner dies without a wait receipt, recovery still requires reconciliation;
+this WIP does not authorize takeover or automatic uncertainty clearance.
+
+Install dependencies locally in an isolated checkout, then run the Node proof:
+
+```sh
+cd agent-config/candidates/summon/pi-runtime
+npm ci --ignore-scripts
+TMPDIR=/absolute/run-scoped/scratch npm test
+```
+
+The Node test kills an actual engine process with SIGKILL after tool entry, opens
+the same SQLite file in another process, and checks safe replay, interrupted
+unsafe tools, one input/receipt, and stable requestId deduplication. A separate
+JSONL bridge walk checks dispatch, observation, conflicts and exact reopen.
+Its deterministic local provider uses no network or credentials. It proves
+process-crash recovery, not power-loss durability, authenticated provider use,
+native Rust loading, hosted DO composition, off-machine restore or shipped work.
+No Rust build is allowed in this lane. Existing installed-Pi Rust fault fixtures
+below target the historical engine and must be ported before use with this bridge.
+
+runner-01 has Pi 0.87.1 and lacks pi-durable. The lane's
+[setup follow-up](../../../../.lane/setup.sh) records the missing capability without
+installing it. Private `misty-step/summon` is unavailable; compare its protocol,
+account binding, context loaders and pins when porting this slice. No private
+repository compatibility is claimed.
+
+## Historical plain Pi baseline
+
+The observations and commands below describe the pre-WIP plain Pi implementation.
+They are retained as provenance, not verification of the pi-durable engine.
 
 Rust native start/resume/observe/abort/owned-exit boundary. It depends on portable
 `../factory/protocol` (`summon-protocol`), not Mage's spool or executable. Its

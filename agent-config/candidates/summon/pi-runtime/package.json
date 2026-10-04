@@ -1,0 +1,15 @@
+{
+  "name": "summon-pi-durable-runtime",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test --test-concurrency=1 tests/durable.proof.mjs"
+  },
+  "engines": { "node": ">=24.0.0" },
+  "dependencies": {
+    "@earendil-works/chord": "1.0.2",
+    "@earendil-works/pi-ai": "1.0.2",
+    "@earendil-works/pi-durable": "1.0.2",
+    "typebox": "1.3.27"
+  }
+}

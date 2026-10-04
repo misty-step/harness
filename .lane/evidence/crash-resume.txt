@@ -1,0 +1,25 @@
+Terminal captured with script; terminal CRLF normalized to LF. Offline provider fixture; no Rust build or live deployment.
+Script started on 2026-10-04 18:11:22-05:00 [COMMAND="cd agent-config/candidates/summon/pi-runtime && node --version && node -p 'require("@earendil-works/pi-durable/package.json").version' && TMPDIR=/tmp/summon-durable-run npm test" <not executed on terminal>]
+v24.21.0
+1.0.2
+
+> test
+> node --test --test-concurrency=1 tests/durable.proof.mjs
+
+safe: tool intent persisted; execute entered; sending SIGKILL
+safe: reopened same conversation; 1 user input; 1 receipt; 2 tool executions; 2 fixture model calls; settled=done
+✔ SIGKILL mid-tool, reopen SQLite, safe replay and requestId dedup (868.133621ms)
+unsafe: tool intent persisted; execute entered; sending SIGKILL
+unsafe: reopened same conversation; 1 user input; 1 receipt; 1 tool executions; 2 fixture model calls; settled=done
+✔ SIGKILL mid-tool, reopen SQLite, unsafe replay and requestId dedup (822.170181ms)
+✔ RPC bridge dispatch, durable observations, duplicate refusal and reopen (1162.071678ms)
+ℹ tests 3
+ℹ suites 0
+ℹ pass 3
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 3341.148762
+
+Script done on 2026-10-04 18:11:25-05:00 [COMMAND_EXIT_CODE="0"]

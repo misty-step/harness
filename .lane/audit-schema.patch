@@ -1,0 +1,12 @@
+--- a/audit/SCHEMA.md
++++ b/audit/SCHEMA.md
+@@ -11,7 +11,8 @@
+ | `repo` | string | GitHub `owner/repo`, without credentials. |
+ | `slice` | string | Plan slice such as `S2`, or the bounded factory work item. |
+ | `step` | string enum | `plan`, `implement`, `review`, `qa`, `launch`, `sync`, or `merge`. Branch and draft-PR claims use `plan`; read-only capability probes use `qa`. |
+-| `system` | string enum | `summon`, `mage`, `pi-durable`, `codex`, `chips`, or `human`. This identifies the system responsible for the step or under probe, not the audit writer. |
++| `system` | string enum | `summon`, `mage`, `codex`, `chips`, or `human`. This identifies the system responsible for the step or under probe, not the audit writer. |
++| `engine` | string or null | Execution engine used by `system`, such as `pi-durable` for Summon. pi-durable is never a separate system. Null when no engine applies or its identity is unknown. Older rows without this key retain unknown engine identity. |
+ | `module_version_or_commit` | string or null | Exact source commit, package version, or `sha256:<digest>` of the module/script actually inspected. A source hash does not prove that deployed bytes matched. Unknown versions remain null with a reason in `notes`. |
+ | `account` | string or null | Nonsecret account label. Null for offline source/queue probes or unavailable identity; `notes` gives the reason. |
+ | `model` | string or null | Explicit model and effort when known. A selected model is not proof of provider execution. Null when no model runs or its identity is unavailable. |
