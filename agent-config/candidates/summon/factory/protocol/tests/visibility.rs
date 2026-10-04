@@ -239,6 +239,8 @@ fn task_required_receipts_cannot_be_missing_partial_unrelated_or_unbound() {
     assert!(
         packet(vec![complete.clone()], &complete.node_id, &[])
             .proof
+            .as_ref()
+            .unwrap()
             .recursive_pass
     );
     for mode in [
@@ -295,12 +297,14 @@ fn task_required_receipts_cannot_be_missing_partial_unrelated_or_unbound() {
         let archive = packet(vec![record.clone()], &record.node_id, &[]);
         archive.validate_archive().unwrap();
         assert!(
-            !archive.proof.recursive_pass,
+            !archive.proof.as_ref().unwrap().recursive_pass,
             "{mode} evidence cannot cover frozen task outputs/checks/native trace"
         );
         assert!(
             archive
                 .proof
+                .as_ref()
+                .unwrap()
                 .issues
                 .iter()
                 .any(|i| matches!(i.state, FactState::Missing | FactState::Stale)),
@@ -350,7 +354,7 @@ fn shared_child_is_one_node_and_packets_reopen_with_original_bindings() {
         VisibilityGraph::new(vec![root.clone(), a.clone(), b.clone(), leaf.clone()]).unwrap();
     let catalog = vec![p_leaf.clone(), p_a, p_b];
     let manifest = PacketManifestV1::export(&graph, &root.node_id, &catalog).unwrap();
-    assert!(manifest.proof.recursive_pass);
+    assert!(manifest.proof.as_ref().unwrap().recursive_pass);
     let reopened: PacketManifestV1 =
         serde_json::from_slice(&serde_json::to_vec(&manifest).unwrap()).unwrap();
     assert!(reopened.reopen(&graph, &catalog).unwrap().recursive_pass);
@@ -411,6 +415,8 @@ fn timestamps_alone_preserve_semantics_but_not_archive_bytes_and_reader_failure_
         PacketManifestV1::export(&fresh, &parent.node_id, std::slice::from_ref(&new))
             .unwrap()
             .proof
+            .as_ref()
+            .unwrap()
             .recursive_pass
     );
     refreshed.source.state = FactState::Failed;
@@ -426,7 +432,7 @@ fn missing_inaccessible_incomplete_cancelled_and_interrupted_are_exportable_not_
     let mut parent = record("cf1:parent");
     link(&mut parent, &leaf, None);
     let p = packet(vec![parent.clone()], &parent.node_id, &[]);
-    assert!(!p.proof.recursive_pass);
+    assert!(!p.proof.as_ref().unwrap().recursive_pass);
     let mut incomplete = parent.lineage.value.clone().unwrap();
     incomplete.complete = false;
     incomplete.unresolved.push(InventoryGap {
@@ -446,13 +452,20 @@ fn missing_inaccessible_incomplete_cancelled_and_interrupted_are_exportable_not_
     parent.source.sha256 = Some(sha256(&serde_json::to_vec(s).unwrap()));
     let p = packet(vec![parent.clone()], &parent.node_id, &[]);
     p.validate_archive().unwrap();
-    assert!(!p.proof.recursive_pass);
+    assert!(!p.proof.as_ref().unwrap().recursive_pass);
     for state in [
         FactState::Missing,
         FactState::Cancelled,
         FactState::Inaccessible,
     ] {
-        assert!(p.proof.issues.iter().any(|i| i.state == state));
+        assert!(
+            p.proof
+                .as_ref()
+                .unwrap()
+                .issues
+                .iter()
+                .any(|i| i.state == state)
+        );
     }
 }
 #[test]
@@ -543,7 +556,7 @@ fn unmanaged_observed_agent_has_unknown_summon_phase_and_origin_cannot_override_
     observed.source.owner = "pi-native".into();
     observed.validate().unwrap();
     let p = packet(vec![observed.clone()], &observed.node_id, &[]);
-    assert!(!p.proof.recursive_pass);
+    assert!(!p.proof.as_ref().unwrap().recursive_pass);
     observed.identity.attempt_id = Some("invented".into());
     assert_eq!(observed.validate().unwrap_err().code, "identity_conflict");
     let status = managed.managed.unwrap();

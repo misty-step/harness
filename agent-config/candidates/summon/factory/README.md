@@ -60,6 +60,24 @@ marks and read projections, not chat or controller. A unified chat/control produ
 needs its own decision; no Glass expansion or retired Linear revival follows.
 Standalone Summon requires neither Glass, Git nor Mage.
 
+## Local immutable archives versus requested assessment
+
+`PacketManifestV1::archive(record)` retains the complete canonical owner record,
+binding and original child refs, with `proof: None` omitted from JSON. Omission is
+**UNASSESSED**, never an empty passing `RecursiveProof`. Use this per node when
+retaining a tree; repeating `export` at every ancestor copies descendant issues
+quadratically. Derive the full requested root rollup once with `export` or
+`reopen` from fresh owner facts and the original child catalog. Local records
+already retain missing/failed/uncertain facts and authored inventory gaps.
+
+The Rust `proof` field is now `Option<RecursiveProof>`; requested `export` always
+returns `Some`, preserving its existing assessed JSON response. Valid historical
+proof-bearing archives retain exact compact JSON bytes/digests/field order.
+Their historical proof remains historical; reopening traverses ORIGINAL child
+archives at every depth and cannot replace missing originals with new/unassessed
+semantic equivalents. Old/new catalogs share the same canonical schema and
+reader. Neither omission nor a retained historical pass authorizes current green.
+
 ## Authenticated gateway boundary
 
 `protocol/src/authority.rs` owns the deterministic account/project/instance/
