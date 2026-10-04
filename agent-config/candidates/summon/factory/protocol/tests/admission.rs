@@ -229,7 +229,7 @@ fn shared_account_unknown_outcomes_do_not_expire_or_repartition() {
             .starts_with("summon-account-admission-v1:")
     );
     assert!(account_object_key("client-account-alias").is_err());
-    assert!(restored.fits(true));
+    assert!(restored.fits());
 }
 #[test]
 fn account_meter_truth_and_frozen_native_route_fail_closed() {
@@ -367,4 +367,78 @@ fn jev_typed_revision_cache_keeps_actual_cost_and_never_effects_or_retries() {
             expected
         );
     }
+}
+
+#[test]
+fn outcome_projection_funds_worst_escaping_and_only_consumes_its_own_components() {
+    let mut p = policy();
+    p.meters.get_mut("capacity").unwrap().allocated = 10;
+    for i in 0..12 {
+        let id = format!("{i:02}{}", "\"".repeat(254));
+        let mut grant = p.meters["capacity"].clone();
+        grant.kind = MeterKind::ResourceUsage;
+        grant.unit = format!("synthetic-grain-{i}");
+        p.meters.insert(id, grant);
+    }
+    p.seats.get_mut("native").unwrap().meters = p.meters.keys().cloned().collect();
+    let mut l = AccountLedger::new(p).unwrap();
+    let mut r = request("escaped", "cf1:escaped", "a", "native");
+    r.amounts = l.policy.seats["native"]
+        .meters
+        .iter()
+        .map(|id| (id.clone(), 1))
+        .collect();
+    l.reserve(
+        r.clone(),
+        &status("cf1:escaped"),
+        "loopback-fixture-owner",
+        1000,
+    )
+    .unwrap();
+    let jr = request("late", "cf1:late", "b", "jev");
+    l.reserve(
+        jr.clone(),
+        &status("cf1:late"),
+        "loopback-fixture-owner",
+        1000,
+    )
+    .unwrap();
+    let competitor = l.reservations["late"].clone();
+    let mut envelope = l.projected_bytes().unwrap();
+    for i in 0..8 {
+        l.uncertain("escaped", format!("{i}{}", "\\".repeat(255)))
+            .unwrap();
+        assert!(l.projected_bytes().unwrap() <= envelope);
+        envelope = l.projected_bytes().unwrap();
+        assert_eq!(l.reservations["late"], competitor);
+    }
+    let mut f = final_receipt(&r);
+    f.receipt_id = "\"".repeat(256);
+    f.evidence_ref = "\\".repeat(256);
+    f.actual = r
+        .amounts
+        .keys()
+        .map(|id| (id.clone(), if id == "capacity" { 0 } else { u64::MAX }))
+        .collect();
+    l.reconcile_verified(f.clone(), &f.owner).unwrap();
+    assert!(l.projected_bytes().unwrap() <= envelope);
+    let (j, _) = l.plan_judgment("late", &status("cf1:late"), 1000).unwrap();
+    l.judgment_failure(&j.key, "unsupported").unwrap();
+    let mut never_started = final_receipt(&jr);
+    never_started.disposition = FinalDisposition::ProvenNotStarted;
+    never_started.actual.values_mut().for_each(|v| *v = 0);
+    l.reconcile_verified(never_started.clone(), &never_started.owner)
+        .unwrap();
+    // Final closes uncertainty/usage, NOT a still-recordable original response.
+    let actual = serde_json::to_vec(&l).unwrap().len();
+    assert!(l.projected_bytes().unwrap() >= actual + 8192 - 4);
+    let funded = l.projected_bytes().unwrap();
+    let response = serde_json::Value::String("\"".repeat(4095));
+    assert_eq!(serde_json::to_vec(&response).unwrap().len(), 8192);
+    l.judgment_response(&j.key, response.clone()).unwrap();
+    assert!(l.projected_bytes().unwrap() <= funded);
+    let before = l.clone();
+    assert!(l.judgment_response(&j.key, response).unwrap());
+    assert!(l.reconcile_verified(f.clone(), &f.owner).unwrap());
+    assert_eq!(l, before);
 }

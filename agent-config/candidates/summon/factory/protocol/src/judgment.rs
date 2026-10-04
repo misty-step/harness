@@ -8,6 +8,10 @@ use std::collections::BTreeMap;
 
 pub const ENDPOINT: &str = "https://openrouter.ai/api/alpha/decisions";
 pub const MODEL: &str = "typesafe/jev-1.13";
+pub(crate) const MAX_REQUEST_BYTES: usize = 16 * 1024;
+pub(crate) const MAX_RESPONSE_BYTES: usize = 8 * 1024;
+const FAILURE_KINDS: [&str; 5] = ["timeout", "transport", "quota", "malformed", "unsupported"];
+pub(crate) const MAX_FAILURE_BYTES: usize = 13; // JSON "unsupported", including quotes
 pub fn route() -> Route {
     Route {
         harness: "summon-system-one".into(),
@@ -45,6 +49,35 @@ pub struct Advice {
     pub usage: Value,
     pub actual_cost_usd: serde_json::Number,
     pub conservative_cost_micros: u64,
+}
+// Size envelope only, never an inference/observation or persisted synthetic fact.
+// Fund one original record, its immutable request/eligible choices and BOTH a
+// possible failure then late response. All bounds are shared with their guards.
+pub(crate) fn reserved_record_bytes(reservation_id: &str) -> Option<usize> {
+    let eligible = [
+        EligibleAction::Clarify,
+        EligibleAction::ConsiderReservedTurn,
+        EligibleAction::Escalate,
+    ]
+    .into_iter()
+    .map(|action| {
+        Some((
+            serde_json::to_value(&action).ok()?.as_str()?.to_owned(),
+            action,
+        ))
+    })
+    .collect::<Option<BTreeMap<_, _>>>()?;
+    let record = JudgmentRecord {
+        reservation_id: reservation_id.into(),
+        run_revision: u64::MAX,
+        key: "f".repeat(64),
+        eligible,
+        request: Value::String("x".repeat(MAX_REQUEST_BYTES - 2)),
+        response: Some(Value::String("x".repeat(MAX_RESPONSE_BYTES - 2))),
+        failure: Some(FAILURE_KINDS.iter().max_by_key(|s| s.len())?.to_string()),
+    };
+    // SHA256 map key, quotes/colon and separator. Empty map needs one byte less.
+    serde_json::to_vec(&record).ok()?.len().checked_add(64 + 4)
 }
 impl AccountLedger {
     pub fn plan_judgment(
@@ -134,7 +167,7 @@ impl AccountLedger {
             "context_sufficient":{"type":"noul","instructions":"Does the supplied task and input contain enough relevant evidence to do the bounded work without inventing missing facts?"},
             "unresolved_material_uncertainty":{"type":"noul","instructions":"Does the supplied task/input leave a material ambiguity requiring clarification or owner escalation? Do not judge numeric permission/budget facts; code owns them."}
         }});
-        if serde_json::to_vec(&request).unwrap().len() > 16 * 1024 {
+        if serde_json::to_vec(&request).unwrap().len() > MAX_REQUEST_BYTES {
             return refuse(
                 "judgment_limit",
                 "bounded decision context exceeded; no truncation or provider fallback",
@@ -172,7 +205,7 @@ impl AccountLedger {
     /// Fixture/source adapter seam only. A transport timeout/failure stays durable
     /// and retains ALL resource/cash reservations; there is no retry/fallback.
     pub fn judgment_failure(&mut self, key: &str, kind: &str) -> Result<bool> {
-        if !["timeout", "transport", "quota", "malformed", "unsupported"].contains(&kind) {
+        if !FAILURE_KINDS.contains(&kind) {
             return refuse("invalid_input", "typed failure category required");
         }
         let record = self.judgments.get_mut(key).ok_or_else(|| crate::Refusal {
@@ -197,7 +230,7 @@ impl AccountLedger {
         Ok(false)
     }
     pub fn judgment_response(&mut self, key: &str, response: Value) -> Result<bool> {
-        if serde_json::to_vec(&response).unwrap().len() > 8 * 1024 {
+        if serde_json::to_vec(&response).unwrap().len() > MAX_RESPONSE_BYTES {
             return refuse("judgment_limit", "bounded actual response exceeded");
         }
         let record = self.judgments.get(key).ok_or_else(|| crate::Refusal {

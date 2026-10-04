@@ -5,9 +5,8 @@ use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
 
 pub const MAX_ACCOUNT_BYTES: usize = 512 * 1024;
-// Covers bounded response (8KiB), all final meter keys/IDs even JSON-escaped,
-// and eight uncertainty references; never truncate accepted facts to make room.
-const TERMINAL_BYTES: usize = 32 * 1024;
+const REFERENCE_BYTES: usize = 256;
+const UNCERTAINTY_REFS: usize = 8;
 
 pub fn account_object_key(account: &str) -> Result<String> {
     if account != crate::authority::CANARY_ACCOUNT {
@@ -83,7 +82,7 @@ impl OwnerFact {
 }
 fn short(s: &str) -> Result<()> {
     nonempty(s)?;
-    if s.len() > 256 {
+    if s.len() > REFERENCE_BYTES {
         return refuse(
             "invalid_input",
             "account references are bounded to 256 bytes",
@@ -516,7 +515,7 @@ impl AccountLedger {
         if r.uncertain.contains(&reference) {
             return Ok(true);
         }
-        if r.uncertain.len() == 8 {
+        if r.uncertain.len() == UNCERTAINTY_REFS {
             return refuse(
                 "state_limit",
                 "bounded uncertainty refs; reservation remains retained",
@@ -605,19 +604,80 @@ impl AccountLedger {
         self.revision += 1;
         Ok(false)
     }
-    pub fn fits(&self, accepting: bool) -> bool {
-        let bytes = serde_json::to_vec(self).map_or(usize::MAX, |v| v.len());
-        let pending = if accepting {
-            self.reservations
+    /// Actual snapshot plus EVERY reservation's still-recordable bounded facts.
+    /// Outcomes consume only their own components: no full allowance charged
+    /// twice, no raw-byte bypass borrowing another accepted operation's room.
+    /// Derived from canonical facts; no persisted byte counter/second ledger.
+    pub fn projected_bytes(&self) -> Option<usize> {
+        let mut bytes = serde_json::to_vec(self).ok()?.len();
+        // Common revision growth is funded up front, not by another outcome.
+        bytes = bytes.checked_add(u64::MAX.to_string().len() - self.revision.to_string().len())?;
+        for r in self.reservations.values() {
+            if r.final_receipt.is_none() {
+                // nonempty/short reject controls; quotes/backslashes can double
+                // every reference byte. Include JSON quotes and array separator.
+                let refs = UNCERTAINTY_REFS.checked_sub(r.uncertain.len())?;
+                bytes = bytes.checked_add(refs.checked_mul(2 * REFERENCE_BYTES + 3)?)?;
+                let mut receipt = FinalReceipt {
+                    receipt_id: "\"".repeat(REFERENCE_BYTES),
+                    reservation_id: r.request.reservation_id.clone(),
+                    operation_id: r.request.operation_id.clone(),
+                    disposition: FinalDisposition::OwnerFinal,
+                    owner: r.frozen.seat.outcome_owner.clone(),
+                    evidence_ref: "\\".repeat(REFERENCE_BYTES),
+                    evidence_sha256: "f".repeat(64),
+                    actual: r
+                        .request
+                        .amounts
+                        .keys()
+                        .map(|id| {
+                            (
+                                id.clone(),
+                                if self.policy.meters[id].kind == MeterKind::ResourceCapacity {
+                                    0
+                                } else {
+                                    u64::MAX
+                                },
+                            )
+                        })
+                        .collect(),
+                };
+                let owner_final = serde_json::to_vec(&receipt).ok()?.len();
+                receipt.disposition = FinalDisposition::ProvenNotStarted;
+                receipt.actual.values_mut().for_each(|v| *v = 0);
+                let not_started = serde_json::to_vec(&receipt).ok()?.len();
+                bytes = bytes.checked_add(owner_final.max(not_started).checked_sub(4)?)?; // replaces null
+            }
+            match self
+                .judgments
                 .values()
-                .filter(|r| r.final_receipt.is_none())
-                .count()
-                * TERMINAL_BYTES
-        } else {
-            0
-        };
-        bytes
-            .checked_add(pending)
+                .find(|j| j.reservation_id == r.request.reservation_id)
+            {
+                None if r.frozen.seat.operation == Operation::JevDecision
+                    && r.final_receipt.is_none() =>
+                {
+                    bytes = bytes.checked_add(crate::judgment::reserved_record_bytes(
+                        &r.request.reservation_id,
+                    )?)?;
+                }
+                Some(j) => {
+                    // Late original responses remain recordable even AFTER owner
+                    // final/not-started or transport failure; final is not release
+                    // of a response slot that the existing seam can still write.
+                    if j.response.is_none() {
+                        bytes = bytes.checked_add(crate::judgment::MAX_RESPONSE_BYTES - 4)?;
+                        if j.failure.is_none() && r.final_receipt.is_none() {
+                            bytes = bytes.checked_add(crate::judgment::MAX_FAILURE_BYTES - 4)?;
+                        }
+                    }
+                }
+                _ => (),
+            }
+        }
+        Some(bytes)
+    }
+    pub fn fits(&self) -> bool {
+        self.projected_bytes()
             .is_some_and(|v| v <= MAX_ACCOUNT_BYTES)
     }
 }

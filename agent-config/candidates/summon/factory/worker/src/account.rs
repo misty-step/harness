@@ -205,8 +205,10 @@ pub async fn apply(
         Err(e) => return refusal(e),
     };
     if !replayed {
-        // Keep EACH other pending outcome's terminal margin; never borrow it.
-        if !ledger.fits(true) {
+        // New admission funds every bounded outcome. Recording consumes only
+        // the changed reservation's remaining components, keeping ALL others
+        // (including still-recordable late responses after final) funded.
+        if !ledger.fits() {
             return error(
                 "state_limit",
                 "account snapshot plus outcome reservation exceeds bound; no mutation committed",

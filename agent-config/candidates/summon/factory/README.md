@@ -111,8 +111,14 @@ alternate-ID resends. Only independently justified original outcome-owner final 
 proven-not-started facts may settle; a permission/actor string is NOT that verifier.
 The current plaintext outcome-source assertions are explicitly fixture-only.
 Actual overrun receipts/response costs remain retained and block new admissions,
-not truncated to an estimate. Admission also reserves bounded terminal receipt
-space; full account history conservatively stops new acceptance rather than
+not truncated to an estimate. Admission funds the actual snapshot plus each
+reservation's still-recordable bounded plan/response/failure, uncertainty and
+final/not-started usage, including worst allowed JSON escaping and revision growth.
+Recording consumes only that operation's remaining components; every competitor's
+room remains funded, not charged twice or borrowed via a raw-byte bypass. A late
+original Jev response retains its slot even after failure/final reconciliation.
+This projection is derived from canonical facts, never persisted as a second byte
+ledger. Full account history conservatively stops new acceptance rather than
 silently pruning stable IDs. Budget operations never mutate managed run state.
 
 `protocol/src/judgment.rs` uses the canonical fleet OpenRouter Decisions wire
