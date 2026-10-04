@@ -1,4 +1,5 @@
 //! Summon owns ordered input and proof bindings. Native runtimes own execution facts.
+pub mod authority;
 pub mod evidence;
 pub mod storage;
 pub mod visibility;
@@ -437,6 +438,8 @@ pub struct Run {
     pub task: TaskSpec,
     pub manifest_sha256: String,
     pub initial_input_id: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub authority: Option<authority::AttributedAuthority>,
     pub inputs: Vec<Input>,
     pub native_session: Option<NativeSession>,
     pub delivery: Option<Delivery>,
@@ -481,6 +484,7 @@ impl Run {
             manifest_sha256: hash(&request.task),
             task: request.task,
             initial_input_id: request.initial_input_id,
+            authority: None,
             inputs: vec![input],
             native_session: None,
             delivery: None,

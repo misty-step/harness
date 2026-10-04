@@ -9,6 +9,7 @@ import { homedir } from 'node:os';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createHash } from 'node:crypto';
+import { authFixtureProof } from './auth-fixture.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const hash = value => createHash('sha256').update(value).digest('hex');
@@ -46,8 +47,8 @@ test('exact source: local DO input/claim races, native ambiguity/cancel, scoped 
     await writeFile(resolve(scratch, 'wrangler.log'), output);
   };
   t.after(stop);
-  const boot = async () => {
-    child = spawn(process.execPath, [process.env.WRANGLER_BIN ?? resolve(root, 'node_modules/wrangler/bin/wrangler.js'), 'dev', '--local', '--ip', '127.0.0.1', '--port', String(port), '--persist-to', resolve(scratch, 'state')], {
+  const boot = async (config) => {
+    child = spawn(process.execPath, [process.env.WRANGLER_BIN ?? resolve(root, 'node_modules/wrangler/bin/wrangler.js'), 'dev', '--local', '--ip', '127.0.0.1', '--port', String(port), '--persist-to', resolve(scratch, 'state'), ...(config ? ['--config', config] : [])], {
       cwd: root, detached: true, stdio: ['ignore', 'pipe', 'pipe'],
       env: { ...process.env, TMPDIR: scratch, WRANGLER_SEND_METRICS: 'false', BROWSER: 'none' },
     });
@@ -55,7 +56,7 @@ test('exact source: local DO input/claim races, native ambiguity/cancel, scoped 
     child.stderr.on('data', b => { output += b; });
     for (let i = 0; i < 300; i++) {
       if (child.exitCode !== null) throw new Error(`Wrangler exited: ${output}`);
-      try { const r = await fetch(`${base}/v1/runs/cf1:absent/status`); if (r.status === 404) return; } catch {}
+      try { const r = await fetch(`${base}/v1/runs/cf1:absent/status`); if (r.status === 404 || (config && r.status === 403)) return; } catch {}
       await delay(100);
     }
     throw new Error(`Wrangler not ready: ${output}`);
@@ -324,5 +325,7 @@ test('exact source: local DO input/claim races, native ambiguity/cancel, scoped 
   }
   const oversized = await fetch(base + prefix + '/input', { method: 'POST', body: 'x'.repeat(512 * 1024 + 1) });
   assert.equal(oversized.status, 413);
+  await stop();
+  await authFixtureProof({ root, scratch, base, task, boot, stop, t });
   t.diagnostic(`Actual Wrangler/workerd SQLite evidence: ${scratch}`);
 });
