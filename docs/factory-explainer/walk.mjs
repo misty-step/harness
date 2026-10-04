@@ -12,6 +12,7 @@ if (!url || !process.env.AXE_SCRIPT) throw new Error("Usage: AXE_SCRIPT=existing
 await mkdir(out, {recursive:true});
 const browser = await chromium.launch({executablePath:process.env.CHROMIUM_BIN || "/usr/bin/chromium",headless:true,args:["--disable-dev-shm-usage"]});
 const results = [];
+const linkChecks = [];
 try {
   for (const spec of [
     {name:"desktop",viewport:{width:1280,height:640},isMobile:false,hasTouch:false},
@@ -52,6 +53,25 @@ try {
       await page.locator("dialog[open] #detail-title").waitFor();
       await check(id);
       if (spec.name === "desktop" || spec.name === "phone") await page.screenshot({path:`${out}/${spec.name}-${id}.png`});
+      if (id === "sources") {
+        const internal = await page.locator("#detail-body .source-links a").evaluateAll(nodes => nodes.map(node => node.href).filter(href => new URL(href).origin === location.origin));
+        assert.ok(internal.length > 0, "Sources view needs a publication-internal link");
+        for (const href of internal) {
+          const response = await page.request.get(href);
+          assert.equal(response.status(),200,`${spec.name}: internal Sources link does not resolve: ${new URL(href).pathname}`);
+          const target = new URL(href);
+          const path = target.pathname;
+          const content = await response.text();
+          const isReadme = path.endsWith("/README.md");
+          if (isReadme) {
+            const section = "## Private immutable publication";
+            const slug = section.slice(3).trim().toLowerCase().replace(/[^a-z0-9 -]/g, "").replace(/ +/g, "-");
+            assert.equal(decodeURIComponent(target.hash.slice(1)),slug,`${spec.name}: README link fragment misses the publication section`);
+            assert.ok(content.includes(section),`${spec.name}: linked README lacks its publication section`);
+          }
+          linkChecks.push({viewport:spec.name,path,status:response.status(),publicationSection:isReadme ? decodeURIComponent(target.hash.slice(1)) : null});
+        }
+      }
       if (id === "summon") {
         for (const scenario of ["lost","steered","cancel","answered"]) {
           await open(page.locator(`[data-scenario="${scenario}"]`));
@@ -99,6 +119,6 @@ try {
     assert.deepEqual(errors,[],"Browser JS errors");
     await context.close();
   }
-  await writeFile(`${out}/receipt.json`,JSON.stringify({url,browser:"real Chromium",touch:"emulated touchscreen, not physical handset",reducedMotion:true,results},null,2));
-  console.log(`PASS ${results.length} rendered states, four viewports, touch, keyboard, journeys, recursive drilldown, reduced motion and axe; ${out}`);
+  await writeFile(`${out}/receipt.json`,JSON.stringify({url,browser:"real Chromium",touch:"emulated touchscreen, not physical handset",reducedMotion:true,results,linkChecks},null,2));
+  console.log(`PASS ${results.length} rendered states, ${linkChecks.length} internal link checks, four viewports, touch, keyboard, journeys, recursive drilldown, reduced motion and axe; ${out}`);
 } finally { await browser.close(); }

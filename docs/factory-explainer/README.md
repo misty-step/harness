@@ -44,9 +44,10 @@ node docs/factory-explainer/walk.mjs http://127.0.0.1:18774/ /absolute/run-scope
 review-check --screenshot /absolute/run-scoped/first.png docs/factory-explainer/index.html
 ```
 
-The walk exercises rendered topic disclosure, four viewports (1280×640,
-390×844, 320×740, 768×1024), 44px touch heights, all six journey steps,
-recursive missing-child drilldown, input scenarios, Escape/focus return,
+The walk exercises rendered topic disclosure and checks same-origin Sources
+links return 200 with the expected publication section. It covers four viewports
+(1280×640, 390×844, 320×740, 768×1024), 44px touch heights, all six journey
+steps, recursive missing-child drilldown, input scenarios, Escape/focus return,
 background inertness, reduced motion, overflow, browser errors and WCAG axe
 checks. It captures each desktop/phone topic and emits an execution receipt.
 Touch is emulated in real Chromium, not a claim of physical-handset testing.
@@ -57,15 +58,26 @@ walk is explicit, not a hidden dependency of shared/installer checks.
 ## Private immutable publication
 
 After independent actual-rendered review and CTO-coordinated exact-head
-review/green CI/normal landing, publish the three static assets into a **new**
-round under the existing authorized Tailnet `/review/` surface. Do not overwrite
-old rounds. Include `publication.json` with the actual landed source commit,
-exact assets' SHA-256 values and canonical source URL; this is an artifact-byte
-receipt, not factory status. Preserve browser/reviewer evidence privately and
-link it from that receipt. Do not publish private factory receipts or transcripts.
+review/green CI/normal landing, publish the three static assets (`index.html`,
+`factory.css`, `factory.js`) **and this `README.md` as a supporting document** into
+a **new** round under the existing authorized Tailnet `/review/` surface. Keep
+the three runtime assets distinct from the supporting document. The page's
+Sources disclosure links here, so omitting the README breaks that navigation.
+Do not overwrite old rounds. Include `publication.json` with the actual landed
+source commit, three runtime asset SHA-256 values, the supporting README SHA-256,
+and canonical source URL; this is an artifact-byte receipt, not factory status.
+Keep the sets distinct: `assets` lists exactly `index.html`, `factory.css`, and
+`factory.js`; `supporting_documents` is a map keyed by `README.md`, with its
+SHA-256 and byte count. Preserve browser/reviewer evidence privately and link
+only its bounded receipt hashes from the manifest. Do not publish private
+factory receipts or transcripts.
 
-Exercise the final HTTPS URL in the real browser and fetch that exact URL from
-a separate authorized Tailnet machine, comparing returned bytes and manifest.
-Report URL, landed revision, actual rendered verdict, browser proof and remaining
-risks to CTO/Kaylee. Hosting the explainer is not delivery of the full factory.
+Exercise the final HTTPS URL in the real browser; the walk must GET every
+same-origin Sources link and verify the README link's `#private-immutable-publication`
+fragment matches the publication section. From a separate authorized Tailnet
+machine, fetch the directory index, `factory.css`, `factory.js`, `README.md`, and
+`publication.json`; require HTTP 200 and compare each byte hash with the three
+`assets` entries, `supporting_documents` map, and fetched manifest. A localhost
+walk is not a substitute for this remote readback. Report URL, landed revision,
+actual rendered verdict, browser proof and remaining risks to CTO/Kaylee. Hosting the explainer is not delivery of the full factory.
 Maren's contact/notification is Kaylee-owned and does not block publication.
