@@ -275,9 +275,12 @@ fn scope_redirect_refusal_and_origin_guards() -> Result<()> {
         .to_string()
         .contains("4MiB bound"));
     h.join().unwrap();
+    let mut credentialed = url::Url::parse("https://example.invalid")?;
+    credentialed.set_username("user").unwrap();
+    credentialed.set_password(Some("credential")).unwrap();
     for origin in [
         "http://external.invalid",
-        "https://user:credential@example.invalid",
+        credentialed.as_str(),
         "https://example.invalid/?token=x",
         "https://example.invalid/path",
         "https://example.invalid/#secret",
