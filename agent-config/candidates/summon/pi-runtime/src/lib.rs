@@ -823,9 +823,10 @@ mod tests {
         let scratch = std::env::var("TMPDIR").context("run-scoped TMPDIR required")?;
         let root = tempfile::Builder::new()
             .prefix("native-rpc-start-")
-            .tempdir_in(scratch)?;
-        fs::set_permissions(root.path(), fs::Permissions::from_mode(0o700))?;
-        let mut d = dispatch(root.path());
+            .tempdir_in(scratch)?
+            .keep();
+        fs::set_permissions(&root, fs::Permissions::from_mode(0o700))?;
+        let mut d = dispatch(&root);
         d.task.route.model =
             std::env::var("NATIVE_PI_MODEL").context("exact configured native model required")?;
         d.task.context = Some(summon_protocol::Context {
@@ -834,11 +835,13 @@ mod tests {
         });
         let config = Config {
             host: "local-startup-proof".into(),
-            state_dir: root.path().to_string_lossy().into(),
+            state_dir: root.to_string_lossy().into(),
             extension: std::env::var("NATIVE_PI_EXTENSION")
                 .context("explicit native SDK source required")?,
         };
         let mut native = NativePi::start(&d, &config).await?;
+        let pid = native.pid;
+        let birth = owner::process_identity(pid)?;
         let commands = native.command(json!({"type":"get_commands"})).await?;
         assert!(commands["commands"]
             .as_array()
@@ -856,7 +859,12 @@ mod tests {
         assert!(termination.evidence_ref.starts_with("owned-pi-exit:"));
         // Pi has not created a transcript without user/model conversation. Exact
         // recovery must refuse rather than manufacture a resumed session.
-        assert!(NativePi::recover(&d, &config).await.is_err());
+        let recovered = NativePi::recover(&d, &config).await;
+        assert!(recovered.is_err());
+        println!(
+            "{}",
+            json!({"proof":"installed-pi-zero-model-normal-exit","root":root,"pid":pid,"birth":birth,"message_count":state["messageCount"],"settled_count":0,"termination":termination,"recovery_reason":recovered.err().map(|e|e.to_string())})
+        );
         Ok(())
     }
     #[test]
