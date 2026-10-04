@@ -59,11 +59,17 @@ try {
         for (const href of internal) {
           const response = await page.request.get(href);
           assert.equal(response.status(),200,`${spec.name}: internal Sources link does not resolve: ${new URL(href).pathname}`);
-          const path = new URL(href).pathname;
+          const target = new URL(href);
+          const path = target.pathname;
           const content = await response.text();
           const isReadme = path.endsWith("/README.md");
-          if (isReadme) assert.ok(content.includes("## Private immutable publication"),`${spec.name}: linked README lacks its publication section`);
-          linkChecks.push({viewport:spec.name,path,status:response.status(),publicationSection:isReadme});
+          if (isReadme) {
+            const section = "## Private immutable publication";
+            const slug = section.slice(3).trim().toLowerCase().replace(/[^a-z0-9 -]/g, "").replace(/ +/g, "-");
+            assert.equal(decodeURIComponent(target.hash.slice(1)),slug,`${spec.name}: README link fragment misses the publication section`);
+            assert.ok(content.includes(section),`${spec.name}: linked README lacks its publication section`);
+          }
+          linkChecks.push({viewport:spec.name,path,status:response.status(),publicationSection:isReadme ? decodeURIComponent(target.hash.slice(1)) : null});
         }
       }
       if (id === "summon") {

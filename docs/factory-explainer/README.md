@@ -64,14 +64,20 @@ a **new** round under the existing authorized Tailnet `/review/` surface. Keep
 the three runtime assets distinct from the supporting document. The page's
 Sources disclosure links here, so omitting the README breaks that navigation.
 Do not overwrite old rounds. Include `publication.json` with the actual landed
-source commit, the three runtime asset SHA-256 values, the supporting README's
-SHA-256, and canonical source URL; this is an artifact-byte receipt, not factory
-status. Preserve browser/reviewer evidence privately and link its bounded
-receipt hashes from the manifest. Do not publish private factory receipts or
-transcripts.
+source commit, three runtime asset SHA-256 values, the supporting README SHA-256,
+and canonical source URL; this is an artifact-byte receipt, not factory status.
+Keep the sets distinct: `assets` lists exactly `index.html`, `factory.css`, and
+`factory.js`; `supporting_documents` is a map keyed by `README.md`, with its
+SHA-256 and byte count. Preserve browser/reviewer evidence privately and link
+only its bounded receipt hashes from the manifest. Do not publish private
+factory receipts or transcripts.
 
-Exercise the final HTTPS URL in the real browser and fetch that exact URL from
-a separate authorized Tailnet machine, comparing returned bytes and manifest.
-Report URL, landed revision, actual rendered verdict, browser proof and remaining
-risks to CTO/Kaylee. Hosting the explainer is not delivery of the full factory.
+Exercise the final HTTPS URL in the real browser; the walk must GET every
+same-origin Sources link and verify the README link's `#private-immutable-publication`
+fragment matches the publication section. From a separate authorized Tailnet
+machine, fetch the directory index, `factory.css`, `factory.js`, `README.md`, and
+`publication.json`; require HTTP 200 and compare each byte hash with the three
+`assets` entries, `supporting_documents` map, and fetched manifest. A localhost
+walk is not a substitute for this remote readback. Report URL, landed revision,
+actual rendered verdict, browser proof and remaining risks to CTO/Kaylee. Hosting the explainer is not delivery of the full factory.
 Maren's contact/notification is Kaylee-owned and does not block publication.
