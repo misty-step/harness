@@ -189,6 +189,29 @@ explicitly authorized cutover must remove the obsolete active path and reconcile
 existing records; running both ledgers or pretending their histories agree is
 not a migration. Preserve parked artifacts and private study provenance.
 
+## Alternatives and actual failure modes
+
+These are justified replacement choices, not a new trial batch or authorization
+to change the selected full-hosted target. Every alternative retains one run
+owner, separate native/effect owners and the same immutable task/proof boundary.
+
+| Shape | Prefer it when | Cost / must-not-claim |
+| --- | --- | --- |
+| Local Rust + SQLite | One available local host, offline standalone work or host-bound constraints matter more than shared remote operation | One explicit local authority; no writable clone of the hosted namespace, off-machine durability or available disconnected host implied |
+| Selected Rust Worker + per-run SQLite DO + native execution | Shared authenticated remote access and serialized per-run transitions fit the commissioned Cloudflare target | Cross-run reservations still need Summon admission; native execution needs a compatible available host; platform/state limits and recovery must be exercised |
+| Managed Workflows | Durable long waits and bounded orchestration/retry scheduling remove genuinely necessary custom machinery | A workflow cursor is not a second run ledger; wait/retry cannot prove exactly-once native or external effects; reconcile ambiguity before repeating |
+| Conventional service + SQL | Persistent execution or tightly transactional cross-run reservations dominate, or a platform constraint makes the cloud split materially worse | Operate hosting, concurrency, backups and recovery; adopt only explicitly, with one authority and tested state migration, not another overlapping server/store |
+
+DO writes cannot atomically commit a GitHub, deployment, mailbox or native
+provider effect. Record the intended action and owner receipt, then reconcile
+the actual external owner after a lost reply. Automatic retry is safe only when
+that real operation's idempotency/observation contract proves it. DO/container
+memory is ephemeral; signal, snapshot/PID reuse or monitor disconnect is not
+native termination. Storage saturation must refuse additional work before
+stranding an accepted outcome. Issuer labels, incomplete child inventory and
+stale reads never substitute for authenticated current evidence. These are the
+specific failure paths the existing negative/recovery proofs must reject.
+
 ## Why a Durable Object per run?
 
 The retained architecture B illustrated one factory object. The first source
@@ -209,6 +232,34 @@ not mirror per-run phases. A chosen scheduler owns due-time/expected-occurrence
 facts and submits stable run/input IDs; it must not also maintain run state.
 This source adds neither a scheduler nor a second admission database and enables
 none of the paused audit schedules.
+
+## Dispatch route, admission and accounting boundaries
+
+Before dispatch, freeze the approved harness/provider/model/effort/account route,
+entitlement, first-party native versus third-party paid path, actual supported
+runtime capabilities, action approval scope and budget. A model name or ready
+credential is not the selected account's entitlement, reserved capacity or cash.
+Native authentication stays at its authorized consumer; no copied OAuth or
+implicit paid/model/account fallback. The current candidate does not yet prove
+this full route/entitlement binding or shared admission.
+
+Summon admission owns account/resource/cash reservations across runs, including
+reserved COO/reviewer headroom, without copying their phases into another fleet
+ledger. Consume current owner-supplied usage at its actual account/window/task
+grain. Keep actual API spend, subscription quota and informational list-price
+equivalents separate; reconcile matching observations rather than summing unlike
+meters or calling equivalent dollars a charge. Record cumulative/per-call caps
+and actual settlement; unknown allowance, ambiguous billed calls or expired
+reservation is not free capacity, zero cost or permission to repeat.
+
+Grok Bot means the existing away-from-desk bot context, not a local xAI reviewer.
+Existing Helm coordination uses AgentMail; that is a discovery lead, not proof
+of direct authenticated tools/HTTP or private-URL reachability. Inventory the
+actual transport/tool capabilities and principal mapping, then exercise from
+that bot context. Do not promise unsupported custom calls. A mail relay may
+carry the common command/decision identities only through authenticated,
+project/account-scoped attribution; it owns transport facts, not run state or
+native ACK. No credential copying or new integration grant follows here.
 
 ## End-to-end actor/guard map
 
@@ -290,6 +341,14 @@ recoverability or other catalog exception. The present local source slice does
 not claim these operational obligations satisfied. Existing Harness CI and
 project pins are unchanged by this ADR.
 
+Evolve the factory by observed failure → narrow invariant/transition repair →
+exact-source tests and affected real consumer proof → independent review →
+controlled adoption/readback/rollback. Attribute the project recipe/catalog/pin
+and any amended acceptance to their actual owner/source revision. A new rule
+does not reinterpret a historical run, mutate its frozen brief/proof policy or
+migrate every project. Preserve historical evidence and explicit adoption
+boundaries; no universal workflow DSL or parallel normative policy catalog.
+
 The five principles constrain choices here: prove the real candidate; only
 proven changes alter access/accepted state; failures create owned bounded repair;
 every check rejects a named plausible failure; trace the commissioned ticket to
@@ -310,6 +369,14 @@ judgment. Calls are bounded by relevant changes, not visibility ticks. The
 current kernel ships **no Jev integration**. Task context omitted means
 runtime defaults; explicit empty instructions/skills means none. Neither changes
 tool permissions, product acceptance or the commissioning source's authority.
+
+Retain actual typed probability/score/choice results with policy, model and input
+versions and provider usage cost; do not invent reasoning text. Tune policy on
+known-answer and replayed outcomes at the relevant task fit, not arbitrary
+confidence cutoffs or a new formal study batch. Cache meaningful state/eligible
+choices, not read timestamps. Ambiguous choices and service failures return an
+explicit conservative disposition or CTO judgment; code still owns permissions,
+factual gates and any authorized action.
 
 ## Approval and failure boundaries
 
