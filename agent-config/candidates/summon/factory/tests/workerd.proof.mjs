@@ -12,6 +12,7 @@ import { createHash } from 'node:crypto';
 import { authFixtureProof } from './auth-fixture.mjs';
 import { admissionFixtureProof } from './admission-fixture.mjs';
 import { accountCapacityProof } from './account-capacity-fixture.mjs';
+import { jevOrderProof } from './jev-order-fixture.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const hash = value => createHash('sha256').update(value).digest('hex');
@@ -327,6 +328,8 @@ test('exact source: local DO input/claim races, native ambiguity/cancel, scoped 
   }
   const oversized = await fetch(base + prefix + '/input', { method: 'POST', body: 'x'.repeat(512 * 1024 + 1) });
   assert.equal(oversized.status, 413);
+  await stop();
+  await jevOrderProof({ root, scratch, base, task, boot, stop, t });
   await stop();
   await accountCapacityProof({ root, scratch, base, task, boot, stop, t });
   await stop();

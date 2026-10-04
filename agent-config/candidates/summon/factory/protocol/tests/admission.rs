@@ -442,3 +442,146 @@ fn outcome_projection_funds_worst_escaping_and_only_consumes_its_own_components(
     assert!(l.reconcile_verified(f.clone(), &f.owner).unwrap());
     assert_eq!(l, before);
 }
+
+#[test]
+fn observed_cash_is_an_order_independent_lower_bound_and_final_never_advises() {
+    let s = status("cf1:actual-cost");
+    let r = request("cash", &s.run_id, "a", "jev");
+    let observed = serde_json::json!({"model":judgment::MODEL,"answers":{"next_action":{"type":"choice","choice":"clarify","confidence":1,"probabilities":{"clarify":1,"escalate":0}},"context_sufficient":{"type":"noul","noul":1},"unresolved_material_uncertainty":{"type":"noul","noul":0}},"usage":{"cost":0.000025}});
+    for disposition in [
+        FinalDisposition::OwnerFinal,
+        FinalDisposition::ProvenNotStarted,
+    ] {
+        let mut l = AccountLedger::new(policy()).unwrap();
+        l.reserve(r.clone(), &s, "loopback-fixture-owner", 1000)
+            .unwrap();
+        let (j, _) = l.plan_judgment("cash", &s, 1000).unwrap();
+        let mut f = final_receipt(&r);
+        f.disposition = disposition;
+        f.actual.values_mut().for_each(|v| *v = 0);
+        l.reconcile_verified(f.clone(), &f.owner).unwrap();
+        l.judgment_response(&j.key, observed.clone()).unwrap();
+        assert_eq!(l.debit("api").unwrap(), 25); // overrun25 > reserved20; not clipped or added twice
+        assert_eq!(l.reservations["cash"].final_receipt, Some(f.clone()));
+        assert!(l.reconcile_verified(f.clone(), &f.owner).unwrap());
+        let mut within = observed.clone();
+        within["usage"]["cost"] = serde_json::json!(0.00001);
+        let mut advice_check = AccountLedger::new(policy()).unwrap();
+        advice_check
+            .reserve(r.clone(), &s, "loopback-fixture-owner", 1000)
+            .unwrap();
+        let (advice_j, _) = advice_check.plan_judgment("cash", &s, 1000).unwrap();
+        advice_check
+            .reconcile_verified(f.clone(), &f.owner)
+            .unwrap();
+        advice_check
+            .judgment_response(&advice_j.key, within)
+            .unwrap();
+        assert!(advice_check.judgment_advice(&advice_j.key, &s).is_err()); // also within original ceiling, finalized operation
+        let mut later = request("next", "cf1:next", "b", "jev");
+        later.amounts.insert("api".into(), 80);
+        assert_eq!(
+            l.reserve(later, &status("cf1:next"), "loopback-fixture-owner", 1000)
+                .unwrap_err()
+                .code,
+            "budget_unavailable"
+        );
+    }
+    let mut l = AccountLedger::new(policy()).unwrap();
+    l.reserve(r.clone(), &s, "loopback-fixture-owner", 1000)
+        .unwrap();
+    let (j, _) = l.plan_judgment("cash", &s, 1000).unwrap();
+    l.judgment_response(&j.key, observed.clone()).unwrap();
+    let mut f = final_receipt(&r);
+    f.actual.insert("api".into(), 0);
+    assert_eq!(
+        l.reconcile_verified(f.clone(), &f.owner).unwrap_err().code,
+        "receipt_conflict"
+    );
+    f.actual.insert("api".into(), 25);
+    l.reconcile_verified(f.clone(), &f.owner).unwrap();
+    assert_eq!(l.debit("api").unwrap(), 25);
+    let mut l = AccountLedger::new(policy()).unwrap();
+    l.reserve(r.clone(), &s, "loopback-fixture-owner", 1000)
+        .unwrap();
+    let (j, _) = l.plan_judgment("cash", &s, 1000).unwrap();
+    let missing = serde_json::json!({"usage":{}});
+    l.judgment_response(&j.key, missing.clone()).unwrap();
+    assert_eq!(l.debit("api").unwrap_err().code, "cost_unavailable");
+    let mut f = final_receipt(&r);
+    f.actual.insert("api".into(), 7);
+    l.reconcile_verified(f.clone(), &f.owner).unwrap();
+    assert_eq!(l.debit("api").unwrap(), 7);
+    assert_eq!(l.judgments[&j.key].response, Some(missing));
+}
+
+#[test]
+fn original_operation_owns_cache_including_historical_unbound_request_bytes() {
+    let mut p = policy();
+    p.meters.get_mut("capacity").unwrap().allocated = 3;
+    p.seats
+        .insert("equal-seat-alias".into(), p.seats["jev"].clone());
+    let mut l = AccountLedger::new(p).unwrap();
+    let s = status("cf1:alias");
+    let a = request("a", &s.run_id, "a", "jev");
+    let mut b = a.clone();
+    b.reservation_id = "b".into();
+    b.operation_id = "op-b".into();
+    b.seat_id = "equal-seat-alias".into();
+    l.reserve(a.clone(), &s, "loopback-fixture-owner", 1000)
+        .unwrap();
+    l.reserve(b.clone(), &s, "loopback-fixture-owner", 1000)
+        .unwrap();
+    let (ja, _) = l.plan_judgment("a", &s, 1000).unwrap();
+    // Shape emitted by pre-fix32: historical key/response remain original. Only
+    // its actual stored reservation owner can replay, not an equal Seat alias.
+    let mut historical = ja.clone();
+    historical.request["state"]
+        .as_object_mut()
+        .unwrap()
+        .remove("operation");
+    historical.key = sha256(&serde_json::to_vec(&historical.request).unwrap());
+    historical.response =
+        Some(serde_json::json!({"usage":{"cost":0.000001},"SYNTHETIC":"original-owned-A"}));
+    l.judgments.remove(&ja.key);
+    l.judgments
+        .insert(historical.key.clone(), historical.clone());
+    let original = serde_json::to_vec(&l).unwrap();
+    assert_eq!(
+        l.plan_judgment("a", &s, 1000).unwrap(),
+        (historical.clone(), true)
+    );
+    assert_eq!(serde_json::to_vec(&l).unwrap(), original);
+    let (jb, replayed) = l.plan_judgment("b", &s, 1000).unwrap();
+    assert!(!replayed);
+    assert_ne!(jb.key, historical.key);
+    assert_eq!(jb.request["state"]["operation"]["reservation_id"], "b");
+    assert_eq!(jb.request["state"]["operation"]["operation_id"], "op-b");
+    assert_eq!(
+        jb.request["state"]["operation"]["seat_id"],
+        "equal-seat-alias"
+    );
+    for i in 0..8 {
+        l.uncertain("b", format!("{i}{}", "\"".repeat(255)))
+            .unwrap();
+    }
+    let refs = l.reservations["b"].uncertain.clone();
+    let revision = l.revision;
+    let projected = l.projected_bytes().unwrap();
+    l.judgment_failure(&jb.key, "unsupported").unwrap();
+    assert_eq!(l.revision, revision + 1);
+    assert_eq!(l.reservations["b"].uncertain, refs);
+    assert!(l.projected_bytes().unwrap() <= projected);
+    assert!(l.judgment_failure(&jb.key, "unsupported").unwrap());
+    let response = serde_json::json!({"usage":{"cost":0.000002},"SYNTHETIC":"only-B"});
+    l.judgment_response(&jb.key, response.clone()).unwrap();
+    assert!(l.judgment_failure(&jb.key, "unsupported").unwrap());
+    assert_eq!(l.judgments[&historical.key], historical);
+    assert_eq!(l.judgments[&jb.key].response, Some(response));
+    let mut changed = s.clone();
+    changed.revision += 1;
+    assert_eq!(
+        l.plan_judgment("b", &changed, 1000).unwrap_err().code,
+        "judgment_revision_conflict"
+    );
+}

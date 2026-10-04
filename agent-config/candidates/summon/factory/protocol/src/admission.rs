@@ -321,7 +321,6 @@ impl AccountLedger {
                 .get(meter)
                 .is_some_and(|m| m.kind == MeterKind::ApiUsdMicros)
                 && r.frozen.seat.operation == Operation::JevDecision
-                && r.final_receipt.is_none()
             {
                 for j in self
                     .judgments
@@ -329,15 +328,20 @@ impl AccountLedger {
                     .filter(|j| j.reservation_id == r.request.reservation_id)
                 {
                     if let Some(response) = &j.response {
-                        let cost = response["usage"]["cost"].as_number().ok_or_else(|| {
-                            crate::Refusal {
-                                code: "cost_unavailable".into(),
-                                message:
-                                    "observed response has no actual cost; account remains held"
-                                        .into(),
-                            }
-                        })?;
-                        amount = amount.max(crate::judgment::usd_micros(cost)?);
+                        if let Some(cost) = response["usage"]["cost"].as_number() {
+                            // An immutable final receipt cannot erase a later
+                            // observed positive cost/overrun. Arrival order must
+                            // not lower the known actual cash debit.
+                            amount = amount.max(crate::judgment::usd_micros(cost)?);
+                        } else if r.final_receipt.is_none() {
+                            return refuse(
+                                "cost_unavailable",
+                                "observed response has no actual cost; account remains held",
+                            );
+                        }
+                        // Missing cost is NOT zero. Independently verified owner
+                        // final usage can reconcile that unknown without changing
+                        // the original raw missing-cost response.
                     }
                 }
             }
@@ -666,9 +670,11 @@ impl AccountLedger {
                     // of a response slot that the existing seam can still write.
                     if j.response.is_none() {
                         bytes = bytes.checked_add(crate::judgment::MAX_RESPONSE_BYTES - 4)?;
-                        if j.failure.is_none() && r.final_receipt.is_none() {
-                            bytes = bytes.checked_add(crate::judgment::MAX_FAILURE_BYTES - 4)?;
-                        }
+                    }
+                    // A typed failure is independently recordable even after a
+                    // response/final; no redundant uncertainty slot is needed.
+                    if j.failure.is_none() {
+                        bytes = bytes.checked_add(crate::judgment::MAX_FAILURE_BYTES - 4)?;
                     }
                 }
                 _ => (),

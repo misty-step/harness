@@ -111,7 +111,11 @@ alternate-ID resends. Only independently justified original outcome-owner final 
 proven-not-started facts may settle; a permission/actor string is NOT that verifier.
 The current plaintext outcome-source assertions are explicitly fixture-only.
 Actual overrun receipts/response costs remain retained and block new admissions,
-not truncated to an estimate. Admission funds the actual snapshot plus each
+not truncated to an estimate. API debit covers the maximum of reserved/owner-final
+usage and every known original response cost, irrespective of arrival order. A
+zero final/not-started receipt cannot erase a later positive cost; original receipts
+remain immutable. Missing response cost is not zero, but independent owner-final
+actual usage can reconcile it without fabricating or rewriting a response. Admission funds the actual snapshot plus each
 reservation's still-recordable bounded plan/response/failure, uncertainty and
 final/not-started usage, including worst allowed JSON escaping and revision growth.
 Recording consumes only that operation's remaining components; every competitor's
@@ -125,10 +129,17 @@ silently pruning stable IDs. Budget operations never mutate managed run state.
 `https://openrouter.ai/api/alpha/decisions`, pinned `typesafe/jev-1.13`, with one
 Choice among code-eligible actions and two independent Noul context/uncertainty
 judgments. Finite API/resource reservation is necessary even to plan. Cache keys
-bind exact model/questions/task/input/revision/frozen policy/eligible choices,
-not read timestamps or unrelated busy-account writes. Pending/failed decisions
+bind the original reservation/operation/seat IDs plus exact model/questions/task/
+input/revision/frozen policy/eligible choices, not read timestamps or unrelated
+busy-account writes. Equal Seat values never transfer another operation's cache
+or outcome attribution. Historical unbound request/key/response bytes stay intact;
+only their explicitly stored reservation owner can replay equivalent state. Pending/failed decisions
 are retained, never automatically resent; changed revision requires reconciliation.
-Raw response model/usage/`usage.cost` is immutable; decimal actual USD rounds UP
+The typed failure itself is durable uncertainty and advances revision independently
+of all eight original reference slots; neither final nor response removes its
+recording allowance. Failure/response replays retain original facts and references.
+Finalized operations cannot supply new advice, including a late positive response
+within the original ceiling. Raw response model/usage/`usage.cost` is immutable; decimal actual USD rounds UP
 to budget micros without a list-price estimate. Missing/invalid cost, unsupported
 model, malformed/out-of-set/tied answers, absent confidence or stale revision
 escalates. Noul values remain probabilities (no fabricated confidence). Advice
