@@ -32,9 +32,16 @@ pub enum GatewayAction {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 pub struct PrincipalGrant {
-    // User sub is the stable Access identity, not email, client or device label.
-    // Service-token selectors are not implemented until their shape is proved.
+    // Exactly one server-owned selector. Existing user JSON remains unchanged;
+    // service_client_id matches SIGNED common_name, never a header/email/user sub.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
     pub user_sub: String,
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "present"
+    )]
+    pub service_client_id: Option<String>,
     pub actor_id: String,
     pub binding: AuthorityBinding,
     pub actions: Vec<GatewayAction>,
@@ -53,13 +60,53 @@ pub struct AccessPolicy {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AccessClaims {
     pub iss: String,
-    pub aud: Vec<String>,
+    pub aud: AccessAudience,
     pub sub: String,
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "present"
+    )]
+    pub common_name: Option<String>,
     #[serde(rename = "type")]
     pub token_type: String,
     pub exp: u64,
-    pub nbf: u64,
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "present"
+    )]
+    pub nbf: Option<u64>,
     pub iat: u64,
+}
+// Actual verified service JWT has a scalar AUD; official docs also show arrays.
+// Existing user shape remains array-only. Neither form implies an action grant.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum AccessAudience {
+    One(String),
+    Many(Vec<String>),
+}
+// Absence is different from a supplied null/malformed value. Service JWT may
+// omit nbf, but a supplied time/identity claim must keep its original type.
+fn present<'de, D, T>(d: D) -> std::result::Result<Option<T>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+    T: Deserialize<'de>,
+{
+    T::deserialize(d).map(Some)
+}
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+enum Principal<'a> {
+    UserSub(&'a str),
+    ServiceClientId(&'a str),
+}
+fn selector<'a>(sub: &'a str, client: Option<&'a str>) -> Option<Principal<'a>> {
+    match (sub, client) {
+        ("", Some(id)) if !id.trim().is_empty() => Some(Principal::ServiceClientId(id)),
+        (id, None) if !id.trim().is_empty() => Some(Principal::UserSub(id)),
+        _ => None,
+    }
 }
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
@@ -85,9 +132,13 @@ impl AccessPolicy {
         }
         let mut subjects = std::collections::BTreeSet::new();
         for grant in &self.grants {
-            nonempty(&grant.user_sub)?;
+            let principal = selector(&grant.user_sub, grant.service_client_id.as_deref())
+                .ok_or_else(|| crate::Refusal {
+                    code: "auth_config".into(),
+                    message: "grant needs exactly one user sub or service client ID".into(),
+                })?;
             nonempty(&grant.actor_id)?;
-            if grant.binding != self.binding || !subjects.insert(&grant.user_sub) {
+            if grant.binding != self.binding || !subjects.insert(principal) {
                 return refuse(
                     "auth_config",
                     "grants must be unique and bind the server's exact authority",
@@ -105,14 +156,26 @@ impl AccessPolicy {
         now: u64,
     ) -> Result<AttributedAuthority> {
         self.validate()?;
+        let principal =
+            selector(&claims.sub, claims.common_name.as_deref()).ok_or_else(|| crate::Refusal {
+                code: "auth_invalid".into(),
+                message: "unknown or mixed Access principal shape".into(),
+            })?;
+        let service = matches!(principal, Principal::ServiceClientId(_));
+        let audience_matches = match &claims.aud {
+            AccessAudience::One(aud) => service && aud == &self.audience,
+            AccessAudience::Many(aud) => aud.contains(&self.audience),
+        };
+        // Only the observed service shape may omit nbf; signed iat still bounds
+        // its start. Users retain the original mandatory not-before contract.
+        let nbf = claims.nbf.or_else(|| service.then_some(claims.iat));
         if claims.iss != self.issuer
-            || !claims.aud.contains(&self.audience)
+            || !audience_matches
             || claims.token_type != "app"
             || claims.exp <= now
-            || claims.nbf > now
+            || nbf.is_none_or(|nbf| nbf > now || nbf > claims.exp)
             || claims.iat > now
             || claims.iat > claims.exp
-            || claims.nbf > claims.exp
         {
             return refuse("auth_invalid", "issuer/audience/type/time binding refused");
         }
@@ -125,10 +188,10 @@ impl AccessPolicy {
         let grant = self
             .grants
             .iter()
-            .find(|g| g.user_sub == claims.sub)
+            .find(|g| selector(&g.user_sub, g.service_client_id.as_deref()) == Some(principal))
             .ok_or_else(|| crate::Refusal {
                 code: "principal_refused".into(),
-                message: "verified user has no server-owned grant".into(),
+                message: "verified principal has no server-owned grant".into(),
             })?;
         if !grant.actions.contains(&action)
             || (!self.native_enabled
