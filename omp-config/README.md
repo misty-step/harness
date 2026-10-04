@@ -36,7 +36,7 @@ prompt is: how can I pokayoke this so this kind of error never happens again?
 | `config.yml` | Model roles, fallbacks, theme/TUI, providers, task/LSP settings |
 | `models.yml` | Local Ollama discovery and separate command-resolved find/shared-judge credentials; cloud models remain in omp's bundled catalog |
 | `patches/oh-my-pi-18.4.12-find.patch` | Version-pinned, local-only native find diagnostics and credential-isolation patch; not an upstream OMP PR |
-| `mcp.json` | Global MCP inventory; Linear is deliberately absent |
+| `mcp.json` | Global MCP inventory (Mobbin UI references over OAuth); Linear is deliberately absent |
 | `workspace-mcp.json`, `bin/omp-install-scopes.ts` | Linear directory scopes, native project-local imports, owned skill retirement |
 | `global/AGENTS.md` | OMP-specific guidance; `./install` composes it with shared sections from `agent-config` |
 | `global/WATCHDOG.md`, `global/WATCHDOG.yml` | Read-only Steward advisor, enabled only on demand |
@@ -762,6 +762,23 @@ failing session. That recovery was observed during setup; the underlying runtime
 cause is unconfirmed. Do not repeat a reported failure merely to confirm it or
 add a hard-coded token-header workaround. Team creation is not exposed by the
 current server; use Linear's settings for that administration.
+
+## Mobbin
+
+Global `mcp.json` declares Mobbin (`https://api.mobbin.com/mcp`, streamable HTTP)
+for real-world UI references before UI work. Its tools are read-only
+(`search_screens`, `search_flows`, `search_sections`) and limited to 60 requests
+per 60 seconds per user. Every client signs in to the same account, so that budget
+is shared across all harnesses and concurrent agents. It has no API key: each client signs in once through
+browser OAuth against Phaedrus's Mobbin Pro account. After deployment, run inside
+OMP:
+
+```text
+/mcp reload
+/mcp reauth mobbin
+```
+
+OAuth credentials stay in OMP's managed auth storage, not in this repo.
 
 Work conventions and project navigation live in the
 [Misty Step work tracking guide](https://linear.app/misty-step/document/misty-step-work-tracking-guide-d3a627ae6395),
