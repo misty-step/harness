@@ -5,7 +5,9 @@ use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
 
 pub const MAX_ACCOUNT_BYTES: usize = 512 * 1024;
-const TERMINAL_BYTES: usize = 16 * 1024;
+// Covers bounded response (8KiB), all final meter keys/IDs even JSON-escaped,
+// and eight uncertainty references; never truncate accepted facts to make room.
+const TERMINAL_BYTES: usize = 32 * 1024;
 
 pub fn account_object_key(account: &str) -> Result<String> {
     if account != crate::authority::CANARY_ACCOUNT {

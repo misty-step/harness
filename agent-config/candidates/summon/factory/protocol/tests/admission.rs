@@ -233,6 +233,12 @@ fn shared_account_unknown_outcomes_do_not_expire_or_repartition() {
 }
 #[test]
 fn account_meter_truth_and_frozen_native_route_fail_closed() {
+    let mut aliased = policy();
+    aliased.meters.insert(
+        "project-label-alias".into(),
+        aliased.meters["capacity"].clone(),
+    );
+    assert!(AccountLedger::new(aliased).is_err());
     let s = status("cf1:truth");
     let r = request("truth", "cf1:truth", "a", "native");
     for basis in [
@@ -352,6 +358,7 @@ fn jev_typed_revision_cache_keeps_actual_cost_and_never_effects_or_retries() {
         ("0", 0),
         ("0.00000001", 1),
         ("0.000001", 1),
+        ("0.0000010000000000000001", 2), // do not round through f64 before accounting
         ("0.0000011", 2),
         ("1.2345678", 1234568),
     ] {

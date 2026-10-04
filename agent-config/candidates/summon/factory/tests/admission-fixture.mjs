@@ -18,7 +18,7 @@ export async function admissionFixtureProof({root,scratch,base,task,boot,stop,t}
  const receipts=[];
  const api=async(label,path,body,expected=200,headers={})=>{const response=await fetch(base+path,{method:body===undefined?'GET':'POST',headers:{'content-type':'application/json',...headers},...(body===undefined?{}:{body:JSON.stringify(body)})});const value=await response.json();receipts.push({label,status:response.status,code:value.code??null,revision:value.account?.revision??value.revision??null});await writeFile(resolve(scratch,'admission-http.json'),JSON.stringify({fixture_only:true,provider_execution:false,receipts},null,2));assert.equal(response.status,expected,JSON.stringify(value));return value;};
  await configure({});await api('admission default OFF','/v1/admission',undefined,403);
- await configure({...vars,FACTORY_MODE:'hosted'});await api('hosted cannot activate fixture admission','/v1/admission',{},403);
+ await configure({...vars,FACTORY_MODE:'hosted'});await api('hosted cannot activate fixture admission','/v1/admission',{},403);await api('hosted cannot claim before shared account authority','/v1/runs/cf1:account-off/claim',{},403);
  await configure({...vars,FACTORY_MODE:'fixture'});await api('authenticated fixture cannot promote account owner assertions','/v1/admission',{},403);
  await configure(vars);
  const snapshots={};for(const suffix of ['a','b','j']){const frozen={...task,id:`cf1:account-${suffix}`,checks:[],outputs:[]};snapshots[suffix]=(await api('owned queued intake '+suffix,'/v1/intake',{task:frozen,initial_input_id:'initial'})).run;}
