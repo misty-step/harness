@@ -70,7 +70,9 @@ pub struct Config {
     /// Existing supported credential/model consumer, never a second agent loop.
     pub native_models_entry: PathBuf,
     pub instances: Vec<Instance>,
-    pub factory: Option<summon_http_client::Config>,
+    /// Opaque canonical config, decoded by its ONE owning HTTP library. This
+    /// avoids copying fields when Relay adds a supported credential transport.
+    pub factory: Option<Value>,
     #[serde(default)]
     pub integrations: Vec<Integration>,
     #[serde(default)]
@@ -136,6 +138,9 @@ impl Config {
                     "invalid/duplicate skill"
                 );
             }
+        }
+        if let Some(factory) = &self.factory {
+            let _: summon_http_client::Config = serde_json::from_value(factory.clone())?;
         }
         let mut caps = BTreeSet::new();
         for i in &self.integrations {
@@ -542,12 +547,7 @@ fn factory_client(config: &Config) -> Result<summon_http_client::Client> {
         .factory
         .as_ref()
         .context("unsupported_factory_route: no admitted factory binding")?;
-    summon_http_client::Client::new(summon_http_client::Config {
-        origin: c.origin.clone(),
-        binding: c.binding.clone(),
-        assertion_env: c.assertion_env.clone(),
-        loopback_fixture: c.loopback_fixture,
-    })
+    summon_http_client::Client::new(serde_json::from_value(c.clone())?)
 }
 fn integration_call(i: &Integration, r: &ToolRequest) -> Result<Value> {
     let mut cmd = Command::new(&i.executable);

@@ -151,14 +151,18 @@ with only the existing scoped key environment name. Do not move credentials to c
 It uses the existing supported native `ModelRuntime` **only as pi-ai Models/auth**;
 there is no stock Pi AgentSession, SessionManager, loop or transcript substitute.
 It rejects absent included-subscription binding and any route other than the
-commissioned Codex Sol/xhigh. Provider and Durable retries are off, automatic
-compaction off; manual compaction uses that same admitted route. Model/admission
+commissioned Codex Sol/xhigh. The local Codex transport is explicit SSE (no websocket/SSE auto-fallback),
+provider and Durable retries are off, automatic compaction off; manual compaction
+uses that same admitted route. Model/admission
 policy must be provided by the shared host before operational inference.
 
 Local `engine.sqlite` is the actual Durable checkpoint/transcript/inbox authority;
 `broker.sqlite` holds notes and immutable effect intents/receipts only. SQLite uses
 WAL + FULL. A kernel lock follows the actual Node/broker children; EOF requests
-close, and Rust observes the owned child wait before releasing ownership. Paths
+close, and Rust observes the owned child wait before releasing ownership.
+After joining Durable work, the local wrapper releases the **same installed
+Models consumer's** supported session-resource registry (not another pi-ai version),
+so cached provider connections cannot strand the owned wait. Paths
 are same-user trusted host resources, not strong per-principal filesystem isolation.
 On reopen, pending generation request/poll or compaction summarize checkpoints
 produce a **global recovery hold**. Inspection is allowed; new inputs, wait, cancel, compaction or explicit
@@ -173,7 +177,7 @@ Dependencies `pi-durable/pi-ai/chord` are locked to **1.0.2**, npm gitHead
 `200387122ca450d6387f033949423114a270b96c` differs only in changelog headings.
 The lab's verified artifact was consumed read-only, not rerun as a provider A/B.
 
-Observed local source tests: Rust role/skill refusals, sourced memory correction
+Observed local source tests (4 Rust + 8 SDK/lifecycle): Rust role/skill refusals, sourced memory correction
 and reopen, real lost-owner-reply effect hold, consumed-grant refusal and unsupported
 schedule/provider paths. Actual Durable/SQLite tests cover distinct contexts, duplicate
 input/wake, wrong-role offered-set refusal, background CTO report/wake, safe long
@@ -182,6 +186,14 @@ exit/reopen paths** and no provider request after ambiguous-generation recovery.
 A real local no-model-prompt startup also created the two distinct configured
 Durable instances using the existing installed native Models/auth consumer and
 observed owned close/exit. It is source-staging proof, not deployment or inference.
+A later **real local native Codex** partial path used COO input 19 → CTO input 40 /
+answer 53 → reporter 37 → COO wake input 54 / answer 57. Selected skills and source
+memory were used; the absent canonical factory binding was honestly refused. No
+engineer, external action or independent acceptance was invented. The first walk
+exposed a shutdown defect: the native Models websocket cache outlived Harness close
+and the owned wait deadline. Its original receipt remains retained; explicit SSE
+and same-registry cleanup repair that local lifecycle path. This is not hosted
+provider/admission/billing or full factory proof.
 Model responses in tests are explicitly faux fixtures, not native subscription/engineering,
 independent acceptance, Cloudflare deployment or live schedule/mail/voice proof.
 
