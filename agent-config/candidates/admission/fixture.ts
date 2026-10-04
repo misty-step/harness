@@ -23,7 +23,7 @@ if (role === "usage") {
 	if (!config.noOutput) for (const output of input.request.task.outputs) writeFileSync(output, "fixture-delivery\n");
 	console.log(JSON.stringify(config.reply ?? {
 		vendor: config.vendor ?? (input.request.task.route.provider === "anthropic" ? "anthropic" : "google"),
-		result: { sessionId: "fixture-native-session", completed: true, acknowledged: true, text: "fixture answer", model: input.request.task.route.model, usage: null, ...config.result },
+		result: { sessionId: "fixture-native-session", completed: true, acknowledged: true, text: "fixture answer", model: input.request.task.route.model, ...(config.omitUsage ? {} : { usage: null }), ...config.result },
 	}));
 } else if (role === "reviewer") {
 	if (config.mutate) writeFileSync(input.task.outputs[0], "changed during review\n");
@@ -32,5 +32,6 @@ if (role === "usage") {
 		runId: input.task.id, checkId: input.task.checks[0].id, deliveryDigest: input.delivery.deliveryDigest,
 		verdict: "pass", reviewer: "google:review-seat", evidence: ["fixture-independent-review"], ...config.receipt,
 	};
+	if (config.largeEvidence) receipt.evidence = ["x".repeat(150 * 1024)];
 	console.log(JSON.stringify(config.reply ?? { vendor: config.vendor ?? "google", receipt: config.unknown ? null : receipt }));
 } else { process.exit(1); }

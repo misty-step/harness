@@ -185,6 +185,8 @@ const reviewCases: [string, object, string, string][] = [
 	["known rejection", { receipt: { verdict: "block" } }, "block", "review_blocked"],
 	["changed output", { mutate: true }, "block", "delivery_changed"],
 	["explicit unknown", { unknown: true }, "unknown", "review_unknown"],
+	["missing receipt", { reply: {} }, "unknown", "review_unknown"],
+	["nonobject reply", { reply: [] }, "unknown", "review_unknown"],
 	["unknown verdict", { receipt: { verdict: "unknown" } }, "unknown", "review_unknown"],
 	["uncertain verdict", { receipt: { verdict: "uncertain" } }, "unknown", "review_unknown"],
 	["malformed stdout", { malformed: true }, "unknown", "review_unknown"],
@@ -266,10 +268,28 @@ test("cleanup failure preserves actual launches and an explicit unknown receipt"
 });
 
 test("oversized review evidence cannot emit a passing envelope outside Mage's framing limit", async () => {
-	const f = setup(); f.request.reviewer.argv = fake("reviewer", { receipt: { evidence: ["x".repeat(150 * 1024)] } }); f.sign();
+	const f = setup(); f.request.reviewer.argv = fake("reviewer", { largeEvidence: true }); f.sign();
 	const result = await admit(f.request, f.state);
 	expect(result.status).toBe("unknown"); expect(result.code).toBe("invalid_review");
 	expect(Buffer.byteLength(result.envelope!.payload)).toBeLessThan(128 * 1024);
 	expect(JSON.parse(result.envelope!.payload).status).toBe("unknown");
 	expect(guards(f.state)).toHaveLength(1);
+});
+
+test("occupancy becomes stale while the reader waits and still produces zero launches", async () => {
+	const f = setup(); f.request.usageReader.argv = fake("usage", { delay: 150 }); f.request.policy.maxAgeMs = 100; f.sign();
+	expect((await admit(f.request, f.state)).code).toBe("unknown_occupancy"); expect(f.events().map(event => event.role)).toEqual(["usage"]);
+});
+
+test("an already queued Summon task is not silently taken over", async () => {
+	const f = setup(); new SummonStore(f.state).start(f.task);
+	expect(await admit(f.request, f.state)).toEqual({ status: "unknown", code: "reconciliation_required", launches: { engineer: 0, reviewer: 0 } });
+	expect(f.events()).toHaveLength(0); expect(new SummonStore(f.state).status(f.task.id).turns[0]!.state).toBe("queued");
+	expect(guards(f.state)).toHaveLength(0);
+});
+
+test("missing native usage is preserved as unknown while actual route evidence permits review", async () => {
+	const f = setup(); f.request.engineer.argv = fake("engineer", { omitUsage: true }); f.sign();
+	expect((await admit(f.request, f.state)).status).toBe("pass");
+	expect(new SummonStore(f.state).inspect(f.task.id).turns[0]!.result!.usage).toBeNull();
 });

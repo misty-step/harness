@@ -87,7 +87,9 @@ of detached/external effects. No command is retried.
   MageEnvelope}`. Stdout: `{vendor, receipt: ReviewReceipt | null}`. Null means
   unknown. Receipt must bind the current run/check/digest, have evidence and
   identify the configured reviewer as `vendor:accountId`. Vendor must equal
-  the authorized reviewer vendor and differ from the author. Only the original
+  the authorized reviewer vendor and differ from the author. Missing receipts
+  and `unknown`/`uncertain` verdicts stay unknown; they are not imported as a
+  Summon pass/block receipt. Only the original
   Summon receipt fields are imported; same-vendor or mismatched receipt cannot
   create a passing proof. Output changes during review invalidate the digest.
 
@@ -102,6 +104,11 @@ Post-admission codes include `engineer_uncertain`, `review_unknown`,
 `invalid_review`, `review_blocked`, `delivery_changed`, `verified_delivery`,
 and `reconciliation_required`.
 
+Envelope payloads must fit Mage's <128 KiB payload / 256 KiB record bounds.
+Oversized review evidence produces an explicit unknown receipt, never a passing
+transport envelope; the run projection still reports Summon's observed state.
+Guard cleanup failure also preserves actual launch counts and returns unknown.
+
 After admission, results also include Summon's `run` projection
 `{runId, state, deliveryState, deliveryDigest}`, the imported `review` if any,
 and a Mage `completion` envelope. Its payload is the JSON result without the
@@ -109,6 +116,11 @@ envelope, and delivery ID is the SHA256 of the commission delivery ID plus
 `:completion`. Other envelope bindings/correlations are preserved. **An emitted
 envelope is transport intent, not Mage native ACK or factory acceptance.** The
 caller may explicitly publish it through the existing Mage inbox/transport.
+The final inspection rechecks passing proof freshness. Inspection or guard-cleanup
+errors stay `unknown` with the actual launch counts. Completion payloads remain
+below Mage's 128 KiB payload / 256 KiB record limits; oversized review evidence
+produces `unknown/invalid_review` with a compact receipt. If the binding itself
+cannot fit the record limit, no envelope is emitted.
 
 Use one existing, canonical, owner-only state directory for all contenders.
 The admission subdirectory stores only exclusive lane guards and immutable
@@ -123,6 +135,8 @@ Summon's state plus command/native evidence; the CLI has no reset/retry command.
 This is local deduplication, not exactly-once external effects or distributed
 occupancy reservation. Foreign callers bypassing this entry point are outside
 its boundary. Caller assertions are not authenticated vendor/principal proof.
+An existing Summon task, including a queued task created by another caller,
+requires explicit reconciliation; this entry point never silently takes it over.
 
 ## Verification
 

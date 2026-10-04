@@ -3,12 +3,15 @@ const LIMIT = 512 * 1024;
 /** A single bounded exchange, including pipe EOF (children may keep pipes open). */
 export async function command(argv: string[], input: unknown, cwd: string, timeoutMs: number): Promise<unknown> {
 	// Bun's byte-buffer stdin avoids JS pipe writes, which runner-01 refuses.
-	const child = Bun.spawn(argv, { cwd, detached: true, stdin: Buffer.from(JSON.stringify(input)), stdout: "pipe", stderr: "ignore" });
+	const child = Bun.spawn(argv, { cwd, detached: true, stdin: Buffer.from(`${JSON.stringify(input)}\n`), stdout: "pipe", stderr: "ignore" });
+	const reader = child.stdout.getReader();
 	let timer: ReturnType<typeof setTimeout> | undefined;
 	const reply = (async () => {
 		let size = 0;
 		const chunks: Uint8Array[] = [];
-		for await (const chunk of child.stdout) {
+		for (;;) {
+			const { done, value: chunk } = await reader.read();
+			if (done) break;
 			size += chunk.length;
 			if (size > LIMIT) throw new Error("command reply too large");
 			chunks.push(chunk);
@@ -24,5 +27,5 @@ export async function command(argv: string[], input: unknown, cwd: string, timeo
 		// POSIX owned process group only; no claim about external native work.
 		try { process.kill(-child.pid, "SIGKILL"); } catch { /* already exited */ }
 		throw error;
-	} finally { clearTimeout(timer); }
+	} finally { clearTimeout(timer); void reader.cancel().catch(() => {}); }
 }

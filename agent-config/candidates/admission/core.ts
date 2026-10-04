@@ -132,7 +132,14 @@ export async function admit(value: unknown, stateDir: string): Promise<Admission
 					response.status = "block"; response.code = "delivery_changed";
 				}
 			} catch { response.status = "unknown"; response.code = "state_unavailable"; settled = false; }
-			response.envelope = { ...r.commission, deliveryId: sha(`${r.commission.deliveryId}:completion`), kind: "completion", payload: JSON.stringify(response) };
+			const { envelope: _, ...payload } = response;
+			response.envelope = { ...r.commission, deliveryId: sha(`${r.commission.deliveryId}:completion`), kind: "completion", payload: JSON.stringify(payload) };
+			if (Buffer.byteLength(response.envelope.payload) >= 128 * 1024 || Buffer.byteLength(JSON.stringify(response.envelope)) > 256 * 1024) {
+				response.status = "unknown"; response.code = "invalid_review"; settled = false;
+				delete response.review;
+				response.envelope.payload = JSON.stringify({ status: response.status, code: response.code, launches: response.launches, run: response.run });
+				if (Buffer.byteLength(JSON.stringify(response.envelope)) > 256 * 1024) delete response.envelope;
+			}
 		}
 		return response;
 	};
@@ -178,7 +185,7 @@ export async function admit(value: unknown, stateDir: string): Promise<Admission
 				const native = reply.result;
 				requireThat(typeof native.completed === "boolean" && typeof native.acknowledged === "boolean");
 				requireThat(text(native.sessionId) && native.model === task.route.model);
-				return native as NativeResult;
+				return { ...native, usage: native.usage ?? null } as NativeResult;
 			},
 		};
 		try { await store.run(task.id, adapter); }
@@ -189,7 +196,7 @@ export async function admit(value: unknown, stateDir: string): Promise<Admission
 		let reply: any;
 		try { reply = await command(r.reviewer.argv, { task, delivery, envelope: r.commission }, task.workspace, r.policy.commandTimeoutMs); }
 		catch { return finish("unknown", "review_unknown"); }
-		if (object(reply) && (reply.receipt === null || (object(reply.receipt) && ["unknown", "uncertain"].includes(reply.receipt.verdict)))) return finish("unknown", "review_unknown");
+		if (!object(reply) || !object(reply.receipt) || !["pass", "block"].includes(reply.receipt.verdict)) return finish("unknown", "review_unknown");
 		settled = true;
 		if (!object(reply) || reply.vendor !== r.reviewer.vendor || reply.vendor === r.engineer.vendor || !object(reply.receipt)) return finish("block", "invalid_review");
 		const receipt = reply.receipt;
