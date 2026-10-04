@@ -16,6 +16,7 @@ fn policy() -> AccessPolicy {
         native_enabled: false,
         grants: vec![PrincipalGrant {
             user_sub: "fixture-user-stable-sub".into(),
+            service_client_id: None,
             actor_id: "fixture-actor".into(),
             binding,
             actions: vec![
@@ -29,11 +30,12 @@ fn policy() -> AccessPolicy {
 fn claims() -> AccessClaims {
     AccessClaims {
         iss: ACCESS_ISSUER.into(),
-        aud: vec!["fixture-only-not-an-allocated-AUD".into()],
+        aud: AccessAudience::Many(vec!["fixture-only-not-an-allocated-AUD".into()]),
         sub: "fixture-user-stable-sub".into(),
+        common_name: None,
         token_type: "app".into(),
         exp: 200,
-        nbf: 50,
+        nbf: Some(50),
         iat: 50,
     }
 }
@@ -86,16 +88,28 @@ fn server_scope_and_action_grants_are_not_token_audience_or_client_labels() {
 fn unknown_service_shapes_invalid_times_and_configuration_fail_closed() {
     let p = policy();
     for case in [
-        "issuer", "audience", "type", "expired", "nbf", "iat", "service",
+        "issuer",
+        "audience",
+        "type",
+        "expired",
+        "nbf",
+        "iat",
+        "service",
+        "user_scalar_aud",
+        "user_without_nbf",
+        "mixed",
     ] {
         let mut c = claims();
         match case {
             "issuer" => c.iss = "https://attacker.invalid".into(),
-            "audience" => c.aud.clear(),
+            "audience" => c.aud = AccessAudience::Many(vec![]),
             "type" => c.token_type = "org".into(),
             "expired" => c.exp = 100,
-            "nbf" => c.nbf = 101,
+            "nbf" => c.nbf = Some(101),
             "iat" => c.iat = 101,
+            "user_scalar_aud" => c.aud = AccessAudience::One(p.audience.clone()),
+            "user_without_nbf" => c.nbf = None,
+            "mixed" => c.common_name = Some("fixture-service.access".into()),
             _ => c.sub.clear(),
         }
         assert!(
@@ -113,4 +127,13 @@ fn unknown_service_shapes_invalid_times_and_configuration_fail_closed() {
     let mut widened = p.clone();
     widened.grants[0].binding.project_id = "unowned".into();
     assert!(widened.validate().is_err());
+    let legacy = serde_json::to_value(&p).unwrap();
+    assert!(legacy["grants"][0].get("service_client_id").is_none());
+    assert_eq!(serde_json::from_value::<AccessPolicy>(legacy).unwrap(), p);
+    let mut mixed = p.clone();
+    mixed.grants[0].service_client_id = Some("fixture-service.access".into());
+    assert!(mixed.validate().is_err());
+    let mut missing_selector = p.clone();
+    missing_selector.grants[0].user_sub.clear();
+    assert!(missing_selector.validate().is_err());
 }

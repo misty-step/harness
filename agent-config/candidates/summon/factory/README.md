@@ -174,10 +174,26 @@ namespace and principal/action intersection. `worker/src/auth.rs` alone verifies
 Access JWT signatures using WebCrypto RS256. The server pins the observed Access
 issuer and its certs URL, never unverified `iss`, `jku` or `x5u`. Configured exact
 application audience and strict expiry/not-before/issued-at checks are necessary
-but do not grant project/actions. Only configured stable **user sub** grants map
-to actors; unknown principals and unsupported service shapes refuse. Native
-claim/fact endpoints additionally require explicit native enablement. Actual
-service selectors await relay discovery, not guessed email/subject mappings.
+but do not grant project/actions. Existing `user_sub` grants remain unchanged.
+A service grant instead specifies exact `service_client_id`, matched ONLY to
+verified signed `common_name` with an **empty string `sub`**; a grant/claim mixing
+user and service selectors refuses. Email, raw service headers, token resource
+UUIDs and internal hostname claims are never identity grants. There is no wildcard
+or AnyValidServiceToken path. Both grant classes bind the same exact canonical
+project/account/instance/namespace and explicit actions; original creator survives
+handoff/retry/restart. Native/proof authority is not conferred by a service selector.
+
+The hosted owner's verified real service claim has **scalar string `aud`** and
+**no `nbf`** (the original array-audience refusal is retained, not gateway success).
+The parser supports that service shape and the service audience arrays shown in
+[official Cloudflare docs](https://developers.cloudflare.com/cloudflare-one/access-controls/applications/http-apps/authorization-cookie/application-token/).
+Service omission of `nbf` uses signed `iat` as its start bound; supplied `nbf` must
+still be a valid numeric time. Users retain array audience and mandatory numeric
+`nbf`. Wrong issuer/audience/type/expiry/future time, null/malformed or missing
+identity/required times, unconfigured service, wrong scope/action all refuse.
+Real claim verification is shape evidence, NOT admitted factory authority: CTO
+must approve the exact policy/composition and hosted consumer proof. No token or
+credential copying, native enablement or receipt-source verifier is added here.
 
 `FACTORY_MODE=hosted` requires `FACTORY_AUTH_POLICY` (the shared `AccessPolicy`
 JSON). Missing/invalid policy refuses, including on localhost. Hosted mode never

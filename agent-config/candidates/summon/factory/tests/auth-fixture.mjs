@@ -144,5 +144,101 @@ print(json.dumps(found))
   assert.equal(retained, snapshot);
   await writeFile(resolve(scratch, 'unbound-legacy-original.json'), snapshot);
   await writeFile(resolve(scratch, 'fixture-public-jwks.json'), JSON.stringify(jwks));
-  t.diagnostic(`Authenticated boundary: genuine RSA signed JWTs, two clients/retries/restart, fail-closed negatives, scope-separated DOs, disabled proof endpoint and retained unbound legacy; ${receipts.length} actual HTTP receipts. FIXTURES ONLY, not live Access/provider/client entitlement.`);
+  t.diagnostic(`Authenticated boundary: genuine RSA signed JWTs, two clients/retries/restart, fail-closed negatives, scope-separated DOs, disabled proof endpoint and retained unbound legacy; ${receipts.length} original HTTP receipts. FIXTURES ONLY, not live Access/provider/client entitlement.`);
+
+  // Shape observed in the hosted owner's verified service JWT (scalar AUD,
+  // empty sub, client ID common_name, no nbf). Public client ID is NOT a secret.
+  // These signatures/grants are EPHEMERAL fixtures, never live Access receipts.
+  const serviceClient = '64d67c747434df523cf97c187736e960.access';
+  const serviceGrant = { service_client_id: serviceClient, actor_id: 'fixture-explicit-service', binding, actions: ['read', 'intake', 'steer', 'hold', 'cancel', 'metadata'] };
+  const servicePolicy = { ...policy, grants: [...policy.grants, serviceGrant] };
+  const serviceToken = (changes = {}, header = {}, key = privateKey) => jwt({ sub: '', common_name: serviceClient, aud: audience, nbf: undefined, h_INTERNAL_DO_NOT_USE: 'fixture-hostname-NEVER-an-identity-grant', ...changes }, header, key);
+  const service = serviceToken(), serviceReceipts = [];
+  const serviceCall = async (...args) => {
+    const start = receipts.length;
+    try { return await call(...args); }
+    finally {
+      serviceReceipts.push(...receipts.slice(start));
+      await writeFile(resolve(scratch, 'auth-service-http.json'), JSON.stringify({ fixture: true, not_live_Access: true, observed_shape_not_real_token: true, receipts: serviceReceipts }, null, 2));
+    }
+  };
+  await configure(vars);
+  assert.equal((await serviceCall('signed service without explicit selector refuses', p + '/status', undefined, 403, service)).value.code, 'principal_refused');
+  await configure({ ...vars, FACTORY_AUTH_POLICY: JSON.stringify(servicePolicy) });
+  const sp = '/v1/runs/cf1:auth-service-fixture';
+  const serviceIntake = { ...intake, task: { ...intake.task, id: 'cf1:auth-service-fixture' } };
+  const created = await serviceCall('configured exact service scalar-AUD absent-nbf intake', '/v1/intake', serviceIntake, 200, service);
+  assert.equal(created.response.headers.get('x-summon-actor'), serviceGrant.actor_id);
+  const serviceOrigin = { binding, actor_id: serviceGrant.actor_id };
+  assert.deepEqual((await serviceCall('service creator is frozen canonical attribution', sp + '/authority', undefined, 200, service)).value, serviceOrigin);
+  assert.equal((await serviceCall('same service exact intake retry', '/v1/intake', serviceIntake, 200, service)).value.replayed, true);
+  const si = { input_id: 'service-steer', text: 'SYNTHETIC authenticated service steering only; no native action.' };
+  let serviceStatus = (await serviceCall('explicit service steering', sp + '/input', si, 200, service)).value.run;
+  assert.equal((await serviceCall('service steering exact replay', sp + '/input', si, 200, service)).value.replayed, true);
+  const sh = { hold_id: 'service-hold', action: 'release', reason: 'SYNTHETIC service hold', authority_ref: 'fixture-service-policy', active: true, expected_revision: serviceStatus.revision };
+  serviceStatus = (await serviceCall('explicit service hold', sp + '/hold', sh, 200, service)).value.run;
+  const missingFact = owner => ({ source: { owner, reference: 'fixture-fact-unavailable', read_at_unix_ms: now * 1000, sha256: null, state: 'missing', detail: 'No native/commission/lineage observation invented' }, value: null });
+  const serviceMetadata = { origin: missingFact('fixture-origin'), native: missingFact('fixture-native'), lineage: missingFact('summon_do:cf1:auth-service-fixture'), evidence: [], child_packets: [] };
+  const serviceView = (await serviceCall('explicit service metadata (native remains missing)', sp + '/metadata', { expected_run_revision: serviceStatus.revision, expected_metadata_sha256: null, metadata: serviceMetadata }, 200, service)).value;
+  assert.equal(serviceView.managed.revision, serviceStatus.revision);
+  const cancellation = { cancel_id: 'service-cancel', input_id: 'service-steer', attempt_id: 'no-active-native-attempt', reason: 'SYNTHETIC service cancellation', authority_ref: 'fixture-service-policy', expected_revision: serviceStatus.revision };
+  assert.equal((await serviceCall('service cancel authorized BUT no active attempt invented', sp + '/cancel', cancellation, 409, service)).value.code, 'cancel_refused');
+  await serviceCall('service docs array-AUD form also exact audience', sp + '/status', undefined, 200, serviceToken({ aud: [audience] }));
+  await serviceCall('service supplied valid not-before honored', sp + '/status', undefined, 200, serviceToken({ nbf: now - 1 }));
+  await serviceCall('internal hostname irrelevant to authenticated service', sp + '/status', undefined, 200, serviceToken({ h_INTERNAL_DO_NOT_USE: 'other-irrelevant-host' }));
+  const serviceNegatives = [
+    ['service wrong signature', serviceToken({}, {}, wrongKey)],
+    ['service wrong kid', serviceToken({}, { kid: 'unknown' })],
+    ['service wrong issuer', serviceToken({ iss: 'https://other.cloudflareaccess.com' })],
+    ['service wrong scalar audience', serviceToken({ aud: 'wrong-application' })],
+    ['service wrong array audience', serviceToken({ aud: ['wrong-application'] })],
+    ['service audience unknown object shape', serviceToken({ aud: { value: audience } })],
+    ['service expired', serviceToken({ exp: now - 1 })],
+    ['service future iat without nbf', serviceToken({ iat: now + 3600 })],
+    ['service future supplied nbf', serviceToken({ nbf: now + 3600 })],
+    ['service null supplied nbf', serviceToken({ nbf: null })],
+    ['service supplied string nbf', serviceToken({ nbf: String(now) })],
+    ['service missing iat', serviceToken({ iat: undefined })],
+    ['service missing expiry', serviceToken({ exp: undefined })],
+    ['service wrong principal', serviceToken({ common_name: 'other-client.access' })],
+    ['service resource UUID NOT client selector', serviceToken({ common_name: 'cb635290-c03d-451a-aff7-3d0501f94237' })],
+    ['service wildcard is not a grant', serviceToken({ common_name: '*' })],
+    ['service missing common_name even with internal hostname', serviceToken({ common_name: undefined })],
+    ['service null common_name', serviceToken({ common_name: null })],
+    ['service numeric common_name', serviceToken({ common_name: 1 })],
+    ['service empty common_name', serviceToken({ common_name: '' })],
+    ['service missing sub', serviceToken({ sub: undefined })],
+    ['service null sub', serviceToken({ sub: null })],
+    ['service mixed user/service identity', serviceToken({ sub: 'client-one' })],
+    ['service unknown token type', serviceToken({ type: 'service' })],
+    ['service email cannot grant identity', serviceToken({ common_name: undefined, email: serviceClient })],
+    ['service client header cannot grant identity', jwt({ sub: '', aud: audience, nbf: undefined })],
+    ['user scalar AUD remains refused', jwt({ aud: audience })],
+    ['user missing nbf remains refused', jwt({ nbf: undefined })],
+    ['user null nbf remains refused', jwt({ nbf: null })],
+  ];
+  for (const [label, token] of serviceNegatives) await serviceCall(label, sp + '/input', { input_id: label.replaceAll(' ', '-'), text: 'Must remain refused' }, 403, token, binding, { 'CF-Access-Client-Id': serviceClient, 'x-summon-actor': serviceGrant.actor_id });
+  for (const field of ['account_id', 'project_id', 'instance', 'namespace']) await serviceCall('service wrong ' + field, sp + '/input', si, 403, service, { ...binding, [field]: 'other' });
+  await serviceCall('service no claim grant/native permission', sp + '/claim', {}, 403, service);
+  await serviceCall('service no native fact grant', sp + '/observe', {}, 403, service);
+  await serviceCall('service proof endpoint CLOSED unchanged', sp + '/proof', {}, 403, service);
+  await serviceCall('service no supplied archive/collector authority', '/v1/visibility/export', {}, 404, service);
+  await configure({ ...vars, FACTORY_AUTH_POLICY: JSON.stringify({ ...servicePolicy, grants: [...policy.grants, { ...serviceGrant, actions: ['read'] }] }) });
+  assert.equal((await serviceCall('service wrong action with otherwise valid identity', sp + '/input', si, 403, service)).value.code, 'capability_refused');
+  for (const grants of [
+    [...policy.grants, { ...serviceGrant, user_sub: 'client-one' }],
+    [...policy.grants, serviceGrant, serviceGrant],
+    [...policy.grants, { ...serviceGrant, binding: { ...binding, project_id: 'other-project' } }],
+  ]) {
+    await configure({ ...vars, FACTORY_AUTH_POLICY: JSON.stringify({ ...servicePolicy, grants }) });
+    assert.equal((await serviceCall('invalid mixed/duplicate/wrong-bound service policy refuses', sp + '/status', undefined, 403, service)).value.code, 'auth_config');
+  }
+  await configure({ ...vars, FACTORY_AUTH_POLICY: JSON.stringify(servicePolicy) });
+  assert.deepEqual((await serviceCall('service restart/refusals preserve exact canonical run', sp + '/status', undefined, 200, service)).value, serviceStatus);
+  assert.equal((await serviceCall('service restart retains metadata unchanged', sp + '/view', undefined, 200, service)).value.metadata_sha256, serviceView.metadata_sha256);
+  assert.deepEqual((await serviceCall('user handoff cannot rewrite original service creator', sp + '/authority')).value, serviceOrigin);
+  assert.deepEqual((await serviceCall('service can read but not rewrite original user creator', p + '/authority', undefined, 200, service)).value, origin);
+  assert.equal((await serviceCall('service original intake replay after restart', '/v1/intake', serviceIntake, 200, service)).value.replayed, true);
+  assert.equal((await serviceCall('service original steering replay after restart', sp + '/input', si, 200, service)).value.replayed, true);
+  t.diagnostic(`Service boundary: ${serviceReceipts.length} actual RSA/workerd HTTP fixtures; observed scalar-AUD/empty-sub/common_name/no-nbf shape, exact selector and frozen attribution, user contract retained, wrong signature/principal/scope/action/time/shape refused; proof/native/collector unchanged. NOT real Access admission or receipt-source verification.`);
 }
