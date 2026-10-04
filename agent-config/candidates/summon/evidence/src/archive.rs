@@ -141,11 +141,9 @@ pub fn export(records: Vec<AgentRunAttemptV1>, root: &str, archive: &Path) -> Re
                     .collect();
             }
             record.validate().map_err(crate::refused)?;
-            // One graph and one original+new catalog. Export reads records/edges,
-            // not the initial graph's page cursor digest; no whole-payload clone
-            // for each node, and no original archive replacement.
-            let packet =
-                PacketManifestV1::export(&graph, &node, &catalog).map_err(crate::refused)?;
+            // Retain local owner facts and original refs, not a recursive issue
+            // list at every ancestor. One graph/catalog; no original replacement.
+            let packet = PacketManifestV1::archive(record.clone()).map_err(crate::refused)?;
             let digest = retention::retain(archive, &serde_json::to_vec(&packet)?)?;
             ensure!(
                 digest == packet.archive_sha256(),
@@ -158,7 +156,7 @@ pub fn export(records: Vec<AgentRunAttemptV1>, root: &str, archive: &Path) -> Re
     }
     let packet = &catalog[*exported.get(root).unwrap()];
     let root_packet_sha256 = packet.archive_sha256();
-    let proof = packet.proof.clone();
+    let proof = packet.reopen(&graph, &catalog).map_err(crate::refused)?;
     // Shared ExportRequest is the portable frame; only the root is inline. Child
     // manifests live at their EXACT bound object digests, no latest-packet fallback.
     let bundle = ExportRequest {

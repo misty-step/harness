@@ -132,7 +132,32 @@ fn fixture_consumer_binds_original_commission_not_reply_and_reopens_without_glas
             && edge.original_source_ref.contains("#c-origin@")
     );
     let exported = archive::export(records.clone(), "parent", &archive_dir)?;
+    assert_eq!(exported["proof"]["recursive_pass"], false);
     let digest = exported["bundle_sha256"].as_str().unwrap();
+    let frame: summon_protocol::evidence::ExportRequest =
+        serde_json::from_slice(&summon_evidence::retention::load(&archive_dir, digest)?)?;
+    let mut original = vec![frame.packets[0].archive_sha256()];
+    let mut retained = 0;
+    while let Some(hash) = original.pop() {
+        let bytes = summon_evidence::retention::load(&archive_dir, &hash)?;
+        let packet: summon_protocol::evidence::PacketManifestV1 = serde_json::from_slice(&bytes)?;
+        assert!(
+            packet.proof.is_none(),
+            "no ancestor stores a recursive rollup"
+        );
+        assert!(serde_json::from_slice::<Value>(&bytes)?
+            .get("proof")
+            .is_none());
+        original.extend(
+            packet
+                .record
+                .child_packets
+                .iter()
+                .filter_map(|c| c.packet.sha256.clone()),
+        );
+        retained += 1;
+    }
+    assert_eq!(retained, 3, "all original fixture manifests inspected");
     let opened = archive::reopen(&archive_dir, digest, Some(records.clone()))?;
     assert_eq!(opened["available_digests_valid"], true);
     assert_eq!(opened["archive_objects_complete"], true);

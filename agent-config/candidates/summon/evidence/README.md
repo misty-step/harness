@@ -109,8 +109,12 @@ fresh owner facts, bottom-up. Managed or explicit owner refs are never replaced.
 This removes export-only false staleness, not real source/child changes or gaps.
 No implicit newest packet, replacement session, retry, or promotion to green.
 Export uses one request-scoped graph/catalog and digest-deduplicated retained
-objects, not whole graph/catalog payload clones per node. Prior packet bytes,
-original edge refs and dispositions remain immutable; recovery creates a new
+objects. Each new manifest retains canonical local owner facts and original child
+refs with omitted stored proof (**UNASSESSED**, never green). The requested root's
+recursive rollup is derived once through Core's `reopen`, not retained in every
+ancestor. Legacy proof-bearing objects remain byte/digest-exact and can mix with
+new manifests; original child objects are still required at every depth.
+Prior packet bytes, original edge refs and dispositions remain immutable; recovery creates a new
 snapshot/packet and makes the original unavailable-source packet stale, not green.
 
 Tests use clearly labeled native-file/HTTP fixtures, not provider work. They
