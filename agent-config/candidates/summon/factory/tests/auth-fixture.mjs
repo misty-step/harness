@@ -16,7 +16,7 @@ export async function authFixtureProof({ root, scratch, base, task, boot, stop, 
   const audience = 'fixture-only-not-an-allocated-Access-AUD';
   const binding = { instance: 'fixture-fresh-instance', namespace: 'fixture-fresh-namespace', account_id: 'b069014f6a46558ea9146fb6c4ff8f6c', project_id: 'fixture-project-A' };
   const policy = { issuer, audience, binding, native_enabled: false, grants: [
-    ...['client-one', 'client-two'].map(user_sub => ({ user_sub, actor_id: `fixture-${user_sub}`, binding, actions: ['read', 'intake', 'steer', 'hold', 'claim', 'native_facts'] })),
+    ...['client-one', 'client-two'].map(user_sub => ({ user_sub, actor_id: `fixture-${user_sub}`, binding, actions: ['read', 'intake', 'steer', 'hold', 'claim', 'native_facts', 'proof'] })),
     { user_sub: 'reader', actor_id: 'fixture-reader', binding, actions: ['read'] },
   ] };
   const template = JSON.parse((await readFile(resolve(root, 'wrangler.canary.jsonc'), 'utf8')).split('\n').filter(l => !l.trim().startsWith('//')).join('\n'));
@@ -51,6 +51,7 @@ export async function authFixtureProof({ root, scratch, base, task, boot, stop, 
   const intake = { task: { ...task, id: 'cf1:auth-fixture' }, initial_input_id: 'fixture-initial' };
   // Production mode is denied even on localhost when actual policy is missing.
   await configure({ FACTORY_MODE: 'hosted' });
+  assert.equal((await call('hosted proof endpoint disabled', '/v1/runs/cf1:auth-fixture/proof', {}, 403)).value.code, 'capability_refused');
   assert.equal((await call('hosted missing policy', '/v1/intake', intake, 403)).value.code, 'auth_unconfigured');
   // No production fallback to fixture keys, even with a valid fixture token.
   await configure({ ...vars, FACTORY_MODE: 'hosted' });
@@ -109,6 +110,12 @@ export async function authFixtureProof({ root, scratch, base, task, boot, stop, 
   await configure(vars);
   assert.deepEqual((await call('restart restored original scope/run', p + '/status')).value, before);
   assert.deepEqual((await call('restart retained original creator', p + '/authority')).value, origin);
+  // Defensive maintenance only: no native facts or completed delivery are made
+  // for this refusal check. A generic grant cannot enable the disabled endpoint.
+  const proofBefore = (await call('status before disabled proof endpoint', p + '/status')).value;
+  const refusedProof = await call('authenticated proof endpoint disabled', p + '/proof', { proof_id: 'ordinary-refusal', check_id: 'review', coverage_sha256: '0'.repeat(64), issuer: 'fixture-claimed-issuer', verdict: 'pass', evidence_ref: 'fixture-refusal-only', expected_revision: proofBefore.revision }, 403, clientTwo);
+  assert.equal(refusedProof.value.code, 'capability_refused');
+  assert.deepEqual((await call('disabled proof endpoint left run unchanged', p + '/status')).value, proofBefore);
   // Offline seed only an owned disposable run with an ORIGINAL JSON snapshot.
   // The snapshot stays byte-for-byte present after read/replay refusal; no unsafe adoption.
   const legacyIntake = { ...intake, task: { ...intake.task, id: 'cf1:unbound-legacy-fixture' } };
@@ -137,5 +144,5 @@ print(json.dumps(found))
   assert.equal(retained, snapshot);
   await writeFile(resolve(scratch, 'unbound-legacy-original.json'), snapshot);
   await writeFile(resolve(scratch, 'fixture-public-jwks.json'), JSON.stringify(jwks));
-  t.diagnostic(`Authenticated boundary: genuine RSA signed JWTs, two clients/retries/restart, fail-closed negatives, scope-separated DOs and retained unbound legacy; ${receipts.length} actual HTTP receipts. FIXTURES ONLY, not live Access/provider/client entitlement.`);
+  t.diagnostic(`Authenticated boundary: genuine RSA signed JWTs, two clients/retries/restart, fail-closed negatives, scope-separated DOs, disabled proof endpoint and retained unbound legacy; ${receipts.length} actual HTTP receipts. FIXTURES ONLY, not live Access/provider/client entitlement.`);
 }

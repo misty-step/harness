@@ -62,7 +62,13 @@ pub async fn fetch(mut req: Request, env: Env, _ctx: worker::Context) -> worker:
                 Some("metadata") => GatewayAction::Metadata,
                 Some("claim") => GatewayAction::Claim,
                 Some("observe" | "reconcile") => GatewayAction::NativeFacts,
-                Some("proof") => GatewayAction::Proof,
+                Some("proof") => {
+                    return error(
+                        "capability_refused",
+                        "hosted proof requires receipt-source verification",
+                        403,
+                    );
+                }
                 _ => {
                     return error(
                         "not_found",

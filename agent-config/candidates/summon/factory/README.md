@@ -96,6 +96,13 @@ accepts `FACTORY_FIXTURE_JWKS`. Explicit `fixture` mode accepts those ephemeral
 public keys only on loopback; fixture audiences/principals prove no live Access
 grant. No mode retains the original local pilot's loopback guard.
 
+Hosted/fixture POST `.../proof` is disabled with HTTP 403 `capability_refused`,
+even when the configured principal has a generic Proof grant. That grant is not
+receipt-source verification: the application must independently bind a receipt's
+issuer to its verified source before enabling remote proof writes. The existing
+trusted local loopback pilot proof path is unchanged. This is defensive endpoint
+refusal, not delivery of the full hosted verifier capability.
+
 Authenticated requests supply `Cf-Access-Jwt-Assertion` and `X-Summon-Authority`
 (the exact requested `AuthorityBinding` JSON). These are checked against server
 configuration. Incoming actor/internal identity headers are discarded. A fresh
