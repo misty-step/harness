@@ -19,7 +19,10 @@ pub struct PacketManifestV1 {
     pub version: u32,
     pub record: AgentRunAttemptV1,
     pub binding_sha256: String,
-    pub proof: RecursiveProof,
+    /// None/omitted is explicitly UNASSESSED, never an empty successful proof.
+    /// Historical proof-bearing archives keep their original bytes and field order.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub proof: Option<RecursiveProof>,
 }
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -58,7 +61,11 @@ impl PacketManifestV1 {
         if self.binding_sha256 != self.record.binding_sha256() {
             return refuse("packet_digest_mismatch", "archive record content changed");
         }
-        if self.proof.recursive_pass != self.proof.issues.is_empty() {
+        if self
+            .proof
+            .as_ref()
+            .is_some_and(|p| p.recursive_pass != p.issues.is_empty())
+        {
             return refuse(
                 "packet_invalid",
                 "archive pass cannot conceal retained issues",
@@ -66,6 +73,21 @@ impl PacketManifestV1 {
         }
         Ok(())
     }
+    /// Retain ONE node's complete owner facts and original child refs. No graph
+    /// traversal or recursive assessment is stored at every ancestor. Requested
+    /// views use export/reopen to assess descendants from their actual owners.
+    pub fn archive(record: AgentRunAttemptV1) -> Result<Self> {
+        let packet = Self {
+            version: READ_VERSION,
+            binding_sha256: record.binding_sha256(),
+            record,
+            proof: None,
+        };
+        packet.validate_archive()?;
+        Ok(packet)
+    }
+    /// Requested-view assessment. Do not call per-node when retaining a tree:
+    /// archive local records, then derive this rollup once for the requested root.
     pub fn export(graph: &VisibilityGraph, root: &str, packets: &[Self]) -> Result<Self> {
         let record = graph
             .records
@@ -80,7 +102,7 @@ impl PacketManifestV1 {
             version: READ_VERSION,
             binding_sha256: record.binding_sha256(),
             record,
-            proof,
+            proof: Some(proof),
         })
     }
     /// Reopening is read-only. A retained green archive is NEVER promoted to current

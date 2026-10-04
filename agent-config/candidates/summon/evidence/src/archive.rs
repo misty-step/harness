@@ -141,11 +141,9 @@ pub fn export(records: Vec<AgentRunAttemptV1>, root: &str, archive: &Path) -> Re
                     .collect();
             }
             record.validate().map_err(crate::refused)?;
-            // One graph and one original+new catalog. Export reads records/edges,
-            // not the initial graph's page cursor digest; no whole-payload clone
-            // for each node, and no original archive replacement.
-            let packet =
-                PacketManifestV1::export(&graph, &node, &catalog).map_err(crate::refused)?;
+            // Retain local owner facts and original refs, not a recursive issue
+            // list at every ancestor. One graph/catalog; no original replacement.
+            let packet = PacketManifestV1::archive(record.clone()).map_err(crate::refused)?;
             let digest = retention::retain(archive, &serde_json::to_vec(&packet)?)?;
             ensure!(
                 digest == packet.archive_sha256(),
@@ -158,7 +156,7 @@ pub fn export(records: Vec<AgentRunAttemptV1>, root: &str, archive: &Path) -> Re
     }
     let packet = &catalog[*exported.get(root).unwrap()];
     let root_packet_sha256 = packet.archive_sha256();
-    let proof = packet.proof.clone();
+    let proof = packet.reopen(&graph, &catalog).map_err(crate::refused)?;
     // Shared ExportRequest is the portable frame; only the root is inline. Child
     // manifests live at their EXACT bound object digests, no latest-packet fallback.
     let bundle = ExportRequest {
@@ -178,6 +176,51 @@ fn issue(node: &str, state: FactState, reference: &str, reason: &str) -> ReadIss
         reference: reference.into(),
         reason: reason.into(),
     }
+}
+// Fresh observed-only snapshots do not register exporter-owned packet refs.
+// Reconstruct only those absent refs from this ORIGINAL frame, bottom-up, while
+// rebinding descendants to fresh owner facts. Never hydrate managed/explicit refs
+// or copy historical child semantic bindings over a changed current source.
+fn observed_archive_bindings(
+    mut current: VisibilityGraph,
+    archived: &VisibilityGraph,
+) -> Result<VisibilityGraph> {
+    let mut pending: BTreeMap<_, _> = current
+        .records
+        .values()
+        .filter(|r| r.management == Management::ObservedOnly && r.child_packets.is_empty())
+        .filter_map(|r| {
+            archived
+                .records
+                .get(&r.node_id)
+                .filter(|old| {
+                    old.management == Management::ObservedOnly && !old.child_packets.is_empty()
+                })
+                .map(|old| (r.node_id.clone(), old.child_packets.clone()))
+        })
+        .collect();
+    while !pending.is_empty() {
+        let ready: Vec<_> = pending
+            .iter()
+            .filter(|(_, refs)| refs.iter().all(|c| !pending.contains_key(&c.node_id)))
+            .map(|(node, _)| node.clone())
+            .collect();
+        ensure!(
+            !ready.is_empty(),
+            "original observed archive binding cycle refused"
+        );
+        for node in ready {
+            let mut refs = pending.remove(&node).unwrap();
+            for child in &mut refs {
+                child.child_binding_sha256 = current
+                    .records
+                    .get(&child.node_id)
+                    .map(AgentRunAttemptV1::binding_sha256);
+            }
+            current.records.get_mut(&node).unwrap().child_packets = refs;
+        }
+    }
+    Ok(current)
 }
 pub fn reopen(
     archive: &Path,
@@ -272,7 +315,10 @@ pub fn reopen(
         }
     }
     let current = match fresh {
-        Some(records) => VisibilityGraph::new(records).map_err(crate::refused)?,
+        Some(records) => observed_archive_bindings(
+            VisibilityGraph::new(records).map_err(crate::refused)?,
+            &archived,
+        )?,
         None => {
             availability.push(issue(&bundle.root, FactState::Uncertain, "fresh_owner_sources", "archive reopened without fresh shared owner views; current semantic binding not established"));
             archived

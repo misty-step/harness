@@ -1,9 +1,11 @@
-# Summon Cloudflare local pilot — protocol v1
+# Summon Cloudflare candidate — protocol v1
 
 Rust `protocol/` owns transitions and wire types; Rust `worker/` hosts them in
 workers-rs and a SQLite-backed Durable Object per run. **Candidate for review,
 not deployed, adopted, product Done, or a new formal experiment.** No model calls,
-queues, workflows, schedules, effects, or Glass writes. All HTTP is local-only.
+queues, workflows, schedules, effects, or Glass writes. The default pilot is
+loopback-only. `wrangler.canary.jsonc` is a separate, fail-closed hosted source
+configuration; it has no allocated Access app, audience or principals.
 
 ## One authority
 
@@ -57,6 +59,75 @@ permission. There is no shipped Jev integration. Glass owns commitments, reviewe
 marks and read projections, not chat or controller. A unified chat/control product
 needs its own decision; no Glass expansion or retired Linear revival follows.
 Standalone Summon requires neither Glass, Git nor Mage.
+
+## Local immutable archives versus requested assessment
+
+`PacketManifestV1::archive(record)` retains the complete canonical owner record,
+binding and original child refs, with `proof: None` omitted from JSON. Omission is
+**UNASSESSED**, never an empty passing `RecursiveProof`. Use this per node when
+retaining a tree; repeating `export` at every ancestor copies descendant issues
+quadratically. Derive the full requested root rollup once with `export` or
+`reopen` from fresh owner facts and the original child catalog. Local records
+already retain missing/failed/uncertain facts and authored inventory gaps.
+
+The Rust `proof` field is now `Option<RecursiveProof>`; requested `export` always
+returns `Some`, preserving its existing assessed JSON response. Valid historical
+proof-bearing archives retain exact compact JSON bytes/digests/field order.
+Their historical proof remains historical; reopening traverses ORIGINAL child
+archives at every depth and cannot replace missing originals with new/unassessed
+semantic equivalents. Old/new catalogs share the same canonical schema and
+reader. Neither omission nor a retained historical pass authorizes current green.
+
+## Authenticated gateway boundary
+
+`protocol/src/authority.rs` owns the deterministic account/project/instance/
+namespace and principal/action intersection. `worker/src/auth.rs` alone verifies
+Access JWT signatures using WebCrypto RS256. The server pins the observed Access
+issuer and its certs URL, never unverified `iss`, `jku` or `x5u`. Configured exact
+application audience and strict expiry/not-before/issued-at checks are necessary
+but do not grant project/actions. Only configured stable **user sub** grants map
+to actors; unknown principals and unsupported service shapes refuse. Native
+claim/fact endpoints additionally require explicit native enablement. Actual
+service selectors await relay discovery, not guessed email/subject mappings.
+
+`FACTORY_MODE=hosted` requires `FACTORY_AUTH_POLICY` (the shared `AccessPolicy`
+JSON). Missing/invalid policy refuses, including on localhost. Hosted mode never
+accepts `FACTORY_FIXTURE_JWKS`. Explicit `fixture` mode accepts those ephemeral
+public keys only on loopback; fixture audiences/principals prove no live Access
+grant. No mode retains the original local pilot's loopback guard.
+
+Hosted/fixture POST `.../proof` is disabled with HTTP 403 `capability_refused`,
+even when the configured principal has a generic Proof grant. That grant is not
+receipt-source verification: the application must independently bind a receipt's
+issuer to its verified source before enabling remote proof writes. The existing
+trusted local loopback pilot proof path is unchanged. This is defensive endpoint
+refusal, not delivery of the full hosted verifier capability.
+
+Authenticated requests supply `Cf-Access-Jwt-Assertion` and `X-Summon-Authority`
+(the exact requested `AuthorityBinding` JSON). These are checked against server
+configuration. Incoming actor/internal identity headers are discarded. A fresh
+internal DO request carries verified scope/actor. Hosted DO names are
+`summon-hosted-v1:<binding-SHA256>:<run_id>`; identical run IDs in different
+scopes cannot address the same object. Original creator/scope is stored inside
+the canonical private run BLOB in the **same single intake commit**, never a
+second ledger. GET `.../authority` returns it; response headers identify the
+current verified actor/scope without changing `TaskSpec`, `Status` or `Reply`.
+Later device handoff cannot rewrite the original creator, scope or task.
+
+Existing unbound JSON runs remain readable through their original local owner,
+not hosted activation. A hosted unbound/wrong-bound row refuses read/replay,
+without rewriting accepted bytes. Use a fresh namespace, not unsafe restore.
+Hosted supplied-record projection endpoints are disabled: an authorized caller's
+arbitrary records are not an authenticated collector. Existing local projection
+contracts remain unchanged. The actual workerd proof adds genuine ephemeral RSA
+signatures, permission/scope negatives, two-client retry/restart and retained
+unbound JSON, explicitly **not** live Access, service/native/provider proof.
+
+This gateway is not shared account/cash admission, command-level actor history,
+a packet authorization envelope/private R2 store, Jev, or hosted native execution.
+JWKS currently reads the pinned public endpoint per request; network failures
+refuse without stale-key/fallback grants. Those remaining boundaries are not
+implied by signature or permission tests.
 
 ## Concrete HTTP contract
 

@@ -1,4 +1,6 @@
+mod auth;
 use serde::Deserialize;
+use summon_protocol::authority::{AttributedAuthority, GatewayAction};
 use summon_protocol::evidence::{ExportRequest, PacketManifestV1, PageRequest, ReopenRequest};
 use summon_protocol::visibility::{
     AgentRunAttemptV1, MetadataRequest, RunMetadata, VisibilityGraph, validate_metadata,
@@ -40,16 +42,63 @@ fn route(path: &str) -> Option<(&str, &str)> {
 
 #[event(fetch)]
 pub async fn fetch(mut req: Request, env: Env, _ctx: worker::Context) -> worker::Result<Response> {
-    // This pilot has no hosted authentication boundary. Fail closed away from loopback.
     let url = req.url()?;
-    if !matches!(url.host_str(), Some("localhost" | "127.0.0.1" | "[::1]")) {
-        return error(
-            "local_only",
-            "this unauthenticated candidate only accepts loopback requests",
-            403,
-        );
-    }
     let path = url.path();
+    let hosted = env.var("FACTORY_MODE").is_ok();
+    let identity = if hosted {
+        let action = match (req.method(), path) {
+            (Method::Post, "/v1/intake") => GatewayAction::Intake,
+            (Method::Get, p)
+                if route(p).is_some_and(|(_, a)| {
+                    matches!(a, "status" | "view" | "packet" | "authority")
+                }) =>
+            {
+                GatewayAction::Read
+            }
+            (Method::Post, p) => match route(p).map(|(_, a)| a) {
+                Some("input") => GatewayAction::Steer,
+                Some("hold") => GatewayAction::Hold,
+                Some("cancel") => GatewayAction::Cancel,
+                Some("metadata") => GatewayAction::Metadata,
+                Some("claim") => GatewayAction::Claim,
+                Some("observe" | "reconcile") => GatewayAction::NativeFacts,
+                Some("proof") => {
+                    return error(
+                        "capability_refused",
+                        "hosted proof requires receipt-source verification",
+                        403,
+                    );
+                }
+                _ => {
+                    return error(
+                        "not_found",
+                        "hosted supplied-record projection is not an authenticated collector",
+                        404,
+                    );
+                }
+            },
+            _ => return error("not_found", "unknown method/endpoint", 404),
+        };
+        match auth::authenticate(&req, &env, action).await {
+            Ok(identity) => Some(identity),
+            Err(code) => {
+                return error(
+                    code,
+                    "hosted authentication or server capability refused",
+                    403,
+                );
+            }
+        }
+    } else {
+        if !matches!(url.host_str(), Some("localhost" | "127.0.0.1" | "[::1]")) {
+            return error(
+                "local_only",
+                "local authority only accepts loopback requests",
+                403,
+            );
+        }
+        None
+    };
     let mut body = String::new();
     if req.method() == Method::Post {
         // Check actual bytes as well as Content-Length. No remote binding or model calls.
@@ -71,7 +120,8 @@ pub async fn fetch(mut req: Request, env: Env, _ctx: worker::Context) -> worker:
             Err(e) => return refusal(e),
         }
     } else if let Some((id, action)) = route(path) {
-        if (matches!(action, "status" | "view" | "packet") && req.method() == Method::Get)
+        if (matches!(action, "status" | "view" | "packet" | "authority")
+            && req.method() == Method::Get)
             || (matches!(
                 action,
                 "input"
@@ -95,16 +145,47 @@ pub async fn fetch(mut req: Request, env: Env, _ctx: worker::Context) -> worker:
         return refusal(e);
     }
     let namespace = env.durable_object("SUMMON_RUNS")?;
-    let stub = namespace
-        .id_from_name(&format!("summon-v1:{run_id}"))?
-        .get_stub()?;
+    let object_name = identity.as_ref().map_or_else(
+        || format!("summon-v1:{run_id}"),
+        |i| {
+            format!(
+                "summon-hosted-v1:{}:{run_id}",
+                sha256(&serde_json::to_vec(&i.authority.binding).expect("authority serializes"))
+            )
+        },
+    );
+    let stub = namespace.id_from_name(&object_name)?.get_stub()?;
     let mut init = RequestInit::new();
     init.with_method(req.method());
     if req.method() == Method::Post {
         init.with_body(Some(body.into()));
     }
-    stub.fetch_with_request(Request::new_with_init(url.as_str(), &init)?)
-        .await
+    // A fresh internal request discards all caller-asserted identity headers.
+    let internal = Request::new_with_init(url.as_str(), &init)?;
+    if let Some(identity) = &identity {
+        internal.headers().set(
+            "x-summon-verified",
+            &serde_json::to_string(&identity.authority)?,
+        )?;
+    }
+    let mut response = stub.fetch_with_request(internal).await?;
+    if let Some(identity) = identity {
+        // Fetched DO response headers have an immutable guard. Preserve the body/
+        // status while replacing only the header collection with mutable copies.
+        let headers = Headers::new();
+        for (name, value) in response.headers().entries() {
+            headers.append(&name, &value)?;
+        }
+        response = response.with_headers(headers);
+        response.headers_mut().set(
+            "x-summon-authority",
+            &serde_json::to_string(&identity.authority.binding)?,
+        )?;
+        response
+            .headers_mut()
+            .set("x-summon-actor", &identity.authority.actor_id)?;
+    }
+    Ok(response)
 }
 
 fn derived<T: serde::Serialize>(result: summon_protocol::Result<T>) -> worker::Result<Response> {
@@ -206,8 +287,33 @@ impl SummonRun {
         )?;
         Ok(true)
     }
-    fn apply(&self, path: &str, body: &str) -> worker::Result<Response> {
+    fn apply(
+        &self,
+        path: &str,
+        body: &str,
+        authority: Option<AttributedAuthority>,
+    ) -> worker::Result<Response> {
         let existing = self.load()?;
+        let stored = existing.as_ref().and_then(|r| r.authority.clone());
+        if let Some(incoming) = &authority {
+            if existing.is_some()
+                && stored
+                    .as_ref()
+                    .is_none_or(|s| s.binding != incoming.binding)
+            {
+                return error(
+                    "authority_refused",
+                    "missing or wrong immutable hosted run authority; legacy restore is not activation",
+                    403,
+                );
+            }
+        } else if stored.is_some() {
+            return error(
+                "authority_refused",
+                "hosted run requires verified gateway identity",
+                403,
+            );
+        }
         if path == "/v1/intake" {
             let request = match parse::<Intake>(body) {
                 Ok(r) => r,
@@ -219,10 +325,11 @@ impl SummonRun {
                 }
                 return Response::from_json(&run.reply(None, true));
             }
-            let run = match Run::intake(request) {
+            let mut run = match Run::intake(request) {
                 Ok(r) => r,
                 Err(e) => return refusal(e),
             };
+            run.authority = authority;
             if !self.save(&run, true)? {
                 return error(
                     "state_limit",
@@ -240,6 +347,9 @@ impl SummonRun {
         };
         if run.task.id != run_id {
             return error("run_mismatch", "object does not own this run", 409);
+        }
+        if action == "authority" {
+            return Response::from_json(&stored);
         }
         if action == "status" {
             return Response::from_json(&run.status());
@@ -336,6 +446,11 @@ impl DurableObject for SummonRun {
         };
         self.state.storage().sql().exec("CREATE TABLE IF NOT EXISTS run(singleton INTEGER PRIMARY KEY CHECK(singleton=1), snapshot TEXT NOT NULL)", None)?;
         self.state.storage().sql().exec("CREATE TABLE IF NOT EXISTS source_metadata(singleton INTEGER PRIMARY KEY CHECK(singleton=1), snapshot TEXT NOT NULL)", None)?;
-        self.apply(&path, &body)
+        let authority = req
+            .headers()
+            .get("x-summon-verified")?
+            .map(|s| serde_json::from_str::<AttributedAuthority>(&s))
+            .transpose()?;
+        self.apply(&path, &body, authority)
     }
 }
