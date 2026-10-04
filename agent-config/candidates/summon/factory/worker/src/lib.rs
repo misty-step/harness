@@ -1,3 +1,4 @@
+mod account;
 mod auth;
 use serde::Deserialize;
 use summon_protocol::authority::{AttributedAuthority, GatewayAction};
@@ -44,6 +45,9 @@ fn route(path: &str) -> Option<(&str, &str)> {
 pub async fn fetch(mut req: Request, env: Env, _ctx: worker::Context) -> worker::Result<Response> {
     let url = req.url()?;
     let path = url.path();
+    if path.starts_with("/v1/admission") {
+        return account::gateway(req, env).await;
+    }
     let hosted = env.var("FACTORY_MODE").is_ok();
     let identity = if hosted {
         let action = match (req.method(), path) {
@@ -60,6 +64,17 @@ pub async fn fetch(mut req: Request, env: Env, _ctx: worker::Context) -> worker:
                 Some("hold") => GatewayAction::Hold,
                 Some("cancel") => GatewayAction::Cancel,
                 Some("metadata") => GatewayAction::Metadata,
+                Some("claim")
+                    if env
+                        .var("FACTORY_MODE")
+                        .is_ok_and(|v| v.to_string() == "hosted") =>
+                {
+                    return error(
+                        "admission_unavailable",
+                        "hosted dispatch requires verified native entitlement and shared finite account/resource/cash admission",
+                        403,
+                    );
+                }
                 Some("claim") => GatewayAction::Claim,
                 Some("observe" | "reconcile") => GatewayAction::NativeFacts,
                 Some("proof") => {
@@ -224,6 +239,7 @@ fn project(path: &str, body: &str) -> worker::Result<Response> {
 #[durable_object]
 pub struct SummonRun {
     state: State,
+    env: Env,
 }
 
 #[derive(Deserialize)]
@@ -433,9 +449,9 @@ impl SummonRun {
     }
 }
 impl DurableObject for SummonRun {
-    fn new(state: State, _env: Env) -> Self {
+    fn new(state: State, env: Env) -> Self {
         // Constructor cannot return errors; create the table in fetch instead.
-        Self { state }
+        Self { state, env }
     }
     async fn fetch(&self, mut req: Request) -> worker::Result<Response> {
         let path = req.path();
@@ -444,6 +460,9 @@ impl DurableObject for SummonRun {
         } else {
             String::new()
         };
+        if path == "/v1/admission" {
+            return account::apply(&self.state, &self.env, &req, &body).await;
+        }
         self.state.storage().sql().exec("CREATE TABLE IF NOT EXISTS run(singleton INTEGER PRIMARY KEY CHECK(singleton=1), snapshot TEXT NOT NULL)", None)?;
         self.state.storage().sql().exec("CREATE TABLE IF NOT EXISTS source_metadata(singleton INTEGER PRIMARY KEY CHECK(singleton=1), snapshot TEXT NOT NULL)", None)?;
         let authority = req

@@ -45,9 +45,11 @@ whole factory is Done.
 | Observation | External effect/product owners read back actual promoted version/health | No native exit/merge/check can substitute for external owner facts |
 
 DO-per-run minimizes the first local implementation and isolates ordered writes.
-The retained design's one factory DO would also own cross-run admission/calendar;
-those are **absent**, not distributed among new competing ledgers. This pilot
-has one Summon authority per run, no global scheduler/capacity authority.
+Cross-run reservations now have one canonical account partition inside the
+existing Worker, `SUMMON_RUNS` binding and `SummonRun` class. It owns budget/usage
+facts only, never replicated phases/sessions. Its new source boundary is
+loopback-fixture-only, not operational hosted admission or a scheduler; existing
+per-run rows and object addresses are untouched.
 
 Project foundations remain a deliberately adopted pinned contract: lean affected
 contract checks plus independent review, isolated immutable preproduction, then
@@ -77,6 +79,93 @@ Their historical proof remains historical; reopening traverses ORIGINAL child
 archives at every depth and cannot replace missing originals with new/unassessed
 semantic equivalents. Old/new catalogs share the same canonical schema and
 reader. Neither omission nor a retained historical pass authorizes current green.
+
+## Shared account admission and typed Jev source seam
+
+`protocol/src/admission.rs` owns one immutable finite account policy, execution
+freezes, cross-run reservations, uncertainty and owner-final usage/attribution.
+The server derives `summon-account-admission-v1:<server-account>`; project, actor,
+instance and caller namespace never split that meter. The prefix cannot collide
+with either existing run prefix. `worker/src/account.rs` persists one canonical
+BLOB in the fresh account object's SQLite table, with no await between final load,
+transition and single commit. No new binding/class/namespace/DO migration or
+legacy row rewrite. Reads/replays do not advance revision.
+
+All `/v1/admission` operations default to HTTP403. ONLY the existing trusted local
+loopback pilot with explicit `FACTORY_ADMISSION_FIXTURE` server policy exercises
+labeled fixtures. ANY `FACTORY_MODE` (including authenticated fixture) refuses
+this fixture boundary; it cannot become a production grant. Actual hosted native
+claim is also OFF until verified entitlement and shared admission are operational.
+Existing local pilot claim and closed hosted/fixture proof contracts are unchanged.
+
+Freezes retain exact immutable task/input hashes, managed revision and original
+route, plus selected harness/provider/model/effort/provider account/native-versus-
+third-party entitlement/runtime compatibility/capabilities/approval scope/policy.
+Dedicated finite subscription quota, API USD micros, resource usage/capacity and
+resource USD micros have separate exact-account/unit/windows. Paid plan existence,
+published maxima, mixed/lagged billing and unsupported authority cannot reserve.
+No implicit account/provider/model fallback or list-price-equivalent cash. Policy
+replacement cannot silently reset retained usage. Grants expire for NEW admission,
+never release pending/uncertain outcomes. Stable IDs reject changed requests and
+alternate-ID resends. Only independently justified original outcome-owner final /
+proven-not-started facts may settle; a permission/actor string is NOT that verifier.
+The current plaintext outcome-source assertions are explicitly fixture-only.
+Actual overrun receipts/response costs remain retained and block new admissions,
+not truncated to an estimate. API debit covers the maximum of reserved/owner-final
+usage and every known original response cost, irrespective of arrival order, ONLY
+for requests whose immutable meter set contains the queried meter. A distinct
+non-owning API meter is neither charged nor held by another account's unknown
+cost. Shared resource/cash meters still aggregate every request that owns them;
+physically duplicated meter aliases remain forbidden. A
+zero final/not-started receipt cannot erase a later positive cost; original receipts
+remain immutable. Missing response cost is not zero: only an independently verified
+original `owner_final` actual figure on that exact meter reconciles it, including
+genuine actual zero or positive usage, before or after the raw response. A retained
+`proven_not_started` zero receipt is not that billing fact; missing-cost observations
+keep the owning API meter held in either order, without rewriting receipt/response
+or poisoning foreign meters. No positive minimum or temporal ledger is invented.
+Admission funds the actual snapshot plus each
+reservation's still-recordable bounded plan/response/failure, uncertainty and
+final/not-started usage, including worst allowed JSON escaping and revision growth.
+Recording consumes only that operation's remaining components; every competitor's
+room remains funded, not charged twice or borrowed via a raw-byte bypass. A late
+original Jev response retains its slot even after failure/final reconciliation.
+This projection is derived from canonical facts, never persisted as a second byte
+ledger. Full account history conservatively stops new acceptance rather than
+silently pruning stable IDs. Budget operations never mutate managed run state.
+
+`protocol/src/judgment.rs` uses the canonical fleet OpenRouter Decisions wire
+`https://openrouter.ai/api/alpha/decisions`, pinned `typesafe/jev-1.13`, with one
+Choice among code-eligible actions and two independent Noul context/uncertainty
+judgments. Finite API/resource reservation is necessary even to plan. Cache keys
+bind the original reservation/operation/seat IDs plus exact model/questions/task/
+input/revision/frozen policy/eligible choices, not read timestamps or unrelated
+busy-account writes. Equal Seat values never transfer another operation's cache
+or outcome attribution. Historical unbound request/key/response bytes stay intact;
+only their explicitly stored reservation owner can replay equivalent state. Pending/failed decisions
+are retained, never automatically resent; changed revision requires reconciliation.
+The typed failure itself is durable uncertainty and advances revision independently
+of all eight original reference slots; neither final nor response removes its
+recording allowance. Failure/response replays retain original facts and references.
+JSON null is outside the accepted raw-response domain: it records the existing
+`malformed` failure instead, durably across SQLite reload/restart with one revision
+advance and idempotent replay. It never replaces an original non-null response;
+non-null malformed/missing-cost observations remain immutable, not zero or disposable,
+and the independent late-response slot and owner-final cost reconciliation remain.
+Finalized operations cannot supply new advice, including a late positive response
+within the original ceiling. Raw response model/usage/`usage.cost` is immutable; decimal actual USD rounds UP
+to budget micros without a list-price estimate. Missing/invalid cost, unsupported
+model, malformed/out-of-set/tied answers, absent confidence or stale revision
+escalates. Noul values remain probabilities (no fabricated confidence). Advice
+cannot execute, release budget, override receipts or authorize tools. No domain
+confidence threshold/evaluation or automatic effect is invented.
+
+This checkpoint contains NO provider HTTP transport, secret reads, paid calls or
+actual model inference; local response/usage/cost fixtures prove consumption, not
+model accuracy or live cost. Native dispatch consumption, production owner-fact /
+receipt-source verification and grant renewal remain unfinished and default-OFF.
+Actual R2 packet scope/restore and compatible native execution remain separate
+commissioned gaps. Root owns review/adoption/deployment of this source.
 
 ## Authenticated gateway boundary
 
