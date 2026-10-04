@@ -22,6 +22,17 @@ struct Control {
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() {
+    let args: Vec<String> = std::env::args().skip(1).collect();
+    if args.first().is_some_and(|a| a == "factory") {
+        match summon_http_client::cli(&args[1..]) {
+            Ok(value) => println!("{value}"),
+            Err(error) => {
+                eprintln!("{}", json!({"error":error.to_string()}));
+                std::process::exit(1);
+            }
+        }
+        return; // HTTP outcomes are not native ownership/delivery facts
+    }
     if let Err(error) = run().await {
         eprintln!(
             "{}",

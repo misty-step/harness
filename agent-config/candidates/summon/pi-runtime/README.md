@@ -1,10 +1,13 @@
 # summon-pi-runtime — standalone native Pi candidate
 
 Rust native start/resume/observe/abort/owned-exit boundary. It depends on portable
-`../factory/protocol` (`summon-protocol`), not Mage. It implements the shared
+`../factory/protocol` (`summon-protocol`), not Mage's spool or executable. Its
+optional explicit HTTP CLI branch shares the owned stateless transport primitive
+under `../../mage/factory-http`; the native engine remains independent.
+It implements the shared
 `RuntimeAdapter` trait and also exposes async `NativePi` for live cancellation.
-No copied TaskSpec/run structs, phase store, scheduler or job database. Shared
-factory source checkpoint `df3a99a` + fix `4ec17c5` is composed read-only here.
+No copied TaskSpec/run structs, phase store, scheduler or job database. Canonical factory source is composed read-only, frozen at Core268 for this
+client slice; later Root imports do not authorize local schema/dependency edits.
 DO remains the single run authority; native Pi owns its transcript and receipt
 facts. The active kernel is not a full factory or a verified deployment.
 
@@ -107,6 +110,20 @@ a `tokio::select!` read future preserves consumed partial bytes. LF-only, UTF-8,
 parsing a truncated tail as a fresh command/observation. The synchronous
 trait's blocking invoke cannot itself multiplex control; use async `NativePi`
 or CLI stdin for live cancellation.
+
+## Explicit canonical remote HTTP client
+
+`summon-pi-runtime factory CONFIG read RUN_ID status|view|packet|authority` and
+`summon-pi-runtime factory CONFIG send RUN_ID intake|input|hold|cancel|claim|observe|reconcile|metadata BODY.json`
+branch BEFORE native startup. They use
+[the shared HTTP consumer](../../mage/factory-http/README.md), not a second
+runtime, ledger or authority. TLS/requested scope/server-attributed response
+binding are transport guards, not native account/capability/budget admission.
+No claim-to-invoke, observation auto-submit, native ACK inference, cancellation
+side effect, login, secret reader, profile/loadout change or fallback occurs.
+Preserve original command IDs/bytes/revision when HTTP acceptance is unknown;
+read/reconcile explicitly. Real deployed/client/grant verification belongs to Root.
+The original local adapter and stdin cancellation contract remain unchanged.
 
 ## Observed checks and remaining proof
 
