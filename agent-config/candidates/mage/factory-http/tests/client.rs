@@ -6,7 +6,7 @@ use std::{
     net::{TcpListener, TcpStream},
     process::Command,
     sync::{
-        atomic::{AtomicUsize, Ordering},
+        atomic::{AtomicBool, AtomicUsize, Ordering},
         Arc,
     },
     thread,
@@ -507,6 +507,156 @@ fn both_owned_cli_read_paths() -> Result<()> {
         assert_eq!(value["native_ack"], "not_inferred");
         assert_eq!(value["native_execution"], "not_invoked");
         assert_eq!(value["task_admission"], "not_inferred");
+    }
+    Ok(())
+}
+
+#[test]
+#[ignore = "explicit actual Mage/Pi CLI paths; no native Pi/model launched"]
+fn both_owned_cli_write_paths() -> Result<()> {
+    let original =
+        b"{ \"input_id\":\"immutable-steer\", \"text\":\"LF and Unicode \\u2028 retained\" }\n";
+    let assertion = "FACTORY_CLI_FIXTURE_MISSING_ASSERTION";
+    for name in ["MAGE_BIN", "PI_RUNTIME_BIN"] {
+        let bin = std::env::var(name).expect("provide exact built CLI path");
+        let dir = tempfile::tempdir()?;
+        let cfg = dir.path().join("client.json");
+        let body = dir.path().join("original.json");
+        std::fs::write(&body, original)?;
+        for case in ["accepted", "missing-assertion", "wrong-scope", "redirect", "lost"] {
+            // This listener catches forbidden connections and, for a lost
+            // reply, stays open until the CLI exits so every resend is counted.
+            let trap = TcpListener::bind("127.0.0.1:0")?;
+            trap.set_nonblocking(true)?;
+            let trap_origin = format!("http://{}", trap.local_addr()?);
+            let count = Arc::new(AtomicUsize::new(0));
+            let finished = Arc::new(AtomicBool::new(false));
+            let c = count.clone();
+            let (origin, handle) = if case == "missing-assertion" {
+                (trap_origin, None)
+            } else if case == "lost" {
+                let listener = trap.try_clone()?;
+                let done = finished.clone();
+                let h = thread::spawn(move || {
+                    let until = Instant::now() + Duration::from_secs(6);
+                    loop {
+                        match listener.accept() {
+                            Ok((mut stream, _)) => {
+                                c.fetch_add(1, Ordering::SeqCst);
+                                let (head, body) = request(&mut stream);
+                                assert!(head.starts_with(
+                                    "POST /v1/runs/cf1:client-fixture/input HTTP/1.1"
+                                ));
+                                assert_eq!(body, original);
+                                run()
+                                    .input(serde_json::from_slice(&body).unwrap())
+                                    .unwrap();
+                                // The fixture accepted the input, then lost the reply.
+                                drop(stream);
+                            }
+                            Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => {
+                                if done.load(Ordering::SeqCst) {
+                                    break;
+                                }
+                                assert!(Instant::now() < until, "CLI did not finish");
+                                thread::sleep(Duration::from_millis(5));
+                            }
+                            Err(e) => panic!("fixture accept failed: {e}"),
+                        }
+                    }
+                });
+                (trap_origin, Some(h))
+            } else {
+                let (origin, h) = once(move |mut stream| {
+                    c.fetch_add(1, Ordering::SeqCst);
+                    let (head, body) = request(&mut stream);
+                    assert!(head.starts_with("POST /v1/runs/cf1:client-fixture/input HTTP/1.1"));
+                    assert_eq!(body, original);
+                    if case == "redirect" {
+                        response(
+                            &mut stream,
+                            302,
+                            &format!("Location: {trap_origin}/credential-trap\r\n"),
+                            b"{}",
+                        );
+                    } else {
+                        let mut returned = binding();
+                        if case == "wrong-scope" {
+                            returned.project_id = "other-project".into();
+                        }
+                        let mut accepted = run();
+                        accepted
+                            .input(serde_json::from_slice(&body).unwrap())
+                            .unwrap();
+                        response(
+                            &mut stream,
+                            200,
+                            &scope(returned),
+                            &serde_json::to_vec(&accepted.reply(None, false)).unwrap(),
+                        );
+                    }
+                });
+                (origin, Some(h))
+            };
+            std::fs::write(
+                &cfg,
+                serde_json::to_vec(&json!({
+                    "origin":origin,"binding":binding(),"loopback_fixture":true,
+                    "assertion_env":if case == "missing-assertion" { Some(assertion) } else { None }
+                }))?,
+            )?;
+            let out = Command::new(&bin)
+                .env_remove(assertion)
+                .args([
+                    "factory",
+                    cfg.to_str().unwrap(),
+                    "send",
+                    "cf1:client-fixture",
+                    "input",
+                    body.to_str().unwrap(),
+                ])
+                .output()?;
+            finished.store(true, Ordering::SeqCst);
+            if let Some(h) = handle {
+                h.join().unwrap();
+            }
+            assert_eq!(
+                count.load(Ordering::SeqCst),
+                if case == "missing-assertion" { 0 } else { 1 },
+                "{name}:{case}"
+            );
+            assert_eq!(
+                trap.accept().unwrap_err().kind(),
+                std::io::ErrorKind::WouldBlock,
+                "{name}:{case}"
+            );
+            if case == "accepted" {
+                assert!(
+                    out.status.success(),
+                    "{name}:{case}: {}",
+                    String::from_utf8_lossy(&out.stderr)
+                );
+                let value: Value = serde_json::from_slice(&out.stdout)?;
+                assert_eq!(value["gateway"]["body"]["run"]["revision"], 2);
+                assert!(value["gateway"]["body"]["dispatch"].is_null());
+                assert_eq!(value["native_ack"], "not_inferred");
+                assert_eq!(value["native_execution"], "not_invoked");
+                assert_eq!(value["task_admission"], "not_inferred");
+            } else {
+                assert!(!out.status.success(), "{name}:{case}");
+                assert!(out.stdout.is_empty(), "{name}:{case}");
+                let value: Value = serde_json::from_slice(&out.stderr)?;
+                let error = value["error"].as_str().unwrap();
+                let expected = if case == "missing-assertion" {
+                    "named owner assertion unavailable"
+                } else {
+                    // Both CLI wrappers print only the outer error context.
+                    "acceptance UNKNOWN"
+                };
+                assert!(error.contains(expected), "{name}:{case}: {error}");
+                assert!(value.get("native_delivery").is_none());
+            }
+        }
     }
     Ok(())
 }
