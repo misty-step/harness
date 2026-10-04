@@ -10,6 +10,8 @@ import { openNodeSqliteDatabase } from '@earendil-works/pi-durable/storage/sqlit
 import { SqliteStorage } from '@earendil-works/pi-durable/storage/sqlite';
 import { installMage } from './durable.mjs';
 import { processBroker } from './local-broker.mjs';
+import { nativeStageContext } from './native-stage.mjs';
+import { installNativeFinalGuard } from './native-final-guard.mjs';
 
 const [configPath,binary]=process.argv.slice(2);
 const config=JSON.parse(readFileSync(configPath,'utf8'));
@@ -22,15 +24,19 @@ const {ModelRuntime}=await import(nativeEntry.href);
 const nativeAiManifest=findPackageJSON('@earendil-works/pi-ai',nativeEntry.href);
 if(!nativeAiManifest) throw new Error('native Models resource owner unavailable');
 const nativeAi=JSON.parse(readFileSync(nativeAiManifest,'utf8'));
-const {cleanupSessionResources}=await import(new URL(nativeAi.main,pathToFileURL(nativeAiManifest)).href);
+const nativeApi=await import(new URL(nativeAi.main,pathToFileURL(nativeAiManifest)).href);
+const {cleanupSessionResources}=nativeApi;
 const native=await ModelRuntime.create({allowModelNetwork:false});
 if(!native.isUsingSubscription('openai-codex')) throw new Error('unsupported_route: existing native included-subscription binding unavailable');
+let guardReady=false;
 const models=new Proxy(native,{get(target,key){
   if(key==='getModel') return (provider,id)=>provider==='openai-codex'&&id==='gpt-6.1-sol'?target.getModel(provider,id):undefined;
   if(key==='streamSimple') return (model,messages,options)=>{
+    if(!guardReady)throw new Error('native_final_guard_required: inspection only');
     if(model.provider!=='openai-codex'||model.id!=='gpt-6.1-sol') throw new Error('unsupported_route: no cash/model/account fallback');
     return target.streamSimple(model,messages,{...options,maxRetries:0});
   };
+  if(['fetchDeferred','cancelDeferred','streamDeferred','generateImages','classify'].includes(key))return()=>{throw new Error('native_staging_bypass_unavailable');};
   const value=Reflect.get(target,key); return typeof value==='function'?value.bind(target):value;
 }});
 for(const instance of config.instances) if(!models.getModel(instance.provider,instance.model)) throw new Error('unsupported_route: exact native model unavailable');
@@ -40,11 +46,16 @@ const database=await openNodeSqliteDatabase(join(config.state_dir,'engine.sqlite
 // The upstream Node helper chooses NORMAL. This local host explicitly needs FULL.
 await database.exec('PRAGMA synchronous=FULL');
 const harness=await Harness.open(await SqliteStorage.open(database),{models,registry,settings:{retry:{enabled:false},stream:{maxRetries:0,transport:'sse'},compaction:{enabled:false,backgroundTokens:0},toolExecution:'sequential'}},ctx);
-await mage.attach(harness,ctx);
+const binding=await mage.attach(harness,ctx);
+if(config.native_staging) {
+  const contextFor=await nativeStageContext(harness,binding,config);
+  installNativeFinalGuard(native,{contextFor,admit:processBroker(binary,configPath,'native-admit'),toolsApi:nativeApi});
+  guardReady=true;
+}
 // Reading startup state does not resume possibly sent work. Operator must submit
 // a supported original input or explicitly request resume after reconciliation.
 const emit=value=>process.stdout.write(`${JSON.stringify(value)}\n`);
-emit({event:'ready',engine:'pi-durable',version:'1.0.2',scheduling:(await harness.inspect(ctx)).scheduling});
+emit({event:'ready',engine:'pi-durable',version:'1.0.2',scheduling:(await harness.inspect(ctx)).scheduling,native_execution:guardReady?'final-guard-installed-no-authority-inferred':'inspection-only'});
 let buffer=Buffer.alloc(0), closing=false;
 const pending=new Set();
 async function close(){
@@ -56,6 +67,8 @@ async function close(){
 }
 const respond=async record=>{
   try {
+    if(record.action==='compact')throw new Error('native_staging_paid_compaction_refused');
+    if(['submit','steer','completion','wait','cancel','resume'].includes(record.action)&&!guardReady)throw new Error('native_final_guard_required: no model send');
     if(record.action==='resume') {mage.assertProgress();harness.resume();return emit({id:record.id,result:{scheduling:'running'}});}
     const result=await mage.command(record,ctx);emit({id:record.id,result});
   }catch(error){emit({id:record.id,error:String(error)});}

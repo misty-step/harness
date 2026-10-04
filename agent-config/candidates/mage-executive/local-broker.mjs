@@ -1,10 +1,11 @@
 // Local-only bridge to the Rust capability broker. Never load on Cloudflare.
 import { spawn } from 'node:child_process';
-export function processBroker(binary, configPath) {
+export function processBroker(binary, configPath, command='tool') {
+  if(!['tool','native-admit'].includes(command))throw new Error('unsupported local broker command');
   return (request, signal) => new Promise((resolve,reject) => {
     const stdio = ['pipe','pipe','pipe'];
     if (process.env.MAGE_OWNER_FD === '3') stdio.push(3);
-    const child = spawn(binary,['tool',configPath],{stdio});
+    const child = spawn(binary,[command,configPath],{stdio});
     const output=[]; let bytes=0, error='', exceeded=false, aborted=false;
     const stop = () => { aborted=true; child.kill('SIGTERM'); };
     if (signal?.aborted) stop(); else signal?.addEventListener('abort',stop,{once:true});

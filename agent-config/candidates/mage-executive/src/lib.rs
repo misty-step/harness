@@ -16,6 +16,7 @@ use std::{
 
 pub const MAX_FRAME: usize = 512 * 1024;
 pub mod mail;
+pub mod native_guard;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -69,6 +70,7 @@ pub struct Config {
     pub adapter: PathBuf,
     /// Existing supported credential/model consumer, never a second agent loop.
     pub native_models_entry: PathBuf,
+    pub native_staging: Option<native_guard::NativeStaging>,
     pub instances: Vec<Instance>,
     /// Opaque canonical config, decoded by its ONE owning HTTP library. This
     /// avoids copying fields when Relay adds a supported credential transport.
@@ -163,6 +165,13 @@ impl Config {
                     "invalid environment name"
                 );
             }
+        }
+        if let Some(stage) = &self.native_staging {
+            stage.validate()?;
+            ensure!(
+                self.integrations.is_empty() && self.grants.is_empty(),
+                "native staging has no external effect/integration authority"
+            );
         }
         let mut grants = BTreeSet::new();
         for g in &self.grants {
@@ -355,6 +364,13 @@ impl Broker {
             permits(instance.role, &r.capability),
             "wrong_role_capability_refused"
         );
+        if config.native_staging.is_some() {
+            ensure!(
+                native_guard::stage_tools(instance.role)
+                    .contains(&format!("mage_{}", r.capability)),
+                "native_stage_capability_refused"
+            );
+        }
         ensure!(
             serde_json::to_vec(&r.arguments)?.len() <= MAX_FRAME / 2,
             "tool arguments exceed bound"

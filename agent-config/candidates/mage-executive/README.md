@@ -119,6 +119,7 @@ already created mode 0700, no secret values in configuration):
   "node": "/usr/bin/node",
   "adapter": "/absolute/source/mage-executive/runtime.mjs",
   "native_models_entry": "/absolute/installed/pi-coding-agent/dist/index.js",
+  "native_staging": null,
   "instances": [
     {"id":"coo-staging","role":"coo","instructions":"Own strategy; commission CTO and require independent acceptance.","skills":[],"provider":"openai-codex","model":"gpt-6.1-sol","thinking":"xhigh"},
     {"id":"cto-staging","role":"cto","instructions":"Commission engineers only through Summon; report original evidence and risks.","skills":[],"provider":"openai-codex","model":"gpt-6.1-sol","thinking":"xhigh"}
@@ -142,8 +143,8 @@ with only the existing scoped key environment name. Do not move credentials to c
 "$CARGO_TARGET_DIR/debug/mage-executive" serve /absolute/config.json
 # JSONL stdin / correlated JSONL stdout, concurrent commands supported:
 # {"id":"read-1","action":"view","instance":"coo-staging"}
-# {"id":"original-1","action":"submit","instance":"coo-staging","input_id":"operator-1","text":"..."}
-# {"id":"wait-1","action":"wait","instance":"coo-staging","input_id":"operator-1"}
+# Above configuration is inspection-only: submit/wait/resume refuse model execution.
+# A separately reviewed native_staging handoff is required; see NATIVE_GUARD.md.
 "$CARGO_TARGET_DIR/debug/mage-executive" inspect /absolute/config.json coo-staging
 ```
 
@@ -152,9 +153,12 @@ It uses the existing supported native `ModelRuntime` **only as pi-ai Models/auth
 there is no stock Pi AgentSession, SessionManager, loop or transcript substitute.
 It rejects absent included-subscription binding and any route other than the
 commissioned Codex Sol/xhigh. The local Codex transport is explicit SSE (no websocket/SSE auto-fallback),
-provider and Durable retries are off, automatic compaction off; manual compaction
-uses that same admitted route. Model/admission
-policy must be provided by the shared host before operational inference.
+provider and Durable retries are off, and this local staging host refuses paid
+compaction. Without a separately bound `native_staging` policy it is inspection-only.
+[The final-fetch guard](NATIVE_GUARD.md) preserves the original provider/OAuth/catalog,
+checks the final serialized body/account after callbacks, and asks the owning Rust
+quota/counter gate before every send. Source and synthetic tests are not actual
+selected-account/extra-usage, included-billing or model-send authority.
 
 Local `engine.sqlite` is the actual Durable checkpoint/transcript/inbox authority;
 `broker.sqlite` holds notes and immutable effect intents/receipts only. SQLite uses
@@ -187,7 +191,7 @@ A real local no-model-prompt startup also created the two distinct configured
 Durable instances using the existing installed native Models/auth consumer and
 observed owned close/exit. It is source-staging proof, not deployment or inference.
 A later **real local native Codex** partial path used COO input 19 → CTO input 40 /
-answer 53 → reporter 37 → COO wake input 54 / answer 57. Selected skills and source
+answer 53 → reporter 37 → COO wake submission 55 / message 54 / answer 57. Selected skills and source
 memory were used; the absent canonical factory binding was honestly refused. No
 engineer, external action or independent acceptance was invented. The first walk
 exposed a shutdown defect: the native Models websocket cache outlived Harness close

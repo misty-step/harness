@@ -22,7 +22,7 @@ fn run() -> Result<()> {
     let args = std::env::args().skip(1).collect::<Vec<_>>();
     ensure!(
         args.len() >= 2,
-        "usage: mage-executive serve|tool|inspect|agentmail-read CONFIG [INSTANCE]"
+        "usage: mage-executive serve|tool|inspect|agentmail-read|native-admit CONFIG [INSTANCE]"
     );
     let path = fs::canonicalize(&args[1])?;
     let config = Config::load(&path)?;
@@ -38,6 +38,22 @@ fn run() -> Result<()> {
             let request: ToolRequest = serde_json::from_slice(&bytes)?;
             let result = Broker::open(&config)?.execute(&config, &request)?;
             println!("{}", serde_json::to_string(&result)?);
+        }
+        "native-admit" => {
+            ensure!(args.len() == 2, "unexpected native admission arguments");
+            let mut bytes = Vec::new();
+            std::io::stdin()
+                .take((MAX_FRAME + 1) as u64)
+                .read_to_end(&mut bytes)?;
+            ensure!(
+                bytes.len() <= MAX_FRAME,
+                "native admission frame exceeds bound"
+            );
+            let request: mage_executive::native_guard::Request = serde_json::from_slice(&bytes)?;
+            println!(
+                "{}",
+                Broker::open(&config)?.native_admit(&config, &request)?
+            );
         }
         "agentmail-read" => {
             ensure!(args.len() == 2, "unexpected mail arguments");

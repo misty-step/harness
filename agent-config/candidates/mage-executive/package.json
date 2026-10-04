@@ -3,7 +3,10 @@
   "private": true,
   "type": "module",
   "engines": { "node": ">=26.8.1" },
-  "scripts": { "test": "node --test --test-concurrency=1 tests/durable.test.mjs tests/local-lifecycle.test.mjs" },
+  "scripts": {
+    "test": "node --test --test-concurrency=1 tests/durable.test.mjs tests/local-lifecycle.test.mjs",
+    "test:native-guard": "node --test --test-concurrency=1 tests/native-final-guard.test.mjs"
+  },
   "dependencies": {
     "@earendil-works/chord": "1.0.2",
     "@earendil-works/pi-ai": "1.0.2",
