@@ -29,6 +29,21 @@ Missing credentials fail the review rather than silently skip it.
 All scratch is run-scoped under `~/.cache/tmp` and removed on ordinary exit; interrupted runs may leave an
 owned directory. Remove only that directory once its process has ended.
 
+## Source-only factory candidate
+
+The fixed gate does not build the Rust Cloudflare/native-runtime candidates or
+claim end-to-end factory acceptance. Their source-owned READMEs specify separate
+locked Rust builds, explicit local workerd/SQLite proof and native consumer walks.
+Run those affected checks against the exact candidate and retain their receipts
+before source landing. The zero-network Pi SDK relay fixture proves SDK/transport
+behavior, not authenticated provider execution, live CTO wake or COO delivery.
+Hosted auth, cloud-native harness execution, deep Jev/OpenRouter, shared
+subscription/cash admission, restore and release effects remain separate
+unverified/unimplemented boundaries. Full hosted delivery is commissioned within
+existing authority, not held by a blanket activation pause; see
+[ADR-010](adr/010-local-cto-summon-factory.md).
+Standalone workerd proof is explicit, not a silently skipped ordinary Bun test.
+
 ## Observable contracts
 
 - `scripts/references.test.ts` checks tracked Markdown file targets and canonical
@@ -91,8 +106,10 @@ owned directory. Remove only that directory once its process has ended.
      normally without `--admin` or a human approval gate. Deploy the merged
      revision through both Pi/OMP installers for shared changes, restart and
      exercise the affected installed path. Record revision, target and observed
-     production sanity result in the PR and relevant existing routed ticket
-     (Habitat where used; Misty Step remains Linear).
+     production sanity result in the PR and relevant existing project
+     commitment/ticket owner. The factory pilot reports to its existing Glass
+     commission and follows current Glass/Habitat decisions; this does not
+     authorize re-enabling retired Linear readers.
   3. Delete only the owned merged local/origin branch, remove only the owned
      worktree without force and resolve its lease after evidence inspection;
      preserve `ws pull` before evidence-gated `ws down`. Leave the canonical

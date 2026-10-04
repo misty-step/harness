@@ -1,0 +1,9 @@
+{
+  "name": "summon-factory-local-proof",
+  "private": true,
+  "scripts": {
+    "dev": "wrangler dev --local --ip 127.0.0.1",
+    "proof": "node --test --test-concurrency=1 tests/workerd.proof.mjs"
+  },
+  "devDependencies": { "wrangler": "4.135.0" }
+}

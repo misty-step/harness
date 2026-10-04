@@ -19,6 +19,11 @@ Intent: [USER_STORIES.md](USER_STORIES.md). Vocabulary, boundaries and
 invariants: [DOMAIN.md](DOMAIN.md). Decisions: [docs/adr/](docs/adr/). Agent
 rules: [AGENTS.md](AGENTS.md).
 
+Approved reversible groundwork: [summon revised design](docs/design/multi-harness-r2.html)
+and [source-only dispatch contract](agent-config/candidates/summon/README.md).
+Native adapters and durable local task state change no installed runtime or
+dispatch defaults. Private lab publication and matched evals remain separate.
+
 ## Setup
 
 ```sh
@@ -194,6 +199,20 @@ started at `v0.1.0`; old component tags remain under
 `legacy/<component>/<tag>` so their versions cannot collide. Historical
 component changelogs remain in place; new release notes belong at the root.
 Optional LLM synthesis is disabled, so publishing requires no model credential.
+
+## Factory target and current source candidate
+
+[ADR-010](docs/adr/010-local-cto-summon-factory.md) distinguishes the commissioned
+full Cloudflare-hosted factory from the current local CTO/Summon/Mage source.
+The target includes cloud-native harness execution, deep Jev/OpenRouter and
+authenticated Hermes/Mage/Pi/Grok Bot clients; mirrodin is not its runtime backend. The
+[Cloudflare candidate](agent-config/candidates/summon/factory/README.md) is a Rust
+run/input/proof kernel, not the delivered end-to-end factory. Its local protocol,
+proof commands and unexercised/approval boundaries are explicit; installers do
+not select it. Summon owns runs, native runtimes own sessions, Mage owns executive
+delivery only, and Glass owns commitments rather than chat or agent control.
+No hosted activation, Jev integration, scheduler or external release effect is
+implied by source integration or merge.
 
 ## Migration and related tools
 

@@ -1,0 +1,18 @@
+[package]
+name = "summon-worker"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+worker = "=0.8.5"
+# Keep workers-rs companion macros/sys and bindgen at its tested release set.
+worker-macros = "=0.8.5"
+worker-sys = "=0.8.5"
+wasm-bindgen = "=0.2.125"
+serde.workspace = true
+serde_json.workspace = true
+summon-protocol.workspace = true
