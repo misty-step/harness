@@ -139,6 +139,76 @@ fn canonical_storage_reserves_terminal_bytes_and_restores_legacy_replays() {
 }
 
 #[test]
+fn old_unreserved_saturation_remains_readable_but_does_not_gain_terminal_room() {
+    let mut run = Run::intake(Intake {
+        task: task(),
+        initial_input_id: "initial".into(),
+    })
+    .unwrap();
+    let claim = ClaimRequest {
+        claim_id: "old-claim".into(),
+        runner_id: "runner".into(),
+        expected_revision: run.revision,
+    };
+    let d = run.claim(claim.clone()).unwrap().0;
+    // Reproduce the old, unreserved admission, not the new Worker admission path.
+    for n in 0..8 {
+        run.input(InputRequest {
+            input_id: format!("old-{n}"),
+            text: "x".repeat(64000),
+        })
+        .unwrap();
+    }
+    let mut legacy = serde_json::to_value(&run).unwrap();
+    legacy["claims"]["old-claim"] = serde_json::json!({"request":claim,"dispatch":d});
+    let old_bytes = serde_json::to_vec(&legacy).unwrap();
+    assert!(old_bytes.len() <= storage::MAX_BYTES);
+    let mut restored = storage::decode(&old_bytes).unwrap();
+    let before = restored.status();
+    assert_eq!(before.inputs.len(), 9);
+    assert!(!storage::fits(
+        &restored,
+        &storage::encode(&restored).unwrap(),
+        true
+    ));
+    restored
+        .observe(
+            ObserveRequest {
+                event_id: "legacy-final".into(),
+                input_id: d.input_id,
+                attempt_id: d.attempt_id,
+                text_sha256: d.text_sha256,
+                expected_revision: restored.revision,
+                observation: Observation::Answered {
+                    receipt: NativeReceipt {
+                        session: NativeSession {
+                            runtime: "pi".into(),
+                            host: "fixture".into(),
+                            session_id: "legacy".into(),
+                            session_file: "/fixture/session".into(),
+                        },
+                        native_message_ref: "fixture-user".into(),
+                        evidence_ref: "fixture-native".into(),
+                    },
+                    text: "a".repeat(64000),
+                    answer_ref: "fixture-answer".into(),
+                },
+            },
+            false,
+        )
+        .unwrap();
+    assert!(
+        !storage::fits(&restored, &storage::encode(&restored).unwrap(), false),
+        "old unsafe saturation cannot be retrospectively promised completion"
+    );
+    assert_eq!(
+        storage::decode(&old_bytes).unwrap().status(),
+        before,
+        "original accepted inputs are retained, never silently migrated/truncated"
+    );
+}
+
+#[test]
 fn guards_refuse_without_mutation_and_zero_checks_never_verify() {
     let mut run = Run::intake(Intake {
         task: task(),
