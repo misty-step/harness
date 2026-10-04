@@ -294,7 +294,7 @@ test('exact source: local DO input/claim races, native ambiguity/cancel, scoped 
     }
     // Independent metadata storage has its own atomic bound and cannot steal it.
     const beforeMetadata = current;
-    const hugeMetadata = { ...structuredClone(metadata), evidence: Array.from({length: 3000}, () => evidence('trace', 'pi', 'synthetic oversized metadata')) };
+    const hugeMetadata = { ...structuredClone(metadata), evidence: Array.from({length: 3000}, () => structuredClone(requiredEvidence[0])) };
     await api(p + '/metadata', { expected_run_revision: current.revision, expected_metadata_sha256: null, metadata: hugeMetadata }, 413);
     assert.deepEqual(await api(p + '/status'), beforeMetadata);
     const message = (event_id, observation) => ({ event_id, input_id: d.input_id, attempt_id: d.attempt_id, text_sha256: d.text_sha256, expected_revision: current.revision, observation });
