@@ -164,6 +164,13 @@ pub async fn fetch(mut req: Request, env: Env, _ctx: worker::Context) -> worker:
     }
     let mut response = stub.fetch_with_request(internal).await?;
     if let Some(identity) = identity {
+        // Fetched DO response headers have an immutable guard. Preserve the body/
+        // status while replacing only the header collection with mutable copies.
+        let headers = Headers::new();
+        for (name, value) in response.headers().entries() {
+            headers.append(&name, &value)?;
+        }
+        response = response.with_headers(headers);
         response.headers_mut().set(
             "x-summon-authority",
             &serde_json::to_string(&identity.authority.binding)?,
