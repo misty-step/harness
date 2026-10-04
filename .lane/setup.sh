@@ -8,4 +8,5 @@ printf '%s\n' \
   'Keep credentials at their native owner; do not copy credentials or select a provider fallback.' \
   'Use config.extension=/absolute/source/agent-config/candidates/summon/pi-runtime/durable-rpc.ts.' \
   'Port and exercise the Rust owner/DO composition on runner-01 before enabling dispatch.' \
+  'Port evidence/src/native.rs to read durable SQLite receipts; it currently accepts plain Pi JSONL only.' \
   'Port this slice to private misty-step/summon after access is available; compare protocol, authentication, context loading and dependency pins.'

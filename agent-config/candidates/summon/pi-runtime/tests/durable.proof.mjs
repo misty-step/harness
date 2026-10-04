@@ -75,6 +75,23 @@ for (const policy of ["safe", "unsafe"]) {
 	});
 }
 
+test("reopen a binding without admission stays uncertain and never dispatches", async () => {
+	const root = mkdtempSync(join(tmpdir(), "summon-uncertain-")), input = fixture(root);
+	const options = { ...input, resume: false, provider: "openai-codex", model: "fixture", effort: "off", cwd: root,
+		instructions: [], models: createSummonModels(), tools: pilotTools(root) };
+	let runtime = await openRuntime(options);
+	try {
+		assert.equal((await runtime.receipt(input)).state, "absent");
+		await runtime.conversation.commit((tx) => tx.appendEntry(runtime.conversation.id, { kind: "summon.pi.input.v1", data: input }), context);
+		await runtime.close();
+		runtime = await openRuntime({ ...options, resume: true });
+		assert.equal((await runtime.receipt(input)).state, "uncertain");
+		const state = await runtime.state();
+		assert.equal(state.isStreaming, false); assert.equal(state.pendingMessageCount, 0);
+		assert.equal((await runtime.conversation.entries({}, 100, undefined, context)).items.some((entry) => entry.kind === "pi.user"), false);
+	} finally { await runtime.close(); rmSync(root, { recursive: true, force: true }); }
+});
+
 test("RPC bridge dispatch, durable observations, duplicate refusal and reopen", { timeout: 15000 }, async () => {
 	const root = mkdtempSync(join(tmpdir(), "summon-rpc-"));
 	const input = fixture(root), bridge = fileURLToPath(new URL("../durable-rpc.ts", import.meta.url));
@@ -125,5 +142,12 @@ test("RPC bridge dispatch, durable observations, duplicate refusal and reopen", 
 			instructions: ["changed loadout"], models: createSummonModels(), tools: pilotTools(root) };
 		await assert.rejects(openRuntime(options), /loadout conflict/);
 		await assert.rejects(openRuntime({ ...options, sessionFile: join(root, "missing.sqlite") }), /resume file unavailable/);
+		const foreign = join(root, "foreign.jsonl"), bytes = '{"type":"session","id":"legacy"}\n';
+		writeFileSync(foreign, bytes);
+		await assert.rejects(openRuntime({ ...options, sessionFile: foreign }), /no replacement/);
+		assert.equal(readFileSync(foreign, "utf8"), bytes);
+		writeFileSync(foreign, "");
+		await assert.rejects(openRuntime({ ...options, sessionFile: foreign }), /no replacement/);
+		assert.equal(readFileSync(foreign, "utf8"), "");
 	} finally { rmSync(root, { recursive: true, force: true }); }
 });

@@ -32,7 +32,11 @@ try {
 		const admitted = await runtime.conversation.commit((tx) => tx.submissionByRequest(runtime.conversation.id, input.inputId), context);
 		submission = await runtime.harness.submission(admitted.id, context);
 		runtime.harness.resume();
-	} else submission = await runtime.deliver(input);
+	} else {
+		const [first, concurrent] = await Promise.all([runtime.deliver(input), runtime.deliver(input)]);
+		if (first.id !== concurrent.id) throw new Error("concurrent duplicate created another submission");
+		submission = first;
+	}
 	const duplicate = await runtime.deliver(input);
 	if (duplicate.id !== submission.id) throw new Error("duplicate request created another submission");
 	if (mode === "start") writeFileSync(join(root, "admission.json"), JSON.stringify({ submissionId: submission.id, conversationId: runtime.conversation.id }));

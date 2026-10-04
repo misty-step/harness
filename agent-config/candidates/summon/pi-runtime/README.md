@@ -64,6 +64,9 @@ runner-01 has Pi 0.87.1 and lacks pi-durable. The lane's
 installing it. Private `misty-step/summon` is unavailable; compare its protocol,
 account binding, context loaders and pins when porting this slice. No private
 repository compatibility is claimed.
+The existing `../evidence/src/native.rs` reader accepts plain Pi JSONL, so it
+cannot ingest these SQLite files yet. Port that reader before accepting a full
+evidence packet from this engine. Its current refusal must remain unknown work.
 
 ## Historical plain Pi baseline
 

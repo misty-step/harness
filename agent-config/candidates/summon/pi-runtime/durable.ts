@@ -4,7 +4,7 @@ import { createRegistry, defineEntry, defineExtension, Harness, type ToolRegistr
 import { NodeExecutionEnv } from "@earendil-works/pi-durable/env/node";
 import { openNodeSqliteStorage } from "@earendil-works/pi-durable/storage/sqlite/node";
 import { createHash } from "node:crypto";
-import { existsSync } from "node:fs";
+import { closeSync, existsSync, openSync, readSync } from "node:fs";
 import { Type, type Static } from "typebox";
 import { Parse } from "typebox/value";
 
@@ -30,6 +30,11 @@ export type RuntimeOptions = {
 
 export async function openRuntime(options: RuntimeOptions) {
 	if (options.resume && !existsSync(options.sessionFile)) throw new Error("exact durable resume file unavailable");
+	if (existsSync(options.sessionFile)) {
+		const file = openSync(options.sessionFile, "r"), header = Buffer.alloc(16);
+		try { readSync(file, header, 0, header.length, 0); } finally { closeSync(file); }
+		if (header.toString("ascii") !== "SQLite format 3\0") throw new Error("existing session is not durable SQLite; no replacement");
+	}
 	if (!options.models.getModel(options.provider, options.model)) throw new Error("exact selected model unavailable; no fallback");
 	const registry = createRegistry();
 	const extension = defineExtension({ name: "summon-pilot", tools: options.tools });
@@ -52,16 +57,18 @@ export async function openRuntime(options: RuntimeOptions) {
 			throw new Error("durable runtime/route/loadout conflict; explicit handoff required");
 		}
 
-		async function parseInput(value: unknown) {
+		async function parseInput(value: unknown, bind = false) {
 			const input = Parse(InputSchema, value);
 			if (input.runId !== options.runId || input.sessionId !== options.sessionId || input.sessionFile !== options.sessionFile
 				|| createHash("sha256").update(input.text).digest("hex") !== input.textSha256) throw new Error("exact durable input/session/hash required");
-			const entries = await conversation.entries({}, 10000, undefined, context);
-			if (entries.next) throw new Error("durable input inspection exceeds bound");
-			const prior = entries.items.find((entry) => Binding.is(entry)
-				&& (entry.data?.inputId === input.inputId || entry.data?.attemptId === input.attemptId));
-			if (prior && (!Binding.is(prior) || JSON.stringify(prior.data) !== JSON.stringify(input))) throw new Error("durable input ID conflict");
-			return { input, prior };
+			return conversation.commit(async (tx) => {
+				const entries = await tx.scanEntries({ conversationId: conversation.id }, 10000);
+				if (entries.next) throw new Error("durable input inspection exceeds bound");
+				const prior = entries.items.find((entry) => Binding.is(entry)
+					&& (entry.data?.inputId === input.inputId || entry.data?.attemptId === input.attemptId));
+				if (prior && (!Binding.is(prior) || JSON.stringify(prior.data) !== JSON.stringify(input))) throw new Error("durable input ID conflict");
+				return { input, prior: prior ?? (bind ? await tx.appendEntry(Binding, conversation.id, { data: input }) : undefined) };
+			}, context);
 		}
 		async function receipt(value: unknown) {
 			const { input, prior } = await parseInput(value);
@@ -81,8 +88,7 @@ export async function openRuntime(options: RuntimeOptions) {
 		return {
 			harness, conversation,
 			async deliver(value: unknown) {
-				const { input, prior } = await parseInput(value);
-				if (!prior) await conversation.commit((tx) => tx.appendEntry(Binding, conversation.id, { data: input }), context);
+				const { input } = await parseInput(value, true);
 				// requestId is Summon's immutable input identity, never a new retry UUID.
 				const submission = await conversation.submit({ type: "input", requestId: input.inputId, content: input.text, whenBusy: "reject" }, context);
 				await receipt(input);
