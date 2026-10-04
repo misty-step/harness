@@ -103,6 +103,10 @@ is hashed without following foreign targets. Original source bytes and available
 retained object digests are rechecked. Changed candidates/source/child bindings,
 missing objects and inaccessible originals stay explicit issues. Reopen without
 fresh shared owner views establishes archive integrity only, not current proof.
+Fresh observed-only views omit exporter-owned child refs: reopen reconstructs only
+those absent refs from the original frame and recomputes descendant bindings from
+fresh owner facts, bottom-up. Managed or explicit owner refs are never replaced.
+This removes export-only false staleness, not real source/child changes or gaps.
 No implicit newest packet, replacement session, retry, or promotion to green.
 Export uses one request-scoped graph/catalog and digest-deduplicated retained
 objects, not whole graph/catalog payload clones per node. Prior packet bytes,

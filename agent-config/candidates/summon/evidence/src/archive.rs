@@ -179,6 +179,51 @@ fn issue(node: &str, state: FactState, reference: &str, reason: &str) -> ReadIss
         reason: reason.into(),
     }
 }
+// Fresh observed-only snapshots do not register exporter-owned packet refs.
+// Reconstruct only those absent refs from this ORIGINAL frame, bottom-up, while
+// rebinding descendants to fresh owner facts. Never hydrate managed/explicit refs
+// or copy historical child semantic bindings over a changed current source.
+fn observed_archive_bindings(
+    mut current: VisibilityGraph,
+    archived: &VisibilityGraph,
+) -> Result<VisibilityGraph> {
+    let mut pending: BTreeMap<_, _> = current
+        .records
+        .values()
+        .filter(|r| r.management == Management::ObservedOnly && r.child_packets.is_empty())
+        .filter_map(|r| {
+            archived
+                .records
+                .get(&r.node_id)
+                .filter(|old| {
+                    old.management == Management::ObservedOnly && !old.child_packets.is_empty()
+                })
+                .map(|old| (r.node_id.clone(), old.child_packets.clone()))
+        })
+        .collect();
+    while !pending.is_empty() {
+        let ready: Vec<_> = pending
+            .iter()
+            .filter(|(_, refs)| refs.iter().all(|c| !pending.contains_key(&c.node_id)))
+            .map(|(node, _)| node.clone())
+            .collect();
+        ensure!(
+            !ready.is_empty(),
+            "original observed archive binding cycle refused"
+        );
+        for node in ready {
+            let mut refs = pending.remove(&node).unwrap();
+            for child in &mut refs {
+                child.child_binding_sha256 = current
+                    .records
+                    .get(&child.node_id)
+                    .map(AgentRunAttemptV1::binding_sha256);
+            }
+            current.records.get_mut(&node).unwrap().child_packets = refs;
+        }
+    }
+    Ok(current)
+}
 pub fn reopen(
     archive: &Path,
     digest: &str,
@@ -272,7 +317,10 @@ pub fn reopen(
         }
     }
     let current = match fresh {
-        Some(records) => VisibilityGraph::new(records).map_err(crate::refused)?,
+        Some(records) => observed_archive_bindings(
+            VisibilityGraph::new(records).map_err(crate::refused)?,
+            &archived,
+        )?,
         None => {
             availability.push(issue(&bundle.root, FactState::Uncertain, "fresh_owner_sources", "archive reopened without fresh shared owner views; current semantic binding not established"));
             archived
