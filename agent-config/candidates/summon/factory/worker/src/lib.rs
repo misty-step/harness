@@ -6,7 +6,7 @@ use summon_protocol::visibility::{
 use summon_protocol::*;
 use worker::*;
 
-const MAX_BYTES: usize = 512 * 1024;
+const MAX_BYTES: usize = storage::MAX_BYTES;
 
 fn error(code: &str, message: &str, status: u16) -> worker::Result<Response> {
     Response::from_json(&Refusal {
@@ -157,10 +157,17 @@ impl SummonRun {
             .storage()
             .sql()
             .exec("SELECT snapshot FROM run WHERE singleton = 1", None)?
-            .to_array::<Row>()?;
+            .raw()
+            .collect::<worker::Result<Vec<_>>>()?;
         rows.into_iter()
             .next()
-            .map(|r| serde_json::from_str::<Run>(&r.snapshot).map_err(Error::from))
+            .map(|row| match row.into_iter().next() {
+                Some(SqlStorageValue::Blob(bytes)) => storage::decode(&bytes).map_err(Error::from),
+                Some(SqlStorageValue::String(json)) => {
+                    storage::decode(json.as_bytes()).map_err(Error::from)
+                }
+                _ => Err(Error::from("invalid run snapshot storage type")),
+            })
             .transpose()
     }
     fn metadata(&self) -> worker::Result<Option<RunMetadata>> {
@@ -186,9 +193,9 @@ impl SummonRun {
         self.state.storage().sql().exec("INSERT INTO source_metadata(singleton,snapshot) VALUES(1,?) ON CONFLICT(singleton) DO UPDATE SET snapshot=excluded.snapshot", vec![snapshot.into()])?;
         Ok(true)
     }
-    fn save(&self, run: &Run) -> worker::Result<bool> {
-        let snapshot = serde_json::to_string(run)?;
-        if snapshot.len() > MAX_BYTES {
+    fn save(&self, run: &Run, admission: bool) -> worker::Result<bool> {
+        let snapshot = storage::encode(run).map_err(Error::from)?;
+        if !storage::fits(run, &snapshot, admission) {
             return Ok(false);
         }
         // One synchronous SQLite write is the entire durable commit. No awaits between
@@ -216,10 +223,10 @@ impl SummonRun {
                 Ok(r) => r,
                 Err(e) => return refusal(e),
             };
-            if !self.save(&run)? {
+            if !self.save(&run, true)? {
                 return error(
                     "state_limit",
-                    "run snapshot exceeds 512KiB; no mutation committed",
+                    "canonical snapshot plus reserved native outcomes exceeds 512KiB; no mutation committed",
                     413,
                 );
             }
@@ -302,10 +309,13 @@ impl SummonRun {
             Ok(r) => r,
             Err(e) => return refusal(e),
         };
-        if !replayed && !self.save(&run)? {
+        // Native facts may consume the loss/recovery margin, not the final-answer
+        // reservation. Other writes cannot consume either before acceptance.
+        let admission = !matches!(action, "observe" | "reconcile");
+        if !replayed && !self.save(&run, admission)? {
             return error(
                 "state_limit",
-                "run snapshot exceeds 512KiB; no mutation committed",
+                "canonical snapshot plus reserved native outcomes exceeds 512KiB; no mutation committed",
                 413,
             );
         }

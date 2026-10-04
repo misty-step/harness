@@ -1,5 +1,6 @@
 //! Summon owns ordered input and proof bindings. Native runtimes own execution facts.
 pub mod evidence;
+pub mod storage;
 pub mod visibility;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -316,8 +317,19 @@ pub struct Dispatch {
 }
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 struct ClaimRecord {
-    request: ClaimRequest,
-    dispatch: Dispatch,
+    fingerprint: String,
+    input_index: usize,
+    runner_id: String,
+    // A first dispatch must replay with None even after a session is observed.
+    session_bound: bool,
+}
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+struct ObservationRecord {
+    fingerprint: String,
+    input_index: usize,
+    // Final answer/session/message live in the canonical input/session. Retain
+    // unique historical uncertainty, delivery and receipt references, not copies.
+    fact: Option<Observation>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -432,7 +444,7 @@ pub struct Run {
     pub cancellations: BTreeMap<String, CancelRequest>,
     pub proofs: Vec<ProofRequest>,
     claims: BTreeMap<String, ClaimRecord>,
-    observations: BTreeMap<String, ObserveRequest>,
+    observations: BTreeMap<String, ObservationRecord>,
 }
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Status {
@@ -591,13 +603,29 @@ impl Run {
         nonempty(&request.claim_id)?;
         nonempty(&request.runner_id)?;
         if let Some(old) = self.claims.get(&request.claim_id) {
-            if old.request != request {
+            if old.fingerprint != hash(&request) {
                 return refuse(
                     "claim_conflict",
                     "claim ID already binds different arguments",
                 );
             }
-            return Ok((old.dispatch.clone(), true));
+            let input = &self.inputs[old.input_index];
+            return Ok((
+                Dispatch {
+                    run_id: self.task.id.clone(),
+                    input_id: input.input_id.clone(),
+                    attempt_id: request.claim_id,
+                    runner_id: old.runner_id.clone(),
+                    text: input.text.clone(),
+                    text_sha256: input.text_sha256.clone(),
+                    task: self.task.clone(),
+                    native_session: old
+                        .session_bound
+                        .then(|| self.native_session.clone())
+                        .flatten(),
+                },
+                true,
+            ));
         }
         self.revision(request.expected_revision)?;
         self.held(Action::Dispatch)?;
@@ -623,14 +651,15 @@ impl Run {
                 "resume requires the observed native session",
             );
         }
-        let input = self
+        let input_index = self
             .inputs
-            .iter_mut()
-            .find(|i| i.state == DeliveryState::Queued)
+            .iter()
+            .position(|i| i.state == DeliveryState::Queued)
             .ok_or_else(|| Refusal {
                 code: "nothing_queued".into(),
                 message: "no queued input".into(),
             })?;
+        let input = &mut self.inputs[input_index];
         input.state = DeliveryState::Dispatching;
         input.attempt_id = Some(request.claim_id.clone());
         let dispatch = Dispatch {
@@ -646,8 +675,10 @@ impl Run {
         self.claims.insert(
             request.claim_id.clone(),
             ClaimRecord {
-                request,
-                dispatch: dispatch.clone(),
+                fingerprint: hash(&request),
+                input_index,
+                runner_id: request.runner_id,
+                session_bound: self.native_session.is_some(),
             },
         );
         self.revision += 1;
@@ -658,7 +689,7 @@ impl Run {
     pub fn observe(&mut self, request: ObserveRequest, reconcile: bool) -> Result<bool> {
         nonempty(&request.event_id)?;
         if let Some(old) = self.observations.get(&request.event_id) {
-            if old != &request {
+            if old.fingerprint != hash(&request) {
                 return refuse(
                     "event_conflict",
                     "event ID already binds different native facts",
@@ -822,7 +853,23 @@ impl Run {
                 self.delivery = Some(delivery.clone());
             }
         }
-        self.observations.insert(request.event_id.clone(), request);
+        let fact = match &request.observation {
+            Observation::Answered { .. } => None,
+            // Only the reference can change between ACK observations. Session and
+            // native message are already immutable canonical input facts.
+            Observation::Acknowledged { receipt } => Some(Observation::Acknowledged {
+                receipt: receipt.clone(),
+            }),
+            other => Some(other.clone()),
+        };
+        self.observations.insert(
+            request.event_id.clone(),
+            ObservationRecord {
+                fingerprint: hash(&request),
+                input_index: index,
+                fact,
+            },
+        );
         self.revision += 1;
         Ok(false)
     }

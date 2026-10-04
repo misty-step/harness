@@ -518,6 +518,113 @@ impl AgentRunAttemptV1 {
             }
         }
         if let Some(status) = &self.managed {
+            // Completeness comes from frozen task/native facts, not whatever the
+            // metadata publisher happened to include or descriptive acceptance.
+            let candidate = status.delivery.as_ref().map(|d| &d.workspace_sha256);
+            let coverage = status.coverage_sha256.as_ref();
+            let mut required_issues = Vec::new();
+            let mut required = |kinds: &[EvidenceKind],
+                                reference: &str,
+                                owner: Option<&str>,
+                                bytes: Option<&str>,
+                                label: &str| {
+                let matching: Vec<_> = self
+                    .evidence
+                    .iter()
+                    .filter(|e| {
+                        kinds.contains(&e.kind)
+                            && e.source.reference == reference
+                            && owner.is_none_or(|o| e.source.owner == o)
+                    })
+                    .collect();
+                let current = matching.iter().any(|e| {
+                    e.source.state == FactState::Current
+                        && e.candidate_sha256.as_ref() == candidate
+                        && candidate.is_some()
+                        && e.coverage_sha256.as_ref() == coverage
+                        && coverage.is_some()
+                        && bytes.is_none_or(|b| e.source.sha256.as_deref() == Some(b))
+                });
+                if !current {
+                    required_issues.push(ReadIssue { node_id: self.node_id.clone(),
+                        state: if matching.is_empty() { FactState::Missing } else { FactState::Stale },
+                        reference: reference.into(), reason: format!("required {label} receipt missing, unavailable or not bound to current task delivery") });
+                }
+            };
+            if let Some(delivery) = &status.delivery {
+                required(
+                    &[EvidenceKind::Candidate],
+                    &delivery.evidence_ref,
+                    None,
+                    None,
+                    "complete snapshot",
+                );
+            } else {
+                out.push(ReadIssue {
+                    node_id: self.node_id.clone(),
+                    state: FactState::Missing,
+                    reference: format!("{}/delivery", status.run_id),
+                    reason: "required current complete delivery snapshot missing".into(),
+                });
+            }
+            // Native trace is tied to the actual acknowledged input, not a generic
+            // fresh trace from another run. No observed-only attempt is invented.
+            for input in &status.inputs {
+                if let Some(receipt) = &input.acknowledged {
+                    required(
+                        &[EvidenceKind::Trace],
+                        &receipt.evidence_ref,
+                        Some(&status.task.route.harness),
+                        None,
+                        "native input trace",
+                    );
+                }
+            }
+            for path in &status.task.outputs {
+                let artifact = status
+                    .delivery
+                    .as_ref()
+                    .and_then(|d| d.artifacts.iter().find(|a| &a.path == path));
+                required(
+                    &[EvidenceKind::Deliverable],
+                    path,
+                    None,
+                    artifact.map(|a| a.sha256.as_str()),
+                    "declared output",
+                );
+            }
+            for check in &status.task.checks {
+                let proof = status.proofs.iter().rev().find(|p| {
+                    p.check_id == check.id()
+                        && Some(&p.coverage_sha256) == coverage
+                        && check.issuers().contains(&p.issuer)
+                        && p.verdict == crate::Verdict::Pass
+                });
+                if let Some(proof) = proof {
+                    let kinds = match check {
+                        crate::Check::Command { .. } => {
+                            vec![EvidenceKind::Check, EvidenceKind::Consumer]
+                        }
+                        crate::Check::Review { .. } => vec![EvidenceKind::Review],
+                    };
+                    required(
+                        &kinds,
+                        &proof.evidence_ref,
+                        Some(&proof.issuer),
+                        None,
+                        &format!("task check {}", check.id()),
+                    );
+                } else {
+                    out.push(ReadIssue {
+                        node_id: self.node_id.clone(),
+                        state: FactState::Missing,
+                        reference: format!("{}/check/{}", status.run_id, check.id()),
+                        reason: "required current task-authorized passing check receipt missing"
+                            .into(),
+                    });
+                }
+            }
+            out.extend(required_issues);
             for e in &self.evidence {
                 if e.candidate_sha256.as_ref().is_some_and(|d| {
                     status

@@ -81,8 +81,24 @@ Status has `protocol_version:1`, `authority:"summon_do"`, `revision`, `run_id`,
 `task`, `manifest_sha256`, `phase`, ordered `inputs`, `native_session`, `delivery`,
 `coverage_sha256`, `holds`, `cancellations`, `proofs`. GET returns Status directly. Errors are
 `{code,message}` (400 malformed, 404 absent/unknown, 409 guard/conflict, 413 bound,
-403 non-loopback). POST limit and durable snapshot limit are 512KiB each;
-refusal never commits a partial mutation.
+403 non-loopback). POST limit and durable snapshot limit remain 512KiB each;
+refusal never commits a partial mutation. Private run snapshots are versioned
+CBOR BLOBs: initial text refers to the frozen task, receipts refer to the single
+native session, dispatch replays refer to canonical input/task, and final answers
+are stored once. Original JSON snapshots remain readable with replay fingerprints
+converted in memory; reads do not migrate SQL or advance revision. HTTP schemas
+and `RuntimeAdapter` are unchanged.
+
+Admission reserves bounded final answer/ACK/termination/claim bytes for every
+unanswered accepted input, using the existing 64KiB text and 4096-byte reference
+bounds, plus one maximum lost-ACK observation margin. Intake/steering/holds and
+other non-native writes cannot consume it. Native facts may consume that recovery
+margin but not the final-answer reservation; same-ID retries never grow storage.
+An unsafe write is refused atomically **before** dispatch/acceptance. Metadata is
+separately bounded and cannot consume the run's reservation. This is local byte
+admission, not implemented hosted account/cash/entitlement admission. Legacy
+snapshots accepted without a reservation remain retained/readable; insufficient
+legacy capacity is not repaired by inventing room or dropping accepted data.
 
 ```json
 {
@@ -248,6 +264,16 @@ TaskSpec/Status/Reply/mutation wire and RuntimeAdapter are unchanged.
   from source/current managed proof, complete discovered inventory and bound
   child archives. It is not product Done, release authority or authenticated
   independent review. Missing child/catalog/evidence or reader failure blocks it.
+  Required receipts come from the frozen managed task and actual native/delivery/
+  check facts: complete snapshot reference; each acknowledged input's native trace;
+  each declared output path and exact artifact bytes; each original check's current
+  passing receipt/reference and task-allowed issuer (command or review kind).
+  Required receipts must carry the exact current candidate and coverage digests.
+  Empty, partial, unrelated, unbound or stale evidence is incomplete, without
+  invalidating a useful immutable archive. There is no universal consumer/review
+  quota and descriptive origin/metadata cannot change checks or permissions.
+  Loopback issuer strings and synthetic receipts still are not hosted auth or
+  independent materialization/verification.
 - `binding_sha256` excludes read timestamps and child archive timestamp-only
   refreshes; actual archive hash includes every byte. Candidate/coverage/edge/
   native/source-state/semantic child changes invalidate recursive currentness.

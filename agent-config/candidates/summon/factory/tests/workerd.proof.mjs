@@ -189,6 +189,33 @@ test('exact source: local DO input/claim races, native ambiguity/cancel, scoped 
   metadata.native = fact('pi', 'fixture-independent-native-state', 'settled');
   metadata.lineage = fact('summon_do:cf1:walk', 'registered-lineage', { complete: true, unresolved: [], edges: [] });
   view = await api(prefix + '/metadata', { expected_run_revision: status.revision, expected_metadata_sha256: view.metadata_sha256, metadata });
+  // Empty/partial/unrelated/stale receipts never become complete from prose.
+  const requiredEvidence = [];
+  const evidence = (kind, owner, reference, sha256 = hash(`synthetic receipt bytes:${kind}:${reference}`)) => ({ kind, source: { owner, reference, read_at_unix_ms: 1000, sha256, state: 'current', detail: 'Synthetic fixture receipt; not native/independent proof' }, candidate_sha256: status.delivery.workspace_sha256, coverage_sha256: status.coverage_sha256 });
+  requiredEvidence.push(evidence('candidate', 'fixture-verifier', status.delivery.evidence_ref));
+  for (const artifact of status.delivery.artifacts) requiredEvidence.push(evidence('deliverable', 'fixture-verifier', artifact.path, artifact.sha256));
+  for (const input of status.inputs) requiredEvidence.push(evidence('trace', status.task.route.harness, input.acknowledged.evidence_ref));
+  for (const check of status.task.checks) {
+    const receipt = [...status.proofs].reverse().find(p => p.check_id === check.id && p.coverage_sha256 === status.coverage_sha256);
+    requiredEvidence.push(evidence(check.type === 'review' ? 'review' : 'check', receipt.issuer, receipt.evidence_ref));
+  }
+  for (const mode of ['empty', 'partial', 'unrelated', 'stale', 'unbound']) {
+    metadata.evidence = structuredClone(requiredEvidence);
+    if (mode === 'empty') metadata.evidence = [];
+    if (mode === 'partial') metadata.evidence.pop();
+    if (mode === 'unrelated') for (const e of metadata.evidence) e.source.reference = 'unrelated-fresh-receipt';
+    if (mode === 'stale') for (const e of metadata.evidence) e.coverage_sha256 = hash('previous candidate');
+    if (mode === 'unbound') for (const e of metadata.evidence) { e.coverage_sha256 = null; e.candidate_sha256 = null; }
+    view = await api(prefix + '/metadata', { expected_run_revision: status.revision, expected_metadata_sha256: view.metadata_sha256, metadata });
+    const incomplete = await api(prefix + '/packet');
+    assert.equal(incomplete.proof.recursive_pass, false, mode);
+    assert.ok(incomplete.proof.issues.some(i => ['missing', 'stale'].includes(i.state)), mode);
+    assert.deepEqual(await api(prefix + '/status'), status);
+    // Export remains valid and useful despite incomplete evidence.
+    assert.equal((await api('/v1/visibility/reopen', { packet: incomplete, records: [view], packets: [] })).recursive_pass, false, mode);
+  }
+  metadata.evidence = requiredEvidence;
+  view = await api(prefix + '/metadata', { expected_run_revision: status.revision, expected_metadata_sha256: view.metadata_sha256, metadata });
   const archive = await api(prefix + '/packet');
   assert.equal(archive.proof.recursive_pass, true);
   assert.equal(archive.record.origin.value.brief, task.brief);
@@ -238,6 +265,63 @@ test('exact source: local DO input/claim races, native ambiguity/cancel, scoped 
   }
   assert.ok(rejected, 'run storage limit must reject oversized state');
   assert.deepEqual(await api('/v1/runs/cf1:limit/status'), limited);
+  // Near the admission budget AFTER dispatch. All native facts are synthetic;
+  // HTTP/SQLite/restart/capacity behavior is the real deployed local Worker.
+  for (const mode of ['answer', 'lost-ack-reconcile']) {
+    const id = `cf1:capacity-${mode}`, p = `/v1/runs/${id}`;
+    let current = (await api('/v1/intake', { task: { ...limitTask, id }, initial_input_id: 'initial' })).run;
+    const claim = { claim_id: 'native-claim', runner_id: 'fixture-runner', expected_revision: current.revision };
+    const claimed = await api(p + '/claim', claim); current = claimed.run;
+    const d = claimed.dispatch;
+    let accepted = 0;
+    for (let n = 0; n < 12; n++) {
+      const before = structuredClone(current);
+      const response = await fetch(base + p + '/input', { method: 'POST', body: JSON.stringify({ input_id: `accepted-${n}`, text: 'x'.repeat(64000) }) });
+      const value = await response.json();
+      if (response.status === 413) { assert.equal(value.code, 'state_limit'); assert.deepEqual(await api(p + '/status'), before); break; }
+      assert.equal(response.status, 200); current = value.run; accepted++;
+    }
+    assert.ok(accepted > 0, 'normal steering must remain usable while native input is in flight');
+    const steerRetry = await api(p + '/input', { input_id: 'accepted-0', text: 'x'.repeat(64000) });
+    assert.equal(steerRetry.replayed, true); assert.deepEqual(steerRetry.run, current);
+    await api(p + '/input', { input_id: 'accepted-0', text: 'changed' }, 409);
+    // Other writes also cannot spend the reserved outcome/recovery capacity.
+    for (let n = 0; n < 12; n++) {
+      const response = await fetch(base + p + '/hold', { method: 'POST', body: JSON.stringify({ hold_id: `capacity-${n}`, action: 'release', reason: 'h'.repeat(64000), authority_ref: 'fixture-authority', active: true, expected_revision: current.revision }) });
+      const value = await response.json();
+      if (response.status === 413) { assert.equal(value.code, 'state_limit'); assert.deepEqual(await api(p + '/status'), current); break; }
+      assert.equal(response.status, 200); current = value.run;
+    }
+    // Independent metadata storage has its own atomic bound and cannot steal it.
+    const beforeMetadata = current;
+    const hugeMetadata = { ...structuredClone(metadata), evidence: Array.from({length: 3000}, () => evidence('trace', 'pi', 'synthetic oversized metadata')) };
+    await api(p + '/metadata', { expected_run_revision: current.revision, expected_metadata_sha256: null, metadata: hugeMetadata }, 413);
+    assert.deepEqual(await api(p + '/status'), beforeMetadata);
+    const message = (event_id, observation) => ({ event_id, input_id: d.input_id, attempt_id: d.attempt_id, text_sha256: d.text_sha256, expected_revision: current.revision, observation });
+    if (mode === 'lost-ack-reconcile') {
+      current = (await api(p + '/observe', message('lost-ack', { kind: 'uncertain', reason: 'u'.repeat(64000), evidence_ref: 'fixture-native-disconnect' }))).run;
+      assert.equal(current.inputs[0].state, 'uncertain');
+    } else {
+      current = (await api(p + '/observe', message('ack-at-budget', { kind: 'acknowledged', receipt: { ...receipt, session: { ...session, session_id: id } } }))).run;
+    }
+    const retained = structuredClone(current);
+    await stop(); await boot();
+    assert.deepEqual(await api(p + '/status'), retained);
+    assert.deepEqual((await api(p + '/claim', claim)).dispatch, d);
+    const final = message('final', { kind: 'answered', receipt: { ...receipt, session: { ...session, session_id: id } }, text: '\x01'.repeat(64000), answer_ref: 'fixture-actual-assistant-ref' });
+    const endpoint = p + (mode === 'lost-ack-reconcile' ? '/reconcile' : '/observe');
+    current = (await api(endpoint, final)).run;
+    assert.equal(current.inputs[0].answer, final.observation.text);
+    assert.equal(current.inputs[0].state, 'answered');
+    assert.equal(current.inputs.length, accepted + 1);
+    assert.equal((await api(endpoint, final)).replayed, true);
+    await api(endpoint, { ...final, observation: { ...final.observation, text: 'conflicting final payload' } }, 409);
+    assert.deepEqual(await api(p + '/status'), current);
+    await stop(); await boot();
+    assert.deepEqual(await api(p + '/status'), current);
+    assert.equal((await api(endpoint, final)).replayed, true);
+    t.diagnostic(`Capacity ${mode}: ${accepted} accepted steering inputs; atomic unsafe-growth refusal; full escaped 64000B final retained; restart/replay pass (native synthetic)`);
+  }
   const oversized = await fetch(base + prefix + '/input', { method: 'POST', body: 'x'.repeat(512 * 1024 + 1) });
   assert.equal(oversized.status, 413);
   t.diagnostic(`Actual Wrangler/workerd SQLite evidence: ${scratch}`);

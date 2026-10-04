@@ -112,10 +112,72 @@ fn metadata(status: &Status) -> RunMetadata {
                 edges: vec![],
             },
         ),
-        evidence: vec![],
+        evidence: required_evidence(status),
         child_packets: vec![],
         decisions: vec![],
     }
+}
+// Explicit synthetic receipt collection against the actual frozen task/native refs.
+fn required_evidence(status: &Status) -> Vec<EvidenceRef> {
+    let d = status.delivery.as_ref().unwrap();
+    let make = |kind, owner: &str, reference: &str, bytes: String| EvidenceRef {
+        kind,
+        source: SourceStamp {
+            owner: owner.into(),
+            reference: reference.into(),
+            read_at_unix_ms: 1000,
+            sha256: Some(bytes),
+            state: FactState::Current,
+            detail: Some("synthetic fixture receipt, not native collection".into()),
+        },
+        candidate_sha256: Some(d.workspace_sha256.clone()),
+        coverage_sha256: status.coverage_sha256.clone(),
+    };
+    let mut refs = vec![make(
+        EvidenceKind::Candidate,
+        "fixture-verifier",
+        &d.evidence_ref,
+        sha256(b"fixture manifest bytes"),
+    )];
+    for a in &d.artifacts {
+        refs.push(make(
+            EvidenceKind::Deliverable,
+            "fixture-verifier",
+            &a.path,
+            a.sha256.clone(),
+        ));
+    }
+    for i in &status.inputs {
+        if let Some(r) = &i.acknowledged {
+            refs.push(make(
+                EvidenceKind::Trace,
+                &status.task.route.harness,
+                &r.evidence_ref,
+                sha256(b"fixture native trace bytes"),
+            ));
+        }
+    }
+    for c in &status.task.checks {
+        let p = status
+            .proofs
+            .iter()
+            .rev()
+            .find(|p| {
+                p.check_id == c.id() && Some(&p.coverage_sha256) == status.coverage_sha256.as_ref()
+            })
+            .unwrap();
+        let kind = match c {
+            Check::Command { .. } => EvidenceKind::Check,
+            Check::Review { .. } => EvidenceKind::Review,
+        };
+        refs.push(make(
+            kind,
+            &p.issuer,
+            &p.evidence_ref,
+            sha256(b"fixture exact check receipt"),
+        ));
+    }
+    refs
 }
 fn record(id: &str) -> AgentRunAttemptV1 {
     let status = verified(id);
@@ -171,6 +233,82 @@ fn link(
         });
     }
 }
+#[test]
+fn task_required_receipts_cannot_be_missing_partial_unrelated_or_unbound() {
+    let complete = record("cf1:required-receipts");
+    assert!(
+        packet(vec![complete.clone()], &complete.node_id, &[])
+            .proof
+            .recursive_pass
+    );
+    for mode in [
+        "empty",
+        "partial",
+        "unrelated",
+        "stale",
+        "unbound",
+        "wrong-output-bytes",
+        "wrong-check-owner",
+    ] {
+        let mut record = complete.clone();
+        match mode {
+            "empty" => record.evidence.clear(),
+            "partial" => {
+                record.evidence.pop();
+            }
+            "unrelated" => {
+                for e in &mut record.evidence {
+                    e.source.reference = "unrelated fresh bytes".into();
+                }
+            }
+            "stale" => {
+                for e in &mut record.evidence {
+                    e.coverage_sha256 = Some(sha256(b"old task/input/candidate"));
+                }
+            }
+            "unbound" => {
+                for e in &mut record.evidence {
+                    e.coverage_sha256 = None;
+                    e.candidate_sha256 = None;
+                }
+            }
+            "wrong-output-bytes" => {
+                record
+                    .evidence
+                    .iter_mut()
+                    .find(|e| e.kind == EvidenceKind::Deliverable)
+                    .unwrap()
+                    .source
+                    .sha256 = Some(sha256(b"wrong artifact bytes"))
+            }
+            "wrong-check-owner" => {
+                record
+                    .evidence
+                    .iter_mut()
+                    .find(|e| e.kind == EvidenceKind::Review)
+                    .unwrap()
+                    .source
+                    .owner = "unapproved reviewer".into()
+            }
+            _ => unreachable!(),
+        }
+        let archive = packet(vec![record.clone()], &record.node_id, &[]);
+        archive.validate_archive().unwrap();
+        assert!(
+            !archive.proof.recursive_pass,
+            "{mode} evidence cannot cover frozen task outputs/checks/native trace"
+        );
+        assert!(
+            archive
+                .proof
+                .issues
+                .iter()
+                .any(|i| matches!(i.state, FactState::Missing | FactState::Stale)),
+            "{mode}"
+        );
+    }
+}
+
 fn packet(
     records: Vec<AgentRunAttemptV1>,
     root: &str,
