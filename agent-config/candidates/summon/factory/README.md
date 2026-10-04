@@ -138,6 +138,11 @@ are retained, never automatically resent; changed revision requires reconciliati
 The typed failure itself is durable uncertainty and advances revision independently
 of all eight original reference slots; neither final nor response removes its
 recording allowance. Failure/response replays retain original facts and references.
+JSON null is outside the accepted raw-response domain: it records the existing
+`malformed` failure instead, durably across SQLite reload/restart with one revision
+advance and idempotent replay. It never replaces an original non-null response;
+non-null malformed/missing-cost observations remain immutable, not zero or disposable,
+and the independent late-response slot and owner-final cost reconciliation remain.
 Finalized operations cannot supply new advice, including a late positive response
 within the original ceiling. Raw response model/usage/`usage.cost` is immutable; decimal actual USD rounds UP
 to budget micros without a list-price estimate. Missing/invalid cost, unsupported

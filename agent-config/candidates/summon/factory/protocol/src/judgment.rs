@@ -243,6 +243,13 @@ impl AccountLedger {
         Ok(false)
     }
     pub fn judgment_response(&mut self, key: &str, response: Value) -> Result<bool> {
+        // Option<Value> cannot durably distinguish Some(Null) from None on the
+        // JSON snapshot load path. Null is NOT an accepted raw response: retain
+        // the existing typed malformed disposition instead, with its own funded
+        // slot/revision/replay and without erasing any original non-null response.
+        if response.is_null() {
+            return self.judgment_failure(key, "malformed");
+        }
         if serde_json::to_vec(&response).unwrap().len() > MAX_RESPONSE_BYTES {
             return refuse("judgment_limit", "bounded actual response exceeded");
         }

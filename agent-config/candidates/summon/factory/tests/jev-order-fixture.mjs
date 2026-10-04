@@ -56,5 +56,51 @@ export async function jevOrderProof({root,scratch,base,task,boot,stop,t}) {
   await stop();await boot(config);assert.deepEqual(await read(),after);
   for(const[id,status]of Object.entries(runs)){const v=await call('unchanged queued managed run '+id,`/v1/runs/${id}/status`);assert.equal(v.status,200);assert.deepEqual(v.value,status);}
   await writeFile(resolve(scratch,'jev-order-http.json'),JSON.stringify({fixture_only:true,provider_execution:false,findings,receipts},null,2));await writeFile(resolve(scratch,'jev-order-retained.json'),JSON.stringify(after));
+  await jevNullProof({scratch,base,config,task,boot,stop,t});
   await stop();await boot();assert.equal(findings.length,0,'accepted outcomes lost / positive actual cash respent / cross-reservation alias: '+findings.map(f=>f.id).join(','));t.diagnostic('Jev order: failure after8 original refs, positive observed cash after both final forms/overrun, response-first lower-final refusal, missing-cost independent reconciliation, distinct equal-seat operation caches and exact replay/restart. ALL allocations/cost/responses SYNTHETIC; no inference/native/provider execution.');
+}
+
+async function jevNullProof({scratch,base,config,task,boot,stop,t}) {
+  // SAME synthetic policy/account fixture, real serialized SQLite loads. Null
+  // records typed malformed; non-null missing-cost observations stay immutable.
+  const receipts=[],snapshots=[],runs={};
+  const call=async(label,path,body)=>{const res=await fetch(base+path,body===undefined?{}:{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)});const value=await res.json();receipts.push({label,status:res.status,code:value.code??null,revision:value.account?.revision??value.revision??null,replayed:value.replayed??null});return {status:res.status,value};};
+  const read=async()=>{const v=await call('serialized account reread','/v1/admission');assert.equal(v.status,200);return v.value;};
+  const ok=async(label,body)=>{const v=await call(label,'/v1/admission',body);assert.equal(v.status,200,JSON.stringify({label,...v}));return v.value;};
+  const conflict=async(label,body)=>{const before=await read(),v=await call(label,'/v1/admission',body);assert.equal(v.status,409,JSON.stringify({label,...v}));assert.equal(v.value.code,'judgment_conflict');assert.deepEqual(await read(),before);};
+  const intake=async(id)=>{const v=await call('queued null fixture '+id,'/v1/intake',{task:{...task,id,brief:'SYNTHETIC null disposition ONLY; no native/provider execution',checks:[],outputs:[]},initial_input_id:'initial'});assert.equal(v.status,200);runs[id]=v.value.run;};
+  const req=id=>({reservation_id:'r-'+id,operation_id:'op-'+id,run_id:id,input_id:'initial',project:'a',seat_id:'jev',capabilities:['clarify'],amounts:{api:1,capacity:1,resource_cash:1}});
+  const setup=async(id)=>{await intake(id);const r=req(id);await ok('finite original null fixture reservation',{operation:'reserve',request:r});const planned=await ok('owned original null fixture plan',{operation:'plan_jev',reservation_id:r.reservation_id});return {r,j:Object.values(planned.account.judgments).find(j=>j.reservation_id===r.reservation_id)};};
+  const final=r=>({receipt_id:'original-final-'+r.reservation_id,reservation_id:r.reservation_id,operation_id:r.operation_id,disposition:'owner_final',owner:'fixture-independent-outcome-owner',evidence_ref:'SYNTHETIC independent unknown-cost reconciliation',evidence_sha256:hash('SYNTHETIC final'),actual:{api:1,capacity:0,resource_cash:0}});
+  const {r,j}=await setup('cf1:jev-null-first');
+  for(let i=0;i<8;i++)await ok('null fixture original reference '+i,{operation:'uncertain',reservation_id:r.reservation_id,evidence_ref:String(i)+'"'.repeat(255)});
+  const before=await read(),nullBody={operation:'jev_response',key:j.key,response:null};
+  const submitted=await ok('NULL submission must be typed malformed, NOT Some(null)',nullBody);let loaded=await read();
+  snapshots.push({label:'null submission then real reload',before,submitted,loaded});
+  assert.equal(loaded.revision,before.revision+1);assert.equal(loaded.judgments[j.key].failure,'malformed');assert.equal(loaded.judgments[j.key].response,null);assert.deepEqual(loaded.reservations[r.reservation_id],before.reservations[r.reservation_id]);assert.deepEqual(loaded.judgments[j.key].request,j.request);assert.equal(loaded.judgments[j.key].key,j.key);
+  await stop();await boot(config);assert.deepEqual(await read(),loaded);
+  const replay=await ok('NULL replay after reread/restart',nullBody);assert.equal(replay.replayed,true);assert.deepEqual(await read(),loaded);snapshots.push({label:'null replay after restart',replay});
+  await conflict('another typed failure cannot replace original malformed',{operation:'jev_failure',key:j.key,kind:'transport'});
+  const missing={model:'typesafe/jev-1.13',usage:{},SYNTHETIC_marker:'original missing cost is NOT zero'};
+  await ok('late ORIGINAL non-null missing-cost response',{operation:'jev_response',key:j.key,response:missing});loaded=await read();assert.deepEqual(loaded.judgments[j.key].response,missing);
+  assert.equal((await ok('original missing-cost replay',{operation:'jev_response',key:j.key,response:missing})).replayed,true);
+  await conflict('changed non-null response cannot replace original missing cost',{operation:'jev_response',key:j.key,response:{usage:{cost:0},SYNTHETIC_marker:'CHANGED'}});
+  assert.equal((await ok('NULL after original missing-cost observation',nullBody)).replayed,true);assert.deepEqual(await read(),loaded);
+  await stop();await boot(config);assert.deepEqual(await read(),loaded);
+  const probe='cf1:jev-null-unknown-probe';await intake(probe);const prior=await read();const unknown=await call('non-null missing-cost refusal survives null/reread/restart','/v1/admission',{operation:'reserve',request:req(probe)});assert.equal(unknown.status,409);assert.equal(unknown.value.code,'cost_unavailable');assert.deepEqual(await read(),prior);
+  const receipt=final(r);await ok('independent owner-final reconciles actual unknown cost',{operation:'reconcile',receipt});assert.equal((await ok('original final receipt replay',{operation:'reconcile',receipt})).replayed,true);
+  const reconciled=await read();assert.deepEqual(reconciled.judgments[j.key].response,missing);assert.deepEqual(reconciled.reservations[r.reservation_id].final_receipt,receipt);assert.equal((await ok('NULL replay after final/late original',nullBody)).replayed,true);assert.deepEqual(await read(),reconciled);
+  await ok('independently reconciled cost allows bounded new reservation',{operation:'reserve',request:req(probe)});
+  const {r:b,j:jb}=await setup('cf1:jev-null-after-original');const original={model:'typesafe/jev-1.13',usage:{cost:0.000001},SYNTHETIC_marker:'immutable original non-null observation'};
+  await ok('original non-null response BEFORE null',{operation:'jev_response',key:jb.key,response:original});const originalState=await read();const lateNull={operation:'jev_response',key:jb.key,response:null};
+  const typed=await ok('NULL after original response retains BOTH independent slots',lateNull);assert.equal(typed.account.revision,originalState.revision+1);assert.equal(typed.account.judgments[jb.key].failure,'malformed');
+  const retained=await read();assert.deepEqual(retained.judgments[jb.key].response,original);assert.deepEqual(retained.judgments[jb.key].request,jb.request);assert.deepEqual(retained.reservations[b.reservation_id],originalState.reservations[b.reservation_id]);
+  await stop();await boot(config);assert.deepEqual(await read(),retained);
+  assert.equal((await ok('typed null replay preserves non-null original',lateNull)).replayed,true);await conflict('different failure cannot rewrite original malformed after response',{operation:'jev_failure',key:jb.key,kind:'quota'});assert.deepEqual(await read(),retained);
+  assert.equal((await ok('immutable non-null response replay',{operation:'jev_response',key:jb.key,response:original})).replayed,true);await conflict('changed non-null observation remains forbidden',{operation:'jev_response',key:jb.key,response:{...original,SYNTHETIC_marker:'CHANGED'}});
+  const bFinal=final(b);await ok('independent original final after both outcomes',{operation:'reconcile',receipt:bFinal});const afterFinal=await read();assert.equal((await ok('NULL disposition replay after original final',lateNull)).replayed,true);assert.deepEqual(await read(),afterFinal);
+  for(const[id,expected]of Object.entries(runs)){const v=await call('null handling never mutates queued managed run '+id,`/v1/runs/${id}/status`);assert.equal(v.status,200);assert.deepEqual(v.value,expected);}
+  await stop();await boot(config);assert.deepEqual(await read(),afterFinal);
+  await writeFile(resolve(scratch,'jev-null-http.json'),JSON.stringify({fixture_only:true,provider_execution:false,receipts},null,2));await writeFile(resolve(scratch,'jev-null-observations.json'),JSON.stringify({snapshots,retained:afterFinal}));
+  t.diagnostic('Jev null: real SQLite reload/restart retains typed malformed revision/disposition after8refs; null replay/conflicting failure, both original late/non-null observations, changed-response refusal, missing-cost hold and independent owner-final reconciliation. ALL allocations/usage/cost SYNTHETIC; no provider/native execution.');
 }
