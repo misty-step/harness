@@ -11,6 +11,7 @@ import { fileURLToPath } from 'node:url';
 import { createHash } from 'node:crypto';
 import { authFixtureProof } from './auth-fixture.mjs';
 import { admissionFixtureProof } from './admission-fixture.mjs';
+import { meterOwnershipProof } from './meter-ownership-fixture.mjs';
 import { accountCapacityProof } from './account-capacity-fixture.mjs';
 import { jevOrderProof } from './jev-order-fixture.mjs';
 
@@ -336,5 +337,6 @@ test('exact source: local DO input/claim races, native ambiguity/cancel, scoped 
   await admissionFixtureProof({ root, scratch, base, task, boot, stop, t });
   await stop();
   await authFixtureProof({ root, scratch, base, task, boot, stop, t });
+  await meterOwnershipProof({ root, scratch, base, task, boot, stop, t });
   t.diagnostic(`Actual Wrangler/workerd SQLite evidence: ${scratch}`);
 });

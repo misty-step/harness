@@ -112,7 +112,11 @@ proven-not-started facts may settle; a permission/actor string is NOT that verif
 The current plaintext outcome-source assertions are explicitly fixture-only.
 Actual overrun receipts/response costs remain retained and block new admissions,
 not truncated to an estimate. API debit covers the maximum of reserved/owner-final
-usage and every known original response cost, irrespective of arrival order. A
+usage and every known original response cost, irrespective of arrival order, ONLY
+for requests whose immutable meter set contains the queried meter. A distinct
+non-owning API meter is neither charged nor held by another account's unknown
+cost. Shared resource/cash meters still aggregate every request that owns them;
+physically duplicated meter aliases remain forbidden. A
 zero final/not-started receipt cannot erase a later positive cost; original receipts
 remain immutable. Missing response cost is not zero, but independent owner-final
 actual usage can reconcile it without fabricating or rewriting a response. Admission funds the actual snapshot plus each

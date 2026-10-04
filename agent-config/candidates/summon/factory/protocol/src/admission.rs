@@ -309,6 +309,11 @@ impl AccountLedger {
     }
     pub fn debit(&self, meter: &str) -> Result<u64> {
         self.reservations.values().try_fold(0u64, |sum, r| {
+            // Every reserved/final/observed amount belongs ONLY to the original
+            // immutable meter set. A foreign response cannot charge or poison it.
+            if !r.request.amounts.contains_key(meter) {
+                return Ok(sum);
+            }
             let mut amount = r
                 .final_receipt
                 .as_ref()
