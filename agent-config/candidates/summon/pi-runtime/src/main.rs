@@ -31,6 +31,11 @@ async fn main() {
     }
 }
 async fn run() -> Result<()> {
+    let args: Vec<String> = std::env::args().skip(1).collect();
+    if args.first().is_some_and(|a| a == "factory") {
+        println!("{}", summon_http_client::cli(&args[1..])?);
+        return Ok(()); // never starts Pi, changes loadout or auto-submits facts
+    }
     let file = std::env::args().nth(1).context("usage: summon-pi-runtime REQUEST.json; optional stdin JSONL {cancel: shared CancelRequest}")?;
     let bytes = fs::read(file)?;
     ensure!(bytes.len() <= 1024 * 1024, "request exceeds 1MiB");

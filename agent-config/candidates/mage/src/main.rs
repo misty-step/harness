@@ -17,6 +17,7 @@ async fn run() -> Result<()> {
     let args: Vec<String> = std::env::args().skip(1).collect();
     let get = |i: usize| args.get(i).context("missing argument").map(String::as_str);
     let result: Value = match get(0)? {
+        "factory" => summon_http_client::cli(&args[1..])?,
         "serve" if args.len() == 5 => {
             transport::serve(get(1)?, get(2)?, get(3)?, get(4)?).await?;
             return Ok(());
@@ -49,7 +50,7 @@ async fn run() -> Result<()> {
             transport::ack_inbox(&root, get(2)?, get(3)?)?;
             json!({"state":"consumer_acknowledged","deliveryId":get(2)?})
         }
-        _ => bail!("usage: mage serve SOCKET SPOOL SESSION_ID SESSION_FILE | queue SPOOL ENVELOPE | send|inspect SOCKET ENVELOPE | recover SOCKET | inbox-put DIR ENVELOPE | inbox-pull DIR | inbox-ack DIR DELIVERY_ID PAYLOAD_DIGEST"),
+        _ => bail!("usage: mage factory CONFIG read RUN_ID ENDPOINT | factory CONFIG send RUN_ID ENDPOINT BODY.json | serve SOCKET SPOOL SESSION_ID SESSION_FILE | queue SPOOL ENVELOPE | send|inspect SOCKET ENVELOPE | recover SOCKET | inbox-put DIR ENVELOPE | inbox-pull DIR | inbox-ack DIR DELIVERY_ID PAYLOAD_DIGEST"),
     };
     println!("{result}");
     Ok(())

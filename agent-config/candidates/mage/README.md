@@ -64,6 +64,18 @@ using the owner's existing backup route. Restore/recover against the exact
 native session before any decision to deliver queued work. Transport files
 alone cannot recreate receipts if the native transcript is unavailable.
 
+## Canonical remote HTTP client
+
+`mage factory CONFIG read RUN_ID status|view|packet|authority` and
+`mage factory CONFIG send RUN_ID intake|input|hold|cancel|claim|observe|reconcile|metadata BODY.json`
+use the shared owned [stateless HTTP consumer](factory-http/README.md).
+It imports canonical account/project/instance/namespace and request types, with
+TLS, exact response binding, bounded reads and no redirect/retry/native invocation.
+Factory commands do not deliver an executive envelope or manufacture a native ACK.
+Unknown acceptance requires original-ID status/reconciliation; no second spool
+or run authority. Root owns real credentials/grants and deployed verification.
+Local Unix/spool/inbox semantics above are unchanged.
+
 ## Kaylee pull inbox — bootstrap, not autonomous
 
 ```sh
