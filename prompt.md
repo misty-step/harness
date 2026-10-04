@@ -24,3 +24,5 @@ You are working in `misty-step/harness` on branch `cursor/summon-pi-durable`. Wo
 ## Lane/runner note
 
 The box has `@earendil-works/pi-durable` installed locally in this lane only. runner-01 currently has Pi 0.87.1 at `/usr/local/bin/pi` and no global pi-durable package; do not install it now. Record the missing runner capability as a follow-up in a lane `setup.sh` rather than attempting an install during this run.
+
+- Never spend Codex's free reset; if a Codex reset/retry choice appears, stop and report it.
