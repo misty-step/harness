@@ -97,6 +97,97 @@ test('background COO->CTO commission produces one persisted completion wake, nev
   }finally{await s.harness.close(ctx);}
 });
 
+const reporterId = async mage => (await command(mage,'view')).view.entries.find(e=>e.kind==='pi.tool-result'&&e.model?.[0]?.toolName==='mage_delegate')?.model[0].details.reporter_task;
+const collisionRoute = request => {
+  const last=request.messages.findLast(m=>m.role!=='system');
+  if(text(last)==='commission collision check')return call('mage_delegate',{commission_id:'cross-entry',text:'intended CTO brief'});
+  if(text(last)==='intended CTO brief')return call('mage_factory_read',{run:'cf1:fixture',endpoint:'status'});
+  return answer(`fixture answer: ${text(last)}`);
+};
+
+test('cross-entry commission collision refuses before an earlier different brief/answer is substituted',async()=>{
+  const s=await setup({route:collisionRoute});
+  try{
+    await command(s.mage,'submit','cto',{input_id:'mage-commission:cross-entry',text:'earlier different CTO brief'});
+    await command(s.mage,'wait','cto',{input_id:'mage-commission:cross-entry'});
+    await command(s.mage,'submit','coo',{input_id:'coo-cross-entry',text:'commission collision check'});
+    await command(s.mage,'wait','coo',{input_id:'coo-cross-entry'});
+    const task=await s.harness.waitForTask(await reporterId(s.mage),ctx);
+    assert.equal(task.state.outcome.status,'faulted','must reject the ID collision, not complete using the earlier answer');
+    assert.match(task.state.outcome.error.message,/input_identity_conflict/);
+    const cto=(await command(s.mage,'view','cto')).view.entries.filter(e=>e.kind==='pi.user');
+    assert.deepEqual(cto.map(e=>text(e.model[0])),['earlier different CTO brief']);
+    assert(!(await command(s.mage,'view')).view.entries.some(e=>text(e.model?.[0]).startsWith('CTO execution report')));
+  }finally{await s.harness.close(ctx);}
+});
+
+test('cross-entry report collision refuses before the completion wake is substituted',async()=>{
+  let release;
+  const gate=new Promise(resolve=>{release=resolve;});
+  const s=await setup({route:collisionRoute,broker:async()=>{await gate;return {read:true};}});
+  try{
+    await command(s.mage,'submit','coo',{input_id:'coo-cross-entry',text:'commission collision check'});
+    await command(s.mage,'wait','coo',{input_id:'coo-cross-entry'});
+    const id=await reporterId(s.mage);
+    await command(s.mage,'completion','coo',{input_id:`mage-report:${id}`,text:'earlier different completion'});
+    await command(s.mage,'wait','coo',{input_id:`mage-report:${id}`});
+    release();const task=await s.harness.waitForTask(id,ctx);
+    assert.equal(task.state.outcome.status,'faulted','must refuse a conflicting report ID before treating its earlier input as delivery');
+    assert.match(task.state.outcome.error.message,/input_identity_conflict/);
+    assert(!(await command(s.mage,'view')).view.entries.some(e=>text(e.model?.[0]).startsWith('CTO execution report')));
+  }finally{release();await s.harness.close(ctx);}
+});
+
+test('cross-entry internal-first matching replay is idempotent and changed commission/report text refuses after reopen',async()=>{
+  let s=await setup({route:collisionRoute});
+  try{
+    await command(s.mage,'submit','coo',{input_id:'coo-cross-entry',text:'commission collision check'});
+    await command(s.mage,'wait','coo',{input_id:'coo-cross-entry'});
+    const id=await reporterId(s.mage);await s.harness.waitForTask(id,ctx);
+    await command(s.mage,'wait','coo',{input_id:`mage-report:${id}`});
+    const report=(await command(s.mage,'view')).view.entries.find(e=>e.kind==='pi.user'&&text(e.model?.[0]).startsWith('CTO execution report'));
+    const before=s.faux.state.callCount;
+    for(const [instance,input_id,content] of [['cto','mage-commission:cross-entry','intended CTO brief'],['coo',`mage-report:${id}`,text(report.model[0])]]) {
+      const prior=await command(s.mage,'status',instance,{input_id});
+      await assert.rejects(command(s.mage,'submit',instance,{input_id,text:'different before first external replay'}),/input_identity_conflict/);
+      const replay=await command(s.mage,'completion',instance,{input_id,text:content});
+      assert.equal(replay.submission.id,prior.submission.id);
+      await assert.rejects(command(s.mage,'submit',instance,{input_id,text:'different collision text'}),/input_identity_conflict/);
+    }
+    assert.equal(s.faux.state.callCount,before);
+    const directory=s.directory;await s.harness.close(ctx);s=await setup({directory,route:collisionRoute});
+    await assert.rejects(command(s.mage,'submit','cto',{input_id:'mage-commission:cross-entry',text:'different after restart'}),/input_identity_conflict/);
+    await assert.rejects(command(s.mage,'completion','coo',{input_id:`mage-report:${id}`,text:'different after restart'}),/input_identity_conflict/);
+    assert.equal(s.faux.state.callCount,0);
+  }finally{await s.harness.close(ctx);}
+});
+
+test('cross-entry legacy f764 native deliveries reconcile original text; queued/withdrawn identities do not become new payloads',async()=>{
+  let release;const gate=new Promise(resolve=>{release=resolve;});
+  const route=request=>text(request.messages.findLast(m=>m.role!=='system'))==='legacy hold'?call('mage_factory_read',{run:'cf1:fixture',endpoint:'status'}):answer('legacy fixture answer');
+  const s=await setup({route,broker:async()=>{await gate;return {read:true};}});
+  try{
+    for(const [instance,id] of [['cto','mage-commission:legacy'],['coo','mage-report:700']]) {
+      const c=await s.harness.conversation(s.binding.instances[instance],ctx);
+      // This is the exact raw native admission used by the f764 Reporter; no
+      // mage.input hash exists yet. Recovery must read original native facts.
+      const old=await c.submit({type:'input',requestId:id,content:'original legacy text',whenBusy:'followUp'},ctx);await old.wait(ctx);
+      await assert.rejects(command(s.mage,'completion',instance,{input_id:id,text:'different legacy text'}),/input_identity_conflict/);
+      assert.equal((await command(s.mage,'completion',instance,{input_id:id,text:'original legacy text'})).submission.id,old.id);
+    }
+    const c=await s.harness.conversation(s.binding.instances.cto,ctx);
+    await c.submit({type:'input',requestId:'legacy-hold',content:'legacy hold'},ctx);
+    await until(async()=>(await s.harness.inspect(ctx)).tasks.some(t=>t.record.kind==='pi.tool'&&t.record.state.status==='running'));
+    const queued=await c.submit({type:'input',requestId:'mage-commission:legacy-queued',content:'original queued text',whenBusy:'followUp'},ctx);
+    await assert.rejects(command(s.mage,'submit','cto',{input_id:'mage-commission:legacy-queued',text:'different queued text'}),/input_identity_conflict/);
+    assert.equal((await command(s.mage,'submit','cto',{input_id:'mage-commission:legacy-queued',text:'original queued text'})).submission.id,queued.id);
+    await queued.abort(ctx);
+    assert.equal((await command(s.mage,'submit','cto',{input_id:'mage-commission:legacy-queued',text:'original queued text'})).submission.reason,'aborted');
+    const unguarded=await c.submit({type:'input',requestId:'mage-commission:legacy-withdrawn',content:'unrecorded withdrawn text',whenBusy:'followUp'},ctx);await unguarded.abort(ctx);
+    await assert.rejects(command(s.mage,'submit','cto',{input_id:'mage-commission:legacy-withdrawn',text:'cannot assert original text'}),/input_identity_unverifiable/);
+  }finally{release();await s.harness.close(ctx);}
+});
+
 test('wrong-role model tool call reaches native offered-set refusal, no broker invocation',async()=>{
   let brokerCalls=0;
   const s=await setup({broker:async()=>{brokerCalls++;throw new Error('must not run');},route:request=>request.messages.findLast(m=>m.role!=='system').role==='toolResult'?answer('refused'):call('mage_factory_intake',{operation_id:'forged',arguments:{}})});

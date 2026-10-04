@@ -41,8 +41,13 @@ steering, cancellation and waits preserve the **original** `input_id`. Submissio
 returns native queued/placed/done/unanswered facts, not accepted product work.
 `wait` includes the native answer entry and explicitly says `not_verified`.
 A duplicate ID with changed text/mode refuses before upstream's ID-only dedup.
-Duplicate completion creates no second wake. Cancellation addresses membership of
-the original submission, so a repeated cancel cannot stop later work.
+Duplicate completion creates no second wake. External inputs, internal CTO
+commissions and report wakes use the same payload guard before native submit.
+Conflicting IDs fault the reporter before it can substitute an earlier answer.
+Recovery checks original native entries/inbox for f764 deliveries without a guard
+hash; unavailable withdrawn legacy payloads refuse rather than bind a new hash.
+Cancellation addresses membership of the original submission, so a repeated cancel
+cannot stop later work.
 
 COO `mage_delegate` creates one background native reporter task per immutable
 commission ID. It submits the frozen brief to the distinct CTO, returns immediately,

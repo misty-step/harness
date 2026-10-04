@@ -1,7 +1,9 @@
 # Local native staging: final-fetch source boundary
 
-Separate continuation of frozen `f749c756`; portable `durable.mjs` and `host.mjs`
-remain unchanged. This is source/zero-provider proof, **not permission to send**.
+The final-fetch source continuation of frozen `f749c756` was delivered at `f764b84`
+without changing the portable SDK. The later commission/report identity repair
+changes only its shared submission guard; `host.mjs` and this native guard remain
+unchanged. This is source/zero-provider proof, **not permission to send**.
 USD20 authorizes only the no-model Cloudflare recovery canary, not this route.
 
 ## What is enforced

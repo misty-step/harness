@@ -2,7 +2,7 @@
 import { createHash } from 'node:crypto';
 import { Type } from '@earendil-works/pi-ai';
 import { BACKGROUND_CONTEXT } from '@earendil-works/chord/context';
-import { configure, defineDoc, defineDocFamily, defineExtension, defineTask, defineTool, section, LiveDoc } from '@earendil-works/pi-durable';
+import { configure, defineDoc, defineDocFamily, defineExtension, defineTask, defineTool, section, LiveDoc, InboxDoc } from '@earendil-works/pi-durable';
 
 export const canonical = value => JSON.stringify(value, (_key, v) => v && !Array.isArray(v) && typeof v === 'object' ? Object.fromEntries(Object.keys(v).sort().map(k => [k, v[k]])) : v);
 export const digest = value => createHash('sha256').update(canonical(value)).digest('hex');
@@ -29,12 +29,33 @@ export function installMage(registry, { config, broker }) {
     const binding = await api.snapshot(Binding,api.conversationId,ctx);
     ensure(binding?.instance===expected.id && binding.role===expected.role && binding.config_sha256===digest(expected),'wrong_role_capability_refused');
   };
-  const guard = async (conversation, input, ctx) => {
+  const guard = async (conversation, input, ctx, writer=conversation) => {
     ensure(typeof input.requestId==='string' && input.requestId.length>0 && input.requestId.length<=256,'stable original input ID required');
     const hash = digest(input);
-    await conversation.commit(async tx=>{
-      const saved = await tx.doc(Input,conversation.id,input.requestId,{sha256:hash});
-      ensure(saved.sha256===hash,'input_identity_conflict');
+    await writer.commit(async tx=>{
+      // Read native facts first, including f764 internal deliveries that predate
+      // this shared guard. Never bind a new hash over a different existing input.
+      const prior=await tx.submissionByRequest(conversation.id,input.requestId);
+      let proven=!prior;
+      if(prior) {
+        ensure(prior.type==='input','input_identity_conflict');
+        if(prior.entry!==undefined) {
+          const entry=await tx.entry(prior.entry);
+          const message=entry?.model?.[0];
+          ensure(message?.role==='user' && text(message)===input.content,'input_identity_conflict');
+          proven=true;
+        } else if(prior.status==='queued') {
+          const item=(await tx.doc(InboxDoc,conversation.id)).items.find(i=>i.id===prior.id);
+          ensure(item && item.content===input.content && item.mode===input.whenBusy,'input_identity_conflict');
+          proven=true;
+        }
+      }
+      const saved = await tx.doc(Input,conversation.id,input.requestId,{sha256:null});
+      ensure(saved.sha256===null || saved.sha256===hash,'input_identity_conflict');
+      if(saved.sha256===null) {
+        ensure(proven,'input_identity_unverifiable: original native payload unavailable');
+        saved.sha256=hash;
+      }
     },ctx);
     return conversation.submit(input,ctx);
   };
@@ -44,9 +65,9 @@ export function installMage(registry, { config, broker }) {
       deliver:async(task,runtime,ctx)=>{
         const target = await runtime.conversation(task.input.target,ctx);
         ensure(target,'executive target unavailable');
-        // Tool/runtime handles have no commit method. The immutable task input is
-        // the admitted identity/text; no new config/text is computed on recovery.
-        const delivered = await target.submit({type:'input',content:task.input.text,requestId:`mage-commission:${task.input.commission_id}`,whenBusy:'followUp'},ctx);
+        // Invocation-bound handles submit; the task runtime supplies the SAME
+        // guard's commit. Identity validation stays outside native admission.
+        const delivered = await guard(target,{type:'input',content:task.input.text,requestId:`mage-commission:${task.input.commission_id}`,whenBusy:'followUp'},ctx,runtime);
         const result = await delivered.wait(ctx);
         let report;
         if (result.status==='done' && result.type==='input') {
@@ -58,7 +79,7 @@ export function installMage(registry, { config, broker }) {
       report:async(task,runtime,ctx)=>{
         const parent = await runtime.conversation(runtime.conversationId,ctx);
         ensure(parent,'executive reporter parent unavailable');
-        await parent.submit({type:'input',content:`CTO execution report (independent acceptance still required):\n${JSON.stringify(task.state.checkpoint.report)}`,requestId:`mage-report:${task.id}`,whenBusy:'followUp'},ctx);
+        await guard(parent,{type:'input',content:`CTO execution report (independent acceptance still required):\n${JSON.stringify(task.state.checkpoint.report)}`,requestId:`mage-report:${task.id}`,whenBusy:'followUp'},ctx,runtime);
         await runtime.commit(()=>({status:'terminal',outcome:{status:'completed',result:task.state.checkpoint.report}}),ctx);
       },
     },
