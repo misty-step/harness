@@ -67,8 +67,10 @@ for the owner to submit to existing DO observe/reconcile. Preserve exact request
 bytes/event ID/expected revision across retries. An unknown POST requires status
 read/reconciliation, never a second native invocation.
 
-Transport state contains only immutable native input intents, observed native
-session references and an exclusive process lock. No run phases. Input intent
+Transport state contains only immutable native input/owner intents, observed
+native session references, kernel PID/boot/start identities, owner-wait exit
+receipts and an exclusive process lock. These are native ownership facts, not
+run phases or a second run ledger. Input intent
 precedes dispatch. Duplicate intent inspects only; absent evidence remains
 uncertain. Recovery requires an already observed exact native session, and
 refuses a missing native file or runtime/host/session mismatch rather than
@@ -87,16 +89,31 @@ During CLI execution, stdin accepts JSONL `{cancel: shared CancelRequest}` for
 this exact input/attempt/authority reference. It clears queued native work and
 requests RPC `abort`; a response is not termination. EOF does **not** time out or
 abort the run. No lease, timer, forced kill, scheduling or fallback exists.
-`shutdown()` drops the actual owned stdin pipe, drains stdout and waits the owned
-child before returning a shared Termination reference. Its kernel lock remains
-held until observed exit. Unknown native owner/exit stays unknown. The synchronous
+Startup, CLI/control and synchronous adapter errors converge on the same
+`shutdown()` close-and-wait path. It drops actual owned stdin, drains **raw**
+stdout (malformed JSON cannot skip the wait), and waits the owned child before
+writing its immutable exit receipt/returning a Termination reference. The native
+process inherits the kernel lock: dropping/crashing the Rust owner cannot free
+it while Pi is alive. An unresolved durable spawn intent refuses later recovery
+or replacement even after the native process happens to exit; time, EOF, signal,
+process absence and adapter exit do not substitute for this owner's wait receipt.
+Legacy roots without observed owner-exit facts are also refused. No automatic
+uncertainty clearance, kill/takeover or fake resume. These root-process facts do
+not claim verified work or proof that arbitrary descendant/tool processes exited.
+
+Each native/control JSONL stream owns its own persistent framing buffer. Losing
+a `tokio::select!` read future preserves consumed partial bytes. LF-only, UTF-8,
+1MiB framing and truncated/error EOF fail closed; a poisoned stream cannot resume
+parsing a truncated tail as a fresh command/observation. The synchronous
 trait's blocking invoke cannot itself multiplex control; use async `NativePi`
 or CLI stdin for live cancellation.
 
 ## Observed checks and remaining proof
 
-Three bounded Rust checks pass: context selectors/native resume/route refusal,
-active-branch exclusion and immutable native intent conflicts. An opt-in installed
+Five bounded Rust checks pass: context selectors/native resume/route refusal,
+active-branch exclusion, immutable native intent conflicts, interleaved/cancelled
+split native/control frames and LF/UTF-8/EOF/bound failure behavior. Framing checks
+are in-memory protocol fixtures, not native execution. An opt-in installed
 Pi **no-model-prompt** walk also passed: real RPC startup and exact route selection,
 empty skills reflected in native commands, zero native messages/settled events,
 actual owned-process exit, and refusal to "resume" its nonexistent transcript.
@@ -108,6 +125,22 @@ NATIVE_PI_MODEL=exact-configured-model \
 NATIVE_PI_EXTENSION=/absolute/source/pi-config/extensions/commission-relay/native-input.ts \
 cargo test --locked --manifest-path agent-config/candidates/summon/pi-runtime/Cargo.toml \
   installed_native_startup -- --ignored --test-threads=1
+```
+
+Material owner-release defects were reproduced against original `6032fd5` native
+source with installed Pi and deliberately delayed SDK cleanup, **zero model
+prompts**: startup command-source refusal and malformed raw shutdown output both
+left actual Pi alive while another owner acquired its lock. Fixed checks observe
+exit before release, preserve the lock/refuse recovery after unobserved drop,
+refuse replacement even after time/process absence, and close/wait on malformed
+CLI control. Four opt-in fault checks use real native PIDs/start identities and
+retained wait receipts; the delay/raw-write/no-op-command extension and synthetic
+CLI Reply are explicit fault fixtures, not DO/provider/admission proof.
+
+```sh
+NATIVE_PI_MODEL=exact-configured-model \
+cargo test --locked --manifest-path agent-config/candidates/summon/pi-runtime/Cargo.toml \
+  --test owned_exit -- --ignored --test-threads=1 --nocapture
 ```
 
 The companion installed-SDK zero-network fixture walk exercised native input,

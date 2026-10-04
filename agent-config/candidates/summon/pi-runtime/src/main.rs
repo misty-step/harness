@@ -2,7 +2,7 @@ use anyhow::{ensure, Context, Result};
 use serde::Deserialize;
 use serde_json::json;
 use std::fs;
-use summon_pi_runtime::{record, Config, NativePi};
+use summon_pi_runtime::{record, Config, NativePi, Records};
 use summon_protocol::{CancelRequest, Reply};
 use tokio::io::BufReader;
 
@@ -82,9 +82,10 @@ async fn run() -> Result<()> {
         "{}",
         json!({"native_session":native.session,"scope":"native-read-only-tools; trusted local configuration, not filesystem/credential isolation"})
     );
+    let work = async {
     let before = native.settled_count;
     if request.mode == "invoke" && native.deliver(&dispatch).await? {
-        let mut stdin = BufReader::new(tokio::io::stdin());
+        let mut stdin = Records::new(BufReader::new(tokio::io::stdin()));
         let mut closed = false;
         while native.settled_count <= before {
             tokio::select! {
@@ -110,7 +111,21 @@ async fn run() -> Result<()> {
         "{}",
         json!({"observations":observations,"authority":"submit to existing DO observe/reconcile; not a local phase write"})
     );
-    let termination = native.shutdown().await?;
-    println!("{}", json!({"owned_process_termination":termination}));
-    Ok(())
+    Ok::<(), anyhow::Error>(())
+    }.await;
+    let closed = native.shutdown().await;
+    match (work, closed) {
+        (Ok(()), Ok(termination)) => {
+            println!("{}", json!({"owned_process_termination":termination}));
+            Ok(())
+        }
+        (Err(error), Ok(termination)) => Err(error.context(format!(
+            "native failure closed with observed exit: {}",
+            termination.evidence_ref
+        ))),
+        (Err(error), Err(close)) => Err(error.context(format!(
+            "native close failed; unobserved exit remains owner uncertainty: {close}"
+        ))),
+        (Ok(()), Err(error)) => Err(error),
+    }
 }

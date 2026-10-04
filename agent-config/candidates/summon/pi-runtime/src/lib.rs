@@ -1,4 +1,5 @@
 //! Standalone native Pi adapter. Protocol/DO owns runs; this owns native IPC facts.
+mod owner;
 use anyhow::{ensure, Context, Result};
 use fs2::FileExt;
 use serde::{Deserialize, Serialize};
@@ -77,12 +78,43 @@ fn immutable(path: &Path, bytes: &[u8]) -> Result<bool> {
     File::open(path.parent().context("no transport parent")?)?.sync_all()?;
     Ok(true)
 }
-pub async fn record<R: AsyncBufRead + Unpin>(input: &mut R) -> Result<Option<Value>> {
-    let mut bytes = Vec::new();
+/// One cancellation-safe framing owner per stream. Consumed bytes survive losing
+/// a select branch; control/native streams must never share this state.
+pub struct Records<R> {
+    input: R,
+    bytes: Vec<u8>,
+    failed: bool,
+}
+impl<R> Records<R> {
+    pub fn new(input: R) -> Self {
+        Self {
+            input,
+            bytes: Vec::new(),
+            failed: false,
+        }
+    }
+    fn into_inner(self) -> R {
+        self.input
+    }
+}
+pub async fn record<R: AsyncBufRead + Unpin>(stream: &mut Records<R>) -> Result<Option<Value>> {
+    ensure!(
+        !stream.failed,
+        "native/control framing failed; stream remains uncertain"
+    );
     loop {
-        let available = input.fill_buf().await?;
+        let available = match stream.input.fill_buf().await {
+            Ok(value) => value,
+            Err(error) => {
+                stream.failed = true;
+                return Err(error.into());
+            }
+        };
         if available.is_empty() {
-            ensure!(bytes.is_empty(), "truncated native RPC record");
+            if !stream.bytes.is_empty() {
+                stream.failed = true;
+                anyhow::bail!("truncated native RPC record");
+            }
             return Ok(None);
         }
         let n = available
@@ -90,15 +122,26 @@ pub async fn record<R: AsyncBufRead + Unpin>(input: &mut R) -> Result<Option<Val
             .position(|b| *b == b'\n')
             .map(|i| i + 1)
             .unwrap_or(available.len());
-        ensure!(
-            bytes.len() + n <= 1024 * 1024,
-            "native RPC record exceeds 1MiB bound"
-        );
+        if stream.bytes.len() + n > 1024 * 1024 {
+            stream.failed = true;
+            anyhow::bail!("native RPC record exceeds 1MiB bound");
+        }
         let done = available[n - 1] == b'\n';
-        bytes.extend_from_slice(&available[..n]);
-        input.consume(n);
+        stream.bytes.extend_from_slice(&available[..n]);
+        stream.input.consume(n);
         if done {
-            return Ok(Some(serde_json::from_slice(&bytes)?));
+            // Poison on framing/JSON failure: a truncated tail must not silently
+            // become the next command/observation after a parse error.
+            stream.failed = true;
+            ensure!(
+                !stream.bytes.contains(&b'\r'),
+                "native RPC framing is LF-only"
+            );
+            std::str::from_utf8(&stream.bytes).context("native RPC UTF-8 required")?;
+            let value = serde_json::from_slice(&stream.bytes)?;
+            stream.bytes.clear();
+            stream.failed = false;
+            return Ok(Some(value));
         }
     }
 }
@@ -198,13 +241,14 @@ pub fn native_args(
 /// observe/wait or request_abort() while native work is active. Acceptance is external.
 pub struct NativePi {
     child: Child,
-    stdin: ChildStdin,
-    stdout: BufReader<ChildStdout>,
+    stdin: Option<ChildStdin>,
+    stdout: Option<Records<BufReader<ChildStdout>>>,
     pub session: NativeSession,
     root: PathBuf,
     run_id: String,
     task_sha256: String,
-    _lock: File,
+    owner: owner::Owner,
+    pid: u32,
     sequence: u64,
     pub settled_count: u64,
 }
@@ -222,6 +266,7 @@ impl NativePi {
             .open(root.join("native.lock"))?;
         lock.try_lock_exclusive()
             .context("native process already owned; no lease takeover")?;
+        owner::Owner::check(&root)?;
         let stored = root.join("native.session");
         let previous: Option<NativeSession> = if stored.exists() {
             Some(serde_json::from_slice(&fs::read(&stored)?)?)
@@ -249,71 +294,124 @@ impl NativePi {
         let args = native_args(dispatch, config, &session, resume, &sessions)?;
         // Native auth stays native. No login, credential reads/copies, API-key flags,
         // alternate route or paid fallback is implemented here.
-        let mut child = Command::new("pi")
+        let task_sha256 = sha256(&serde_json::to_vec(&dispatch.task)?);
+        let owner = owner::Owner::reserve(&root, lock)?;
+        let fd = owner.inherited_fd();
+        let mut command = Command::new("pi");
+        command
             .args(args)
             .current_dir(&dispatch.task.workspace)
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
-            .stderr(Stdio::inherit())
-            .spawn()?;
-        let stdin = child.stdin.take().context("native stdin unavailable")?;
-        let stdout = BufReader::new(child.stdout.take().context("native stdout unavailable")?);
+            .stderr(Stdio::inherit());
+        // Keep the same kernel lock open in the native process itself. Dropping
+        // or crashing the Rust owner cannot free ownership while Pi is alive.
+        // The durable unresolved intent additionally refuses replacement when
+        // no parent wait/exit receipt was observed, even after Pi later exits.
+        unsafe {
+            command.pre_exec(move || {
+                let flags = libc::fcntl(fd, libc::F_GETFD);
+                if flags < 0 || libc::fcntl(fd, libc::F_SETFD, flags & !libc::FD_CLOEXEC) < 0 {
+                    return Err(std::io::Error::last_os_error());
+                }
+                Ok(())
+            });
+        }
+        let child = match command.spawn() {
+            Ok(child) => child,
+            Err(error) => {
+                owner.not_spawned()?;
+                return Err(error.into());
+            }
+        };
+        let pid = child.id().expect("newly spawned native child PID");
         let mut process = Self {
             child,
-            stdin,
-            stdout,
+            stdin: None,
+            stdout: None,
             session: session.clone(),
             root,
             run_id: dispatch.run_id.clone(),
-            task_sha256: sha256(&serde_json::to_vec(&dispatch.task)?),
-            _lock: lock,
+            task_sha256,
+            owner,
+            pid,
             sequence: 0,
             settled_count: 0,
         };
-        let state = process.command(json!({"type":"get_state"})).await?;
-        ensure!(
-            state["sessionId"] == session.session_id
-                && state["model"]["provider"] == dispatch.task.route.provider
-                && state["model"]["id"] == dispatch.task.route.model
-                && state["thinkingLevel"] == dispatch.task.route.effort,
-            "native identity/route/thinking mismatch; no input sent"
-        );
-        let file = state["sessionFile"]
-            .as_str()
-            .context("native persistent session required")?;
-        if resume {
-            ensure!(
-                file == session.session_file,
-                "native resume switched/forked; refused"
+        let initialized = async {
+            process.owner.birth(pid)?;
+            process.stdin = Some(
+                process
+                    .child
+                    .stdin
+                    .take()
+                    .context("native stdin unavailable")?,
             );
-        } else {
-            session.session_file = file.into();
-        }
-        process.session = session;
-        immutable(&stored, &serde_json::to_vec(&process.session)?)?;
-        let commands = process.command(json!({"type":"get_commands"})).await?;
-        let commands = commands["commands"]
-            .as_array()
-            .context("native extension discovery missing")?;
-        for name in ["summon-native-input", "summon-native-receipt"] {
+            process.stdout = Some(Records::new(BufReader::new(
+                process
+                    .child
+                    .stdout
+                    .take()
+                    .context("native stdout unavailable")?,
+            )));
+            let state = process.command(json!({"type":"get_state"})).await?;
             ensure!(
-                commands.iter().any(|command| command["name"] == name
-                    && command["source"] == "extension"
-                    && command["sourceInfo"]["path"] == config.extension),
-                "explicit native SDK command source not loaded; no input sent"
+                state["sessionId"] == session.session_id
+                    && state["model"]["provider"] == dispatch.task.route.provider
+                    && state["model"]["id"] == dispatch.task.route.model
+                    && state["thinkingLevel"] == dispatch.task.route.effort,
+                "native identity/route/thinking mismatch; no input sent"
             );
+            let file = state["sessionFile"]
+                .as_str()
+                .context("native persistent session required")?;
+            if resume {
+                ensure!(
+                    file == session.session_file,
+                    "native resume switched/forked; refused"
+                );
+            } else {
+                session.session_file = file.into();
+            }
+            process.session = session;
+            immutable(&stored, &serde_json::to_vec(&process.session)?)?;
+            let commands = process.command(json!({"type":"get_commands"})).await?;
+            let commands = commands["commands"]
+                .as_array()
+                .context("native extension discovery missing")?;
+            for name in ["summon-native-input", "summon-native-receipt"] {
+                ensure!(
+                    commands.iter().any(|command| command["name"] == name
+                        && command["source"] == "extension"
+                        && command["sourceInfo"]["path"] == config.extension),
+                    "explicit native SDK command source not loaded; no input sent"
+                );
+            }
+            // Bound one native attempt; no automatic retry/compaction calls in pilot.
+            process
+                .command(json!({"type":"set_auto_retry","enabled":false}))
+                .await?;
+            process
+                .command(json!({"type":"set_auto_compaction","enabled":false}))
+                .await?;
+            Ok::<(), anyhow::Error>(())
         }
-        // Bound one native attempt; no automatic retry/compaction calls in pilot.
-        process
-            .command(json!({"type":"set_auto_retry","enabled":false}))
-            .await?;
-        process
-            .command(json!({"type":"set_auto_compaction","enabled":false}))
-            .await?;
+        .await;
+        if let Err(error) = initialized {
+            return match process.shutdown().await {
+                Ok(exit) => Err(error.context(format!(
+                    "native failure closed with observed exit: {}",
+                    exit.evidence_ref
+                ))),
+                Err(close) => Err(error.context(format!(
+                    "native exit unobserved; owner intent remains uncertain: {close}"
+                ))),
+            };
+        }
         Ok(process)
     }
     pub async fn next_event(&mut self) -> Result<Option<Value>> {
-        let event = record(&mut self.stdout).await?;
+        let event = record(self.stdout.as_mut().context("native stdout unavailable")?).await?;
         if event.as_ref().is_some_and(|v| v["type"] == "agent_settled") {
             self.settled_count += 1;
         }
@@ -323,10 +421,9 @@ impl NativePi {
         self.sequence += 1;
         let id = format!("summon-native-{}", self.sequence);
         command["id"] = json!(id);
-        self.stdin
-            .write_all(format!("{command}\n").as_bytes())
-            .await?;
-        self.stdin.flush().await?;
+        let stdin = self.stdin.as_mut().context("native stdin already closed")?;
+        stdin.write_all(format!("{command}\n").as_bytes()).await?;
+        stdin.flush().await?;
         loop {
             let event = self
                 .next_event()
@@ -526,27 +623,43 @@ impl NativePi {
         )])
     }
     /// Only waiting this owned child proves its exit. No timeout/lease/signal guess.
-    pub async fn shutdown(self) -> Result<Termination> {
-        let Self {
-            mut child,
-            stdin,
-            mut stdout,
-            session,
-            _lock,
-            ..
-        } = self;
-        // AsyncWrite::shutdown on ChildStdin does not close the pipe. Drop the
-        // actual owned handle, continue draining stdout, and retain the lock
-        // until the owned native process has really exited.
-        drop(stdin);
-        let pid = child.id().context("missing owned native PID")?;
-        while record(&mut stdout).await?.is_some() {}
-        let status = child.wait().await?;
-        drop(_lock);
-        Ok(Termination {
-            session,
-            evidence_ref: format!("owned-pi-exit:pid={pid}:status={status}"),
-        })
+    pub async fn shutdown(mut self) -> Result<Termination> {
+        // One close-and-observed-exit path, even after startup/control/parse errors.
+        // Drain raw bytes: malformed protocol records cannot bypass the wait.
+        drop(self.stdin.take());
+        drop(self.child.stdin.take());
+        let stdout = self
+            .stdout
+            .take()
+            .map(Records::into_inner)
+            .or_else(|| self.child.stdout.take().map(BufReader::new));
+        let drain_error = if let Some(mut stdout) = stdout {
+            tokio::io::copy(&mut stdout, &mut tokio::io::sink())
+                .await
+                .err()
+        } else {
+            None
+        };
+        let status = self
+            .child
+            .wait()
+            .await
+            .context("native exit unobserved; immutable owner intent refuses replacement")?;
+        let receipt = self.owner.observed(self.pid, &status)?;
+        let termination = Termination {
+            session: self.session.clone(),
+            evidence_ref: format!(
+                "owned-pi-exit:pid={}:status={status}:receipt={receipt}",
+                self.pid
+            ),
+        };
+        if let Some(error) = drain_error {
+            return Err(error).context(format!(
+                "native output failed, but owned exit observed: {}",
+                termination.evidence_ref
+            ));
+        }
+        Ok(termination)
     }
 }
 
@@ -573,6 +686,18 @@ impl Adapter {
     pub fn set_revision(&mut self, revision: u64) {
         self.revision = revision;
     }
+    fn failed(&mut self, error: anyhow::Error) -> anyhow::Error {
+        match self.shutdown() {
+            Ok(Some(exit)) => error.context(format!(
+                "native failure closed with observed exit: {}",
+                exit.evidence_ref
+            )),
+            Ok(None) => error,
+            Err(close) => error.context(format!(
+                "native exit unobserved; owner uncertainty retained: {close}"
+            )),
+        }
+    }
     pub fn shutdown(&mut self) -> Result<Option<Termination>> {
         self.process
             .take()
@@ -590,13 +715,14 @@ impl summon_protocol::RuntimeAdapter for Adapter {
             );
         }
         let process = self.process.as_mut().unwrap();
-        self.runtime.block_on(async {
+        let result = self.runtime.block_on(async {
             let before = process.settled_count;
             if process.deliver(dispatch).await? {
                 process.wait_settled(before).await?;
             }
             process.observe(dispatch, self.revision).await
-        })
+        });
+        result.map_err(|error| self.failed(error))
     }
     fn reconcile(&mut self, dispatch: &Dispatch) -> Result<Vec<ObserveRequest>> {
         if self.process.is_none() {
@@ -605,12 +731,13 @@ impl summon_protocol::RuntimeAdapter for Adapter {
                     .block_on(NativePi::recover(dispatch, &self.config))?,
             );
         }
-        self.runtime.block_on(
+        let result = self.runtime.block_on(
             self.process
                 .as_mut()
                 .unwrap()
                 .observe(dispatch, self.revision),
-        )
+        );
+        result.map_err(|error| self.failed(error))
     }
     fn cancel(
         &mut self,
@@ -621,10 +748,11 @@ impl summon_protocol::RuntimeAdapter for Adapter {
             .process
             .as_mut()
             .context("native owner unavailable; cancellation/termination unknown")?;
-        self.runtime.block_on(async {
+        let result = self.runtime.block_on(async {
             process.request_abort(request, dispatch).await?;
             process.observe(dispatch, self.revision).await
-        })
+        });
+        result.map_err(|error| self.failed(error))
     }
 }
 
