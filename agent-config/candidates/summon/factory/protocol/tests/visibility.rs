@@ -339,7 +339,26 @@ fn cycle_conflicting_identity_and_relationship_source_are_refused_before_export(
     let mut aliased = a.clone();
     aliased.node_id = "duplicated-native-worker".into();
     assert_eq!(
-        VisibilityGraph::new(vec![a, aliased]).err().unwrap().code,
+        VisibilityGraph::new(vec![a.clone(), aliased])
+            .err()
+            .unwrap()
+            .code,
+        "identity_conflict"
+    );
+    let mut conflicting = record("cf1:other-reader");
+    let mut original = a.lineage.value.clone().unwrap();
+    original.edges[0].source.owner = "competing-edge-owner".into();
+    conflicting.lineage = Fact::current(
+        "summon_do:cf1:other-reader",
+        "fixture scope",
+        1000,
+        original,
+    );
+    assert_eq!(
+        VisibilityGraph::new(vec![a, conflicting])
+            .err()
+            .unwrap()
+            .code,
         "identity_conflict"
     );
 }

@@ -2,7 +2,7 @@
 use crate::visibility::*;
 use crate::{Result, digest, hash, refuse};
 use serde::{Deserialize, Serialize};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
@@ -44,7 +44,7 @@ pub struct ReopenRequest {
     pub packets: Vec<PacketManifestV1>,
 }
 impl PacketManifestV1 {
-    /// Hash actual archive bytes (including source read timestamps). Semantic
+    /// Hash deterministic compact JSON archive bytes (including read timestamps). Semantic
     /// currentness is separately bound by binding_sha256, which excludes read time.
     pub fn archive_sha256(&self) -> String {
         hash(self)
@@ -146,11 +146,20 @@ fn assess(
         }
     }
     let mut issues = graph.issues(root)?;
-    for node in graph.reachable(root)? {
-        let Some(record) = graph.records.get(&node) else {
-            continue;
-        };
-        let outgoing: Vec<_> = graph.edges.values().filter(|e| e.from == node).collect();
+    let mut queue = VecDeque::from([graph.records.get(root).expect("issues validated root")]);
+    let mut visited = BTreeSet::new();
+    // Follow the actual immutable packet tree, not the latest graph's archive refs.
+    // Fresh graph facts are assessed separately and bind every selected archive.
+    while let Some(record) = queue.pop_front() {
+        let node = &record.node_id;
+        let outgoing: Vec<_> = record
+            .lineage
+            .value
+            .as_ref()
+            .into_iter()
+            .flat_map(|l| &l.edges)
+            .filter(|e| &e.from == node)
+            .collect();
         // An unrelated/archive child reference must not be silently counted as proof.
         for child in &record.child_packets {
             if !outgoing
@@ -216,8 +225,14 @@ fn assess(
                     "child archive does not cover current identity/candidate",
                 ));
             }
-            // Do not trust packet.proof.recursive_pass: graph + all descendant bindings
-            // are freshly checked above/across the reachable inventory every time.
+            if packet.record.node_id == edge.to
+                && packet.binding_sha256 == current_binding
+                && visited.insert(packet.archive_sha256())
+            {
+                queue.push_back(&packet.record);
+            }
+            // Stored packet.proof is historical. Source/currentness and ORIGINAL
+            // archive descendants are checked afresh, at every depth.
         }
     }
     Ok(RecursiveProof {
