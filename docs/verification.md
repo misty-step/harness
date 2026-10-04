@@ -37,8 +37,11 @@ locked Rust builds, explicit local workerd/SQLite proof and native consumer walk
 Run those affected checks against the exact candidate and retain their receipts
 before source landing. The zero-network Pi SDK relay fixture proves SDK/transport
 behavior, not authenticated provider execution, live CTO wake or COO delivery.
-Hosted auth, restore, release effects and full scheduling remain separate held or
-unimplemented boundaries; see [ADR-010](adr/010-local-cto-summon-factory.md).
+Hosted auth, cloud-native harness execution, deep Jev/OpenRouter, shared
+subscription/cash admission, restore and release effects remain separate
+unverified/unimplemented boundaries. Full hosted delivery is commissioned within
+existing authority, not held by a blanket activation pause; see
+[ADR-010](adr/010-local-cto-summon-factory.md).
 Standalone workerd proof is explicit, not a silently skipped ordinary Bun test.
 
 ## Observable contracts

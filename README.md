@@ -191,10 +191,12 @@ started at `v0.1.0`; old component tags remain under
 component changelogs remain in place; new release notes belong at the root.
 Optional LLM synthesis is disabled, so publishing requires no model credential.
 
-## Source-only factory pilot
+## Factory target and current source candidate
 
-[ADR-010](docs/adr/010-local-cto-summon-factory.md) owns the local CTO/Summon/Mage
-factory boundary for the current Glass commission. The
+[ADR-010](docs/adr/010-local-cto-summon-factory.md) distinguishes the commissioned
+full Cloudflare-hosted factory from the current local CTO/Summon/Mage source.
+The target includes cloud-native harness execution, deep Jev/OpenRouter and
+authenticated Hermes/Mage/Pi/Grok Bot clients; mirrodin is not its runtime backend. The
 [Cloudflare candidate](agent-config/candidates/summon/factory/README.md) is a Rust
 run/input/proof kernel, not the delivered end-to-end factory. Its local protocol,
 proof commands and unexercised/approval boundaries are explicit; installers do

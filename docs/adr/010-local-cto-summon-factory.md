@@ -1,15 +1,21 @@
 # ADR-010: Local CTO pilot; Summon owns runs, not the whole portfolio
 
-Status: Accepted for local source implementation, 2026-10-03, under Glass
-K-20261002-engineers-run-on-the-right-harness-per-p. Hosted activation is held.
-This records the commissioned technical boundary, not a deployment receipt or
-completion of the end-to-end factory.
+Status: Initial local source boundary accepted 2026-10-03; delivery outcome
+expanded 2026-10-04 under Glass K-20261002-engineers-run-on-the-right-harness-per-p
+and K-20261003-factory-architecture-stays-clear-in-a-ma, read at revision 4136.
+The target is the full Cloudflare-hosted factory, not a local pilot or proxy to
+mirrodin. The blanket hosted activation pause is superseded within existing
+access and spending authority. This ADR is not a deployment/completion receipt;
+prior frozen briefs, origins and evidence retain their original meaning.
 
 ## Four different claims
 
 1. **Desired factory:** admission → execution → assessment/correction → real
-   consumer verification → authorized release → observation, with recoverable
-   coordination while the COO conversation remains available.
+   consumer verification → authorized release → observation. Coordination,
+   durable state/evidence and compatible native execution run on Cloudflare;
+   deep Jev judgments use OpenRouter. Hermes, Mage, Pi and actual Grok Bot use
+   authenticated project-scoped contracts while the COO conversation remains
+   available. Development workspaces are not production execution backends.
 2. **Run kernel:** immutable intake, ordered input, exclusive dispatch attempt,
    native receipts, reconciliation, action holds and current proof binding. These
    low-level mechanics are necessary, not the full factory.
@@ -20,8 +26,12 @@ completion of the end-to-end factory.
    receipts establish this. Code, a tab, a declared digest, process exit, a PR,
    merge and a verified artifact do not establish deployment or product Done.
 
-The local candidate excludes Jev integration, cross-run scheduling and external
-release effects. Do not describe those exclusions as a delivered factory.
+The current local candidate excludes Jev integration, shared subscription/cash
+admission, hosted native execution and external release effects. Those are
+remaining delivery work, not permanent scope exclusions. Land reviewed slices,
+but do not close the parent on fixtures, workerd or a rollout brief: completion
+requires independently reviewed, merged exact deployed bytes and real remote
+native/client, negative-path and recovery evidence.
 The three historical probes remain bounded study evidence; this commission is
 ordinary engineering and authorizes no further formal comparison batch.
 
@@ -29,6 +39,12 @@ October 3's updated acceptance also commissions reusable per-agent/per-attempt
 views, recursive rollups and retained evidence packets as factory outputs.
 Their factual contracts/instrumentation do not wait for visual authoring.
 The companion HTML explainer teaches those contracts; it is not their authority.
+The current visual target is the whole system through tap-friendly granular
+disclosure, sharp-corner Omarchy and purposeful ASCII Magic-inspired art, with
+phone-accessible HTTPS and actual desktop/mobile browser proof. Sonnet 5.5
+xhigh/max remains the authoring route unless Phaedrus explicitly grants an
+exception. Kaylee owns Maren Vane's contact verification and notification after
+actual artifact delivery; neither contact nor delivery is implied here.
 
 ## One authority per fact
 
@@ -89,9 +105,14 @@ chain of thought. No service per agent or model call on each visibility tick.
 `summon/evidence` consumer owns factual reads/retention/export, without Glass or
 Mage. CTO owns source facts/integration and the maintained cross-component HTML
 explainer under `docs/factory-explainer/`; approved Claude owns visual authoring.
-These newly commissioned paths are implementation work, not exercised/source-
-landed claims in this ADR. Source/native consumer and exported/reopened packet
-receipts must establish the actual delivered boundary. Prior review rounds stay
+These are source candidates, not landed/deployed claims. At core revision
+`ca8f98684b32f81b87ca27ace000d0ac84599978`, ten Rust contracts and a real local
+Wrangler/workerd SQLite walk exercised kernel, metadata, views, packets, paging,
+export/reopen and restart. Nested reopening preserves original archives at every
+depth. Native, lineage and deep/archive content in that walk was synthetic;
+those receipts are not authenticated native turns, hosted recovery or exact-HEAD
+proof for a different integration revision. Actual source/native consumer and
+exported/reopened packet receipts must establish their delivered boundary. Prior review rounds stay
 immutable; a small current link may select a newer round without erasing history.
 
 ## Source and replacement boundary
@@ -196,27 +217,43 @@ every check rejects a named plausible failure; trace the commissioned ticket to
 session/diff/proof packet. Use the current constitution and sole normative
 catalog, not another prose foundation standard.
 
-Jev can later rank eligible options, judge relevance or group/triage findings
-through the fleet's bounded OpenRouter Decisions path. Code checks factual
-preconditions, evidence coverage, revision/freshness, authority and permission.
-Jev failure yields a conservative route or CTO judgment, never invented pass or
-permission. This kernel ships **no Jev integration**. Task context omitted means
+The full commission requires Jev in actual lifecycle judgments, context
+selection, eligible routing and escalation through the fleet's OpenRouter
+Decisions path, pinned to `typesafe/jev-1.13`. Use typed answers/probabilities,
+not generated explanations; bind judgments to their relevant source revision,
+questions and candidate set, and measure actual model, latency and cost.
+Confidence is not permission or proof; Noul returns a probability, not an
+independent confidence value. Code checks factual preconditions, evidence
+coverage, revision/freshness, original authority and permission. Low confidence,
+refusal and service failure have explicit usable/default or CTO escalation paths;
+no fabricated scores, tool veto or side-effect authorization by an advisory
+judgment. Calls are bounded by relevant changes, not visibility ticks. The
+current kernel ships **no Jev integration**. Task context omitted means
 runtime defaults; explicit empty instructions/skills means none. Neither changes
 tool permissions, product acceptance or the commissioning source's authority.
 
 ## Approval and failure boundaries
 
-Hosted activation must name account/environment, Worker/DO/storage resources,
-principals/action scopes, content/retention/cost bounds, restore/reconciliation
-and residual gaps before approval. Local DO restart is not hosted PITR/restore;
-a native session file is not a tested off-machine backup. Trusted local issuer
-assertions are not hosted multi-principal authentication.
+Hosted delivery is commissioned within existing access/spending authority.
+Engineering dispatch must name the actual account/plan/environment,
+Worker/DO/container/storage resources, authenticated principals/action scopes,
+content/retention/cost caps and restore/reconciliation path. Inspect Containers
+and Sandboxes plus provider-supported native cloud subscription authentication;
+do not assume eligibility from Wrangler authentication. Local DO restart is not
+hosted PITR/restore; a native session file is not a tested off-machine backup.
+Trusted local issuer/completeness assertions are not authenticated discovery or
+hosted multi-principal verification. Promote tested same bytes and read back
+remote consumer, denied-access and recovery postconditions.
 
-No credential relocation, paid Anthropic fallback, purchases/new spend,
-production data operations, broad fleet cutover, paused audit activation or story
-weakening follows from this source. The first pass stops as delivered or at a
-named operator approval with exact proof/gaps; Kaylee owns commitments and gets
-outcomes/complete decisions, not raw worker chatter.
+No unspecified purchases, widened cash authority, unapproved credential
+relocation, copied workstation OAuth, silent metered or paid Anthropic fallback,
+R90 production data access, unrelated fleet cutover, paused audit activation,
+forced live reload or story weakening follows from this source. A required plan,
+principal, provider-supported auth or budget outside existing authority is a
+concrete decision for Kaylee/Phaedrus, not a blanket hosted pause. CTO owns
+engineering plans/dispatch and keeps driving full delivery; Kaylee owns
+commitments and gets board-ready refinements, results and genuine approval
+blockers, not raw worker chatter.
 
 Sources: [constitution](../../agent-config/skills/foundation/constitution.md),
 [normative catalog](../../agent-config/skills/foundation/foundation-standard-v1.json),
