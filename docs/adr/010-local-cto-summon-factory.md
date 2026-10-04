@@ -8,6 +8,26 @@ mirrodin. The blanket hosted activation pause is superseded within existing
 access and spending authority. This ADR is not a deployment/completion receipt;
 prior frozen briefs, origins and evidence retain their original meaning.
 
+## Scope precedence
+
+The governing parent was reread at Glass revision 4359 after Kaylee's revision
+4347 clarification. Its authored full-factory description, scope and latest
+notes govern. The retained Small summon decision brief and its “Nothing switches
+over” text are stale context, not an unanswered decision or release hold.
+Research-only no-deployment/no-inference bounds apply to that discovery task,
+not the factory commission. Native receipt time is not original authored order:
+older queued directions do not supersede later authoritative scope.
+
+K-20261003-factory-works-across-agents-devices-and and
+K-20261003-factory-stays-simple-and-survives-changi constrain the current contracts;
+their Later placement is not an unrelated rollout or tracker-migration grant.
+CTO owns technical discovery, detailed engineering briefs, sequencing and
+artifacts. Kaylee owns rank, commitments, strategy and acceptance. Preserve the
+three material source-review landing stops, actual account/cash/provider limits,
+unapproved credential relocation and the unanswered Claude visual exception.
+After source fixes/proof/independent re-review, drive the next named authorized
+shipping boundary; do not ask for generic hosting approval again.
+
 ## Four different claims
 
 1. **Desired factory:** admission → execution → assessment/correction → real
@@ -115,6 +135,35 @@ proof for a different integration revision. Actual source/native consumer and
 exported/reopened packet receipts must establish their delivered boundary. Prior review rounds stay
 immutable; a small current link may select a newer round without erasing history.
 
+## Modules, replacement contracts and earned complexity
+
+The shared Rust transition core has no dependency on Cloudflare transport,
+native processes or executive clients. Adapters supply typed commands/facts;
+the core checks invariants and returns state/receipts. A platform binding is not
+a reason to make the reducer, tracker or runtime own another module's facts.
+
+| Module | Ownership / interface / replacement contract | Why keep it? |
+| --- | --- | --- |
+| Immutable task envelope | Freeze effective `TaskSpec`, original checks/permissions and optional source references at intake; tracker fields stay outside the task authority | Standalone use and missing/replaced tracker do not change accepted work |
+| Rust transition core | Own ordered inputs, attempts, uncertainty, holds and candidate-bound proof; typed commands/receipts independent of persistence and harness | One executable place rejects duplicate dispatch, stale revision and unsafe replay |
+| Cloudflare transport/storage adapter | Authenticate/attribute scopes before mutation; serialize the same core in SQLite DOs, retain immutable objects in private storage | Remote durable coordination; per-run serialization is simple but does not itself solve shared admission or auth |
+| Native runtime adapter | Supported start/resume/input/abort/read/close APIs and actual session/message/exit facts through `RuntimeAdapter`; harness change requires capability/session handoff | Native execution remains useful without Mage/Glass and cannot be inferred from a client or lease |
+| Mage and other clients | One negotiated authenticated command/read contract; request/decision/run identities survive conversation/device replacement; no task executor or run ledger | Conversation independence and remote use without desktop automation; actual Grok Bot transport remains to be discovered |
+| Tracker adapter | Glass, Habitat or another tracker supplies priority/accepted brief/source provenance; normalize before intake, never rewrite existing tasks, phases or proofs | A tracker can be replaced without migrating execution authority; no tracker migration is commissioned here |
+| Shared read/evidence modules | Owner-stamped recursive projection and content-addressed manifests/objects; original child archive references, not copied descendant payloads | One reusable inspection path exposes missing/stale/failed/uncertain/inaccessible work, deduplicates dependencies and preserves failed archives |
+| Jev judgment adapter | Bounded revision-bound typed semantic advice among code-eligible choices; explicit uncertainty/defaults, no authority/check override | Semantic routing/context/escalation without a workflow DSL or model-generated status ledger; actual integration remains unimplemented |
+| Project verifier / external-effect adapter | Existing checks, independent reviewer and real consumer supply exact-candidate receipts; GitHub/deployment/data owner supplies applied-effect readback | The factory cannot prove its own correctness by writing green or assert an external effect from a successful tool exit |
+
+No universal workflow DSL, new event bus, service/dashboard per agent or second
+portfolio/run/incident ledger is needed. Identity, revision, input ordering,
+uncertainty, holds and receipt/candidate binding belong in these narrow code
+interfaces and affected tests, not growing prompt manuals. Accepted steering
+must leave room for outcome/reconciliation; replay bookkeeping uses canonical
+references/fingerprints rather than quadratic copies. Required evidence comes
+from the original task, not a universal test count or descriptive metadata.
+These last two invariants and Rust observed-exit ownership have open material
+reproductions/repairs; this table does not claim they already pass.
+
 ## Source and replacement boundary
 
 - `agent-config/candidates/summon/`: original PR219 groundwork, inspected at
@@ -178,6 +227,36 @@ does not prevent inspection, native observations or unrelated conversation.
 A requested cancel is not stopped; native termination must be observed, and
 termination does not prove a possibly dispatched input or effect never happened.
 Lost ACK/disconnected host/expired lease is uncertainty, never retry authority.
+
+## First coherent composition proof — not self-certification
+
+Stage one standalone immutable task (optional tracker/Git source), one fresh
+local workerd claim, one admitted actual native Pi turn and its exact persisted
+receipt/session, an independently exercised candidate/verifier result, and a
+required-evidence packet exported/reopened through the shared reader. Inspect
+or steer from another supported client without creating a second run. This is
+a local composition boundary, not the full hosted factory or writable native
+implementation acceptance; any fixture, trust and capability limits stay visible.
+
+Before landing, reproduce and repair the three material findings: accepted
+near-capacity steering must not strand an answer/reconciliation; Rust startup,
+control or malformed-shutdown errors must observe Pi exit before owner release
+(or retain uncertainty/refuse replacement); absent task-required receipts must
+produce explicit incomplete/stale issues, never recursive green. Incomplete
+archives remain exportable; archive byte integrity is not current correctness.
+
+Use the existing real boundary proof for duplicate/mismatched replay, ordered
+steering, restart/recovery, uncertainty and stale candidate/child refusal. Add
+only checks that reject the actual plausible failure. Follow with the real native
+consumer and independent exact-revision review at the integrated candidate.
+Normal repository checks, materialized artifact bytes and actual consumer/effect
+owners are external truth. Summon only binds their receipts; loopback caller or
+issuer strings authenticate neither hosted access nor an independent verifier.
+
+Hosted multi-principal auth, shared account/cash admission, cloud-native harness
+compatibility, deep Jev, actual Grok Bot transport, remote restore/PITR and
+same-byte promotion/observation remain unimplemented or unverified. This first
+slice must not be called completion or substituted for those parent obligations.
 
 ## Where foundations and operating principles enter
 
