@@ -1,0 +1,19 @@
+[package]
+name = "mage-executive"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+anyhow = "1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sha2 = "0.10"
+rusqlite = { version = "0.37", features = ["bundled"] }
+fs2 = "0.4"
+libc = "0.2"
+summon-http-client = { path = "../mage/factory-http" }
+ureq = { version = "=3.3.0", default-features = false, features = ["rustls"] }
+url = "=2.5.8"
+
+[dev-dependencies]
+tempfile = "3"
