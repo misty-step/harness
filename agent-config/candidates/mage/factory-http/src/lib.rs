@@ -211,6 +211,9 @@ impl Client {
             }
             "view" => {
                 let record: AgentRunAttemptV1 = decode(&response.body)?;
+                record
+                    .validate()
+                    .map_err(|e| anyhow::anyhow!("{}", e.code))?;
                 let managed = record
                     .managed
                     .context("hosted view missing managed source")?;
@@ -297,6 +300,7 @@ impl Client {
         (|| -> Result<()> {
             if endpoint=="metadata" {
                 let record:AgentRunAttemptV1=decode(&response.body)?;
+                record.validate().map_err(|e| anyhow::anyhow!("{}",e.code))?;
                 validate_status(&record.managed.context("metadata response missing managed source")?,run)?;
             } else {
                 let reply:Reply=decode(&response.body)?;

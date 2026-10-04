@@ -22,6 +22,17 @@ struct Control {
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() {
+    let args: Vec<String> = std::env::args().skip(1).collect();
+    if args.first().is_some_and(|a| a == "factory") {
+        match summon_http_client::cli(&args[1..]) {
+            Ok(value) => println!("{value}"),
+            Err(error) => {
+                eprintln!("{}", json!({"error":error.to_string()}));
+                std::process::exit(1);
+            }
+        }
+        return; // HTTP outcomes are not native ownership/delivery facts
+    }
     if let Err(error) = run().await {
         eprintln!(
             "{}",
@@ -31,11 +42,6 @@ async fn main() {
     }
 }
 async fn run() -> Result<()> {
-    let args: Vec<String> = std::env::args().skip(1).collect();
-    if args.first().is_some_and(|a| a == "factory") {
-        println!("{}", summon_http_client::cli(&args[1..])?);
-        return Ok(()); // never starts Pi, changes loadout or auto-submits facts
-    }
     let file = std::env::args().nth(1).context("usage: summon-pi-runtime REQUEST.json; optional stdin JSONL {cancel: shared CancelRequest}")?;
     let bytes = fs::read(file)?;
     ensure!(bytes.len() <= 1024 * 1024, "request exceeds 1MiB");
