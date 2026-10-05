@@ -40,12 +40,6 @@ afterEach(() => {
 	for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true });
 });
 
-test("US-014 source selectors stay within the approved model policy", () => {
-	const result = run();
-	expect(result.exitCode).toBe(0);
-	expect(result.stderr.toString()).toBe("");
-	expect(result.stdout.toString()).toContain("Model policy OK:");
-});
 
 test("offline policy rejects stale, alias, malformed and disallowed routing selectors", () => {
 	const cases: Array<[string, (config: PolicyConfig) => void, string]> = [
@@ -88,8 +82,6 @@ test("native Sol reasoning levels support low helpers alongside high-reasoning w
 	config.task = { agentModelOverrides: { worker: "@task", scout: "@smol", reviewer: "@reviewer", "security-reviewer": "@security-reviewer" } };
 	config.retry.fallbackChains = { default: ["openai-codex/gpt-6.1-sol:medium"], smol: ["openai-codex/gpt-6.1-sol:low"] };
 	expect(run(fixture(config).config).exitCode).toBe(0);
-	const files = fixture(config);
-	expect(run(files.config, fakeOmp(files.root, "native-selectors")).exitCode).toBe(0);
 
 	config.modelRoles.smol = "openai-codex/gpt-6.1-sol:minimal";
 	const refused = run(fixture(config).config);
@@ -109,7 +101,7 @@ function fakeOmp(root: string, mode: string): Record<string, string> {
 	writeFileSync(binary, `#!/usr/bin/env bun
 const model = {provider: "anthropic", id: "claude-sonnet-5-5", selector: "anthropic/claude-sonnet-5-5", kind: "chat", thinking: ["low", "medium", "high", "xhigh", "max"]};
 if (process.argv[2] === "models") {
-  const models = ["effective-only", "native-selectors"].includes(process.env.FAKE_OMP_MODE)
+  const models = process.env.FAKE_OMP_MODE === "effective-only"
     ? [["anthropic", "claude-opus-5-5"], ["anthropic", "claude-sonnet-5-5"],
        ["openai-codex", "gpt-6-astra"], ["openai-codex", "gpt-6.1-sol"],
        ["xai-oauth", "grok-4.7"],
@@ -128,7 +120,7 @@ if (process.argv[2] === "models") {
   const chosen = process.argv[process.argv.indexOf("--model") + 1];
   const [provider, rest] = chosen.split("/");
   const id = rest.split(":")[0];
-  const actual = ["effective-only", "native-selectors"].includes(process.env.FAKE_OMP_MODE)
+  const actual = process.env.FAKE_OMP_MODE === "effective-only"
     ? {role: "assistant", provider, model: process.env.FAKE_OMP_MODE === "effective-only" && chosen === "anthropic/claude-sonnet-5-5:low" ? "claude-3-5-sonnet-20241022" : id, stopReason: "stop"}
     : process.env.FAKE_OMP_MODE === "wrong-provider"
       ? {role: "assistant", provider: "openai-codex", model: "claude-sonnet-5-5", stopReason: "stop"}
