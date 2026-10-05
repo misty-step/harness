@@ -227,17 +227,30 @@ install_skill() {
 
 install_bin() {
   name=$1
-  install -d -m 700 "$home_dir/.local/bin"
   case "$name" in
     *.ts)
-      temp=$(mktemp "$home_dir/.local/bin/.${name%.ts}.XXXXXX")
+      mkdir -p "$home_dir/.cache/tmp"
+      temp=$(mktemp "$home_dir/.cache/tmp/.${name%.ts}.XXXXXX")
       trap 'rm -f "$temp"' 0 1 2 15
       bun --no-env-file --no-install "$repo_dir/bin/launcher-build.ts" "$repo_dir/bin/$name" "$temp"
-      chmod 700 "$temp"
-      mv "$temp" "$home_dir/.local/bin/${name%.ts}"
+      dest="$home_dir/.local/bin/${name%.ts}"
+      if cmp -s "$temp" "$dest" && [ "$(stat -c %a "$dest")" = 700 ]; then
+        rm -f "$temp"
+        trap - 0 1 2 15
+        return 0
+      fi
+      install -d -m 700 "$home_dir/.local/bin"
+      staged=$(mktemp "$home_dir/.local/bin/.${name%.ts}.XXXXXX")
+      trap 'rm -f "$temp" "$staged"' 0 1 2 15
+      install -m 700 "$temp" "$staged"
+      mv "$staged" "$dest"
+      rm -f "$temp"
       trap - 0 1 2 15
       ;;
-    *) install -m 700 "$repo_dir/bin/$name" "$home_dir/.local/bin/$name" ;;
+    *)
+      install -d -m 700 "$home_dir/.local/bin"
+      install -m 700 "$repo_dir/bin/$name" "$home_dir/.local/bin/$name"
+      ;;
   esac
 }
 

@@ -57,7 +57,7 @@ presentation; "behavioral" changes agent capability, model input, or data flow.
 
 | Component | Owner | Class | Installed by `./install` | Divergence |
 | --- | --- | --- | --- | --- |
-| `settings.json` | this repo | config | yes | GPT-6.1 Sol xhigh default (US-014); default and chain run through `openai-pool`/`xai-pool` (ADR-026); editor padding, markdown, theme name, retry budget (ADR-011 amendment 2026-09-28) |
+| `settings.json` | this repo | config | yes | GPT-6.1 Sol xhigh default (US-014); Codex pool recovery through Astra xhigh; explicit Sol low for lightweight work; enabled retry and compaction; editor padding, markdown, theme name |
 | `global/AGENTS.md` | this repo | behavioral | yes | Global `~/.pi/agent/AGENTS.md`: pi's intro plus shared sections spliced from `agent-config` |
 | `extensions/pi-chrome.ts` | this repo | aesthetic | yes | Session card, composer rail layout, live working state, footer |
 | `extensions/loc/` | this repo | behavioral (read-only) | yes | `/loc`, `/loc-trend`, LOC status row |
@@ -69,7 +69,7 @@ presentation; "behavioral" changes agent capability, model input, or data flow.
 | `extensions/continuation-nudge/` | this repo | behavioral | yes (component `continuation-nudge`; shared modules materialized) | Bounded Jev continuation nudge at agent settle: advisory, fail-open, max 2 per prompt, `JEV_NUDGE_MODE=off` disables. Review trigger: pi gains a native anti-premature-stop or continuation control, or nudges fire on completed work |
 | `extensions/audio-sandbox/` | this repo | behavioral | yes (component `audio-sandbox`; shared contract materialized) | Agent audio routed to the silent `agent-sandbox` sink (US-026): owned `shellCommandPrefix` for the bash tool plus `process.env` for every other child |
 | `auth.json.openrouter` | this repo (only this entry) | behavioral | yes (component `openrouter-auth`) | Command key bills R90 for its checkout or linked worktrees and the existing Pi personal entry elsewhere; invalid token on failed lookup blocks fallback (US-028, ADR-023) |
-| `agent-config` (skills, guidance, `pass-env`, `openrouter-key`, `design-check`, `foundation-check`, `review-check`, `story-deletion-check`, `ws`) | external (sibling base) | behavioral | yes | Portable skills, guidance, and self-contained bundled launchers, clean-replaced from `agent-config` (ADR-021); story-capability deletion holds are US-051 |
+| `agent-config` (skills, guidance, credential and skill helpers) | shared base | behavioral | yes | Selected engineering skills and self-contained helpers; management packages are not default runtime |
 | `~/.bashrc` (`pi()` block) | this repo (marked block only) | behavioral | by hand | Launch hook: Exa key from pass (ADR-010); run-scoped scratch `TMPDIR` via `omp-scratch` when installed (ADR-015) |
 | `~/.config/omarchy/themed/pi.json.tpl` | this repo (hand-managed) | aesthetic | by hand | pi theme template override for every Omarchy theme: readable semantic ink, accent-derived thinking ramp, deeper surfaces (ADR-018) |
 | `extensions/agent-usage-telemetry.ts` | external (managed) | telemetry | no | Reports usage to an external endpoint |
@@ -143,8 +143,8 @@ current model — never to a remembered position — so it cannot drift out of
 sync with what the session actually runs. It never automatically switches a
 model outside the chain and never re-sends the user's prompt — a run that dies
 mid-turn may already have executed tools. The chain is the `CHAIN` constant in `index.ts`
-(`openai-pool/gpt-6.1-sol` at xhigh → `gpt-6-luna` at max →
-`xai-pool/grok-4.7`). Astra remains available by explicit selection only. Pi uses
+(`openai-pool/gpt-6.1-sol` at xhigh → `openai-pool/gpt-6-astra` at xhigh).
+Automatic recovery no longer depends on SuperGrok. Pi uses
 only OpenAI, Grok and OpenRouter: Anthropic models, direct or through OpenRouter,
 are refused (ADR-025). The Pi-native
 Codex login is required; the installer reports a missing login without
@@ -160,6 +160,18 @@ login instruction to stderr. Removing the extension removes this protection.
 `decide.ts` is pure and bun-tested;
 `index.ts` is the harness-facing half. Removing the directory leaves stock
 retry + compaction recovery exactly intact.
+
+Retry and automatic compaction are source-owned and enabled. Deploying `config`
+repairs live disables without overwriting unrelated settings or credentials.
+All automatic fallback links share Codex subscription capacity; this is model
+recovery, not a promise of recovery from exhausted accounts. OMP owns Cursor
+Ultra integration; Pi neither imports its OAuth grants nor registers Cursor here.
+
+For lightweight work, use `pi --model openai-pool/gpt-6.1-sol:low`. Sol low
+replaces Luna rather than appearing as a second Sol fallback link: the chain
+keys on model identity, so repeating Sol with a different effort would be
+ambiguous. Deployment removes retired Pi-owned Luna effort pins and preserves
+foreign providers' settings.
 
 **`image-budget/` — behavioral.** Owns a hard ceiling on inline image bytes
 per request (ADR-019). Two layers, in order of authority. `context` enforces a
@@ -318,13 +330,12 @@ resolves the same file into the OMP theme.
 | Image budget | have | Hard 15 MB per-request image ceiling (oldest dropped first) plus ffmpeg shrink at ingest; a 30 MB provider 413 is unreachable, and a session that already holds too much history is repaired by its next request (ADR-019) |
 | Approval / permission gates | **omit** | We run with full permissions by choice (pi's default is no gate). Revisit on untrusted repos |
 | OS sandbox | **omit** | Work is on a trusted workstation. Revisit for third-party code |
-| Subagents | **omit for now** | Pi ships no built-in delegation; OMP's executive covers heavy delegation. Revisit if pi-first workflows need it |
-| Linear CLI | separate repo | The `linear` CLI is the standalone [linear-cli](https://github.com/misty-step/linear-cli); pi has no MCP and does not own or deploy it (ADR-020) |
-| MCP bridge | **omit** | Prefer native tools; Linear access is the standalone `linear` CLI, not an MCP session |
+| Subagents | **omit for now** | Native OMP specialist agents cover heavy delegation |
+| Linear CLI and MCP | retired | Neither harness installs or advertises Linear access |
 | Persistent memory | **omit for now** | Source authority is the repo and OMP's guidance. Revisit deliberately |
 | Notifications | **omit for now** | Terminal focus is usually present; revisit for long unattended runs |
 | Plan mode | **omit for now** | Covered by prompt discipline; revisit if it earns a keybinding |
-| Prompt templates / homebrew skills | have | Portable skills are shared from `agent-config` (ADR-021); pi deploys all 16, with hidden homebrew ones invoked on demand |
+| Prompt templates / homebrew skills | have | Selected engineering packages come from `agent-config`; task-specific helpers are loaded on demand |
 | Pinned third-party packages | **omit** | Owned code is vendored here. Add packages only with a named reason |
 
 ## Decision log
@@ -336,82 +347,22 @@ decisions live in the harness's [docs/adr/](../docs/adr/).
 See [ADR-023](docs/adr/023-resolve-openrouter-account-by-launch-directory.md)
 for the OpenRouter account policy (US-028).
 
-## Research: how pi iterates on other harnesses
+## Pi versus OMP
 
-Surveyed 2026-09-14 against pi's bundled docs/examples, the community
-[Awesome Pi Agent](https://github.com/thevibeworks/awesome-pi-agent) list,
-`omp-config`, and the OMP/pi ecosystem. Harness descriptions below are feature
-summaries, not endorsements.
+Both harnesses share engineering guidance and portable skills. Pi keeps a small
+single-agent tool surface, custom chrome, native Pi logins, and Codex-pool
+recovery. OMP owns role-based routing, parallel specialist agents, structured
+repository tools, browser workflows, and Cursor Ultra integration.
 
-### What raw pi already ships
+Use Pi for focused interactive work or as an independent harness diagnostic.
+Use OMP for sustained engineering, architecture, cross-family review, and visual
+work. Pi's route guard refuses Anthropic and Cursor; having a model in a catalog
+or an effort entry does not authorize its use.
 
-Pi is deliberately a minimal core with a deep extension API. Out of the box:
+The divergence ledger above owns Pi's actual installed components;
+[`omp-config/config.yml`](../omp-config/config.yml) owns OMP routing. Do not
+maintain a second upstream feature catalog or extension wishlist here.
 
-- **Built-in tools**: `read`, `bash` (or `powershell`), `edit`, `write`, `grep`,
-  `find`, `ls`.
-- **Context**: global `~/.pi/agent/AGENTS.md`, project `AGENTS.md`/`CLAUDE.md`
-  walking up from cwd, `AGENTS.override.md`.
-- **Resources**: skills, prompt templates, themes, project trust, packages
-  (npm/git/local) with pinned refs.
-- **Session lifecycle**: sessions, forking, tree navigation, compaction, branch
-  summaries.
-- **Model controls**: default provider/model, per-model thinking levels, model
-  cycling, presets via `--preset` (example).
-- **Extension API**: events, custom tools, UI (footer/status/editor/widgets/
-  overlays), providers, commands, shortcuts, flags.
-
-Consequence: most "missing" features in our list are *available* as extensions
-but intentionally not installed.
-
-### What OMP (oh-my-pi) adds over pi
-
-OMP is a heavier distro (pi fork) plus a large config surface. From `omp-config`
-and the ecosystem:
-
-- Hash-anchored edits, an optimized tool harness, LSP, Python, browser control.
-- Declarative `statusLine` with named segments, roles, `agentModelOverrides`,
-  and five explicit retry fallback chains.
-- `executive` extension: recursive, scope-owning subagents.
-- `omp-grievances`, `pass-env` secrets launcher, Linear MCP directory scoping.
-- Shared skills (`foundation`, `agent-design`, `engineering-operations`,
-  `story-qa`), agent definitions, and guidance.
-
-Our stance: keep pi lean. Port only what is independently valuable (`loc`,
-compact cwd) and let OMP keep the heavy orchestration. This is the main
-"include vs omit" line between the sister repos.
-
-### What other harnesses have
-
-| Harness | Signature features | Our reading |
-| --- | --- | --- |
-| **Claude Code** | `CLAUDE.md` memory, plan mode, subagents, hooks, slash commands, MCP, permission modes, skills/plugins, checkpoints | The richest opinionated surface; pi reproduces most as extensions. We adopt the *idea* of plan mode and review, not the system |
-| **OpenAI Codex CLI** | `AGENTS.md`, sandbox modes (read-only / workspace-write / full), approval modes, MCP | Its safety model is the strongest argument for gates; our ADR-006 accepts the tradeoff |
-| **OpenCode** | LSP integration, provider-agnostic TUI, agents, sessions | LSP is the feature we most plausibly want later |
-| **Amp** | Modes, permissions, web access | Its "web access" is served in pi by `pi-web-access` |
-| **IDE agents (Cursor, Windsurf)** | Inline edits, codebase index | Out of scope; pi is terminal-first |
-
-### Popular pi extensions and our stance
-
-From the ecosystem survey. `Adopt` = we run it or an equivalent; `Consider` =
-plausible, not yet; `Decline` = deliberate no.
-
-| Category | Extension | Stance |
-| --- | --- | --- |
-| UI | `pi-powerline-footer`, `status-line`, `model-status` | Adopt *concept* in `pi-chrome.ts`; no dependency |
-| UI | `pi-tool-display`, `pi-response-renderer` | Consider — compact transcripts |
-| Workflow | `plan-mode`, `preset`, `handoff`, `todo` | Consider plan mode; others later |
-| Safety | `pi-permission-system`, `permission-gate`, `protected-paths` | Decline per ADR-006 (revisit on untrusted code) |
-| Sandbox | `sandbox/`, `nono`, `gondolin`, `pi-less-yolo` | Decline now; `nono` is the likely first if we sandbox |
-| Subagents | `subagent/`, `pi-subagents`, `pi-messenger`, `pi-intercom` | Decline now; OMP executive covers delegation |
-| Memory | `pi-hermes-memory`, `pi-memory-workbench`, `magic-context` | Decline now; revisit with a clear source-of-truth story |
-| MCP | `pi-mcp-adapter`, `mcp-to-pi-tools` | Consider if a needed tool is MCP-only |
-| Providers | `pi-anthropic-auth`, `meridian`, `pi-llama-cpp`, `pi-gitlab-duo` | Consider per provider; global routing lives in OMP |
-| Observability | `pi-cost-dashboard`, `pi-sub`, `pisesh` | Decline — our footer covers the daily need |
-| Notifications | `pi-notify`, `pi-notify-pp`, `pi-telegram` | Consider for unattended runs |
-| Review / QA | `pi-review`, `pi-diff-review`, `pi-review-loop` | Consider; OMP owns heavy review today |
-| Sessions | `pisesh`, `pi-session-manager` | Decline — pi's built-ins suffice |
-| Web | `pi-exa` (junnjiee), `pi-exa` (rbwsam), `pi-web-access` | Decline both pi-exa packages — see ADR-010; own `web-search/` instead |
-| Setups | `HazAT/pi-config`, `abhinand5/pi-setup`, `LazyPi`, `monopi` | Reference only; we mirror `omp-config`, not another setup |
 
 ## Review triggers
 
@@ -447,9 +398,6 @@ failover became sticky (then revisit the once-per-session latch).
   stops being an assumption on this host (then make `compress.ts` optional at
   install), or a provider ceiling below 15 MB appears (then lower
   `DEFAULT_BUDGET_BYTES`).
-- **ADR-020 (Linear CLI)**: Linear ships an official CLI, or Iron Forest grows
-  a mutation path we can share — then retire `linear-cli` and point at the one
-  owner.
 - **ADR-021 (shared base)**: a harness must build without the sibling checkout
   (then pin `agent-config` as a submodule), or a primitive becomes
   harness-specific (then move it back into the harness repo).
@@ -490,6 +438,9 @@ Preflight validates bun, jq for `openrouter-auth`, source presence, settings,
 and the whole `agent-config` selection before any write. The `loc`,
 `web-search`, `failover`, `accounts`, and `image-budget` packages and every
 shared skill package are clean-replaced so obsolete files cannot survive.
+The default skill selection is engineering craft only. Retired close/preview
+management and optional speech/video packages are not installed by default.
+Their earlier deployed copies are removed; foreign packages remain untouched.
 Restart pi after deploying.
 
 `openrouter-auth` requires jq and overlays only `auth.json.openrouter` (mode

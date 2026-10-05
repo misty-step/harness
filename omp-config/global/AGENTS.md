@@ -7,11 +7,8 @@ Model defaults live in `config.yml`/`models.yml`; `omp usage` reports capacity.
 Restart after a binary/catalog update. Engineering guidance does not manage the
 fleet or prescribe review/approval choreography.
 
-Track Misty Step/personal work in Linear (team `MIS`); R90 work stays in Habitat
-and R90's own tools. Linear scope is `~/development/misty-step` and
-`~/development/moomooskycow`. Native MCP is the first path; the GraphQL fallback
-uses `workstation/LINEAR_API_KEY` through `pass-env`.
-Read `$(omp config path)/OPERATIONS.md` when these OMP-specific workflows arise.
+Use the project's existing work authority; keep R90 context in R90's tools.
+Read `$(omp config path)/OPERATIONS.md` for OMP-specific operating facts.
 
 Keep the original ticket's why and victory in the existing `todo` phase name,
 alongside its canonical link when available; steps belong under that phase.

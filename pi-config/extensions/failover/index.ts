@@ -26,28 +26,25 @@ import { modelKey, nextInChain, runError, summarize } from "./decide.ts";
 
 /**
  * The fallback chain, in order; a failure advances from the current model's
- * link. Pi uses only OpenAI, Grok and OpenRouter, never Anthropic. GPT-6.1 Sol
- * xhigh, then Luna max, then Grok 4.7, all through Pi-native subscription
- * logins. Astra remains available only by explicit selection. Paid
- * DeepSeek/Mercury recovery is retired; missing authentication never opts
- * into a paid route. Each link has a modelThinkingLevels entry in settings.json
- * where it needs one (ADR-011/013/025).
+ * link. Automatic recovery stays on Pi-native Codex subscription pools:
+ * Sol xhigh, then Astra xhigh. It does not depend on the retired
+ * SuperGrok subscription or silently opt into paid OpenRouter recovery.
+ * Each link has a modelThinkingLevels entry in settings.json (ADR-011/013/025).
  */
 const CHAIN = [
 	"openai-pool/gpt-6.1-sol",
-	"openai-pool/gpt-6-luna",
-	"xai-pool/grok-4.7",
+	"openai-pool/gpt-6-astra",
 ];
 
 /**
  * Approved routes: the pools and account slots from extensions/accounts
  * (ADR-024/026) plus the base providers. Matched by an exact id pattern, so a
  * custom provider that merely looks like a slot stays refused. Codex permits
- * Sol 6.1, Luna, and explicit Astra; xAI any model; OpenRouter any model except
+ * Sol 6.1 and Astra; xAI any model; OpenRouter any model except
  * Anthropic's, which it bills as paid API tokens.
  */
 const CODEX_PROVIDER = /^(openai-pool|openai-codex(-[2-4])?)$/;
-const CODEX_MODELS = ["gpt-6.1-sol", "gpt-6-astra", "gpt-6-luna"];
+const CODEX_MODELS = ["gpt-6.1-sol", "gpt-6-astra"];
 const XAI_PROVIDER = /^(xai-pool|xai(-2)?)$/;
 const OPENROUTER_PROVIDER = /^(openrouter-pool|openrouter(-2)?)$/;
 const anthropicModel = /(^|\/)~?anthropic\//;

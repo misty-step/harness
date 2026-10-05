@@ -2,8 +2,10 @@
 
 ### Changed
 
-* Route Pi through Sonnet 5.5 medium, Sol xhigh, and Luna max; retire the paid
-  DeepSeek/Mercury path and report unavailable native subscription logins.
+* Default to Sol xhigh and recover through Astra xhigh on Pi-native Codex pools;
+  use explicit Sol low for lightweight work instead of Luna or SuperGrok.
+* Enable source-owned retry and automatic compaction so deployment repairs live
+  disables while preserving unrelated settings and native subscription logins.
 * Refuse unapproved startup selections before prompts or provider requests,
   including Pi's implicit paid fallback when native subscription logins are absent.
 

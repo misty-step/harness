@@ -27,7 +27,7 @@ remain untouched and unbounded until natural exit.
 Memory capacity is advisory, per Phaedrus's decision: below the 20-GiB available
 memory guideline or above the measured 36-GiB fleet guideline, warn and launch
 anyway. Missing `MemAvailable` also warns rather than denying startup.
-Warnings appear on stderr and in `omp-roster launch --json`, never as Glass board
+Warnings appear on stderr and in native memory inspection, never as Glass board
 items. A warning changes neither admission nor containment; it creates no backlog
 work. Potential full-leaf capacity is not a reservation or warning.
 The owned parent has `MemoryMax=infinity`; actual per-engineer 4-GiB, zero-swap,
@@ -57,7 +57,7 @@ This closes MIS-203's source-compatible-but-not-deployed updater mismatch.
 ```sh
 OMP_INSTALL_COMPONENTS=cli ./omp-config/install           # stage only
 OMP_INSTALL_COMPONENTS=engineer-cage ./omp-config/install # explicit activation
-omp-roster memory --json                                 # live, no reservation
+omp-engineer memory --json                               # live, no reservation
 omp --version                                           # native administrative execution
 ```
 

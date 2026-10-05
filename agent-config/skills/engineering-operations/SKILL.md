@@ -9,7 +9,7 @@ The existing request/ticket owns why and victory. Do not create a work record fo
 routine engineering. Use the repository's runnable commands and existing checkout.
 
 Non-obvious workstation/release facts:
-- [workstation.md](workstation.md): `ws`, resource bounds and silent audio.
+- [workstation.md](workstation.md): native remote execution, resource bounds and silent audio.
 - [review-page.md](review-page.md): operator review pages, one screen, `review-check`.
 - `authenticated-commands`: pass/native credential discovery.
 

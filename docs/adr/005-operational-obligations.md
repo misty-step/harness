@@ -3,17 +3,18 @@
 Status: Accepted 2026-09-25 (MIS-150). Operator directive, relayed by Kaylee:
 "a non-negotiable foundation standard, without exception, for every application
 we work on in both orgs." This record adds three obligations to the Foundation
-Standard catalog (version 1.4.0) and to `foundation-check`. It amends ADR-003's
-enforcement (these three take no exception) and builds on ADR-004's `surfaces`
-and `deployed` runbook. Rollout waves are a separate proposal.
+Standard catalog (version 1.4.0 at acceptance) and to `foundation-check`. It
+amends ADR-003's enforcement and builds on ADR-004's core project documents.
+
 Amended by [ADR-007](007-braver-engineers-continuous-deployment.md) on 2026-09-30:
 production-like QA/data, agent walks of every story and automatic rollback
-strengthen the release safety evidence in catalog 1.6.0.
-Catalog 1.7.0's accepted [lean CI amendment](007-braver-engineers-continuous-deployment.md#lean-ci-amendment-2026-10-02)
+strengthen the release safety evidence in catalog 1.6.0. Catalog 1.7.0's
+accepted [lean CI amendment](007-braver-engineers-continuous-deployment.md#lean-ci-amendment-2026-10-02)
 replaces the blanket candidate gate with exact-candidate targeted preprod proof
 and automatic same-artifact promotion. The full suite moves to owned nightly
 detection; tenant, migration, rollback and approved alert-routing contracts stay.
-Existing pins change only by explicit adoption.
+Existing pins change only by explicit adoption. The catalog is now 1.8.1;
+these version numbers describe historical decisions, not a repinning instruction.
 
 ## Context
 
@@ -65,8 +66,11 @@ Examples it rests on:
 | FND-ALR-001 | Loud production alerting | Remote error capture with release and environment (Sentry by default, or an approved equivalent that captures errors, checks health and raises incidents); an outside, scheduled health check; alerts only to an approved agent triage intake, proven by a controlled failure. For Sentry, all alert rule actions target the intake and no alert email goes to org members. |
 | FND-INC-001 | Incident response closes the class | The runbook's `## Incidents` section turns an alert into an owned incident; the triage agent opens its ticket, starts an engineer or escalates to Kaylee only for a real alert; the ticket closes only when it links a postmortem from the pokayoke template under `docs/postmortems/` and the postmortem's structural, class-closing fix with a regression check. |
 
-The catalog (`agent-config/skills/foundation/foundation-standard-v1.json`) holds
-the normative fields; `foundation-standard-v1.md` explains them.
+The normative catalog at acceptance was
+[`foundation-standard-v1.json`](https://github.com/misty-step/harness/blob/24405fde88cf6119012f2f21d7d98a486903b69e/agent-config/skills/foundation/foundation-standard-v1.json);
+[`foundation-standard-v1.md`](https://github.com/misty-step/harness/blob/24405fde88cf6119012f2f21d7d98a486903b69e/agent-config/skills/foundation/foundation-standard-v1.md)
+explained it. Current catalog version: 1.8.1; this historical ADR does not
+instruct adopters to repin.
 
 ### Alert routing (operator decision 2026-09-26)
 

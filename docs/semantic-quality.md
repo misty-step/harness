@@ -15,8 +15,6 @@ It never replaces deterministic checks.
 - `agent-config/system-one/semantic-cache.ts` stores versioned content judgments without source text.
 - `agent-config/system-one/semantic-run.ts` emits human and machine records.
 - `agent-config/bin/semantic-check.ts` is the CLI entrypoint.
-- `agent-config/candidates/effective-verification/SKILL.md` contains the review procedure and child mandate.
-- `agent-config/guidance/effective-verification.md` is the short shared guidance candidate.
 - `hermes-config/candidates/plugins/semantic-quality/` is the source-only Hermes adapter candidate.
 
 `test-audit` owns test authoring, consolidation, and pruning. This unselected
@@ -228,8 +226,8 @@ Continue the pilot only after the held-out report passes:
 9. Load the Hermes adapter in a fresh process.
 10. Record configured, loaded, and observed states separately.
 
-Use the mandate in `agent-config/candidates/effective-verification/SKILL.md` for isolated
-children. Include exact behaviors, commands, environment, and acceptance criteria.
+This pilot guidance describes the historical candidate rollout and is not a
+current requirement to use isolated children or load retired verification material.
 
 ## Rollback
 
@@ -243,13 +241,12 @@ Rollback needs no provider write. It does not remove deterministic tests or evid
 
 ## New project onboarding and rule admission
 
-New projects can pin this repository's merged revision, run `semantic-check` in
-staged, outgoing, and CI contexts, and load the `effective-verification` skill from
-`agent-config/candidates/effective-verification/SKILL.md`. An isolated child needs
-the skill's explicit verification mandate; availability alone is not adoption.
-Existing projects adopt during a scoped change, not a bulk instruction rewrite.
-Record the revision, actual invoked path, one meaningful finding, a valid exception,
-and unavailable behavior. Keep project gates authoritative.
+New projects can pin this repository's merged revision and run `semantic-check`
+in staged, outgoing, and CI contexts. These were proposed adoption paths for the
+historical candidate, not current agent instructions. Existing projects adopt
+during a scoped change, not a bulk instruction rewrite. Record the revision,
+actual invoked path, one meaningful finding, a valid exception, and unavailable
+behavior. Keep project gates authoritative.
 
 Admit a new semantic rule by versioning its question and composition. Name a real
 failure, closest valid counterexample, required evidence, and owner. First check

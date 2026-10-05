@@ -4,6 +4,10 @@ The 2026-09-30 commission is a harness-only cut: positive principles and local
 facts at startup, procedures on demand. The actual Kaylee operating skill belongs
 to Hermes; the operator explicitly excluded it rather than create a duplicate here.
 
+This is the dated measurement/cutover record, not the current installed inventory.
+The 2026-10-05 scope decision retires shared review/workspace/close controllers;
+historical owners and measurements below remain evidence, not runnable guidance.
+
 ## Measured footprint
 
 Whitespace-delimited words, including Markdown/frontmatter, against baseline
@@ -26,8 +30,9 @@ rule collections. Configuration, selectors, credentials and executable skills
 retain their existing enforcement contracts.
 
 ## Knowledge and caller cutover
+Historical ownership map from the 2026-09-30 commission:
 
-| Knowledge formerly in startup text or a retired skill | On-demand owner |
+| Knowledge formerly in startup text or a retired skill | Historical on-demand owner |
 |---|---|
 | Kickoff, durable findings; `agent-ergonomics`, `capture` | `engineering-operations` |
 | Exact-head review/merge, Glass publication | Maintainer-only `agent-config/review/`, not engineering skills |
@@ -36,15 +41,11 @@ retain their existing enforcement contracts.
 | `decide` | `sachstand`, quiet decisions; only speech needs the skill |
 | `check-cadence`, `verification-infrastructure` | `story-qa`; missing infrastructure is separate work |
 | Direct UI fixes and deterministic copy checks | `visual-state-review` |
-| Model/account discovery, Linear/Host commands | OMP `OPERATIONS.md` sidecar |
+| Model/account discovery and host commands | OMP `OPERATIONS.md` sidecar |
 | Agent architecture and post-training source links | `agent-design` |
 
-Retirement follows successful deployment of each selected replacement. A narrow
-launcher/authentication install preserves unselected legacy procedures. Full
-skill migration removes all five owned retired packages; foreign packages remain.
-The component installers share `PI_CODING_AGENT_DIR` for isolated target selection.
-Use the normal full installers for the guidance/skill cutover; a guidance-only
-selection does not update skill packages.
+These recorded deployment/cutover details are historical, not instructions to
+load retired control skills or run retired machinery.
 
 ## Five authentic first-turn comparisons
 
@@ -83,10 +84,10 @@ context: both model-routing responses propose another worktree. The candidate
 also guesses `origin/main`; the actual default is discovered during real kickoff.
 It omits an explicit Astra-out-of-all-recovery promise despite preserving the
 other routing exclusions. Agile guidance proposes a new issue/per-PR worktrees;
-those are not required by the operating procedure. Several responses postpone
-session-close while selecting `engineering-operations`, whose body requires
-tracking before branch/resource changes. Record these weaknesses rather than
-claiming delivery parity or treating first turns as permissions controls.
+those are not required by the operating procedure. These were planning
+observations, not requirements for session-close or spoken management updates.
+Record these weaknesses rather than claiming delivery parity or treating first
+turns as permissions controls.
 
 ## Exercised owner paths
 

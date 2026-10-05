@@ -1,0 +1,15 @@
+#!/bin/sh
+set -eu
+
+[ "$#" -eq 0 ] || {
+  echo 'install takes no arguments; invoke a component installer for a targeted change' >&2
+  exit 1
+}
+[ -z "${PI_CODING_AGENT_DIR+x}" ] || {
+  echo 'PI_CODING_AGENT_DIR would mix Pi and OMP destinations; invoke the intended component installer' >&2
+  exit 1
+}
+
+repo_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+"$repo_dir/pi-config/install"
+"$repo_dir/omp-config/install"

@@ -69,7 +69,6 @@ test.each(["pi", "omp"])("US-021 / US-022 / US-023 / US-041: %s installs routed 
 			HOME: home,
 			TMPDIR: dir,
 			PI_CODING_AGENT_DIR: agent,
-			OMP_DEVELOPMENT_ROOT: resolve(home, "development"),
 			OMP_TODOIST_OWNER: resolve(home, "missing-todoist"),
 		},
 	});

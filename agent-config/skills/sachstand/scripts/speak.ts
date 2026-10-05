@@ -1,5 +1,5 @@
 #!/usr/bin/env bun
-// Speak a sachstand script aloud with Gemini 3.8 Flash-Lite TTS.
+// Speak operator-requested text with Gemini 3.8 Flash-Lite TTS.
 // Usage: pass-env run -e GEMINI_API_KEY=workstation/GEMINI_API_KEY -- bun speak.ts [--no-play] < script.txt
 // Writes a private, unique WAV under ~/.cache/tts-play/, starts playback detached,
 // and prints its path, length, and estimated cost when usage is available.

@@ -4,10 +4,18 @@ import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
-import { approvedModels } from "./omp-roster.ts";
-
-// The approved-model table lives in omp-roster.ts: that launcher deploys as one file, so it
-// cannot import from here.
+// Concrete catalog selectors and their native reasoning levels, independent of runtime state.
+const LOW_TO_MAX = ["low", "medium", "high", "xhigh", "max"];
+const catalogEfforts: Record<string, readonly string[]> = {
+	"anthropic/claude-opus-5-5": LOW_TO_MAX,
+	"anthropic/claude-sonnet-5-5": LOW_TO_MAX,
+	"openai-codex/gpt-6-astra": LOW_TO_MAX,
+	"openai-codex/gpt-6.1-sol": LOW_TO_MAX,
+	"xai-oauth/grok-4.7": ["minimal", "low", "medium", "high", "xhigh"],
+	"cursor/grok-4.7": ["low", "medium", "high", "xhigh"],
+	"cursor/claude-sonnet-5-5": LOW_TO_MAX,
+	"google-antigravity/gemini-3.8-flash": ["minimal", "low", "medium", "high"],
+};
 
 type Model = { provider: string; id: string; effort?: string };
 type Selection = { selector: string; model: Model };
@@ -19,13 +27,12 @@ function mapping(value: unknown, location: string): Record<string, unknown> {
 	return value as Record<string, unknown>;
 }
 
-function selector(value: unknown, location: string, reviewer = false): Selection {
+function selector(value: unknown, location: string): Selection {
 	if (typeof value !== "string") throw new Error(`${location} must be a concrete model selector`);
 	const match = /^([a-z0-9-]+)\/([a-z0-9][a-z0-9.-]*)(?::([a-z]+))?$/.exec(value);
 	if (!match) throw new Error(`${location} must be a concrete model selector`);
 	const [, provider, id, effort] = match;
-	const approved = approvedModels[`${provider}/${id}`];
-	const levels = reviewer ? (approved?.reviewerEfforts ?? approved?.efforts) : approved?.efforts;
+	const levels = catalogEfforts[`${provider}/${id}`];
 	if (!levels) throw new Error(`${location} selects an unapproved model: ${provider}/${id}`);
 	if (effort && !levels.includes(effort)) throw new Error(`${location} has unsupported effort: ${effort}`);
 	return { selector: value, model: { provider, id, ...(effort ? { effort } : {}) } };
@@ -37,15 +44,15 @@ function configuredSelectors(config: unknown): Map<string, Model> {
 	if (Object.keys(roles).length === 0) throw new Error("modelRoles must not be empty");
 	const chains = mapping(mapping(root.retry, "retry").fallbackChains, "retry.fallbackChains");
 	const selections = new Map<string, Model>();
-	const add = (value: unknown, location: string, reviewer = false) => {
-		const parsed = selector(value, location, reviewer);
+	const add = (value: unknown, location: string) => {
+		const parsed = selector(value, location);
 		selections.set(parsed.selector, parsed.model);
 	};
 	for (const [role, value] of Object.entries(roles)) {
 		if (!/^[a-z][a-z0-9-]*$/.test(role)) throw new Error(`Invalid model role: ${role}`);
 		// OMP's built-in web route is not a chat model. No other role is exempt.
 		if (role === "web" && value === "web/exa") continue;
-		add(value, `modelRoles.${role}`, role === "reviewer" || role === "security-reviewer");
+		add(value, `modelRoles.${role}`);
 	}
 	for (const [key, chain] of Object.entries(chains)) {
 		if (key.includes("/")) add(key, `retry.fallbackChains key ${key}`);
@@ -67,15 +74,14 @@ function configuredSelectors(config: unknown): Map<string, Model> {
 		const overrides = mapping(task.agentModelOverrides, "task.agentModelOverrides");
 		for (const [agent, value] of Object.entries(overrides)) {
 			if (!/^[a-z][a-z0-9-]*$/.test(agent)) throw new Error(`Invalid task agent override: ${agent}`);
-			const reviewer = agent === "reviewer" || agent === "security-reviewer";
 			if (typeof value === "string" && value.startsWith("@")) {
 				const role = value.slice(1);
 				if (!Object.hasOwn(roles, role) || role === "web") {
 					throw new Error(`task.agentModelOverrides.${agent} does not resolve to a chat role: ${value}`);
 				}
-				add(roles[role], `task.agentModelOverrides.${agent} (${value})`, reviewer);
+				add(roles[role], `task.agentModelOverrides.${agent} (${value})`);
 			} else {
-				add(value, `task.agentModelOverrides.${agent}`, reviewer);
+				add(value, `task.agentModelOverrides.${agent}`);
 			}
 		}
 	}

@@ -243,8 +243,8 @@ so desktop responsiveness is preserved without case-by-case VM approval.
 
 Criteria:
 1. WHEN an agent starts heavy or long-running execution from the workstation,
-   THE SYSTEM SHALL direct it to the project's `<project>-ws` workspace through
-   `ws`; WHERE a CI job runs on a GitHub-hosted runner, THE SYSTEM SHALL treat
+   THE SYSTEM SHALL direct it to the project's owned exe.dev workspace through
+   native SSH; WHERE a CI job runs on a GitHub-hosted runner, THE SYSTEM SHALL treat
    it as already off the workstation (operator decision 2026-09-25).
 2. WHERE checks are bounded with explicit low concurrency caps, THE SYSTEM
    SHALL permit local execution with run-scoped `~/.cache/tmp` scratch.
@@ -259,98 +259,22 @@ No-gos: no automatic additional VM or model-credential transfer.
 Evidence: `agent-config/guidance/workstation.md`,
 `omp-config/global/AGENTS.md`
 
-## US-025 Work in an owned exe.dev project workspace
+## US-025 Work in an owned exe.dev project workspace — retired automation
 
-Statement: When I need to execute and collect evidence away from my local
-checkout, I want a repeatable project workspace, so my source and proof stay
-attached to the task without moving my agent credentials.
-
-Criteria:
-1. WHEN `ws up --task T` runs, THE SYSTEM SHALL push a snapshot including
-   non-ignored untracked files and create a remote task worktree without changing
-   the local index or HEAD.
-2. WHEN the local working tree matches committed HEAD, THE SYSTEM SHALL check
-   out that exact commit on the VM so story-walk receipts bind the same HEAD.
-3. WHEN `ws run --task T --env NAME -- cmd` runs, THE SYSTEM SHALL execute in
-   the remote worktree with login PATH and forward named values only over stdin.
-4. WHEN remote evidence is generated, THE SYSTEM SHALL copy requested files
-   locally with SHA-256 digests via `ws pull --task T`.
-5. IF any remote evidence is unpulled or changed, THEN THE SYSTEM SHALL refuse
-   `ws down --task T` without removing the worktree.
-6. WHEN a task worktree is brought up or down, THE SYSTEM SHALL add or drop its
-   owner-scoped lease while preserving the standing VM.
-7. IF a VM named `<project>-ws` exists without the `ws` tag, THEN `ws` SHALL
-   refuse to adopt or modify it.
-
-No-gos: no transfer of model credentials or automatic removal of project VMs.
-
-Evidence: `agent-config/bin/ws.test.ts`
+The custom `ws` snapshot, lease and teardown controller is retired by the
+operator's configuration/install/skills-only scope decision. Native SSH/exe.dev
+and the `remote-execution` skill retain off-host execution guidance. Automatic
+snapshot transfer, receipt hashes and evidence-gated teardown are no longer
+harness capabilities. Preserve standing VMs and existing task data.
 
 ## Capability: Session close
 
-## US-004 Close owned landing work and session resources
+## US-004 Close owned landing work and session resources — retired automation
 
-Statement: When I close an engineering session, including inherited repository
-work, I want an owner-scoped gate that accepts only landed or explicitly parked
-work, so unfinished changes cannot be called done, unrelated sessions continue,
-and stale resources receive deliberate review. Operator-authorized intent
-extension (2026-09-30): the original lease-only contract now includes landing.
-
-Criteria:
-1. WHEN repository work begins, THE ENGINEER SHALL run
-   `session-close.ts track [--repo PATH]` before switching branches or deleting
-   worktrees, including inherited worktrees; WHEN `check` runs in Git, THE SYSTEM
-   SHALL auto-track as a safety net and preserve existing parked status.
-2. WHEN a local worktree or non-standing exe.dev VM is created in-session,
-   THE SYSTEM SHALL record an owner-scoped lease in the same turn; `ws up`
-   SHALL lease its task worktree and `ws init` SHALL preserve a standing VM.
-   WHEN expired, orphaned or legacy ownerless leases exist, `review` SHALL list
-   them and exit 3 without deleting resources; expiry SHALL NOT erase owned
-   landing obligations. WHEN a lease is dropped, THE SYSTEM SHALL print its
-   recorded owner. `ws down` SHALL retain its ownership and pulled-evidence gate.
-   WHEN `leases --json` runs, THE SYSTEM SHALL provide read-only introspection
-   with `leases`, `own`, `foreign` and `needsReview`, without Git checks or
-   auto-tracking.
-3. WHEN `check` runs, THE SYSTEM SHALL evaluate all unparked owned landing records
-   after the original worktree disappears, fetch the authoritative origin
-   default, and require clean owned/current checkouts plus a canonical checkout
-   on that fetched default head. Remaining owned linked worktrees, local/origin
-   feature branches, open branch PRs or unmerged HEADs SHALL block.
-   WHEN squash/rebase merge proof is used, THE SYSTEM SHALL require a merged PR
-   whose final HEAD contains the recorded work and whose merge commit is in the
-   fresh default, fetching retained PR refs when needed; direct merge proof
-   SHALL require recorded-HEAD ancestry. WHEN local tips advance, THE SYSTEM
-   SHALL refresh them and retain divergent prior tips as independent obligations,
-   so branch reuse/rewriting cannot erase abandoned work.
-4. WHEN owned deterministic landing facts or live leases remain unresolved,
-   `check` SHALL exit 2; WHEN all owned work is landed or explicitly parked and
-   no other owned live leases block, it SHALL exit 0. Foreign records SHALL be
-   informational and SHALL NOT be mutated or deleted.
-   IF storage is malformed, or unparked work has malformed API data, failed
-   GitHub authentication/commands or an unknown authoritative default, THEN
-   THE SYSTEM SHALL fail closed with exit 1 rather than treating work as landed.
-5. WHEN `park --repo PATH --note TEXT` is used, THE SYSTEM SHALL retain the owned
-   landing records, meaningful resume note and matching owned worktree leases;
-   live non-worktree leases SHALL still block. THE ENGINEER SHALL report
-   **parked/unfinished**, reason, owner, resume steps, retained resources and
-   PR/ticket status, never done. `unpark --repo PATH` SHALL resume the obligation.
-6. WHEN the engineer is about to yield, THE ENGINEER SHALL run `check`. Done
-   SHALL additionally mean
-   merged through green required CI and exact-head model review, deployed to
-   actual targets with production sanity evidence, feature branches deleted,
-   own worktree removed and default canonical checkout clean/up-to-date.
-   THE ENGINEER SHALL update the PR and relevant existing ticket's status,
-   context and evidence using project routing: Habitat where used, Linear for
-   Misty Step/personal work. These judgment facts remain doctrine, not checker
-   assertions.
-
-No-gos: no parallel close tool, automatic Git/resource deletion, global cleanup
-of other sessions' worktrees or destruction of unleased/standing VMs; no Habitat
-mandate for projects without it and no invented ticket prerequisite. Unit
-fixtures SHALL avoid live network; the owner-path walk uses real Git/GitHub.
-
-Evidence: `agent-config/skills/session-close/session-close.test.ts`,
-`agent-config/skills/session-close/SKILL.md`, `docs/verification.md`.
+The owner-scoped landing/lease ledger and mandatory close gate are retired by
+the operator's scope decision. Inspect native Git/SSH state, preserve foreign
+work, remove only owned resources when authorized, and report unfinished work
+honestly. No replacement control plane, tracker or automatic cleanup is added.
 
 ## Capability: Semantic Review
 
@@ -414,10 +338,9 @@ Criteria:
    THE SYSTEM SHALL assess the base-story contract itself; missing keys,
    provider failures, and incomplete evidence SHALL NOT become capability-loss
    findings or fabricated clearance.
-5. IF an exact-head/base capability hold has already been recorded, THEN
-   `agent-review` SHALL refuse to erase it on a clean rerun, dismissal, label
-   change, or shared-account review. Repair at a new head SHALL be reassessed;
-   Kaylee SHALL own an explicitly authorized intentional removal.
+5. Recorded App-launcher hold persistence is retired with `agent-review`.
+   The exact-base/head checker and explicit operator authorization requirement
+   remain; an unavailable judgment is not clearance.
 6. WHEN Pi or OMP installs shared skills, THE SYSTEM SHALL provide the
    self-contained `story-deletion-check` CLI and deletion-proposal guidance.
 
@@ -425,7 +348,7 @@ No-gos: no server-required gate, shared-account approval inference, authorizatio
 flag, unapproved provider call, or blocking ordinary capability-preserving deletion.
 
 Evidence: `agent-config/system-one/story-deletion.test.ts`,
-`agent-config/bin/agent-review.test.ts`, `.github/workflows/story-deletion.yml`,
+`.github/workflows/story-deletion.yml`,
 real past-PR replays and isolated installed CLI walks in `docs/verification.md`.
 
 ## US-010 Bounded continuation nudge
@@ -568,15 +491,14 @@ Evidence: `agent-config/bin/design-check.test.ts`,
 
 ## US-014 Use approved model routing and recovery
 
-Statement: When I start or delegate work in any harness, I want the approved
-lower-spend model policy applied per role, with Sonnet 5.5 for routine work,
-Opus required for visual, motion, UX and communications work, and bounded
-subscription recovery, so ordinary work does not silently inherit premium
-reasoning or mistake an authorized account for available capacity.
+Statement: When I start or delegate work in either harness, I want intentional
+model roles and bounded subscription recovery, with Sol for engineering and
+Opus required for visual, motion, UX and communications work, so work uses the
+selected reasoning tier without mistaking an authorized account for capacity.
 
 Criteria:
 1. WHEN a fresh OMP session selects `default` or `task`, THE SYSTEM SHALL
-   resolve Claude Sonnet 5.5 medium; `slow` SHALL resolve Sonnet high and
+   resolve GPT-6.1 Sol xhigh; `slow` SHALL resolve Opus 5.5 high and
    `extreme` Opus 5.5 xhigh.
 2. WHEN OMP resolves `vision` or `designer`, THE SYSTEM SHALL select Opus 5.5
    at high or above. A designer child of a non-Opus parent SHALL use Opus high;
@@ -588,29 +510,31 @@ Criteria:
    stop after same-model recovery rather than switch models, at every
    reasoning level.
 3. WHEN OMP resolves `smol`, `tiny`, `commit`, `scout`, or `sonic`, THE SYSTEM
-   SHALL select GPT-6 Luna max; `advisor` SHALL select Sonnet 5.5 medium;
-   `plan` SHALL select GPT-6.1 Sol xhigh. Astra SHALL require explicit selection.
+   SHALL select GPT-6.1 Sol low; `advisor` SHALL select Cursor Grok 4.7 xhigh;
+   `plan` SHALL select GPT-6 Astra xhigh.
    OMP SHALL leave automatic Steward review off by default while preserving
    explicit `--advisor` and `/advisor on` invocation.
    Ordinary task children SHALL use their configured agent routes rather than
    inherit the live parent's model and thinking; explicit tagged model
    selections and per-item effort SHALL remain available, except designer
    effort below high SHALL be rejected.
-   Under the operator's 2026-09-30 review rule, reviewer and security-reviewer
-   task/eval dispatch SHALL choose Sonnet 5.5 high for an OpenAI author and
-   GPT-6.1 Sol medium for an Anthropic author. Missing/unknown author family or
-   unavailable reviewer authentication SHALL block dispatch. Reviewer recovery
-   SHALL retry the selected model or stop, with no fallback chain, even under
-   an engineer roster overlay; the engineer's recovery SHALL remain unchanged.
-   `agent-review` SHALL require the actual author selector, reject same-family
-   overrides, and verify native reviewer identity before posting an approval.
+   Under the operator's 2026-10-05 review rule, reviewer task/eval dispatch
+   SHALL choose Opus 5.5 xhigh for an OpenAI author and GPT-6.1 Sol xhigh for
+   an Anthropic author; security-reviewer SHALL choose GPT-6.1 Sol xhigh.
+   Missing/unknown author family or unavailable authentication SHALL block dispatch.
+   Reviewer recovery SHALL retry the selected model or stop, with no fallback
+   chain; primary engineering recovery SHALL remain unchanged. GitHub App
+   approval posting and fleet roster overlays are retired.
    Missing/unloadable specialist enforcement SHALL keep protected agents
    disabled; failed reviewer initialization SHALL abort before any provider
    request, never continue with inherited recovery.
-4. WHERE cross-model recovery is allowed, THE SYSTEM SHALL use only approved
-   subscription routes, with Gemini 3.8 Flash last. Grok 4.7 SHALL be allowed
-   only as read-only advisory recovery and SHALL NOT occur in OMP builder fallback chains;
-   Pi's chain ends at Grok 4.7 (criterion 5).
+4. WHERE cross-model recovery is allowed, THE SYSTEM SHALL use only configured
+   subscription routes. OMP default/task recovery SHALL use Astra xhigh,
+   Cursor Sonnet high, then Anthropic Sonnet high. Grok 4.7 SHALL be allowed
+   only for read-only advisory work, never OMP builder recovery.
+   Pi recovery SHALL use Sol xhigh then Astra xhigh through its native Codex
+   pool, without depending on SuperGrok. Explicit lightweight work SHALL use
+   GPT-6.1 Sol low rather than Luna.
    All shared subscription accounts SHALL be authorized for any work;
    native account-policy priority SHALL prefer eligible r90.dev Anthropic
    and Codex accounts without bypassing blocked-account or reserve rules.
@@ -622,6 +546,8 @@ Criteria:
    SHALL be refused before inference. If native startup selects an unapproved
    model after login loss, agent prompts, provider requests, compaction and
    branch summaries SHALL be refused before paid inference.
+   Source-owned retry and automatic compaction SHALL be enabled on deployment;
+   unrelated live settings SHALL remain unchanged.
 6. WHEN configuration is deployed, THE SYSTEM SHALL preserve OAuth stores and
    the model already selected in existing sessions.
 7. WHEN OMP model routing is checked, THE SYSTEM SHALL reject every chat role,
@@ -641,176 +567,19 @@ Evidence: `omp-config/config.yml`, `omp-config/agents/designer.md`,
 `./scripts/verify all`, the online model-policy probe, fresh OMP role-selection
 and forced-outage smoke checks.
 
-## US-046 Launch engineers only on the ticket's model roster
+## US-046 Launch engineers only on the ticket's model roster — retired
 
-Statement: When I put a ranked model roster on a board item and Kaylee launches
-an OMP engineer for it, or an OMP engineer is launched on a single model with no
-ticket, I want that engineer's own session to run only on the roster (or that one model)
-and stop when it runs out, so recovery never lands on a model I did not name.
-Other helper roles retain US-014's routes and can recover only onto the roster.
-Reviewers instead use US-014's contrasting author-family route and stop after
-same-model retries.
-Qualifying build, design and research launches also start an identical-brief,
-same-model effort twin automatically, so a blind done-check verdict can change
-future routing with cited evidence instead of experiments remaining optional prose.
+Ticket roster enforcement, usage-based launch admission, automatic paired
+experiments, learned effort defaults and their journal controller are retired
+by the operator's native configuration/install/skills-only scope decision.
+Native OMP model roles and explicit selectors remain; historical experiment
+records are preserved as data and are not used to control launches.
 
-Criteria:
-1. WHEN a ticket has a roster and Kaylee launches an OMP engineer, THE SYSTEM
-   SHALL launch it on the first roster entry whose ai-usage verdict is `usable`
-   or `low` AND whose bounded native provider check completes on the exact route,
-   with retry and fallback disabled. Stale/degraded quota alone SHALL NOT authorize
-   launch. Rejected or unverified candidates SHALL fall through with a clear reason;
-   when none qualifies, exit status 3 SHALL write no launch overlay.
-2. IF the launched model fails, or the approved primary of a recoverable
-   helper (scout, sonic, plan, smol, tiny, commit or the advisor sidecar) fails,
-   THEN THE SYSTEM SHALL switch that call only to roster models, in rank order,
-   and stop with the provider's error when the roster runs out.
-   Reviewer and security-reviewer recovery SHALL remain empty even when their
-   model appears on the roster. Helpers keep their US-014 routes; only their
-   recovery is restricted. The `vision` role, which the designer agent uses,
-   keeps its own Opus-only route unless the roster names Opus.
-3. WHEN a session is checked against its ticket, THE SYSTEM SHALL judge each
-   session file against the launch record of the newest launch that started at
-   or before it (a subagent file with its session), from launch time on, exit
-   with status 4 when the ticket's roster has changed since that launch or the
-   board cannot give it (while still judging every turn), report every assistant
-   turn on a model outside the roster and every fallback switch to a model
-   outside the roster, in any file including scout, reviewer and advisor files,
-   and exit with status 4 when there is one, or when a launched file has turns and
-   none was judged; a helper turn on its role's US-014 primary, and a designer
-   turn on Opus 5.5, SHALL be counted as helper turns, not violations, and a cash
-   route SHALL never count as on the roster. A roster that names Opus governs
-   every Opus turn, the designer's included.
-4. WHEN launching, THE SYSTEM SHALL give the engineer's environment the same
-   overlay (`PI_CONFIG_FILES`) so nested `omp` runs inherit the roster, write one
-   overlay file per launch so a running session's file is never rewritten, and
-   report the launch route's `low` and degraded state instead of hiding them.
-5. IF the ticket has no roster, an empty roster, an unapproved model, an
-   unsupported effort or a duplicate entry, or the usage view is not ok or
-   malformed, or the harness is not OMP, THEN THE SYSTEM SHALL refuse the
-   launch with one plain sentence and write nothing.
-6. WHEN an OMP engineer is launched without a ticket, THE SYSTEM SHALL accept
-   `--model provider/model --thinking effort` and no `--item`, run the same
-   approved-model, effort, cash, ai-usage and live provider checks on that one route, refuse with
-   exit status 3 and write nothing when the route cannot launch, and otherwise
-   write the overlay and launch record under a synthetic `adhoc-` id with every
-   engineer chain empty so the engineer stops when its model fails; it SHALL
-   refuse `--item` together with `--model` or `--thinking`, neither, and a
-   `:effort` suffix on `--model`, call no board, and let `check --item adhoc-...`
-   judge a session against the recorded route with no board.
-7. WHEN a build, design or research ticket qualifies and no live experiment is
-   reserved, THE SYSTEM SHALL start both OMP lanes from the same clean commit
-   in separate Herdr worktrees, with the identical complete ticket brief (or
-   supplied `--brief-file`) and done checks. The current checkout SHALL be used
-   unless `--cwd` is supplied; a qualifying launch SHALL NOT require a second
-   twin command. The candidate SHALL differ only by supported reasoning effort
-   and SHALL be capable of changing a nature/model effort default; build lanes
-   SHALL NOT merge or install before the verdict.
-   JSON `started: true` SHALL mean both lanes are already dispatched and
-   provide their identities; callers SHALL NOT dispatch a third engineer.
-   Only `started: false` SHALL return environment and arguments for one
-   explicitly pinned engineer.
-8. WHEN `--tiny REASON`, `--live-data REASON` or `--no-experiment REASON` is used,
-   THE SYSTEM SHALL require a nonempty reason, record it with item and timestamp
-   in the existing experiment journal and return an ordinary launch plan.
-   Nonqualifying work and launches while a live pair is reserved SHALL retain
-   the ordinary roster-enforced plan; missing required experiment context or
-   malformed journal state SHALL fail closed, not degrade to a suggestion.
-9. WHEN starting a pair, THE SYSTEM SHALL hold an exclusive journal lock,
-   reserve `starting` before side effects, bind real pane/session identities,
-   and record `running`. It SHALL allow at most one live reservation, keep
-   ambiguous failures reserved and roll back only its own definitely failed
-   launch resources. Settled lanes SHALL become `awaiting-verdict` without
-   losing unfinished evidence and SHALL NOT prevent the next live pair.
-   Stopped or replaced sessions SHALL NOT count as live lanes.
-   `abandon --experiment E-NNN --reason TEXT` SHALL preserve the record and
-   refuse while a bound lane remains working.
-10. WHEN `verdict` receives the real lane artifacts and an approved usable native
-    judge, THE SYSTEM SHALL anonymize/randomize the lanes, withhold their key and
-    authors, require a judge family distinct from both lanes, disable fallback
-    and verify actual judge identity. It SHALL score each ticket done check per
-    lane 0–2 with evidence and rationale, choose the larger sum and lower effort
-    on a tie, and only then record the verdict and update the preregistered
-    `<nature>:<provider>/<model>` effort default with its E-id as evidence.
-    A confounded, incomplete or fallback verdict SHALL NOT change a default.
-11. WHEN querying `defaults`, THE SYSTEM SHALL report usable evidence-backed
-    entries with optional nature/model filters. Ticket-pinned rosters SHALL NOT
-    be silently overridden; `launch --use-default` SHALL be required to consume
-    learned effort and SHALL report its evidence without rewriting the ticket
-    or native interactive/subagent defaults.
-12. WHEN installing or recording experiments, THE SYSTEM SHALL keep the existing
-    Markdown journal as the sole durable ledger, preserve legacy prose and
-    confounds, number new records after legacy E-ids and never manufacture
-    historical verdict/default evidence. CLI installation SHALL deploy
-    `omp-experiments.ts` beside `omp-roster` without overwriting runtime history.
+## US-047 Queue engineer work when the fleet is full — retired
 
-No-gos: no cash routes (OpenRouter entries are never launched or used as
-recovery until a per-ticket cash cap exists, and a cash turn is never on the
-roster); no Pi enforcement yet; no gating in the board; no silent roster edits or
-model-family choice by the launcher. Explicit learned effort consumption is
-scoped to the selected model, not global role defaults. Not covered, and said
-so in `omp-config/README.md`: Pi
-lanes and any `omp` not launched through `omp-roster launch` (a ticketless item is
-covered only when launched with `--model` and `--thinking`); agent definitions that
-pin their own model and the `find` judge's `model_usage` calls; prevention at spawn
-time (`check` detects afterwards).
-
-Evidence: `omp-config/bin/omp-roster.test.ts`, `omp-config/bin/omp-roster.ts`,
-`omp-config/bin/omp-experiments.ts`, `omp-config/README.md`,
-`docs/verification.md`, `./scripts/verify omp`, and the forced-outage smoke
-recorded in the PR (Codex exhausted: a Sol-then-Sonnet roster hopped to Sonnet
-only, a Sol-only roster stopped with the usage-limit error, and
-`omp-roster check` was clean for both). A scout spawned by a Sonnet engineer on a
-Sol-then-Sonnet overlay (with `PI_CONFIG_FILES` exported and `--config` given the
-same file, `omp` 18.4.3) started on its Luna primary, and with Codex exhausted
-hopped to Sol and then Sonnet, never Gemini; `check` was clean. Without a ticket
-(same day, `omp` 18.4.3, Codex exhausted): `omp-roster launch --model
-openai-codex/gpt-6-sol --thinking medium` exited 3 and wrote nothing; a Sonnet
-launch answered on Sonnet only and `check --item adhoc-...` was clean; the same
-`omp -p --model openai-codex/gpt-6-sol` with no overlay hopped Sol to Luna to Gemini
-and `check` against a Sol-only record exited 4.
-
-## US-047 Queue engineer work when the fleet is full
-
-Statement: When ideas create more work than the engineer fleet should run at
-once, I want the launch tool to refuse another working engineer at the fleet
-limit, so dispatch queues work on the board instead of consuming more usage.
-
-Criteria:
-1. WHEN `omp-roster launch` prepares a ticketed or ticketless engineer, THE
-   SYSTEM SHALL count every Herdr agent whose `agent` is `omp` and
-   `agent_status` is `working` across the current session, including other
-   workspaces and the caller, excluding other agent kinds (including Kaylee's
-   Hermes window), `idle`, `done`, `blocked` and `unknown`.
-2. WHEN that count is at or above the configured limit, THE SYSTEM SHALL exit
-   5, emit one stderr line naming the working engineers (pane id for an unnamed
-   engineer) and directing the caller to queue work on the board, leave stdout
-   empty and write no overlay or launch record.
-3. WHEN `OMP_ROSTER_ENGINEER_LIMIT` is absent, THE SYSTEM SHALL use the default
-   cap owned in `omp-config/bin/omp-roster.ts`, requiring no per-call export.
-   WHERE the environment override is configured, THE SYSTEM SHALL use that
-   positive safe integer and offer no override flag. Successful `--json`
-   output SHALL report the working count and effective limit in `engineer_capacity`.
-4. WHEN the count is below the limit, THE SYSTEM SHALL retain the roster and
-   usage admission checks of US-046 and write the launch artifacts when they
-   pass; unreadable Herdr state or an invalid limit SHALL refuse with exit 1
-   and no artifacts.
-5. WHEN a caller requests `omp-roster capacity --json`, THE SYSTEM SHALL return
-   exit 0 and `{ "engineer_capacity": { "working": N, "limit": L } }`, including
-   a fleet at or above its limit, using the same validated count and limit as
-   launch. It SHALL read no ticket, usage, memory, display or journal state;
-   write no journal, migration, lock or launch artifacts; and create no
-   worktree, pane or agent. Corrupt/unwritable journals and dirty or unrelated
-   checkouts SHALL NOT prevent this read. Unknown fleet state or an invalid
-   limit SHALL fail nonzero with a visible error, never a guessed count.
-   This snapshot SHALL NOT reserve capacity or replace actual launch admission.
-
-No-gos: no changes to Herdr or Kaylee's tools, no closing agents, no reservation
-or spawn transaction. The tool checks a live snapshot before writing; it cannot
-reserve a slot for a later start or prevent simultaneous below-limit dispatches.
-
-Evidence: `omp-config/bin/omp-roster.test.ts`, `omp-config/bin/omp-roster.ts`,
-`omp-config/README.md`, `./scripts/check omp`, and the live CLI walk in the PR.
+Custom fleet counting, board queue admission and capacity commands are retired
+with `omp-roster`. Native task dispatch remains. Independent memory and display
+isolation (US-043) remain; they are safety boundaries, not a replacement scheduler.
 
 ## Capability: Protected releases
 
@@ -943,9 +712,9 @@ Criteria:
    context and distinguish verified outcomes from open work and inferences.
 2. WHEN a decision is needed, THE SYSTEM SHALL state options, consequences,
    recommendation and missing information without taking that decision.
-3. WHERE `quiet` is requested, THE SYSTEM SHALL skip speech; OTHERWISE it
-   SHALL attempt speech and report the audio path, duration and estimated cost,
-   or report the speech error while retaining the written brief.
+3. WHERE speech is explicitly requested, THE SYSTEM SHALL attempt speech and
+   report its output or error while retaining the written brief. Ordinary status
+   SHALL remain in chat without mandatory/default audio.
 
 No-gos: no unrequested project mutations or decisions during a status brief.
 
@@ -1018,48 +787,16 @@ Criteria:
    failed, or a story is `unwalked` without such an entry, THEN THE SYSTEM SHALL
    fail the receipt (operator decision 2026-09-26). WITH `--all`, THE SYSTEM
    SHALL require every live story and fail a walk entry whose story now passes.
-5. WHEN a pull request gives `USER_STORIES.md` its first stories or adds a
-   baseline extension record, `foundation-check review` SHALL pass only with an
-   approving review on the PR head from the organisation's designated agent
-   reviewer, named by the pinned harness and not the repository. AFTER that
-   reviewer's escalation review on the head, only its later approval recording
-   the operator's decision and opening with `foundation-escalation: resolved` as
-   its exact first line SHALL count. The
-   PR author's approval, and any approval from the operator's shared GitHub
-   account, SHALL never count. WHERE the organisation has no reviewer App
-   (r90group), THE SYSTEM SHALL instead accept a review or comment from the
-   designated account whose exact first line is `foundation-review: approved`
-   and the head SHA, and after an entry whose first line is the escalation
-   marker, only a later `foundation-escalation: resolved` line naming the head.
+5. The designated GitHub App approval/escalation controller is retired. Local
+   baseline-extension records remain validated for shape; that validation does
+   not authenticate the reviewer or authorize an exception.
 6. WHEN an applicable non-ADR-005 obligation stays `pending`, `check` SHALL
    require its current `obl:<ID>` baseline entry with an owner and expiry
    within 30 days; `baseline --revision SHA` SHALL add new obligation gaps,
    while ADR-005's three existing `ops:` keys remain their sole gaps.
-7. WHEN `foundation-check review` judges a PR, it SHALL require an
-   independent approval on its head for every change, designated-review
-   triggers included: where the organisation has a reviewer App (misty-step)
-   only that App's approval counts, it must carry `agent-review`'s record of the
-   base, merge base, title and description judged, and its latest change request
-   stands. The reviewing agent gives it after a model review of the PR, in which
-   image content is read by the vision role (`agent-review`; operator rule,
-   2026-09-28). An invariants-ledger edit or a new/changed
-   `foundation-approval/1` disposition SHALL additionally require the designated
-   reviewer, making five designated-review triggers. The exact-head model
-   approval SHALL supply that delegated decision, without a second approval.
-   IF every changed path is a submodule pointer or a recognized inert opaque
-   artifact (format signature, matching suffix, mode `100644`), THEN THE SYSTEM
-   SHALL require a clean
-   model review of the immutable pointer/blob metadata and PR description,
-   recorded as a current-head comment bound to the same state. Content remains
-   advisory and SHALL never be claimed inspected or approved. A change request
-   or dismissal SHALL still stand; mixed opaque/reviewable changes SHALL be split.
-   NUL-bearing source/config, unknown binary formats and executable artifacts
-   SHALL never qualify for metadata-only review.
-   Classification and image bytes SHALL come from immutable Git objects, preserving
-   quoted/tab paths, rename-only images and gitlink-to-text transitions. Vision
-   output SHALL reach the reviewer in full or the review SHALL refuse to post.
-   IF mapped source changes, the PR description SHALL cite every affected
-   live story id computed from the candidate git objects.
+7. Independent review remains engineering work, not a harness-managed GitHub
+   posting/approval gate. `foundation-check` retains `check`, `baseline`,
+   `affected` and `receipt`; its former `review` command is retired.
 
 No-gos: no automatic waivers, no baseline for adoption-record errors, no
 baseline entry more than 30 days out.
@@ -1163,9 +900,8 @@ Criteria:
    re-pin its standard to that revision and add every obligation the catalog
    gained as `pending`, leaving existing dispositions and walk entries
    unchanged and adding no new walk entry.
-8. WHEN a pull request changes `foundation.json` from an application to a
-   non-application, `foundation-check review` SHALL require the designated
-   reviewer, as for a baseline extension.
+8. The designated-review trigger for application reclassification is retired;
+   the adopted repository's own review authority governs that decision.
 9. WHEN FND-REL-001 is `satisfied`, `operations.ship.tenancy` SHALL declare
    `single` or `multi`; for `multi`, `check` SHALL require an existing complete
    tenant registry and tenant-state command or workflow, with each exclusion
@@ -1286,7 +1022,7 @@ Criteria:
    independent 4-GiB containment while descendants remain.
 8. WHEN available memory is below the 20-GiB guideline or measured fleet memory exceeds
    its advisory guideline, THE SYSTEM SHALL warn in stderr and launch JSON,
-   then launch anyway. Memory capacity SHALL NOT refuse a wrapper or roster
+   then launch anyway. Memory capacity SHALL NOT refuse a native wrapper
    launch, and no opt-out flag SHALL be required. Memory warnings SHALL NOT
    create or update Glass board items; verified containment remains mandatory.
 9. WHEN an interactive native OMP engineer starts, THE SYSTEM SHALL verify effective 4-GiB memory,
@@ -1318,7 +1054,7 @@ per-engineer memory isolation. Transitional uncaged engineers remain unbounded
 until their natural restart; advisory guidance does not retroactively cap them.
 
 Evidence: `agent-config/desktop-guard/`, `omp-config/bin/omp-engineer.py`,
-`omp-config/bin/test_omp_engineer.py`, `omp-config/bin/omp-roster.test.ts`,
+`omp-config/bin/test_omp_engineer.py`,
 `docs/desktop-memory-guard.md`, and
 `docs/postmortems/2026-09-26-shared-terminal-oom.md`.
 
@@ -1394,52 +1130,13 @@ harness-only slice.
 Evidence: `docs/lean-agent-guidance.md`, `scripts/verify-installers`,
 `agent-config/bin/install.test.ts`; installed OMP/Pi guidance and skill reads.
 
-## US-049 Inspect a pull request's running candidate and agent evidence
+## US-049 Inspect a pull request's running candidate and agent evidence — retired controller
 
-Statement: When an agent finishes a unit of work, I want its pull request to
-carry a production-like running preview and the agent's story evidence, so I
-can click through the candidate, see proof for every affected story and what
-was not affected, and approve it before merge.
-
-Criteria:
-1. WHEN a trusted same-repository pull request opens, reopens, or changes head,
-   THE SYSTEM SHALL run that exact head in its own private exe.dev VM using the
-   application's production build and existing privacy-safe QA data.
-2. WHEN an agent posts QA evidence, THE SYSTEM SHALL attach screenshots or video
-   directly to the PR with `gh pr comment --attach`, bind the preview and evidence
-   to the candidate revision, and walk every affected criterion through every
-   adapter it claims; affected verification gaps SHALL block completion until
-   repaired, and untouched stories SHALL be marked not affected.
-3. WHEN the pull request merges or closes without merging, THE SYSTEM SHALL
-   destroy only its owned preview VM while preserving the GitHub-native evidence
-   attached to the PR independently of the VM.
-4. WHEN a pull request receives another head, THE SYSTEM SHALL replace the old
-   preview and SHALL NOT publish obsolete evidence as proof of the new head.
-5. IF a fork pull request appears, THEN THE SYSTEM SHALL skip its preview and
-   post that exception on the PR without changing exe.dev account policy.
-6. WHEN either harness installs shared skills, THE SYSTEM SHALL provide the same
-   small preview lifecycle skill while the application owns its QA seed,
-   production setup, user stories, and verification.
-7. WHEN CI deploys a preview, THE SYSTEM SHALL limit CI to deployment and teardown;
-   the agent SHALL walk affected stories and attach evidence from its own session
-   using its existing GitHub sign-in, without provisioning an upload token in CI.
-   CI SHALL post only the current preview link or an explicit fork exception,
-   keeping deployment machine facts in the controller output.
-
-No-gos: no real customer data unless explicitly approved for the application's
-existing QA; no controller SSH/GitHub credentials in the VM; no accepted affected
-verification gaps; no upload credentials in CI; no VM-hosted evidence or Actions
-artifacts; no changes to account-wide exe.dev integrations.
-
-Evidence and ownership:
-- Shared controller boundary: `agent-config/skills/pr-preview/pr-preview.test.ts`.
-- C2: Habitat PR #641's revision-bound private preview, GitHub-native
-  screenshots/video, and four-adapter walk.
-- C6: isolated Pi/OMP installation and composition through `scripts/check shared`.
-- C1, C3–C5, and C7 event wiring: the separately reviewed application integration
-  in [Habitat PR #692](https://github.com/r90group/habitat/pull/692), not this
-  shared skill alone. The refreshed #641 loop must prove automatic deployment
-  and teardown before end-to-end acceptance.
+The shared automatic private-VM PR preview/replacement/teardown controller is
+retired by the operator's scope decision. Application-owned preview deployments
+and native GitHub evidence remain application capabilities, not harness-managed
+lifecycle. `story-qa` still guides actual affected-path verification; no replacement
+preview service, scheduler or upload credential is introduced.
 
 ## US-050 Understand every review page at a glance
 
@@ -1468,5 +1165,4 @@ No-gos: no restyling of pages, no content rules beyond the first screen, no mode
 call, no change to Glass, no second registry of pages.
 
 Evidence: `agent-config/bin/review-check.test.ts`, `scripts/verify-installers`,
-`agent-config/skills/engineering-operations/review-page.md`,
-`agent-config/review/README.md`.
+`agent-config/skills/engineering-operations/review-page.md`.

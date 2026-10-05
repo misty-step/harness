@@ -19,10 +19,14 @@ Intent: [USER_STORIES.md](USER_STORIES.md). Vocabulary, boundaries and
 invariants: [DOMAIN.md](DOMAIN.md). Decisions: [docs/adr/](docs/adr/). Agent
 rules: [AGENTS.md](AGENTS.md).
 
-Approved reversible groundwork: [summon revised design](docs/design/multi-harness-r2.html)
-and [source-only dispatch contract](agent-config/candidates/summon/README.md).
-Native adapters and durable local task state change no installed runtime or
-dispatch defaults. Private lab publication and matched evals remain separate.
+Runtime scope is native Pi/OMP configuration, installation, engineering skills,
+and necessary credential/audio/workstation isolation. Custom ticket dispatch,
+fleet rosters, experiment scheduling, automated audits and session-close control
+are retired. Repository verification and release gates remain.
+Native Herdr agent inspection/prompting and native OMP/Pi launch remain necessary
+primitives. Source retirement does not remove active owners' separate worktrees,
+assets, journals or installed launch/settlement dependencies. Operators keep the
+existing native coordination path; caged engineers keep read-only/own-pane limits.
 
 ## Setup
 
@@ -45,49 +49,13 @@ credentials and isolated destinations; no provider tokens or model calls are nee
 Keep the component directories as siblings. `AGENT_CONFIG_DIR` is an advanced
 base-source override, not required for a normal clone.
 
-## Workspace hygiene (US-016, US-004)
+## Workspace hygiene
 
-Keep one canonical checkout per repository. Before making another worktree,
-inspect registered checkouts rather than cloning the same repository again:
-
-```sh
-bun scripts/workspace-inventory.ts ~/development
-git worktree list --porcelain   # from the affected repository
-```
-
-The inventory is read-only and reports Git-visible dirty and prunable states;
-`clean` does not mean merged, published, inactive, or free of ignored build
-outputs. Use the existing `skill://session-close` gate, not a parallel cleanup
-tool. At the start of owned repository work, including inherited worktrees, run
-`bun path/to/session-close.ts track [--repo PATH]` before switching or deletion.
-Its `check` auto-enrollment is a safety net, not a replacement for early tracking.
-
-A finished session means merged after observed green CI and independent exact-head
-model review, deployed to the repository's actual targets with production sanity
-evidence, local/origin feature branches deleted, own worktree removed, and the
-canonical checkout clean on the fetched origin default head. Shared harness
-changes deploy to both Pi and OMP through the [installers below](#deploy-explicit-live-writes);
-restart and exercise the changed installed behavior. Keep the PR and relevant
-existing ticket current with revision, status and evidence; use Habitat only
-where routed there, and Linear for Misty Step/personal work.
-
-Run `session-close.ts check` before yielding. It checks persistent owned landing
-records after worktree removal, fetches the authoritative origin default and
-uses live GitHub/origin facts; auth, command and malformed-data errors fail
-closed. Explicit `park --repo PATH --note TEXT` permits unfinished close with a
-meaningful reason, owner and resume steps; report **parked**, retained resources
-and PR/ticket status, never done. `unpark --repo PATH` resumes work. Parking keeps
-matching owned worktree leases; live non-worktree leases still block.
-
-Session-created worktrees and non-standing VMs still require create-time leases.
-Inspect branch changes, untracked/ignored files and evidence before
-`git worktree remove <path>` without `--force`; retain uncertain work. Run
-`git worktree prune --dry-run` to inspect missing registrations before pruning
-only confirmed owned stale registrations. Never delete another agent's active
-worktree or a standing VM on the basis of age. Foreign records are informational;
-stale leases require manual review, and lease expiry does not erase landing
-obligations. `leases --json` is read-only lease introspection, not landing proof;
-an empty lease store says nothing about older or unleased resources.
+Keep one canonical checkout per repository. `git worktree list --porcelain`
+shows registered worktrees; `bun scripts/workspace-inventory.ts ~/development`
+is a read-only inventory. Inspect tracked, untracked and ignored work before
+removing only an owned worktree, without `--force`. Preserve other users' work
+and standing VMs. Native Git/SSH own lifecycle; no custom lease ledger is required.
 
 Update affected documentation with behavioral changes; root Landmark release
 automation owns `CHANGELOG.md`, so do not manually edit it.
@@ -109,19 +77,16 @@ CI, hooks, and releases; component directories retain their focused tests.
 
 ## Foundation Standard
 
-Catalog [1.8.0](agent-config/skills/foundation/foundation-standard-v1.json)
+Catalog [1.8.1](agent-config/skills/foundation/foundation-standard-v1.json)
 and its [rationale](agent-config/skills/foundation/foundation-standard-v1.md)
 ship with the pinned `foundation-check` checker (ADR-006). A repository's
 `foundation.json` pins its catalog digest and harness revision. Run
 `foundation-check check --repo <path>` for documents, mapped stories, dated
 `obl:`/`ops:` gaps, repository-side security and evidence shape;
 `foundation-check affected --base <rev> --repo <path>` identifies stories to
-walk and cite as `Stories: US-001` in a mapped-source PR. The separate
-`foundation-check review --pr N` diagnoses independent model-review records and
-designated decisions on the candidate head, not a server merge prerequisite.
-One exact-head model approval supplies the delegated decision. Structural checks
-cannot prove runtime coverage or what a reviewer judged: preserve execution and
-review receipts. Existing adopters re-pin explicitly only after their
+walk and cite as `Stories: US-001` in a mapped-source PR.
+Structural checks cannot prove runtime coverage. Exercise the affected path and
+retain observed evidence. Existing adopters re-pin explicitly only after their
 2026-10-25 cliff entries close or are extended (ADR-006).
 
 Deletion proposals and PRs also have a narrow
@@ -138,22 +103,22 @@ The independent reviewer handles uncertainty; no server setting is changed.
 the measured baseline, provider/cache provenance, instruction audit, and the
 off-by-default credential-context experiment. Run the analyzer with an explicit
 task manifest; a session stop is not proof of task completion. The credential
-experiment remains off by default. Separately, the operator-approved advisor
-route uses Luna max, then Gemini 3.8 Flash high, Grok 4.7 xhigh, and DeepSeek
-V4.1 Flash max; other model roles remain unchanged.
+experiment remains off by default. Current routing is owned by each harness's
+settings: Sol xhigh for primary engineering, Sol low for lightweight work.
 
 ## Deploy (explicit live writes)
 
-Run only for the harness you intend to change:
+Install both harnesses, or invoke only the intended component:
 
 ```sh
+./install
 pi-config/install
 omp-config/install
 ```
 
 - pi: `$PI_CODING_AGENT_DIR`, default `~/.pi/agent`.
 - OMP: `$PI_CODING_AGENT_DIR` when set, otherwise `$(omp config path)`.
-  OMP also writes declared scope imports and host launchers; see its component guide.
+  OMP also stages declared workstation safety helpers; see its component guide.
 - Shared launchers: `$HOME/.local/bin`. Foreign destinations fail closed.
 - Selections: `PI_CONFIG_COMPONENTS` and `OMP_INSTALL_COMPONENTS`, documented in
   the component guides. Harness installers accept no positional arguments:
@@ -200,20 +165,6 @@ started at `v0.1.0`; old component tags remain under
 component changelogs remain in place; new release notes belong at the root.
 Optional LLM synthesis is disabled, so publishing requires no model credential.
 
-## Factory target and current source candidate
-
-[ADR-010](docs/adr/010-local-cto-summon-factory.md) distinguishes the commissioned
-full Cloudflare-hosted factory from the current local CTO/Summon/Mage source.
-The target includes cloud-native harness execution, deep Jev/OpenRouter and
-authenticated Hermes/Mage/Pi/Grok Bot clients; mirrodin is not its runtime backend. The
-[Cloudflare candidate](agent-config/candidates/summon/factory/README.md) is a Rust
-run/input/proof kernel, not the delivered end-to-end factory. Its local protocol,
-proof commands and unexercised/approval boundaries are explicit; installers do
-not select it. Summon owns runs, native runtimes own sessions, Mage owns executive
-delivery only, and Glass owns commitments rather than chat or agent control.
-No hosted activation, Jev integration, scheduler or external release effect is
-implied by source integration or merge.
-
 ## Migration and related tools
 
 The former `misty-step/{agent-config,pi-config,omp-config}` repositories are
@@ -223,5 +174,4 @@ retain their original paths), or browse the archived repositories and releases.
 See [ADR-001](docs/adr/001-monorepo.md) and the
 [migration record](docs/migration.md).
 
-[linear-cli](https://github.com/misty-step/linear-cli) remains an independent host
-tool. [Landmark](https://github.com/misty-step/landmark) owns release machinery.
+[Landmark](https://github.com/misty-step/landmark) owns release machinery.

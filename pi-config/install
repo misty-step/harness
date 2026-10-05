@@ -48,6 +48,7 @@ require_base() {
 }
 
 components_all="config guidance pi-chrome loc web-search failover accounts image-budget openrouter-live continuation-nudge diff-review audio-sandbox pass-env skills openrouter-auth"
+engineering_skills='agent-design authenticated-commands cloudflare-workers design-studio engineering-operations foundation pokayoke remote-execution story-qa system-one test-audit typesafe-ai user-stories visual-state-review'
 
 selected=${PI_CONFIG_COMPONENTS:-all}
 case "$selected" in
@@ -151,7 +152,10 @@ run_shared() {
   set --
   if has pass-env; then set -- "$@" --bin pass-env.ts; fi
   if has guidance; then set -- "$@" --bin design-check.ts; fi
-  if has skills; then set -- "$@" --skill all --bin foundation-check.ts --bin review-check.ts --bin agent-review.ts --bin ws.ts; fi
+  if has skills; then
+    for skill in $engineering_skills; do set -- "$@" --skill "$skill"; done
+    set -- "$@" --bin foundation-check.ts --bin review-check.ts
+  fi
   if has skills || has guidance; then set -- "$@" --bin story-deletion-check.ts; fi
   if has audio-sandbox; then set -- "$@" --audio-sandbox; fi
   if has guidance; then
@@ -171,6 +175,11 @@ validate_shared() {
 
 install_shared() {
   run_shared
+  if has skills; then
+    for skill in session-close pr-preview sachstand video; do
+      rm -rf -- "$agent_dir/skills/$skill"
+    done
+  fi
 }
 
 validate_pi_chrome() {
@@ -300,6 +309,8 @@ install_continuation_nudge() {
 }
 
 validate_diff_review() {
+  require_base
+  require_nonempty "$base_dir/system-one/engine.ts"
   for file in index.ts engine.ts diff-review.test.ts; do
     require_nonempty "$repo_dir/extensions/diff-review/$file"
   done

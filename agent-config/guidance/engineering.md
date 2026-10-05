@@ -39,8 +39,7 @@ Use `foundation` for a commissioned assessment, not to expand an ordinary fix in
 repository-wide compliance work.
 
 Load tool-specific knowledge only when needed. Exercise the affected path and use
-the repository's normal change route. Kaylee owns dispatch, fleet management,
-review choreography and approvals; they are not engineering craft.
+the repository's normal change route and native task/session controls.
 
-For typed judgments, use the official `typesafe-ai` skill and `system-one` fleet
+For typed judgments, use the official `typesafe-ai` skill and `system-one`
 companion. Jev supplies decisions, not prose; our calls use OpenRouter.

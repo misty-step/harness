@@ -44,7 +44,7 @@ the off-by-default credential experiment remain unchanged.
 
 | Layer | Owner and evidence | Relevant behavior / change boundary |
 |---|---|---|
-| Shared instructions | `agent-config/guidance/*.md`, `agent-config/install` | Seven selected sections are composed at the harness intro's marker. Skills deploy separately. `effective-verification.md` is inactive; deleting it saves no default prompt tokens. |
+| Shared instructions | `agent-config/guidance/*.md`, `agent-config/install` | Seven selected sections were composed at the harness intro's marker in the measured baseline. Skills deployed separately. Effective-verification material was inactive; its removal saves no default prompt tokens. |
 | OMP policy/deployment | `omp-config/global/AGENTS.md`, `config.yml`, `install` | Repo owns roles, fallback chains, MCP scope, extension selection and composed guidance, not the OMP provider clients. |
 | OMP credential injection | `omp-config/extensions/credentials/index.ts` | `before_agent_start` appends a names-only inventory or opt-in discovery pointer. Neither tool results nor agent prose inject a reminder; standing guidance owns recovery. |
 | OMP requests/tools | Installed `omp` 18.3.0; native `before_provider_request` hook | Final Responses payload observed with `input`, `tools`, `prompt_cache_key`, `include`, `reasoning`. Extension hook can inspect/replace payload; no replacement was shipped. Tool schemas and upstream system instructions are outside this repo. |

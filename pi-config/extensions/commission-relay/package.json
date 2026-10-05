@@ -1,7 +1,0 @@
-{
-  "name": "harness-commission-relay",
-  "private": true,
-  "version": "0.1.0",
-  "pi": { "extensions": ["./index.ts"] },
-  "peerDependencies": { "@earendil-works/pi-coding-agent": "*" }
-}

@@ -1,6 +1,8 @@
 # ADR-008: Ten foundations, three audits, one auditor per repository
 
-Status: Accepted 2026-10-02. Phaedrus approved foundations round 4
+Status: Audit automation retired 2026-10-05 by the operator's native
+configuration/install/skills-only scope decision. Foundation validators remain.
+Historical acceptance on 2026-10-02 follows. Phaedrus approved foundations round 4
 (<https://mirrodin.tail5f5eb4.ts.net/review/foundations/r4.html>), relayed by
 Kaylee: "the nightly deletion pass that just gets folded in as one of a set of a
 composition of auditors that we run each with different perspectives on every
