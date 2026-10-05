@@ -93,7 +93,7 @@ function args(argv: string[]): Options | "help" {
 	if (argv.length === 1 && (argv[0] === "--help" || argv[0] === "-h")) return "help";
 	const commands: Command[] = ["check", "baseline", "affected", "test-selection", "receipt", "review"];
 	const command = commands.find((name) => name === argv[0]);
-	if (!command) throw new Error("expected check, baseline, affected, receipt, or review");
+	if (!command) throw new Error("expected check, baseline, affected, test-selection, receipt, or review");
 	const rest = argv.slice(1);
 	const options: Options = { command, repo: process.cwd(), json: false, all: false, write: false, walkGaps: true };
 	const valued = ["--repo", "--catalog", "--stories-checker", "--base", "--owner", "--expires", "--revision", "--surfaces", "--pr", "--github-repo", "--candidate", "--current-main", "--test-results"];
@@ -364,6 +364,14 @@ function testSelection(options: Options): Result {
 	const deleted = git(repo,"diff","--no-renames","--diff-filter=D","--name-only","-z",baseSha,candidateSha).split("\0").filter(Boolean);
 	if (deleted.some(path => /(?:_test\.go|(?:^|\/)tests?\/|\.(?:test|spec)\.[cm]?[jt]s$)/.test(path))) {
 		eligible = false; full = true; reasons.push("candidate removes trusted tests: cannot manufacture green");
+	}
+	const changedChecks = changedPaths.filter(path => /(?:_test\.go|(?:^|\/)tests?\/|\.(?:test|spec)\.[cm]?[jt]s$)/.test(path) ||
+		/^\.github\/workflows\//.test(path) || /^scripts\/(?:check|scry-ci)$/.test(path));
+	for (const path of changedChecks) {
+		const diff = git(repo,"diff","--no-ext-diff","--unified=0",baseSha,candidateSha,"--",path);
+		if (diff.split("\n").some(line => line.startsWith("-") && !line.startsWith("---"))) {
+			eligible = false; full = true; reasons.push(`${path}: edits/removes trusted tests or required checks; cannot grant green`);
+		}
 	}
 	const priorMap = record(trustedAdoption) ? trustedAdoption.affected_tests : undefined;
 	const candidateAdoption = jsonOrUndefined(fileAt(repo, candidateSha, "foundation.json"));

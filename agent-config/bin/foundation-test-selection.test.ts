@@ -64,6 +64,14 @@ describe('Rule A through existing foundation checker CLI',()=>{
     const selected=['lint','unit:all','unit:learning','unit:shared','unit:web','walk:all'];
     expect(cli(repo,base,'--test-results',receipt(repo,base,selected)).selection.eligible).toBe(false);
   });
+  test('removing test bodies or required checks cannot grant eligibility',()=>{
+    for (const path of ['shared/grade_test.go','.github/workflows/ci.yml']) {
+      const {repo}=fixture(path.includes('.github')?'remove-gate':'remove-body');
+      put(repo,path,'required assertion\n');const base=commit(repo);
+      put(repo,path,'');commit(repo);
+      expect(cli(repo,base,'--test-results',receipt(repo,base,['lint','unit:all','unit:learning','unit:shared','unit:web','walk:all'])).selection.eligible).toBe(false);
+    }
+  });
   test('current main movement invalidates an otherwise passing receipt',()=>{
     const {repo,base}=fixture('movement');put(repo,'learning/policy.go','fixed');const moved=commit(repo);
     const path=receipt(repo,base,['lint','unit:learning','unit:web']);

@@ -1,17 +1,18 @@
 bun test v1.4.2 (744846f84)
 
 agent-config/bin/foundation-test-selection.test.ts:
-(pass) Rule A through existing foundation checker CLI > unmapped paths fall back to full suite, cheap checks always run [81.15ms]
-(pass) Rule A through existing foundation checker CLI > deleted shared source selects every reverse dependent [74.60ms]
-(pass) Rule A through existing foundation checker CLI > candidate cannot remove tests and manufacture green [125.46ms]
-(pass) Rule A through existing foundation checker CLI > current main movement invalidates an otherwise passing receipt [190.00ms]
-(pass) Rule A through existing foundation checker CLI > candidate selector edits use trusted base and cannot grant eligibility [179.65ms]
-(pass) Rule A through existing foundation checker CLI > unknown dependencies cause exhaustive fallback [75.56ms]
-(pass) Rule A through existing foundation checker CLI > shared, dependency and contract failures stay red in shadow mode [592.98ms]
-(pass) Rule A through existing foundation checker CLI > receipt for old candidate cannot pass changed source [152.35ms]
-(pass) Rule A through existing foundation checker CLI > passed, failed, skipped, flaky and cached stay separate; no new cache reuse [125.90ms]
+(pass) Rule A through existing foundation checker CLI > unmapped paths fall back to full suite, cheap checks always run [80.56ms]
+(pass) Rule A through existing foundation checker CLI > deleted shared source selects every reverse dependent [77.09ms]
+(pass) Rule A through existing foundation checker CLI > candidate cannot remove tests and manufacture green [153.90ms]
+(pass) Rule A through existing foundation checker CLI > removing test bodies or required checks cannot grant eligibility [289.82ms]
+(pass) Rule A through existing foundation checker CLI > current main movement invalidates an otherwise passing receipt [192.63ms]
+(pass) Rule A through existing foundation checker CLI > candidate selector edits use trusted base and cannot grant eligibility [180.09ms]
+(pass) Rule A through existing foundation checker CLI > unknown dependencies cause exhaustive fallback [99.16ms]
+(pass) Rule A through existing foundation checker CLI > shared, dependency and contract failures stay red in shadow mode [612.38ms]
+(pass) Rule A through existing foundation checker CLI > receipt for old candidate cannot pass changed source [160.26ms]
+(pass) Rule A through existing foundation checker CLI > passed, failed, skipped, flaky and cached stay separate; no new cache reuse [156.74ms]
 
- 9 pass
+ 10 pass
  0 fail
- 20 expect() calls
-Ran 9 tests across 1 file. [1.63s]
+ 22 expect() calls
+Ran 10 tests across 1 file. [2.04s]
