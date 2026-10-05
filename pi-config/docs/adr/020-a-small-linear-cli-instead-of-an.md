@@ -2,6 +2,10 @@
 
 Accepted 2026-09-16.
 
+Retired 2026-10-05 by explicit operator request to remove the Linear CLI and MCP.
+The decision below is historical: neither harness installs Linear tooling or
+routes work through it. Retirement preserves OAuth storage and pass credentials.
+
 Linear ships no official CLI. Its official agent surface is a
 hosted MCP server (`https://mcp.linear.app/mcp`). Pi has no built-in MCP, and
 this repo already omits an MCP bridge. Iron Forest's `.iron-forest/linear.py`

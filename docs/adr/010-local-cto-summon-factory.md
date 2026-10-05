@@ -8,6 +8,12 @@ mirrodin. The blanket hosted activation pause is superseded within existing
 access and spending authority. This ADR is not a deployment/completion receipt;
 prior frozen briefs, origins and evidence retain their original meaning.
 
+Harness packaging update (2026-10-05): this shared checkout no longer ships the
+source-only Summon/Mage control-plane candidates or Pi commission relay. This
+does not delete separate active factory/atlas worktrees, assets or launch
+dependencies. The historical commission/design context below is retained, not
+a directive to reinstall retired machinery or create a replacement scheduler.
+
 ## Scope precedence
 
 The governing parent was reread at Glass revision 4359 after Kaylee's revision

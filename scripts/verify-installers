@@ -50,13 +50,27 @@ for consumer in pi omp; do
     mkdir -p "$home/.hermes/profiles/kaylee/journal"
     printf '# Experiments\n\n## E-018 Preserved runtime journal sentinel\n' > "$work/expected-experiments"
     cp "$work/expected-experiments" "$home/.hermes/profiles/kaylee/journal/experiments.md"
-    for skill in herdr pr-preview sachstand session-close; do
+    printf '{"runtime":{"sentinel":true},"mcpServers":{"mobbin":{"type":"http","url":"https://example.invalid/old-mobbin","auth":{"synthetic":"mobbin-auth"},"oauth":{"synthetic":"mobbin-oauth"}},"foreign":{"type":"http","url":"https://example.invalid/foreign","auth":{"synthetic":"foreign-auth"}},"linear":{"type":"http","url":"https://mcp.linear.app/mcp"}},"disabledServers":["foreign"]}\n' > "$agent/mcp.json"
+    printf '{"mcpServers":{"fastmail":{"type":"http","url":"https://example.invalid/fastmail"}}}\n' > "$work/expected-scope"
+    printf '{"mcpServers":{"project-native":{"type":"http","url":"https://example.invalid/project"}}}\n' > "$work/expected-project-mcp"
+    printf '# foreign local exclusions\n/.omp/.mcp.json\n' > "$work/expected-exclude"
+    for owner in misty-step moomooskycow r90group; do
+      scope="$home/development/$owner/.omp"
+      project="$home/development/$owner/project"
+      mkdir -p "$scope" "$project/.omp"
+      git init --quiet "$project"
+      cp "$work/expected-scope" "$scope/mcp.json"
+      cp "$work/expected-project-mcp" "$project/.omp/mcp.json"
+      cp "$work/expected-exclude" "$project/.git/info/exclude"
+      ln -s ../../.omp/mcp.json "$project/.omp/.mcp.json"
+    done
+    for skill in herdr pr-preview sachstand session-close parlor ast-grep now-next; do
       mkdir -p "$agent/skills/$skill"
-      printf 'old owned management skill\n' > "$agent/skills/$skill/SKILL.md"
+      printf 'old owned retired skill\n' > "$agent/skills/$skill/SKILL.md"
     done
   fi
   if env -i PATH="$PATH" HOME="$home" TMPDIR="$work" \
-    PI_CODING_AGENT_DIR="$agent" OMP_DEVELOPMENT_ROOT="$home/development" \
+    PI_CODING_AGENT_DIR="$agent" \
     OMP_TODOIST_OWNER="$home/missing-todoist" \
     "$work/source/$consumer-config/install" >"$work/$consumer.log" 2>&1; then
     printf 'PASS %s installer exit\n' "$consumer"
@@ -125,14 +139,10 @@ for consumer in pi omp; do
     failures=$((failures + 1))
   fi
   rm -f "$home/dense-review.html" "$home/recut-review.html"
-  if [ "$consumer" = pi ]; then
-    check "$consumer agent-review executable" test -x "$home/.local/bin/agent-review"
-  else
-    check "omp does not install review launcher" test ! -e "$home/.local/bin/agent-review"
-    for skill in herdr pr-preview sachstand session-close; do
+  if [ "$consumer" = omp ]; then
+    for skill in herdr pr-preview sachstand session-close parlor ast-grep now-next; do
       check "omp retires $skill" test ! -e "$agent/skills/$skill"
     done
-    check "omp omits review gate template" test ! -e "$agent/skills/foundation/foundation-review.yml"
   fi
   # The deployed checker must resolve the catalog and story checker from the
   # installed skills, then fail closed on a repository with no adoption record.
@@ -149,7 +159,6 @@ for consumer in pi omp; do
     failures=$((failures + 1))
   fi
   rm -rf "$home/bare-repo"
-  check "$consumer ws executable" test -x "$home/.local/bin/ws"
   check "$consumer foreign skill" cmp -s "$work/expected-skill" "$agent/skills/foreign/SKILL.md"
   check "$consumer retires installed LOC warming hook" test ! -e "$agent/extensions/loc/git-hook.sh"
   if [ "$consumer" = pi ]; then
@@ -159,13 +168,33 @@ for consumer in pi omp; do
     check "pi auth permissions" test "$(stat -c %a "$agent/auth.json")" = 600
   else
     check "omp auth untouched" cmp -s "$work/expected-auth" "$agent/auth.json"
+    check "omp MCP preserves foreign inventory, auth and runtime settings" \
+      jq -e '
+        .runtime == {sentinel:true}
+        and .mcpServers.mobbin.url == "https://api.mobbin.com/mcp"
+        and .mcpServers.mobbin.auth == {synthetic:"mobbin-auth"}
+        and .mcpServers.mobbin.oauth == {synthetic:"mobbin-oauth"}
+        and .mcpServers.foreign == {type:"http",url:"https://example.invalid/foreign",auth:{synthetic:"foreign-auth"}}
+        and .mcpServers.openrouter.enabled == false
+        and (.mcpServers | has("linear") | not)
+        and (.disabledServers | sort) == ["chrome-devtools","foreign","node_repl"]
+      ' "$agent/mcp.json"
+    check "omp MCP permissions" test "$(stat -c %a "$agent/mcp.json")" = 600
+    for owner in misty-step moomooskycow r90group; do
+      scope="$home/development/$owner/.omp"
+      project="$home/development/$owner/project"
+      check "omp preserves $owner owner MCP scope" cmp -s "$work/expected-scope" "$scope/mcp.json"
+      check "omp preserves $owner primary project MCP" cmp -s "$work/expected-project-mcp" "$project/.omp/mcp.json"
+      check "omp preserves $owner MCP import target" test "$(readlink "$project/.omp/.mcp.json")" = ../../.omp/mcp.json
+      check "omp preserves $owner imported MCP definition" cmp -s "$work/expected-scope" "$project/.omp/.mcp.json"
+      check "omp preserves $owner local Git exclusions" cmp -s "$work/expected-exclude" "$project/.git/info/exclude"
+    done
     check "omp default install preserves native entrypoint" cmp -s "$work/expected-native" "$home/.local/bin/omp"
     check "omp default install does not activate memory units" test ! -e "$home/.config/systemd/user/omp.slice"
     check "omp engineer launcher bytes" cmp -s "$work/source/omp-config/bin/omp-engineer.py" "$home/.local/bin/omp-engineer"
     check "omp engineer launcher executable" test -x "$home/.local/bin/omp-engineer"
     check "omp engineer launcher installed load" "$home/.local/bin/omp-engineer" --help
     check "omp CLI preserves the sole runtime experiment ledger" cmp -s "$work/expected-experiments" "$home/.hermes/profiles/kaylee/journal/experiments.md"
-    check "omp installed roster loads its experiment owner and queries defaults" env -i PATH="$PATH" HOME="$home" TMPDIR="$work" "$home/.local/bin/omp-roster" defaults --json
     # MIS-203: an installed updater must accept the new layout before live
     # activation writes anything. The virgin-host/native sentinels stay intact.
     printf '#!/bin/sh\nexit 2\n' > "$home/.local/bin/workbench-host-update"

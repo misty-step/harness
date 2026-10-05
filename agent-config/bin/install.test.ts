@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import {
-	copyFileSync, cpSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync,
+	copyFileSync, cpSync, chmodSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync,
 	readlinkSync, rmSync, symlinkSync, writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
@@ -42,6 +42,7 @@ function fixture(): Fixture {
 		put(files.target, `skills/${name}/SKILL.md`, `retired owned ${name}\n`);
 	}
 	put(files.home, ".local/bin/foreign-tool", "foreign executable\n");
+	put(files.home, ".cache/tmp/foreign-cache", "foreign cache sentinel\n");
 	return files;
 }
 
@@ -102,6 +103,24 @@ describe("install", () => {
 		expect(lstatSync(launcher).mode & 0o777).toBe(0o700);
 		expect(existsSync(join(files.home, ".password-store"))).toBe(false);
 		expect(invoke(files).exitCode).toBe(0);
+	});
+
+	test("redeploys unchanged launchers without writing to their protected directory", () => {
+		const files = fixture();
+		expect(invoke(files).exitCode).toBe(0);
+		const bin = join(files.home, ".local/bin");
+		const launcher = join(bin, "pass-env");
+		const before = lstatSync(launcher);
+		chmodSync(bin, 0o500);
+		try {
+			const result = invoke(files);
+			expect(result.stderr.toString()).toBe("");
+			expect(result.exitCode).toBe(0);
+			expect(lstatSync(launcher).ino).toBe(before.ino);
+			expect(lstatSync(bin).mode & 0o777).toBe(0o500);
+		} finally {
+			chmodSync(bin, 0o700);
+		}
 	});
 
 	test.each([

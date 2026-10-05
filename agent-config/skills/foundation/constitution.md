@@ -69,13 +69,6 @@ hosted service keeps 4 in full.
 4. **Every check earns its keep, or it goes.** Name the real failure and the
    smallest proof that rejects it. Delete prose hashes, duplicate gates and
    report rituals; preserve independent safety contracts.
-5. **Every change traces from ticket to packet.** Its ticket names the story or
-   spec it serves; its packet keeps the brief, the agent session, the diff and
-   the proof.
+5. **Keep intent and proof together.** The existing ticket or PR names the story
+   or spec it serves and retains the bounded change and observed proof.
 
-## Audits
-
-Three weekly audits read every active repository, one read-only OMP auditor per
-repository: Foundations, Principles and Simplicity. Each files one ticket per
-gap, with no cap, and never fixes, steers or messages anyone. Their template,
-launcher and schedules live in harness `omp-config/auditors/`.

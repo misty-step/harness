@@ -16,7 +16,7 @@ and agent rules in [AGENTS.md](AGENTS.md).
 - **Composed guidance:** the deployed global `AGENTS.md`: a harness intro plus
   its selected sections. It is generated; never edit the deployed copy.
 - **Launcher:** an executable deployed to `~/.local/bin` from
-  `agent-config/bin/` (`pass-env`, `design-check`, `foundation-check`, `ws`).
+  `agent-config/bin/` (`pass-env`, `design-check`, `foundation-check`).
 - **Selection:** the skills, guidance sections, launchers and components a
   harness installer declares for deployment.
 - **Deploy (install):** a live mutation of an agent directory and `~/.local/bin`.
@@ -39,16 +39,6 @@ and agent rules in [AGENTS.md](AGENTS.md).
   and records a disposition for every obligation.
 - **Gap, baseline:** a named deficiency (`doc:…`, `map:…`, `walk:US-…`), and
   the dated list of gaps that ratchet mode tolerates until each expires.
-- **Designated agent reviewer:** the GitHub App whose approval alone admits a
-  repository's first stories or a baseline extension (ADR-003).
-- **Landing record:** owner-bound repository, canonical checkout, branch and
-  last observed HEAD, stored separately from leases and retained after worktree
-  removal so merge/teardown obligations cannot disappear with the resource.
-- **Landed session:** owned work merged, deployed and sanity-checked with
-  PR/ticket evidence, feature branches/worktrees removed, and the canonical
-  checkout clean on the fetched origin default head.
-- **Parked session:** explicitly unfinished owned work retained with a meaningful
-  reason, owner and resume steps; parking permits close but never means done.
 
 ## Owns and delegates
 
@@ -62,7 +52,7 @@ the Foundation Standard tooling. It does not own:
 - deployed copies, which installers generate from source;
 - a project's foundations: each repository owns its adoption record, stories,
   walk runner and gate, and this repository supplies the checker;
-- work status, which lives in Linear.
+- work status, which lives in the project's existing work authority.
 
 ## Invariants
 
@@ -93,17 +83,9 @@ the Foundation Standard tooling. It does not own:
   Scope: Before an ordinary merge, the agent observes green CI and verifies an
   up-to-date merge candidate against the current default head. GitHub approval
   and required-status merge gates were removed by ADR-003's uniform cutover.
-- **INV-011** Sessions close only landed or explicitly parked with a resume note
-  (US-004). Deterministic owned Git/GitHub facts and live lease obligations are
-  enforced by `agent-config/skills/session-close/session-close.ts check`, with
-  regression coverage in
-  `agent-config/skills/session-close/session-close.test.ts`. Corrupt storage and
-  unparked auth/command failures fail closed; parked facts remain unverified.
-  Foreign resources are informational and never cleanup targets.
-  `unenforced`: independent exact-head model review, observed green CI, deployment
-  to actual targets, production sanity and PR/relevant-ticket evidence remain
-  engineer judgment under `agent-config/skills/session-close/SKILL.md`. Parking is
-  reported as unfinished and does not waive live non-worktree leases.
+- **INV-011 — retired:** The custom session landing/lease gate was removed with
+  US-004 automation. Native Git/SSH facts and explicit user authorization govern
+  owned cleanup; foreign work and durable task evidence must be preserved.
 - **INV-012** Activated OMP engineer starts are admitted under one launch lock
   and enter a verified 4-GiB/zero-swap/group-OOM leaf before native execution.
   Live cgroups, not launcher PIDs or environment markers, own reservations;
@@ -129,8 +111,7 @@ the Foundation Standard tooling. It does not own:
 ## Code map
 
 - `agent-config/`: shared primitives (skills, guidance sections, launchers),
-  the shared installer, the audio sandbox, System One (`system-one/`), and
-  candidate tools not yet deployed (`candidates/`).
+  the shared installer, the audio sandbox, and System One (`system-one/`).
 - `docs/`: cross-component decisions (`docs/adr/`), verification and migration
   records, and token-efficiency measurements.
 - `omp-config/`: OMP routing, config and MCP, extensions, themes, guidance

@@ -276,11 +276,9 @@ What each act establishes:
 
 1. **`omp-config` (this repo).** Add `bin/omp-scratch` — the PoC's `owner` and
    `gc` modes with `exec`/`gc`/`env` subcommands — and an `install` stanza
-   installing it `-m 700` to `~/.local/bin/omp-scratch`, alongside the existing
-   `omp-grievances`/`pass-env` stanzas. `install` is owned by another workstream
-   and currently dirty, so this document does not touch it; the change is one
-   `require_nonempty` + `install` pair in the shape already used for
-   `bin/omp-grievances.ts`.
+   installing it `-m 700` to `~/.local/bin/omp-scratch`, alongside the native
+   safety helpers in `install`. This document does not change the installer;
+   the addition would be one `require_nonempty` + `install` pair.
 2. **Host launcher dotfiles (unowned by this repo).** Replace the bridge export
    in `~/.bashrc`/`~/.profile` with the run-scoped object, e.g.
    `pi() { command omp-scratch exec -- command pass-env run … -- pi "$@"; }`, and

@@ -1,6 +1,11 @@
 # Standing-prompt and credential-context audit
 
-Baseline source: `4a2eb5888dcae5dabd96226eecef429e38da2a64`. Line numbers below refer to that revision, not the changed extension. This audit is a disposition proposal, not an instruction change. The only prompt change implemented is the off-by-default inventory experiment described below.
+Baseline source: `4a2eb5888dcae5dabd96226eecef429e38da2a64`. Line numbers below refer to that revision, not the changed extension. This historical disposition proposal is not current instruction. The only prompt change implemented was the off-by-default inventory experiment described below.
+
+The 2026-10-05 packaging decision retires the effective-verification and
+workspace/session-close control material referenced by this baseline. Table
+dispositions below are the original audit, not current installation instructions.
+Removing unselected source is not evidence of runtime token savings.
 
 ## Scope, evidence, and boundaries
 

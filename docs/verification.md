@@ -29,20 +29,14 @@ Missing credentials fail the review rather than silently skip it.
 All scratch is run-scoped under `~/.cache/tmp` and removed on ordinary exit; interrupted runs may leave an
 owned directory. Remove only that directory once its process has ended.
 
-## Source-only factory candidate
+## Retired control-plane checks
 
-The fixed gate does not build the Rust Cloudflare/native-runtime candidates or
-claim end-to-end factory acceptance. Their source-owned READMEs specify separate
-locked Rust builds, explicit local workerd/SQLite proof and native consumer walks.
-Run those affected checks against the exact candidate and retain their receipts
-before source landing. The zero-network Pi SDK relay fixture proves SDK/transport
-behavior, not authenticated provider execution, live CTO wake or COO delivery.
-Hosted auth, cloud-native harness execution, deep Jev/OpenRouter, shared
-subscription/cash admission, restore and release effects remain separate
-unverified/unimplemented boundaries. Full hosted delivery is commissioned within
-existing authority, not held by a blanket activation pause; see
-[ADR-010](adr/010-local-cto-summon-factory.md).
-Standalone workerd proof is explicit, not a silently skipped ordinary Bun test.
+Fleet roster/experiment/audit checks, custom workspace/session-close gates and
+source-only Summon/Mage factory candidates are retired with their implementations.
+Native configuration, credential/audio/display isolation, repository validators
+and release gates remain. Preserve active owners' separate worktrees, assets,
+native inspection/prompting and existing installed launch/settlement dependencies
+until their work completes; source retirement is not permission to remove them.
 
 ## Observable contracts
 
@@ -79,51 +73,6 @@ Standalone workerd proof is explicit, not a silently skipped ordinary Bun test.
   must report its exact restic snapshot and successful restored SQLite hashes;
   the full `session-backup/drill.py` must compare canonical Glass accounting
   from isolated restored mounts against a stable finished item's live ledger.
-- `agent-config/skills/session-close/session-close.test.ts` exercises scoped lease
-  ownership and stale/corrupt review (US-004). The existing close gate also owns
-  deterministic landing verification: persistent owned branch/HEAD records,
-  fetched origin-default merge proof, live origin/GitHub branch/PR facts,
-  checkout cleanliness and owned worktree teardown. Its exit 0 means landed or
-  explicitly parked, not independently verified deployment, review or ticket
-  completion. Unparked GitHub auth, command and malformed-API failures fail
-  closed, as does corrupt storage. Parked facts remain unverified.
-  `leases --json` remains read-only lease introspection for `ws`, with
-  no Git checks or auto-tracking. `agent-config/bin/ws.test.ts` uses real
-  disposable Git repositories and a fake SSH lobby/VM to exercise snapshots,
-  command input, leases and evidence-gated teardown (US-025).
-  These checks do not provision a live VM or prove live CDP/browser readiness.
-
-  US-004 owner-path verification uses the installed `session-close.ts`, the
-  same owner identity/store throughout, and a real task PR:
-  1. At the beginning, `track --repo PATH` the owned checkout (including an
-     inherited worktree); create-time lease any newly created worktree/VM.
-     Introduce a controlled Git-visible dirty change and run installed `check`;
-     observe exit 2 and the dirty blocker. Resolve only that controlled change,
-     preserving other owners' evidence.
-  2. Obtain exact-head independent model review, recording the actual author
-     model and using the cross-family reviewer without fallback. Await and
-     observe green CI on the candidate against the current base, then merge
-     normally without `--admin` or a human approval gate. Deploy the merged
-     revision through both Pi/OMP installers for shared changes, restart and
-     exercise the affected installed path. Record revision, target and observed
-     production sanity result in the PR and relevant existing project
-     commitment/ticket owner. The factory pilot reports to its existing Glass
-     commission and follows current Glass/Habitat decisions; this does not
-     authorize re-enabling retired Linear readers.
-  3. Delete only the owned merged local/origin branch, remove only the owned
-     worktree without force and resolve its lease after evidence inspection;
-     preserve `ws pull` before evidence-gated `ws down`. Leave the canonical
-     checkout clean on the freshly fetched origin default head. Foreign dirt
-     is a blocker to coordinate with its owner, never permission to erase it.
-  4. Run installed `check` from the canonical checkout after the original
-     worktree is gone; observe exit 0 and **landed** records, not parked records.
-     Record installed script path, owner, revision, commands, exit codes and
-     redacted output. A `park --repo PATH --note TEXT` pass is explicitly
-     **unfinished**, with reason/owner/resume steps and retained-resource
-     status; it is not evidence of this successful landing walk.
-
-  Update affected documentation as part of the landing. Root Landmark release
-  automation owns `CHANGELOG.md`; do not manually edit it.
 - `agent-config/bin/openrouter-key.test.ts` builds real Git checkouts and a
   linked worktree to exercise R90 versus personal selection, damaged Git
   metadata, invalid-token failure with a usable personal key present, bounded
@@ -132,100 +81,23 @@ Standalone workerd proof is explicit, not a silently skipped ordinary Bun test.
 - `omp-config/bin/omp-task-usage.test.ts` checks price-weighted whole-tree cost,
   failed-task inclusion, unknown/unpriced evidence, split-task worker ownership,
   scope escape, malformed archives and content-free reporting (US-018).
-- `omp-config/bin/omp-roster.test.ts` runs an isolated installed-layout copy of
-  the launcher and sibling helpers against fixture ticket/usage/memory
-  views, fake `board`, `ai-usage`, `herdr` and native `omp` commands, and
-  synthetic session files: first-usable launch with skip reasons, verdict and
-  degraded reporting; live rejection overriding stale usable quota, fallthrough,
-  route changes and incomplete/malformed native responses; a real Bubblewrap
-  child reading the probe overlay with private scratch and Hermes hidden;
-  actionable setup diagnostics after source excerpts/malformed stdout, and
-  structured nonzero-exit provider errors; the printed `export` and arguments,
-  exit 3 with nothing
-  written on an exhausted roster, exact roster-only overlay chains for the
-  engineer and helper roles (with a guard over every role and model-keyed chain
-  of the real `config.yml`), one overlay and one launch record per launch, refusals
-  of bad tickets and usage views, and off-roster turn and fallback reporting
-  judged per session file from its own launch record (a relaunch, two rosters, a
-  subagent with its session, roster changed, an unreadable board, `--since`, a
-  file with nothing judged, a half-written last line) with helper and designer turns on their approved
-  primaries, cash routes and prompt text handled, and a launch without a ticket
-  (`--model` and `--thinking`: refusals, exit 3 with nothing written, a one-route
-  overlay and record, `check` on an `adhoc-` id, with a `board` that fails if run)
-  (US-046). It makes no model call; the forced-outage walk against real OMP is a
-  recorded manual smoke.
-  US-047 adds the session-wide working-engineer admission boundary: the
-  roster-owned default admits eleven working engineers with no export, refuses
-  at and above its boundary with exit 5, empty stdout and no artifacts, and
-  reports the effective cap/count on success. Lower and higher overrides,
-  settled/non-OMP agents, unnamed agents, ticketless launches, malformed Herdr
-  replies and invalid limits are covered.
-  `capacity --json` uses the same snapshot policy and succeeds at/full-over cap
-  while launch still exits 5. Read-only boundary proof inventories a dirty
-  unrelated checkout and an unwritable corrupt journal before/after the query,
-  with launch tools refusing any call and Herdr accepting only `agent list`.
-  Invalid limits and unknown fleet replies must remain visible errors, not
-  guessed capacity. Product smoke must separately call the staged/installed
-  `capacity` CLI and observe zero new agents, worktrees, locks or journal writes;
-  the subsequent real qualifying launch must dispatch exactly two lanes and
-  no third engineer. Capacity never serves as a reservation.
-  Automatic experiment acceptance extends US-046, not the fleet cap or native
-  defaults scope. Preserve the existing roster/fleet/memory proof above. At the
-  launcher boundary, exercise qualifying plain `launch --item` in a checkout,
-  identical full-ticket or `--brief-file` briefs and starting commits, actual
-  two-worktree spawn identity binding, one live reservation under concurrent
-  launches, explicit recorded reason opt-outs, malformed/busy journal refusal,
-  ambiguous launch failure and settled lanes retaining an `awaiting-verdict`
-  record while permitting the next live pair. A replaced session must not count
-  as live. Abandonment must require a reason and refuse a still-working lane.
-  Check that ticket-pinned effort remains unchanged without `--use-default`,
-  and explicit default consumption reports evidence without editing the ticket
-  or native interactive/subagent defaults.
-  Learned effort applies only to the first roster entry; original-ticket hash
-  auditing must accept that explicit substitution but still reject later board
-  edits. Launch from a linked checkout and verify canonical parent routing.
-  Stored evidence quoting ledger markers must round-trip. Prove real competing
-  processes cannot enter and a SIGKILLed holder cannot strand the kernel lock.
-  Artifact realpaths must remain inside their own lane; swapped paths and
-  cross-lane symlinks must fail before invoking the judge.
-  At the ledger/verdict boundary (`omp-config/bin/omp-experiments.ts`), isolate
-  `OMP_ROSTER_EXPERIMENTS_FILE`: preserve legacy journal prose and numbering,
-  reject malformed state, anonymize the lane identities and keep the key from
-  the judge, require every done-check score/evidence, reject same-family judges
-  and observed fallback identities, enforce the lower-effort tie rule, and
-  persist only accepted verdict/default evidence in that same journal. Historical
-  confounds, abandonment, pending results and legacy model comparisons must not
-  become invented automated defaults. Installer proof must stage the sibling
-  `omp-experiments.ts` with `omp-roster` and leave a sentinel runtime journal
-  byte-for-byte unchanged; do not install into the live journal for this check.
-  **Product proof is separate from fixtures:** run a real qualifying ticket
-  launch and observe both native Herdr sessions/worktrees with the same brief
-  hash and base commit. Use real lane deliverables and an approved usable
-  cross-family native OMP judge via
-  `verdict --experiment E-NNN --artifact-a FILE --artifact-b FILE --judge provider/model --thinking effort`.
-  Observe the actual judge model, blind done-check verdict and journal write,
-  then query `defaults --nature NATURE --model provider/model` and observe the
-  winning effort plus E-id evidence. A bare ticket launch must remain pinned;
-  `launch --use-default` must explicitly consume that evidence. Record command,
-  version, status and redacted readback in the PR; do not label mocked judges,
-  copied scores, retrospective unblinding or an unexecuted walk as product proof.
 - `omp-config/bin/test_omp_engineer.py` covers measured legacy accounting,
   full populated-scope reservations (including lingering helpers), the exact
   20-GiB physical scaling boundary without fictitious legacy/unused-heavy reserves,
   ancestor headroom refusal, hierarchy/oomd failures, serialized admission,
   updater-local PATH isolation and foreground-only terminal recovery. Fake-proc
   cases retain orphan memory in deleted cgroups and refuse opaque native roots
-  without blocking on unrelated protected daemons. Roster memory refusal leaves
-  stdout and artifacts empty. Fixtures are not real-launch overrides.
+  without blocking on unrelated protected daemons. Fixtures are not real-launch
+  overrides.
   Unit and installer gates do not activate user units or prove native loading.
   Live US-043 proof uses native Herdr fresh/exact-session resumed engineers,
   actual kernel leaf controls and Bash child membership, queued-response/owned
   SIGKILL recovery followed by unrepaired same-pane resume, and current-memory
-  native admission. The floor refusal and no-artifact roster transition are
-  isolated boundary contracts, not a claim of physically exhausting the host.
+  native admission. The floor refusal is an isolated boundary contract, not a
+  claim of physically exhausting the host.
   Keep process/session evidence private and never kill a working engineer to
   repeat it.
-- Reviewer-family acceptance (US-014, US-046; operator rule 2026-09-30) uses a
+- Reviewer-family acceptance (US-014; operator rule 2026-09-30) uses a
   real OMP process with a network-disabled synthetic provider. Preserve the
   JSONL transcript, provider attempts and active child config readback.
   With fallback enabled and Sol authenticated, force Sonnet failure: observe
@@ -240,9 +112,7 @@ Standalone workerd proof is explicit, not a silently skipped ordinary Bun test.
   protected tasks must remain unavailable. Inject a child initialization failure
   through a supported extension wrapper: no reviewer provider request or fallback
   is permitted. Confirm enabled specialists remain present in the model-visible
-  task description. The standalone review-only process disables model switching
-  as well as emptying its selected reviewer's recovery chains; verify same-model
-  retries still occur and remove both restrictions for its forbidden-hop control.
+  task description.
   Disable the loaded guard through native extension settings after its first
   successful unlock: observe native hook suspension and closed specialist
   permissions, with no child request. Revoke reviewer auth between preflight
@@ -277,8 +147,8 @@ Standalone workerd proof is explicit, not a silently skipped ordinary Bun test.
 - Launcher bytes and executable bit must match the shared source.
 - The installed `foundation-check` must resolve its catalog and story checker
   from the installed skills and fail closed on a repository without
-  `foundation.json` (US-024); `foundation-check.test.ts` covers its contracts,
-  including ratchet mode and the review gate against a fake GitHub API (US-027).
+  `foundation.json` (US-024); `foundation-check.test.ts` covers its catalog,
+  ratchet baseline and independent consumer contracts (US-027).
 - Foreign skill files and OMP's synthetic auth file remain byte-identical.
 - Both installers deploy byte-identical executable `openrouter-key`; the
   isolated Pi install replaces only `auth.json.openrouter`, preserving another
@@ -387,10 +257,9 @@ The original publish-time validation remains in place.
 
 The merge policy is uniform across `misty-step`, `r90group`, and `moomooskycow`
 (operator decisions, 2026-09-28/30): independent model review plus green observed
-CI, without human approval or server-required status checks. The
-[maintainer merge procedure](../agent-config/review/README.md)
-owns supported settings changes and exact-head merging; no bypass actors,
-per-repository exclusions, or plan upgrade substitute for that policy.
+CI, without human approval or server-required status checks. Native GitHub owns
+settings and merges; the [root release guide](../README.md#contributing-and-releases)
+describes the harness route. Retired App/maintainer controllers are not required.
 
 Removing a strict required `verify` rule does not remove release-candidate
 validation. The agent must check the candidate against the current base and

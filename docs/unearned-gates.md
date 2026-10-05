@@ -37,19 +37,19 @@ release/rollback failures and 20-MiB admission refusal are operator observations
   accepts any alphanumeric reason in the contract-reviewed header. That is not
   evidence of review; it is separate from the executable lock-timeout constraint,
   which cannot be waived by that header.
-- **Harness**: [`agent-review.ts`](../agent-config/bin/agent-review.ts) hashes PR
-  title/description, records base/merge-base and toggles a label;
-  [`foundation-review.yml`](../agent-config/review/foundation-review.yml) is the
-  separate review job; [`foundation-check.ts`](../agent-config/bin/foundation-check.ts)
-  requires tracked approval/disposition records. The review prompt now requires
-  a demonstrated blocking defect and OMP no longer installs review choreography.
+- **Harness (historical evidence)**: At the inspected revision, `agent-review.ts`
+  hashed PR title/description, recorded base/merge-base and toggled a label;
+  `foundation-review.yml` was the separate review job; `foundation-check.ts`
+  required tracked approval/disposition records. The review prompt required a
+  demonstrated blocking defect and OMP did not install review choreography.
+  These are historical source references, not current commands or gates.
   **Kaylee-owned taste criticism earns a place as an advisory critique** of scope,
   simplicity and deep modules, not a second automatic approval gate. Retain the
   standing independent-review policy unless its owner changes it.
-  [`omp-engineer.py`](../omp-config/bin/omp-engineer.py) currently uses a 20-GiB
-  free-memory scale-up floor plus full-leaf reservations and ancestor headroom.
-  Recommendation 5 is a design change for that owner, not a claim these different
-  bounds are interchangeable or that a constant can safely be reduced arbitrarily.
+  `omp-engineer.py` at that snapshot used a 20-GiB free-memory scale-up floor
+  plus full-leaf reservations and ancestor headroom. Recommendation 5 is a design
+  change for that owner, not a claim these different bounds are interchangeable
+  or that a constant can safely be reduced arbitrarily.
 - **Habitat**, inspected revision `dd5870c1edf7aa6a9017e4eb24551eecae9e9701`:
   [replay scheduling](https://github.com/r90group/habitat/blob/dd5870c1edf7aa6a9017e4eb24551eecae9e9701/.dagger/src/index.ts#L540-L580),
   [type/hash checker](https://github.com/r90group/habitat/blob/dd5870c1edf7aa6a9017e4eb24551eecae9e9701/scripts/check-db-types.mjs#L1-L23).

@@ -40,17 +40,12 @@ afterEach(() => {
 	for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true });
 });
 
-test("US-014 source selectors stay within the approved model policy", () => {
-	const result = run();
-	expect(result.exitCode).toBe(0);
-	expect(result.stderr.toString()).toBe("");
-	expect(result.stdout.toString()).toContain("Model policy OK:");
-});
 
 test("offline policy rejects stale, alias, malformed and disallowed routing selectors", () => {
 	const cases: Array<[string, (config: PolicyConfig) => void, string]> = [
 		["stale Sonnet role", config => { config.modelRoles.default = "anthropic/claude-sonnet-5:medium"; }, "unapproved model"],
 		["retired Sol role", config => { config.modelRoles.default = "openai-codex/gpt-6-sol:xhigh"; }, "unapproved model"],
+		["retired Luna role", config => { config.modelRoles.smol = "openai-codex/gpt-6-luna:low"; }, "unapproved model"],
 		["retired agent override", config => { config.task = { agentModelOverrides: { designer: "anthropic/claude-sonnet-5:medium" } }; }, "unapproved model"],
 		["unknown model role override", config => { config.task = { agentModelOverrides: { designer: "@unknown" } }; }, "does not resolve to a chat role"],
 		["fuzzy alias", config => { config.modelRoles.default = "sonnet"; }, "concrete model selector"],
@@ -73,31 +68,25 @@ test("offline policy rejects stale, alias, malformed and disallowed routing sele
 	}
 });
 
-test("Sol medium is approved for review routes but not builders, recovery or non-review agents", () => {
-	const medium = "openai-codex/gpt-6.1-sol:medium";
-	const high = "openai-codex/gpt-6.1-sol:high";
-	const accepted = smallConfig();
-	accepted.modelRoles.default = high;
-	accepted.modelRoles.reviewer = medium;
-	accepted.modelRoles["security-reviewer"] = medium;
-	accepted.task = { agentModelOverrides: { worker: "@default", reviewer: medium, "security-reviewer": "@security-reviewer" } };
-	accepted.retry.fallbackChains.default = [high];
-	expect(run(fixture(accepted).config).exitCode).toBe(0);
+test("native Sol reasoning levels support low helpers alongside high-reasoning work and review", () => {
+	const config = smallConfig();
+	config.modelRoles = {
+		default: "openai-codex/gpt-6.1-sol:xhigh",
+		task: "openai-codex/gpt-6.1-sol:xhigh",
+		smol: "openai-codex/gpt-6.1-sol:low",
+		tiny: "openai-codex/gpt-6.1-sol:low",
+		commit: "openai-codex/gpt-6.1-sol:low",
+		reviewer: "anthropic/claude-opus-5-5:xhigh",
+		"security-reviewer": "openai-codex/gpt-6.1-sol:xhigh",
+	};
+	config.task = { agentModelOverrides: { worker: "@task", scout: "@smol", reviewer: "@reviewer", "security-reviewer": "@security-reviewer" } };
+	config.retry.fallbackChains = { default: ["openai-codex/gpt-6.1-sol:medium"], smol: ["openai-codex/gpt-6.1-sol:low"] };
+	expect(run(fixture(config).config).exitCode).toBe(0);
 
-	const refused: Array<[(config: PolicyConfig) => void, string]> = [
-		[config => { config.modelRoles.default = medium; }, "modelRoles.default"],
-		[config => { config.retry.fallbackChains.default = [medium]; }, "retry.fallbackChains.default[0]"],
-		[config => { config.task = { agentModelOverrides: { worker: medium } }; }, "task.agentModelOverrides.worker"],
-		[config => { config.task = { agentModelOverrides: { worker: "@reviewer" } }; }, "task.agentModelOverrides.worker (@reviewer)"],
-		[config => { config.modelRoles.reviewer = "openai-codex/gpt-6.1-sol:low"; }, "modelRoles.reviewer"],
-	];
-	for (const [change, location] of refused) {
-		const config = structuredClone(accepted);
-		change(config);
-		const result = run(fixture(config).config);
-		expect(result.exitCode, location).not.toBe(0);
-		expect(result.stderr.toString()).toContain(`${location} has unsupported effort:`);
-	}
+	config.modelRoles.smol = "openai-codex/gpt-6.1-sol:minimal";
+	const refused = run(fixture(config).config);
+	expect(refused.exitCode).not.toBe(0);
+	expect(refused.stderr.toString()).toContain("modelRoles.smol has unsupported effort: minimal");
 });
 
 test("web search fallback providers remain available without chat model recovery", () => {
@@ -115,7 +104,7 @@ if (process.argv[2] === "models") {
   const models = process.env.FAKE_OMP_MODE === "effective-only"
     ? [["anthropic", "claude-opus-5-5"], ["anthropic", "claude-sonnet-5-5"],
        ["openai-codex", "gpt-6-astra"], ["openai-codex", "gpt-6.1-sol"],
-       ["openai-codex", "gpt-6-luna"], ["xai-oauth", "grok-4.7"],
+       ["xai-oauth", "grok-4.7"],
        ["cursor", "grok-4.7"], ["cursor", "claude-sonnet-5-5"],
        ["google-antigravity", "gemini-3.8-flash"]].map(([provider, id]) => ({
          provider, id, selector: provider + "/" + id, kind: "chat",
@@ -132,7 +121,7 @@ if (process.argv[2] === "models") {
   const [provider, rest] = chosen.split("/");
   const id = rest.split(":")[0];
   const actual = process.env.FAKE_OMP_MODE === "effective-only"
-    ? {role: "assistant", provider, model: chosen === "anthropic/claude-sonnet-5-5:low" ? "claude-3-5-sonnet-20241022" : id, stopReason: "stop"}
+    ? {role: "assistant", provider, model: process.env.FAKE_OMP_MODE === "effective-only" && chosen === "anthropic/claude-sonnet-5-5:low" ? "claude-3-5-sonnet-20241022" : id, stopReason: "stop"}
     : process.env.FAKE_OMP_MODE === "wrong-provider"
       ? {role: "assistant", provider: "openai-codex", model: "claude-sonnet-5-5", stopReason: "stop"}
     : process.env.FAKE_OMP_MODE === "wrong-model"

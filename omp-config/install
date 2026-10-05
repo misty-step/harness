@@ -4,7 +4,6 @@ umask 077
 
 repo_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 agent_dir=${PI_CODING_AGENT_DIR:-$(omp config path)}
-development_root=${OMP_DEVELOPMENT_ROOT:-$HOME/development}
 base_dir=${AGENT_CONFIG_DIR:-$repo_dir/../agent-config}
 
 # No arguments: selection is by environment, and repository hooks are owned by
@@ -122,17 +121,24 @@ install_mcp() {
     jq -s '
       .[0] as $policy
       | .[1] as $live
-      | $policy
+      | $live + $policy
       | .mcpServers = (
-          $policy.mcpServers
-          | with_entries(
-              . as $server
-              | .value += (
-                  ($live.mcpServers[$server.key] // {})
-                  | {auth, oauth}
-                  | with_entries(select(.value != null))
-                )
-            )
+          ($live.mcpServers // {})
+          + ($policy.mcpServers
+            | with_entries(
+                . as $server
+                | .value += (
+                    ($live.mcpServers[$server.key] // {})
+                    | {auth, oauth}
+                    | with_entries(select(.value != null))
+                  )
+              ))
+          | del(.linear)
+        )
+      | .disabledServers = (
+          (($live.disabledServers // []) + ($policy.disabledServers // []))
+          | unique
+          | map(select(. != "linear"))
         )
     ' "$repo_dir/mcp.json" "$mcp_target" > "$temp"
     chmod 600 "$temp"
@@ -143,28 +149,13 @@ install_mcp() {
   fi
 }
 
-validate_scopes() {
-  require_bun
-  require_nonempty "$repo_dir/workspace-mcp.json"
-  require_nonempty "$repo_dir/bin/omp-install-scopes.ts"
-  bun "$repo_dir/bin/omp-install-scopes.ts" \
-    --agent-dir "$agent_dir" \
-    --development-root "$development_root" \
-    --check
-}
-
-install_scopes() {
-  bun "$repo_dir/bin/omp-install-scopes.ts" \
-    --agent-dir "$agent_dir" \
-    --development-root "$development_root"
-}
 
 
 # Engineering craft only. Management/review packages belong to Kaylee.
 engineering_skills='agent-design authenticated-commands cloudflare-workers design-studio engineering-operations foundation pokayoke remote-execution story-qa system-one test-audit typesafe-ai user-stories visual-state-review'
 validate_skill() {
   case "${1-}" in
-    herdr|pr-preview|sachstand|session-close|frontend-design|show-me|wrangler|using-exe-dev|all)
+    herdr|pr-preview|session-close|frontend-design|show-me|wrangler|using-exe-dev|all)
       printf 'Not an OMP engineering skill: %s\n' "$1" >&2
       exit 1
       ;;
@@ -183,18 +174,23 @@ install_skill() {
 
 validate_shared() {
   require_base
-  set -- --check --bin pass-env.ts --bin openrouter-key.ts --bin design-check.ts --bin foundation-check.ts --bin review-check.ts --bin story-deletion-check.ts --bin ws.ts
+  set -- --check --bin pass-env.ts --bin openrouter-key.ts --bin design-check.ts --bin foundation-check.ts --bin review-check.ts --bin story-deletion-check.ts
   for skill in $engineering_skills; do set -- "$@" --skill "$skill"; done
   run_shared "$@"
 }
 
 install_shared() {
-  set -- --bin pass-env.ts --bin openrouter-key.ts --bin design-check.ts --bin foundation-check.ts --bin review-check.ts --bin story-deletion-check.ts --bin ws.ts
+  set -- --bin pass-env.ts --bin openrouter-key.ts --bin design-check.ts --bin foundation-check.ts --bin review-check.ts --bin story-deletion-check.ts
   for skill in $engineering_skills; do set -- "$@" --skill "$skill"; done
   run_shared "$@"
-  for skill in herdr pr-preview sachstand session-close decide; do
+  for skill in pr-preview sachstand session-close decide parlor ast-grep now-next; do
     rm -rf -- "$agent_dir/skills/$skill"
   done
+  todoist_owner=${OMP_TODOIST_OWNER:-${OMP_DEVELOPMENT_ROOT:-$HOME/development}/moomooskycow/daybook/.agents/skills/todoist-cli}
+  if [ -f "$todoist_owner/SKILL.md" ] && grep -q '[^[:space:]]' "$todoist_owner/SKILL.md" \
+    && [ "$(realpath -ms -- "$todoist_owner")" != "$(realpath -ms -- "$agent_dir/skills/todoist-cli")" ]; then
+    rm -rf -- "$agent_dir/skills/todoist-cli"
+  fi
 }
 
 validate_secrets() {
@@ -297,11 +293,6 @@ validate_display_tools() {
 }
 
 validate_cli() {
-  require_bun
-  command -v flock >/dev/null 2>&1 || { echo "util-linux flock is required for experiment journal coordination" >&2; exit 1; }
-  require_nonempty "$repo_dir/bin/omp-grievances.ts"
-  require_nonempty "$repo_dir/bin/omp-roster.ts"
-  require_nonempty "$repo_dir/bin/omp-experiments.ts"
   command -v python3 >/dev/null 2>&1 || { echo "python3 is required" >&2; exit 1; }
   for name in omp-engineer omp-display omp-gui omp-host-install; do
     source="$repo_dir/bin/$name.py"
@@ -386,73 +377,13 @@ install_engineer_cage() {
 }
 
 install_cli() {
-  require_nonempty "$repo_dir/bin/omp-grievances.ts"
-  require_nonempty "$repo_dir/bin/omp-roster.ts"
-  require_nonempty "$repo_dir/bin/omp-experiments.ts"
   install -d -m 700 "$HOME/.local/bin"
-  install -m 700 "$repo_dir/bin/omp-grievances.ts" "$HOME/.local/bin/omp-grievances"
-  install -m 700 "$repo_dir/bin/omp-roster.ts" "$HOME/.local/bin/omp-roster"
-  # Deploy code only; the experiment journal and its historical prose are runtime state.
-  install -m 600 "$repo_dir/bin/omp-experiments.ts" "$HOME/.local/bin/omp-experiments.ts"
   install -m 700 "$repo_dir/bin/omp-engineer.py" "$HOME/.local/bin/omp-engineer"
   install -m 700 "$repo_dir/bin/omp-display.py" "$HOME/.local/bin/omp-display"
   install -m 700 "$repo_dir/bin/omp-gui.py" "$HOME/.local/bin/omp-gui"
   install -m 700 "$repo_dir/bin/omp-host-install.py" "$HOME/.local/bin/omp-host-install"
 }
 
-# Read-only repository auditors (omp-config/auditors). Explicit only, never part
-# of `all`: it enables live systemd user timers.
-auditor_files() {
-  printf '%s\n' \
-    "bin/omp-audit.py:.local/bin/omp-audit:700" \
-    "auditors/omp-audit.env.pass:.config/omp-audit.env.pass:600" \
-    "units/omp-audit@.service:.config/systemd/user/omp-audit@.service:600" \
-    "units/omp-audit-foundations.timer:.config/systemd/user/omp-audit-foundations.timer:600" \
-    "units/omp-audit-principles.timer:.config/systemd/user/omp-audit-principles.timer:600" \
-    "units/omp-audit-simplicity.timer:.config/systemd/user/omp-audit-simplicity.timer:600"
-}
-auditor_owner='# owned by misty-step/harness omp-config auditors'
-auditor_share="$HOME/.local/share/omp-audit"
-
-validate_auditors() {
-  command -v python3 >/dev/null 2>&1 || { echo "python3 is required" >&2; exit 1; }
-  command -v systemctl >/dev/null 2>&1 || { echo "systemctl is required" >&2; exit 1; }
-  python3 -c 'import sys; compile(open(sys.argv[1]).read(), sys.argv[1], "exec")' "$repo_dir/bin/omp-audit.py"
-  for name in template.md foundations.md principles.md simplicity.md audit-tool.ts vendor/mattpocock-skills/LICENSE; do
-    require_nonempty "$repo_dir/auditors/$name"
-  done
-  for entry in $(auditor_files); do
-    source=${entry%%:*}; rest=${entry#*:}; destination="$HOME/${rest%%:*}"
-    require_nonempty "$repo_dir/$source"
-    grep -Fqx "$auditor_owner" "$repo_dir/$source" || { printf 'Unowned auditor source: %s\n' "$source" >&2; exit 1; }
-    if [ -e "$destination" ] || [ -L "$destination" ]; then
-      if [ ! -f "$destination" ] || [ -L "$destination" ] || ! grep -Fqx "$auditor_owner" "$destination"; then
-        printf 'Refusing foreign auditor destination: %s\n' "$destination" >&2; exit 1
-      fi
-    fi
-  done
-  if [ -e "$auditor_share" ] && ! grep -Fqx "// ${auditor_owner#\# }" "$auditor_share/audit-tool.ts" 2>/dev/null; then
-    printf 'Refusing foreign auditor share: %s\n' "$auditor_share" >&2; exit 1
-  fi
-}
-
-install_auditors() {
-  for entry in $(auditor_files); do
-    source=${entry%%:*}; rest=${entry#*:}; destination="$HOME/${rest%%:*}"
-    install -d -m 700 "$(dirname -- "$destination")"
-    install -m "${rest##*:}" "$repo_dir/$source" "$destination"
-  done
-  # Clean-replace the owned share so a removed audit file cannot linger.
-  install -d -m 700 "$HOME/.local/share"
-  temp=$(mktemp -d "$HOME/.local/share/.omp-audit.XXXXXX")
-  cp -R "$repo_dir/auditors"/. "$temp"/
-  rm -f -- "$temp/audit-tool.test.ts" "$temp/omp-audit.env.pass"
-  chmod -R u=rwX,go= "$temp"
-  rm -rf -- "$auditor_share"
-  mv "$temp" "$auditor_share"
-  systemctl --user daemon-reload
-  systemctl --user enable --now omp-audit-foundations.timer omp-audit-principles.timer omp-audit-simplicity.timer
-}
 
 if [ "${OMP_INSTALL_GUIDANCE_ONLY+x}" = x ]; then
   printf 'OMP_INSTALL_GUIDANCE_ONLY was replaced; use OMP_INSTALL_COMPONENTS=guidance\n' >&2
@@ -473,7 +404,6 @@ for component do
       validate_config
       validate_guidance
       validate_mcp
-      validate_scopes
       validate_shared
       validate_agents
       validate_themes
@@ -483,14 +413,12 @@ for component do
     guidance) validate_guidance ;;
     config) validate_config ;;
     mcp) validate_mcp ;;
-    scopes) validate_scopes ;;
     agents) validate_agents ;;
     extensions) require_bun ;;
     secrets) validate_secrets ;;
     audio-sandbox) validate_audio_sandbox ;;
     cli) validate_cli ;;
     engineer-cage) validate_engineer_cage ;;
-    auditors) validate_auditors ;;
     skill:*) validate_skill "${component#skill:}" ;;
     *)
       printf 'Unknown install component: %s\n' "$component" >&2
@@ -505,14 +433,12 @@ if [ "$1" != all ]; then
       guidance) install_guidance ;;
       config) install_config ;;
       mcp) install_mcp ;;
-      scopes) install_scopes ;;
       agents) install_agents ;;
       extensions) install_extensions ;;
       secrets) install_secrets ;;
       audio-sandbox) install_audio_sandbox ;;
       cli) install_cli ;;
       engineer-cage) install_engineer_cage ;;
-      auditors) install_auditors ;;
       skill:*) install_skill "${component#skill:}" ;;
     esac
   done
@@ -525,7 +451,6 @@ install_themes
 install_guidance
 install_agents
 install_mcp
-install_scopes
 install_shared
 install_extensions
 install_audio_sandbox

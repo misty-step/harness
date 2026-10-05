@@ -1,7 +1,7 @@
 # Foundation Standard
 
 `foundation-standard-v1.json` is the sole normative catalog: applicability,
-evidence, dispositions, defaults and exceptions. Its current version is 1.8.0.
+evidence, dispositions, defaults and exceptions. Its current version is 1.8.1.
 The checker enforces structured claims, not product correctness.
 
 Use this standard for commissioned adoption/assessment, not as permission to
@@ -10,20 +10,17 @@ contracts remain meaningful; documentation or receipt syntax is not their proof.
 
 ## Application feedback and brand kit
 
-The K-20260929-experiment-with-an-agent-feedback-endpoi commission adds two
-obligations, each with one check in the catalog:
+Application assessments include two catalog obligations:
 
-| Obligation | Auditor check |
+| Obligation | Assessment |
 | --- | --- |
 | FND-FBK-001: Agent feedback loop | Trace an exercised structured bug or missing-feature report from the agent endpoint to the project backlog, an agent's draft fix and a person's approval before application. |
 | FND-BRD-001: Brand and marketing kit | Inspect the complete kit named in the catalog, including the custom-art marketing page and playable promo video; placeholders are not assets. |
 
-The scheduled Foundations auditor checks both on every application, including
-internal tools and private betas; the constitution's website and portfolio
-exceptions do not waive them. It files one backlog ticket per missing obligation,
-not one per asset or workflow step. This amendment builds neither in individual
-projects. Existing catalog pins migrate explicitly; scheduled audits use the
-installed current standard without requiring an adoption record.
+Assess both for applications, including internal tools and private betas; the
+constitution's website and portfolio exceptions do not waive them. This guidance
+does not install a scheduled auditor or build either obligation in a project.
+Existing catalog pins migrate explicitly.
 
 ## Lean safety cadence
 
@@ -53,9 +50,9 @@ Hosted runners stay; no server or plan purchase is authorized.
 The catalog gives each obligation's applicability and evidence. `satisfied`
 references a candidate-job `foundation-evidence/1` receipt; committed receipts
 are rejected. `pending` is a dated, owned bootstrap gap (maximum 30 days).
-`not_applicable`/`exception` reference authenticated designated-review decisions;
-exceptions expire within 30 days. Follow existing repository records and CLI
-output rather than generating another ledger.
+`not_applicable`/`exception` reference tracked disposition records assessed through
+the repository's normal review. Follow existing records and CLI output rather
+than generating another ledger; record syntax is not reviewer authentication.
 
 ```sh
 foundation-check check
@@ -67,7 +64,7 @@ foundation-check baseline --owner NAME --write
 `check` validates declared adoption and owner routes; `affected` computes mapped
 stories. `receipt` binds an existing executed walk to its candidate and artifacts.
 A baselined `unwalked` is advisory, never a pass. Structural checks do not establish
-live behavior. Review/approval orchestration belongs to Kaylee, not this skill.
+live behavior. Independent exact-head review uses the repository's normal tools.
 
 ## Where the real proof belongs
 

@@ -3,6 +3,12 @@
 Accepted 2026-09-25 (MIS-150): the operator approved all three decisions below,
 relayed by Kaylee, with two changes to who approves (see Review authority).
 
+Packaging update (2026-10-05): GitHub App posting, designated-review choreography,
+the review template and `foundation-check review` are retired. The historical
+bootstrap/cadence/review instructions below are not current setup commands.
+Local `check`/`baseline`/`affected`/`receipt`, independent engineering review and
+each adopted repository's existing gates remain; no bulk pin migration is implied.
+
 The accepted [2026-10-02 lean CI amendment](007-braver-engineers-continuous-deployment.md#lean-ci-amendment-2026-10-02)
 supersedes the automatic PR cadence below for deliberately migrated pins:
 engineer proof/review and cheap pre-main scans, one main build with targeted
@@ -84,10 +90,24 @@ none of the five designated-review triggers below fires (ADR-006).
 
 ## Review authority
 
-The authority decisions describe the historical adoption rollout. Their records
-remain the foundation checker's diagnostic contract, including the repaired
-image/binary path below, not today's server merge policy. The uniform 2026-09-30
-amendment supersedes the plan- and owner-specific server gates.
+**Historical/retired (2026-10-05).** The following records the former
+GitHub-App posting/approval choreography and `foundation-check review --pr`
+server workflow. It is not current guidance: these APIs, workflows and templates
+have been removed. It does not create a review gate. Independent engineering
+review remains required by FND-REV-001, and the catalog/local
+check-baseline-affected-receipt validator contracts remain distinct from the
+retired server integration.
+
+The authority decisions below describe the historical adoption rollout. Their
+records remain diagnostic history, not today's server merge policy. The uniform
+2026-09-30 amendment superseded the plan- and owner-specific server gates; the
+2026-10-05 scope decision retired the posting/approval integration.
+
+Historical catalog references to 1.5.0 and historical version pins below are
+evidence of the decisions then made. The catalog is now 1.8.1; this record does
+not direct bulk repinning adopters.
+
+**Historical detail follows.**
 
 Three steps need an approval the PR author cannot give: a repository's first
 user stories, any baseline extension (a new baseline entry or a later expiry),
@@ -127,19 +147,19 @@ effect with the catalog and checker change that cites ADR-006.
   a process step the agent reviewer records (operator choice, 2026-09-25, after
   the first drill showed an escalated PR authored under the operator's account
   could never pass when only that account's approval counted).
-- **Gate.** `foundation-check review --pr N` runs as the `foundation-review`
-  workflow (template now maintained at `agent-config/review/foundation-review.yml`)
-  on `pull_request_target`, so the base branch's copy of the gate judges every PR
-  and a PR cannot replace it. The job checks out only the base branch and fetches
-  the PR's commits as git objects, so none of the PR's files are checked out or
-  run (a static-analysis rule flagged the earlier head checkout, 2026-09-25).
-  Review events cannot trigger it, so after any review action (approve,
-  request changes, escalate) the agent reviewer adds or removes a label to
-  re-run it; retargeting the base re-runs it too. Residual: a dismissal by
-  anyone else leaves the last result until the next trigger, so the agent
-  reviewer, which merges, re-runs the gate before merging. It reads the PR's base,
-  head, author and reviews through the GitHub API, decides from the PR's own
-  revisions whether review is needed, and passes at once when it is not.
+**Historical/retired GitHub-App gate.** `foundation-check review --pr N` ran as
+the `foundation-review` workflow (template formerly at
+[`agent-config/review/foundation-review.yml`](https://github.com/misty-step/harness/blob/24405fde88cf6119012f2f21d7d98a486903b69e/agent-config/review/foundation-review.yml))
+on `pull_request_target`, so the base branch's copy judged every PR. The job
+checked out only the base branch and fetched PR commits as git objects, so none
+of the PR's files were checked out or run (a static-analysis rule flagged the
+earlier head checkout, 2026-09-25). Review events could not trigger it, so after
+any review action (approve, request changes, escalate) the agent reviewer added
+or removed a label to re-run it; retargeting the base re-ran it too. Residual: a
+dismissal by anyone else left the last result until the next trigger, so the
+agent reviewer, which merged, re-ran the gate before merging. It read the PR's
+base, head, author and reviews through the GitHub API, decided from the PR's own
+revisions whether review was needed, and passed at once when it was not.
 - **Designated reviewers (2026-09-25).**
   - misty-step: `kaylee-agent[bot]` (App 4978618), as above.
   - r90group: no reviewer App (operator decision, 2026-09-25). Agents act as the

@@ -1,6 +1,6 @@
 # OMP operating facts
 
-Load this reference for OMP tool configuration, ticket access or host privileges.
+Load this reference for OMP tool configuration, work records or host privileges.
 The installed copy lives beside global `AGENTS.md`, under `omp config path`.
 
 ## Models and accounts
@@ -16,26 +16,12 @@ role; `designer` owns design work.
 
 ## Work records
 
-Linear owns Misty Step/personal work; R90 uses Habitat. Resolve workspace, team,
-project and the existing issue before updating a record. Team `MIS` is Misty Step.
-The Linear connector is scoped to `~/development/misty-step` and
-`~/development/moomooskycow`; R90 context stays in R90's own tools. Parlor's skill
-is repository-imported and Parlor-owned.
+Use the project's existing work authority and resolve the existing record before
+updating it. Keep R90 context in R90's tools. Parlor's skill is repository-imported
+and Parlor-owned.
 
-Use mounted Linear MCP tools first. The native GraphQL fallback is:
-
-```sh
-pass-env run -e TOKEN=workstation/LINEAR_API_KEY -- sh -c '
-  printf "header = \"Authorization: %s\"\n" "$TOKEN" |
-    curl -fsS https://api.linear.app/graphql --config - \
-      -H "Content-Type: application/json" -d @query.json
-'
-```
-
-A read-only auth check is `{ viewer { name } teams { nodes { key } } }`.
-Existing issue branches use `phaedrus/mis-<number>-<slug>` and conventional
-commits include `(MIS-xx)`; otherwise use a descriptive branch. `Fixes` means the
-merge satisfies the issue; partial work uses `Refs` or `Relates to`.
+Use descriptive branches and conventional commits. `Fixes` means the merge
+satisfies the referenced issue; partial work uses `Refs` or `Relates to`.
 
 ## Host administration
 

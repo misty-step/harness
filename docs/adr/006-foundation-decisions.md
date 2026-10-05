@@ -6,10 +6,12 @@ the foundations research brief, relayed by Kaylee:
 `~/.cache/research-briefs/2026-09-26/foundations-system.md`, which covers the
 Pocock study, the fleet survey, the practitioner survey and the Jev probes.
 
-This record amends ADR-003 (review triggers) and ADR-004 (the home of a
-repository's judgement rules). It adds three obligations to the Foundation
-Standard. The catalog and checker change that implements them is catalog
-1.5.0, owned by the catalog owner and citing this record.
+This record amends ADR-003 (historical review triggers) and ADR-004 (the home
+of a repository's judgement rules). It adds three obligations to the Foundation
+Standard. The catalog and checker change that implemented them was catalog
+1.5.0, owned by the catalog owner and citing this record. The catalog is now
+1.8.1; this dated record preserves its original version pins and evidence and
+does not direct bulk adopter repinning.
 
 ## Context
 
@@ -32,7 +34,7 @@ Standard. The catalog and checker change that implements them is catalog
 
 ## Decisions
 
-1. **The foundations.** [`constitution.md`](../../agent-config/skills/foundation/constitution.md)
+1. **The foundations.** [`constitution.md`](https://github.com/misty-step/harness/blob/24405fde88cf6119012f2f21d7d98a486903b69e/agent-config/skills/foundation/constitution.md)
    is the canonical short statement of what every project must be, keep, and
    keep improving. The catalog remains the only normative list of obligations,
    with their evidence and applicability. Three obligations join it:

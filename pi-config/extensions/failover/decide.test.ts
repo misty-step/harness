@@ -9,7 +9,7 @@ import { modelKey, nextInChain, runError, summarize } from "./decide.ts";
 const CHAIN = [
 	"anthropic/claude-sonnet-5-5",
 	"openai-codex/gpt-6-sol",
-	"openai-codex/gpt-6-luna",
+	"fixture/last-model",
 ];
 
 test("modelKey joins provider and modelId", () => {

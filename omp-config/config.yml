@@ -8,9 +8,9 @@ modelRoles:
   reviewer: anthropic/claude-opus-5-5:xhigh
   security-reviewer: openai-codex/gpt-6.1-sol:xhigh
   vision: anthropic/claude-opus-5-5:high
-  smol: openai-codex/gpt-6-luna:max
-  tiny: openai-codex/gpt-6-luna:max
-  commit: openai-codex/gpt-6-luna:max
+  smol: openai-codex/gpt-6.1-sol:low
+  tiny: openai-codex/gpt-6.1-sol:low
+  commit: openai-codex/gpt-6.1-sol:low
   web: web/exa
 find:
   credentialProvider: openrouter-find
