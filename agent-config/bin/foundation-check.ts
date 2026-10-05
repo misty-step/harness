@@ -9,7 +9,7 @@ import { fileURLToPath } from "node:url";
 
 const scriptDir = dirname(fileURLToPath(import.meta.url));
 const skillRoot = resolve(scriptDir, "../skills");
-const usage = `Usage: foundation-check <check|baseline|affected|receipt|review> [options]
+const usage = `Usage: foundation-check <check|baseline|affected|test-selection|receipt|review> [options]
   check [--base REV]      Check foundation.json, documents, stories, features and verify skill;
                           with --base, the bootstrap baseline may only shrink
   baseline --owner NAME [--write] [--expires YYYY-MM-DD] [--revision SHA] [--surfaces a,b] [--no-walk-gaps]
@@ -18,6 +18,8 @@ const usage = `Usage: foundation-check <check|baseline|affected|receipt|review> 
                           On an existing record, adds dispositions for new catalog
                           obligations and --revision re-pins the standard
   affected --base REV     Print affected live story ids (space-separated)
+  test-selection --base REV [--candidate REV] [--current-main REV] [--test-results PATH]
+                          Report Rule A from trusted-base foundation.json in shadow mode
   receipt PATH [--base REV] [--all]
                           Validate a story-walk receipt; --all requires every live story
   review --pr N [--github-repo OWNER/NAME]
@@ -31,15 +33,15 @@ Options:
   --json                  Machine-readable result
   -h, --help              Show this help`;
 
-type Command = "check" | "baseline" | "affected" | "receipt" | "review";
+type Command = "check" | "baseline" | "affected" | "test-selection" | "receipt" | "review";
 type Options = {
 	command: Command; repo: string; catalog?: string; checker?: string; base?: string; receipt?: string; json: boolean;
 	all: boolean; write: boolean; owner?: string; expires?: string; revision?: string; surfaces?: string[]; walkGaps: boolean;
-	pr?: number; githubRepo?: string;
+	pr?: number; githubRepo?: string; candidate?: string; currentMain?: string; testResults?: string;
 };
 type Result = {
 	ok: boolean; errors: string[]; needs_evidence?: string[]; stories?: string[]; baselined?: string[]; advisory?: string[]; gaps?: string[];
-	wrote?: string; adoption?: unknown; reasons?: string[]; approved_by?: string;
+	selection?: TestSelection; wrote?: string; adoption?: unknown; reasons?: string[]; approved_by?: string;
 };
 type Feature = { file: string; stories: string[]; sources: string[] };
 type Story = { id: string; live: boolean; start: number; end: number };
@@ -89,12 +91,12 @@ const describe = (issue: Issue): string => (issue.gap ? `[${issue.gap}] ${issue.
 
 function args(argv: string[]): Options | "help" {
 	if (argv.length === 1 && (argv[0] === "--help" || argv[0] === "-h")) return "help";
-	const commands: Command[] = ["check", "baseline", "affected", "receipt", "review"];
+	const commands: Command[] = ["check", "baseline", "affected", "test-selection", "receipt", "review"];
 	const command = commands.find((name) => name === argv[0]);
 	if (!command) throw new Error("expected check, baseline, affected, receipt, or review");
 	const rest = argv.slice(1);
 	const options: Options = { command, repo: process.cwd(), json: false, all: false, write: false, walkGaps: true };
-	const valued = ["--repo", "--catalog", "--stories-checker", "--base", "--owner", "--expires", "--revision", "--surfaces", "--pr", "--github-repo"];
+	const valued = ["--repo", "--catalog", "--stories-checker", "--base", "--owner", "--expires", "--revision", "--surfaces", "--pr", "--github-repo", "--candidate", "--current-main", "--test-results"];
 	for (let i = 0; i < rest.length; i++) {
 		const arg = rest[i];
 		if (arg === "--json") options.json = true;
@@ -113,12 +115,15 @@ function args(argv: string[]): Options | "help" {
 			else if (arg === "--expires") options.expires = value;
 			else if (arg === "--revision") options.revision = value;
 			else if (arg === "--surfaces") options.surfaces = value.split(",").map((part) => part.trim()).filter(Boolean);
+			else if (arg === "--candidate") options.candidate = value;
+			else if (arg === "--current-main") options.currentMain = value;
+			else if (arg === "--test-results") options.testResults = value;
 			else if (arg === "--pr") options.pr = /^[1-9]\d*$/.test(value) ? Number(value) : Number.NaN;
 			else options.githubRepo = value;
 		} else if (command === "receipt" && !options.receipt && arg && !arg.startsWith("-")) options.receipt = arg;
 		else throw new Error(`unexpected argument: ${arg}`);
 	}
-	if (command === "affected" && !options.base) throw new Error("affected requires --base REV");
+	if ((command === "affected" || command === "test-selection") && !options.base) throw new Error("affected requires --base REV");
 	if (command === "review" && options.base) throw new Error("review reads the pull request's base and head from GitHub; drop --base");
 	if (command === "review" && !Number.isInteger(options.pr)) throw new Error("review requires --pr N (a pull request number)");
 	if (command !== "review" && (options.pr !== undefined || options.githubRepo)) throw new Error("--pr and --github-repo are only valid for review");
@@ -309,6 +314,110 @@ function changedStoryIds(repo: string, base: string, mapping: Feature[], head: S
 function affected(repo: string, base: string, report: Issue[]): string[] {
 	const head = parseStories(readFileSync(join(repo, "USER_STORIES.md"), "utf8"));
 	return changedStoryIds(repo, base, features(repo, tracked(repo), head, report), head);
+}
+type TestMap = {
+	mode: "shadow"; cheap: string[]; full: string[]; broaden: string[]; metadata: string[];
+	toolchain: Record<string, string>;
+	components: { id: string; paths: string[]; tests: string[]; dependsOn: string[] }[];
+};
+type TestSelection = {
+	mode: "shadow"; blocking: "full-ci"; baseSha: string; candidateSha: string; candidateTree: string;
+	currentMainSha: string; eligible: boolean; changedPaths: string[]; selected: string[];
+	reasons: string[]; toolchain: Record<string, string>; inputKey: string;
+	results: { passed: string[]; failed: string[]; skipped: string[]; flaky: string[]; cached: string[] };
+};
+function strings(value: unknown): value is string[] { return Array.isArray(value) && value.every(text); }
+function parseTestMap(value: unknown): TestMap | undefined {
+	if (!record(value) || value.mode !== "shadow" || !strings(value.cheap) || value.cheap.length === 0 ||
+		!strings(value.full) || value.full.length === 0 || !strings(value.broaden) || !strings(value.metadata) ||
+		!record(value.toolchain) || !Object.values(value.toolchain).every(text) ||
+		!Array.isArray(value.components)) return undefined;
+	const components: TestMap["components"] = [];
+	for (const component of value.components) {
+		if (!record(component) || !text(component.id) || !strings(component.paths) || component.paths.length === 0 ||
+			!strings(component.tests) || component.tests.length === 0 || !strings(component.dependsOn)) return undefined;
+		components.push({id:component.id, paths:component.paths, tests:component.tests, dependsOn:component.dependsOn});
+	}
+	const ids = new Set(components.map(c => c.id));
+	if (ids.size !== components.length || components.some(c => c.dependsOn.some(d => !ids.has(d)))) return undefined;
+	const toolchain: Record<string,string> = {};
+	for (const [key,version] of Object.entries(value.toolchain)) { if (text(version)) toolchain[key] = version; }
+	return {mode:"shadow", cheap:value.cheap, full:value.full, broaden:value.broaden, metadata:value.metadata, toolchain, components};
+}
+function testSelection(options: Options): Result {
+	const repo = options.repo;
+	const baseSha = git(repo, "rev-parse", "--verify", `${options.base}^{commit}`).trim();
+	const candidateSha = git(repo, "rev-parse", "--verify", `${options.candidate ?? "HEAD"}^{commit}`).trim();
+	const candidateTree = git(repo, "rev-parse", `${candidateSha}^{tree}`).trim();
+	const currentMainSha = git(repo, "rev-parse", "--verify", `${options.currentMain ?? "refs/remotes/origin/HEAD"}^{commit}`).trim();
+	const changedPaths = git(repo, "diff", "--no-renames", "--name-only", "-z", baseSha, candidateSha).split("\0").filter(Boolean).sort();
+	const trustedText = fileAt(repo, baseSha, "foundation.json");
+	const trustedAdoption = jsonOrUndefined(trustedText);
+	const map = parseTestMap(record(trustedAdoption) ? trustedAdoption.affected_tests : undefined);
+	const reasons: string[] = [];
+	const selected = new Set(map?.cheap ?? []);
+	let full = !map;
+	let eligible = currentMainSha === baseSha;
+	if (!eligible) reasons.push("current main moved: release eligibility invalidated");
+	if (!map) reasons.push("trusted-base map missing or incomplete: full suite");
+	const matches = (path: string, patterns: string[]) => patterns.some(p => globRegex(p).test(path));
+	const deleted = git(repo,"diff","--no-renames","--diff-filter=D","--name-only","-z",baseSha,candidateSha).split("\0").filter(Boolean);
+	if (deleted.some(path => /(?:_test\.go|(?:^|\/)tests?\/|\.(?:test|spec)\.[cm]?[jt]s$)/.test(path))) {
+		eligible = false; full = true; reasons.push("candidate removes trusted tests: cannot manufacture green");
+	}
+	const priorMap = record(trustedAdoption) ? trustedAdoption.affected_tests : undefined;
+	const candidateAdoption = jsonOrUndefined(fileAt(repo, candidateSha, "foundation.json"));
+	const nextMap = record(candidateAdoption) ? candidateAdoption.affected_tests : undefined;
+	if (JSON.stringify(priorMap) !== JSON.stringify(nextMap)) {
+		eligible = false; full = true; reasons.push("candidate changes its selector: trusted-base map remains authoritative");
+	}
+	if (map) {
+		const affected = new Set<string>();
+		for (const path of changedPaths) {
+			if (matches(path, map.broaden) || path === "foundation.json") {
+				full = true; reasons.push(`${path}: auth/contract/migration/toolchain/shared configuration broadens to full suite`);
+			}
+			const owners = map.components.filter(c => matches(path, c.paths));
+			if (owners.length === 0 && !matches(path, map.metadata)) {
+				full = true; reasons.push(`${path}: unmapped path selects full suite`);
+			}
+			for (const component of owners) { affected.add(component.id); reasons.push(`${path}: ${component.id}${deleted.includes(path) ? " deleted path" : ""}`); }
+		}
+		let grew = true;
+		while (grew) {
+			grew = false;
+			for (const c of map.components) if (!affected.has(c.id) && c.dependsOn.some(d => affected.has(d))) {
+				affected.add(c.id); grew = true; reasons.push(`${c.id}: reverse dependency`);
+			}
+		}
+		for (const component of map.components) if (affected.has(component.id)) for (const name of component.tests) selected.add(name);
+		if (full) for (const name of map.full) selected.add(name);
+	} else selected.add("full-ci");
+	const toolchain = map?.toolchain ?? {};
+	const inputKey = sha256(Buffer.from(JSON.stringify({baseSha,candidateTree,changedPaths,trustedText,toolchain})));
+	const results: TestSelection["results"] = {passed:[],failed:[],skipped:[],flaky:[],cached:[]};
+	const errors: string[] = [];
+	if (options.testResults) {
+		const receipt: unknown = readJson(resolve(options.testResults));
+		if (!record(receipt) || receipt.baseSha !== baseSha || receipt.candidateTree !== candidateTree || receipt.inputKey !== inputKey ||
+			!text(receipt.runner) || !Array.isArray(receipt.results)) errors.push("test receipt must bind runner, actual candidate tree, base SHA and complete input/toolchain key");
+		else for (const row of receipt.results) {
+			if (!record(row) || !text(row.test) || !text(row.result) || !(row.result in results)) { errors.push("invalid test result"); continue; }
+			switch (row.result) {
+				case "passed": results.passed.push(row.test); break;
+				case "failed": results.failed.push(row.test); break;
+				case "skipped": results.skipped.push(row.test); break;
+				case "flaky": results.flaky.push(row.test); break;
+				case "cached": results.cached.push(row.test); break;
+				default: errors.push("unknown test result");
+			}
+		}
+		if ([...selected].some(name => results.passed.filter(t => t === name).length !== 1) ||
+			results.failed.length + results.skipped.length + results.flaky.length + results.cached.length > 0) eligible = false;
+	} else { eligible = false; reasons.push("selection only: no runner receipt; full CI remains blocking"); }
+	if (errors.length > 0) eligible = false;
+	return {ok:errors.length === 0, errors, selection:{mode:"shadow",blocking:"full-ci",baseSha,candidateSha,candidateTree,
+		currentMainSha,eligible,changedPaths,selected:[...selected].sort(),reasons,toolchain,inputKey,results}};
 }
 type Catalog = { id: string; version: string; obligations: { id: string }[]; approved_defaults: { id: string }[] };
 function pendingIssues(adoption: unknown, catalog: Catalog): Issue[] {
@@ -1644,6 +1753,7 @@ async function review(options: Options): Promise<Result> {
 }
 function print(result: Result, json: boolean, command: Command): void {
 	if (json) { console.log(JSON.stringify(result)); return; }
+	if (command === "test-selection") { console.log(JSON.stringify(result.selection, null, 2)); return; }
 	if (command === "affected") {
 		for (const error of result.errors) console.error(`FAIL: ${error}`);
 		if (result.ok) console.log((result.stories ?? []).join(" "));
@@ -1680,7 +1790,8 @@ try {
 			const adoption = existsSync(adoptionPath) ? readJson(adoptionPath) : undefined;
 			const errors = uncovered(report, adoption, liveIds(workingStories(options.repo)));
 			result = { ok: errors.length === 0, errors, stories };
-		} else if (options.command === "review") result = await review(options);
+		} else if (options.command === "test-selection") result = testSelection(options);
+		else if (options.command === "review") result = await review(options);
 		else result = receipt(options);
 	} catch (error) { result = { ok: false, errors: [error instanceof Error ? error.message : String(error)] }; }
 	print(result, options.json, options.command);

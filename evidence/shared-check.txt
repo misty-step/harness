@@ -1,0 +1,1 @@
+mktemp: failed to create directory via template ‘/home/box/.cache/tmp/harness-verify.XXXXXX’: Read-only file system
