@@ -116,6 +116,7 @@ if (process.argv[2] === "models") {
     ? [["anthropic", "claude-opus-5-5"], ["anthropic", "claude-sonnet-5-5"],
        ["openai-codex", "gpt-6-astra"], ["openai-codex", "gpt-6.1-sol"],
        ["openai-codex", "gpt-6-luna"], ["xai-oauth", "grok-4.7"],
+       ["cursor", "grok-4.7"], ["cursor", "claude-sonnet-5-5"],
        ["google-antigravity", "gemini-3.8-flash"]].map(([provider, id]) => ({
          provider, id, selector: provider + "/" + id, kind: "chat",
          thinking: ["minimal", "low", "medium", "high", "xhigh", "max"],

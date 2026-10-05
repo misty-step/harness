@@ -82,6 +82,7 @@ guidance sections, and those shared launchers deploy from the sibling
 OMP_INSTALL_COMPONENTS=guidance ./install
 OMP_INSTALL_COMPONENTS=config ./install
 OMP_INSTALL_COMPONENTS=agents ./install
+OMP_INSTALL_COMPONENTS=extensions ./install      # refresh owned extensions only
 OMP_INSTALL_COMPONENTS=secrets ./install
 OMP_INSTALL_COMPONENTS=mcp ./install
 OMP_INSTALL_COMPONENTS=audio-sandbox ./install
@@ -92,7 +93,7 @@ OMP_INSTALL_COMPONENTS="guidance mcp scopes skill:engineering-operations" ./inst
 ```
 
 Supported components are `guidance`, `config`, `mcp`, `scopes`, `agents`,
-`secrets`, `audio-sandbox`, `cli`, `engineer-cage`, `auditors`, and `skill:<source-directory-name>`.
+`extensions`, `secrets`, `audio-sandbox`, `cli`, `engineer-cage`, `auditors`, and `skill:<source-directory-name>`.
 `all` cannot be combined with another component. Empty, unknown, missing-skill, invalid-name, and invalid YAML
 selections fail before any writes. The retired `OMP_INSTALL_GUIDANCE_ONLY`
 variable fails with migration instructions rather than silently triggering a
@@ -886,22 +887,23 @@ do not maintain another skill copy in omp-config or install it globally.
 
 ### Model routing (US-014)
 
-OMP follows the operator's lower-spend model policy (US-014, updated
-2026-10-01): Sonnet 5.5 medium handles ordinary work and orchestration;
-GPT-6.1 Sol defaults to xhigh for Codex work and recovery; explicit high
-remains allowed, with Astra only by explicit selection. Visual work stays on
-Opus at high or above. Ordinary `task`
-children use their configured agent routes rather than the live parent's model.
-Grok 4.7 is allowed only for read-only advisory recovery, never as a
-builder fallback. Gemini 3.8 Flash is the last resort where cross-model
-recovery is allowed; Opus has none. Native roles and provider-failure
+OMP follows the operator's model policy (US-014, updated 2026-10-05):
+GPT-6.1 Sol xhigh handles ordinary work, orchestration, and task children.
+Astra xhigh handles planning and builder recovery; Cursor Sonnet high then
+Anthropic Sonnet high provide subscription recovery. Slow uses Opus high.
+Extreme uses Opus xhigh.
+Reviewers contrast OpenAI authors with Opus xhigh and Anthropic authors
+with Sol xhigh. Security review uses Sol xhigh. Reviewers have no recovery.
+Visual work stays on Opus high or above; all Opus efforts stop on outages.
+Cursor Grok 4.7 xhigh serves the optional read-only advisor, never builder recovery.
+Native roles and provider-failure
 chains live in `config.yml`; changing them does not switch the selected model
 in an existing session. A running OMP process also retains its in-memory model
 catalog across binary updates: an old process can fuzzy-resolve a new model ID
 to a different, retired model. Restart that process after a catalog upgrade.
 
 For a model-routing deployment, run
-`OMP_MODEL_PROBE=1 OMP_INSTALL_COMPONENTS=all ./omp-config/install`
+`OMP_MODEL_PROBE=1 OMP_INSTALL_COMPONENTS="config extensions" ./omp-config/install`
 from the repository root. Before writing live config, the installer overlays
 the source onto a disposable copy of the effective config and rejects retired
 or unapproved chat selectors in every role, task agent override, and fallback,
@@ -917,20 +919,32 @@ The `web` role is a search route rather than a chat model. Its recovery chain
 keeps the existing `web/*` search providers but drops older chat models; the
 policy check rejects any chat selector added back to that chain.
 
+Cursor Ultra uses native `omp login cursor` browser approval and native OAuth
+storage; do not copy tokens into `models.yml`. To list account-discovered
+selectors and supported efforts, run `omp models cursor --json --no-extensions`.
+Configured Cursor routes are Grok 4.7 xhigh for advisor and Sonnet 5.5 high
+for builder/advisor recovery. Advisor remains disabled by default. The account
+also advertises Opus 5.5 and Composer 2.5; direct selection is available through
+the native catalog, but neither replaces the specialist routes above.
+Cursor catalog availability is not proof of remaining Ultra allowance.
+Fleet rosters cannot launch Cursor routes until `ai-usage` supplies quota rows;
+native interactive/task routing does not use that roster gate.
+
 | Direct selection or configured agent route | Primary selection |
 | --- | --- |
-| Fresh `omp`, `@default` (orchestrator) | `anthropic/claude-sonnet-5-5:medium` |
-| `@task` | `anthropic/claude-sonnet-5-5:medium` |
+| Fresh `omp`, `@default` (orchestrator) | `openai-codex/gpt-6.1-sol:xhigh` |
+| `@task` | `openai-codex/gpt-6.1-sol:xhigh` |
 | `@smol`, `@commit`; `scout` and `sonic` | `openai-codex/gpt-6-luna:max` |
 | `@tiny` | configured `openai-codex/gpt-6-luna:max` |
-| `@plan` (system design, architecture) | `openai-codex/gpt-6.1-sol:xhigh` |
-| `reviewer`, `security-reviewer` | Author-family selection in `extensions/subagent-inheritance`; no recovery |
-| `@advisor` | `anthropic/claude-sonnet-5-5:medium` |
-| `@slow` (explicit thorough pass, hard problems) | `anthropic/claude-sonnet-5-5:high` |
+| `@plan` (system design, architecture) | `openai-codex/gpt-6-astra:xhigh` |
+| `reviewer` | Opus xhigh for OpenAI authors; Sol xhigh for Anthropic authors; no recovery |
+| `security-reviewer` | Sol xhigh; no recovery |
+| `@advisor` (disabled unless enabled explicitly) | `cursor/grok-4.7:xhigh` |
+| `@slow` (explicit thorough pass, hard problems) | `anthropic/claude-opus-5-5:high` |
 | `@extreme` (rare unconstrained reasoning) | `anthropic/claude-opus-5-5:xhigh` |
 | `@vision`, `designer` (visual and design work) | `anthropic/claude-opus-5-5:high` minimum |
 
-Sonnet medium orchestrates; use `@slow` or `@extreme` for harder problems.
+Sol xhigh orchestrates; use `@slow` or `@extreme` for an Opus pass.
 Visual work runs on Opus high or above, raising to xhigh or max for design
 and visual-language work. Delegate it to the owned `designer` agent
 (`agents/designer.md`), never to `task`. Luna max serves the cheap tier,
@@ -950,9 +964,9 @@ session model.
 For a new session:
 
 ```sh
-omp                         # ordinary work and orchestration: Sonnet 5.5 medium
-omp --model @plan           # system design, architecture: GPT-6.1 Sol xhigh
-omp --model @slow           # hard problems, thorough pass: Sonnet 5.5 high
+omp                         # ordinary work and orchestration: GPT-6.1 Sol xhigh
+omp --model @plan           # system design, architecture: GPT-6 Astra xhigh
+omp --model @slow           # hard problems, thorough pass: Opus 5.5 high
 omp --slow                  # shorthand for @slow
 omp --model @extreme        # rare unconstrained reasoning: Opus 5.5 xhigh
 omp --model @smol           # explicitly choose Luna max
@@ -1007,9 +1021,8 @@ before core resolution; the child consumes that immutable dispatch pin and
 persists it as a custom session entry for cold revival. `session_init.resolvedModel`
 already includes startup auth substitution and is not authoritative intent.
 The reviewer disables model switching in its own scope and checks the pinned
-identity before every provider request. Sol medium is a review-only approval
-exception; engineer rosters and ordinary config/recovery still allow explicit
-high, while harness-selected Sol routes use xhigh.
+identity before every provider request. Both review agents pin xhigh effort,
+independent of the caller's per-item effort.
 
 The native task result already records the actual resolved model identity,
 thinking level, and fallback status (`resolvedModelIdentity`,
@@ -1017,7 +1030,7 @@ thinking level, and fallback status (`resolvedModelIdentity`,
 `TaskToolDetails.results[]`); `task.showResolvedModelBadge` displays the
 resolved model and thinking on each task row. Read these rather than
 inferring the child model from its agent name. Ordinary task workers use
-Sonnet 5.5 medium even when the parent is on a more expensive route.
+GPT-6.1 Sol xhigh regardless of the parent's route.
 Git commit, rebase, push, and similar mechanical ship steps use `@smol`.
 
 Visual, motion, UX and communications work must start on Opus and stop on an

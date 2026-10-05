@@ -32,6 +32,9 @@ export const approvedModels: Record<string, {
 	"openai-codex/gpt-6.1-sol": { efforts: ["high", "xhigh", "max"], reviewerEfforts: ["medium", "high", "xhigh", "max"], usage: { provider: "openai-codex", model: "gpt-6.1-sol" } },
 	"openai-codex/gpt-6-luna": { efforts: LOW_TO_MAX, usage: { provider: "openai-codex", model: "gpt-6-luna" } },
 	"xai-oauth/grok-4.7": { efforts: ["minimal", "low", "medium", "high", "xhigh"], usage: { provider: "xai", model: "grok" } },
+	// Native Cursor subscription routes; fleet ai-usage has no Cursor rows.
+	"cursor/grok-4.7": { efforts: ["low", "medium", "high", "xhigh"], usage: null },
+	"cursor/claude-sonnet-5-5": { efforts: LOW_TO_MAX, usage: null },
 	"google-antigravity/gemini-3.8-flash": { efforts: ["minimal", "low", "medium", "high"], usage: null },
 };
 

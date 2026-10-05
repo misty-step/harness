@@ -8,7 +8,7 @@ const GUARDED_AGENTS: Record<string, true> = { reviewer: true, "security-reviewe
 const REVIEW_PIN = "harness:reviewer-model-pin";
 const expectedReviews = new Map<string, { parentId: string; model: string }>();
 
-/** Reviewers contrast the live author; visual work stays on Opus at high or above. */
+/** Reviewers contrast authors at xhigh; security review stays on Sol. */
 function taskModelSelection(spawn: Spawn, ctx: ExtensionContext, thinking: string | undefined): ModelSelection {
 	const parent = ctx.model;
 	if (spawn.agent === "reviewer" || spawn.agent === "security-reviewer") {
@@ -16,8 +16,10 @@ function taskModelSelection(spawn: Spawn, ctx: ExtensionContext, thinking: strin
 		const sol = ctx.models.resolve("openai-codex/gpt-6.1-sol");
 		const sonnet = ctx.models.resolve("anthropic/claude-sonnet-5-5");
 		const family = ctx.models.family(parent);
-		if (sol && family === ctx.models.family(sol)) return { model: "anthropic/claude-sonnet-5-5:high" };
-		if (sonnet && family === ctx.models.family(sonnet)) return { model: "openai-codex/gpt-6.1-sol:medium" };
+		if (spawn.agent === "security-reviewer" && ((sol && family === ctx.models.family(sol))
+			|| (sonnet && family === ctx.models.family(sonnet)))) return { model: "openai-codex/gpt-6.1-sol:xhigh" };
+		if (sol && family === ctx.models.family(sol)) return { model: "anthropic/claude-opus-5-5:xhigh" };
+		if (sonnet && family === ctx.models.family(sonnet)) return { model: "openai-codex/gpt-6.1-sol:xhigh" };
 		return { block: true, reason: "No reviewer route for the author's model family." };
 	}
 	if (spawn.invocationKind !== "task" || spawn.agent !== "designer") return;
@@ -114,7 +116,7 @@ export default function registerSubagentInheritance(pi: ExtensionAPI) {
 				if (!ctx.model || reviewerModel !== `${ctx.model.provider}/${ctx.model.id}`) return;
 				switching.override(settings, false);
 				if (switching.get(settings) !== false) return;
-				pi.setThinkingLevel(ctx.model?.id === "claude-sonnet-5-5" ? "high" : "medium");
+				pi.setThinkingLevel("xhigh");
 				// Record overrides merge keys: empty inherited model/effort/wildcard
 				// chains explicitly, then confirm the effective recovery boundary.
 				const empty: Record<string, string[]> = { default: [], reviewer: [], "security-reviewer": [] };

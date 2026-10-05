@@ -180,14 +180,14 @@ test("designer blocks missing catalog, absent auth and failed auth rather than u
 	}
 });
 
-test("reviewers contrast OpenAI and Anthropic authors on task and eval dispatch", async () => {
+test("reviewers contrast authors while security review stays on Sol for task and eval dispatch", async () => {
 	const { select } = hooks();
 	for (const agent of ["reviewer", "security-reviewer"]) {
 		for (const invocation of ["task", "eval"] as const) {
 			expect(await select(agent, { provider: "openai-codex", id: "gpt-6.1-sol" }, "max", invocation))
-				.toEqual({ model: "anthropic/claude-sonnet-5-5:high" });
+				.toEqual({ model: agent === "reviewer" ? "anthropic/claude-opus-5-5:xhigh" : "openai-codex/gpt-6.1-sol:xhigh" });
 			expect(await select(agent, { provider: "anthropic", id: "claude-opus-5-5" }, "max", invocation))
-				.toEqual({ model: "openai-codex/gpt-6.1-sol:medium" });
+				.toEqual({ model: "openai-codex/gpt-6.1-sol:xhigh" });
 		}
 	}
 });
@@ -227,19 +227,19 @@ test("child recovery pin empties inherited exact, effort and wildcard chains wit
 		"anthropic/*": ["openai-codex/gpt-6.1-sol:high"],
 	};
 	const child = hooks(undefined, true, { chains: { ...initial }, disabled: ["reviewer", "foreign-agent"] });
-	await child.start("reviewer", { provider: "anthropic", id: "claude-sonnet-5-5" });
+	await child.start("reviewer", { provider: "anthropic", id: "claude-opus-5-5" });
 	expect(child.scope.chains).toEqual(Object.fromEntries(
 		[...Object.keys(initial), "reviewer", "security-reviewer"].map(key => [key, []])));
-	expect(child.state.level).toBe("high");
+	expect(child.state.level).toBe("xhigh");
 	expect(child.scope.disabled).toEqual(["foreign-agent"]);
 	expect(parent.scope.chains).toEqual({ default: ["openai-codex/gpt-6.1-sol:high"] });
 });
 
-test("security reviewer pins Sol medium even when the task requested maximum thinking", async () => {
+test("security reviewer pins Sol xhigh even when the task requested maximum thinking", async () => {
 	const child = hooks();
 	await child.start("security-reviewer", { provider: "openai-codex", id: "gpt-6.1-sol" },
 		{ provider: "anthropic", id: "claude-opus-5-5" });
-	expect(child.state.level).toBe("medium");
+	expect(child.state.level).toBe("xhigh");
 	expect(child.scope.chains).toEqual({ default: [], reviewer: [], "security-reviewer": [] });
 });
 
@@ -249,7 +249,7 @@ test("failed or ineffective child recovery pin aborts before a provider request 
 			chains: { "anthropic/*": ["openai-codex/gpt-6.1-sol:high"] },
 			disabled: ["reviewer", "foreign-agent"], ...failure,
 		});
-		await child.start("reviewer", { provider: "anthropic", id: "claude-sonnet-5-5" });
+		await child.start("reviewer", { provider: "anthropic", id: "claude-opus-5-5" });
 		expect(() => child.request()).toThrow("review aborted");
 		expect(child.state.aborted).toBe(true);
 		expect(await child.select("reviewer", { provider: "openai-codex", id: "gpt-6.1-sol" }, "high"))
@@ -260,7 +260,7 @@ test("failed or ineffective child recovery pin aborts before a provider request 
 test("missing scoped settings keeps protected dispatch closed and aborts a revived reviewer", async () => {
 	const guard = hooks();
 	scopes.delete(guard.cwd);
-	await guard.start("reviewer", { provider: "anthropic", id: "claude-sonnet-5-5" });
+	await guard.start("reviewer", { provider: "anthropic", id: "claude-opus-5-5" });
 	expect(await guard.select("reviewer", { provider: "openai-codex", id: "gpt-6.1-sol" }, "high"))
 		.toMatchObject({ block: true });
 	expect(() => guard.request()).toThrow("review aborted");
@@ -278,7 +278,7 @@ test("SDK startup substitution and later model changes cannot produce a reviewer
 	expect(() => substituted.request()).toThrow("review aborted");
 	expect(substituted.state.aborted).toBe(true);
 	const child = hooks();
-	await child.start("reviewer", { provider: "anthropic", id: "claude-sonnet-5-5" });
+	await child.start("reviewer", { provider: "anthropic", id: "claude-opus-5-5" });
 	expect(() => child.request({ provider: "openai-codex", id: "gpt-6.1-sol" })).toThrow("review aborted");
 	expect(child.state.aborted).toBe(true);
 });
@@ -295,7 +295,7 @@ test("extension changes revoke protected permission even while specialist authen
 
 test("persisted caller pin refuses cold startup on the SDK's substituted model", async () => {
 	const child = hooks();
-	await child.start("reviewer", { provider: "anthropic", id: "claude-sonnet-5-5" });
+	await child.start("reviewer", { provider: "anthropic", id: "claude-opus-5-5" });
 	child.revive("reviewer", { provider: "openai-codex", id: "gpt-6.1-sol" });
 	expect(() => child.request()).toThrow("review aborted");
 	expect(child.state.aborted).toBe(true);
