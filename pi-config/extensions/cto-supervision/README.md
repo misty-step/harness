@@ -13,7 +13,7 @@ scheduler, native SDK fork or terminal injection.
 - `runtime/`: Rust Linux inotify/stdio transport, exclusive kernel lock,
   actual **300,000 ms** timer, bounded private files and immutable native returns.
 - Hermes export/return is **k-screams's** interface. This component never reads or
-  writes the independent off-linear ledger. Glass remains work authority.
+  writes the independent ledger. Glass remains work authority.
 
 The Rust helper does not run models, read the board, dispatch engineers, retry
 native inputs or maintain persistent work state. The original Pi branch owns

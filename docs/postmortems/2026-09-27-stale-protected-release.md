@@ -3,7 +3,7 @@
 - **Incident date:** 2026-09-25; reported again 2026-09-27
 - **Status:** Prevention implemented; production recovery tracked in MIS-177
 - **Operational owner:** Harness release automation / Misty Step
-- **Tracker:** [MIS-177](https://linear.app/misty-step/issue/MIS-177/github-production-failure)
+- **Historical issue:** MIS-177
 
 ## Summary
 
@@ -102,7 +102,7 @@ This mechanism does not claim arbitrary release infrastructure cannot fail.
 
 ## Follow-up
 
-[MIS-177](https://linear.app/misty-step/issue/MIS-177/github-production-failure)
+MIS-177
 owns the fix PR, actual master run, replacement release PR/tag, and final closure
 evidence. It stays open until those online postconditions are observed. The
 [verification procedure](../verification.md#protected-release-walk-us-015)

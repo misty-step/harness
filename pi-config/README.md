@@ -242,11 +242,6 @@ shared guidance sections, plus `pass-env` and `openrouter-key`. `web-search`
 uses `pass-env` for its Exa key (ADR-010); `auth.json.openrouter` invokes
 `openrouter-key` when Pi first needs its credential (US-028).
 
-**The Linear CLI is a separate repo.** The client moved to
-[linear-cli](https://github.com/misty-step/linear-cli) (ADR-020, amended): a
-standalone host tool, installed to `~/.local/bin/linear` by its own `./install`.
-pi does not own or deploy it.
-
 ### The launch hook: `pi()` in `~/.bashrc`
 
 One of two owned files outside the agent directory: a marked block in the user
@@ -331,7 +326,6 @@ resolves the same file into the OMP theme.
 | Approval / permission gates | **omit** | We run with full permissions by choice (pi's default is no gate). Revisit on untrusted repos |
 | OS sandbox | **omit** | Work is on a trusted workstation. Revisit for third-party code |
 | Subagents | **omit for now** | Native OMP specialist agents cover heavy delegation |
-| Linear CLI and MCP | retired | Neither harness installs or advertises Linear access |
 | Persistent memory | **omit for now** | Source authority is the repo and OMP's guidance. Revisit deliberately |
 | Notifications | **omit for now** | Terminal focus is usually present; revisit for long unattended runs |
 | Plan mode | **omit for now** | Covered by prompt discipline; revisit if it earns a keybinding |
@@ -483,8 +477,6 @@ uses `core.hooksPath=.githooks`.
 - `agent-config` owns the shared
   primitives this repo deploys.
 - `omp-config` is the sister harness.
-- [linear-cli](https://github.com/misty-step/linear-cli) is the standalone
-  Linear client (ADR-020).
 
 ## Ecosystem
 

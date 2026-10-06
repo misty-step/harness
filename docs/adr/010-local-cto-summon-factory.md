@@ -90,8 +90,7 @@ Glass currently is a read-oriented commitment/portfolio product, not a native
 agent controller or chat UI. A unified chat/control shell would deliberately
 change that product contract and requires a separate product decision. This
 pilot supplies a small status/evidence projection, not a Glass rebuild. Use the
-actual current Glass/Habitat commitment decisions; dated references to retired
-Linear readers do not authorize reviving them. No Glass UI/source is changed.
+actual current Glass/Habitat commitment decisions. No Glass UI/source is changed.
 
 Native relay journals contain delivery IDs, exact payload/session bindings,
 queued/send-intent/ACK/uncertainty and native receipt references only. They contain

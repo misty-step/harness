@@ -94,10 +94,8 @@ turns as permissions controls.
 The actual narrow shared installer reproduced deletion of all five legacy
 procedures before repair, and preserved all five afterward. The 11 bounded
 installer tests pass, including all three replacement-retirement mappings and
-foreign-state preservation. The exact documented Linear GraphQL fallback ran
-against the real issuer: authenticated viewer and `MIS` team returned, with the
-header supplied over stdin rather than secret-valued argv. Staged OMP/Pi
-composition and full skill deployment produced the measured files above.
+foreign-state preservation. Staged OMP/Pi composition and full skill deployment
+produced the measured files above.
 
 Required pre-merge/full checks and post-merge live native-consumer evidence are
 published with the exact candidate/landed revision on the PR and board review
