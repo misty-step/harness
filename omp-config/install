@@ -133,12 +133,10 @@ install_mcp() {
                     | with_entries(select(.value != null))
                   )
               ))
-          | del(.linear)
         )
       | .disabledServers = (
           (($live.disabledServers // []) + ($policy.disabledServers // []))
           | unique
-          | map(select(. != "linear"))
         )
     ' "$repo_dir/mcp.json" "$mcp_target" > "$temp"
     chmod 600 "$temp"

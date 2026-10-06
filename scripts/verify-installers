@@ -50,7 +50,7 @@ for consumer in pi omp; do
     mkdir -p "$home/.hermes/profiles/kaylee/journal"
     printf '# Experiments\n\n## E-018 Preserved runtime journal sentinel\n' > "$work/expected-experiments"
     cp "$work/expected-experiments" "$home/.hermes/profiles/kaylee/journal/experiments.md"
-    printf '{"runtime":{"sentinel":true},"mcpServers":{"mobbin":{"type":"http","url":"https://example.invalid/old-mobbin","auth":{"synthetic":"mobbin-auth"},"oauth":{"synthetic":"mobbin-oauth"}},"foreign":{"type":"http","url":"https://example.invalid/foreign","auth":{"synthetic":"foreign-auth"}},"linear":{"type":"http","url":"https://mcp.linear.app/mcp"}},"disabledServers":["foreign"]}\n' > "$agent/mcp.json"
+    printf '{"runtime":{"sentinel":true},"mcpServers":{"mobbin":{"type":"http","url":"https://example.invalid/old-mobbin","auth":{"synthetic":"mobbin-auth"},"oauth":{"synthetic":"mobbin-oauth"}},"foreign":{"type":"http","url":"https://example.invalid/foreign","auth":{"synthetic":"foreign-auth"}}},"disabledServers":["foreign"]}\n' > "$agent/mcp.json"
     printf '{"mcpServers":{"fastmail":{"type":"http","url":"https://example.invalid/fastmail"}}}\n' > "$work/expected-scope"
     printf '{"mcpServers":{"project-native":{"type":"http","url":"https://example.invalid/project"}}}\n' > "$work/expected-project-mcp"
     printf '# foreign local exclusions\n/.omp/.mcp.json\n' > "$work/expected-exclude"
@@ -176,7 +176,6 @@ for consumer in pi omp; do
         and .mcpServers.mobbin.oauth == {synthetic:"mobbin-oauth"}
         and .mcpServers.foreign == {type:"http",url:"https://example.invalid/foreign",auth:{synthetic:"foreign-auth"}}
         and .mcpServers.openrouter.enabled == false
-        and (.mcpServers | has("linear") | not)
         and (.disabledServers | sort) == ["chrome-devtools","foreign","node_repl"]
       ' "$agent/mcp.json"
     check "omp MCP permissions" test "$(stat -c %a "$agent/mcp.json")" = 600

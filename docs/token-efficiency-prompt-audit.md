@@ -74,7 +74,6 @@ Disposition key: **keep** = preserve; **rewrite** = candidate concise/corrected 
 | 51–56 | keep; delegation changes proposal-only | Isolated/disjoint delegation rules, PR checkout boundary, and long-runtime routing protect the canonical checkout and resource ownership. |
 | 58 | keep | Authority-and-operations heading. |
 | 60–67 | keep | Tracker boundaries, operator authority, privacy scope, and ownership of Parlor's skill. |
-| 69–75 | keep | Linear access workflow and secret-safe fallback; concrete instructions must remain available when MCP is not mounted. |
 | 77–80 | keep | Branch, commit, PR-link, and status workflow. |
 | 82–89 | keep | Privilege/approval constraints and completion verification are security/authority policy. |
 

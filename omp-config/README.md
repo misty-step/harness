@@ -23,7 +23,7 @@ through `../agent-config/install`; `AGENT_CONFIG_DIR` can override that source.
 | `references/` | On-demand workstation runbooks |
 
 Ticket rosters, automatic paired experiments, grievance bookkeeping, scheduled
-repository auditors and Linear integration are retired. No replacement fleet
+repository auditors are retired. No replacement fleet
 control plane or management skill is installed. Historical journals and runtime
 evidence are not deleted or treated as launch policy.
 
@@ -51,9 +51,9 @@ HOME or host writes. The root `../install` installs both native harnesses;
 component installers are preferable for targeted changes.
 
 Configuration overlays source-owned keys while preserving foreign keys. MCP
-overlays declared servers, preserves foreign inventory and owned-server auth,
-and removes the retired Linear binding. Native project MCP definitions/imports
-remain project-owned. Neither installer revokes OAuth or deletes pass entries.
+overlays declared servers and preserves foreign inventory and owned-server auth.
+Native project MCP definitions/imports remain project-owned. Neither installer
+revokes OAuth or deletes pass entries.
 
 Restart OMP after changing extensions, guidance or provider configuration.
 Existing sessions keep their selected model; file presence does not prove loading.

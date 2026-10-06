@@ -32,8 +32,7 @@ is no ticket cap; ranking and weekly priority climb replace it. A finding that
 cannot be filed is kept and fails the run loudly, to be refiled without another
 audit. Auditors never fix gaps, steer engineers or message anyone; only the desk
 dispatches. Routing: Habitat for R90; Glass board items for Misty Step and for
-doctrine proposals that Phaedrus decides. Misty Step left Linear on 2 October;
-the audits have no Linear path.
+doctrine proposals that Phaedrus decides.
 
 ## Consequences
 
