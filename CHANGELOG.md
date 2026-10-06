@@ -696,6 +696,7 @@
 * **image-budget:** cap inline image bytes per request (ADR-019) ([b9833a7](https://github.com/misty-step/harness/commit/b9833a753791575612a7a3523ba3edfc76a595b1))
 * **install:** reinstall OMP config on pre-push ([941f904](https://github.com/misty-step/harness/commit/941f904aec731c93f2ea3b41fa66f54153b1c4fa))
 * introduce evidence-packet skill and clean runtime configuration ([#44](https://github.com/misty-step/harness/issues/44)) ([b1042cd](https://github.com/misty-step/harness/commit/b1042cddc9c46b0df4e8b6d7ccbbbccb0c285564))
+* **linear:** small workspace CLI instead of an MCP bridge ([7fa2224](https://github.com/misty-step/harness/commit/7fa2224d43fee1b439bf71db84bd9f101da470f8))
 * **loc:** add in-process async cache worker and worktree resolution ([06e082a](https://github.com/misty-step/harness/commit/06e082a1f663130fd635ca7f83d7c47917ff5058))
 * **measurement:** fleet telemetry parser; checkpoint removed; CR-03 edge ([5330df9](https://github.com/misty-step/harness/commit/5330df9a9d80fdf60efc42249c5357b0f49af246))
 * **openrouter-live:** bridge pi's model catalog to the live OpenRouter list ([7590ad2](https://github.com/misty-step/harness/commit/7590ad2de53fe553e9015cd8fc1ed3eea10c5795))
