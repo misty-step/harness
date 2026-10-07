@@ -33,10 +33,51 @@ polish; the first build of every act failed the frozen-time bar.
   `bun scripts/render.ts FILM_DIR OUT FROM TO [workers] [query]` screenshots each
   frame (run full renders under `desktop-guard run --` with a worker cap; test a
   5 s range first), then `scripts/encode.sh OUT FIRST_FRAME film.mp4`.
-- Sound: music at the film's tempo (generated with model, prompt and seed recorded,
-  or a cleared track from its official download, never scraped previews), scene
-  changes on the beat, master near -16 LUFS with true peak under -1 dB. Ship
-  licences for fonts, GSAP and audio with the source.
+- Sound: see Sound below. Ship licences for fonts, GSAP and audio with the source.
+
+## Sound
+
+Agents cannot hear. Measurements reject bad music; only a person's ear approves
+it, and no film ships on music nobody has listened to. The family-firm films
+shipped one unscreened, unheard Stable Audio 3 Medium take each: hiss and noise
+bursts 24 dB under the guitar and piano, clipped at the source. Loudness was fine.
+
+1. **Source.** Record model, endpoint, prompt and seed, or the official download
+   URL and licence, in `NOTICE.md`.
+   - fal (`FAL_API_KEY` through `pass-env`; model page says "Commercial use"):
+     MiniMax Music 2.6 `fal-ai/minimax-music/v2.6` (`is_instrumental`, $0.15,
+     ignores length and tempo, takes vary widely), Lyria 3 Pro `fal-ai/lyria3/pro`
+     ($0.08, refuses some prompts), Stable Audio 2.5
+     `fal-ai/stable-audio-25/text-to-audio` ($0.20, set `seconds_total`).
+     OpenRouter's only music models are the same Google Lyria 3; skip it.
+   - Cleared library, official download only, never a preview or scrape: CC0, or
+     CC BY with the credit line in the note that goes with the film (never NC).
+     Kevin MacLeod: `https://incompetech.com/music/royalty-free/pieces.json`
+     lists tracks, bpm and instruments. Open Goldberg Variations (CC0):
+     archive.org item `OpenGoldbergVariations`.
+   - Never: Stable Audio 3 Medium for acoustic music, ElevenLabs on a free plan,
+     unofficial gateways to any service.
+2. **Candidates.** Per film, three takes from each of two models plus a library
+   track. The brief names instruments, tempo and mood, says "no drums, no vocals"
+   and asks for a final chord that rings out. A model that won one listening is
+   not a default.
+3. **Screen.** `uv run --no-project --python 3.12 --with numpy --with scipy --with
+   librosa --with soundfile --with pyloudnorm python scripts/music.py screen TAKE...`
+   rejects hiss (8-16 kHz energy over -40 dB under the 0.1-2 kHz body, or within
+   30 dB of it in over 25% of 0.1 s frames) and clipping. Real recordings and
+   clean takes sit at -44 to -70 dB; electronic briefs are exempt from the hiss rule.
+4. **Fit and master.** `scripts/music.py fit TAKE OUT.wav --len FILM_SECONDS` keeps
+   the opening, joins the take's own ending at beats with matching harmony, fades
+   only when the take has none, and masters to -16 LUFS with the limiter at -2 dBTP
+   so AAC stays under -1 dBTP. Check each join in a spectrogram. Mux with the
+   picture's video stream copied; never single-pass `loudnorm` in the render. A
+   calm bed without a pulse needs no beat alignment; a pulsed track is stretched
+   so the main scene changes land on bar lines.
+5. **Listen.** Publish three or four mastered candidates per film on a page that
+   works on a phone: plain labels, a 30 s sample and the whole track each, the film
+   with it, licence and credit line, screen numbers marked measured, not heard.
+   A named person picks by ear; record the pick; re-score at the same paths.
+   Say in the report that no agent listened.
 
 ## Verify
 
