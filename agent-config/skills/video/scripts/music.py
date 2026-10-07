@@ -1,12 +1,15 @@
-#!/usr/bin/env python3
+#!/usr/bin/env -S uv run --script
+# /// script
+# requires-python = ">=3.12"
+# dependencies = ["numpy", "scipy", "librosa", "soundfile", "pyloudnorm"]
+# ///
 """Backing-track tools for the video skill. Measures and edits; never plays audio.
 
   music.py screen FILE...                      pass/fail on hiss, clipping and ending, one row per file
   music.py fit SRC OUT.wav --len SECONDS       fit to the film's length and master (-16 LUFS, -2 dBTP before AAC)
              [--tempo BPM] [--lufs -16] [--tp -2] [--tail-max 40] [--min-body 15]
 
-Run with: uv run --no-project --python 3.12 --with numpy --with scipy --with librosa --with soundfile \
-  --with pyloudnorm python music.py ...   (also needs ffmpeg and rubberband on PATH)
+Needs uv (installs the Python dependencies above on first run), ffmpeg and rubberband on PATH.
 
 Screen rule (acoustic and orchestral briefs; electronic briefs may exceed the HF limits): the 8-16 kHz energy per
 0.1 s frame, relative to the 0.1-2 kHz body. Real recordings and clean models sit at -44 to -70 dB; the Stable Audio 3
@@ -138,22 +141,45 @@ def splice(x, L, hint, min_body, tail_max):
     return out, {"body_end_s": round(float(a), 2), "ending_from_s": round(float(b), 2), "join_cost": round(float(cost), 3)}
 
 
+def limit(y, ceiling_db):
+    a, b = tmp(), tmp()
+    sf.write(a, y, SR, subtype="FLOAT")
+    subprocess.run(["ffmpeg", "-hide_banner", "-loglevel", "error", "-y", "-i", a, "-af",
+                    f"alimiter=limit={10 ** (max(ceiling_db, -24.0) / 20):.5f}:attack=5:release=80:level=disabled:asc=1", "-c:a", "pcm_f32le", b], check=True)
+    y, _ = sf.read(b, dtype="float32", always_2d=True)
+    os.remove(a); os.remove(b)
+    return y
+
+
+def aac_true_peak(y, kbps=192):
+    a, b = tmp(), tmp(".m4a")
+    sf.write(a, y, SR, subtype="FLOAT")
+    subprocess.run(["ffmpeg", "-hide_banner", "-loglevel", "error", "-y", "-i", a, "-c:a", "aac", "-b:a", f"{kbps}k", b], check=True)
+    peak = true_peak_db(decode(b))
+    os.remove(a); os.remove(b)
+    return peak
+
+
 def master(x, lufs, tp):
+    """Gain to the target loudness, limit, and keep both the true peak and the AAC-encoded true peak in bounds."""
     x = sg.sosfilt(sg.butter(2, 30, "hp", fs=SR, output="sos"), x, axis=0).astype(np.float32)
     meter = pyln.Meter(SR)
-    for _ in range(4):
-        y = x * 10 ** ((lufs - meter.integrated_loudness(x.astype(np.float64))) / 20)
-        a, b = tmp(), tmp()
-        sf.write(a, y, SR, subtype="FLOAT")
-        subprocess.run(["ffmpeg", "-hide_banner", "-loglevel", "error", "-y", "-i", a, "-af",
-                        f"alimiter=limit={10 ** (tp / 20):.5f}:attack=5:release=80:level=disabled:asc=1", "-c:a", "pcm_f32le", b], check=True)
-        y, _ = sf.read(b, dtype="float32", always_2d=True)
-        os.remove(a); os.remove(b)
-        got = meter.integrated_loudness(y.astype(np.float64))
-        if abs(got - lufs) < 0.25:
+    gain, ceil = lufs - meter.integrated_loudness(x.astype(np.float64)), tp
+    for _ in range(10):
+        y = limit(x * 10 ** (gain / 20), ceil)
+        got, peak = meter.integrated_loudness(y.astype(np.float64)), true_peak_db(y)
+        if peak > tp + 0.05:
+            ceil -= peak - tp + 0.1  # the limiter works on samples; pull its ceiling down by the true-peak overshoot
+        elif abs(got - lufs) > 0.25:
+            gain += lufs - got
+        else:
             break
-        x = x * 10 ** ((lufs - got) / 20)
-    return y, {"lufs": round(float(got), 2), "true_peak_dbtp": round(true_peak_db(y), 2)}
+    else:
+        raise SystemExit(f"master: no gain and ceiling gave {lufs} LUFS within {tp} dBTP (last {got:.1f} LUFS, {peak:.1f} dBTP); pick another take")
+    coded = aac_true_peak(y)
+    if coded > -1.0:
+        raise SystemExit(f"master: {coded:.1f} dBTP after AAC; lower --tp")
+    return y, {"lufs": round(float(got), 2), "true_peak_dbtp": round(peak, 2), "aac_true_peak_dbtp": round(coded, 2)}
 
 
 def fit(src, out, L, tempo, lufs, tp, tail_max, min_body):
@@ -178,8 +204,9 @@ def fit(src, out, L, tempo, lufs, tp, tail_max, min_body):
     x = np.pad(x, ((0, int(L * SR) - len(x)), (0, 0)))
     natural = has_decay(x)
     fo, fi = int((0.4 if natural else 3.0) * SR), int(0.6 * SR)
+    fo, fi = min(fo, len(x) // 2), min(fi, len(x) // 2)
     x[:fi] *= (np.sin(np.linspace(0, np.pi / 2, fi)) ** 2)[:, None]
-    x[-fo:] *= (np.cos(np.linspace(0, np.pi / 2, fo)) ** 2)[:, None]
+    x[len(x) - fo:] *= (np.cos(np.linspace(0, np.pi / 2, fo)) ** 2)[:, None]
     log["natural_ending"] = bool(natural)
     y, m = master(x, lufs, tp)
     sf.write(out, y, SR, subtype="PCM_24")

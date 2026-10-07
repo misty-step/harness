@@ -61,18 +61,18 @@ bursts 24 dB under the guitar and piano, clipped at the source. Loudness was fin
    track. The brief names instruments, tempo and mood, says "no drums, no vocals"
    and asks for a final chord that rings out. A model that won one listening is
    not a default.
-3. **Screen.** `uv run --no-project --python 3.12 --with numpy --with scipy --with
-   librosa --with soundfile --with pyloudnorm python scripts/music.py screen TAKE...`
-   rejects hiss (8-16 kHz energy over -40 dB under the 0.1-2 kHz body, or within
-   30 dB of it in over 25% of 0.1 s frames) and clipping. Real recordings and
-   clean takes sit at -44 to -70 dB; electronic briefs are exempt from the hiss rule.
+3. **Screen.** `scripts/music.py screen TAKE...` (needs `uv`, `ffmpeg`, `rubberband`;
+   `uv` installs the Python dependencies) rejects hiss (8-16 kHz energy over -40 dB
+   under the 0.1-2 kHz body, or within 30 dB of it in over 25% of 0.1 s frames) and
+   clipping. Real recordings and clean takes sit at -44 to -70 dB; electronic briefs
+   are exempt from the hiss rule.
 4. **Fit and master.** `scripts/music.py fit TAKE OUT.wav --len FILM_SECONDS` keeps
    the opening, joins the take's own ending at beats with matching harmony, fades
-   only when the take has none, and masters to -16 LUFS with the limiter at -2 dBTP
-   so AAC stays under -1 dBTP. Check each join in a spectrogram. Mux with the
-   picture's video stream copied; never single-pass `loudnorm` in the render. A
-   calm bed without a pulse needs no beat alignment; a pulsed track is stretched
-   so the main scene changes land on bar lines.
+   only when the take has none, and masters to -16 LUFS under a -2 dBTP ceiling; it
+   refuses a take it cannot hold there or that exceeds -1 dBTP after AAC. Check each
+   join in a spectrogram. Mux with the picture's video stream copied; never
+   single-pass `loudnorm` in the render. A calm bed without a pulse needs no beat
+   alignment; a pulsed track is stretched so the main scene changes land on bar lines.
 5. **Listen.** Publish three or four mastered candidates per film on a page that
    works on a phone: plain labels, a 30 s sample and the whole track each, the film
    with it, licence and credit line, screen numbers marked measured, not heard.
