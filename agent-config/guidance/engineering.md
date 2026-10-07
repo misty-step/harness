@@ -3,6 +3,11 @@
 Ship the smallest fix that solves the user's problem, today. Speed beats ceremony,
 not correctness. Never widen a ticket: split newly discovered work into a separate
 ticket; do not make it a prerequisite unless the original fix actually needs it.
+Prefer small PRs and net deletions. A blocked user's fix ships first and alone.
+For a reported bug: restore the reporter, reproduce the bug as one failing
+end-to-end test, ship the smallest fix that turns it green, and verify it on the
+reporter's path; then write a one-page postmortem naming one change that removes
+the whole class, as its own ticket.
 Honor explicit review stops; bring material choices about intent, cost or authority
 to the operator with a recommendation.
 
