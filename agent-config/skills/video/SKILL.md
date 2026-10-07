@@ -93,16 +93,18 @@ that drives the cut and sits under on-screen text, not a piece to be listened to
    lower; `--beat` allows -30 dB for hats and shakers. Noisy takes measured -8 to
    -28 dB; clean ones -34 to -75.
 5. **Fit to the cuts and master.** `scripts/music.py fit TAKE OUT.wav --len SECONDS
-   --cuts T1,T2,...` takes the scene-change times, sets the tempo to 60 n / spacing
-   (n whole beats between cuts; a take within 6% of it is stretched, otherwise
-   refused), measures the take's beat and downbeat from its kick and bass (refused
-   when they fall as strongly half a beat away, as with eighth-note piano or
-   bass), aligns it so the cuts land on beats, keeps the take's own intro so the
-   groove comes in where it does, and joins its own ending on bar lines at matching
-   harmony. It refuses a take that leaves the film more than 4 s short. It reports
-   the tempo change, where the groove enters, the cuts' distance from the nearest
-   bar line and whether the music ends on a decay (otherwise a 3 s fade at its own
-   end). Without `--cuts` it
+   --cuts T1,T2,...` takes the scene-change times and picks the tempo 60 n / spacing
+   (n whole beats per regular gap, chosen so most gaps are whole beats and the
+   take is moved under 6%; a schedule that fits no tempo is refused), measures the
+   take's beat and downbeat from its kick and bass (refused when they fall as
+   strongly half a beat away, as with eighth-note piano or bass), aligns it so the
+   cuts land on beats, keeps the take's own intro so the groove comes in where it
+   does, and joins its own ending on bar lines at matching harmony. It refuses a
+   take that leaves the film more than 4 s short. It reports the tempo change,
+   where the groove enters, each cut's distance from the nearest beat and bar line
+   and whether the music ends on a decay (otherwise a 3 s fade at its own end).
+   Cuts that do not fit the grid (an odd-length intro or end card) show as
+   off-beat; that is expected. Without `--cuts` it
    only trims, joins and fits the length. It masters to -16 LUFS under a -2 dBTP
    ceiling and refuses a take it cannot hold there or that exceeds -1 dBTP after
    AAC. Verify the beat on the final file, not the report. Mux with the picture's

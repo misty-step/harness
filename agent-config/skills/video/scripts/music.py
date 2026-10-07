@@ -61,7 +61,8 @@ def verdict(x, beat=False):
     med, pct = hf_vs_body(x)
     a = np.abs(x)
     overs, pk = int((a >= 1.0).sum()), float(a.max())
-    flat = pk >= 0.97 and float((a >= 0.999 * pk).mean()) > PLATEAU_MAX_FRAC  # a PCM file clipped at its rail never decodes above 1.0
+    eq = (a[1:] == a[:-1]) & (a[1:] >= 0.97 * pk)  # a flat run at the top: a PCM file clipped at its rail never decodes above 1.0
+    flat = pk >= 0.97 and float(eq.mean()) > PLATEAU_MAX_FRAC
     lim = HF_LIMITS["beat" if beat else "quiet"]
     why = [w for w, f in (("hiss", med > lim[0] or pct > lim[1]), ("clipped", overs > OVERS_MAX_FRAC * x.size or flat)) if f]
     return why, med, pct, overs
@@ -190,8 +191,13 @@ def grid_lock(x, cuts, lead, n_beats=None):
     hop, dt = 128, 128 / 22050
     env = librosa.onset.onset_strength(y=y, sr=22050, hop_length=hop)
     src, _ = measure_grid(env, dt)
-    n = n_beats or max(1, round(src * S / 60))  # whole beats between regular cuts that keeps the take nearest its own tempo
+    k0 = max(1, round(src * S / 60))
+    on = lambda k: sum(abs(g * k / S - round(g * k / S)) < 0.12 for g in gaps)  # gaps that are whole beats at n beats per median gap
+    cand = [k for k in range(max(1, k0 - 3), k0 + 4) if abs(src / (60 * k / S) - 1) <= 0.06] or [k0]
+    n = n_beats or max(cand, key=lambda k: (on(k), -abs(src / (60 * k / S) - 1)))
     bpm = 60 * n / S
+    if not n_beats and on(n) * 2 < len(gaps):
+        raise SystemExit(f"cut schedule does not sit on one beat grid at any tempo near {src:.0f} BPM (best: {on(n)} of {len(gaps)} gaps whole beats at {bpm:.1f}); pick another take or set --beats-per-cut")
     ratio = src / bpm
     if abs(ratio - 1) > 0.06:
         raise SystemExit(f"tempo {src:.1f} BPM is {abs(ratio - 1) * 100:.0f}% from the nearest cut-grid tempo {bpm:.1f}; pick another take")
@@ -229,8 +235,10 @@ def grid_lock(x, cuts, lead, n_beats=None):
     x = x[int(s * SR):] if s >= 0 else np.pad(x, ((int(-s * SR), 0), (0, 0)))
     dfilm = down - s
     on_bar = [round(1000 * float(((c + lead - t0 + bar / 2) % bar) - bar / 2)) for c in cuts]
+    on_beat = [round(1000 * float(((c + lead - t0 + P / 2) % P) - P / 2)) for c in cuts]
     return x, dfilm[dfilm >= 0], {"src_bpm": round(src, 1), "grid_bpm": round(bpm, 1), "beats_per_cut": n, "tempo_change_pct": round((1 / ratio - 1) * 100, 1),
-                                  "drift_ms": round(drift * 1000), "beat_clarity": round(1 - unsure, 2), "groove_enters_s": round(float(t0 + n_e * bar), 2), "cuts_off_bar_ms": on_bar}
+                                  "drift_ms": round(drift * 1000), "beat_clarity": round(1 - unsure, 2), "groove_enters_s": round(float(t0 + n_e * bar), 2),
+                                  "cuts_off_beat_ms": on_beat, "cuts_off_bar_ms": on_bar}
 
 
 def measure_phase(env, dt, bpm, t_off):
