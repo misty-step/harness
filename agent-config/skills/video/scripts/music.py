@@ -14,7 +14,7 @@ Needs uv (installs the Python dependencies above on first run), ffmpeg and rubbe
 Screen rule: the 8-16 kHz energy per 0.1 s frame relative to the 0.1-2 kHz body. Real recordings and clean models sit at
 -44 to -70 dB; the Stable Audio 3 Medium tracks that shipped on the family-firm films sat at -24 dB with 77% of frames
 within 30 dB (hiss and noise bursts). Music with hats, shakers and claps legitimately has more: --beat allows -30 dB and 60%
-(clean Lyria and Stable Audio 2.5 beds measured -34 to -75 dB and 0-41%; noisy takes -8 to -27 dB and 55-99%).
+(clean Lyria and Stable Audio 2.5 beds measured -34 to -75 dB and 0-41%; noisy takes -8 to -28 dB and 55-99%).
 """
 import json, os, subprocess, sys, tempfile
 import numpy as np, soundfile as sf, scipy.signal as sg, pyloudnorm as pyln
@@ -22,6 +22,7 @@ import numpy as np, soundfile as sf, scipy.signal as sg, pyloudnorm as pyln
 SR = 48000
 HF_LIMITS = {"quiet": (-40.0, 25.0), "beat": (-30.0, 60.0)}  # (median dB, % of frames within 30 dB of the body)
 OVERS_MAX_FRAC = 1e-3      # share of decoded samples at or over 0 dBFS (limited MP3s overshoot a little; real clipping is far more)
+PLATEAU_MAX_FRAC = 5e-4    # share of samples sitting within 0.1% of the file's peak when that peak is near full scale (flat-topped)
 
 
 def tmp(suffix=".wav"):
@@ -58,9 +59,11 @@ def has_decay(x, db=-10.0):
 
 def verdict(x, beat=False):
     med, pct = hf_vs_body(x)
-    overs = int((np.abs(x) >= 1.0).sum())
+    a = np.abs(x)
+    overs, pk = int((a >= 1.0).sum()), float(a.max())
+    flat = pk >= 0.97 and float((a >= 0.999 * pk).mean()) > PLATEAU_MAX_FRAC  # a PCM file clipped at its rail never decodes above 1.0
     lim = HF_LIMITS["beat" if beat else "quiet"]
-    why = [w for w, f in (("hiss", med > lim[0] or pct > lim[1]), ("clipped", overs > OVERS_MAX_FRAC * x.size)) if f]
+    why = [w for w, f in (("hiss", med > lim[0] or pct > lim[1]), ("clipped", overs > OVERS_MAX_FRAC * x.size or flat)) if f]
     return why, med, pct, overs
 
 
@@ -178,14 +181,16 @@ def grid_lock(x, cuts, lead, n_beats=None):
     Returns audio, downbeat times in film seconds, and what was measured."""
     import librosa
     cuts = sorted(cuts)
+    if len(cuts) < 2:
+        raise SystemExit("--cuts needs at least two scene-change times")
     gaps = np.diff(cuts)
     S = float(np.median(gaps))
-    anchor = next(c for c, g in zip(cuts, gaps) if abs(g - S) < 0.3)
+    anchor = next((c for c, g in zip(cuts, gaps) if abs(g - S) < 0.3), cuts[0])  # a cut that starts a regular gap
     y = librosa.resample(x.mean(1), orig_sr=SR, target_sr=22050)
     hop, dt = 128, 128 / 22050
     env = librosa.onset.onset_strength(y=y, sr=22050, hop_length=hop)
     src, _ = measure_grid(env, dt)
-    n = n_beats or int(min(range(8, 40), key=lambda k: abs(60 * k / S - src)))
+    n = n_beats or max(1, round(src * S / 60))  # whole beats between regular cuts that keeps the take nearest its own tempo
     bpm = 60 * n / S
     ratio = src / bpm
     if abs(ratio - 1) > 0.06:
@@ -304,14 +309,16 @@ def fit(src, out, L, tempo, lufs, tp, tail_max, min_body, cuts=(), lead=0.55, n_
     if abs(r - 1) > 0.002:
         x = stretch(x, r)
     log["stretch"] = round(r, 4)
-    log["ends_s"] = round(min(len(x) / SR, L), 2)
     x = x[: int(L * SR)]
-    x = np.pad(x, ((0, int(L * SR) - len(x)), (0, 0)))
-    natural = has_decay(x)
+    if len(x) < int((L - 4.0) * SR):
+        raise SystemExit(f"{src}: only {len(x) / SR:.1f} s of music after fitting, the film needs {L} s; pick a longer take")
+    log["ends_s"] = round(len(x) / SR, 2)
+    natural = has_decay(x)  # judged on the music itself, not on the padding after it
     fo, fi = int((0.4 if natural else 3.0) * SR), int(0.6 * SR)
     fo, fi = min(fo, len(x) // 2), min(fi, len(x) // 2)
     x[:fi] *= (np.sin(np.linspace(0, np.pi / 2, fi)) ** 2)[:, None]
     x[len(x) - fo:] *= (np.cos(np.linspace(0, np.pi / 2, fo)) ** 2)[:, None]
+    x = np.pad(x, ((0, int(L * SR) - len(x)), (0, 0)))
     log["natural_ending"] = bool(natural)
     y, m = master(x, lufs, tp)
     sf.write(out, y, SR, subtype="PCM_24")

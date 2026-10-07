@@ -60,14 +60,15 @@ that drives the cut and sits under on-screen text, not a piece to be listened to
    hits) and the arc.
    - Lyria 3 Pro (`fal-ai/lyria3/pro`, $0.08; Google's guide): timed sections
      work, so write `[00:00]` ... `[01:10]` lines for the intro, the groove, the
-     lift and the final chord at the film's times. It held the asked tempo in every
-     125 BPM take but started the groove later than asked. Some prompts are
+     lift and the final chord at the film's times. Of 21 takes asked for 125 BPM,
+     15 fitted (4 drifted in tempo, 2 stopped short), and its groove came in
+     anywhere from 2 to 16 s, not at the time asked. Some prompts are
      refused by the content filter at random; do not rephrase to dodge it.
    - Stable Audio 2.5 (`fal-ai/stable-audio-25/text-to-audio`, $0.20; Stability's
      guide): style, then instruments, mood, details; say the use ("perfect for a
      business promo") and the BPM in plain text; set `seconds_total`; no section
-     tags. 6 of 8 takes passed the screen; no timeline control, so the groove
-     structure is left to the model.
+     tags. All 8 takes passed the screen and 5 fitted (the others drifted, had an
+     ambiguous beat or no clean join); no timeline control.
    - MiniMax Music 2.6 (`fal-ai/minimax-music/v2.6`, $0.15; MiniMax's guide):
      sentences like a brief to a musician, BPM and a scene in them,
      `is_instrumental`, section tags in `lyrics`. It ignores tempo and length and
@@ -87,19 +88,21 @@ that drives the cut and sits under on-screen text, not a piece to be listened to
    unofficial gateway to any service.
 4. **Screen.** `scripts/music.py screen [--beat] TAKE...` (needs `uv`, `ffmpeg`,
    `rubberband`; `uv` installs the Python dependencies) rejects hiss (8-16 kHz
-   energy over the limit relative to the 0.1-2 kHz body) and clipping. Quiet music
-   must sit at -40 dB or lower; `--beat` allows -30 dB for hats and shakers. Noisy
-   takes measured -8 to -27 dB; clean ones -34 to -75.
+   energy over the limit relative to the 0.1-2 kHz body) and clipping (samples over
+   full scale, or a flat top at the file's peak). Quiet music must sit at -40 dB or
+   lower; `--beat` allows -30 dB for hats and shakers. Noisy takes measured -8 to
+   -28 dB; clean ones -34 to -75.
 5. **Fit to the cuts and master.** `scripts/music.py fit TAKE OUT.wav --len SECONDS
    --cuts T1,T2,...` takes the scene-change times, sets the tempo to 60 n / spacing
    (n whole beats between cuts; a take within 6% of it is stretched, otherwise
    refused), measures the take's beat and downbeat from its kick and bass (refused
    when they fall as strongly half a beat away, as with eighth-note piano or
    bass), aligns it so the cuts land on beats, keeps the take's own intro so the
-   groove comes in where it does, and
-   joins its own ending on bar lines at matching harmony. It reports the tempo
-   change, where the groove enters, the cuts' distance from the nearest bar line
-   and whether the ending is natural (otherwise a 3 s fade). Without `--cuts` it
+   groove comes in where it does, and joins its own ending on bar lines at matching
+   harmony. It refuses a take that leaves the film more than 4 s short. It reports
+   the tempo change, where the groove enters, the cuts' distance from the nearest
+   bar line and whether the music ends on a decay (otherwise a 3 s fade at its own
+   end). Without `--cuts` it
    only trims, joins and fits the length. It masters to -16 LUFS under a -2 dBTP
    ceiling and refuses a take it cannot hold there or that exceeds -1 dBTP after
    AAC. Verify the beat on the final file, not the report. Mux with the picture's
