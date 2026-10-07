@@ -21,9 +21,10 @@ before a deploy keep the old environment until they exit.
 
 `install --audio-sandbox` writes
 `~/.config/pipewire/pipewire.conf.d/60-agent-sandbox.conf` at lowest priority,
-merges the contract into Claude Code's `env`, creates the sink live without a
-restart, and proves routing with silent `pw-play` and `paplay` streams. An unowned
-drop-in or malformed Claude Code settings fail before any write.
+merges the contract into Claude Code's `env`, and, when PipeWire is reachable,
+creates the sink live without a restart and proves routing with silent `pw-play`
+and `paplay` streams. An unowned drop-in or malformed Claude Code settings fail
+before any write.
 
 Agents record with default `pw-record out.wav` or `parecord out.wav`. The operator
 listens from their own terminal: `mpv render.mp4`, `pw-play render.wav`, or live

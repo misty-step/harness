@@ -38,9 +38,8 @@ guidance marker all fail closed.
 Drop `--check` to deploy. `--home` overrides `$HOME` for `~/.local/bin`.
 Launchers are bundled into self-contained executables in private scratch and
 replaced atomically; unchanged owned launchers stay, foreign files are rejected,
-and preflight never executes candidate source. `--audio-sandbox`,
-`--desktop-guard` and `--session-backup` are opt-in and not selected by normal
-Pi/OMP installs.
+and preflight never executes candidate source. Both harness installs select
+`--audio-sandbox`; `--desktop-guard` and `--session-backup` are opt-in.
 
 Each guidance file is one complete `##` section. The installer replaces the
 harness file's `<!-- shared guidance: agent-config -->` line with the selected

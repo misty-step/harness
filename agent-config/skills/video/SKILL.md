@@ -6,8 +6,9 @@ argument-hint: "[project, audience, length]"
 
 # Video
 
-Goal: a short film a viewer understands with the sound off, built as code so any
-frame re-renders identically and a fix is a diff. Method: the open-source kit
+Videos are first-class project material: README, docs and launch pages each get
+one. Goal: a short film a viewer understands with the sound off, built as code so
+any frame re-renders identically and a fix is a diff. Method: the open-source kit
 [echris6/motion-video-kit](https://github.com/echris6/motion-video-kit) at commit
 `255562b04b1e5ecaa4ba98e5c9aa191d5ba7f6fa` (MIT; `business-motion-film/SKILL.md`
 and its `references/`, read as you reach each step; re-pin if you update it). Its
