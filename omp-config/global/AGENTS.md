@@ -11,12 +11,10 @@ Use the project's existing work authority; keep R90 context in R90's tools.
 Read `$(omp config path)/OPERATIONS.md` for OMP-specific operating facts.
 
 Keep the original ticket's why and victory in the existing `todo` phase name,
-alongside its canonical link when available; steps belong under that phase.
-Use the list already required for the work, not a second plan or intent file.
-After compaction/resume, read `todo view` before changing course. Pass why,
-victory, bounded action and link in each child engineer's task context (children
-do not inherit the parent todo). A trivial fix needs only the original request;
-carry the same intent in any handoff.
+alongside its canonical link when available. After compaction/resume, read
+`todo view` before changing course. Brief a child as a coworker: what to do (goal,
+why, link), how much effort, and how to verify it. Children start blank and do
+not inherit the parent todo.
 
 OMP engineers have no access to the operator's live display. Use the native
 headless `browser` tool for web QA. For native GUI QA, run the app and its

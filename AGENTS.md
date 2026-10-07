@@ -23,16 +23,15 @@ Edit source here, never generated live copies. Root/component `AGENTS.md` files
 instruct maintainers; harness `global/AGENTS.md` plus `agent-config/guidance/*.md`
 are the source of deployed global guidance. Do not conflate them.
 
-Harness installers declare their selection and call `agent-config/install`.
-Do not duplicate its shared-primitive deployment logic. Preserve foreign settings,
-credentials, sessions, packages, and runtime state. Keep the sibling paths:
-installers resolve `../agent-config` unless `AGENT_CONFIG_DIR` overrides it.
+Harness installers declare their selection and call `agent-config/install`
+(resolved as `../agent-config` unless `AGENT_CONFIG_DIR` overrides it); do not
+duplicate its deployment logic. Preserve foreign settings, credentials,
+sessions, packages and runtime state.
 
-Deployment is a live mutation, not verification. See [README.md](README.md) for
-targets and selection. Harness installers accept no positional arguments and
-reject `--check`; only the base installer provides an inert preflight. Use
-`./scripts/verify` for isolated checks. Never assume redirecting the agent directory
-alone isolates HOME, scope, or launcher writes.
+Deployment is a live mutation, not verification. Harness installers accept no
+positional arguments and reject `--check`; only the base installer has an inert
+preflight. Redirecting the agent directory alone does not isolate HOME, scope or
+launcher writes; use `./scripts/verify`.
 
 ## Verify and ship
 
@@ -40,16 +39,14 @@ alone isolates HOME, scope, or launcher writes.
 - `./scripts/check [shared|pi|omp|workspace|all]` is the fixed gate entry point
   (ADR-004). It runs `./scripts/verify`, the canonical checks, and CI invokes
   it; see [verification](docs/verification.md) for bounds and postconditions.
-- Shared changes require both consumers' affected checks. Prose needs consistency
-  review; composed-guidance changes need composition inspection, not a model run.
-- Keep scratch in run-scoped `~/.cache/tmp`; cap runner and test concurrency.
-  CI has an explicit single-job/test-concurrency budget.
-- Inspect status first, preserve unrelated work, and report evidence plus whether
-  live deployment occurred. File presence does not prove native extension loading.
+- Shared changes require both consumers' affected checks. Composed-guidance
+  changes need composition inspection, not a model run.
+- Installer checks read committed HEAD. Cap runner and test concurrency; CI has a
+  single-job/test-concurrency budget.
+- Report whether live deployment occurred. File presence does not prove native
+  extension loading.
 - Use conventional commits. Root Landmark automation owns the single release
   stream. Do not bypass secret scanners.
 
-Cross-component decisions live in `docs/adr/`; component decisions stay with
-their component, in its own `docs/adr/` (`pi-config/docs/adr/`).
-[ADR-001](docs/adr/001-monorepo.md) supersedes only pi-config ADR-021's
-separate-repository topology, not its ownership boundary.
+Cross-component decisions live in `docs/adr/`; component decisions stay in the
+component's own `docs/adr/`.
