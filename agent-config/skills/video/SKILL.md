@@ -38,46 +38,78 @@ polish; the first build of every act failed the frozen-time bar.
 ## Sound
 
 Agents cannot hear. Measurements reject bad music; only a person's ear approves
-it, and no film ships on music nobody has listened to. The family-firm films
-shipped one unscreened, unheard Stable Audio 3 Medium take each: hiss and noise
-bursts 24 dB under the guitar and piano, clipped at the source. Loudness was fine.
+it, and no film ships on music nobody has listened to. Two ways it went wrong: the
+family-firm films shipped one unscreened, unheard Stable Audio 3 Medium take each
+(hiss and noise bursts 24 dB under the instruments, clipped at the source); the
+replacement round was clean but ballads, the wrong brief. A promo film wants a bed
+that drives the cut and sits under on-screen text, not a piece to be listened to.
 
-1. **Source.** Record model, endpoint, prompt and seed, or the official download
-   URL and licence, in `NOTICE.md`.
-   - fal (`FAL_API_KEY` through `pass-env`; model page says "Commercial use"):
-     MiniMax Music 2.6 `fal-ai/minimax-music/v2.6` (`is_instrumental`, $0.15,
-     ignores length and tempo, takes vary widely), Lyria 3 Pro `fal-ai/lyria3/pro`
-     ($0.08, refuses some prompts), Stable Audio 2.5
-     `fal-ai/stable-audio-25/text-to-audio` ($0.20, set `seconds_total`).
-     OpenRouter's only music models are the same Google Lyria 3; skip it.
-   - Cleared library, official download only, never a preview or scrape: CC0, or
-     CC BY with the credit line in the note that goes with the film (never NC).
-     Kevin MacLeod: `https://incompetech.com/music/royalty-free/pieces.json`
-     lists tracks, bpm and instruments. Open Goldberg Variations (CC0):
-     archive.org item `OpenGoldbergVariations`.
-   - Never: Stable Audio 3 Medium for acoustic music, ElevenLabs on a free plan,
-     unofficial gateways to any service.
-2. **Candidates.** Per film, three takes from each of two models plus a library
-   track. The brief names instruments, tempo and mood, says "no drums, no vocals"
-   and asks for a final chord that rings out. A model that won one listening is
-   not a default.
-3. **Screen.** `scripts/music.py screen TAKE...` (needs `uv`, `ffmpeg`, `rubberband`;
-   `uv` installs the Python dependencies) rejects hiss (8-16 kHz energy over -40 dB
-   under the 0.1-2 kHz body, or within 30 dB of it in over 25% of 0.1 s frames) and
-   clipping. Real recordings and clean takes sit at -44 to -70 dB; electronic briefs
-   are exempt from the hiss rule.
-4. **Fit and master.** `scripts/music.py fit TAKE OUT.wav --len FILM_SECONDS` keeps
-   the opening, joins the take's own ending at beats with matching harmony, fades
-   only when the take has none, and masters to -16 LUFS under a -2 dBTP ceiling; it
-   refuses a take it cannot hold there or that exceeds -1 dBTP after AAC. Check each
-   join in a spectrogram. Mux with the picture's video stream copied; never
-   single-pass `loudnorm` in the render. A calm bed without a pulse needs no beat
-   alignment; a pulsed track is stretched so the main scene changes land on bar lines.
-5. **Listen.** Publish three or four mastered candidates per film on a page that
-   works on a phone: plain labels, a 30 s sample and the whole track each, the film
-   with it, licence and credit line, screen numbers marked measured, not heard.
-   A named person picks by ear; record the pick; re-score at the same paths.
-   Say in the report that no agent listened.
+1. **Brief the job, not a mood.** Write down the film's length, scene-change times,
+   whether there is a voice or only text, and the emotional arc (hook, steady
+   middle, one lift near the end, resolve). Editors' rule for a bed: instrumental,
+   steady pulse, medium energy, no lead melody competing with the words, midrange
+   left open, dynamics even, movement kept for the section changes, and a real
+   ending. Tempo by job: 60-85 BPM calm and weighty, 85-115 the explainer range,
+   115-140 energetic; a text-only promo can take the top (we used 125). Library
+   tags for these beds: corporate, upbeat, inspiring, with guitar or piano, claps,
+   soft kick.
+2. **Prompt each model the way its maker says.** One prompt per direction:
+   [genre and style] + [mood] + [named instruments] + [tempo and rhythm], then the
+   use ("an instrumental bed for a 72 s business promo with text on screen"), then
+   the negatives (no vocals, no dominant melody, no big drops, risers or trailer
+   hits) and the arc.
+   - Lyria 3 Pro (`fal-ai/lyria3/pro`, $0.08; Google's guide): timed sections
+     work, so write `[00:00]` ... `[01:10]` lines for the intro, the groove, the
+     lift and the final chord at the film's times. It held the asked tempo in every
+     125 BPM take but started the groove later than asked. Some prompts are
+     refused by the content filter at random; do not rephrase to dodge it.
+   - Stable Audio 2.5 (`fal-ai/stable-audio-25/text-to-audio`, $0.20; Stability's
+     guide): style, then instruments, mood, details; say the use ("perfect for a
+     business promo") and the BPM in plain text; set `seconds_total`; no section
+     tags. 6 of 8 takes passed the screen; no timeline control, so the groove
+     structure is left to the model.
+   - MiniMax Music 2.6 (`fal-ai/minimax-music/v2.6`, $0.15; MiniMax's guide):
+     sentences like a brief to a musician, BPM and a scene in them,
+     `is_instrumental`, section tags in `lyrics`. It ignores tempo and length and
+     was noisy or unfittable on these briefs (1 of 16 takes fitted); not a default.
+   - Stable Audio 3 Medium adds hiss to acoustic and beat music alike; never use it.
+     OpenRouter's only music models are the same Lyria 3; fal is the route.
+3. **Directions, not takes.** Per film, four directions that differ in instruments
+   and feel (for example strummed-acoustic groove, clean electronic pulse, hand
+   percussion with almost no melody, half-time beat), two or three takes of each
+   from the model that follows that direction best. Five takes of one mood is not a
+   choice. Add a cleared library track only when it matches a direction. Library:
+   official download only, never a preview or scrape; CC0, or CC BY with the credit
+   line in the note that goes with the film (never NC); Kevin MacLeod
+   (`incompetech.com/music/royalty-free/pieces.json` lists bpm, instruments), Open
+   Goldberg Variations (CC0). Record model, endpoint, prompt and seed or the
+   download URL and licence in `NOTICE.md`. Never ElevenLabs on a free plan or an
+   unofficial gateway to any service.
+4. **Screen.** `scripts/music.py screen [--beat] TAKE...` (needs `uv`, `ffmpeg`,
+   `rubberband`; `uv` installs the Python dependencies) rejects hiss (8-16 kHz
+   energy over the limit relative to the 0.1-2 kHz body) and clipping. Quiet music
+   must sit at -40 dB or lower; `--beat` allows -30 dB for hats and shakers. Noisy
+   takes measured -8 to -27 dB; clean ones -34 to -75.
+5. **Fit to the cuts and master.** `scripts/music.py fit TAKE OUT.wav --len SECONDS
+   --cuts T1,T2,...` takes the scene-change times, sets the tempo to 60 n / spacing
+   (n whole beats between cuts; a take within 6% of it is stretched, otherwise
+   refused), measures the take's beat and downbeat from its kick and bass (refused
+   when they fall as strongly half a beat away, as with eighth-note piano or
+   bass), aligns it so the cuts land on beats, keeps the take's own intro so the
+   groove comes in where it does, and
+   joins its own ending on bar lines at matching harmony. It reports the tempo
+   change, where the groove enters, the cuts' distance from the nearest bar line
+   and whether the ending is natural (otherwise a 3 s fade). Without `--cuts` it
+   only trims, joins and fits the length. It masters to -16 LUFS under a -2 dBTP
+   ceiling and refuses a take it cannot hold there or that exceeds -1 dBTP after
+   AAC. Verify the beat on the final file, not the report. Mux with the picture's
+   video stream copied; never single-pass `loudnorm` in the render.
+6. **Listen.** Publish the directions on a page that works on a phone: a short
+   plain label per direction (instruments and feel), a 30 s sample, the ending, the
+   whole track and the film with it, the prompt, licence and credit line, numbers
+   marked measured, not heard. A named person picks by ear; record the pick;
+   re-score at the same paths. Say in the report that no agent listened. If the
+   listener rejects them all, change the brief (step 1), not just the seed.
 
 ## Verify
 
