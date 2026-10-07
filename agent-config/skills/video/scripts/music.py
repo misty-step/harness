@@ -22,7 +22,7 @@ import numpy as np, soundfile as sf, scipy.signal as sg, pyloudnorm as pyln
 SR = 48000
 HF_LIMITS = {"quiet": (-40.0, 25.0), "beat": (-30.0, 60.0)}  # (median dB, % of frames within 30 dB of the body)
 OVERS_MAX_FRAC = 1e-3      # share of decoded samples at or over 0 dBFS (limited MP3s overshoot a little; real clipping is far more)
-PLATEAU_MAX_FRAC = 5e-4    # share of samples sitting within 0.1% of the file's peak when that peak is near full scale (flat-topped)
+PLATEAU_MAX_FRAC = 5e-4    # share of positions inside a run of six or more equal samples at the top of the file (flat-topped)
 
 
 def tmp(suffix=".wav"):
@@ -61,8 +61,9 @@ def verdict(x, beat=False):
     med, pct = hf_vs_body(x)
     a = np.abs(x)
     overs, pk = int((a >= 1.0).sum()), float(a.max())
-    eq = (a[1:] == a[:-1]) & (a[1:] >= 0.97 * pk)  # a flat run at the top: a PCM file clipped at its rail never decodes above 1.0
-    flat = pk >= 0.97 and float(eq.mean()) > PLATEAU_MAX_FRAC
+    eq = ((a[1:] == a[:-1]) & (a[1:] >= 0.97 * pk)).astype(np.int32)  # equal neighbours at the top of the file
+    run = np.cumsum(eq, axis=0)
+    flat = pk >= 0.97 and float(((run[5:] - run[:-5]) == 5).mean()) > PLATEAU_MAX_FRAC  # six samples in a row: a PCM file clipped at its rail never decodes above 1.0, and a quantised sine peak is at most four
     lim = HF_LIMITS["beat" if beat else "quiet"]
     why = [w for w, f in (("hiss", med > lim[0] or pct > lim[1]), ("clipped", overs > OVERS_MAX_FRAC * x.size or flat)) if f]
     return why, med, pct, overs
@@ -193,7 +194,7 @@ def grid_lock(x, cuts, lead, n_beats=None):
     src, _ = measure_grid(env, dt)
     k0 = max(1, round(src * S / 60))
     on = lambda k: sum(abs(g * k / S - round(g * k / S)) < 0.12 for g in gaps)  # gaps that are whole beats at n beats per median gap
-    cand = [k for k in range(max(1, k0 - 3), k0 + 4) if abs(src / (60 * k / S) - 1) <= 0.06] or [k0]
+    cand = [k for k in range(max(1, int(np.ceil(src / 1.06 * S / 60))), int(np.floor(src / 0.94 * S / 60)) + 1)] or [k0]  # every beat count within 6% of the take's tempo
     n = n_beats or max(cand, key=lambda k: (on(k), -abs(src / (60 * k / S) - 1)))
     bpm = 60 * n / S
     if not n_beats and on(n) * 2 < len(gaps):
