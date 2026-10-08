@@ -74,17 +74,6 @@ advisor:
 providers:
   webSearchOrder:
     - exa
-auth:
-  # Shared subscription pool; native usage/reserve checks still apply.
-  accountPolicies:
-    - provider: anthropic
-      account:
-        email: phaedrus@r90.dev
-      priority: 1
-    - provider: openai-codex
-      account:
-        email: phaedrus@r90.dev
-      priority: 1
 retry:
   fallbackChains:
     # Model keys outrank role chains, including a main session's `default`.

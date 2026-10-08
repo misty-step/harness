@@ -535,10 +535,9 @@ Criteria:
    Pi recovery SHALL use Sol xhigh then Astra xhigh through its native Codex
    pool, without depending on SuperGrok. Explicit lightweight work SHALL use
    GPT-6.1 Sol low rather than Luna.
-   All shared subscription accounts SHALL be authorized for any work;
-   native account-policy priority SHALL prefer eligible r90.dev Anthropic
-   and Codex accounts without bypassing blocked-account or reserve rules.
-   Authorization or priority SHALL NOT be treated as proof of available quota.
+   All shared subscription accounts SHALL be authorized for any work and
+   SHALL fail over between each other; no engineer launch SHALL require any
+   one account. Authorization SHALL NOT be treated as proof of available quota.
 5. WHEN the Pi installer runs, THE SYSTEM SHALL select GPT-6.1 Sol xhigh as
    Pi's default and report a missing Pi-native Codex login rather than restore
    the retired DeepSeek default. Pi SHALL use only OpenAI Codex, xAI and
