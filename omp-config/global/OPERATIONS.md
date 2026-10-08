@@ -7,8 +7,7 @@ The installed copy lives beside global `AGENTS.md`, under `omp config path`.
 
 `config.yml`, `models.yml` and `omp-model-policy` own model selectors, recovery
 chains and role enforcement. `omp usage` reports current native account capacity;
-the configured account policy includes the eligible r90.dev Anthropic and Codex
-accounts. A route label and available capacity are different facts. Binary/catalog
+every signed-in account is eligible and none is pinned. A route label and available capacity are different facts. Binary/catalog
 updates take effect in fresh processes.
 
 For image questions, `read <image>?q=<question>` invokes the configured vision
