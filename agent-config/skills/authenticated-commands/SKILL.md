@@ -18,9 +18,9 @@ OMP cages intentionally hide the host keyring. For GitHub, use this pass-backed
 route for `gh` and Git's configured `gh` credential helper:
 
 ```sh
-pass-env run -e GH_TOKEN=workstation/GITHUB_OLYMPUS_TOKEN -- gh auth status
-pass-env run -e GH_TOKEN=workstation/GITHUB_OLYMPUS_TOKEN -- git push -u origin HEAD
-pass-env run -e GH_TOKEN=workstation/GITHUB_OLYMPUS_TOKEN -- gh pr create --fill
+pass-env run -e GH_TOKEN=workstation/GITHUB_TOKEN_MOOMOOSKYCOW -- gh auth status
+pass-env run -e GH_TOKEN=workstation/GITHUB_TOKEN_MOOMOOSKYCOW -- git push -u origin HEAD
+pass-env run -e GH_TOKEN=workstation/GITHUB_TOKEN_MOOMOOSKYCOW -- gh pr create --fill
 ```
 
 Mappings are literal `NAME=pass/entry`, not values or shell expressions.
