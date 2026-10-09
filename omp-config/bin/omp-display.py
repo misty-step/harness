@@ -3,11 +3,13 @@
 """Private engineer display/process/network namespace; no host desktop broker."""
 
 import fcntl
+import http.client
 import json
 import os
 from pathlib import Path
 import pwd
 import selectors
+import re
 import signal
 import socket
 import stat
@@ -148,6 +150,80 @@ class HerdrBridge:
         self.thread.join(timeout=3)
 
 
+class GlassNoteBridge(HerdrBridge):
+    """Append-only transport to Glass's existing writer; never opens a store."""
+
+    def __init__(self, destination, upstream):
+        super().__init__(destination, upstream, None)
+        destination.chmod(0o600)
+
+    def serve(self):
+        while not self.stopped.is_set():
+            try:
+                connection, _ = self.server.accept()
+            except socket.timeout:
+                continue
+            except OSError:
+                return
+            with connection:
+                connection.settimeout(5)
+                try:
+                    peer = connection.getsockopt(socket.SOL_SOCKET, socket.SO_PEERCRED, 12)
+                    if struct.unpack("3i", peer)[1] != os.getuid():
+                        raise DisplayError("Wrong Glass note bridge peer")
+                    request = json.loads(self.line(connection))
+                    if (not isinstance(request, dict) or set(request) != {"item", "text"}
+                            or not isinstance(request["item"], str)
+                            or not re.fullmatch(r"K-[A-Za-z0-9-]{1,197}", request["item"])
+                            or not isinstance(request["text"], str)
+                            or not request["text"].strip() or len(request["text"]) > 2000):
+                        raise DisplayError("Glass note route requires an exact item ID and append text only")
+                    info = self.upstream.lstat()
+                    if (not stat.S_ISSOCK(info.st_mode) or info.st_uid != os.getuid()
+                            or stat.S_IMODE(info.st_mode) != 0o600):
+                        raise DisplayError("Glass writer requires a UID-owned socket with mode 0600")
+                    with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as writer:
+                        writer.settimeout(4)
+                        writer.connect(str(self.upstream))
+                        peer = writer.getsockopt(socket.SOL_SOCKET, socket.SO_PEERCRED, 12)
+                        if struct.unpack("3i", peer)[1] != os.getuid():
+                            raise DisplayError("Wrong Glass writer peer")
+                        transport = http.client.HTTPConnection("localhost", timeout=4)
+                        transport.sock = writer
+                        body = json.dumps({"notes_append": request["text"], "relaying": "none",
+                                           "caller": "omp-display append-note"}).encode()
+                        transport.request("PATCH", "/v1/items/" + request["item"], body,
+                                          {"Content-Type": "application/json", "Connection": "close"})
+                        response = transport.getresponse()
+                        raw = response.read(8 * 1024 * 1024 + 1)
+                        if len(raw) > 8 * 1024 * 1024:
+                            raise DisplayError("Glass writer response exceeds its bound")
+                        reply = {"status": response.status, "body": json.loads(raw)}
+                except (OSError, ValueError, RecursionError, DisplayError, http.client.HTTPException) as exc:
+                    # A transport failure may follow a committed append. Never retry.
+                    reply = {"status": 503, "body": {
+                             "error": f"Glass note route failed; read the item before retrying: {exc}"}}
+                try:
+                    connection.sendall(json.dumps(reply).encode() + b"\n")
+                except OSError:
+                    pass
+
+
+def append_note(item):
+    """Read one note from stdin and print the existing writer's receipt."""
+    text = sys.stdin.read(MAX_REQUEST + 1)
+    request = json.dumps({"item": item, "text": text}).encode() + b"\n"
+    if len(request) > MAX_REQUEST:
+        raise DisplayError("Glass note request exceeds its bound")
+    with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as connection:
+        connection.settimeout(10)
+        connection.connect(f"/run/user/{os.getuid()}/glass-note.sock")
+        connection.sendall(request)
+        reply = json.loads(HerdrBridge.line(connection, 8 * 1024 * 1024))
+    print(json.dumps(reply["body"]))
+    return 0 if 200 <= reply["status"] < 300 else 1
+
+
 class GpgBridge(HerdrBridge):
     """Cached decrypt/sign only; every agent connection forbids pinentry."""
 
@@ -239,7 +315,7 @@ class GpgBridge(HerdrBridge):
                         pass
 
 
-def mounts(home, dns, private_tmp, bridge=None, upstream=None, gpg=None):
+def mounts(home, dns, private_tmp, bridge=None, upstream=None, gpg=None, glass=None):
     uid = os.getuid()
     runtime = Path(f"/run/user/{uid}")
     args = ["--ro-bind", "/", "/", "--bind", str(home), str(home),
@@ -269,6 +345,8 @@ def mounts(home, dns, private_tmp, bridge=None, upstream=None, gpg=None):
             args.extend(["--ro-bind", str(path), str(path)])
     if gpg is not None:
         args.extend(["--ro-bind", str(gpg), str(runtime / "gnupg/S.gpg-agent")])
+    if glass is not None:
+        args.extend(["--ro-bind", str(glass), str(runtime / "glass-note.sock")])
     if bridge is not None:
         args.extend(["--ro-bind", str(bridge), str(upstream)])
     return args
@@ -333,7 +411,7 @@ def namespace(command):
     home = Path(pwd.getpwuid(os.getuid()).pw_dir)
     scratch = home / ".cache/tmp"
     scratch.mkdir(parents=True, exist_ok=True)
-    child = network = bridge = gpg_bridge = None
+    child = network = bridge = gpg_bridge = glass_bridge = None
     fds = []
     with tempfile.TemporaryDirectory(prefix="omp-display-", dir=scratch) as directory:
         base = Path(directory)
@@ -355,6 +433,8 @@ def namespace(command):
             endpoint = None
         try:
             gpg_upstream = Path(f"/run/user/{os.getuid()}/gnupg/S.gpg-agent")
+            glass_endpoint = base / "glass-note.sock"
+            glass_bridge = GlassNoteBridge(glass_endpoint, Path(f"/run/user/{os.getuid()}/glass.sock"))
             gpg_endpoint = None
             if gpg_upstream.exists():
                 gpg_endpoint = base / "gpg.sock"
@@ -369,7 +449,8 @@ def namespace(command):
             # Bootstrap inside the fence with the system interpreter instead.
             args = [BWRAP, "--unshare-user", "--unshare-pid", "--unshare-ipc", "--unshare-net",
                     "--die-with-parent", "--cap-drop", "ALL", "--info-fd", str(info_write),
-                    "--block-fd", str(gate_read), *mounts(home, dns, private_tmp, endpoint, upstream, gpg_endpoint),
+                    "--block-fd", str(gate_read), *mounts(home, dns, private_tmp, endpoint, upstream,
+                                                       gpg_endpoint, glass_endpoint),
                     "--", "/usr/bin/python3", str(Path(__file__).resolve()), "--_exec", *command]
             # bwrap's monitor must survive foreground/caller signals so the real
             # command can flush and stop gracefully instead of receiving SIGKILL.
@@ -452,6 +533,8 @@ def namespace(command):
                 bridge.close()
             if gpg_bridge is not None:
                 gpg_bridge.close()
+            if glass_bridge is not None:
+                glass_bridge.close()
 
 
 def execute(command):
@@ -475,13 +558,16 @@ def execute(command):
 
 
 def main(argv):
+    if len(argv) == 2 and argv[0] == "append-note":
+        return append_note(argv[1])
     if argv[:1] == ["--_bwrap"]:
         signal.pthread_sigmask(signal.SIG_BLOCK, CONTROL_SIGNALS)
         os.execv(BWRAP, [BWRAP, *argv[1:]])
     if argv[:1] == ["--_exec"]:
         return execute(argv[1:])
     if argv in (["--help"], ["-h"]):
-        print("Usage: omp-display -- COMMAND...\nKernel-enforced engineer display isolation; no host fallback.")
+        print("Usage: omp-display -- COMMAND...\n       omp-display append-note ITEM < NOTE\n"
+              "Kernel-enforced engineer display isolation; append-only Glass route; no host fallback.")
         return 0
     if argv[:1] != ["--"]:
         raise DisplayError("Usage: omp-display -- COMMAND...")

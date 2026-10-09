@@ -130,6 +130,31 @@ screenshot/input commands together on a private Xvfb display. Inspect saved
 images before choosing coordinates. Never reconnect host display sockets or
 browser/debug endpoints. Headless browser QA uses the native browser tool.
 
+### Canonical Glass evidence notes
+
+Fresh cages expose an append-only `glass-note.sock` bridge to the existing host
+`glass.sock` writer. Append to an exact existing item with:
+
+```sh
+omp-display append-note K-YYYYMMDD-item-slug < evidence-note.txt
+glass query item K-YYYYMMDD-item-slug --json
+```
+
+The bridge submits only `notes_append`, with a fixed audit caller. Glass owns
+the transaction, note limit and receipt; earlier notes are never replaced.
+Creation, title matching, status/rank changes and raw store access are not
+granted. The writer must be a same-UID Unix socket with mode 0600. Missing,
+invalid or failed writers return an error without a local-store fallback or
+automatic retry; read the canonical item before retrying an uncertain append.
+`glass item update` remains a direct-store host command, not a cage write route.
+
+After reviewed source lands, install with `OMP_INSTALL_COMPONENTS=cli ./install`
+from `omp-config/` on the host. This stages the owned CLI without changing
+memory units, the retained native OMP executable or running engineers.
+Existing cages retain their mount namespace; have the commission owner arrange
+a fresh/exact-session-resumed cage and verify its real append with host readback.
+Disposable-store checks prove the adapter, not live installation or live writes.
+
 ## Audited host installation (US-052)
 
 `omp-host-install` submits only `capabilities`, `install`, `readback` and `rollback`

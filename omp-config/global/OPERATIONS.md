@@ -19,6 +19,12 @@ Use the project's existing work authority and resolve the existing record before
 updating it. Keep R90 context in R90's tools. Parlor's skill is repository-imported
 and Parlor-owned.
 
+Caged engineers append evidence to an existing canonical Glass item with
+`omp-display append-note K-YYYYMMDD-item-slug < evidence-note.txt`, then
+`glass query item K-YYYYMMDD-item-slug --json` for readback. This is append-only;
+`glass item update` writes a direct local store and is not the cage route.
+On an uncertain response, read before retrying: no automatic retry or fallback.
+
 Use descriptive branches and conventional commits. `Fixes` means the merge
 satisfies the referenced issue; partial work uses `Refs` or `Relates to`.
 
