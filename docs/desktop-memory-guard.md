@@ -163,8 +163,9 @@ explicit executable override remains the target behind the shim. Dedicated
 `app.path` browsers are not intercepted. Broker+Chromium, ML and JS-eval
 isolation require separate native spawn seams; JS eval's in-process startup
 fallback must be eliminated or bounded before claiming its fault isolation.
-Activation requires `/usr/bin/chromium`; native browser discovery/auto-download
-is not this workstation route. The private `~/.omp/run` mount is disk-backed
+Activation and CLI updates to an activated cage require `/usr/bin/chromium`;
+native browser discovery/auto-download is not this workstation route.
+The private `~/.omp/run` mount is disk-backed
 and removed with the namespace. Profiles and cache must not remain charged
 tmpfs after a helper scope empties and the next launch gets a fresh bound.
 

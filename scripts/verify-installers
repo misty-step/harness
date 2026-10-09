@@ -223,14 +223,20 @@ for consumer in pi omp; do
     chmod 700 "$home/.local/lib/omp-engineer/omp"
     ln -s omp-engineer "$home/.local/bin/omp"
     if env -i PATH="$PATH" RUSTC="$RUSTC" HOME="$home" TMPDIR="$work" PI_CODING_AGENT_DIR="$agent" \
-      OMP_INSTALL_COMPONENTS=cli \
-      "$work/source/omp-config/install" >"$work/omp-stage.log" 2>&1 \
+      OMP_INSTALL_COMPONENTS=cli "$work/source/omp-config/install" >"$work/omp-stage.log" 2>&1; then
+      stage_status=0
+    else
+      stage_status=$?
+    fi
+    expected_stage_status=0
+    [ -x /usr/bin/chromium ] || expected_stage_status=1
+    if [ "$stage_status" -eq "$expected_stage_status" ] \
       && cmp -s "$work/expected-active-unit" "$home/.config/systemd/user/omp.slice" \
       && [ "$(readlink "$home/.local/bin/omp")" = omp-engineer ] \
       && cmp -s "$work/expected-native" "$home/.local/lib/omp-engineer/omp"; then
-      printf 'PASS omp CLI staging preserves an existing cage layout and parent policy\n'
+      printf 'PASS omp CLI stages with browser prerequisites or refuses, preserving existing cage policy\n'
     else
-      printf 'FAIL omp CLI staging mutated an existing cage layout or parent policy\n' >&2
+      printf 'FAIL omp CLI staging prerequisite or existing cage policy\n' >&2
       cat "$work/omp-stage.log" >&2
       failures=$((failures + 1))
     fi

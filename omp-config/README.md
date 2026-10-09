@@ -47,8 +47,8 @@ sessions. Available targeted components are `config`, `guidance`, `mcp`,
 Compiling it requires Rust 1.85+ and Linux's `libsystemd.so.0`; `RUSTC` may name
 an absolute compiler. The live scope-registration path requires systemd's
 `PIDFDs` transient property and the kernel's `SO_PEERPIDFD`, failing closed when
-either is unavailable. Cage activation also requires `/usr/bin/chromium`;
-this bounded workstation route does not invoke native browser auto-download.
+either is unavailable. Cage activation and CLI updates to an activated cage
+require `/usr/bin/chromium`; this route does not invoke native browser auto-download.
 
 OMP uses `$PI_CODING_AGENT_DIR` when set, otherwise `$(omp config path)`.
 Shared helpers and safety entrypoints deploy to `$HOME/.local/bin`. Foreign
