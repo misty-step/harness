@@ -1,3 +1,17 @@
+# [0.2.1](https://github.com/misty-step/harness/compare/v0.2.0...v0.2.1) (2026-10-09)
+<!-- landmark:protected-release previous=v0.2.0 source=bc4b344eabab373ecc14ed46c5a394c4661f1837b0a36f52b4bbe18669e315a3 -->
+
+### Features
+
+* **video:** screen, fit and listen before film music ships (#254) ([aea379b](https://github.com/misty-step/harness/commit/aea379b35d56dfcef899e8ac8cb714bf76720ccd))
+* **video:** brief the job, prompt each model its way, fit music to the cuts (#255) ([4f0b168](https://github.com/misty-step/harness/commit/4f0b168c34f0ce694890cc002bd3096d957cb655))
+* **harness:** sync portable preferences and native OpenAI logins (#261) ([17f36d3](https://github.com/misty-step/harness/commit/17f36d399ab79fc419b8cc46725d7dc830325095))
+
+### Bug Fixes
+
+* **skills:** name Phaedrus's GitHub token for what it is (#256) ([bb3af18](https://github.com/misty-step/harness/commit/bb3af186e90772bacd20536a0bfd48501b3923e4))
+* **omp:** no engineer launch requires one account; drop the r90.dev pin (#257) ([b00a655](https://github.com/misty-step/harness/commit/b00a65531b23bcf8968336bf3d80baf7ef96b75a))
+* **omp:** route cage evidence notes through canonical Glass writer (#260) ([911c950](https://github.com/misty-step/harness/commit/911c950d76717026475a2dfd1df5117f4645208a))
 # [0.2.0](https://github.com/misty-step/harness/compare/v0.1.79...v0.2.0) (2026-10-06)
 <!-- landmark:protected-release previous=v0.1.79 source=337965cb6979ab0a438b9b1b6c056be7de762b29a905f86a409290dbc0c6ab9c -->
 
