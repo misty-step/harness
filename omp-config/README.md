@@ -177,8 +177,10 @@ changed extension behavior also require a fresh-session smoke.
 
 Portable defaults use the bundled Everforest themes. The installer overlays
 `~/.config/harness/omp.yml` (override: `OMP_CONFIG_LOCAL_CONFIG`) after shared
-config. On an Omarchy host set `theme.dark` and `theme.light` to
-`omarchy-system` there. Account email policies belong in this local file.
+config. When `themes/omarchy-system.json` is already installed, configuration
+selects that generated palette for both backgrounds (US-017), without modifying
+it. Explicit local theme preferences take precedence. Account email policies
+belong in this local file.
 Use native skill path settings or locally owned skill symlinks for OS/host-specific
 packages; installers preserve unmanaged skills. Keep these local files outside
 Git and credentials in native runtime storage. Missing overlays are optional;

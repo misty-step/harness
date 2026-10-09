@@ -26,7 +26,8 @@ workstation helpers; a local mapping does not activate services or install skill
 
 ## Consequences
 
-Omarchy hosts explicitly select their generated theme locally. OMP no longer
-assumes a particular account email exists. The merger retires only the exact
+OMP automatically selects an installed generated Omarchy palette for both
+backgrounds (US-017); explicit local theme preferences still win. Pi hosts select
+their generated theme locally. OMP no longer assumes a particular account email exists. The merger retires only the exact
 former source-owned account pins, preserving foreign and locally declared policies.
 Harness-specific config formats and merge implementations remain with consumers.
