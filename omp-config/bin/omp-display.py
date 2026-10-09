@@ -133,9 +133,14 @@ class HerdrBridge:
                         pass
 
     @staticmethod
-    def line(connection, limit=MAX_REQUEST):
+    def line(connection, limit=MAX_REQUEST, *, deadline=None):
         data = bytearray()
         while len(data) <= limit:
+            if deadline is not None:
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    raise socket.timeout("Bridge message deadline exceeded")
+                connection.settimeout(remaining)
             block = connection.recv(min(65536, limit + 1 - len(data)))
             if not block:
                 raise DisplayError("Incomplete Herdr bridge message")
@@ -171,7 +176,7 @@ class GlassNoteBridge(HerdrBridge):
                     peer = connection.getsockopt(socket.SOL_SOCKET, socket.SO_PEERCRED, 12)
                     if struct.unpack("3i", peer)[1] != os.getuid():
                         raise DisplayError("Wrong Glass note bridge peer")
-                    request = json.loads(self.line(connection))
+                    request = json.loads(self.line(connection, deadline=time.monotonic() + 5))
                     if (not isinstance(request, dict) or set(request) != {"item", "text"}
                             or not isinstance(request["item"], str)
                             or not re.fullmatch(r"K-[A-Za-z0-9-]{1,197}", request["item"])
@@ -219,7 +224,8 @@ def append_note(item):
         connection.settimeout(10)
         connection.connect(f"/run/user/{os.getuid()}/glass-note.sock")
         connection.sendall(request)
-        reply = json.loads(HerdrBridge.line(connection, 8 * 1024 * 1024))
+        reply = json.loads(HerdrBridge.line(connection, 8 * 1024 * 1024,
+                                            deadline=time.monotonic() + 10))
     print(json.dumps(reply["body"]))
     return 0 if 200 <= reply["status"] < 300 else 1
 

@@ -13,6 +13,7 @@ import subprocess
 import sys
 import tempfile
 import threading
+import time
 import unittest
 from unittest.mock import patch
 
@@ -180,6 +181,26 @@ class GlassNoteAuthorityTests(unittest.TestCase):
                             writer.accept()
             finally:
                 bridge.close()
+
+    def test_trickled_frame_cannot_extend_the_complete_request_deadline(self):
+        reader, sender = socket.socketpair()
+        def trickle():
+            try:
+                for part in (b"{", b" ", b" ", b"}", b"\n"):
+                    time.sleep(0.1)
+                    sender.sendall(part)
+            except OSError:
+                pass
+        thread = threading.Thread(target=trickle)
+        thread.start()
+        try:
+            reader.settimeout(0.2)
+            with self.assertRaises(socket.timeout):
+                display.HerdrBridge.line(reader, deadline=time.monotonic() + 0.2)
+        finally:
+            reader.close()
+            thread.join(timeout=2)
+            sender.close()
 
 
 class GpgAuthorityTests(unittest.TestCase):
