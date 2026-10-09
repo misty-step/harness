@@ -13,6 +13,7 @@ import subprocess
 import sys
 import tempfile
 import threading
+import time
 import unittest
 from unittest.mock import patch
 
@@ -109,6 +110,97 @@ class HerdrAuthorityTests(unittest.TestCase):
             finally:
                 bridge.close()
                 upstream.close()
+
+
+class GlassNoteAuthorityTests(unittest.TestCase):
+    def exchange(self, endpoint, request):
+        with socket.socket(socket.AF_UNIX) as client:
+            client.settimeout(2)
+            client.connect(str(endpoint))
+            client.sendall(json.dumps(request).encode() + b"\n")
+            return json.loads(display.HerdrBridge.line(client))
+
+    def test_replacement_creation_and_other_field_authority_never_reach_writer(self):
+        with tempfile.TemporaryDirectory() as directory, socket.socket(socket.AF_UNIX) as writer:
+            root = Path(directory)
+            upstream, endpoint = root / "writer.sock", root / "note.sock"
+            writer.bind(str(upstream))
+            upstream.chmod(0o600)
+            writer.listen(1)
+            writer.settimeout(0.05)
+            bridge = display.GlassNoteBridge(endpoint, upstream)
+            try:
+                valid = {"item": "K-20261008-existing-item", "text": "Evidence"}
+                requests = [
+                    {**valid, field: value} for field, value in (
+                        ("notes", "replace"), ("status", "done"), ("rank", 1),
+                        ("title", "shadow"), ("caller", "Kaylee"), ("relaying", "Phaedrus"),
+                        ("store", "/private/board.db"), ("method", "POST"),
+                    )
+                ] + [
+                    {**valid, "item": "words from a title"},
+                    {**valid, "item": "K-existing/review"},
+                    {**valid, "text": ""},
+                    {**valid, "text": "x" * 2001},
+                ]
+                for request in requests:
+                    with self.subTest(request=request):
+                        result = self.exchange(endpoint, request)
+                        self.assertEqual(result["status"], 503)
+                        with self.assertRaises(socket.timeout):
+                            writer.accept()
+            finally:
+                bridge.close()
+
+    def test_nonowned_endpoint_shapes_fail_without_fallback(self):
+        with tempfile.TemporaryDirectory() as directory, socket.socket(socket.AF_UNIX) as writer:
+            root = Path(directory)
+            real, upstream, endpoint = root / "real.sock", root / "writer.sock", root / "note.sock"
+            writer.bind(str(real))
+            real.chmod(0o600)
+            writer.listen(1)
+            writer.settimeout(0.05)
+            bridge = display.GlassNoteBridge(endpoint, upstream)
+            try:
+                request = {"item": "K-20261008-existing-item", "text": "Evidence"}
+                for shape in ("missing", "regular", "symlink", "wrong_mode"):
+                    with self.subTest(shape=shape):
+                        if upstream.exists() or upstream.is_symlink():
+                            upstream.unlink()
+                        if shape == "regular":
+                            upstream.write_text("not a socket")
+                        elif shape == "symlink":
+                            upstream.symlink_to(real)
+                        elif shape == "wrong_mode":
+                            os.link(real, upstream)
+                            upstream.chmod(0o660)
+                        result = self.exchange(endpoint, request)
+                        self.assertEqual(result["status"], 503)
+                        self.assertNotIn("changed", result["body"])
+                        with self.assertRaises(socket.timeout):
+                            writer.accept()
+            finally:
+                bridge.close()
+
+    def test_trickled_frame_cannot_extend_the_complete_request_deadline(self):
+        reader, sender = socket.socketpair()
+        def trickle():
+            try:
+                for part in (b"{", b" ", b" ", b"}", b"\n"):
+                    time.sleep(0.1)
+                    sender.sendall(part)
+            except OSError:
+                pass
+        thread = threading.Thread(target=trickle)
+        thread.start()
+        try:
+            reader.settimeout(0.2)
+            with self.assertRaises(socket.timeout):
+                display.HerdrBridge.line(reader, deadline=time.monotonic() + 0.2)
+        finally:
+            reader.close()
+            thread.join(timeout=2)
+            sender.close()
 
 
 class GpgAuthorityTests(unittest.TestCase):
