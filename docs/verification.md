@@ -3,8 +3,10 @@
 Canonical checks: `./scripts/verify [all|shared|pi|omp|workspace]` from any cwd.
 `./scripts/check` is the fixed entry point (ADR-004): it runs the same command
 with the same arguments, and CI invokes it.
-Requires Git, Bun >=1.4.2, jq, a POSIX shell, and Python 3 for root scanner and shared gallery checks. No bootstrap, provider credentials,
-or installed harness is needed. Unit suites read working files; the installer
+Requires Git, Bun >=1.4.2, jq, a POSIX shell, Python 3 and Rust 1.85+.
+The Chromium shim links Linux's `libsystemd.so.0` without a Cargo dependency.
+Unit and installer checks need no bootstrap, provider credentials or installed
+harness. Unit suites read working files; the installer
 check deliberately clones committed HEAD. Commit installer changes before using
 that evidence. Both source identity and dirty-tree status are reported.
 
@@ -97,6 +99,13 @@ until their work completes; source retirement is not permission to remove them.
   claim of physically exhausting the host.
   Keep process/session evidence private and never kill a working engineer to
   repeat it.
+- `omp-config/bin/omp-browser-helper.rs` rejects malformed permission, foreign
+  or unchanged leaf placement and weakened controls. The display suite executes
+  the actual shim in private namespaces to prove denied/stale permission cannot
+  execute its target and a blocked launch can be cancelled. These gate journeys
+  require an actual caged caller; uncaged CI reports them skipped. They are not
+  Chromium-use or OOM-survival proof. Real host proof follows the
+  [helper boundary runbook](desktop-memory-guard.md#chromium-helper-boundary--k-20261007-increment).
 - Reviewer-family acceptance (US-014; operator rule 2026-09-30) uses a
   real OMP process with a network-disabled synthetic provider. Preserve the
   JSONL transcript, provider attempts and active child config readback.

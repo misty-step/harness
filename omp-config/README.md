@@ -19,6 +19,7 @@ through `../agent-config/install`; `AGENT_CONFIG_DIR` can override that source.
 | `bin/omp-secrets-policy.ts`, `secrets.yml` | Source-owned credential masking configuration |
 | `bin/omp-engineer.py`, `bin/omp-display.py`, `bin/omp-gui.py` | Memory/display isolation and private native GUI execution |
 | `bin/omp-host-install.py` | Typed Workbench host-install client, not a host shell |
+| `bin/omp-browser-helper.rs` | Pre-exec Chromium gate and immutable-pidfd systemd scope registration |
 | `bin/omp-task-usage.ts` | Explicit whole-task cost analysis; not a launcher or scheduler |
 | `references/` | On-demand workstation runbooks |
 
@@ -38,11 +39,15 @@ OMP_INSTALL_COMPONENTS=skill:story-qa ./install
 The component installer accepts no positional arguments, including `--check`.
 Use [root verification](../docs/verification.md), not live deployment, to check a
 change. `all` selects owned configuration, guidance, MCP, engineering skills,
-agents, themes, extensions, audio isolation and the four workstation safety
-helpers. It stages safety code without activating the engineer cage or restarting
-running sessions. Available targeted components are `config`, `guidance`, `mcp`,
+agents, themes, extensions, audio isolation and workstation safety helpers.
+It stages safety code without activating the engineer cage or restarting running
+sessions. Available targeted components are `config`, `guidance`, `mcp`,
 `agents`, `extensions`, `secrets`, `audio-sandbox`, `cli`, `engineer-cage`, and
-`skill:NAME`. `cli` now means only the four safety helpers, not fleet management.
+`skill:NAME`. `cli` includes the Rust Chromium shim, not fleet management.
+Compiling it requires Rust 1.85+ and Linux's `libsystemd.so.0`; `RUSTC` may name
+an absolute compiler. The live scope-registration path requires systemd's
+`PIDFDs` transient property and the kernel's `SO_PEERPIDFD`, failing closed when
+either is unavailable.
 
 OMP uses `$PI_CODING_AGENT_DIR` when set, otherwise `$(omp config path)`.
 Shared helpers and safety entrypoints deploy to `$HOME/.local/bin`. Foreign
@@ -116,6 +121,17 @@ moves running PIDs or restarts the existing fleet. Native memory inspection is
 `omp-engineer memory --json`, not a ticket/fleet admission command. Each verified
 engineer leaf retains its independent memory boundary; capacity guidance warns
 rather than replacing native safety checks with a scheduler.
+
+New caged launches route ordinary native Chromium through a blocked shim into
+a separate sibling scope before exec. The owner and browser each retain the
+existing 4-GiB/zero-swap/group-OOM controls; this is not a 4-GiB combined ceiling
+or a fleet reservation. The native broker remains with the owner. PID,
+arguments, stdio, process group and private namespaces survive the handoff.
+Explicit `PUPPETEER_EXECUTABLE_PATH` is preserved as the real browser target;
+the default target is this workstation's `/usr/bin/chromium`. Dedicated
+`app.path` applications, broker/ML/JS-eval memory, and aggregate admission
+remain outside this increment. No failed admission falls back into the owner.
+
 
 The [desktop memory guard runbook](../docs/desktop-memory-guard.md) owns separate
 opt-in host activation, evidence and rollback. Do not activate either boundary

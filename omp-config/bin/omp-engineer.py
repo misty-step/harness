@@ -261,9 +261,10 @@ class Host:
         except OSError as exc:
             raise CageError(f"Cannot inspect {path}") from exc
 
-    def capture(self, argv):
+    def capture(self, argv, *, pass_fds=()):
         try:
-            result = subprocess.run(argv, capture_output=True, text=True, timeout=min(4, self.remaining()), check=False)
+            result = subprocess.run(argv, capture_output=True, text=True, timeout=min(4, self.remaining()),
+                                    pass_fds=pass_fds, check=False)
         except (OSError, subprocess.TimeoutExpired) as exc:
             raise CageError(f"{argv[0]} is unavailable or timed out") from exc
         if result.returncode:
@@ -601,7 +602,9 @@ def enter_scope(unit, address, argv):
             raise CageError("Native handoff was not admitted", 75)
     host.verify_registered(unit, os.getpid())
     command = display_command(native, argv)
-    os.execve(command[0], command, native_environment(argv, os.environ, native))
+    environment = native_environment(argv, os.environ, native).copy()
+    environment["OMP_ENGINEER_BROWSER_ISOLATION"] = "chromium-v1"
+    os.execve(command[0], command, environment)
 
 
 def start_scope(argv, runtime):
@@ -771,7 +774,9 @@ def launch(argv):
         if group != fleet + "/" + unit or SCOPE.fullmatch(unit) is None:
             raise CageError("Refusing nested OMP in an unverified cgroup")
         host.verify_registered(unit, os.getpid())
-        child = subprocess.Popen(display_command(native, argv), env=native_environment(argv, os.environ, native))
+        environment = native_environment(argv, os.environ, native).copy()
+        environment["OMP_ENGINEER_BROWSER_ISOLATION"] = "chromium-v1"
+        child = subprocess.Popen(display_command(native, argv), env=environment)
         with forward_signals(child):
             result = exit_status(child.wait())
     else:

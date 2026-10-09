@@ -2,6 +2,8 @@
 # owned by misty-step/harness omp-config engineer-display
 """Private engineer display/process/network namespace; no host desktop broker."""
 
+import importlib.util
+from importlib.machinery import SourceFileLoader
 import fcntl
 import json
 import os
@@ -10,6 +12,7 @@ import pwd
 import selectors
 import signal
 import socket
+import secrets
 import stat
 import struct
 import subprocess
@@ -239,7 +242,92 @@ class GpgBridge(HerdrBridge):
                         pass
 
 
-def mounts(home, dns, private_tmp, bridge=None, upstream=None, gpg=None):
+class BrowserBridge(HerdrBridge):
+    """Move only an authenticated, blocked Chromium shim; never execute host commands."""
+
+    def __init__(self, destination, helper):
+        source = Path(__file__).resolve().with_name("omp-engineer.py")
+        if not source.is_file():
+            source = source.with_name("omp-engineer")
+        loader = SourceFileLoader("browser_cage", str(source))
+        spec = importlib.util.spec_from_loader(loader.name, loader)
+        self.core = importlib.util.module_from_spec(spec)
+        loader.exec_module(self.core)
+        host = self.core.Host()
+        self.owner = host.current_group().rsplit("/", 1)[-1]
+        host.verify_registered(self.owner, os.getpid())
+        self.helper = helper
+        self.namespaces = None
+        self.core.private_directory(self.core.runtime_path())
+        super().__init__(destination, None, None)
+        os.chmod(destination, 0o600)
+
+    def serve(self):
+        while not self.stopped.is_set():
+            try:
+                connection, _ = self.server.accept()
+            except socket.timeout:
+                continue
+            except OSError:
+                return
+            descriptor = None
+            owned = False
+            admitted = False
+            with connection:
+                connection.settimeout(15)
+                try:
+                    pid, uid, _ = struct.unpack("3i", connection.getsockopt(socket.SOL_SOCKET, socket.SO_PEERCRED, 12))
+                    if uid != os.getuid() or self.namespaces is None:
+                        raise DisplayError("Unauthenticated browser handoff")
+                    # The kernel supplies the original peer identity. Numeric PID
+                    # admission could move an unrelated recycled PID on cancellation.
+                    descriptor = struct.unpack("i", connection.getsockopt(socket.SOL_SOCKET, 77, 4))[0]  # SO_PEERPIDFD
+                    if any(os.readlink(f"/proc/{pid}/ns/{name}") != value for name, value in self.namespaces.items()):
+                        raise DisplayError("Browser handoff is outside this private namespace")
+                    executable = os.stat(f"/proc/{pid}/exe")
+                    helper = self.helper.stat()
+                    if (executable.st_dev, executable.st_ino) != (helper.st_dev, helper.st_ino):
+                        raise DisplayError("Browser handoff is not the installed launch shim")
+                    host = self.core.Host(15)
+                    owner_path = host.root + "/omp.slice/" + self.owner
+                    if host.process_group(pid) != owner_path:
+                        raise DisplayError("Browser handoff is outside its owner leaf")
+                    owned = True
+                    if self.line(connection, limit=16) != b"CHROMIUM":
+                        raise DisplayError("Invalid browser handoff request")
+                    unit = "omp-engineer-" + secrets.token_hex(12) + ".scope"
+                    with self.core.admission_lock(self.core.runtime_path() / "admission.lock"):
+                        self.core.admission(host.snapshot())
+                        host.capture([str(self.helper), "--register", str(descriptor), unit,
+                                      self.owner, str(self.core.LEAF_BYTES)], pass_fds=(descriptor,))
+                        # The manager's method returns a job, not completed placement.
+                        while True:
+                            props = host.show(unit)
+                            if props["ActiveState"] == "active":
+                                break
+                            if props["ActiveState"] in ("failed", "inactive"):
+                                raise DisplayError("Browser helper registration did not become active")
+                            time.sleep(min(0.05, host.remaining()))
+                        host.verify_registered(unit, pid)
+                        connection.sendall(f"EXEC {unit} {self.core.LEAF_BYTES}\n".encode())
+                        admitted = True
+                except (OSError, ValueError, DisplayError, self.core.CageError) as exc:
+                    try:
+                        connection.sendall(b"ERR browser isolation admission failed\n")
+                    except OSError:
+                        pass
+                    print(f"omp-display: browser isolation: {exc}", file=sys.stderr)
+                finally:
+                    if descriptor is not None:
+                        if owned and not admitted:
+                            try:
+                                signal.pidfd_send_signal(descriptor, signal.SIGKILL)
+                            except ProcessLookupError:
+                                pass
+                        os.close(descriptor)
+
+
+def mounts(home, dns, private_tmp, bridge=None, upstream=None, gpg=None, browser=None):
     uid = os.getuid()
     runtime = Path(f"/run/user/{uid}")
     args = ["--ro-bind", "/", "/", "--bind", str(home), str(home),
@@ -271,6 +359,8 @@ def mounts(home, dns, private_tmp, bridge=None, upstream=None, gpg=None):
         args.extend(["--ro-bind", str(gpg), str(runtime / "gnupg/S.gpg-agent")])
     if bridge is not None:
         args.extend(["--ro-bind", str(bridge), str(upstream)])
+    if browser is not None:
+        args.extend(["--ro-bind", str(browser), str(runtime / "omp-browser-helper.sock")])
     return args
 
 
@@ -333,7 +423,7 @@ def namespace(command):
     home = Path(pwd.getpwuid(os.getuid()).pw_dir)
     scratch = home / ".cache/tmp"
     scratch.mkdir(parents=True, exist_ok=True)
-    child = network = bridge = gpg_bridge = None
+    child = network = bridge = gpg_bridge = browser_bridge = None
     fds = []
     with tempfile.TemporaryDirectory(prefix="omp-display-", dir=scratch) as directory:
         base = Path(directory)
@@ -359,6 +449,16 @@ def namespace(command):
             if gpg_upstream.exists():
                 gpg_endpoint = base / "gpg.sock"
                 gpg_bridge = GpgBridge(gpg_endpoint, gpg_upstream, None)
+            browser_endpoint = None
+            environment = clean_environment(os.environ)
+            if environment.get("OMP_ENGINEER_BROWSER_ISOLATION") == "chromium-v1":
+                helper = Path(__file__).resolve().with_name("omp-browser-helper")
+                if not helper.is_file() or not os.access(helper, os.X_OK):
+                    raise DisplayError("Chromium isolation shim is not installed")
+                browser_endpoint = base / "browser.sock"
+                browser_bridge = BrowserBridge(browser_endpoint, helper)
+                environment["OMP_CHROMIUM_EXECUTABLE"] = environment.get("PUPPETEER_EXECUTABLE_PATH") or "/usr/bin/chromium"
+                environment["PUPPETEER_EXECUTABLE_PATH"] = str(helper)
             info_read, info_write = os.pipe()
             gate_read, gate_write = os.pipe()
             ready_read, ready_write = os.pipe()
@@ -369,12 +469,12 @@ def namespace(command):
             # Bootstrap inside the fence with the system interpreter instead.
             args = [BWRAP, "--unshare-user", "--unshare-pid", "--unshare-ipc", "--unshare-net",
                     "--die-with-parent", "--cap-drop", "ALL", "--info-fd", str(info_write),
-                    "--block-fd", str(gate_read), *mounts(home, dns, private_tmp, endpoint, upstream, gpg_endpoint),
+                    "--block-fd", str(gate_read), *mounts(home, dns, private_tmp, endpoint, upstream, gpg_endpoint, browser_endpoint),
                     "--", "/usr/bin/python3", str(Path(__file__).resolve()), "--_exec", *command]
             # bwrap's monitor must survive foreground/caller signals so the real
             # command can flush and stop gracefully instead of receiving SIGKILL.
             child = subprocess.Popen([sys.executable, str(Path(__file__).resolve()), "--_bwrap", *args[1:]],
-                                     env=clean_environment(os.environ), pass_fds=(info_write, gate_read))
+                                     env=environment, pass_fds=(info_write, gate_read))
             os.close(info_write)
             fds.remove(info_write)
             status = setup_status(info_read, child)
@@ -384,6 +484,8 @@ def namespace(command):
             if type(pid) is not int or pid <= 0:
                 raise DisplayError("Invalid bubblewrap namespace identity")
             private_pid_namespace = os.readlink(f"/proc/{pid}/ns/pid")
+            if browser_bridge is not None:
+                browser_bridge.namespaces = {name: os.readlink(f"/proc/{pid}/ns/{name}") for name in ("pid", "mnt", "net")}
             # --dev can make bwrap enter a second user namespace for devpts.
             # The network still belongs to the first: joining the command's
             # final user namespace would lose permission to configure it.
@@ -452,6 +554,8 @@ def namespace(command):
                 bridge.close()
             if gpg_bridge is not None:
                 gpg_bridge.close()
+            if browser_bridge is not None:
+                browser_bridge.close()
 
 
 def execute(command):
