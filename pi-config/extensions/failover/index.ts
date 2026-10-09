@@ -43,7 +43,7 @@ const CHAIN = [
  * Sol 6.1 and Astra; xAI any model; OpenRouter any model except
  * Anthropic's, which it bills as paid API tokens.
  */
-const CODEX_PROVIDER = /^(openai-pool|openai-codex(-[2-4])?)$/;
+const CODEX_PROVIDER = /^(openai-pool|openai(-[2-4])?|openai-codex(-[2-4])?)$/;
 const CODEX_MODELS = ["gpt-6.1-sol", "gpt-6-astra"];
 const XAI_PROVIDER = /^(xai-pool|xai(-2)?)$/;
 const OPENROUTER_PROVIDER = /^(openrouter-pool|openrouter(-2)?)$/;

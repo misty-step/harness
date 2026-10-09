@@ -34,3 +34,22 @@ test("deployment repairs recovery disables and retires owned Luna pins without e
 		rmSync(root, { recursive: true, force: true });
 	}
 });
+
+test("machine overlay overrides defaults, preserves runtime keys, and validates before writes", () => {
+ const root = mkdtempSync(join(tmpdir(), "pi-local-settings-"));
+ try {
+  const source = join(root, "source.json"), dest = join(root, "settings.json"), local = join(root, "local.json");
+  writeFileSync(source, '{"theme":"system"}');
+  writeFileSync(dest, '{"foreign":true}');
+  writeFileSync(local, '{"theme":"omarchy-system","skills":["/host/skills"]}');
+  const cmd = [process.execPath, join(import.meta.dir, "pi-merge-settings.ts"), "--source", source, "--dest", dest, "--local", local];
+  expect(Bun.spawnSync([...cmd, "--check"]).exitCode).toBe(0);
+  expect(readFileSync(dest, "utf8")).toBe('{"foreign":true}');
+  expect(Bun.spawnSync(cmd).exitCode).toBe(0);
+  expect(JSON.parse(readFileSync(dest, "utf8"))).toEqual({theme:"omarchy-system",skills:["/host/skills"],foreign:true});
+  const before = readFileSync(dest, "utf8");
+  writeFileSync(local, '{broken');
+  expect(Bun.spawnSync([...cmd, "--check"]).exitCode).not.toBe(0);
+  expect(readFileSync(dest, "utf8")).toBe(before);
+ } finally { rmSync(root, {recursive:true,force:true}); }
+});

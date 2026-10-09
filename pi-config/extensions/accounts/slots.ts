@@ -2,6 +2,9 @@ import type { Provider } from "@earendil-works/pi-ai";
 
 /** Extra account slots: slot id → built-in provider it clones. */
 export const SLOTS: Readonly<Record<string, string>> = {
+	"openai-2": "openai",
+	"openai-3": "openai",
+	"openai-4": "openai",
 	"openai-codex-2": "openai-codex",
 	"openai-codex-3": "openai-codex",
 	"openai-codex-4": "openai-codex",
@@ -18,7 +21,8 @@ export const POOLS: Readonly<Record<string, string>> = {
 
 /** The base provider then its slots: every account of a pool, in order. */
 export function poolMembers(baseId: string): string[] {
-	return [baseId, ...Object.keys(SLOTS).filter((slot) => SLOTS[slot] === baseId)];
+	const bases = baseId === "openai-codex" ? ["openai", baseId] : [baseId];
+	return bases.flatMap((base) => [base, ...Object.keys(SLOTS).filter((slot) => SLOTS[slot] === base)]);
 }
 
 /**

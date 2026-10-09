@@ -1,5 +1,5 @@
 {
-  "theme": "omarchy-system",
+  "theme": "system",
   "defaultProvider": "openai-pool",
   "defaultModel": "gpt-6.1-sol",
   "modelThinkingLevels": {

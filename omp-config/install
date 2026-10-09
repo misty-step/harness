@@ -5,6 +5,7 @@ umask 077
 repo_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 agent_dir=${PI_CODING_AGENT_DIR:-$(omp config path)}
 base_dir=${AGENT_CONFIG_DIR:-$repo_dir/../agent-config}
+local_config=${OMP_CONFIG_LOCAL_CONFIG:-$HOME/.config/harness/omp.yml}
 
 # No arguments: selection is by environment, and repository hooks are owned by
 # the monorepo root (scripts/bootstrap), not by this installer.
@@ -71,7 +72,7 @@ validate_config() {
   require_bun
   require_nonempty "$repo_dir/config.yml"
   require_nonempty "$repo_dir/models.yml"
-  bun "$repo_dir/bin/omp-merge-config.ts" --source "$repo_dir/config.yml" --dest "$agent_dir/config.yml" --check
+  bun "$repo_dir/bin/omp-merge-config.ts" --source "$repo_dir/config.yml" --local "$local_config" --dest "$agent_dir/config.yml" --check
   bun "$repo_dir/bin/omp-merge-config.ts" --source "$repo_dir/models.yml" --dest "$agent_dir/models.yml" --check
   # Validate the effective overlay before touching live config, including
   # foreign model roles and chains that the installer preserves.
@@ -82,7 +83,7 @@ validate_config() {
     if [ -f "$agent_dir/config.yml" ]; then
       cp "$agent_dir/config.yml" "$candidate/config.yml"
     fi
-    bun "$repo_dir/bin/omp-merge-config.ts" --source "$repo_dir/config.yml" --dest "$candidate/config.yml"
+    bun "$repo_dir/bin/omp-merge-config.ts" --source "$repo_dir/config.yml" --local "$local_config" --dest "$candidate/config.yml"
     case ${OMP_MODEL_PROBE-0} in
       0) bun "$repo_dir/bin/omp-model-policy.ts" --config "$candidate/config.yml" ;;
       1) bun "$repo_dir/bin/omp-model-policy.ts" --config "$candidate/config.yml" --probe ;;
@@ -97,7 +98,7 @@ validate_config() {
 
 install_config() {
   install -d -m 700 "$agent_dir"
-  bun "$repo_dir/bin/omp-merge-config.ts" --source "$repo_dir/config.yml" --dest "$agent_dir/config.yml"
+  bun "$repo_dir/bin/omp-merge-config.ts" --source "$repo_dir/config.yml" --local "$local_config" --dest "$agent_dir/config.yml"
   bun "$repo_dir/bin/omp-merge-config.ts" --source "$repo_dir/models.yml" --dest "$agent_dir/models.yml"
   run_shared --bin openrouter-key.ts
   bun "$repo_dir/bin/omp-secrets-policy.ts" --source "$repo_dir/secrets.yml" --dest "$agent_dir/secrets.yml"

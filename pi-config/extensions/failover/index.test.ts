@@ -28,6 +28,8 @@ test("US-014 refuses unapproved prompts and summaries while preserving approved 
 		expect(handlers.input({ text: "x", source: "interactive" }, ctx)).toEqual({ action: "handled" });
 	}
 	for (const model of [
+		{ provider: "openai", id: "gpt-6.1-sol" },
+		{ provider: "openai-2", id: "gpt-6.1-sol" },
 		{ provider: "openai-pool", id: "gpt-6.1-sol" },
 		{ provider: "xai-pool", id: "grok-4.7" },
 		{ provider: "openrouter-pool", id: "~openai/gpt-astra-latest" },

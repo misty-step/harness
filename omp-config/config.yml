@@ -17,8 +17,8 @@ find:
 cycleOrder: [smol, default, extreme]
 symbolPreset: nerd
 theme:
-  dark: omarchy-system
-  light: omarchy-system
+  dark: everforest
+  light: everforest-light
 statusLine:
   preset: custom
   separator: none
