@@ -106,6 +106,8 @@ until their work completes; source retirement is not permission to remove them.
   require an actual caged caller; uncaged CI reports them skipped. They are not
   Chromium-use or OOM-survival proof. Real host proof follows the
   [helper boundary runbook](desktop-memory-guard.md#chromium-helper-boundary--k-20261007-increment).
+  The display suite also writes an actual browser profile through the mounted
+  runtime and verifies private disk backing without exposing the host profile.
 - Reviewer-family acceptance (US-014; operator rule 2026-09-30) uses a
   real OMP process with a network-disabled synthetic provider. Preserve the
   JSONL transcript, provider attempts and active child config readback.

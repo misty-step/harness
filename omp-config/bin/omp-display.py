@@ -253,12 +253,15 @@ class BrowserBridge(HerdrBridge):
         spec = importlib.util.spec_from_loader(loader.name, loader)
         self.core = importlib.util.module_from_spec(spec)
         loader.exec_module(self.core)
-        host = self.core.Host()
-        self.owner = host.current_group().rsplit("/", 1)[-1]
-        host.verify_registered(self.owner, os.getpid())
+        try:
+            host = self.core.Host()
+            self.owner = host.current_group().rsplit("/", 1)[-1]
+            host.verify_registered(self.owner, os.getpid())
+            self.core.private_directory(self.core.runtime_path())
+        except self.core.CageError as exc:
+            raise DisplayError(str(exc)) from None
         self.helper = helper
         self.namespaces = None
-        self.core.private_directory(self.core.runtime_path())
         super().__init__(destination, None, None)
         os.chmod(destination, 0o600)
 
@@ -305,7 +308,7 @@ class BrowserBridge(HerdrBridge):
                             props = host.show(unit)
                             if props["ActiveState"] == "active":
                                 break
-                            if props["ActiveState"] in ("failed", "inactive"):
+                            if props["ActiveState"] == "failed" or props["LoadState"] != "loaded":
                                 raise DisplayError("Browser helper registration did not become active")
                             time.sleep(min(0.05, host.remaining()))
                         host.verify_registered(unit, pid)
@@ -327,14 +330,14 @@ class BrowserBridge(HerdrBridge):
                         os.close(descriptor)
 
 
-def mounts(home, dns, private_tmp, bridge=None, upstream=None, gpg=None, browser=None):
+def mounts(home, dns, private_tmp, bridge=None, upstream=None, gpg=None, browser=None, *, private_run):
     uid = os.getuid()
     runtime = Path(f"/run/user/{uid}")
     args = ["--ro-bind", "/", "/", "--bind", str(home), str(home),
             "--proc", "/proc", "--dev", "/dev", "--tmpfs", "/run",
             "--dir", str(runtime), "--chmod", "0700", str(runtime),
             "--tmpfs", "/tmp", "--tmpfs", "/var/tmp",
-            "--tmpfs", str(home / ".omp/run"),
+            "--bind", str(private_run), str(home / ".omp/run"),
             "--bind", str(private_tmp), str(home / ".cache/tmp"),
             "--ro-bind", str(dns), str(Path("/etc/resolv.conf").resolve())]
     # Executables and desktop/service configuration remain host-owned. Native
@@ -431,6 +434,10 @@ def namespace(command):
         # storage that would consume the engineer's 4-GiB memory bound.
         private_tmp = base / "engineer-tmp"
         private_tmp.mkdir(mode=0o700)
+        # Profiles/cache must not leave unreclaimable tmpfs charges behind when
+        # a transient helper dies and a later launch gets a new memory leaf.
+        private_run = base / "engineer-run"
+        private_run.mkdir(mode=0o700)
         dns = base / "resolv.conf"
         dns.write_text("nameserver 10.0.2.3\n")
         upstream = os.environ.get("HERDR_SOCKET_PATH")
@@ -469,7 +476,8 @@ def namespace(command):
             # Bootstrap inside the fence with the system interpreter instead.
             args = [BWRAP, "--unshare-user", "--unshare-pid", "--unshare-ipc", "--unshare-net",
                     "--die-with-parent", "--cap-drop", "ALL", "--info-fd", str(info_write),
-                    "--block-fd", str(gate_read), *mounts(home, dns, private_tmp, endpoint, upstream, gpg_endpoint, browser_endpoint),
+                    "--block-fd", str(gate_read), *mounts(home, dns, private_tmp, endpoint, upstream,
+                                                       gpg_endpoint, browser_endpoint, private_run=private_run),
                     "--", "/usr/bin/python3", str(Path(__file__).resolve()), "--_exec", *command]
             # bwrap's monitor must survive foreground/caller signals so the real
             # command can flush and stop gracefully instead of receiving SIGKILL.

@@ -47,7 +47,8 @@ sessions. Available targeted components are `config`, `guidance`, `mcp`,
 Compiling it requires Rust 1.85+ and Linux's `libsystemd.so.0`; `RUSTC` may name
 an absolute compiler. The live scope-registration path requires systemd's
 `PIDFDs` transient property and the kernel's `SO_PEERPIDFD`, failing closed when
-either is unavailable.
+either is unavailable. Cage activation also requires `/usr/bin/chromium`;
+this bounded workstation route does not invoke native browser auto-download.
 
 OMP uses `$PI_CODING_AGENT_DIR` when set, otherwise `$(omp config path)`.
 Shared helpers and safety entrypoints deploy to `$HOME/.local/bin`. Foreign
@@ -131,6 +132,8 @@ Explicit `PUPPETEER_EXECUTABLE_PATH` is preserved as the real browser target;
 the default target is this workstation's `/usr/bin/chromium`. Dedicated
 `app.path` applications, broker/ML/JS-eval memory, and aggregate admission
 remain outside this increment. No failed admission falls back into the owner.
+The namespace's browser runtime/profile is private and disk-backed, not tmpfs
+that would keep helper memory charged after its allocating process exits.
 
 
 The [desktop memory guard runbook](../docs/desktop-memory-guard.md) owns separate

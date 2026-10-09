@@ -182,6 +182,7 @@ class HostInstallExposureTests(unittest.TestCase):
         (home / ".local/lib/workbench-host-install").mkdir(parents=True)
         private = root / "private"
         private.mkdir()
+        (private / "omp-run").mkdir(mode=0o700)
         dns = root / "resolv.conf"
         dns.write_text("nameserver 10.0.2.3\n")
         runtime = root / "runtime"
@@ -195,11 +196,36 @@ class HostInstallExposureTests(unittest.TestCase):
         def fixture_path(value):
             return runtime if str(value) == f"/run/user/{os.getuid()}" else original(value)
         with patch.object(display, "Path", side_effect=fixture_path):
-            args = display.mounts(home, dns, private)
+            args = display.mounts(home, dns, private, private_run=private / "omp-run")
         # Match /run masking for the relocated synthetic runtime too.
         index = args.index("/run") + 1
         args[index:index] = ["--tmpfs", str(runtime)]
         return args
+
+    @unittest.skipUnless(shutil.which("bwrap"), "private namespace dependency")
+    def test_browser_profile_is_private_and_disk_backed(self):
+        with tempfile.TemporaryDirectory(dir=Path.home() / ".cache/tmp") as directory:
+            root = Path(directory)
+            home, private, dns, runtime = self.fixture_mounts(root)
+            (home / ".omp/run/host-profile").write_text("host-owned")
+            code = r'''
+import json, sys
+from pathlib import Path
+runtime, device = Path(sys.argv[1]), int(sys.argv[2])
+(runtime / "browser-profile").write_text("scratch-browser-state")
+print(json.dumps({"disk_backed": runtime.stat().st_dev == device,
+                  "host_runtime_visible": (runtime / "host-profile").exists()}))
+'''
+            child = subprocess.run(
+                ["bwrap", "--unshare-user", "--unshare-pid", "--unshare-ipc", "--unshare-net",
+                 "--die-with-parent", "--cap-drop", "ALL", *self.mounts(home, dns, private, runtime),
+                 "--", "/usr/bin/python3", "-c", code, str(home / ".omp/run"),
+                 str((private / "omp-run").stat().st_dev)],
+                capture_output=True, text=True, timeout=10)
+            self.assertEqual(child.returncode, 0, child.stderr)
+            self.assertEqual(json.loads(child.stdout), {"disk_backed": True, "host_runtime_visible": False})
+            self.assertEqual((private / "omp-run/browser-profile").read_text(), "scratch-browser-state")
+            self.assertEqual((home / ".omp/run/host-profile").read_text(), "host-owned")
 
     @unittest.skipUnless(shutil.which("bwrap"), "bubblewrap namespace dependency")
     def test_missing_or_invalid_optional_endpoint_does_not_block_unrelated_cage_launch(self):

@@ -345,6 +345,9 @@ validate_engineer_cage() {
   fi
   require_nonempty "$repo_dir/units/omp.slice"
   validate_display_tools
+  [ -x /usr/bin/chromium ] || {
+    echo "Engineer cage activation requires /usr/bin/chromium for isolated native browser launches" >&2; exit 1;
+  }
   for tool in systemctl systemd-run oomctl; do
     command -v "$tool" >/dev/null 2>&1 || { echo "$tool is required" >&2; exit 1; }
   done
