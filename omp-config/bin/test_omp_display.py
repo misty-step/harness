@@ -182,6 +182,7 @@ class HostInstallExposureTests(unittest.TestCase):
         (home / ".local/lib/workbench-host-install").mkdir(parents=True)
         private = root / "private"
         private.mkdir()
+        (private / "omp-run").mkdir(mode=0o700)
         dns = root / "resolv.conf"
         dns.write_text("nameserver 10.0.2.3\n")
         runtime = root / "runtime"
@@ -195,11 +196,36 @@ class HostInstallExposureTests(unittest.TestCase):
         def fixture_path(value):
             return runtime if str(value) == f"/run/user/{os.getuid()}" else original(value)
         with patch.object(display, "Path", side_effect=fixture_path):
-            args = display.mounts(home, dns, private)
+            args = display.mounts(home, dns, private, private_run=private / "omp-run")
         # Match /run masking for the relocated synthetic runtime too.
         index = args.index("/run") + 1
         args[index:index] = ["--tmpfs", str(runtime)]
         return args
+
+    @unittest.skipUnless(shutil.which("bwrap"), "private namespace dependency")
+    def test_browser_profile_is_private_and_disk_backed(self):
+        with tempfile.TemporaryDirectory(dir=Path.home() / ".cache/tmp") as directory:
+            root = Path(directory)
+            home, private, dns, runtime = self.fixture_mounts(root)
+            (home / ".omp/run/host-profile").write_text("host-owned")
+            code = r'''
+import json, sys
+from pathlib import Path
+runtime, device = Path(sys.argv[1]), int(sys.argv[2])
+(runtime / "browser-profile").write_text("scratch-browser-state")
+print(json.dumps({"disk_backed": runtime.stat().st_dev == device,
+                  "host_runtime_visible": (runtime / "host-profile").exists()}))
+'''
+            child = subprocess.run(
+                ["bwrap", "--unshare-user", "--unshare-pid", "--unshare-ipc", "--unshare-net",
+                 "--die-with-parent", "--cap-drop", "ALL", *self.mounts(home, dns, private, runtime),
+                 "--", "/usr/bin/python3", "-c", code, str(home / ".omp/run"),
+                 str((private / "omp-run").stat().st_dev)],
+                capture_output=True, text=True, timeout=10)
+            self.assertEqual(child.returncode, 0, child.stderr)
+            self.assertEqual(json.loads(child.stdout), {"disk_backed": True, "host_runtime_visible": False})
+            self.assertEqual((private / "omp-run/browser-profile").read_text(), "scratch-browser-state")
+            self.assertEqual((home / ".omp/run/host-profile").read_text(), "host-owned")
 
     @unittest.skipUnless(shutil.which("bwrap"), "bubblewrap namespace dependency")
     def test_missing_or_invalid_optional_endpoint_does_not_block_unrelated_cage_launch(self):
@@ -402,6 +428,106 @@ print(json.dumps({"reply": response, "recreated": recreated, "socket_protected":
             })
             for path in protected:
                 self.assertEqual((path / "sentinel").read_text(), "host-owned")
+
+
+@unittest.skipUnless(shutil.which("bwrap"), "private launch namespace dependency")
+class BrowserGateTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.owner_group = Path("/proc/self/cgroup").read_text().strip().removeprefix("0::")
+        if not cls.owner_group.rsplit("/", 1)[-1].startswith("omp-engineer-"):
+            raise unittest.SkipTest("actual owner leaf required to reach launch gate")
+        cls.scratch = tempfile.TemporaryDirectory(dir=Path.home() / ".cache/tmp")
+        cls.helper = Path(os.environ.get("OMP_BROWSER_HELPER_TEST_BIN", Path(cls.scratch.name) / "omp-browser-helper"))
+        if "OMP_BROWSER_HELPER_TEST_BIN" not in os.environ:
+            compiler = os.environ.get("RUSTC", "rustc")
+            subprocess.run([compiler, "--edition=2024", str(DIRECTORY / "omp-browser-helper.rs"),
+                            "-o", str(cls.helper)], check=True, timeout=60)
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.scratch.cleanup()
+
+    def spawn(self, directory, endpoint):
+        marker = directory / "browser-ran"
+        runtime = f"/run/user/{os.getuid()}/omp-browser-helper.sock"
+        environment = {**os.environ, "OMP_CHROMIUM_EXECUTABLE": "/usr/bin/touch"}
+        child = subprocess.Popen(
+            ["bwrap", "--unshare-user", "--unshare-pid", "--die-with-parent",
+             "--ro-bind", "/", "/", "--proc", "/proc", "--dev", "/dev",
+             "--tmpfs", "/run", "--dir", f"/run/user/{os.getuid()}",
+             "--bind", str(directory), str(directory), "--ro-bind", str(endpoint), runtime,
+             "--", str(self.helper), str(marker)],
+            env=environment, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        return child, marker
+
+    def test_forged_admission_never_executes_the_browser(self):
+        unchanged = f"EXEC {self.owner_group.rsplit('/', 1)[-1]} 4294967296\n".encode()
+        for reply in (unchanged, b"ERR denied\n"):
+            with self.subTest(reply=reply), tempfile.TemporaryDirectory(dir=self.scratch.name) as directory:
+                root = Path(directory)
+                with socket.socket(socket.AF_UNIX) as server:
+                    server.bind(str(root / "gate.sock"))
+                    os.chmod(root / "gate.sock", 0o600)
+                    server.listen(1)
+                    server.settimeout(2)
+                    child, marker = self.spawn(root, root / "gate.sock")
+                    try:
+                        try:
+                            connection, _ = server.accept()
+                        except socket.timeout:
+                            _, errors = child.communicate(timeout=5)
+                            self.fail(f"launch gate was not reached: {errors.decode()}")
+                        with connection:
+                            connection.settimeout(2)
+                            self.assertEqual(display.HerdrBridge.line(connection, 16), b"CHROMIUM")
+                            connection.sendall(reply)
+                        _, errors = child.communicate(timeout=5)
+                        self.assertNotEqual(child.returncode, 0, errors.decode())
+                        self.assertFalse(marker.exists(), "refused launch executed its target")
+                    finally:
+                        if child.poll() is None:
+                            child.kill()
+                            child.communicate(timeout=5)
+                        else:
+                            child.communicate(timeout=5)
+
+    def test_cancelled_launch_cannot_execute_after_gate_release(self):
+        with tempfile.TemporaryDirectory(dir=self.scratch.name) as directory, socket.socket(socket.AF_UNIX) as server:
+            root = Path(directory)
+            server.bind(str(root / "gate.sock"))
+            os.chmod(root / "gate.sock", 0o600)
+            server.listen(1)
+            server.settimeout(5)
+            child, marker = self.spawn(root, root / "gate.sock")
+            try:
+                try:
+                    connection, _ = server.accept()
+                except socket.timeout:
+                    _, errors = child.communicate(timeout=5)
+                    self.fail(f"launch gate was not reached: {errors.decode()}")
+                with connection:
+                    connection.settimeout(2)
+                    self.assertEqual(display.HerdrBridge.line(connection, 16), b"CHROMIUM")
+                    descriptor = int.from_bytes(connection.getsockopt(socket.SOL_SOCKET, 77, 4), sys.byteorder)
+                    try:
+                        signal.pidfd_send_signal(descriptor, signal.SIGTERM)
+                        child.communicate(timeout=5)
+                        # A stale permission cannot revive a cancelled launch.
+                        try:
+                            connection.sendall(f"EXEC {self.owner_group.rsplit('/', 1)[-1]} 4294967296\n".encode())
+                        except (BrokenPipeError, ConnectionResetError):
+                            pass
+                    finally:
+                        os.close(descriptor)
+                self.assertFalse(marker.exists(), "cancelled launch executed its target")
+                self.assertNotEqual(child.returncode, 0)
+            finally:
+                if child.poll() is None:
+                    child.kill()
+                    child.communicate(timeout=5)
+                else:
+                    child.communicate(timeout=5)
 
 @unittest.skipUnless(shutil.which("bwrap") and shutil.which("slirp4netns"), "display namespace dependencies")
 class NamespaceAuthorityTests(unittest.TestCase):

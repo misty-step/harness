@@ -6,9 +6,10 @@ cd "$root"
 [ "$#" -le 1 ] || { echo 'Usage: scripts/verify [all|shared|pi|omp|workspace]' >&2; exit 1; }
 selection=${1:-all}
 case "$selection" in all|shared|pi|omp|workspace) ;; *) echo "Unknown selection: $selection" >&2; exit 1 ;; esac
-for tool in git bun jq python3; do
+for tool in git bun jq python3 rustc; do
   command -v "$tool" >/dev/null 2>&1 || { echo "$tool is required" >&2; exit 1; }
 done
+export RUSTC="${RUSTC:-$(rustc --print sysroot)/bin/rustc}"
 mkdir -p "$HOME/.cache/tmp"
 work=$(mktemp -d "$HOME/.cache/tmp/harness-verify.XXXXXX")
 trap 'rm -rf -- "$work"' 0
@@ -28,6 +29,13 @@ case "$selection" in all|shared) PYTHONDONTWRITEBYTECODE=1 python3 -m unittest d
 case "$selection" in all|shared) PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s agent-config/session-backup -p 'test_*.py';; esac
 case "$selection" in all|pi) (cd pi-config && bun test --max-concurrency=1 bin/ extensions/);; esac
 case "$selection" in all|omp) (cd omp-config && bun test --max-concurrency=1 bin/ extensions/);; esac
-case "$selection" in all|omp) PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s omp-config/bin -p 'test_*.py';; esac
+case "$selection" in all|omp)
+  "$RUSTC" --edition=2024 --test omp-config/bin/omp-browser-helper.rs -o "$work/browser-helper-tests"
+  "$work/browser-helper-tests" --test-threads=1
+  "$RUSTC" --edition=2024 omp-config/bin/omp-browser-helper.rs -o "$work/omp-browser-helper"
+  OMP_BROWSER_HELPER_TEST_BIN="$work/omp-browser-helper" PYTHONDONTWRITEBYTECODE=1 \
+    python3 -m unittest discover -s omp-config/bin -p 'test_*.py'
+  ;;
+esac
 ./scripts/verify-installers
 printf 'Verification complete: %s\n' "$selection"

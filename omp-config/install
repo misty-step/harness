@@ -285,6 +285,9 @@ validate_display_tools() {
   for tool in bwrap slirp4netns Xvfb dbus-run-session; do
     command -v "$tool" >/dev/null 2>&1 || { echo "$tool is required" >&2; exit 1; }
   done
+  [ -x /usr/bin/chromium ] || {
+    echo "Caged engineer CLI requires /usr/bin/chromium for isolated native browser launches" >&2; exit 1;
+  }
   [ "$(cat /proc/sys/dev/tty/legacy_tiocsti 2>/dev/null)" = 0 ] || {
     echo "Engineer display isolation requires dev.tty.legacy_tiocsti=0" >&2; exit 1;
   }
@@ -305,6 +308,26 @@ validate_cli() {
       }
     fi
   done
+  require_nonempty "$repo_dir/bin/omp-browser-helper.rs"
+  compiler=${RUSTC:-rustc}
+  command -v "$compiler" >/dev/null 2>&1 || { echo "rustc is required for Chromium isolation" >&2; exit 1; }
+  helper="$HOME/.local/bin/omp-browser-helper"
+  if [ -e "$helper" ] || [ -L "$helper" ]; then
+    [ ! -L "$helper" ] && [ -f "$helper" ] && [ -x "$helper" ] &&
+      [ "$(timeout 5 "$helper" --identity)" = 'omp-browser-helper chromium-v1' ] || {
+      echo "Refusing foreign omp-browser-helper entrypoint" >&2; exit 1;
+    }
+  fi
+  if [ -z "${browser_build-}" ]; then
+    mkdir -p "$HOME/.cache/tmp"
+    browser_build=$(mktemp "$HOME/.cache/tmp/omp-browser-build.XXXXXX")
+    trap 'rm -f -- "${browser_build-}"' 0
+    "$compiler" --edition=2024 -C opt-level=2 -C codegen-units=1 \
+      "$repo_dir/bin/omp-browser-helper.rs" -o "$browser_build"
+    [ "$(timeout 5 "$browser_build" --identity)" = 'omp-browser-helper chromium-v1' ] || {
+      echo "Invalid compiled Chromium isolation helper" >&2; exit 1;
+    }
+  fi
   if [ -L "$HOME/.local/bin/omp" ] && [ "$(readlink "$HOME/.local/bin/omp")" = omp-engineer ]; then
     validate_display_tools
   fi
@@ -375,11 +398,15 @@ install_engineer_cage() {
 }
 
 install_cli() {
+  if [ -z "${browser_build-}" ]; then validate_cli; fi
   install -d -m 700 "$HOME/.local/bin"
   install -m 700 "$repo_dir/bin/omp-engineer.py" "$HOME/.local/bin/omp-engineer"
   install -m 700 "$repo_dir/bin/omp-display.py" "$HOME/.local/bin/omp-display"
   install -m 700 "$repo_dir/bin/omp-gui.py" "$HOME/.local/bin/omp-gui"
   install -m 700 "$repo_dir/bin/omp-host-install.py" "$HOME/.local/bin/omp-host-install"
+  install -m 700 "$browser_build" "$HOME/.local/bin/omp-browser-helper"
+  rm -f -- "$browser_build"
+  browser_build=
 }
 
 

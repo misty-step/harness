@@ -3,9 +3,10 @@
 # No live HOME, agent directory, scope, provider, or Git hook is touched.
 set -eu
 root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
-for tool in git bun jq python3; do
+for tool in git bun jq python3 rustc; do
   command -v "$tool" >/dev/null 2>&1 || { echo "FAIL prerequisite: $tool" >&2; exit 1; }
 done
+export RUSTC="${RUSTC:-$(rustc --print sysroot)/bin/rustc}"
 mkdir -p "$HOME/.cache/tmp"
 work=$(mktemp -d "$HOME/.cache/tmp/harness-installers.XXXXXX")
 trap 'rm -rf -- "$work"' 0
@@ -69,7 +70,7 @@ for consumer in pi omp; do
       printf 'old owned retired skill\n' > "$agent/skills/$skill/SKILL.md"
     done
   fi
-  if env -i PATH="$PATH" HOME="$home" TMPDIR="$work" \
+  if env -i PATH="$PATH" RUSTC="$RUSTC" HOME="$home" TMPDIR="$work" \
     PI_CODING_AGENT_DIR="$agent" \
     OMP_TODOIST_OWNER="$home/missing-todoist" \
     "$work/source/$consumer-config/install" >"$work/$consumer.log" 2>&1; then
@@ -193,12 +194,13 @@ for consumer in pi omp; do
     check "omp engineer launcher bytes" cmp -s "$work/source/omp-config/bin/omp-engineer.py" "$home/.local/bin/omp-engineer"
     check "omp engineer launcher executable" test -x "$home/.local/bin/omp-engineer"
     check "omp engineer launcher installed load" "$home/.local/bin/omp-engineer" --help
+    check "omp Chromium helper installed identity" "$home/.local/bin/omp-browser-helper" --identity
     check "omp CLI preserves the sole runtime experiment ledger" cmp -s "$work/expected-experiments" "$home/.hermes/profiles/kaylee/journal/experiments.md"
     # MIS-203: an installed updater must accept the new layout before live
     # activation writes anything. The virgin-host/native sentinels stay intact.
     printf '#!/bin/sh\nexit 2\n' > "$home/.local/bin/workbench-host-update"
     chmod 700 "$home/.local/bin/workbench-host-update"
-    if env -i PATH="$PATH" HOME="$home" TMPDIR="$work" PI_CODING_AGENT_DIR="$agent" \
+    if env -i PATH="$PATH" RUSTC="$RUSTC" HOME="$home" TMPDIR="$work" PI_CODING_AGENT_DIR="$agent" \
       OMP_INSTALL_COMPONENTS=engineer-cage \
       "$work/source/omp-config/install" >"$work/omp-layout.log" 2>&1; then
       printf 'FAIL omp cage refuses an incompatible installed updater\n' >&2
@@ -220,15 +222,21 @@ for consumer in pi omp; do
     mv "$home/.local/bin/omp" "$home/.local/lib/omp-engineer/omp"
     chmod 700 "$home/.local/lib/omp-engineer/omp"
     ln -s omp-engineer "$home/.local/bin/omp"
-    if env -i PATH="$PATH" HOME="$home" TMPDIR="$work" PI_CODING_AGENT_DIR="$agent" \
-      OMP_INSTALL_COMPONENTS=cli \
-      "$work/source/omp-config/install" >"$work/omp-stage.log" 2>&1 \
+    if env -i PATH="$PATH" RUSTC="$RUSTC" HOME="$home" TMPDIR="$work" PI_CODING_AGENT_DIR="$agent" \
+      OMP_INSTALL_COMPONENTS=cli "$work/source/omp-config/install" >"$work/omp-stage.log" 2>&1; then
+      stage_status=0
+    else
+      stage_status=$?
+    fi
+    expected_stage_status=0
+    [ -x /usr/bin/chromium ] || expected_stage_status=1
+    if [ "$stage_status" -eq "$expected_stage_status" ] \
       && cmp -s "$work/expected-active-unit" "$home/.config/systemd/user/omp.slice" \
       && [ "$(readlink "$home/.local/bin/omp")" = omp-engineer ] \
       && cmp -s "$work/expected-native" "$home/.local/lib/omp-engineer/omp"; then
-      printf 'PASS omp CLI staging preserves an existing cage layout and parent policy\n'
+      printf 'PASS omp CLI stages with browser prerequisites or refuses, preserving existing cage policy\n'
     else
-      printf 'FAIL omp CLI staging mutated an existing cage layout or parent policy\n' >&2
+      printf 'FAIL omp CLI staging prerequisite or existing cage policy\n' >&2
       cat "$work/omp-stage.log" >&2
       failures=$((failures + 1))
     fi

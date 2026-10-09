@@ -61,11 +61,13 @@ test.each(["pi", "omp"])("US-021 / US-022 / US-023 / US-041: %s installs routed 
 	const dir = temp();
 	const home = resolve(dir, "home");
 	const agent = resolve(home, "agent");
+	const compiler = process.env.RUSTC ?? `${Bun.spawnSync(["rustc", "--print", "sysroot"]).stdout.toString().trim()}/bin/rustc`;
 	mkdirSync(resolve(home, "development"), { recursive: true });
 	const result = Bun.spawnSync([resolve(root, `${consumer}-config/install`)], {
 		cwd: root,
 		env: {
 			PATH: process.env.PATH ?? "",
+			RUSTC: compiler,
 			HOME: home,
 			TMPDIR: dir,
 			PI_CODING_AGENT_DIR: agent,

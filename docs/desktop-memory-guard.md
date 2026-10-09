@@ -12,7 +12,8 @@ user@UID.service
 ├── app.slice                         unchanged desktop, Herdr and old engineers
 ├── omp.slice                         unlimited memory, zero-swap, ungrouped OOM
 │   ├── omp-engineer-<nonce>.scope     4 GiB, zero swap, group-OOM kill
-│   └── omp-engineer-<nonce>.scope     another admitted engineer and descendants
+│   ├── omp-engineer-<nonce>.scope     another engineer owner
+│   └── omp-engineer-<nonce>.scope     Chromium helper, independent 4-GiB/group-OOM leaf
 └── dev.slice/dev-exec.slice           separately owned heavy-job budget
 ```
 
@@ -128,6 +129,56 @@ wrapper in every ordinary launch path; do not invoke the retained ELF directly.
 Rollback requires the prior reviewed launcher/unit contract and reconciliation
 with its updater, after owned cages naturally finish. Never stop a populated
 shared slice or remove the memory helper while roster callers still require it.
+
+### Chromium helper boundary — K-20261007 increment
+
+The native 18.8.6 browser broker honors `PUPPETEER_EXECUTABLE_PATH`, but re-execs
+the retained ELF itself. New caged launches use that supported Chromium hook;
+the broker stays in the owner leaf. `omp-browser-helper` connects to one
+read-only-mounted private socket and blocks before exec. The host-side display
+controller accepts only the installed shim in this owner's private namespaces
+and original leaf. The kernel supplies an immutable `SO_PEERPIDFD`; systemd
+receives `PIDFDs`, never a reusable numeric PID.
+
+Registration is serialized with existing launch inspection. The controller
+checks actual sibling placement, effective controls, systemd registration,
+ancestors and oomd exclusion before replying. The shim independently checks
+that it left its original leaf and that its new controls match. A denied,
+cancelled, malformed or unavailable handoff executes no browser. Exec preserves
+native PID/process-group/stdio cancellation and inherited namespace lifetime;
+Chromium descendants allocate in the helper leaf. The tiny launch shim's
+pre-handoff allocations remain charged to the owner; existing allocations are
+not retroactively moved.
+
+Both scopes reuse the existing 4-GiB/zero-swap/group-OOM policy. Owner limits,
+running scopes and `omp.slice` are not changed. **Combined owner/helper capacity
+can exceed 4 GiB; there is no hard aggregate budget or desktop-floor guarantee.**
+The helper uses the existing nonce/unit namespace with a Chromium/owner
+description, so the shipped OOM sweep continues recording role/root-fate
+unknown instead of inventing an owner loss. Root-lost detection is unchanged.
+
+CLI staging compiles the shim from source and affects future natural starts
+only. This workstation's ordinary browser target is `/usr/bin/chromium`; an
+explicit executable override remains the target behind the shim. Dedicated
+`app.path` browsers are not intercepted. Broker+Chromium, ML and JS-eval
+isolation require separate native spawn seams; JS eval's in-process startup
+fallback must be eliminated or bounded before claiming its fault isolation.
+Activation and CLI updates to an activated cage require `/usr/bin/chromium`;
+native browser discovery/auto-download is not this workstation route.
+The private `~/.omp/run` mount is disk-backed
+and removed with the namespace. Profiles and cache must not remain charged
+tmpfs after a helper scope empties and the next launch gets a fresh bound.
+
+Verification must include a real native browser opening/closing and a cancelled
+browser operation, actual sibling process/control readback, then a controlled
+OOM in **only a disposable helper** with the same engineer root PID/start token
+surviving and executing another tool. Record the retained manager OOM event,
+not exit 137. Never lower a working helper's limit or run a heavy drill while
+host memory is below the advisory floor. Unit/gate checks do not prove this
+host journey. Use `OMP_INSTALL_COMPONENTS=cli`, not `engineer-cage`, for the
+post-merge install: the latter converges a live parent property and is outside
+this increment. Read back installed bytes and a new native launch separately.
+
 
 ## Optional whole-Herdr boundary — separate disruptive cutover
 
