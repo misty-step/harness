@@ -177,3 +177,51 @@ test("installing the specialist gate preserves foreign disabled agents without d
 		},
 	});
 });
+
+test("portable config retires former email pins and preserves foreign account policies", () => {
+ const files = fixture("theme: portable\n", Bun.YAML.stringify({auth: {accountPolicies: [
+ {provider: "openai-codex", account: {email: "phaedrus@r90.dev"}, priority: 1},
+ {provider: "anthropic", account: {email: "other@example.com"}, priority: 2}
+ ]}}));
+ expect(invoke(files).exitCode).toBe(0);
+ expect((parsed(files) as any).auth.accountPolicies).toEqual([{provider: "anthropic", account: {email: "other@example.com"}, priority: 2}]);
+});
+
+test("local overlay selects machine themes and skills while preserving foreign runtime config", () => {
+ const files = fixture("theme: portable\n", "foreign: keep\n");
+ const local = join(dirname(files.source), "local.yml");
+ writeFileSync(local, "theme: omarchy-system\nskills:\n  custom: local-path\n");
+ expect(invoke(files, "--local", local, "--check").exitCode).toBe(0);
+ expect(readFileSync(files.dest, "utf8")).toBe("foreign: keep\n");
+ expect(invoke(files, "--local", local).exitCode).toBe(0);
+ expect(parsed(files)).toEqual({theme: "omarchy-system", skills: {custom: "local-path"}, foreign: "keep"});
+});
+
+ test("fresh configuration applies local preferences and rejects invalid overlays before writing", () => {
+	const files = fixture("theme: portable\n");
+	const local = join(dirname(files.source), "local.yml");
+	writeFileSync(local, "[not, a, mapping]\n");
+	expect(invoke(files, "--local", local, "--check").exitCode).not.toBe(0);
+	expect(existsSync(files.dest)).toBe(false);
+	writeFileSync(local, "theme: host-theme\n");
+	expect(invoke(files, "--local", local, "--check").exitCode).toBe(0);
+	expect(existsSync(files.dest)).toBe(false);
+	expect(invoke(files, "--local", local).exitCode).toBe(0);
+	expect(parsed(files)).toEqual({ theme: "host-theme" });
+});
+
+ test("US-017 generated desktop palette is selected without replacing it; explicit local themes still win", () => {
+	for (const live of [undefined, "foreign: keep\n"]) {
+		const files = fixture("theme:\n  dark: everforest\n  light: everforest-light\n", live);
+		const theme = join(dirname(files.dest), "themes", "omarchy-system.json");
+		mkdirSync(dirname(theme), { recursive: true });
+		writeFileSync(theme, '{"generated":"palette sentinel"}\n');
+		expect(invoke(files).exitCode).toBe(0);
+		expect((parsed(files) as { theme: unknown }).theme).toEqual({ dark: "omarchy-system", light: "omarchy-system" });
+		expect(readFileSync(theme, "utf8")).toBe('{"generated":"palette sentinel"}\n');
+		const local = join(dirname(files.source), "local.yml");
+		writeFileSync(local, "theme:\n  dark: everforest\n");
+		expect(invoke(files, "--local", local).exitCode).toBe(0);
+		expect((parsed(files) as { theme: unknown }).theme).toEqual({ dark: "everforest", light: "omarchy-system" });
+	}
+});

@@ -1,6 +1,7 @@
 #!/usr/bin/env bun
+import { existsSync } from "node:fs";
 import { chmod, lstat, mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
-import { dirname, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { parseArgs } from "node:util";
 
 const { values } = parseArgs({
@@ -8,6 +9,7 @@ const { values } = parseArgs({
 		source: { type: "string" },
 		dest: { type: "string" },
 		check: { type: "boolean", default: false },
+		local: { type: "string" },
 	},
 	strict: true,
 });
@@ -82,6 +84,24 @@ function pruneRetiredKeys(source: Yaml, merged: Yaml): void {
 const sourceText = await readFile(sourcePath, "utf8");
 if (!sourceText.trim()) throw new Error(`Missing or empty source: ${sourcePath}`);
 const source = parseMapping(sourcePath, sourceText);
+let adjusted = false;
+
+// US-017: installed desktop palettes win over portable defaults, not explicit preferences.
+if (Object.hasOwn(source, "theme") && existsSync(join(dirname(destPath), "themes", "omarchy-system.json"))) {
+	source.theme = { dark: "omarchy-system", light: "omarchy-system" };
+	adjusted = true;
+}
+
+// Machine-local preferences override portable defaults; credentials stay runtime-owned.
+if (values.local) {
+	try {
+		const local = parseMapping(values.local, await readFile(values.local, "utf8"));
+		Object.assign(source, overlay(local, source));
+		adjusted = true;
+	} catch (error) {
+		if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+	}
+}
 
 let live: { [key: string]: Yaml } | null = null;
 try {
@@ -100,10 +120,20 @@ if (values.check) process.exit(0);
 await mkdir(dirname(destPath), { recursive: true, mode: 0o700 });
 let body: string;
 if (live === null) {
-	body = sourceText.endsWith("\n") ? sourceText : `${sourceText}\n`;
+	body = adjusted ? `${Bun.YAML.stringify(source)}\n`
+		: sourceText.endsWith("\n") ? sourceText : `${sourceText}\n`;
 } else {
 	const merged = overlay(source, live ?? {});
 	pruneRetiredKeys(source, merged);
+	// Retire only the former source-owned email pins, preserving local policies.
+	const auth = (merged as Record<string, any>).auth;
+	if (!((source.auth as any)?.accountPolicies) && Array.isArray(auth?.accountPolicies)) {
+		auth.accountPolicies = auth.accountPolicies.filter((policy: any) => !(
+			["anthropic", "openai-codex"].includes(policy.provider) &&
+			policy.priority === 1 && policy.account?.email === "phaedrus@r90.dev" &&
+			Object.keys(policy.account).length === 1 && Object.keys(policy).length === 3
+		));
+	}
 	// Adding the fail-closed specialist gate must not enable a foreign agent
 	// that the operator already disabled.
 	const task = merged && typeof merged === "object" && !Array.isArray(merged) ? merged.task : undefined;

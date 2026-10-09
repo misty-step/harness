@@ -16,6 +16,7 @@ const { values } = parseArgs({
 		source: { type: "string" },
 		dest: { type: "string" },
 		check: { type: "boolean", default: false },
+		local: { type: "string" },
 	},
 	strict: true,
 });
@@ -56,6 +57,16 @@ function overlay(source: Json, live: Json): Json {
 const sourceText = await readFile(sourcePath, "utf8");
 if (!sourceText.trim()) throw new Error(`Missing or empty source: ${sourcePath}`);
 const source = parseMapping(sourcePath, sourceText);
+
+// Machine-local preferences override portable defaults; credentials stay runtime-owned.
+if (values.local) {
+	try {
+		const local = parseMapping(values.local, await readFile(values.local, "utf8"));
+		Object.assign(source, overlay(local, source));
+	} catch (error) {
+		if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+	}
+}
 
 let live: { [key: string]: Json } | null = null;
 try {

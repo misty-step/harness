@@ -63,7 +63,7 @@ presentation; "behavioral" changes agent capability, model input, or data flow.
 | `extensions/loc/` | this repo | behavioral (read-only) | yes | `/loc`, `/loc-trend`, LOC status row |
 | `extensions/web-search/` | this repo | behavioral | yes | `web_search` tool (Exa); registers nothing without `EXA_API_KEY` |
 | `extensions/failover/` | this repo | behavioral | yes | Subscription-only agent turns and forward recovery after stock retry; blocks native paid startup fallback (ADR-011/013) |
-| `extensions/accounts/` | this repo | behavioral | yes | Extra account slots (`openai-codex-2`…`-4`, `xai-2`, `openrouter-2`): built-in login, refresh and streaming under their own `auth.json` keys, plus `openai-pool`/`xai-pool`/`openrouter-pool` that balance a request across a provider's accounts, block one at its usage limit until reset and share that state in `account-pool.json`; `/pool` lists them; no shared OMP credentials (US-045, ADR-024/026) |
+| `extensions/accounts/` | this repo | behavioral | yes | Extra account slots (`openai-2`…`-4`, legacy `openai-codex-2`…`-4`, `xai-2`, `openrouter-2`): built-in login, refresh and streaming under their own `auth.json` keys, plus `openai-pool`/`xai-pool`/`openrouter-pool` that balance a request across a provider's accounts, block one at its usage limit until reset and share that state in `account-pool.json`; `/pool` lists them; no shared OMP credentials (US-045, ADR-024/026) |
 | `extensions/image-budget/` | this repo | behavioral | yes | Inline-image ceiling: oldest images dropped over 15 MB per request; large images shrunk with ffmpeg at ingest (ADR-019) |
 | `extensions/openrouter-live/` | this repo | behavioral | yes | Live OpenRouter bridge: models the `pi.dev` mirror lacks are appended to `models.json`, additive-only, at session start (≥2 h) and `/models-live` (ADR-022) |
 | `extensions/continuation-nudge/` | this repo | behavioral | yes (component `continuation-nudge`; shared modules materialized) | Bounded Jev continuation nudge at agent settle: advisory, fail-open, max 2 per prompt, `JEV_NUDGE_MODE=off` disables. Review trigger: pi gains a native anti-premature-stop or continuation control, or nudges fire on completed work |
@@ -76,6 +76,7 @@ presentation; "behavioral" changes agent capability, model input, or data flow.
 | `extensions/herdr-agent-state.ts` | herdr (managed) | integration | no | Reports pane agent state to herdr |
 | `skills/omarchy`, `skills/diagnose-crash` | Omarchy (symlinks) | skills | no | Omarchy-owned agent skills |
 | `themes/omarchy-system.json` | Omarchy (generated) | generated | no | Theme regenerated on every theme change |
+| `mcp.json`, `mcp-auth.json`, `mcp.log` | pi (runtime) | runtime | no | Personal MCP servers (including Mobbin), native OAuth grants and connection logs; managed with `pi mcp` and `/mcp`, preserved by the installer |
 | `auth.json` (except `openrouter`), `account-pool.json`, `models-store.json`, `sessions/`, `trust.json`, `usage-outbox/` | pi (runtime) | runtime | no | Other credentials (including slot logins), sessions, state |
 
 ### Global guidance
@@ -303,8 +304,8 @@ the herdr socket. It is a property of herdr, not of pi-config.
 repo neither copies nor replaces them.
 
 **Generated themes.** `themes/omarchy-system.json` is written by
-`omarchy-theme-set-pi` from the active Omarchy theme. We version the *theme name*
-in `settings.json`, never the generated file. The source of that render is our
+`omarchy-theme-set-pi` from the active Omarchy theme. Select this theme in the machine-local `~/.config/harness/pi.json` overlay;
+portable `settings.json` uses `system`. Never version the generated file. The source of that render is our
 own `~/.config/omarchy/themed/pi.json.tpl`, which overrides Omarchy's built-in
 pi template for every theme (ADR-018). It is hand-managed like the `~/.bashrc`
 block: edit it, then `omarchy-theme-refresh` to re-render and deploy. Every value
@@ -318,7 +319,7 @@ resolves the same file into the OMP theme.
 | Global settings | have | Model default, thinking, padding, markdown are stable preferences |
 | Custom chrome | have | The one surface we look at constantly; we want it exactly so |
 | LOC / codebase awareness | have | Cheap, read-only context that changes review behavior |
-| Omarchy theme integration | have | The desktop already owns theming; pi follows `omarchy-system` |
+| Omarchy theme integration | have | Omarchy hosts select `omarchy-system` locally; other hosts use the terminal palette |
 | Telemetry | present, not owned | Installed by its own tool; we do not add or version it |
 | Web search | have | Research-backed `web_search` (Exa); the tool exists only when the key is in the environment (ADR-010) |
 | Model fallback | have | Configured chain, strictly forward: stock retry first, then the next model per failed run, with user re-send (ADR-011/013) |
@@ -483,3 +484,31 @@ uses `core.hooksPath=.githooks`.
 Release automation is [Landmark](https://github.com/misty-step/landmark);
 conventional commits become semantic versions and release notes. Pre-push runs
 gitleaks and trufflehog. `origin` is `misty-step/harness`; releases are workspace-wide.
+
+## Personal MCP servers
+
+Pi's built-in MCP support owns personal server configuration and OAuth. Configure
+Mobbin without an adapter package or credentials in Git:
+
+```sh
+pi mcp add mobbin --url https://api.mobbin.com/mcp \
+  --description "Search Mobbin's UI screens and flows for design references"
+pi mcp login mobbin
+pi mcp list
+```
+
+The server lives in `~/.pi/agent/mcp.json`; Pi stores and refreshes its OAuth
+credentials in `mcp-auth.json`. Default `codemode` exposure keeps the tool catalog
+out of every prompt while making it discoverable when needed. Run `/reload` in an
+existing session, then `/mcp` to inspect the connection. Installation leaves this
+native runtime state untouched.
+
+## Machine-local preferences
+
+Portable defaults use Pi’s `system` theme. The installer overlays
+`~/.config/harness/pi.json` (override: `PI_CONFIG_LOCAL_SETTINGS`) after shared
+settings. On an Omarchy host put `{"theme":"omarchy-system"}` there.
+Use native skill path settings or locally owned skill symlinks for OS/host-specific
+packages; installers preserve unmanaged skills. Keep these local files outside
+Git and credentials in native runtime storage. Missing overlays are optional;
+malformed overlays fail preflight before deployment.
