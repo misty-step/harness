@@ -82,21 +82,23 @@ for consumer in pi omp; do
     failures=$((failures + 1))
   fi
 
-  # Derive exact expected composition from this revision's declared sources.
-  expected="$work/$consumer-guidance"
-  : > "$expected"
-  while IFS= read -r line || [ -n "$line" ]; do
-    if [ "$line" = '<!-- shared guidance: agent-config -->' ]; then
-      for section in engineering workstation; do
-        # Match the shared contract: a blank separator follows each section.
-        awk '{ print }' "$work/source/agent-config/guidance/$section.md" >> "$expected"
-        printf '\n' >> "$expected"
-      done
-    else
-      printf '%s\n' "$line" >> "$expected"
-    fi
-  done < "$work/source/$consumer-config/global/AGENTS.md"
-  check "$consumer composition" cmp -s "$expected" "$agent/AGENTS.md"
+  if [ "$consumer" = pi ]; then
+    # Pi still composes declared shared sections; OMP installs native guidance.
+    expected="$work/$consumer-guidance"
+    : > "$expected"
+    while IFS= read -r line || [ -n "$line" ]; do
+      if [ "$line" = '<!-- shared guidance: agent-config -->' ]; then
+        for section in engineering workstation; do
+          # Match the shared contract: a blank separator follows each section.
+          awk '{ print }' "$work/source/agent-config/guidance/$section.md" >> "$expected"
+          printf '\n' >> "$expected"
+        done
+      else
+        printf '%s\n' "$line" >> "$expected"
+      fi
+    done < "$work/source/$consumer-config/global/AGENTS.md"
+    check "$consumer composition" cmp -s "$expected" "$agent/AGENTS.md"
+  fi
   check "$consumer launcher executable" test -x "$home/.local/bin/pass-env"
   check "$consumer OpenRouter launcher executable" test -x "$home/.local/bin/openrouter-key"
   check "$consumer design-check executable" test -x "$home/.local/bin/design-check"
