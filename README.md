@@ -59,6 +59,10 @@ is a read-only inventory. Inspect tracked, untracked and ignored work before
 removing only an owned worktree, without `--force`. Preserve other users' work
 and standing VMs. Native Git/SSH own lifecycle; no custom lease ledger is required.
 
+`bun scripts/loc-delta.ts [--repo misty-step/harness] [--from DATE] [--to DATE]`
+reads Glass's existing complexity ledger and prints project and per-module code
+lines with net change; it is read only and defaults to the week ending today.
+
 Update affected documentation with behavioral changes; root Landmark release
 automation owns `CHANGELOG.md`, so do not manually edit it.
 
