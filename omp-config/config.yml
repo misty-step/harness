@@ -18,52 +18,13 @@ tier:
   subagent: inherit
 find:
   credentialProvider: openrouter-find
-cycleOrder: [smol, default, extreme]
-symbolPreset: nerd
 theme:
   dark: everforest
   light: everforest-light
-statusLine:
-  preset: custom
-  separator: none
-  transparent: true
-  sessionAccent: true
-  compactThinkingLevel: true
-  showHookStatus: false
-  leftSegments:
-    - status
-    - model
-    - git
-    - mode
-    - subagents
-  rightSegments:
-    - session_name
-    - context_pct
-    - cost
-  segmentOptions:
-    git:
-      showBranch: true
-      showStaged: true
-      showUnstaged: true
-      showUntracked: true
-tui:
-  tight: false
-  hyperlinks: auto
-  renderMermaid: true
-  scrollbackRebuild: true
-  titleState: true
-display:
-  shimmer: classic
-  smoothStreaming: true
-  showTokenUsage: true
-  cacheMissMarker: true
 browser:
   relay: true
   headless: true
   cmux: false
-setupVersion: 2
-composer:
-  shape: pi
 skills:
   enableAgentsUser: true
 github:

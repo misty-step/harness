@@ -4,6 +4,9 @@ Native OMP configuration for Phaedrus / Misty Step. Source owns model roles,
 selected engineering skills, guidance, extensions and themes. Credentials,
 sessions, foreign settings and runtime history remain native/user-owned.
 
+Status-line, TUI and composer settings use native OMP defaults. Config installs
+retire the former owned preferences; foreign preferences and desktop palettes survive.
+
 This component belongs to [harness](../README.md). Shared primitives deploy
 through `../agent-config/install`; `AGENT_CONFIG_DIR` can override that source.
 
