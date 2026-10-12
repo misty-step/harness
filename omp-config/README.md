@@ -54,6 +54,22 @@ entrypoints fail closed. Redirecting the agent directory alone does not isolate
 HOME or host writes. The root `../install` installs both native harnesses;
 component installers are preferable for targeted changes.
 
+### Kaylee pane input boundary
+
+`extensions/kaylee-pane-guard` blocks tool dispatch using the single policy
+installed by hermes-config at
+`~/.hermes/profiles/kaylee-executives/plugins/kaylee/pane_guard.py`.
+Install that reviewed policy first. Missing, timed-out or malformed policy
+results refuse non-read tool calls. The extension changes neither configuration
+nor models, credentials, audio, focus or process lifecycle.
+
+The shared policy admits explicit local Herdr input only after fresh target
+inspection; Kaylee and unknown identities are refused. Raw socket/PTY and
+indirect Herdr input are not executed to resolve their targets.
+This is a native pre-tool boundary, not an arbitrary-code sandbox or replacement
+for the existing engineer host boundary. Fresh sessions load it through native
+extension discovery; existing sessions need an operator's native reload.
+
 Configuration overlays source-owned keys while preserving foreign keys. MCP
 overlays declared servers and preserves foreign inventory and owned-server auth.
 Native project MCP definitions/imports remain project-owned. Neither installer
