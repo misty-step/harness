@@ -12,10 +12,17 @@ const { values } = parseArgs({
 const repo = values.repo as string;
 const ledger = values.ledger ?? join(process.env.XDG_STATE_HOME ?? join(homedir(), ".local/state"), "complexity");
 const shift = (day: string, days: number) => new Date(Date.parse(day) + days * 864e5).toISOString().slice(0, 10);
-const to = values.to ?? new Intl.DateTimeFormat("en-CA", { timeZone: "America/Chicago" }).format(new Date());
-const from = values.from ?? shift(to, -7);
-if (!/^[\w.-]+\/[\w.-]+$/.test(repo) || repo.split("/").includes("..") || ![from, to].every((d) => /^\d{4}-\d{2}-\d{2}$/.test(d)) || from >= to) {
-	console.error("Usage: bun scripts/loc-delta.ts [--repo owner/name] [--from YYYY-MM-DD] [--to YYYY-MM-DD] [--ledger DIR]");
+const valid = (d?: string) => d === undefined || (/^\d{4}-\d{2}-\d{2}$/.test(d) && !Number.isNaN(Date.parse(d)) && shift(d, 0) === d);
+let to = values.to, from = values.from;
+const usage = "Usage: bun scripts/loc-delta.ts [--repo owner/name] [--from YYYY-MM-DD] [--to YYYY-MM-DD] [--ledger DIR]";
+if (!/^[\w.-]+\/[\w.-]+$/.test(repo) || repo.split("/").includes("..") || !valid(to) || !valid(from)) {
+	console.error(usage);
+	process.exit(2);
+}
+to ??= new Intl.DateTimeFormat("en-CA", { timeZone: "America/Chicago" }).format(new Date());
+from ??= shift(to, -7);
+if (from >= to) {
+	console.error(usage);
 	process.exit(2);
 }
 
@@ -39,6 +46,7 @@ function read(date: string): Receipt | string {
 		if (r.status !== "ok") return `measurement failed: ${r.reason || r.status}`;
 		const m = r.metrics;
 		if (!count(m?.code_lines) || !Array.isArray(m.modules) || !m.modules.every((p: Part) => typeof p.name === "string" && count(p.code_lines))) return "receipt figures are invalid";
+		if (typeof r.tools?.scc !== "string" || typeof r.scope !== "string") return "receipt records no scc version or scope";
 		return r;
 	} catch {
 		return "receipt cannot be read";
@@ -51,11 +59,11 @@ const before = read(from);
 const after = read(to);
 console.log(`Code lines, ${repo}, ${from} to ${to} (Central midnight receipts)`);
 for (const [label, date, r] of [["before", from, before], ["after", to, after]] as const) {
-	console.log(typeof r === "string" ? `  ${label} ${date}: unknown, ${r}` : `  ${label} ${date}: commit ${r.commit.slice(0, 10)}, measured ${r.measured_at}, scc ${r.tools.scc ?? "unrecorded"}`);
+	console.log(typeof r === "string" ? `  ${label} ${date}: unknown, ${r}` : `  ${label} ${date}: commit ${r.commit.slice(0, 10)}, measured ${r.measured_at}, scc ${r.tools.scc}`);
 }
 if (typeof before === "string" || typeof after === "string") process.exit(1);
 if (before.tools.scc !== after.tools.scc || before.scope !== after.scope) {
-	console.log(`  change unknown: scc ${before.tools.scc ?? "none"} then ${after.tools.scc ?? "none"}, scope ${before.scope} then ${after.scope}`);
+	console.log(`  change unknown: scc ${before.tools.scc} then ${after.tools.scc}, scope ${before.scope} then ${after.scope}`);
 	process.exit(1);
 }
 
@@ -76,6 +84,7 @@ for (const m of modules) {
 const days: string[] = [];
 for (let d = from; d <= to; d = shift(d, 1)) {
 	const r = read(d);
-	days.push(`${d.slice(5)} ${typeof r === "string" ? "unknown" : n(r.metrics.code_lines)}`);
+	const same = typeof r !== "string" && r.tools.scc === before.tools.scc && r.scope === before.scope;
+	days.push(`${d.slice(5)} ${same ? n(r.metrics.code_lines) : "unknown"}`);
 }
 console.log(`Project by day: ${days.join(" | ")}`);
