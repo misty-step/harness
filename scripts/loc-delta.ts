@@ -20,7 +20,7 @@ if (!/^[\w.-]+\/[\w.-]+$/.test(repo) || repo.split("/").includes("..") || ![from
 }
 
 type Part = { name: string; code_lines: number };
-type Receipt = { commit: string; cutoff: string; measured_at: string; tools: Record<string, string>; metrics: { code_lines: number; modules: Part[] } };
+type Receipt = { scope: string; commit: string; cutoff: string; measured_at: string; tools: Record<string, string>; metrics: { code_lines: number; modules: Part[] } };
 const count = (n: unknown): n is number => Number.isInteger(n) && (n as number) >= 0;
 
 /** One day's receipt, or why there is none. A missing or failed day is unknown, never zero or a neighbour. */
@@ -54,8 +54,8 @@ for (const [label, date, r] of [["before", from, before], ["after", to, after]] 
 	console.log(typeof r === "string" ? `  ${label} ${date}: unknown, ${r}` : `  ${label} ${date}: commit ${r.commit.slice(0, 10)}, measured ${r.measured_at}, scc ${r.tools.scc ?? "unrecorded"}`);
 }
 if (typeof before === "string" || typeof after === "string") process.exit(1);
-if (before.tools.scc !== after.tools.scc) {
-	console.log(`  change unknown: scc ${before.tools.scc ?? "none"} then ${after.tools.scc ?? "none"}`);
+if (before.tools.scc !== after.tools.scc || before.scope !== after.scope) {
+	console.log(`  change unknown: scc ${before.tools.scc ?? "none"} then ${after.tools.scc ?? "none"}, scope ${before.scope} then ${after.scope}`);
 	process.exit(1);
 }
 
