@@ -45,7 +45,6 @@ type SpawnHook = (event: { agent: string; invocationKind: "task" | "eval"; spawn
 	agent: Identity;
 	model?: ParentModel;
 	modelRegistry: { find: (provider: string, id: string) => ParentModel | undefined; getApiKey: () => Promise<string | undefined> };
-	models: { resolve: (spec: string) => ParentModel; family: (model: ParentModel) => string };
 }) => unknown;
 type ToolHook = (event: { toolName: string; input: Record<string, unknown> }) => unknown;
 type StartContext = {
@@ -122,13 +121,6 @@ function hooks(auth = async (): Promise<string | undefined> => "test-key", catal
 			return spawn({ agent, invocationKind, spawnKey }, {
 				agent: identity,
 				model: parent,
-				models: {
-					resolve: spec => {
-						const [provider, id] = spec.split("/");
-						return { provider, id };
-					},
-					family: model => model.id.startsWith("gpt-") ? "gpt" : model.id.startsWith("claude-") ? "claude" : model.id,
-				},
 				modelRegistry: {
 					find: (provider: string, id: string) => catalog ? { provider, id } : undefined,
 					getApiKey: auth,
@@ -180,22 +172,20 @@ test("designer blocks missing catalog, absent auth and failed auth rather than u
 	}
 });
 
-test("reviewers contrast authors while security review stays on Sol for task and eval dispatch", async () => {
+test("reviewers retain Grok xhigh for task and eval dispatch regardless of author", async () => {
 	const { select } = hooks();
 	for (const agent of ["reviewer", "security-reviewer"]) {
 		for (const invocation of ["task", "eval"] as const) {
-			expect(await select(agent, { provider: "openai-codex", id: "gpt-6.1-sol" }, "max", invocation))
-				.toEqual({ model: agent === "reviewer" ? "anthropic/claude-opus-5-5:xhigh" : "openai-codex/gpt-6.1-sol:xhigh" });
-			expect(await select(agent, { provider: "anthropic", id: "claude-opus-5-5" }, "max", invocation))
-				.toEqual({ model: "openai-codex/gpt-6.1-sol:xhigh" });
+			for (const parent of [undefined, { provider: "openai-codex", id: "gpt-6.1-sol" },
+				{ provider: "anthropic", id: "claude-opus-5-5" }, { provider: "custom", id: "unknown" }]) {
+				expect(await select(agent, parent, "max", invocation)).toEqual({ model: "cursor/grok-4.7:xhigh" });
+			}
 		}
 	}
 });
 
-test("reviewers refuse unknown author families and unavailable cross-family models", async () => {
+test("reviewers refuse unavailable Grok catalog or authentication", async () => {
 	for (const agent of ["reviewer", "security-reviewer"]) {
-		expect(await hooks().select(agent, undefined, "high")).toMatchObject({ block: true });
-		expect(await hooks().select(agent, { provider: "custom", id: "unknown" }, "high")).toMatchObject({ block: true });
 		for (const guard of [
 			hooks(async () => undefined),
 			hooks(async () => { throw new Error("credential lookup failed"); }),
@@ -227,7 +217,7 @@ test("child recovery pin empties inherited exact, effort and wildcard chains wit
 		"anthropic/*": ["openai-codex/gpt-6.1-sol:high"],
 	};
 	const child = hooks(undefined, true, { chains: { ...initial }, disabled: ["reviewer", "foreign-agent"] });
-	await child.start("reviewer", { provider: "anthropic", id: "claude-opus-5-5" });
+	await child.start("reviewer", { provider: "cursor", id: "grok-4.7" });
 	expect(child.scope.chains).toEqual(Object.fromEntries(
 		[...Object.keys(initial), "reviewer", "security-reviewer"].map(key => [key, []])));
 	expect(child.state.level).toBe("xhigh");
@@ -235,10 +225,9 @@ test("child recovery pin empties inherited exact, effort and wildcard chains wit
 	expect(parent.scope.chains).toEqual({ default: ["openai-codex/gpt-6.1-sol:high"] });
 });
 
-test("security reviewer pins Sol xhigh even when the task requested maximum thinking", async () => {
+test("security reviewer pins Grok xhigh even when the task requested maximum thinking", async () => {
 	const child = hooks();
-	await child.start("security-reviewer", { provider: "openai-codex", id: "gpt-6.1-sol" },
-		{ provider: "anthropic", id: "claude-opus-5-5" });
+	await child.start("security-reviewer", { provider: "cursor", id: "grok-4.7" });
 	expect(child.state.level).toBe("xhigh");
 	expect(child.scope.chains).toEqual({ default: [], reviewer: [], "security-reviewer": [] });
 });
@@ -249,7 +238,7 @@ test("failed or ineffective child recovery pin aborts before a provider request 
 			chains: { "anthropic/*": ["openai-codex/gpt-6.1-sol:high"] },
 			disabled: ["reviewer", "foreign-agent"], ...failure,
 		});
-		await child.start("reviewer", { provider: "anthropic", id: "claude-opus-5-5" });
+		await child.start("reviewer", { provider: "cursor", id: "grok-4.7" });
 		expect(() => child.request()).toThrow("review aborted");
 		expect(child.state.aborted).toBe(true);
 		expect(await child.select("reviewer", { provider: "openai-codex", id: "gpt-6.1-sol" }, "high"))
@@ -260,16 +249,11 @@ test("failed or ineffective child recovery pin aborts before a provider request 
 test("missing scoped settings keeps protected dispatch closed and aborts a revived reviewer", async () => {
 	const guard = hooks();
 	scopes.delete(guard.cwd);
-	await guard.start("reviewer", { provider: "anthropic", id: "claude-opus-5-5" });
+	await guard.start("reviewer", { provider: "cursor", id: "grok-4.7" });
 	expect(await guard.select("reviewer", { provider: "openai-codex", id: "gpt-6.1-sol" }, "high"))
 		.toMatchObject({ block: true });
 	expect(() => guard.request()).toThrow("review aborted");
 	expect(guard.state.aborted).toBe(true);
-});
-
-test("a failed identity lookup blocks dispatch rather than leaking a swallowed spawn-hook error", async () => {
-	const parent = { provider: "openai-codex", get id(): string { throw new Error("Model identity unavailable"); } };
-	expect(await hooks().select("reviewer", parent, "high")).toMatchObject({ block: true });
 });
 
 test("SDK startup substitution and later model changes cannot produce a reviewer request", async () => {
@@ -278,7 +262,7 @@ test("SDK startup substitution and later model changes cannot produce a reviewer
 	expect(() => substituted.request()).toThrow("review aborted");
 	expect(substituted.state.aborted).toBe(true);
 	const child = hooks();
-	await child.start("reviewer", { provider: "anthropic", id: "claude-opus-5-5" });
+	await child.start("reviewer", { provider: "cursor", id: "grok-4.7" });
 	expect(() => child.request({ provider: "openai-codex", id: "gpt-6.1-sol" })).toThrow("review aborted");
 	expect(child.state.aborted).toBe(true);
 });
@@ -295,7 +279,7 @@ test("extension changes revoke protected permission even while specialist authen
 
 test("persisted caller pin refuses cold startup on the SDK's substituted model", async () => {
 	const child = hooks();
-	await child.start("reviewer", { provider: "anthropic", id: "claude-opus-5-5" });
+	await child.start("reviewer", { provider: "cursor", id: "grok-4.7" });
 	child.revive("reviewer", { provider: "openai-codex", id: "gpt-6.1-sol" });
 	expect(() => child.request()).toThrow("review aborted");
 	expect(child.state.aborted).toBe(true);

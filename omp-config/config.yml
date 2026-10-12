@@ -1,17 +1,21 @@
 modelRoles:
   default: openai-codex/gpt-6.1-sol:xhigh
-  slow: anthropic/claude-opus-5-5:high
-  extreme: anthropic/claude-opus-5-5:xhigh
-  plan: openai-codex/gpt-6-astra:xhigh
+  slow: openai-codex/gpt-6.1-sol:xhigh
+  extreme: openai-codex/gpt-6.1-sol:xhigh
+  plan: openai-codex/gpt-6.1-sol:xhigh
   advisor: cursor/grok-4.7:xhigh
   task: openai-codex/gpt-6.1-sol:xhigh
-  reviewer: anthropic/claude-opus-5-5:xhigh
-  security-reviewer: openai-codex/gpt-6.1-sol:xhigh
+  reviewer: cursor/grok-4.7:xhigh
+  security-reviewer: cursor/grok-4.7:xhigh
   vision: anthropic/claude-opus-5-5:high
-  smol: openai-codex/gpt-6.1-sol:low
-  tiny: openai-codex/gpt-6.1-sol:low
-  commit: openai-codex/gpt-6.1-sol:low
+  smol: openai-codex/gpt-6.1-sol:xhigh
+  tiny: openai-codex/gpt-6.1-sol:xhigh
+  commit: openai-codex/gpt-6.1-sol:xhigh
   web: web/exa
+defaultThinkingLevel: xhigh
+tier:
+  openai: priority
+  subagent: inherit
 find:
   credentialProvider: openrouter-find
 cycleOrder: [smol, default, extreme]
@@ -113,24 +117,9 @@ retry:
       - openai-codex/gpt-6-astra:xhigh
       - cursor/claude-sonnet-5-5:high
       - anthropic/claude-sonnet-5-5:high
-    plan:
-      - openai-codex/gpt-6.1-sol:xhigh
-      - anthropic/claude-opus-5-5:xhigh
     reviewer: []
-    slow:
-      - openai-codex/gpt-6.1-sol:xhigh
-    extreme: []
     security-reviewer: []
     vision: []
-    smol:
-      - anthropic/claude-sonnet-5-5:medium
-      - google-antigravity/gemini-3.8-flash:high
-    tiny:
-      - anthropic/claude-sonnet-5-5:medium
-      - google-antigravity/gemini-3.8-flash:high
-    commit:
-      - anthropic/claude-sonnet-5-5:medium
-      - google-antigravity/gemini-3.8-flash:high
 task:
   maxRecursionDepth: 3
   showResolvedModelBadge: true
@@ -151,7 +140,7 @@ task:
     merge: patch
   agentModelOverrides:
     task: "@task"
-    scout: "@smol"
+    scout: "@advisor"
     sonic: "@smol"
     reviewer: "@reviewer"
     security-reviewer: "@security-reviewer"

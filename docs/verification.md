@@ -97,17 +97,15 @@ until their work completes; source retirement is not permission to remove them.
   claim of physically exhausting the host.
   Keep process/session evidence private and never kill a working engineer to
   repeat it.
-- Reviewer-family acceptance (US-014; operator rule 2026-09-30) uses a
+- Reviewer-route acceptance (US-014; operator exception 2026-10-12) uses a
   real OMP process with a network-disabled synthetic provider. Preserve the
   JSONL transcript, provider attempts and active child config readback.
-  With fallback enabled and Sol authenticated, force Sonnet failure: observe
-  same-model retries followed by terminal failure, with no other reviewer
-  attempt. Remove the guard as a positive control and observe the forbidden
-  hop. Cover both author directions, security-reviewer, missing reviewer auth,
-  inherited concrete/effort/wildcard chains, and an actual parent failure after
-  review to prove the engineer's recovery still works. Registry record
+  Reviewer and security-reviewer must select Grok xhigh regardless of author.
+  Force Grok failure: observe same-model retries followed by terminal failure,
+  with no other reviewer attempt. Cover missing reviewer auth, inherited
+  concrete/effort/wildcard chains, and an actual parent failure after review
+  to prove the engineer's default recovery still works. Registry record
   overrides merge keys; the native settings singleton is not child-scoped.
-  The 2026-10-01 acceptance walk on OMP 18.4.6 found and rejected both traps.
   Also remove the extension while retaining the default disabled-agent gate:
   protected tasks must remain unavailable. Inject a child initialization failure
   through a supported extension wrapper: no reviewer provider request or fallback

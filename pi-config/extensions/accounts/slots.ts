@@ -1,4 +1,4 @@
-import type { Provider } from "@earendil-works/pi-ai";
+import type { Api, Model, Provider, StreamOptions } from "@earendil-works/pi-ai";
 
 /** Extra account slots: slot id → built-in provider it clones. */
 export const SLOTS: Readonly<Record<string, string>> = {
@@ -18,6 +18,33 @@ export const POOLS: Readonly<Record<string, string>> = {
 	"xai-pool": "xai",
 	"openrouter-pool": "openrouter",
 };
+
+/**
+ * Fast is a native Responses payload field, not a Pi setting. Wrap members
+ * once so agent turns, compaction and tree summaries share the same default.
+ * streamSimple drops serviceTier, so apply it through its native onPayload.
+ */
+export function subscriptionTier(base: Provider, isUsingOAuth: (model: Model<Api>) => boolean): Provider {
+	if (!/^openai(-codex)?(-[2-4])?$/.test(base.id)) return base;
+	const tierOptions = (model: Model<Api>, options?: StreamOptions): StreamOptions | undefined => {
+		if (model.api !== "openai-codex-responses" && !isUsingOAuth(model)) return options;
+		return {
+			...options,
+			onPayload: async (payload, target) => {
+				const replacement = await options?.onPayload?.(payload, target);
+				const body = replacement === undefined ? payload : replacement;
+				if (!body || typeof body !== "object" || "service_tier" in body) return body;
+				const tier = (options as StreamOptions & { serviceTier?: string | null })?.serviceTier;
+				return { ...body, service_tier: tier === undefined ? "priority" : tier };
+			},
+		};
+	};
+	return {
+		...base,
+		stream: (model, context, options) => base.stream(model, context, tierOptions(model, options)),
+		streamSimple: (model, context, options) => base.streamSimple(model, context, tierOptions(model, options)),
+	};
+}
 
 /** The base provider then its slots: every account of a pool, in order. */
 export function poolMembers(baseId: string): string[] {

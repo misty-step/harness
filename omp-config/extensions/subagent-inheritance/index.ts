@@ -8,19 +8,11 @@ const GUARDED_AGENTS: Record<string, true> = { reviewer: true, "security-reviewe
 const REVIEW_PIN = "harness:reviewer-model-pin";
 const expectedReviews = new Map<string, { parentId: string; model: string }>();
 
-/** Reviewers contrast authors at xhigh; security review stays on Sol. */
+/** Review retains Grok; visual work retains Opus. */
 function taskModelSelection(spawn: Spawn, ctx: ExtensionContext, thinking: string | undefined): ModelSelection {
 	const parent = ctx.model;
 	if (spawn.agent === "reviewer" || spawn.agent === "security-reviewer") {
-		if (!parent) return { block: true, reason: "Reviewer requires a known author model family." };
-		const sol = ctx.models.resolve("openai-codex/gpt-6.1-sol");
-		const sonnet = ctx.models.resolve("anthropic/claude-sonnet-5-5");
-		const family = ctx.models.family(parent);
-		if (spawn.agent === "security-reviewer" && ((sol && family === ctx.models.family(sol))
-			|| (sonnet && family === ctx.models.family(sonnet)))) return { model: "openai-codex/gpt-6.1-sol:xhigh" };
-		if (sol && family === ctx.models.family(sol)) return { model: "anthropic/claude-opus-5-5:xhigh" };
-		if (sonnet && family === ctx.models.family(sonnet)) return { model: "openai-codex/gpt-6.1-sol:xhigh" };
-		return { block: true, reason: "No reviewer route for the author's model family." };
+		return { model: "cursor/grok-4.7:xhigh" };
 	}
 	if (spawn.invocationKind !== "task" || spawn.agent !== "designer") return;
 	const opusParent = parent?.provider === "anthropic" && parent.id === "claude-opus-5-5";

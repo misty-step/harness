@@ -1,8 +1,9 @@
 # Harness
 
-Misty Step's agent configuration: one shared base and two thin harness adapters.
-One clone records a compatible combination; one PR can change the contract and
-both consumers. Runtime state and credentials are not source.
+Misty Step's agent configuration: one shared base, two thin harness adapters,
+and native Codex model defaults. One clone records a compatible combination;
+one PR can change the contract and consumers. Runtime state and credentials
+are not source.
 
 ```text
 agent-config/ ── shared install contract ──┬── pi-config/  → pi runtime
@@ -14,13 +15,14 @@ agent-config/ ── shared install contract ──┬── pi-config/  → pi 
 | `agent-config/` | Portable skills, shared global guidance, `pass-env`, shared deployment | [README](agent-config/README.md) |
 | `pi-config/` | pi settings, extensions, chrome, guidance intro | [README](pi-config/README.md) |
 | `omp-config/` | OMP routing, config/MCP, extensions, themes, guidance, watchdog | [README](omp-config/README.md) |
+| `codex-config/` | Native Codex model, effort and service-tier defaults only | [Deployment](#codex-defaults-native-installation) |
 
 Intent: [USER_STORIES.md](USER_STORIES.md). Vocabulary, boundaries and
 invariants: [DOMAIN.md](DOMAIN.md). Decisions: [docs/adr/](docs/adr/). Agent
 rules: [AGENTS.md](AGENTS.md).
 
-Runtime scope is native Pi/OMP configuration, installation, engineering skills,
-and necessary credential/audio/workstation isolation. Custom ticket dispatch,
+Runtime scope is native Pi/OMP configuration, native Codex model defaults,
+installation, engineering skills, and necessary credential/audio/workstation isolation. Custom ticket dispatch,
 fleet rosters, experiment scheduling, automated audits and session-close control
 are retired. Repository verification and release gates remain.
 Native Herdr agent inspection/prompting and native OMP/Pi launch remain necessary
@@ -104,7 +106,7 @@ the measured baseline, provider/cache provenance, instruction audit, and the
 off-by-default credential-context experiment. Run the analyzer with an explicit
 task manifest; a session stop is not proof of task completion. The credential
 experiment remains off by default. Current routing is owned by each harness's
-settings: Sol xhigh for primary engineering, Sol low for lightweight work.
+settings: Sol xhigh with native fast processing; Claude design and Grok scouting/review.
 
 ## Deploy (explicit live writes)
 
@@ -143,6 +145,70 @@ The opt-in [desktop memory guard](docs/desktop-memory-guard.md) (US-043) stages 
 native Herdr user service, bounded development slices, two-slot local-job
 admission and an Omarchy launcher override. Staging never activates or restarts
 the fleet. Its runbook owns the operator-only cutover and rollback.
+
+### Codex defaults (native installation)
+
+[`codex-config/config.toml`](codex-config/config.toml) owns only the native Codex
+CLI defaults: GPT-6.1 Sol, xhigh reasoning in ordinary and Plan modes, and Fast
+service. Plan mode otherwise uses its separate Medium preset. Codex 0.159.0's
+model catalog advertises `xhigh` and the `priority` tier for Sol; the native
+`fast` setting maps to `priority`. `features.fast_mode` is enabled by default,
+so no redundant feature override is stored. See the
+[configuration reference](https://developers.openai.com/codex/config-reference),
+[speed guide](https://developers.openai.com/codex/speed), and
+[Plan preset source](https://github.com/openai/codex/blob/main/codex-rs/models-manager/src/collaboration_mode_presets.rs).
+
+There is no Codex installer adapter: `./install` still installs only Pi and OMP.
+Do not replace or symlink `~/.codex/config.toml` with this four-key source;
+preserve unrelated settings, credentials, plugins, approvals and runtime state.
+After merge/review, an authorized host operator applies only these keys through
+Codex's native [`config/batchWrite`](https://developers.openai.com/codex/app-server)
+RPC. This is a live write; caged engineers must not bypass a missing approved
+installation route.
+
+Start the native server without model/profile/effort overrides. This output
+filter retains only the relevant settings, never the full configuration:
+
+```sh
+codex app-server --stdio | jq --unbuffered '
+  select(.id != null) |
+  if .error then {id, error}
+  elif .id == 2 then {id, config: (.result.config |
+    {model, model_reasoning_effort, plan_mode_reasoning_effort, service_tier})}
+  elif .id == 4 then {id, session: (.result |
+    {model, reasoningEffort, serviceTier})}
+  else {id, completed: (.result != null)} end'
+```
+
+Send these newline-delimited protocol messages in order, waiting for the
+initialization response before sending `initialized`, and for each numbered
+response before continuing:
+
+```json
+{"id":1,"method":"initialize","params":{"clientInfo":{"name":"harness_config","version":"1.0.0"}}}
+{"method":"initialized","params":{}}
+{"id":2,"method":"config/read","params":{"includeLayers":false}}
+{"id":3,"method":"config/batchWrite","params":{"edits":[{"keyPath":"model","value":"gpt-6.1-sol","mergeStrategy":"upsert"},{"keyPath":"model_reasoning_effort","value":"xhigh","mergeStrategy":"upsert"},{"keyPath":"plan_mode_reasoning_effort","value":"xhigh","mergeStrategy":"upsert"},{"keyPath":"service_tier","value":"fast","mergeStrategy":"upsert"}]}}
+```
+
+Stop that server, start a fresh one with the same command, and send only
+`initialize`, `initialized`, `config/read`, then the following fresh-thread
+request (no model, effort or tier override):
+
+```json
+{"id":4,"method":"thread/start","params":{}}
+```
+
+Retain the four-key config readback and session response: expect
+`model = gpt-6.1-sol`, `reasoningEffort = xhigh`, and `serviceTier = priority`.
+Also check a fresh interactive `codex --no-daemon` session with `/status` and
+`/fast status`; switch to `/plan` and confirm xhigh remains selected.
+Project config, selected profiles and managed policy can override defaults:
+perform the readback in the intended working directory, not just an empty home.
+Existing sessions retain their model/effort/tier, so resuming one or requesting
+hot reload is not fresh-session proof. This source does not own Hermes profiles
+or either client's authentication.
+
 
 
 ## Contributing and releases

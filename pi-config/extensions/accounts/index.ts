@@ -18,12 +18,12 @@
  * providers and their stored logins untouched (stock behavior).
  */
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
-import { createAssistantMessageEventStream } from "@earendil-works/pi-ai";
+import { createAssistantMessageEventStream, type Api, type Model } from "@earendil-works/pi-ai";
 import { builtinProviders } from "@earendil-works/pi-ai/providers/all";
 import { join } from "node:path";
 import { homedir } from "node:os";
 import { fileStore, rotate } from "./pool.ts";
-import { POOLS, SLOTS, cloneProvider, poolMembers, poolProvider } from "./slots.ts";
+import { POOLS, SLOTS, cloneProvider, poolMembers, poolProvider, subscriptionTier } from "./slots.ts";
 
 export default function accounts(pi: ExtensionAPI) {
 	const builtins = builtinProviders();
@@ -40,11 +40,17 @@ export default function accounts(pi: ExtensionAPI) {
 	});
 
 	const find = (id: string) => builtins.find((provider) => provider.id === id);
+	const isUsingOAuth = (model: Model<Api>) =>
+		session?.modelRegistry.isUsingOAuth(model) ?? false;
+	for (const id of ["openai", "openai-codex"]) {
+		const base = find(id);
+		if (base) pi.registerProvider(subscriptionTier(base, isUsingOAuth));
+	}
 	// Fail closed per slot and pool: a renamed or removed base provider drops
 	// its slots rather than registering a provider that cannot authenticate.
 	for (const [id, baseId] of Object.entries(SLOTS)) {
 		const base = find(baseId);
-		if (base) pi.registerProvider(cloneProvider(base, id));
+		if (base) pi.registerProvider(subscriptionTier(cloneProvider(base, id), isUsingOAuth));
 	}
 	for (const [poolId, baseId] of Object.entries(POOLS)) {
 		const base = find(baseId);

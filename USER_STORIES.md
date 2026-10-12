@@ -497,9 +497,9 @@ Opus required for visual, motion, UX and communications work, so work uses the
 selected reasoning tier without mistaking an authorized account for capacity.
 
 Criteria:
-1. WHEN a fresh OMP session selects `default` or `task`, THE SYSTEM SHALL
-   resolve GPT-6.1 Sol xhigh; `slow` SHALL resolve Opus 5.5 high and
-   `extreme` Opus 5.5 xhigh.
+1. WHEN a fresh OMP session selects `default`, `task`, `slow`, `extreme`, or
+   `plan`, THE SYSTEM SHALL resolve GPT-6.1 Sol xhigh. OpenAI requests SHALL
+   default to the native priority service tier, inherited by Sol task/eval children.
 2. WHEN OMP resolves `vision` or `designer`, THE SYSTEM SHALL select Opus 5.5
    at high or above. A designer child of a non-Opus parent SHALL use Opus high;
    a designer child of an Opus high/xhigh/max parent SHALL retain that level.
@@ -509,19 +509,18 @@ Criteria:
    the configured Opus primary and that provider fails, THEN THE SYSTEM SHALL
    stop after same-model recovery rather than switch models, at every
    reasoning level.
-3. WHEN OMP resolves `smol`, `tiny`, `commit`, `scout`, or `sonic`, THE SYSTEM
-   SHALL select GPT-6.1 Sol low; `advisor` SHALL select Cursor Grok 4.7 xhigh;
-   `plan` SHALL select GPT-6 Astra xhigh.
+3. WHEN OMP resolves `smol`, `tiny`, `commit`, or `sonic`, THE SYSTEM SHALL
+   select GPT-6.1 Sol xhigh; `scout` and `advisor` SHALL select Cursor Grok 4.7
+   xhigh.
    OMP SHALL leave automatic Steward review off by default while preserving
    explicit `--advisor` and `/advisor on` invocation.
    Ordinary task children SHALL use their configured agent routes rather than
    inherit the live parent's model and thinking; explicit tagged model
    selections and per-item effort SHALL remain available, except designer
    effort below high SHALL be rejected.
-   Under the operator's 2026-10-05 review rule, reviewer task/eval dispatch
-   SHALL choose Opus 5.5 xhigh for an OpenAI author and GPT-6.1 Sol xhigh for
-   an Anthropic author; security-reviewer SHALL choose GPT-6.1 Sol xhigh.
-   Missing/unknown author family or unavailable authentication SHALL block dispatch.
+   Under the operator's 2026-10-12 route exceptions, reviewer task/eval dispatch
+   and security-reviewer SHALL choose Cursor Grok 4.7 xhigh regardless of author.
+   Unavailable Grok catalog entries or authentication SHALL block dispatch.
    Reviewer recovery SHALL retry the selected model or stop, with no fallback
    chain; primary engineering recovery SHALL remain unchanged. GitHub App
    approval posting and fleet roster overlays are retired.
@@ -529,17 +528,18 @@ Criteria:
    disabled; failed reviewer initialization SHALL abort before any provider
    request, never continue with inherited recovery.
 4. WHERE cross-model recovery is allowed, THE SYSTEM SHALL use only configured
-   subscription routes. OMP default/task recovery SHALL use Astra xhigh,
-   Cursor Sonnet high, then Anthropic Sonnet high. Grok 4.7 SHALL be allowed
+   subscription routes. All OMP Sol engineering roles SHALL inherit recovery
+   through Astra xhigh, Cursor Sonnet high, then Anthropic Sonnet high. Grok 4.7 SHALL be allowed
    only for read-only advisory work, never OMP builder recovery.
    Pi recovery SHALL use Sol xhigh then Astra xhigh through its native Codex
-   pool, without depending on SuperGrok. Explicit lightweight work SHALL use
-   GPT-6.1 Sol low rather than Luna.
+   pool, without depending on SuperGrok. Explicit effort overrides SHALL remain
+   available; the default effort SHALL be xhigh rather than low.
    All shared subscription accounts SHALL be authorized for any work and
    SHALL fail over between each other; no engineer launch SHALL require any
    one account. Authorization SHALL NOT be treated as proof of available quota.
 5. WHEN the Pi installer runs, THE SYSTEM SHALL select GPT-6.1 Sol xhigh as
-   Pi's default and report a missing Pi-native Codex login rather than restore
+   Pi's default, request priority service for native Codex inference, and report
+   a missing Pi-native Codex login rather than restore
    the retired DeepSeek default. Pi SHALL use only OpenAI Codex, xAI and
    OpenRouter routes: any Anthropic model, direct or through OpenRouter,
    SHALL be refused before inference. If native startup selects an unapproved

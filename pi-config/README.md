@@ -57,7 +57,7 @@ presentation; "behavioral" changes agent capability, model input, or data flow.
 
 | Component | Owner | Class | Installed by `./install` | Divergence |
 | --- | --- | --- | --- | --- |
-| `settings.json` | this repo | config | yes | GPT-6.1 Sol xhigh default (US-014); Codex pool recovery through Astra xhigh; explicit Sol low for lightweight work; enabled retry and compaction; editor padding, markdown, theme name |
+| `settings.json` | this repo | config | yes | GPT-6.1 Sol xhigh default (US-014), including native OpenAI direct slots; Codex pool recovery through Astra xhigh; explicit Sol low for lightweight work; enabled retry and compaction; editor padding, markdown, theme name |
 | `global/AGENTS.md` | this repo | behavioral | yes | Global `~/.pi/agent/AGENTS.md`: pi's intro plus shared sections spliced from `agent-config` |
 | `extensions/pi-chrome.ts` | this repo | aesthetic | yes | Session card, composer rail layout, live working state, footer |
 | `extensions/loc/` | this repo | behavioral (read-only) | yes | `/loc`, `/loc-trend`, LOC status row |
@@ -173,6 +173,33 @@ replaces Luna rather than appearing as a second Sol fallback link: the chain
 keys on model identity, so repeating Sol with a different effort would be
 ambiguous. Deployment removes retired Pi-owned Luna effort pins and preserves
 foreign providers' settings.
+
+Fast mode defaults to the native Responses `service_tier: "priority"` value
+([OpenAI Fast mode](https://developers.openai.com/api/docs/guides/fast-mode)).
+Pi 1.1.0 has no service-tier setting: its full Responses adapters accept
+`serviceTier`, but `streamSimple` drops it. The existing accounts extension
+therefore wraps each OpenAI member's native `onPayload`, not the pool.
+Legacy Codex requests and native OpenAI ChatGPT OAuth requests default to
+priority across agent turns, compaction and tree summaries; paid native OpenAI
+API-key calls, Grok and OpenRouter are unchanged. Caller payload hooks still run,
+their replacement payloads are honored, and any explicit `service_tier` or
+full-stream `serviceTier` wins. Account authentication and rotation are unchanged.
+`defaultThinkingLevel` and exact Sol/Astra provider pins select xhigh on fresh
+sessions; `--thinking`, model suffixes, and resumed session choices still override.
+
+For readback after installation, start a fresh `pi --mode rpc --no-session` and
+send `{"id":"defaults","type":"get_state"}`: expect `openai-pool/gpt-6.1-sol`
+and `thinkingLevel: "xhigh"`. Load a disposable extension with `-e` that logs
+**only** `model` and `reasoning.effort` from the native
+`before_provider_request` payload, then prompt once. The member wrapper applies
+its tier default after that hook returns. To prove the tier actually served,
+also observe native `provider_stream_event` events
+`response.created`/`response.completed`, logging only
+`event.data.response.model` and `event.data.response.service_tier`.
+The response reports the tier actually served; a provider downgrade is not
+proof of priority service. Repeat with a signed-in direct slot and an explicit
+`--model openai-pool/gpt-6.1-sol:low` to prove direct coverage and effort override.
+Do not log prompts, complete payloads, headers or credentials.
 
 **`image-budget/` — behavioral.** Owns a hard ceiling on inline image bytes
 per request (ADR-019). Two layers, in order of authority. `context` enforces a
