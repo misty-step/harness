@@ -44,6 +44,8 @@ for consumer in pi omp; do
     printf 'retired extension\n' > "$agent/extensions/continuation-nudge/index.ts"
     mkdir -p "$agent/extensions/diff-review"
     printf 'retired extension\n' > "$agent/extensions/diff-review/index.ts"
+    mkdir -p "$agent/extensions/cwd"
+    printf 'retired extension\n' > "$agent/extensions/cwd/index.ts"
     mkdir -p "$home/.local/bin"
     printf 'foreign native executable sentinel\n' > "$work/expected-native"
     cp "$work/expected-native" "$home/.local/bin/omp"
@@ -312,6 +314,7 @@ for consumer in pi omp; do
   else
     check "omp continuation-nudge retired" test ! -e "$agent/extensions/continuation-nudge"
     check "omp diff-review retired" test ! -e "$agent/extensions/diff-review"
+    check "omp cwd retired" test ! -e "$agent/extensions/cwd"
   fi
 done
 if [ "$failures" -ne 0 ]; then

@@ -284,6 +284,7 @@ install_extensions() {
   rm -rf -- "$agent_dir/extensions/executive"
   rm -rf -- "$agent_dir/extensions/continuation-nudge"
   rm -rf -- "$agent_dir/extensions/diff-review"
+  rm -rf -- "$agent_dir/extensions/cwd"
   rm -rf -- "$agent_dir/references/review"
   rm -f -- "$agent_dir/extensions/loc/git-hook.sh"
   for ext_dir in "$repo_dir"/extensions/*; do

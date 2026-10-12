@@ -124,6 +124,9 @@ Use fresh OMP processes to load changed extensions, guidance or provider policy.
 Do not restart active sessions or services during a routing-only installation.
 Existing sessions keep their selected model; file presence does not prove loading.
 
+The native `path` status segment shows the working directory; the duplicate
+`cwd` extension is retired.
+
 ## Model routing (US-014)
 
 `config.yml` is the authority; do not duplicate its full recovery matrix here.
