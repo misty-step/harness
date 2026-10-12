@@ -62,7 +62,7 @@ def arguments(argv):
         action.add_argument("receipt_id", type=safe_name)
     for operation in ("install-repository", "readback-repository"):
         action = actions.add_parser(operation, allow_abbrev=False)
-        action.add_argument("--repository", required=True, choices=("harness", "ai-usage"))
+        action.add_argument("--repository", required=True, choices=("harness", "ai-usage", "iron-forest"))
         if operation == "install-repository":
             action.add_argument("--revision", required=True, type=revision)
     args = parser.parse_args(argv)
