@@ -1,6 +1,6 @@
 # omp-config
 
-Own OMP routing, config/models/MCP, extensions, themes and the global intro.
+Own native OMP config/models/MCP, extensions, themes and global instructions.
 Edit source; `./install` overlays selected components into `omp config path`,
 preserving foreign config, credentials and runtime state.
 
@@ -9,5 +9,5 @@ overrides it); this installer declares selection. External skills retain
 upstream provenance; homebrew skills carry distinct outcomes or local knowledge.
 
 Run `../scripts/check omp`; shared changes exercise both consumers.
-`README.md` records ownership and operations. Global `OPERATIONS.md` is an
-on-demand reference, deployed beside composed `AGENTS.md`.
+`README.md` records component operations. Global instructions point to the
+shared native `local-facts` skill rather than a composed sidecar.

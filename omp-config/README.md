@@ -59,19 +59,25 @@ overlays declared servers and preserves foreign inventory and owned-server auth.
 Native project MCP definitions/imports remain project-owned. Neither installer
 revokes OAuth or deletes pass entries.
 
-### Config-only installation
+### Scoped native cutover
 
-From the reviewed merged revision in `omp-config/`, applying native fleet
-defaults without the optional machine-local overlay:
+From the reviewed merged revision in `omp-config/`, applying native defaults
+without the optional machine-local overlay:
 
 ```sh
-bun bin/omp-merge-config.ts --source config.yml --dest "$(omp config path)/config.yml" --check
-bun bin/omp-merge-config.ts --source config.yml --dest "$(omp config path)/config.yml"
+agent_dir=$(omp config path)
+bun bin/omp-merge-config.ts --source config.yml --dest "$agent_dir/config.yml" --check
+bun bin/omp-merge-config.ts --source config.yml --dest "$agent_dir/config.yml"
+rm -f -- "$agent_dir/extensions/subagent-inheritance/index.ts" "$agent_dir/extensions/subagent-inheritance/index.test.ts" "$agent_dir/bin/omp-model-policy.ts"
+rmdir -- "$agent_dir/extensions/subagent-inheritance" 2>/dev/null || true
+install -m 600 global/AGENTS.md "$agent_dir/AGENTS.md"
+rm -f -- "$agent_dir/OPERATIONS.md"
 ```
 
-Only `config.yml` changes. Retired owned settings are removed; foreign settings
-and all auth/account content survive. No provider probe, extension write or
-session restart occurs. Rollback is git revert and the same scoped install.
+Only config, global instructions and the retired routing files change. Foreign
+siblings and all auth/account content survive. No provider probe, credential
+write, other extension update or session restart occurs. Use a new session after
+the whole cutover. Rollback is git revert and the corresponding scoped install.
 
 Native `path` and Git status replace ornamental `cwd` and `loc` extensions.
 Use `git diff --numstat` for changed-line counts; `/loc` and `/loc-trend` are retired.
@@ -250,7 +256,7 @@ Portable defaults use the bundled Everforest themes. The installer overlays
 config. When `themes/omarchy-system.json` is already installed, configuration
 selects that generated palette for both backgrounds (US-017), without modifying
 it. With the overlay, explicit local theme preferences take precedence.
-The config-only commands above deliberately bypass it and never apply account policies.
+The scoped commands above deliberately bypass it and never apply account policies.
 Use native skill path settings or locally owned skill symlinks for OS/host-specific
 packages; installers preserve unmanaged skills. Keep these local files outside
 Git and credentials in native runtime storage. Missing overlays are optional;

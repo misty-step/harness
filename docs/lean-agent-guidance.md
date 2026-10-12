@@ -41,7 +41,6 @@ Historical ownership map from the 2026-09-30 commission:
 | `decide` | `sachstand`, quiet decisions; only speech needs the skill |
 | `check-cadence`, `verification-infrastructure` | `story-qa`; missing infrastructure is separate work |
 | Direct UI fixes and deterministic copy checks | `visual-state-review` |
-| Model/account discovery and host commands | OMP `OPERATIONS.md` sidecar |
 | Agent architecture and post-training source links | `agent-design` |
 
 These recorded deployment/cutover details are historical, not instructions to

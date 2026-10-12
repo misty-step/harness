@@ -44,7 +44,7 @@ run_shared() {
   "$base_dir/install" $mode --agent-dir "$agent_dir" "$@"
 }
 
-guidance_files='AGENTS.md OPERATIONS.md WATCHDOG.md WATCHDOG.yml'
+guidance_files='AGENTS.md WATCHDOG.md WATCHDOG.yml'
 
 validate_guidance() {
   for file in $guidance_files; do
@@ -56,7 +56,7 @@ install_guidance() {
   for file in $guidance_files; do
     install -m 600 "$repo_dir/global/$file" "$agent_dir/$file"
   done
-  rm -f -- "$agent_dir/RULES.md"
+  rm -f -- "$agent_dir/RULES.md" "$agent_dir/OPERATIONS.md"
 }
 validate_config() {
   require_bun
