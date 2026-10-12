@@ -136,6 +136,7 @@ class ClientTransportTests(unittest.TestCase):
     def test_invalid_action_flags_never_connect(self):
         install = ["install", "--item", "K-test", "--recipe", "shared-skill",
                    "--revision", "a" * 40, "--selection", "story-qa"]
+        repository = ["install-repository", "--repository", "harness", "--revision", "a" * 40]
         cases = [[], ["shell", "true"], ["capabilities", "--item", "K-test"],
                  ["readback", "host-1", "--profile", "omp"], ["rollback", "../receipt"],
                  [*install, "--argv", "true"], [*install, "--repo", "https://foreign.invalid"],
@@ -148,7 +149,14 @@ class ClientTransportTests(unittest.TestCase):
                  [*install, "--recipe", "harness-cli"],
                  [*install, "--recipe", "workbench-item"],
                  ["install", "--item", "K-test", "--recipe", "shared-skill", "--rev", "a" * 40,
-                  "--selection", "story-qa"]]
+                  "--selection", "story-qa"],
+                 [*repository, "--command", "true"],
+                 [*repository, "--environment", "HOME=/tmp"],
+                 [*repository, "--destination", "/tmp/file"],
+                 [*repository, "--repository", "../harness"],
+                 [*repository, "--repository", "https://github.com/foreign/repo"],
+                 [*repository, "--revision", "master"],
+                 ["readback-repository", "--repository", "harness", "--revision", "a" * 40]]
         with tempfile.TemporaryDirectory() as directory, socket.socket(socket.AF_UNIX) as server:
             endpoint = Path(directory) / "install.sock"
             server.bind(str(endpoint))

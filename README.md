@@ -133,9 +133,12 @@ credentials, sessions, foreign packages, and generated desktop themes are not.
 See [US-028](USER_STORIES.md) for project-aware billing and failure behavior.
 
 Caged engineers use the [audited host-install client](omp-config/README.md#audited-host-installation-us-052)
-after Workbench's explicit desk-side bootstrap. It admits named installations
-from merged, independently reviewed, green source; it is not a host shell.
-Installation, host readback, rollback and consumer activation remain distinct.
+after Workbench's one-time desk-side bootstrap. The fixed repository route runs
+Harness's configuration installers or ai-usage's app installer at an exact
+default-branch PR merge commit, then compares installed code on live readback.
+It accepts no host command, environment, destination or auth operation.
+The earlier selected-asset route retains reviewed-green admission and guarded
+receipt rollback. Installation and running-consumer loading remain distinct.
 New `workbench-item` executable-release installs are deferred: launch-time
 mounts cannot protect late-created assets from existing same-UID cages.
 CLI, individual shared skills/bins, and historical receipt readback/rollback

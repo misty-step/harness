@@ -21,10 +21,11 @@ and agent rules in [AGENTS.md](AGENTS.md).
   harness installer declares for deployment.
 - **Deploy (install):** a live mutation of an agent directory and `~/.local/bin`.
   It is never verification.
-- **Audited host-install route:** Workbench's typed user socket for named
-  existing-installer recipes from merged, reviewed, green source. OMP owns its
-  client and cage exposure; Workbench owns eligibility, selected transactions,
-  readback, rollback and durable generated Glass receipts.
+- **Audited host-install route:** Workbench's typed user socket. Selected-asset
+  recipes own reviewed-green admission, transactions and guarded rollback.
+  Repository installs own exact merged-default-branch admission, fixed existing
+  Harness/ai-usage installer execution and live managed-code readback. OMP owns
+  the client and cage exposure. Neither accepts caller commands or auth changes.
 - **Foundation Standard:** the versioned obligation catalog in
   `agent-config/skills/foundation/`. `foundation-check` enforces it, and a
   project repository pins a harness revision to adopt it.
@@ -98,7 +99,9 @@ the Foundation Standard tooling. It does not own:
   versioned capability before writes (`omp-config/install`,
   `scripts/verify-installers`; MIS-203).
 - **INV-013** The host-install client cannot submit a shell, caller environment,
-  destination or source-proof object, and installation cannot activate consumers.
+  destination or source-proof object. Selected-asset installation cannot activate
+  consumers; the fixed ai-usage repository installer uses its supported plugin
+  rescan without activating the collector or restarting OMP/Pi.
   Enforced by `omp-config/bin/omp-host-install.py` and
   `omp-config/bin/test_omp_host_install.py`; Workbench enforces the host boundary.
   Existing-cage library socket exposure and native private/library exclusions
