@@ -45,7 +45,6 @@ commands in a portable skill.
 
 Evidence: `scripts/references.test.ts`,
 `agent-config/skills/test-audit/SKILL.md`,
-`agent-config/guidance/engineering.md`,
 `./scripts/verify all`; working-tree disposable installer smoke for both consumers.
 
 ## US-022 Review work and walk product stories as an agent
@@ -75,8 +74,7 @@ No-gos: no Playwright-only proof, invented browser walk for internal work,
 universal receipt format, or scheduler created by installing a skill.
 
 Evidence: `scripts/references.test.ts`,
-`agent-config/skills/story-qa/SKILL.md`,
-`agent-config/guidance/engineering.md`;
+`agent-config/skills/story-qa/SKILL.md`;
 disposable Pi and OMP installer smoke.
 
 ## US-045 Open the exact review round from the board
@@ -133,8 +131,7 @@ No-gos: no implicit deletion of required gates, unapproved recurring spend, or
 CI change to Habitat or Tach in this harness PR.
 
 Evidence: `scripts/references.test.ts`,
-`agent-config/skills/story-qa/check-cadence.md`,
-`agent-config/guidance/engineering.md`;
+`agent-config/skills/story-qa/check-cadence.md`;
 disposable Pi and OMP installer smoke.
 
 ## US-024 Enforce repository foundations with required checks

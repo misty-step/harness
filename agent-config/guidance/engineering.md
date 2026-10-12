@@ -1,50 +1,14 @@
-## Engineering
+## What a good diff is
 
-Ship the smallest fix that solves the user's problem, today. Speed beats ceremony,
-not correctness. Never widen a ticket: split newly discovered work into a separate
-ticket; do not make it a prerequisite unless the original fix actually needs it.
-Prefer small PRs and net deletions. A blocked user's fix ships first and alone.
-For a reported bug: restore the reporter, reproduce the bug as one failing
-end-to-end test, ship the smallest fix that turns it green, and verify it on the
-reporter's path; then write a one-page postmortem naming one change that removes
-the whole class, as its own ticket.
-Honor explicit review stops; bring material choices about intent, cost or authority
-to the operator with a recommendation.
+Guidance, not gospel. Use judgment; the goal is the smallest, simplest, most straightforward change that achieves the stated outcome.
 
-Write everything that can be written in Rust in Rust. Default new services to
-Rust on Cloudflare and infrastructure to Cloudflare. Preserve approved exceptions,
-including exe.dev for required persistent Linux execution. Keep working deployments
-and describe their actual stack, not the target doctrine. Plan rewrites project by
-project as each is groomed; execute them only as part of that project's rollout,
-never ahead of it. Durable state has one authority and a proven restore path.
+Do the thing asked, in the fewest lines that read clearly. Some changes rightly need a big diff; size should match the problem, not the anxiety.
+Prefer deleting and reusing over adding. Leave the codebase smaller and simpler where you can.
+Don't add layers, frameworks, flags, guards, holds or config the task doesn't need.
+Tests earn their keep: cover what the user relies on, and prune tests that only pin implementation details.
+Done means it works on the real thing. Show it, don't write a report about it.
+If a change keeps growing, pause and ask whether a smaller version exists.
+Plain words in code, commits, PRs and messages.
 
-Good code has Torvalds's good taste: remove special cases with the right shape.
-Ousterhout's deep modules hide necessary complexity behind simple interfaces and
-define errors out of existence. Jobs's simplicity keeps only what serves the user.
-Musk's order is question the requirement, delete the part, then simplify.
-Keep one owner per fact and remove the old path when replacing it.
-Before proposing a deletion, run `story-deletion-check --repo PATH --base BASE
---head HEAD` against the project's base user stories. Removed or weakened story
-capability is breaking: stop and send the exact-head finding to Kaylee for
-Phaedrus's approval. Deleting bytes while preserving every story needs no approval.
-
-A check must name the real failure it prevents, or it goes. Tests prove behaviour
-on the real path, not prose hashes, mock echoes, or paperwork. Use the smallest
-check that can reject the plausible failure; preserve real access and data-safety
-contracts. Do not build a test labyrinth to ship a small fix.
-
-Report the observed result and remaining risk. Technical criticism names a real
-defect, not doubt or preference. Permissions live in tools/configuration, not prose.
-
-## Knowledge on demand
-
-Repository code owns technical truth; the existing ticket owns why and victory.
-`USER_STORIES.md` and `DOMAIN.md` supply product intent and invariants when relevant.
-Use `foundation` for a commissioned assessment, not to expand an ordinary fix into
-repository-wide compliance work.
-
-Load tool-specific knowledge only when needed. Exercise the affected path and use
-the repository's normal change route and native task/session controls.
-
-For typed judgments, use the official `typesafe-ai` skill and `system-one`
-companion. Jev supplies decisions, not prose; our calls use OpenRouter.
+Reviewers ask: does it do the job, and is there a simpler version?
+Net lines per PR and per repo over time are worth watching; down is usually good.
