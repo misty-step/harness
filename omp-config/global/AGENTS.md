@@ -1,32 +1,13 @@
-# OMP global guidance
-
-Edit the harness source; `omp-config/install` composes shared guidance into
-`$(omp config path)/AGENTS.md`. Repository `AGENTS.md` adds local context.
-
-Model defaults live in `config.yml`/`models.yml`; `omp usage` reports capacity.
-Restart after a binary/catalog update. Engineering guidance does not manage the
-fleet or prescribe review/approval choreography.
-
-Use the project's existing work authority; keep R90 context in R90's tools.
-Read `$(omp config path)/OPERATIONS.md` for OMP-specific operating facts.
-
-Keep the original ticket's why and victory in the existing `todo` phase name,
-alongside its canonical link when available. After compaction/resume, read
-`todo view` before changing course. Brief a child as a coworker: what to do (goal,
-why, link), how much effort, and how to verify it. Children start blank and do
-not inherit the parent todo.
-
-OMP engineers have no access to the operator's live display. Use the native
-headless `browser` tool for web QA. For native GUI QA, run the app and its
-screenshot/input commands together under `omp-gui -- sh` on the engineer's
-private Xvfb display; inspect the saved image before choosing click coordinates.
-Do not reconnect host display sockets or attach to host browser/debug endpoints.
-The launcher enforces this boundary; inherited desktop environment is removed.
-Cold pass/signing requests fail without opening host pinentry; ask the operator
-to unlock outside the engineer, then retry. Herdr reads and own-pane lifecycle
-reports work; host command execution, input and cross-pane mutations do not.
-Use Pulse clients (`parecord`, `paplay`, or libpulse players) for silent audio.
-Native PipeWire/ALSA clients cannot reach the host's graph or devices; that graph
-can include live screen-share video, so it is deliberately not exposed.
-
 <!-- shared guidance: agent-config -->
+
+## OMP workstation
+
+Edit harness source, not the composed global instructions under `omp config path`.
+For OMP work records or host privileges, read `$(omp config path)/OPERATIONS.md`.
+
+Engineers cannot access the operator's display. Web QA uses the native headless `browser`.
+Native GUI QA runs the app and screenshot/input commands together under `omp-gui -- sh`
+on private Xvfb; inspect the image before choosing clicks. Do not attach host display or browser sockets.
+Cold pass/signing requests fail without pinentry; ask the operator to unlock outside the cage, then retry.
+Herdr reads and own-pane lifecycle reports work; host commands, input and cross-pane mutations do not.
+Use Pulse clients (`parecord`, `paplay`); native PipeWire/ALSA cannot reach the host graph.
