@@ -46,7 +46,7 @@ function read(date: string): Receipt | string {
 		if (r.status !== "ok") return `measurement failed: ${r.reason || r.status}`;
 		const m = r.metrics;
 		if (!count(m?.code_lines) || !Array.isArray(m.modules) || !m.modules.every((p: Part) => typeof p.name === "string" && count(p.code_lines))) return "receipt figures are invalid";
-		if (typeof r.tools?.scc !== "string" || typeof r.scope !== "string") return "receipt records no scc version or scope";
+		if (typeof r.tools?.scc !== "string" || typeof r.scope !== "string" || typeof r.commit !== "string") return "receipt records no scc version, scope or commit";
 		return r;
 	} catch {
 		return "receipt cannot be read";
