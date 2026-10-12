@@ -112,6 +112,36 @@ class HerdrAuthorityTests(unittest.TestCase):
                 upstream.close()
 
 
+class PowderNoteAuthorityTests(unittest.TestCase):
+    def test_non_note_or_wrong_item_requests_cannot_reach_either_writer(self):
+        import io
+
+        valid = {"request_id": "retained-request", "actor": "engineer",
+                 "id": "existing-item", "expected_revision": "opaque",
+                 "change": {"kind": "note", "comment": "Evidence"}}
+        requests = [
+            {**valid, "id": "different-item"},
+            {**valid, "change": {"kind": "create", "fields": {}}},
+            {**valid, "change": {**valid["change"], "status": "done"}},
+            {**valid, "owner": "glass"},
+        ]
+        for request in requests:
+            with self.subTest(request=request), \
+                    patch.object(sys, "stdin", io.TextIOWrapper(io.BytesIO(json.dumps(request).encode()))), \
+                    patch.object(display.subprocess, "run") as native, \
+                    patch.object(display, "append_note") as legacy:
+                with self.assertRaises(display.DisplayError):
+                    display.main(["append-note", "--powder", "existing-item"])
+                native.assert_not_called()
+                legacy.assert_not_called()
+
+    def test_missing_powder_item_cannot_be_interpreted_as_legacy_item(self):
+        with patch.object(display, "append_note") as legacy:
+            with self.assertRaises(display.DisplayError):
+                display.main(["append-note", "--powder"])
+            legacy.assert_not_called()
+
+
 class GlassNoteAuthorityTests(unittest.TestCase):
     def exchange(self, endpoint, request):
         with socket.socket(socket.AF_UNIX) as client:

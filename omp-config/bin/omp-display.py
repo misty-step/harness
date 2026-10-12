@@ -230,6 +230,25 @@ def append_note(item):
     return 0 if 200 <= reply["status"] < 300 else 1
 
 
+def append_powder_note(item):
+    """Submit one retained native note request; Powder owns its receipt and replay."""
+    raw = sys.stdin.buffer.read(MAX_REQUEST + 1)
+    if len(raw) > MAX_REQUEST:
+        raise DisplayError("Powder note request exceeds its bound")
+    request = json.loads(raw)
+    change = request.get("change") if isinstance(request, dict) else None
+    if (not isinstance(request, dict)
+            or set(request) != {"request_id", "actor", "id", "expected_revision", "change"}
+            or request["id"] != item
+            or not isinstance(change, dict) or set(change) != {"kind", "comment"}
+            or change["kind"] != "note"):
+        raise DisplayError("Powder append requires an exact item and a native note-only request")
+    # Keep the original request bytes and opaque revision. Never generate a new
+    # request ID, refresh a revision, retry, or fall back to the old board.
+    return subprocess.run(["work-tracker", "--url", "https://powder.mistystep.io", "write"],
+                          input=raw, check=False).returncode
+
+
 class GpgBridge(HerdrBridge):
     """Cached decrypt/sign only; every agent connection forbids pinentry."""
 
@@ -564,6 +583,10 @@ def execute(command):
 
 
 def main(argv):
+    if argv[:2] == ["append-note", "--powder"]:
+        if len(argv) != 3:
+            raise DisplayError("Usage: omp-display append-note --powder ITEM < native-note-request.json")
+        return append_powder_note(argv[2])
     if len(argv) == 2 and argv[0] == "append-note":
         return append_note(argv[1])
     if argv[:1] == ["--_bwrap"]:
@@ -572,8 +595,10 @@ def main(argv):
     if argv[:1] == ["--_exec"]:
         return execute(argv[1:])
     if argv in (["--help"], ["-h"]):
-        print("Usage: omp-display -- COMMAND...\n       omp-display append-note ITEM < NOTE\n"
-              "Kernel-enforced engineer display isolation; append-only Glass route; no host fallback.")
+        print("Usage: omp-display -- COMMAND...\n"
+              "       omp-display append-note --powder ITEM < native-note-request.json\n"
+              "       omp-display append-note ITEM < NOTE (retained Glass transport)\n"
+              "Kernel-enforced engineer display isolation; no host or work-owner fallback.")
         return 0
     if argv[:1] != ["--"]:
         raise DisplayError("Usage: omp-display -- COMMAND...")
