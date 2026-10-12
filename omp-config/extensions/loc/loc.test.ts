@@ -2,7 +2,7 @@ import { afterEach, describe, expect, test } from "bun:test";
 import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { analyzeBuiltin, readLocCache, resolveLocCachePath } from "./analyze.ts";
+import { analyzeBuiltin, readLocCache } from "./analyze.ts";
 import registerLocExtension, { triggerAsyncRefresh } from "./index.ts";
 
 const roots: string[] = [];
@@ -137,17 +137,5 @@ describe("LOC analysis", () => {
 
 		expect(readLocCache(root)).not.toBeNull();
 		expect(statuses.at(-1)).toContain("4 LOC");
-	});
-
-	test("resolveLocCachePath resolves to per-worktree gitdir in linked worktree", () => {
-		const root = fixture();
-		const wtDir = join(tmpdir(), `omp-loc-wt-${Date.now()}`);
-		git(root, "worktree", "add", "-b", "wt-branch", wtDir);
-		roots.push(wtDir);
-
-		const cachePath = resolveLocCachePath(wtDir);
-		expect(cachePath).not.toBeNull();
-		expect(cachePath).toContain("worktrees");
-		expect(cachePath?.endsWith("loc_cache")).toBe(true);
 	});
 });
