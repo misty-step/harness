@@ -127,8 +127,8 @@ Use fresh OMP processes to load changed extensions, guidance or provider policy.
 Do not restart active sessions or services during a routing-only installation.
 Existing sessions keep their selected model; file presence does not prove loading.
 
-The native `path` status segment shows the working directory; the duplicate
-`cwd` extension is retired.
+Native `path` and Git status replace ornamental `cwd` and `loc` extensions.
+Use `git diff --numstat` for changed-line counts; `/loc` and `/loc-trend` are retired.
 
 ## Model routing (US-014)
 

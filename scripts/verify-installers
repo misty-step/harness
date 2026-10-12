@@ -46,6 +46,7 @@ for consumer in pi omp; do
     printf 'retired extension\n' > "$agent/extensions/diff-review/index.ts"
     mkdir -p "$agent/extensions/cwd"
     printf 'retired extension\n' > "$agent/extensions/cwd/index.ts"
+    printf 'retired extension\n' > "$agent/extensions/loc/index.ts"
     mkdir -p "$home/.local/bin"
     printf 'foreign native executable sentinel\n' > "$work/expected-native"
     cp "$work/expected-native" "$home/.local/bin/omp"
@@ -162,8 +163,8 @@ for consumer in pi omp; do
   fi
   rm -rf "$home/bare-repo"
   check "$consumer foreign skill" cmp -s "$work/expected-skill" "$agent/skills/foreign/SKILL.md"
-  check "$consumer retires installed LOC warming hook" test ! -e "$agent/extensions/loc/git-hook.sh"
   if [ "$consumer" = pi ]; then
+    check "pi retires installed LOC warming hook" test ! -e "$agent/extensions/loc/git-hook.sh"
     # US-028: Pi replaces only its OpenRouter mapping, retaining foreign auth.
     check "pi OpenRouter auth mapping and foreign credential" \
       jq -e '.synthetic == "auth sentinel" and .anthropic == {type:"api_key",key:"synthetic-foreign"} and .openrouter == {type:"api_key",key:"!openrouter-key --personal workstation/OPENROUTER_MISTY_STEP_HARNESS_WORKSTATION_RECOVERY_API_KEY"}' "$agent/auth.json"
@@ -315,6 +316,7 @@ for consumer in pi omp; do
     check "omp continuation-nudge retired" test ! -e "$agent/extensions/continuation-nudge"
     check "omp diff-review retired" test ! -e "$agent/extensions/diff-review"
     check "omp cwd retired" test ! -e "$agent/extensions/cwd"
+    check "omp loc retired" test ! -e "$agent/extensions/loc"
   fi
 done
 if [ "$failures" -ne 0 ]; then

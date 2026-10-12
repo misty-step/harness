@@ -286,7 +286,7 @@ install_extensions() {
   rm -rf -- "$agent_dir/extensions/diff-review"
   rm -rf -- "$agent_dir/extensions/cwd"
   rm -rf -- "$agent_dir/references/review"
-  rm -f -- "$agent_dir/extensions/loc/git-hook.sh"
+  rm -rf -- "$agent_dir/extensions/loc"
   for ext_dir in "$repo_dir"/extensions/*; do
     [ -d "$ext_dir" ] || continue
     ext_name=${ext_dir##*/}
