@@ -155,6 +155,32 @@ class HerdrBridge:
         self.thread.join(timeout=3)
 
 
+def check_legacy_note_scope(item):
+    """Historical reads remain; new Misty Step appends cannot reach Glass."""
+    if not re.fullmatch(r"K-[A-Za-z0-9-]{1,197}", item):
+        raise DisplayError("Legacy notes require an exact existing item ID")
+    try:
+        result = subprocess.run(["glass", "query", "item", item, "--json"],
+                                capture_output=True, timeout=15, check=False)
+        document = json.loads(result.stdout)
+    except (OSError, subprocess.SubprocessError, ValueError) as exc:
+        raise DisplayError("Canonical Glass scope could not be read; no append sent") from exc
+    data = document.get("data") if isinstance(document, dict) else None
+    answer = data.get("item") if isinstance(data, dict) else None
+    value = answer.get("value") if isinstance(answer, dict) else None
+    placement = value.get("placement") if isinstance(value, dict) else None
+    placed = placement.get("value") if isinstance(placement, dict) else None
+    if (result.returncode != 0 or not isinstance(answer, dict) or answer.get("state") != "ok"
+            or not isinstance(value, dict) or value.get("id") != item
+            or not isinstance(placement, dict) or placement.get("state") != "ok"
+            or not isinstance(placed, dict)
+            or not isinstance(placed.get("scope"), str) or not placed["scope"].strip()):
+        raise DisplayError("Canonical Glass item scope is unknown; no append sent")
+    scope = placed["scope"]
+    if scope == "misty-step" or scope.startswith("misty-step/"):
+        raise DisplayError("Misty Step evidence must use append-note --powder; no Glass append sent")
+
+
 class GlassNoteBridge(HerdrBridge):
     """Append-only transport to Glass's existing writer; never opens a store."""
 
@@ -183,6 +209,7 @@ class GlassNoteBridge(HerdrBridge):
                             or not isinstance(request["text"], str)
                             or not request["text"].strip() or len(request["text"]) > 2000):
                         raise DisplayError("Glass note route requires an exact item ID and append text only")
+                    check_legacy_note_scope(request["item"])
                     info = self.upstream.lstat()
                     if (not stat.S_ISSOCK(info.st_mode) or info.st_uid != os.getuid()
                             or stat.S_IMODE(info.st_mode) != 0o600):
@@ -220,6 +247,8 @@ def append_note(item):
     request = json.dumps({"item": item, "text": text}).encode() + b"\n"
     if len(request) > MAX_REQUEST:
         raise DisplayError("Glass note request exceeds its bound")
+    # This fence also protects an existing cage's older bridge process.
+    check_legacy_note_scope(item)
     with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as connection:
         connection.settimeout(10)
         connection.connect(f"/run/user/{os.getuid()}/glass-note.sock")
@@ -228,6 +257,25 @@ def append_note(item):
                                             deadline=time.monotonic() + 10))
     print(json.dumps(reply["body"]))
     return 0 if 200 <= reply["status"] < 300 else 1
+
+
+def append_powder_note(item):
+    """Submit one retained native note request; Powder owns its receipt and replay."""
+    raw = sys.stdin.buffer.read(MAX_REQUEST + 1)
+    if len(raw) > MAX_REQUEST:
+        raise DisplayError("Powder note request exceeds its bound")
+    request = json.loads(raw)
+    change = request.get("change") if isinstance(request, dict) else None
+    if (not isinstance(request, dict)
+            or set(request) != {"request_id", "actor", "id", "expected_revision", "change"}
+            or request["id"] != item
+            or not isinstance(change, dict) or set(change) != {"kind", "comment"}
+            or change["kind"] != "note"):
+        raise DisplayError("Powder append requires an exact item and a native note-only request")
+    # Keep the original request bytes and opaque revision. Never generate a new
+    # request ID, refresh a revision, retry, or fall back to the old board.
+    return subprocess.run(["work-tracker", "--url", "https://powder.mistystep.io", "write"],
+                          input=raw, check=False).returncode
 
 
 class GpgBridge(HerdrBridge):
@@ -564,6 +612,10 @@ def execute(command):
 
 
 def main(argv):
+    if argv[:2] == ["append-note", "--powder"]:
+        if len(argv) != 3:
+            raise DisplayError("Usage: omp-display append-note --powder ITEM < native-note-request.json")
+        return append_powder_note(argv[2])
     if len(argv) == 2 and argv[0] == "append-note":
         return append_note(argv[1])
     if argv[:1] == ["--_bwrap"]:
@@ -572,8 +624,10 @@ def main(argv):
     if argv[:1] == ["--_exec"]:
         return execute(argv[1:])
     if argv in (["--help"], ["-h"]):
-        print("Usage: omp-display -- COMMAND...\n       omp-display append-note ITEM < NOTE\n"
-              "Kernel-enforced engineer display isolation; append-only Glass route; no host fallback.")
+        print("Usage: omp-display -- COMMAND...\n"
+              "       omp-display append-note --powder ITEM < native-note-request.json\n"
+              "       omp-display append-note ITEM < NOTE (non-Misty-Step legacy transport)\n"
+              "Kernel-enforced engineer display isolation; no host or work-owner fallback.")
         return 0
     if argv[:1] != ["--"]:
         raise DisplayError("Usage: omp-display -- COMMAND...")

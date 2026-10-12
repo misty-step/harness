@@ -141,30 +141,46 @@ screenshot/input commands together on a private Xvfb display. Inspect saved
 images before choosing coordinates. Never reconnect host display sockets or
 browser/debug endpoints. Headless browser QA uses the native browser tool.
 
-### Canonical Glass evidence notes
+### Powder evidence notes
 
-Fresh cages expose an append-only `glass-note.sock` bridge to the existing host
-`glass.sock` writer. Append to an exact existing item with:
+New Misty Step evidence goes to the exact existing work item in live Powder,
+not the old board. Retain a native request file before sending:
 
-```sh
-omp-display append-note K-YYYYMMDD-item-slug < evidence-note.txt
-glass query item K-YYYYMMDD-item-slug --json
+```json
+{"request_id":"unique-retained-request","actor":"exact-engineer-owner","id":"existing-initiative-id","expected_revision":"opaque-current-revision","change":{"kind":"note","comment":"Observed result, proof and remaining gap."}}
 ```
 
-The bridge submits only `notes_append`, with a fixed audit caller. Glass owns
-the transaction, note limit and receipt; earlier notes are never replaced.
-Creation, title matching, status/rank changes and raw store access are not
-granted. The writer must be a same-UID Unix socket with mode 0600. Missing,
-invalid or failed writers return an error without a local-store fallback or
-automatic retry; read the canonical item before retrying an uncertain append.
-`glass item update` remains a direct-store host command, not a cage write route.
+Bind the existing Powder Access credential references through `pass-env`
+(`authenticated-commands`), then run:
 
-After reviewed source lands, install with `OMP_INSTALL_COMPONENTS=cli ./install`
-from `omp-config/` on the host. This stages the owned CLI without changing
-memory units, the retained native OMP executable or running engineers.
-Existing cages retain their mount namespace; have the commission owner arrange
-a fresh/exact-session-resumed cage and verify its real append with host readback.
-Disposable-store checks prove the adapter, not live installation or live writes.
+```sh
+omp-display append-note --powder existing-initiative-id < native-note-request.json
+work-tracker --url https://powder.mistystep.io get existing-initiative-id
+work-tracker --url https://powder.mistystep.io history existing-initiative-id
+```
+
+Follow History's cursor to completion. The command accepts only the native note
+change for that exact ID and calls `work-tracker` at the explicit hosted origin;
+it ignores `POWDER_URL` and never uses Glass or a local store as fallback.
+Powder owns validation, revision checks, immutable history, outcome and request
+replay. A lost acknowledgement remains unknown: replay the exact retained file,
+with the same request ID, actor, revision and comment. Do not create a new
+request, refresh its revision or retry automatically. Credentials stay out of
+the request and receipts. R90 work remains in Habitat.
+
+The positional `append-note ITEM` and its Glass socket bridge remain for
+non-Misty-Step historical compatibility. Both the fresh CLI and fresh bridge
+read the exact canonical scope and reject Misty Step before any append; unknown,
+missing or mismatched owner reads also refuse. The CLI fence protects ordinary
+invocations in cages still running an older bridge. An older bridge's raw socket
+authority is not revoked by staging code: account for retained instances at the
+cutover boundary without restarting engineers. Historical reads, original
+sessions, launch records, journals and receipts remain unchanged.
+
+After independent review and merge, request installation through
+`omp-host-install` and read back the exact installed revision and managed
+hashes. A fresh native command, acknowledged Powder note, exact replay and
+complete History are runtime proof; green tests and staged files are not.
 
 ## Audited host installation (US-052)
 
@@ -181,6 +197,14 @@ omp-host-install readback-repository --repository harness
 omp-host-install install-repository --repository ai-usage --revision FULL_MERGE_SHA
 omp-host-install readback-repository --repository ai-usage
 ```
+
+For new Misty Step installations, retain the repository install/readback
+receipts under the existing initiative and associate their exact revision,
+managed hashes and evidence reference through the reviewed Powder note command
+above. Repository operations do not invoke Glass receipt publication; do not
+use selected-asset `install --item` as a substitute, because that route still
+publishes to Glass. Old selected-asset receipts retain their original readback
+and rollback authority. No Workbench source change or new installer is required.
 
 Workbench fetches and verifies that commit itself; caller checkouts, commands,
 environments, destinations, credentials and auth operations are not accepted.

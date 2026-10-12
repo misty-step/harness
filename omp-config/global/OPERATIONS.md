@@ -19,14 +19,30 @@ Use the project's existing work authority and resolve the existing record before
 updating it. Keep R90 context in R90's tools. Parlor's skill is repository-imported
 and Parlor-owned.
 
-Caged engineers append evidence to an existing canonical Glass item with
-`omp-display append-note K-YYYYMMDD-item-slug < evidence-note.txt`, then
-`glass query item K-YYYYMMDD-item-slug --json` for readback. This is append-only;
-`glass item update` writes a direct local store and is not the cage route.
-On an uncertain response, read before retrying: no automatic retry or fallback.
+New Misty Step work belongs in live Powder. Append evidence with
+`omp-display append-note --powder EXACT_ITEM < native-note-request.json`, using
+the existing Powder Access credential references through `pass-env`. The file
+is a native Write request: exact item, actor, request ID, opaque revision and
+`change: {"kind":"note","comment":"observed evidence"}`. Retain it before sending.
+Read back with authenticated `work-tracker --url https://powder.mistystep.io get
+EXACT_ITEM` and complete History. Unknown outcomes retain the same request for
+exact replay; never refresh its revision, retry automatically, create replacement
+work or fall back to Glass. R90 stays Habitat. Retained Glass sessions and
+receipts keep their original identities; they do not authorize new board writes.
+The legacy note CLI and fresh bridge reject Misty Step appends after an exact
+canonical scope read; failed scope reads refuse. Old bridge instances still
+need cutover accounting: staged code is not revocation of their raw sockets.
 
 Use descriptive branches and conventional commits. `Fixes` means the merge
 satisfies the referenced issue; partial work uses `Refs` or `Relates to`.
+
+## Reports
+
+Use plain agent and tool names. State what changed, the exact command or user
+path exercised, its observed result and the remaining gap. Name work owner,
+item, session and revision separately; never infer identity from a pane, title
+or directory. Unknown is not failed or unchanged. Tests, a merge or staged
+files do not prove installation or loaded runtime behavior.
 
 ## Host administration
 

@@ -112,6 +112,36 @@ class HerdrAuthorityTests(unittest.TestCase):
                 upstream.close()
 
 
+class PowderNoteAuthorityTests(unittest.TestCase):
+    def test_non_note_or_wrong_item_requests_cannot_reach_either_writer(self):
+        import io
+
+        valid = {"request_id": "retained-request", "actor": "engineer",
+                 "id": "existing-item", "expected_revision": "opaque",
+                 "change": {"kind": "note", "comment": "Evidence"}}
+        requests = [
+            {**valid, "id": "different-item"},
+            {**valid, "change": {"kind": "create", "fields": {}}},
+            {**valid, "change": {**valid["change"], "status": "done"}},
+            {**valid, "owner": "glass"},
+        ]
+        for request in requests:
+            with self.subTest(request=request), \
+                    patch.object(sys, "stdin", io.TextIOWrapper(io.BytesIO(json.dumps(request).encode()))), \
+                    patch.object(display.subprocess, "run") as native, \
+                    patch.object(display, "append_note") as legacy:
+                with self.assertRaises(display.DisplayError):
+                    display.main(["append-note", "--powder", "existing-item"])
+                native.assert_not_called()
+                legacy.assert_not_called()
+
+    def test_missing_powder_item_cannot_be_interpreted_as_legacy_item(self):
+        with patch.object(display, "append_note") as legacy:
+            with self.assertRaises(display.DisplayError):
+                display.main(["append-note", "--powder"])
+            legacy.assert_not_called()
+
+
 class GlassNoteAuthorityTests(unittest.TestCase):
     def exchange(self, endpoint, request):
         with socket.socket(socket.AF_UNIX) as client:
@@ -152,8 +182,77 @@ class GlassNoteAuthorityTests(unittest.TestCase):
             finally:
                 bridge.close()
 
-    def test_nonowned_endpoint_shapes_fail_without_fallback(self):
+    def test_misty_step_or_unknown_scope_cannot_reach_legacy_writer(self):
+        item = "K-20261012-existing-item"
+        documents = [
+            {"data": {"item": {"state": "ok", "value": {"id": item,
+             "placement": {"state": "ok", "value": {"scope": scope}}}}}}
+            for scope in ("misty-step", "misty-step/harness", "")
+        ] + [
+            {"data": {"item": {"state": "unknown", "value": {"id": item,
+             "placement": {"state": "ok", "value": {"scope": "r90"}}}}}},
+            {"data": {"item": {"state": "ok", "value": {"id": "K-other",
+             "placement": {"state": "ok", "value": {"scope": "r90"}}}}}},
+        ]
         with tempfile.TemporaryDirectory() as directory, socket.socket(socket.AF_UNIX) as writer:
+            root = Path(directory)
+            upstream, endpoint = root / "writer.sock", root / "note.sock"
+            writer.bind(str(upstream))
+            upstream.chmod(0o600)
+            writer.listen(1)
+            writer.settimeout(0.05)
+            bridge = display.GlassNoteBridge(endpoint, upstream)
+            try:
+                for document in documents:
+                    result = subprocess.CompletedProcess([], 0, json.dumps(document).encode(), b"")
+                    with self.subTest(document=document), patch.object(display.subprocess, "run", return_value=result):
+                        reply = self.exchange(endpoint, {"item": item, "text": "Evidence"})
+                        self.assertEqual(reply["status"], 503)
+                        with self.assertRaises(socket.timeout):
+                            writer.accept()
+            finally:
+                bridge.close()
+
+    def test_exact_r90_scope_keeps_append_access_and_original_notes(self):
+        item = "K-20261012-existing-r90-item"
+        document = {"data": {"item": {"state": "ok", "value": {"id": item,
+                    "placement": {"state": "ok", "value": {"scope": "r90group/habitat"}}}}}}
+        read = subprocess.CompletedProcess([], 0, json.dumps(document).encode(), b"")
+        notes, replies = ["Original evidence"], []
+        with tempfile.TemporaryDirectory() as directory, socket.socket(socket.AF_UNIX) as writer:
+            root = Path(directory)
+            upstream, endpoint = root / "writer.sock", root / "note.sock"
+            writer.bind(str(upstream))
+            upstream.chmod(0o600)
+            writer.listen(1)
+            writer.settimeout(2)
+            bridge = display.GlassNoteBridge(endpoint, upstream)
+            try:
+                with patch.object(display.subprocess, "run", return_value=read):
+                    client = threading.Thread(target=lambda: replies.append(
+                        self.exchange(endpoint, {"item": item, "text": "New evidence"})))
+                    client.start()
+                    connection, _ = writer.accept()
+                    with connection, connection.makefile("rb") as request:
+                        request.readline()
+                        headers = {}
+                        while (line := request.readline()) != b"\r\n":
+                            name, value = line.decode().split(":", 1)
+                            headers[name.lower()] = value.strip()
+                        body = json.loads(request.read(int(headers["content-length"])))
+                        notes.append(body["notes_append"])
+                        receipt = json.dumps({"item": {"id": item}, "recorded": "authored"}).encode()
+                        connection.sendall(b"HTTP/1.1 200 OK\r\nContent-Length: "
+                                           + str(len(receipt)).encode() + b"\r\n\r\n" + receipt)
+                    client.join(timeout=3)
+                self.assertEqual(notes, ["Original evidence", "New evidence"])
+                self.assertEqual(replies[0]["status"], 200)
+            finally:
+                bridge.close()
+
+    def test_nonowned_endpoint_shapes_fail_without_fallback(self):
+        with tempfile.TemporaryDirectory() as directory, socket.socket(socket.AF_UNIX) as writer, \
+                patch.object(display, "check_legacy_note_scope"):
             root = Path(directory)
             real, upstream, endpoint = root / "real.sock", root / "writer.sock", root / "note.sock"
             writer.bind(str(real))
