@@ -60,6 +60,11 @@ def arguments(argv):
     for operation in ("readback", "rollback"):
         action = actions.add_parser(operation, allow_abbrev=False)
         action.add_argument("receipt_id", type=safe_name)
+    for operation in ("install-repository", "readback-repository"):
+        action = actions.add_parser(operation, allow_abbrev=False)
+        action.add_argument("--repository", required=True, choices=("harness", "ai-usage"))
+        if operation == "install-repository":
+            action.add_argument("--revision", required=True, type=revision)
     args = parser.parse_args(argv)
     if args.operation == "install":
         if args.profile != "omp" and args.recipe != "shared-skill":
@@ -76,6 +81,10 @@ def request_for(args):
                         for key in ("item", "recipe", "revision", "selection", "profile")})
     elif args.operation in ("readback", "rollback"):
         request["receipt_id"] = args.receipt_id
+    elif args.operation in ("install-repository", "readback-repository"):
+        request["repository"] = args.repository
+        if args.operation == "install-repository":
+            request["revision"] = args.revision
     return request
 
 

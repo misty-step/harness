@@ -168,12 +168,42 @@ Disposable-store checks prove the adapter, not live installation or live writes.
 
 ## Audited host installation (US-052)
 
-`omp-host-install` submits only `capabilities`, `install`, `readback` and `rollback`
-to Workbench's typed service. Workbench owns source eligibility, named recipes,
-readback and durable receipts. It does not accept arbitrary shells, environments
-or destinations. Installation, readback, rollback and consumer activation are
-separate. The operator must bootstrap the host service outside the cage; do not
-bypass protected host mounts when that service/recipe is unavailable.
+`omp-host-install` uses Workbench's existing typed socket, not a host shell.
+Selected-asset `install`, receipt `readback` and drift-safe `rollback` retain
+their reviewed-source contract. `capabilities` lists the available operations.
+
+For repository configuration and app updates, use the exact **merge commit**
+of a PR merged into the repository's default branch:
+
+```sh
+omp-host-install install-repository --repository harness --revision FULL_MERGE_SHA
+omp-host-install readback-repository --repository harness
+omp-host-install install-repository --repository ai-usage --revision FULL_MERGE_SHA
+omp-host-install readback-repository --repository ai-usage
+```
+
+Workbench fetches and verifies that commit itself; caller checkouts, commands,
+environments, destinations, credentials and auth operations are not accepted.
+The fixed repository allowlist is `misty-step/harness` and `misty-step/ai-usage`.
+The existing host-only GitHub read binding also permits the private ai-usage
+fetch; it never enters the source installer's environment or reply.
+
+Harness runs its own OMP installer for `config guidance agents extensions cli`
+and its Pi installer for `config pi-chrome accounts`. Local overlays and foreign
+state remain owned by those installers; auth components and consumer restarts
+are not selected. ai-usage runs its own `install.sh install-app`, including the
+supported Omarchy plugin rescan, without replacing or activating its collector
+timer. Live readback compares the managed code with the recorded install;
+installation does not prove a running OMP/Pi process loaded the new code.
+Repository installs do not use the selected-asset rollback engine.
+
+The operator must bootstrap the reviewed, merged Workbench service once outside
+the cage. Existing engineers then reach it through the read-only library mount;
+do not bypass protected mounts when it is unavailable. Earlier lineage:
+[Harness #233](https://github.com/misty-step/harness/pull/233) and
+[Workbench #46](https://github.com/moomooskycow/workbench/pull/46) shipped the
+client/broker without live bootstrap and admitted only CLI/single-skill/bin
+recipes, not these configuration/app updates.
 
 ## Isolated installer checks
 
