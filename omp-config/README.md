@@ -54,22 +54,10 @@ entrypoints fail closed. Redirecting the agent directory alone does not isolate
 HOME or host writes. The root `../install` installs both native harnesses;
 component installers are preferable for targeted changes.
 
-### Kaylee pane input boundary
+### Kaylee pane input
 
-`extensions/kaylee-pane-guard` runs `pane_guard.py` beside its installed `index.ts`.
-That directory is already readable by the caged extension loader; engineers never
-need access to masked `~/.hermes`. Copy the identical policy bytes from
-hermes-config's `plugins/delegate-agent-guard/pane_guard.py` to both the executive
-guard package and this extension directory, and verify byte parity. No new mount,
-sandbox escape, configuration change, voice/focus change or process service.
-
-The executive's already-enabled native guard uses this same policy; its legacy
-desk plugin stays disabled. Direct native Herdr input gets fresh target checks,
-including local PID argv and profile-specific run paths. Opaque input is refused;
-normal native start/tab/worktree lifecycle remains available.
-This is a native pre-tool boundary, not an arbitrary-code sandbox or replacement
-for the existing engineer host boundary. Fresh sessions load it through native
-extension discovery; existing sessions need an operator's native reload.
+Copy hermes-config's `plugins/delegate-agent-guard/pane_guard.py` beside this
+extension's installed `index.ts`. Verify identical bytes in both native guards.
 
 Configuration overlays source-owned keys while preserving foreign keys. MCP
 overlays declared servers and preserves foreign inventory and owned-server auth.
