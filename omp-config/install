@@ -217,6 +217,9 @@ install_extensions() {
   rm -rf -- "$agent_dir/extensions/continuation-nudge"
   rm -rf -- "$agent_dir/extensions/diff-review"
   rm -rf -- "$agent_dir/extensions/cwd"
+  rm -f -- "$agent_dir/extensions/subagent-inheritance/index.ts" "$agent_dir/extensions/subagent-inheritance/index.test.ts"
+  rmdir -- "$agent_dir/extensions/subagent-inheritance" 2>/dev/null || true
+  rm -f -- "$agent_dir/bin/omp-model-policy.ts"
   rm -rf -- "$agent_dir/references/review"
   rm -rf -- "$agent_dir/extensions/loc"
   for ext_dir in "$repo_dir"/extensions/*; do

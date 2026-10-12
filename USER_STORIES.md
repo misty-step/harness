@@ -496,15 +496,9 @@ selected reasoning tier without mistaking an authorized account for capacity.
 Criteria:
 1. WHEN a fresh OMP session selects `default`, `task`, `slow` or `plan`,
    THE SYSTEM SHALL use Sol xhigh with native OpenAI priority service.
-2. WHEN OMP resolves `vision` or `designer`, THE SYSTEM SHALL select Opus 5.5
-   at high or above. A designer child of a non-Opus parent SHALL use Opus high;
-   a designer child of an Opus high/xhigh/max parent SHALL retain that level.
-   Missing Opus authentication SHALL block designer dispatch before native
-   startup can substitute the parent's authenticated model.
-   The vision fallback chain SHALL contain only Opus. IF a session starts on
-   the configured Opus primary and that provider fails, THEN THE SYSTEM SHALL
-   stop after same-model recovery rather than switch models, at every
-   reasoning level.
+2. WHEN OMP resolves `vision` or `designer`, THE SYSTEM SHALL use the configured
+   Opus visual hold through native model/effort selection. Explicit held levels
+   SHALL remain available. Provider failure SHALL stop rather than switch models.
 3. WHEN OMP delegates ordinary work, THE SYSTEM SHALL use native agent/model
    resolution, without custom usage routing, per-agent model overlays or
    protected-agent startup guards. Native effort and explicit held-model
