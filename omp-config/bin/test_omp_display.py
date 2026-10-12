@@ -1,6 +1,7 @@
 """Display authority tests; synthetic host sockets, never the real desktop."""
 
 import importlib.util
+from http.server import BaseHTTPRequestHandler, HTTPServer
 import json
 import os
 from pathlib import Path
@@ -142,6 +143,288 @@ class PowderNoteAuthorityTests(unittest.TestCase):
             legacy.assert_not_called()
 
 
+class NativeNoteTransportTests(unittest.TestCase):
+    """Run the real CLI/bridge against a private native sink, never installed tools."""
+
+    def setUp(self):
+        self.directory = tempfile.TemporaryDirectory()
+        self.addCleanup(self.directory.cleanup)
+        self.root = Path(self.directory.name)
+        self.item = "K-20261012-native-note"
+        self.current = {"id": self.item, "scope": "misty-step/harness", "revision": "opaque-R7"}
+        self.notes = ["Original evidence"]
+        self.writes, self.reads, self.receipts = [], [], {}
+        self.freeze_path = None
+        self.freeze_observations = []
+        self.lose_ack = False
+        test = self
+
+        class Sink(BaseHTTPRequestHandler):
+            def log_message(self, *_args):
+                pass
+
+            def reply(self, code, stdout="", stderr=""):
+                body = json.dumps({"returncode": code, "stdout": stdout, "stderr": stderr}).encode()
+                self.send_response(200)
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+
+            def do_GET(self):
+                test.reads.append(self.path)
+                self.reply(0, json.dumps(test.current) + "\n")
+
+            def do_POST(self):
+                wire = self.rfile.read(int(self.headers["Content-Length"]))
+                test.writes.append(wire)
+                if test.freeze_path is not None:
+                    path = test.freeze_path
+                    test.freeze_observations.append((path.read_bytes(), stat.S_IMODE(path.stat().st_mode)))
+                request = json.loads(wire)
+                identity = request["request_id"]
+                previous = test.receipts.get(identity)
+                if previous is not None:
+                    old_wire, receipt = previous
+                    if wire != old_wire:
+                        self.reply(9, stderr='{"code":"request_reused"}\n')
+                        return
+                else:
+                    if request["id"] != test.item or request["expected_revision"] != test.current["revision"]:
+                        self.reply(9, stderr='{"code":"conflict"}\n')
+                        return
+                    if request["change"]["kind"] != "note":
+                        self.reply(9, stderr='{"code":"not_note"}\n')
+                        return
+                    test.notes.append(request["change"]["comment"])
+                    test.current["revision"] = "opaque-R8"
+                    receipt = json.dumps({"outcome": "applied", "request_id": identity,
+                                          "item": dict(test.current)}) + "\n"
+                    test.receipts[identity] = wire, receipt
+                if test.lose_ack:
+                    test.lose_ack = False
+                    self.reply(7, stderr=json.dumps({"code": "unknown", "request_id": identity}) + "\n")
+                else:
+                    self.reply(0, stdout=receipt)
+
+        self.server = HTTPServer(("127.0.0.1", 0), Sink)
+        self.thread = threading.Thread(target=self.server.serve_forever, daemon=True)
+        self.thread.start()
+        self.addCleanup(self.stop_sink)
+        # These executables only transport to the isolated sink. The sink, not
+        # the stub, implements independent revision and immutable-replay rules.
+        tracker = self.root / "work-tracker"
+        tracker.write_text(f"#!{sys.executable}\n" + r'''
+import http.client, json, os, sys
+assert sys.argv[1:3] == ["--url", "https://powder.mistystep.io"]
+command = sys.argv[3:]
+connection = http.client.HTTPConnection("127.0.0.1", int(os.environ["NOTE_TEST_PORT"]), timeout=3)
+if command == ["write"]:
+    connection.request("POST", "/write", body=sys.stdin.buffer.read())
+else:
+    assert len(command) == 2 and command[0] == "get"
+    connection.request("GET", "/get/" + command[1])
+reply = json.loads(connection.getresponse().read())
+sys.stdout.write(reply["stdout"])
+sys.stderr.write(reply["stderr"])
+sys.exit(reply["returncode"])
+''')
+        tracker.chmod(0o700)
+        binder = self.root / "pass-env"
+        binder.write_text(f"#!{sys.executable}\n" + r'''
+import os, sys
+assert sys.argv[1:7] == [
+    "run", "-e", "CF_ACCESS_CLIENT_ID=workstation/POWDER_ACCESS_CLIENT_ID",
+    "-e", "=".join(("CF_ACCESS_CLIENT_SECRET",
+                   "/".join(("workstation", "POWDER_ACCESS_CLIENT_SECRET")))), "--"]
+os.execvp(sys.argv[7], sys.argv[7:])
+''')
+        binder.chmod(0o700)
+        self.environment = {**os.environ, "PATH": str(self.root) + os.pathsep + os.environ["PATH"],
+                            "NOTE_TEST_PORT": str(self.server.server_port)}
+
+    def stop_sink(self):
+        self.server.shutdown()
+        self.server.server_close()
+        self.thread.join(timeout=3)
+
+    def cli(self, args, stdin):
+        return subprocess.run([sys.executable, str(DIRECTORY / "omp-display.py"), *args],
+                              input=stdin, capture_output=True, env=self.environment, timeout=5)
+
+    def envelope(self, **changes):
+        return {"request_id": "retained-direct-note", "actor": "omp-display append-note",
+                "id": self.item, "expected_revision": "opaque-R7",
+                "change": {"kind": "note", "comment": "Evidence\n"}, **changes}
+
+    def exchange(self, endpoint, frame):
+        with socket.socket(socket.AF_UNIX) as client:
+            client.settimeout(5)
+            client.connect(str(endpoint))
+            client.sendall(json.dumps(frame).encode() + b"\n")
+            return json.loads(display.HerdrBridge.line(client))
+
+    def test_fresh_freezes_before_one_send_and_lost_ack_replays_identical_bytes(self):
+        self.freeze_path = self.root / "request.json"
+        self.lose_ack = True
+        args = ["append-note", self.item, "--request-file", str(self.freeze_path)]
+        first = self.cli(args, "Evidence café\n".encode())
+        self.assertEqual(first.returncode, 7, first.stderr)
+        frozen = self.freeze_path.read_bytes()
+        request = json.loads(frozen)
+        self.assertEqual(request["actor"], "omp-display append-note")
+        self.assertEqual(request["expected_revision"], "opaque-R7")
+        self.assertEqual(request["change"], {"kind": "note", "comment": "Evidence café\n"})
+        self.assertEqual(self.notes, ["Original evidence", "Evidence café\n"])
+        self.assertEqual(self.writes, [frozen])
+        self.assertEqual(self.freeze_observations, [(frozen, 0o600)])
+        second = self.cli(args, "Evidence café\n".encode())
+        self.assertEqual(second.returncode, 0, second.stderr)
+        self.assertEqual(json.loads(second.stdout)["request_id"], request["request_id"])
+        self.assertEqual(self.freeze_path.read_bytes(), frozen)
+        self.assertEqual(self.writes, [frozen, frozen])
+        self.assertEqual(self.freeze_observations, [(frozen, 0o600), (frozen, 0o600)])
+        self.assertEqual(self.notes, ["Original evidence", "Evidence café\n"])
+
+    def test_existing_malformed_mismatch_or_nonprivate_request_never_writes(self):
+        path = self.root / "retained.json"
+        valid = self.envelope()
+        cases = [
+            (b"{", "Evidence\n", self.item, 0o600),
+            (json.dumps({**valid, "id": "wrong-target"}).encode(), "Evidence\n", self.item, 0o600),
+            (json.dumps(valid).encode(), "Changed evidence\n", self.item, 0o600),
+            (json.dumps({**valid, "actor": "guessed-owner"}).encode(), "Evidence\n", self.item, 0o600),
+            (json.dumps({**valid, "expected_revision": 7}).encode(), "Evidence\n", self.item, 0o600),
+            (json.dumps({**valid, "request_id": ""}).encode(), "Evidence\n", self.item, 0o600),
+            (json.dumps({**valid, "change": {"kind": "done"}}).encode(), "Evidence\n", self.item, 0o600),
+            (json.dumps(valid).encode(), "Evidence\n", self.item, 0o644),
+            (json.dumps(valid).encode(), "Evidence\n", "wrong-target", 0o600),
+            (b'{"id":"other",' + json.dumps(valid).encode()[1:], "Evidence\n", self.item, 0o600),
+        ]
+        for wire, text, item, mode in cases:
+            with self.subTest(wire=wire, mode=mode):
+                path.write_bytes(wire)
+                path.chmod(mode)
+                result = self.cli(["append-note", item, "--request-file", str(path)], text.encode())
+                self.assertEqual(result.returncode, 1, result.stderr)
+                self.assertEqual(path.read_bytes(), wire)
+                self.assertEqual(self.writes, [])
+        self.assertEqual(self.reads, [])
+        path.chmod(0o600)
+        link = self.root / "linked.json"
+        link.symlink_to(path)
+        result = self.cli(["append-note", self.item, "--request-file", str(link)], b"Evidence\n")
+        self.assertEqual(result.returncode, 1)
+        self.assertEqual(self.writes, [])
+
+    def test_wrong_native_scope_id_or_revision_refuses_before_freeze_or_write(self):
+        for value in (
+            {**self.current, "scope": "r90group/habitat"},
+            {**self.current, "scope": ""},
+            {**self.current, "id": "another-item"},
+            {**self.current, "revision": 7},
+            {"data": {"item": self.current}},
+        ):
+            with self.subTest(value=value):
+                self.current = value
+                path = self.root / "new.json"
+                result = self.cli(["append-note", self.item, "--request-file", str(path)], b"Evidence\n")
+                self.assertEqual(result.returncode, 1, result.stderr)
+                self.assertFalse(path.exists())
+                self.assertEqual(self.writes, [])
+        # A hand-supplied, otherwise valid private file is not scope authority.
+        self.current = {"id": self.item, "scope": "r90group/habitat", "revision": "opaque-R7"}
+        path.write_text(json.dumps(self.envelope()))
+        path.chmod(0o600)
+        original = path.read_bytes()
+        result = self.cli(["append-note", self.item, "--request-file", str(path)], b"Evidence\n")
+        self.assertEqual(result.returncode, 1)
+        self.assertEqual(path.read_bytes(), original)
+        self.assertEqual(self.writes, [])
+
+    def test_direct_native_bridge_commits_to_sink_and_preserves_unknown_then_replay_without_patch(self):
+        endpoint, upstream = self.root / "note.sock", self.root / "legacy.sock"
+        wire = (json.dumps(self.envelope(), indent=2, ensure_ascii=False) + "\n").encode()
+        with socket.socket(socket.AF_UNIX) as legacy, patch.dict(os.environ, self.environment):
+            legacy.bind(str(upstream))
+            upstream.chmod(0o600)
+            legacy.listen(1)
+            legacy.settimeout(0.05)
+            bridge = display.GlassNoteBridge(endpoint, upstream)
+            try:
+                self.lose_ack = True
+                frame = {"item": self.item, "native_wire": wire.decode()}
+                first = self.exchange(endpoint, frame)
+                self.assertEqual(first["returncode"], 7)
+                self.assertEqual(first["stdout"], "")
+                self.assertEqual(json.loads(first["stderr"])["code"], "unknown")
+                self.assertEqual(self.notes, ["Original evidence", "Evidence\n"])
+                self.assertEqual(self.writes, [wire])
+                second = self.exchange(endpoint, frame)
+                self.assertEqual(second["returncode"], 0)
+                self.assertEqual(second["stderr"], "")
+                self.assertEqual(json.loads(second["stdout"])["request_id"], "retained-direct-note")
+                self.assertEqual(self.writes, [wire, wire])
+                self.assertEqual(self.notes, ["Original evidence", "Evidence\n"])
+                with self.assertRaises(socket.timeout):
+                    legacy.accept()
+            finally:
+                bridge.close()
+
+    def test_direct_bridge_invalid_envelope_or_wrong_scope_has_no_native_or_legacy_write(self):
+        endpoint, upstream = self.root / "note.sock", self.root / "legacy.sock"
+        with socket.socket(socket.AF_UNIX) as legacy, patch.dict(os.environ, self.environment):
+            legacy.bind(str(upstream))
+            upstream.chmod(0o600)
+            legacy.listen(1)
+            legacy.settimeout(0.05)
+            bridge = display.GlassNoteBridge(endpoint, upstream)
+            try:
+                valid = {"item": self.item, "native_wire": json.dumps(self.envelope())}
+                frames = [
+                    {**valid, "native_wire": "{"},
+                    {**valid, "item": "different-item"},
+                    {**valid, "native_wire": json.dumps(self.envelope(change={"kind": "done"}))},
+                    {**valid, "native_wire": json.dumps(self.envelope(expected_revision=None))},
+                    {**valid, "native_wire": str(self.root / "request.json")},
+                    {**valid, "command": "arbitrary"},
+                    {**valid, "text": "mixed legacy"},
+                ]
+                for frame in frames:
+                    with self.subTest(frame=frame):
+                        reply = self.exchange(endpoint, frame)
+                        self.assertTrue(reply.get("returncode") is None)
+                        self.assertEqual(self.writes, [])
+                        with self.assertRaises(socket.timeout):
+                            legacy.accept()
+                self.assertEqual(self.reads, [])
+                for current in (
+                    {**self.current, "scope": "r90group/habitat"},
+                    {**self.current, "id": "other-native-item"},
+                    {"data": {"item": self.current}},
+                ):
+                    with self.subTest(current=current):
+                        self.current = current
+                        reply = self.exchange(endpoint, valid)
+                        self.assertIsNone(reply["returncode"])
+                        self.assertEqual(self.writes, [])
+                        with self.assertRaises(socket.timeout):
+                            legacy.accept()
+            finally:
+                bridge.close()
+
+    def test_approved_raw_powder_mode_forwards_bytes_without_get_and_replays(self):
+        wire = (json.dumps(self.envelope(), indent=3) + "\n").encode()
+        self.lose_ack = True
+        first = self.cli(["append-note", "--powder", self.item], wire)
+        self.assertEqual(first.returncode, 7, first.stderr)
+        second = self.cli(["append-note", "--powder", self.item], wire)
+        self.assertEqual(second.returncode, 0, second.stderr)
+        self.assertEqual(self.writes, [wire, wire])
+        self.assertEqual(self.notes, ["Original evidence", "Evidence\n"])
+        self.assertEqual(self.reads, [])
+
+
+
 class GlassNoteAuthorityTests(unittest.TestCase):
     def exchange(self, endpoint, request):
         with socket.socket(socket.AF_UNIX) as client:
@@ -183,6 +466,8 @@ class GlassNoteAuthorityTests(unittest.TestCase):
                 bridge.close()
 
     def test_misty_step_or_unknown_scope_cannot_reach_legacy_writer(self):
+        import io
+
         item = "K-20261012-existing-item"
         documents = [
             {"data": {"item": {"state": "ok", "value": {"id": item,
@@ -205,11 +490,22 @@ class GlassNoteAuthorityTests(unittest.TestCase):
             try:
                 for document in documents:
                     result = subprocess.CompletedProcess([], 0, json.dumps(document).encode(), b"")
-                    with self.subTest(document=document), patch.object(display.subprocess, "run", return_value=result):
+                    with self.subTest(document=document), \
+                            patch.object(display.subprocess, "run", return_value=result) as reads:
                         reply = self.exchange(endpoint, {"item": item, "text": "Evidence"})
                         self.assertEqual(reply["status"], 503)
                         with self.assertRaises(socket.timeout):
                             writer.accept()
+                        reads.assert_called_once_with(["glass", "query", "item", item, "--json"],
+                                                      capture_output=True, timeout=15, check=False)
+                        reads.reset_mock()
+                        with patch.object(sys, "stdin", io.StringIO("Evidence")), \
+                                patch.object(display.socket, "socket") as transport:
+                            with self.assertRaises(display.DisplayError):
+                                display.main(["append-note", item])
+                            transport.assert_not_called()
+                        reads.assert_called_once_with(["glass", "query", "item", item, "--json"],
+                                                      capture_output=True, timeout=15, check=False)
             finally:
                 bridge.close()
 

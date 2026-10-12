@@ -168,14 +168,38 @@ with the same request ID, actor, revision and comment. Do not create a new
 request, refresh its revision or retry automatically. Credentials stay out of
 the request and receipts. R90 work remains in Habitat.
 
-The positional `append-note ITEM` and its Glass socket bridge remain for
-non-Misty-Step historical compatibility. Both the fresh CLI and fresh bridge
-read the exact canonical scope and reject Misty Step before any append; unknown,
-missing or mismatched owner reads also refuse. The CLI fence protects ordinary
-invocations in cages still running an older bridge. An older bridge's raw socket
-authority is not revoked by staging code: account for retained instances at the
-cutover boundary without restarting engineers. Historical reads, original
-sessions, launch records, journals and receipts remain unchanged.
+For a **proven new** positional Misty Step note, keep the current item/text
+inputs and choose its request file before sending:
+
+```sh
+omp-display append-note existing-initiative-id --request-file native-note-request.json < evidence-note.txt
+```
+
+The command checks the exact current native Misty Step scope, freezes a private
+note-only request before sending once, and keeps the tool's attribution.
+Reusing the same file and text sends its original bytes, actor, ID and revision;
+it never rebuilds the request. Scope is checked again without refreshing the
+retained revision. A stale response or lost acknowledgement does not authorize
+creating another file. Request files are delivery custody, not a second work
+store. The native writer owns validation and replay.
+
+The fresh existing note bridge also accepts `{item, native_wire}`, where
+`native_wire` contains those exact UTF-8 request bytes. It permits only one
+native immutable-note operation, checks the current native target scope and
+returns the native exit/stdout/stderr without Glass fallback. It accepts no
+host path, arbitrary command or socket method.
+
+Unqualified positional `append-note ITEM < NOTE` and old `{item,text}` bridge
+frames retain non-Misty-Step historical compatibility. Both fresh sides check
+the exact canonical scope and reject Misty Step/unknown scope before a legacy
+append: those frames cannot distinguish a genuinely new note from an uncertain
+already-delivered legacy request. Recover an uncertain legacy request through
+its original authority; do not relabel it as a fresh native note.
+
+An older running bridge's raw authority is not revoked by new source or CLI
+code. The store-boundary owner must fence Misty Step writes and retain original
+request recovery without restarting unrelated engineers. Historical reads,
+original sessions, launch records, journals and accepted receipts are unchanged.
 
 After independent review and merge, request installation through
 `omp-host-install` and read back the exact installed revision and managed

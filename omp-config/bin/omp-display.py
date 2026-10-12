@@ -19,6 +19,7 @@ import sys
 import tempfile
 import threading
 import time
+import uuid
 
 BWRAP = "/usr/bin/bwrap"
 SLIRP = "/usr/bin/slirp4netns"
@@ -43,6 +44,12 @@ READ_METHODS = frozenset({
 })
 REPORT_METHODS = frozenset({"pane.report_agent", "pane.report_agent_session"})
 MAX_REQUEST = 64 * 1024
+POWDER_URL = "https://powder.mistystep.io"
+POWDER = ("pass-env", "run",
+          "-e", "CF_ACCESS_CLIENT_ID=" + "/".join(("workstation", "POWDER_ACCESS_CLIENT_ID")),
+          "-e", "CF_ACCESS_CLIENT_SECRET=" + "/".join(("workstation", "POWDER_ACCESS_CLIENT_SECRET")),
+          "--", "work-tracker", "--url", POWDER_URL)
+NOTE_ACTOR = "omp-display append-note"
 
 
 class DisplayError(Exception):
@@ -182,7 +189,7 @@ def check_legacy_note_scope(item):
 
 
 class GlassNoteBridge(HerdrBridge):
-    """Append-only transport to Glass's existing writer; never opens a store."""
+    """Restricted legacy append or exact native note transport; never opens a store."""
 
     def __init__(self, destination, upstream):
         super().__init__(destination, upstream, None)
@@ -203,6 +210,13 @@ class GlassNoteBridge(HerdrBridge):
                     if struct.unpack("3i", peer)[1] != os.getuid():
                         raise DisplayError("Wrong Glass note bridge peer")
                     request = json.loads(self.line(connection, deadline=time.monotonic() + 5))
+                    if isinstance(request, dict) and set(request) == {"item", "native_wire"}:
+                        try:
+                            reply = bridge_powder_note(request["item"], request["native_wire"])
+                        except (OSError, ValueError, RecursionError, DisplayError) as exc:
+                            reply = {"returncode": None, "stdout": "", "stderr": str(exc)}
+                        connection.sendall(json.dumps(reply).encode() + b"\n")
+                        continue
                     if (not isinstance(request, dict) or set(request) != {"item", "text"}
                             or not isinstance(request["item"], str)
                             or not re.fullmatch(r"K-[A-Za-z0-9-]{1,197}", request["item"])
@@ -276,6 +290,122 @@ def append_powder_note(item):
     # request ID, refresh a revision, retry, or fall back to the old board.
     return subprocess.run(["work-tracker", "--url", "https://powder.mistystep.io", "write"],
                           input=raw, check=False).returncode
+
+
+def native_note_request(item, raw, text=None):
+    """Validate the restricted fresh/native bridge envelope, without rewriting it."""
+    if not isinstance(item, str) or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]*", item):
+        raise DisplayError("Powder notes require an exact native item ID")
+    if len(raw) > MAX_REQUEST:
+        raise DisplayError("Powder note request exceeds its bound")
+
+    def unique_object(pairs):
+        value = {}
+        for key, entry in pairs:
+            if key in value:
+                raise DisplayError("Duplicate native note request field")
+            value[key] = entry
+        return value
+
+    request = json.loads(raw.decode("utf-8"), object_pairs_hook=unique_object)
+    change = request.get("change") if isinstance(request, dict) else None
+    if (not isinstance(request, dict)
+            or set(request) != {"request_id", "actor", "id", "expected_revision", "change"}
+            or request["id"] != item
+            or any(not isinstance(request[field], str) or not request[field].strip()
+                   for field in ("request_id", "actor", "expected_revision"))
+            or not isinstance(change, dict) or set(change) != {"kind", "comment"}
+            or change["kind"] != "note"
+            or not isinstance(change["comment"], str) or not change["comment"].strip()
+            or len(change["comment"]) > 2000
+            or (text is not None and (change["comment"] != text or request["actor"] != NOTE_ACTOR))):
+        raise DisplayError("Powder append requires a matching native note-only request")
+    return request
+
+
+def current_powder_note_item(item):
+    if not isinstance(item, str) or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]*", item):
+        raise DisplayError("Powder notes require an exact native item ID")
+    try:
+        result = subprocess.run([*POWDER, "get", item], capture_output=True,
+                                timeout=35, check=False)
+        value = json.loads(result.stdout)
+    except (OSError, subprocess.SubprocessError, ValueError) as exc:
+        raise DisplayError("Native Powder scope could not be read; no note sent") from exc
+    if (result.returncode != 0 or not isinstance(value, dict) or value.get("id") != item
+            or not isinstance(value.get("revision"), str) or not value["revision"].strip()
+            or not isinstance(value.get("scope"), str)
+            or not (value["scope"] == "misty-step" or value["scope"].startswith("misty-step/"))):
+        raise DisplayError("Native Powder ID, revision, and Misty Step scope required; no note sent")
+    return value
+
+
+def retained_note(path, item, text):
+    # No links, devices, public files, or unbounded reads in delivery custody.
+    descriptor = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+    with os.fdopen(descriptor, "rb") as retained:
+        info = os.fstat(retained.fileno())
+        if (not stat.S_ISREG(info.st_mode) or info.st_uid != os.getuid()
+                or stat.S_IMODE(info.st_mode) != 0o600 or info.st_nlink != 1):
+            raise DisplayError("Retained Powder request requires a private UID-owned regular file")
+        raw = retained.read(MAX_REQUEST + 1)
+    native_note_request(item, raw, text)
+    return raw
+
+
+def append_new_powder_note(item, request_file):
+    """Freeze a proven-new note before its only send; an existing file is exact replay."""
+    text = sys.stdin.read(MAX_REQUEST + 1)
+    if not text.strip() or len(text) > 2000:
+        raise DisplayError("Powder notes require nonempty append text of at most 2000 characters")
+    path = Path(request_file)
+    try:
+        raw = retained_note(path, item, text)
+    except FileNotFoundError:
+        current = current_powder_note_item(item)
+        raw = (json.dumps({"request_id": "omp-display-" + uuid.uuid4().hex,
+                           "actor": NOTE_ACTOR, "id": item,
+                           "expected_revision": current["revision"],
+                           "change": {"kind": "note", "comment": text}},
+                          ensure_ascii=False) + "\n").encode("utf-8")
+        native_note_request(item, raw, text)
+        try:
+            descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
+        except FileExistsError:
+            raw = retained_note(path, item, text)
+        else:
+            with os.fdopen(descriptor, "wb") as retained:
+                os.fchmod(retained.fileno(), 0o600)
+                retained.write(raw)
+                retained.flush()
+                os.fsync(retained.fileno())
+            directory = os.open(path.parent, os.O_RDONLY | os.O_DIRECTORY)
+            try:
+                os.fsync(directory)
+            finally:
+                os.close(directory)
+    else:
+        current_powder_note_item(item)
+    # Scope is checked, but the retained request's identity and opaque revision
+    # remain unchanged: the native writer owns its exact replay receipt.
+    return subprocess.run([*POWDER, "write"], input=raw, check=False).returncode
+
+
+def bridge_powder_note(item, wire):
+    """A distinct exact-wire frame; never converts an uncertain legacy delivery."""
+    if not isinstance(wire, str):
+        raise DisplayError("Native note bridge requires exact UTF-8 JSON Write bytes")
+    raw = wire.encode("utf-8")
+    native_note_request(item, raw)
+    current_powder_note_item(item)
+    try:
+        result = subprocess.run([*POWDER, "write"], input=raw, capture_output=True,
+                                timeout=35, check=False)
+    except (OSError, subprocess.SubprocessError) as exc:
+        raise DisplayError("Native note delivery is unknown; retain and replay only the same wire") from exc
+    return {"returncode": result.returncode, "stdout": result.stdout.decode("utf-8"),
+            "stderr": result.stderr.decode("utf-8")}
+
 
 
 class GpgBridge(HerdrBridge):
@@ -616,6 +746,8 @@ def main(argv):
         if len(argv) != 3:
             raise DisplayError("Usage: omp-display append-note --powder ITEM < native-note-request.json")
         return append_powder_note(argv[2])
+    if len(argv) == 4 and argv[0] == "append-note" and argv[2] == "--request-file":
+        return append_new_powder_note(argv[1], argv[3])
     if len(argv) == 2 and argv[0] == "append-note":
         return append_note(argv[1])
     if argv[:1] == ["--_bwrap"]:
@@ -626,6 +758,7 @@ def main(argv):
     if argv in (["--help"], ["-h"]):
         print("Usage: omp-display -- COMMAND...\n"
               "       omp-display append-note --powder ITEM < native-note-request.json\n"
+              "       omp-display append-note ITEM --request-file PATH < NOTE (new native note/exact replay)\n"
               "       omp-display append-note ITEM < NOTE (non-Misty-Step legacy transport)\n"
               "Kernel-enforced engineer display isolation; no host or work-owner fallback.")
         return 0

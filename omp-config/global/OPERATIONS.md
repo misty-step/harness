@@ -29,9 +29,14 @@ EXACT_ITEM` and complete History. Unknown outcomes retain the same request for
 exact replay; never refresh its revision, retry automatically, create replacement
 work or fall back to Glass. R90 stays Habitat. Retained Glass sessions and
 receipts keep their original identities; they do not authorize new board writes.
-The legacy note CLI and fresh bridge reject Misty Step appends after an exact
-canonical scope read; failed scope reads refuse. Old bridge instances still
-need cutover accounting: staged code is not revocation of their raw sockets.
+A proven new positional note can use `omp-display append-note EXACT_ITEM
+--request-file PATH < NOTE`: current native scope is checked, one private request
+is frozen before sending, and the same file/text replays its original bytes.
+The fresh note bridge accepts those exact bytes in its restricted native-note
+frame. Unqualified legacy item/text frames still refuse Misty Step/unknown
+scope, because an uncertain old delivery must not become a new native request.
+Older bridge instances require a store-boundary fence and original-request
+recovery; neither a source edit nor a new CLI revokes their raw authority.
 
 Use descriptive branches and conventional commits. `Fixes` means the merge
 satisfies the referenced issue; partial work uses `Refs` or `Relates to`.
