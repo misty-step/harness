@@ -68,12 +68,11 @@ install_guidance() {
     --guidance engineering --guidance workstation \
     --guidance-source "$repo_dir/global/AGENTS.md"
 }
-validate_config() {
+validate_routing_config() {
   require_bun
   require_nonempty "$repo_dir/config.yml"
-  require_nonempty "$repo_dir/models.yml"
-  bun "$repo_dir/bin/omp-merge-config.ts" --source "$repo_dir/config.yml" --local "$local_config" --dest "$agent_dir/config.yml" --check
-  bun "$repo_dir/bin/omp-merge-config.ts" --source "$repo_dir/models.yml" --dest "$agent_dir/models.yml" --check
+  require_nonempty "$repo_dir/bin/omp-model-policy.ts"
+  bun "$repo_dir/bin/omp-merge-config.ts" --source "$repo_dir/config.yml" --local "$local_config" --dest "$agent_dir/config.yml" "$@" --check
   # Validate the effective overlay before touching live config, including
   # foreign model roles and chains that the installer preserves.
   (
@@ -83,13 +82,19 @@ validate_config() {
     if [ -f "$agent_dir/config.yml" ]; then
       cp "$agent_dir/config.yml" "$candidate/config.yml"
     fi
-    bun "$repo_dir/bin/omp-merge-config.ts" --source "$repo_dir/config.yml" --local "$local_config" --dest "$candidate/config.yml"
+    bun "$repo_dir/bin/omp-merge-config.ts" --source "$repo_dir/config.yml" --local "$local_config" --dest "$candidate/config.yml" "$@"
     case ${OMP_MODEL_PROBE-0} in
-      0) bun "$repo_dir/bin/omp-model-policy.ts" --config "$candidate/config.yml" ;;
-      1) bun "$repo_dir/bin/omp-model-policy.ts" --config "$candidate/config.yml" --probe ;;
+      0) bun "$repo_dir/bin/omp-model-policy.ts" --config "$candidate/config.yml" "$@" ;;
+      1) bun "$repo_dir/bin/omp-model-policy.ts" --config "$candidate/config.yml" "$@" --probe ;;
       *) echo 'OMP_MODEL_PROBE must be 0 or 1' >&2; exit 1 ;;
     esac
   )
+}
+
+validate_config() {
+  validate_routing_config
+  require_nonempty "$repo_dir/models.yml"
+  bun "$repo_dir/bin/omp-merge-config.ts" --source "$repo_dir/models.yml" --dest "$agent_dir/models.yml" --check
   require_base
   run_shared --check --bin openrouter-key.ts
   require_nonempty "$repo_dir/secrets.yml"
@@ -102,6 +107,36 @@ install_config() {
   bun "$repo_dir/bin/omp-merge-config.ts" --source "$repo_dir/models.yml" --dest "$agent_dir/models.yml"
   run_shared --bin openrouter-key.ts
   bun "$repo_dir/bin/omp-secrets-policy.ts" --source "$repo_dir/secrets.yml" --dest "$agent_dir/secrets.yml"
+}
+
+validate_model_policy() {
+  require_nonempty "$repo_dir/extensions/subagent-inheritance/index.ts"
+  for target in "$agent_dir/extensions" "$agent_dir/extensions/subagent-inheritance" "$agent_dir/bin"; do
+    if [ -e "$target" ] || [ -L "$target" ]; then
+      [ -d "$target" ] && [ ! -L "$target" ] || {
+        printf 'Refusing non-directory or symlinked installation directory: %s\n' "$target" >&2
+        exit 1
+      }
+    fi
+  done
+  for target in "$agent_dir/extensions/subagent-inheritance/index.ts" "$agent_dir/bin/omp-model-policy.ts"; do
+    if [ -e "$target" ] || [ -L "$target" ]; then
+      [ -f "$target" ] && [ ! -L "$target" ] || {
+        printf 'Refusing non-file or symlinked installation target: %s\n' "$target" >&2
+        exit 1
+      }
+    fi
+  done
+  validate_routing_config --model-policy-only
+}
+
+install_model_policy() {
+  for target in "$agent_dir" "$agent_dir/extensions" "$agent_dir/extensions/subagent-inheritance" "$agent_dir/bin"; do
+    [ -d "$target" ] || install -d -m 700 "$target"
+  done
+  bun "$repo_dir/bin/omp-merge-config.ts" --source "$repo_dir/config.yml" --local "$local_config" --dest "$agent_dir/config.yml" --model-policy-only
+  install -m 600 "$repo_dir/extensions/subagent-inheritance/index.ts" "$agent_dir/extensions/subagent-inheritance/index.ts"
+  install -m 700 "$repo_dir/bin/omp-model-policy.ts" "$agent_dir/bin/omp-model-policy.ts"
 }
 
 validate_mcp() {
@@ -411,6 +446,7 @@ for component do
       ;;
     guidance) validate_guidance ;;
     config) validate_config ;;
+    model-policy) validate_model_policy ;;
     mcp) validate_mcp ;;
     agents) validate_agents ;;
     extensions) require_bun ;;
@@ -431,6 +467,7 @@ if [ "$1" != all ]; then
     case $component in
       guidance) install_guidance ;;
       config) install_config ;;
+      model-policy) install_model_policy ;;
       mcp) install_mcp ;;
       agents) install_agents ;;
       extensions) install_extensions ;;

@@ -41,8 +41,9 @@ change. `all` selects owned configuration, guidance, MCP, engineering skills,
 agents, themes, extensions, audio isolation and the four workstation safety
 helpers. It stages safety code without activating the engineer cage or restarting
 running sessions. Available targeted components are `config`, `guidance`, `mcp`,
-`agents`, `extensions`, `secrets`, `audio-sandbox`, `cli`, `engineer-cage`, and
-`skill:NAME`. `cli` now means only the four safety helpers, not fleet management.
+`model-policy`, `agents`, `extensions`, `secrets`, `audio-sandbox`, `cli`,
+`engineer-cage`, and `skill:NAME`. `cli` now means only the four safety helpers,
+not fleet management.
 
 OMP uses `$PI_CODING_AGENT_DIR` when set, otherwise `$(omp config path)`.
 Shared helpers and safety entrypoints deploy to `$HOME/.local/bin`. Foreign
@@ -55,7 +56,70 @@ overlays declared servers and preserves foreign inventory and owned-server auth.
 Native project MCP definitions/imports remain project-owned. Neither installer
 revokes OAuth or deletes pass entries.
 
-Restart OMP after changing extensions, guidance or provider configuration.
+### Routing-only installation
+
+After independent review and merge, run this from `omp-config/` in the exact
+reviewed revision, with the existing agent directory and machine-local overlay:
+
+```sh
+PI_CODING_AGENT_DIR="$(omp config path)" \
+  OMP_CONFIG_LOCAL_CONFIG="$HOME/.config/harness/omp.yml" \
+  OMP_MODEL_PROBE=0 OMP_INSTALL_COMPONENTS=model-policy ./install
+```
+
+`model-policy` overlays only `modelRoles`, `retry.fallbackChains`,
+`task.agentModelOverrides` and `task.disabledAgents`. Machine-local routing
+preferences take precedence over source defaults; foreign routing entries and
+already-disabled foreign agents survive. Retired source-owned routing entries
+are pruned only within these leaves. Other configuration, including `auth`,
+provider settings, serving tiers (such as `tier.openai: priority`), theme and task
+execution settings, remains semantically unchanged; YAML formatting may change.
+The effective candidate, including preserved foreign routing, must pass the
+standalone `omp-model-policy.ts --model-policy-only` validator before any live
+configuration or installed source is changed. Invalid/forbidden local roles,
+overrides or recovery chains stop the entire installation.
+
+Only `config.yml`, `extensions/subagent-inheritance/index.ts` and
+`bin/omp-model-policy.ts` under the agent directory are written. No other
+extension files (including foreign files beside the routing extension), tests,
+models, secrets, `.env`, credential helpers, services, skills, guidance or host
+launchers are installed or removed. No provider probe occurs with the invocation
+above, and no active session or service is restarted.
+
+Before installation, keep rollback preimages outside the repository and agent
+directory, in a private bundle. Its manifest records the exact reviewed source
+revision, resolved agent directory, and these three paths:
+
+```json
+{
+  "revision": "FULL_REVIEWED_MERGE_SHA",
+  "agent_dir": "/absolute/agent/directory",
+  "files": [
+    {"path": "config.yml", "existed": true, "mode": "0600", "sha256": "PREIMAGE_SHA256", "preimage": "preimages/config.yml"},
+    {"path": "extensions/subagent-inheritance/index.ts", "existed": false, "mode": null, "sha256": null, "preimage": null},
+    {"path": "bin/omp-model-policy.ts", "existed": false, "mode": null, "sha256": null, "preimage": null}
+  ],
+  "directories": [
+    {"path": ".", "existed": true, "mode": "0700"},
+    {"path": "extensions", "existed": true, "mode": "0700"},
+    {"path": "extensions/subagent-inheritance", "existed": false, "mode": null},
+    {"path": "bin", "existed": false, "mode": null}
+  ]
+}
+```
+
+The existence values above are examples: record actual pre-install existence,
+permissions and hashes, and copy every existing file byte-for-byte into its
+matching `preimages/` path. Record installed postimage hashes separately for
+drift-safe rollback/readback. Rollback restores only the three recorded paths,
+removes a newly created file only if it still matches its installed postimage,
+and removes newly created directories only when empty; preserve directory modes
+that existed before installation. Stop rather than overwrite later operator
+changes. Keep the exact revision's operator rollback commands with this bundle,
+not as a generic deployment script in the repository.
+
+Use fresh OMP processes to load changed extensions, guidance or provider policy.
+Do not restart active sessions or services during a routing-only installation.
 Existing sessions keep their selected model; file presence does not prove loading.
 
 ## Model routing (US-014)
@@ -66,7 +130,8 @@ Existing sessions keep their selected model; file presence does not prove loadin
 | --- | --- |
 | Engineering, planning, `slow`, `extreme`, `smol`, `tiny`, `commit` and sonic | GPT-6.1 Sol xhigh |
 | Visual/design work | Opus 5.5 high or above |
-| Scout, reviewer, security review and explicit advisor | Cursor Grok 4.7 xhigh |
+| Scout and explicit advisor | GPT-6.1 Sol xhigh |
+| Reviewer and security review | Anthropic Sonnet 5.5 high |
 
 `tier.openai: priority` requests OpenAI fast processing; `tier.subagent: inherit`
 keeps it on Sol task/eval children. `defaultThinkingLevel: xhigh` also covers
@@ -76,10 +141,31 @@ these controls in `omp config list` and
 Grok has no OpenAI service-tier setting; the visual Claude route is unchanged.
 
 All Sol engineering roles recover through the default chain: Astra xhigh, Cursor
-Sonnet high, then Anthropic Sonnet high. Grok is never builder recovery. Reviewer recovery retries the selected
-model or stops; it cannot inherit the engineer's fallback chain. The specialist
-extension enforces the Grok pin and protected-agent startup.
+Sonnet high, then Anthropic Sonnet high. Grok/Gemini are never unconditional
+builder or advisor recovery. Reviewer recovery retries Sonnet high or stops;
+it cannot inherit the engineer's fallback chain. The specialist extension
+enforces the Sonnet/high pin and protected-agent startup.
 Automatic Steward review remains disabled; explicit advisor invocation remains.
+
+Initiative `K-20261012-model-choice-follows-remaining-usage` preserves Kaylee's
+three-role hotfix. Offline policy validation requires those exact role bindings
+and refuses Grok/Antigravity Gemini in every static chat role, task override or
+recovery chain, including preserved foreign routing. Their bundled catalog
+entries remain available for centrally admitted fallback, not ordinary defaults.
+
+The runtime guard reads `${AI_USAGE_ROUTER_URL}/v1/route` with an exact native
+model hold/eligibility and task kind. A restricted request requires schema1
+policy `K-20261012-2`, `fallback_gate.allowed: true`, and an exact on-plan
+provider/model/reasoning choice. The central policy alone proves that BOTH
+Anthropic and OpenAI are low and no LOW/EXHAUSTED quota window resets within
+inclusive24h; missing/stale evidence or unknown low-window resets close admission.
+No local quota heuristic, provider refresh, credential pin or paid route is added.
+Missing URL, old policy, no-choice, incompatible hold, timeout or failed read
+aborts rather than selecting another model. Restricted sessions disable
+cross-model recovery and refuse later model substitution. Claude design holds
+and existing active owners remain unchanged. Gemini is currently unmeasured
+by the central owner, so catalog presence alone cannot admit it.
+
 
 The installer checks approved concrete selectors and native effort support.
 `OMP_MODEL_PROBE=1 OMP_INSTALL_COMPONENTS=config ./install` additionally makes

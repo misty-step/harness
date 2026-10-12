@@ -1,5 +1,5 @@
 import { afterEach, expect, test } from "bun:test";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 
@@ -235,5 +235,220 @@ test("local overlay selects machine themes and skills while preserving foreign r
 		writeFileSync(local, "theme:\n  dark: everforest\n");
 		expect(invoke(files, "--local", local).exitCode).toBe(0);
 		expect((parsed(files) as { theme: unknown }).theme).toEqual({ dark: "everforest", light: "omarchy-system" });
+	}
+});
+
+test("model-policy selection overlays routing leaves only and retains foreign denies and unrelated retirements", () => {
+	const source = {
+		modelRoles: { advisor: "source/advisor" },
+		retry: { enabled: true, fallbackChains: { advisor: ["source/recovery"] } },
+		task: { maxRecursionDepth: 5, agentModelOverrides: { task: "@advisor" }, disabledAgents: ["designer"] },
+		providers: { tinyModel: "source-tiny" }, theme: "source-theme",
+		auth: { accountPolicies: [] },
+	};
+	const live = {
+		modelRoles: { advisor: "old/advisor", designer: "old/designer", foreign: "foreign/model" },
+		retry: { enabled: false, fallbackChains: { advisor: ["old/recovery"], designer: [], foreign: [] } },
+		task: { maxRecursionDepth: 1, foreign: true, agentModelOverrides: { designer: "old/designer", other: "foreign/model" }, disabledAgents: ["foreign-agent", "designer"] },
+		providers: { tinyModel: "retired-but-unrelated", custom: "keep" },
+		theme: "live-theme",
+		auth: { accountPolicies: [{ provider: "anthropic", account: { email: "phaedrus@r90.dev" }, priority: 1 }] },
+		foreign: { keep: true },
+	};
+	const files = fixture(Bun.YAML.stringify(source), Bun.YAML.stringify(live));
+	const local = join(dirname(files.source), "local.yml");
+	writeFileSync(local, Bun.YAML.stringify({
+		modelRoles: { advisor: "local/advisor" },
+		retry: { enabled: true, fallbackChains: { advisor: ["local/recovery"] } },
+		task: { maxRecursionDepth: 8, disabledAgents: ["designer", "local-agent"] },
+		theme: "local-theme", auth: { accountPolicies: [] },
+	}));
+	expect(invoke(files, "--model-policy-only", "--local", local, "--check").exitCode).toBe(0);
+	expect(parsed(files)).toEqual(live);
+	expect(invoke(files, "--model-policy-only", "--local", local).exitCode).toBe(0);
+	expect(parsed(files)).toEqual({
+		...live,
+		modelRoles: { advisor: "local/advisor", foreign: "foreign/model" },
+		retry: { enabled: false, fallbackChains: { advisor: ["local/recovery"], foreign: [] } },
+		task: { ...live.task, agentModelOverrides: { task: "@advisor", other: "foreign/model" }, disabledAgents: ["designer", "local-agent", "foreign-agent"] },
+	});
+});
+
+test("fresh model-policy selection does not install unrelated source or local keys", () => {
+	const files = fixture("modelRoles: {advisor: source/model}\nretry: {fallbackChains: {advisor: []}, enabled: true}\ntask: {disabledAgents: [designer], maxRecursionDepth: 5}\nauth: {foreign: source}\n");
+	const local = join(dirname(files.source), "local.yml");
+	writeFileSync(local, "task: {agentModelOverrides: {task: '@advisor'}, maxRecursionDepth: 9}\nforeign: local\n");
+	expect(invoke(files, "--model-policy-only", "--local", local).exitCode).toBe(0);
+	expect(parsed(files)).toEqual({
+		modelRoles: { advisor: "source/model" },
+		retry: { fallbackChains: { advisor: [] } },
+		task: { disabledAgents: ["designer"], agentModelOverrides: { task: "@advisor" } },
+	});
+});
+
+type InstallFixture = { home: string; agent: string; local: string };
+
+function installFixture(live?: Record<string, unknown>): InstallFixture {
+	const root = mkdtempSync(join(tmpdir(), "omp-model-policy-install-test-"));
+	roots.push(root);
+	const home = join(root, "home");
+	const agent = join(home, "agent");
+	const local = join(home, ".config/harness/omp.yml");
+	const sentinels = [
+		"agent/auth.json", "agent/secrets.yml", "agent/models.yml", "agent/.env",
+		"agent/mcp.json", "agent/AGENTS.md", "agent/extensions/foreign/index.ts",
+		"agent/extensions/diff-review/index.ts", "agent/extensions/loc/git-hook.sh",
+		"agent/extensions/subagent-inheritance/foreign.ts", "agent/bin/foreign",
+		".local/bin/omp", ".local/bin/pass-env", ".config/systemd/user/omp.slice",
+		".config/pipewire/pipewire.conf.d/foreign.conf",
+	];
+	for (const path of sentinels) {
+		const file = join(home, path);
+		mkdirSync(dirname(file), { recursive: true });
+		writeFileSync(file, `foreign sentinel: ${path}\n`, { mode: 0o640 });
+	}
+	if (live) writeFileSync(join(agent, "config.yml"), Bun.YAML.stringify(live));
+	mkdirSync(dirname(local), { recursive: true });
+	return { home, agent, local };
+}
+
+function homeFiles(home: string): Record<string, { body: string; mode: number }> {
+	const files: Record<string, { body: string; mode: number }> = {};
+	function walk(relative: string) {
+		for (const name of readdirSync(join(home, relative))) {
+			// Interpreter caches are not deployed state; include every configured asset.
+			if (!relative && (name === ".cache" || name === ".bun")) continue;
+			const path = join(relative, name);
+			const stat = lstatSync(join(home, path));
+			if (stat.isDirectory()) {
+				files[`${path}/`] = { body: "", mode: stat.mode & 0o777 };
+				walk(path);
+			} else files[path] = { body: readFileSync(join(home, path), "utf8"), mode: stat.mode & 0o777 };
+		}
+	}
+	walk("");
+	return files;
+}
+
+function scopedInstall(files: InstallFixture) {
+	return Bun.spawnSync({
+		cmd: [join(import.meta.dir, "../install")],
+		env: {
+			PATH: `${dirname(process.execPath)}:${process.env.PATH}`,
+			HOME: files.home,
+			PI_CODING_AGENT_DIR: files.agent,
+			OMP_CONFIG_LOCAL_CONFIG: files.local,
+			OMP_INSTALL_COMPONENTS: "model-policy",
+			OMP_MODEL_PROBE: "0",
+		},
+		stdout: "pipe",
+		stderr: "pipe",
+	});
+}
+
+test("scoped installer changes only routing config and its two installed source files", () => {
+	const live = {
+		foreign: { keep: true }, theme: "foreign-theme",
+		providers: { tinyModel: "preserved-local-provider" },
+		tier: { openai: "priority", anthropic: "none" },
+		auth: { accountPolicies: [{ provider: "anthropic", account: { email: "phaedrus@r90.dev" }, priority: 1 }] },
+		modelRoles: {
+			"foreign-agent": "anthropic/claude-sonnet-5-5:high",
+			advisor: "openai-codex/gpt-6.1-sol:xhigh",
+			reviewer: "anthropic/claude-sonnet-5-5:high",
+			"security-reviewer": "anthropic/claude-sonnet-5-5:high",
+		},
+		retry: { enabled: false, fallbackChains: { "foreign-agent": [] } },
+		task: { maxRecursionDepth: 9, disabledAgents: ["foreign-agent"], agentModelOverrides: { "foreign-agent": "@foreign-agent" } },
+	};
+	const files = installFixture(live);
+	writeFileSync(files.local, "theme: ignored-local-theme\ntask: {maxRecursionDepth: 1}\n");
+	const before = homeFiles(files.home);
+	const result = scopedInstall(files);
+	expect(result.stderr.toString()).toBe("");
+	expect(result.exitCode).toBe(0);
+	const after = homeFiles(files.home);
+	for (const path of ["agent/config.yml", "agent/extensions/subagent-inheritance/index.ts", "agent/bin/omp-model-policy.ts"]) {
+		delete before[path];
+		delete after[path];
+	}
+	expect(after).toEqual(before);
+	const installed = Bun.YAML.parse(readFileSync(join(files.agent, "config.yml"), "utf8")) as Record<string, unknown>;
+	const roles = installed.modelRoles as Record<string, unknown>;
+	expect({ advisor: roles.advisor, reviewer: roles.reviewer, "security-reviewer": roles["security-reviewer"] }).toEqual({
+		advisor: "openai-codex/gpt-6.1-sol:xhigh",
+		reviewer: "anthropic/claude-sonnet-5-5:high",
+		"security-reviewer": "anthropic/claude-sonnet-5-5:high",
+	});
+	expect(installed).toMatchObject({
+		foreign: { keep: true }, theme: "foreign-theme",
+		providers: { tinyModel: "preserved-local-provider" },
+		tier: { openai: "priority", anthropic: "none" },
+		auth: { accountPolicies: [{ provider: "anthropic", account: { email: "phaedrus@r90.dev" }, priority: 1 }] },
+		modelRoles: { "foreign-agent": "anthropic/claude-sonnet-5-5:high" },
+		retry: { enabled: false, fallbackChains: { "foreign-agent": [] } },
+		task: { maxRecursionDepth: 9, agentModelOverrides: { "foreign-agent": "@foreign-agent" }, disabledAgents: expect.arrayContaining(["foreign-agent"]) },
+	});
+});
+
+test("scoped installer rejects forbidden local roles and chains before any deployment", () => {
+	for (const local of [
+		"modelRoles: {advisor: 'xai-oauth/grok-4.7:xhigh'}\n",
+		"retry: {fallbackChains: {advisor: ['xai-oauth/grok-4.7:xhigh']}}\n",
+		"task: {agentModelOverrides: {task: 'xai-oauth/grok-4.7:xhigh'}}\n",
+		"modelRoles: {advisor: 'anthropic/claude-sonnet-5-5:impossible'}\n",
+	]) {
+		for (const live of [undefined, { foreign: "keep" }]) {
+			const files = installFixture(live);
+			writeFileSync(files.local, local);
+			const before = homeFiles(files.home);
+			const result = scopedInstall(files);
+			expect(result.exitCode).not.toBe(0);
+			expect(result.stderr.toString()).toMatch(/modelRoles|fallbackChains|agentModelOverrides/);
+			expect(homeFiles(files.home)).toEqual(before);
+		}
+	}
+});
+
+test("scoped preflight validates preserved foreign routing rather than only source selectors", () => {
+	const files = installFixture({ modelRoles: { "foreign-agent": "xai-oauth/grok-4.7:xhigh" }, foreign: "keep" });
+	const before = homeFiles(files.home);
+	const result = scopedInstall(files);
+	expect(result.exitCode).not.toBe(0);
+	expect(result.stderr.toString()).toContain("modelRoles.foreign-agent");
+	expect(homeFiles(files.home)).toEqual(before);
+});
+
+test("fresh scoped installation writes only the four routing leaves and two sources", () => {
+	const files = installFixture();
+	const before = homeFiles(files.home);
+	const result = scopedInstall(files);
+	expect(result.stderr.toString()).toBe("");
+	expect(result.exitCode).toBe(0);
+	const after = homeFiles(files.home);
+	for (const path of ["agent/config.yml", "agent/extensions/subagent-inheritance/index.ts", "agent/bin/omp-model-policy.ts"]) {
+		expect(after[path]).toBeDefined();
+		delete after[path];
+	}
+	expect(after).toEqual(before);
+	const installed = Bun.YAML.parse(readFileSync(join(files.agent, "config.yml"), "utf8")) as {
+		modelRoles: Record<string, string>;
+		retry: Record<string, unknown>;
+		task: Record<string, unknown>;
+	};
+	expect(Object.keys(installed).sort()).toEqual(["modelRoles", "retry", "task"]);
+	expect(Object.keys(installed.retry)).toEqual(["fallbackChains"]);
+	expect(Object.keys(installed.task).sort()).toEqual(["agentModelOverrides", "disabledAgents"]);
+});
+
+test("scoped installer rejects unusable source-file targets before changing configuration", () => {
+	for (const target of ["extensions/subagent-inheritance/index.ts", "bin/omp-model-policy.ts"]) {
+		const files = installFixture({ foreign: "keep" });
+		mkdirSync(join(files.agent, target));
+		const before = homeFiles(files.home);
+		const result = scopedInstall(files);
+		expect(result.exitCode).not.toBe(0);
+		expect(result.stderr.toString()).toContain("Refusing non-file");
+		expect(homeFiles(files.home)).toEqual(before);
 	}
 });

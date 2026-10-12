@@ -3,10 +3,10 @@ modelRoles:
   slow: openai-codex/gpt-6.1-sol:xhigh
   extreme: openai-codex/gpt-6.1-sol:xhigh
   plan: openai-codex/gpt-6.1-sol:xhigh
-  advisor: cursor/grok-4.7:xhigh
+  advisor: openai-codex/gpt-6.1-sol:xhigh
   task: openai-codex/gpt-6.1-sol:xhigh
-  reviewer: cursor/grok-4.7:xhigh
-  security-reviewer: cursor/grok-4.7:xhigh
+  reviewer: anthropic/claude-sonnet-5-5:high
+  security-reviewer: anthropic/claude-sonnet-5-5:high
   vision: anthropic/claude-opus-5-5:high
   smol: openai-codex/gpt-6.1-sol:xhigh
   tiny: openai-codex/gpt-6.1-sol:xhigh
@@ -84,9 +84,7 @@ retry:
     # No effort suffix: every Opus 5.5 reasoning level stops on an outage.
     anthropic/claude-opus-5-5: []
     advisor:
-      - openai-codex/gpt-6.1-sol:xhigh
       - cursor/claude-sonnet-5-5:high
-      - google-antigravity/gemini-3.8-flash:high
     # Web search recovery stays on search providers, never retired chat models.
     web:
       - web/parallel
