@@ -56,12 +56,12 @@ component installers are preferable for targeted changes.
 
 ### Kaylee pane input boundary
 
-`extensions/kaylee-pane-guard` blocks tool dispatch using the single policy
-installed by hermes-config at
-`~/.hermes/profiles/kaylee-executives/plugins/delegate-agent-guard/pane_guard.py`.
-Install that reviewed policy first. Missing, timed-out or malformed policy
-results refuse non-read tool calls. The extension changes neither configuration
-nor models, credentials, audio, focus or process lifecycle.
+`extensions/kaylee-pane-guard` runs `pane_guard.py` beside its installed `index.ts`.
+That directory is already readable by the caged extension loader; engineers never
+need access to masked `~/.hermes`. Copy the identical policy bytes from
+hermes-config's `plugins/delegate-agent-guard/pane_guard.py` to both the executive
+guard package and this extension directory, and verify byte parity. No new mount,
+sandbox escape, configuration change, voice/focus change or process service.
 
 The executive's already-enabled native guard uses this same policy; its legacy
 desk plugin stays disabled. Direct native Herdr input gets fresh target checks,

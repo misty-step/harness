@@ -1,10 +1,9 @@
 import { spawnSync } from "node:child_process";
-import { homedir } from "node:os";
 import { join } from "node:path";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
-// One policy, shipped in the executive profile's already-enabled native guard.
-const guard = join(homedir(), ".hermes/profiles/kaylee-executives/plugins/delegate-agent-guard/pane_guard.py");
+// Install the executive policy's identical bytes beside this cage-readable extension.
+const guard = join(import.meta.dir, "pane_guard.py");
 const reads: Record<string, true> = { read: true, grep: true, glob: true, find: true, web_search: true, todo: true, ask: true };
 
 export default function kayleePaneGuard(pi: ExtensionAPI): void {
