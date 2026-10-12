@@ -10,7 +10,6 @@ const { values } = parseArgs({
 		dest: { type: "string" },
 		check: { type: "boolean", default: false },
 		local: { type: "string" },
-		"model-policy-only": { type: "boolean", default: false },
 	},
 	strict: true,
 });
@@ -65,6 +64,15 @@ function pruneRetiredKeys(source: Yaml, merged: Yaml): void {
 		["retry", "fallbackChains", "security-reviewer"],
 		["retry", "fallbackChains", "anthropic/claude-opus-5-5"],
 		...[
+			"modelRoles.slow", "modelRoles.extreme", "modelRoles.advisor", "modelRoles.reviewer",
+			"modelRoles.security-reviewer", "modelRoles.smol", "modelRoles.tiny", "modelRoles.commit", "modelRoles.web",
+			"task.agentModelOverrides.task", "task.agentModelOverrides.scout", "task.agentModelOverrides.sonic",
+			"task.agentModelOverrides.reviewer", "task.agentModelOverrides.security-reviewer",
+			"retry.fallbackChains.default", "retry.fallbackChains.vision", "retry.fallbackChains.web",
+			"find.credentialProvider", "tier.subagent", "skills.enableAgentsUser", "tools.approvalMode",
+			"advisor.enabled", "advisor.syncBacklog", "providers.webSearchOrder", "browser.headless", "browser.relay",
+			"task.showResolvedModelBadge", "task.isolation.apply",
+			"task.isolation.merge", "isolation.backend",
 			"cycleOrder", "symbolPreset", "setupVersion", "composer.shape",
 			"statusLine.preset", "statusLine.separator", "statusLine.transparent", "statusLine.sessionAccent",
 			"statusLine.compactThinkingLevel", "statusLine.showHookStatus",
@@ -76,7 +84,6 @@ function pruneRetiredKeys(source: Yaml, merged: Yaml): void {
 		].map(key => key.split(".")),
 	];
 	for (const path of paths) {
-		if (values["model-policy-only"] && !["modelRoles", "retry", "task"].includes(path[0])) continue;
 		let sourceParent: Yaml | undefined = source;
 		let mergedParent: Yaml | undefined = merged;
 		for (let index = 0; index < path.length - 1; index++) {
@@ -102,7 +109,7 @@ let source = parseMapping(sourcePath, sourceText);
 let adjusted = false;
 
 // US-017: installed desktop palettes win over portable defaults, not explicit preferences.
-if (!values["model-policy-only"] && Object.hasOwn(source, "theme") && existsSync(join(dirname(destPath), "themes", "omarchy-system.json"))) {
+if (Object.hasOwn(source, "theme") && existsSync(join(dirname(destPath), "themes", "omarchy-system.json"))) {
 	source.theme = { dark: "omarchy-system", light: "omarchy-system" };
 	adjusted = true;
 }
@@ -118,29 +125,6 @@ if (values.local) {
 	}
 }
 
-if (values["model-policy-only"]) {
-	// Select only routing leaves after the local overlay. Do not retire or
-	// replace any provider, credential, presentation or task-execution setting.
-	const selected: { [key: string]: Yaml } = {};
-	if (Object.hasOwn(source, "modelRoles")) selected.modelRoles = source.modelRoles;
-	for (const [parent, leaves] of [
-		["retry", ["fallbackChains"]],
-		["task", ["agentModelOverrides", "disabledAgents"]],
-	] as const) {
-		const value = source[parent];
-		if (value === undefined) continue;
-		if (!value || typeof value !== "object" || Array.isArray(value)) {
-			throw new Error(`${parent} must be a mapping`);
-		}
-		const selection: { [key: string]: Yaml } = {};
-		for (const leaf of leaves) {
-			if (Object.hasOwn(value, leaf)) selection[leaf] = value[leaf];
-		}
-		if (Object.keys(selection).length > 0) selected[parent] = selection;
-	}
-	source = selected;
-	adjusted = true;
-}
 
 let live: { [key: string]: Yaml } | null = null;
 try {
@@ -164,16 +148,13 @@ if (live === null) {
 } else {
 	const merged = overlay(source, live ?? {});
 	pruneRetiredKeys(source, merged);
-	// Adding the fail-closed specialist gate must not enable a foreign agent
-	// that the operator already disabled.
 	const task = merged && typeof merged === "object" && !Array.isArray(merged) ? merged.task : undefined;
-	const liveTask = live.task;
-	if (task && liveTask && typeof task === "object" && typeof liveTask === "object"
-		&& !Array.isArray(task) && !Array.isArray(liveTask)
-		&& Array.isArray(task.disabledAgents) && Array.isArray(liveTask.disabledAgents)) {
-		const disabled = new Set(task.disabledAgents);
-		for (const agent of liveTask.disabledAgents) disabled.add(agent);
-		task.disabledAgents = [...disabled];
+	const configuredTask = source.task;
+	if (task && typeof task === "object" && !Array.isArray(task) && Array.isArray(task.disabledAgents)
+		&& (!configuredTask || typeof configuredTask !== "object" || Array.isArray(configuredTask)
+			|| !Object.hasOwn(configuredTask, "disabledAgents"))) {
+		task.disabledAgents = task.disabledAgents.filter(agent =>
+			typeof agent !== "string" || !["reviewer", "security-reviewer", "designer"].includes(agent));
 	}
 	body = `${Bun.YAML.stringify(merged)}\n`;
 }

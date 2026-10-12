@@ -97,38 +97,10 @@ until their work completes; source retirement is not permission to remove them.
   claim of physically exhausting the host.
   Keep process/session evidence private and never kill a working engineer to
   repeat it.
-- Reviewer-route acceptance (US-014; `K-20261012-model-choice-follows-remaining-usage`)
-  uses a real OMP process with a synthetic provider. Preserve the JSONL
-  transcript, provider attempts and active child config readback.
-  Reviewer and security-reviewer must select Anthropic Sonnet 5.5 high
-  regardless of author. Force Sonnet failure: observe same-model retries
-  followed by terminal failure, with no other reviewer attempt. Cover missing
-  reviewer auth, inherited
-  concrete/effort/wildcard chains, and an actual parent failure after review
-  to prove the engineer's default recovery still works. Registry record
-  overrides merge keys; the native settings singleton is not child-scoped.
-  Also remove the extension while retaining the default disabled-agent gate:
-  protected tasks must remain unavailable. Inject a child initialization failure
-  through a supported extension wrapper: no reviewer provider request or fallback
-  is permitted. Confirm enabled specialists remain present in the model-visible
-  task description.
-  Disable the loaded guard through native extension settings after its first
-  successful unlock: observe native hook suspension and closed specialist
-  permissions, with no child request. Revoke reviewer auth between preflight
-  and SDK startup: the child's requested-model provenance must refuse parent
-  substitution before its first provider request.
-- Routing-only deployment uses `OMP_MODEL_PROBE=0 OMP_INSTALL_COMPONENTS=model-policy`.
-  In a disposable HOME, exercise the actual installer over the three-role hotfix:
-  verify exact bindings, serving-tier/foreign-config preservation and unchanged
-  unrelated assets. Offline validation must reject every static Grok/Gemini
-  role, override and recovery selector, including local and preserved foreign
-  routing. Native restricted-model sessions must not escape their hold through
-  inherited recovery. Central HTTP-boundary tests require exact policy2 on-plan
-  choices with open admission and refuse unknown/stale/closed/old/missing gates,
-  timeout and incompatible holds. Do not fabricate quota/reset observations
-  for a native smoke; synthetic central answers prove consumption, not collector
-  freshness. Real gated fallback is not proved while the deployed endpoint lacks
-  policy2 admission or the model's quota/auth is unavailable.
+- Native model/guidance acceptance (US-014): start one fresh OMP process using
+  the installed defaults. Check the held model, effort and service tier, native
+  agent availability, and the shared facts/upstream skills. Keep auth stores
+  unchanged and existing agents running.
 - `omp-config/extensions/credentials/credentials.test.ts` checks stable opt-in
   context, names-only default inventory, and no tool/prose-triggered interruption
   with a synthetic pass store (US-019). The [token-efficiency procedure](token-efficiency.md)
