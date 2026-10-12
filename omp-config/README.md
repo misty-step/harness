@@ -64,18 +64,21 @@ Existing sessions keep their selected model; file presence does not prove loadin
 
 | Work | Primary |
 | --- | --- |
-| Default and task engineering | GPT-6.1 Sol xhigh |
-| Lightweight `smol`, `tiny`, `commit`, scout and sonic | GPT-6.1 Sol low |
-| Planning | GPT-6 Astra xhigh |
+| Engineering, planning, `slow`, `extreme`, `smol`, `tiny`, `commit` and sonic | GPT-6.1 Sol xhigh |
 | Visual/design work | Opus 5.5 high or above |
-| Reviewer for an OpenAI author | Opus 5.5 xhigh |
-| Reviewer for an Anthropic author; security review | GPT-6.1 Sol xhigh |
-| Explicit advisor | Cursor Grok 4.7 xhigh |
+| Scout, reviewer, security review and explicit advisor | Cursor Grok 4.7 xhigh |
+
+`tier.openai: priority` requests OpenAI fast processing; `tier.subagent: inherit`
+keeps it on Sol task/eval children. `defaultThinkingLevel: xhigh` also covers
+explicit model selections without an effort suffix. Native OMP 18.10.0 exposes
+these controls in `omp config list` and
+[upstream settings](https://github.com/can1357/oh-my-pi/blob/main/docs/settings.md#sampling).
+Grok has no OpenAI service-tier setting; the visual Claude route is unchanged.
 
 Default/task recovery is Astra xhigh, Cursor Sonnet high, then Anthropic Sonnet
-high. Grok is advisory-only, never builder recovery. Reviewer recovery retries
-the selected model or stops; it cannot inherit the engineer's fallback chain.
-The specialist extension enforces reviewer family and protected-agent startup.
+high. Grok is never builder recovery. Reviewer recovery retries the selected
+model or stops; it cannot inherit the engineer's fallback chain. The specialist
+extension enforces the Grok pin and protected-agent startup.
 Automatic Steward review remains disabled; explicit advisor invocation remains.
 
 The installer checks approved concrete selectors and native effort support.
@@ -83,8 +86,16 @@ The installer checks approved concrete selectors and native effort support.
 bounded native provider calls, requires the exact requested provider/model and a
 terminal response, and disables fallback during the probe. Account authorization
 and priority are not evidence of available quota. No OAuth is copied between Pi
-and OMP. Luna is retired; explicitly select `openai-codex/gpt-6.1-sol:low` for
-lightweight work.
+and OMP. Use `ai-usage status` for observed subscription headroom; it does not
+attribute quota changes to fast requests.
+
+`omp-engineer` forwards native arguments without injecting a model or effort, so
+fresh engineer sessions use this configuration. The retained `omp-roster` command
+is retired from source: ticket launches use the ticket's explicit roster and
+inherit native service-tier configuration. Its `defaults` subcommand reads
+verdict-backed experiment history, not client startup defaults; it cannot write
+policy defaults and refuses a missing journal. Do not restore experiments to
+configure a native client. This ticket's Glass roster selects Sol xhigh.
 
 ## Engineering skills
 
