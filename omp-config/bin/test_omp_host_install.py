@@ -59,6 +59,20 @@ class ClientTransportTests(unittest.TestCase):
             self.assertEqual(failures, [])
             return process
 
+    def test_iron_forest_repository_operations_are_admitted(self):
+        revision = "e6ea4b370a8f3d9ec0dfe1ed0fb58a68b50d413b"
+        for operation in ("install-repository", "readback-repository"):
+            with self.subTest(operation=operation):
+                arguments = [operation, "--repository", "iron-forest"]
+                expected = {"schema_version": 1, "operation": operation,
+                            "repository": "iron-forest"}
+                if operation == "install-repository":
+                    arguments.extend(["--revision", revision])
+                    expected["revision"] = revision
+                result = reply(receipt={"repository": "iron-forest", "revision": revision})
+                process = self.invoke(arguments, json.dumps(result).encode() + b"\n", expected)
+                self.assertEqual(process.returncode, 0, process.stderr)
+
     def test_host_denials_keep_failure_receipt_and_exit_nonzero(self):
         result = reply(False, receipt={"receipt_id": "host-failed", "status": "rolled_back"},
                        error="Glass publication failed")
@@ -136,7 +150,7 @@ class ClientTransportTests(unittest.TestCase):
     def test_invalid_action_flags_never_connect(self):
         install = ["install", "--item", "K-test", "--recipe", "shared-skill",
                    "--revision", "a" * 40, "--selection", "story-qa"]
-        repository = ["install-repository", "--repository", "harness", "--revision", "a" * 40]
+        repository = ["install-repository", "--repository", "iron-forest", "--revision", "a" * 40]
         cases = [[], ["shell", "true"], ["capabilities", "--item", "K-test"],
                  ["readback", "host-1", "--profile", "omp"], ["rollback", "../receipt"],
                  [*install, "--argv", "true"], [*install, "--repo", "https://foreign.invalid"],
@@ -156,7 +170,14 @@ class ClientTransportTests(unittest.TestCase):
                  [*repository, "--repository", "../harness"],
                  [*repository, "--repository", "https://github.com/foreign/repo"],
                  [*repository, "--revision", "master"],
-                 ["readback-repository", "--repository", "harness", "--revision", "a" * 40]]
+                 [*repository, "--revision", "A" * 40],
+                 [*repository, "--revision", "abc"],
+                 [*repository, "--repository", "forest"],
+                 [*repository, "--repository", "misty-step/iron-forest"],
+                 [*repository, "--state", "/tmp/forest"],
+                 [*repository, "--restart", "forest-api"],
+                 ["readback-repository", "--repository", "iron-forest", "--state", "/tmp/forest"],
+                 ["readback-repository", "--repository", "iron-forest", "--revision", "a" * 40]]
         with tempfile.TemporaryDirectory() as directory, socket.socket(socket.AF_UNIX) as server:
             endpoint = Path(directory) / "install.sock"
             server.bind(str(endpoint))

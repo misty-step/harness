@@ -196,6 +196,8 @@ omp-host-install install-repository --repository harness --revision FULL_MERGE_S
 omp-host-install readback-repository --repository harness
 omp-host-install install-repository --repository ai-usage --revision FULL_MERGE_SHA
 omp-host-install readback-repository --repository ai-usage
+omp-host-install install-repository --repository iron-forest --revision FULL_MERGE_SHA
+omp-host-install readback-repository --repository iron-forest
 ```
 
 For new Misty Step installations, retain the repository install/readback
@@ -204,11 +206,13 @@ managed hashes and evidence reference through the reviewed Powder note command
 above. Repository operations do not invoke Glass receipt publication; do not
 use selected-asset `install --item` as a substitute, because that route still
 publishes to Glass. Old selected-asset receipts retain their original readback
-and rollback authority. No Workbench source change or new installer is required.
+and rollback authority. Iron Forest requires the companion reviewed Workbench
+native recipe to be bootstrapped by the host owner before using this route.
 
 Workbench fetches and verifies that commit itself; caller checkouts, commands,
 environments, destinations, credentials and auth operations are not accepted.
-The fixed repository allowlist is `misty-step/harness` and `misty-step/ai-usage`.
+The fixed repository allowlist is `misty-step/harness`, `misty-step/ai-usage`
+and `misty-step/iron-forest`.
 The existing host-only GitHub read binding also permits the private ai-usage
 fetch; it never enters the source installer's environment or reply.
 
@@ -220,6 +224,18 @@ supported Omarchy plugin rescan, without replacing or activating its collector
 timer. Live readback compares the managed code with the recorded install;
 installation does not prove a running OMP/Pi process loaded the new code.
 Repository installs do not use the selected-asset rollback engine.
+
+Iron Forest builds only the embedded-UI `forest` binary with Cargo offline,
+locked dependencies and two build jobs. It retains the immutable executable at
+`~/.local/lib/iron-forest-ship/releases/<full-merge-sha>.native/bin/forest`,
+preserving older releases. Its fixed activation changes only the exact
+executable path in the existing protected `forest-view.service`, preserving
+the publisher's sandbox, state and publish arguments; it reloads systemd and
+restarts only that view unit. The existing API executable and process, Ready,
+native authority/state, credentials and proxy routes remain untouched. No
+caller-supplied command, state path or restart flag is admitted. Readback
+records executable and view-unit hashes and verifies the running publisher;
+it does not hash mutable projections or native authority.
 
 The operator must bootstrap the reviewed, merged Workbench service once outside
 the cage. Existing engineers then reach it through the read-only library mount;
