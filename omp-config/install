@@ -306,6 +306,31 @@ validate_cli() {
       }
     fi
   done
+  # Refresh only the retained consumers already installed on this host. Their
+  # journals, templates, timers and experiment module keep their existing owners.
+  for name in omp-roster omp-audit; do
+    target="$HOME/.local/bin/$name"
+    if [ ! -e "$target" ] && [ ! -L "$target" ]; then
+      continue
+    fi
+    case "$name" in
+      omp-roster) source="$repo_dir/bin/$name.ts"; require_bun ;;
+      omp-audit) source="$repo_dir/bin/$name.py" ;;
+    esac
+    require_nonempty "$source"
+    [ -f "$target" ] && [ ! -L "$target" ] && python3 -c \
+      'import sys; a = open(sys.argv[1]); b = open(sys.argv[2]); sys.exit(a.readline() + a.readline() != b.readline() + b.readline())' \
+      "$source" "$target" || {
+      echo "Refusing foreign $name entrypoint" >&2; exit 1;
+    }
+    if [ "$name" = omp-roster ]; then
+      require_nonempty "$HOME/.local/bin/omp-experiments.ts"
+    else
+      # Filing/help need no default templates; OMP_AUDIT_HOME can also point to
+      # the installed owner's assets elsewhere. Never touch those assets here.
+      python3 -c 'import sys; compile(open(sys.argv[1]).read(), sys.argv[1], "exec")' "$source"
+    fi
+  done
   if [ -L "$HOME/.local/bin/omp" ] && [ "$(readlink "$HOME/.local/bin/omp")" = omp-engineer ]; then
     validate_display_tools
   fi
@@ -381,6 +406,12 @@ install_cli() {
   install -m 700 "$repo_dir/bin/omp-display.py" "$HOME/.local/bin/omp-display"
   install -m 700 "$repo_dir/bin/omp-gui.py" "$HOME/.local/bin/omp-gui"
   install -m 700 "$repo_dir/bin/omp-host-install.py" "$HOME/.local/bin/omp-host-install"
+  if [ -e "$HOME/.local/bin/omp-roster" ]; then
+    install -m 700 "$repo_dir/bin/omp-roster.ts" "$HOME/.local/bin/omp-roster"
+  fi
+  if [ -e "$HOME/.local/bin/omp-audit" ]; then
+    install -m 700 "$repo_dir/bin/omp-audit.py" "$HOME/.local/bin/omp-audit"
+  fi
 }
 
 

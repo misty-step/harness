@@ -194,6 +194,10 @@ for consumer in pi omp; do
     check "omp engineer launcher executable" test -x "$home/.local/bin/omp-engineer"
     check "omp engineer launcher installed load" "$home/.local/bin/omp-engineer" --help
     check "omp CLI preserves the sole runtime experiment ledger" cmp -s "$work/expected-experiments" "$home/.hermes/profiles/kaylee/journal/experiments.md"
+    for command in omp-roster omp-audit omp-experiments omp-experiments.ts; do
+      check "omp clean install does not revive $command" test ! -e "$home/.local/bin/$command"
+    done
+    check "omp clean install does not bootstrap audit templates" test ! -e "$home/.local/share/omp-audit"
     # MIS-203: an installed updater must accept the new layout before live
     # activation writes anything. The virgin-host/native sentinels stay intact.
     printf '#!/bin/sh\nexit 2\n' > "$home/.local/bin/workbench-host-update"
@@ -313,6 +317,175 @@ for consumer in pi omp; do
     check "omp continuation-nudge retired" test ! -e "$agent/extensions/continuation-nudge"
     check "omp diff-review retired" test ! -e "$agent/extensions/diff-review"
   fi
+done
+
+# Retained writers are upgraded only where their owned entrypoint exists.
+# Use the actual historical dependency, not a replacement module or source pins.
+dependency=
+for candidate in $(git -C "$work/source" rev-list "$revision" -- omp-config/bin/omp-experiments.ts); do
+  if git -C "$work/source" cat-file -e "$candidate:omp-config/bin/omp-experiments.ts" 2>/dev/null; then
+    dependency=$candidate
+    break
+  fi
+done
+[ -n "$dependency" ] || { echo 'FAIL retained roster dependency history unavailable' >&2; exit 1; }
+git -C "$work/source" show "$dependency:omp-config/bin/omp-experiments.ts" > "$work/expected-dependency"
+printf '\n// preserved installed dependency sentinel\n' >> "$work/expected-dependency"
+
+snapshot_tree() {
+  python3 - "$@" <<'PY'
+import json, pathlib, stat, sys
+rows = []
+for arg in sys.argv[1:]:
+    root = pathlib.Path(arg)
+    paths = [root, *sorted(root.rglob("*"))] if root.exists() else [root]
+    for path in paths:
+        if not path.exists() and not path.is_symlink():
+            rows.append([str(path), "absent"])
+            continue
+        mode = path.lstat().st_mode
+        value = (str(path.readlink()) if stat.S_ISLNK(mode)
+                 else path.read_bytes().hex() if stat.S_ISREG(mode) else None)
+        rows.append([str(path), mode, value])
+print(json.dumps(rows))
+PY
+}
+
+seed_retained() {
+  home="$work/retained-$1"
+  agent="$home/agent"
+  retained_path=$PATH
+  mkdir -p "$home/.local/bin" "$agent/agents" "$home/custom-templates" \
+    "$home/.hermes/profiles/kaylee/journal" "$home/.local/state/omp-audit/runs" \
+    "$home/.local/state/omp-roster" "$home/.config/systemd/user"
+  printf 'preexisting agent sentinel\n' > "$agent/agents/executive.md"
+  printf 'original journal bytes\n' > "$home/.hermes/profiles/kaylee/journal/experiments.md"
+  printf 'original receipt bytes\n' > "$home/.local/state/omp-audit/runs/receipt.json"
+  printf 'original session bytes\n' > "$home/.local/state/omp-roster/session.json"
+  printf 'original timer bytes\n' > "$home/.config/systemd/user/foreign.timer"
+  printf 'custom template bytes\n' > "$home/custom-templates/template.md"
+  cp "$work/expected-dependency" "$home/.local/bin/omp-experiments.ts"
+  python3 - "$work/source/omp-config/bin" "$home/.local/bin" "$2" <<'PY'
+import pathlib, sys
+source, target = map(pathlib.Path, sys.argv[1:3])
+for name in sys.argv[3].split(","):
+    suffix = ".ts" if name == "omp-roster" else ".py"
+    original = (source / (name + suffix)).read_bytes()
+    path = target / name
+    stale = b"\n# old installed revision sentinel\n" if suffix == ".py" else b"\n// old installed revision sentinel\n"
+    path.write_bytes(original + stale)
+    path.chmod(0o700)
+PY
+}
+
+run_retained_install() {
+  env -i PATH="$retained_path" HOME="$home" TMPDIR="$work" \
+    PI_CODING_AGENT_DIR="$agent" OMP_AUDIT_HOME="$home/custom-templates" \
+    OMP_INSTALL_COMPONENTS='agents cli' "$work/source/omp-config/install"
+}
+
+# Deliberately exclude Bun for the audit-only case: help/filing have no Bun or
+# default-template prerequisite. The explicit template override stays untouched.
+mkdir -p "$work/no-bun"
+for tool in python3 dirname install rm; do
+  ln -s "$(command -v "$tool")" "$work/no-bun/$tool"
+done
+for mode in audit roster both; do
+  case "$mode" in
+    audit) commands=omp-audit ;;
+    roster) commands=omp-roster ;;
+    both) commands=omp-roster,omp-audit ;;
+  esac
+  seed_retained "$mode" "$commands"
+  if [ "$mode" = audit ]; then
+    retained_path="$work/no-bun"
+  else
+    mkdir -p "$home/.local/share/omp-audit"
+    for template in template.md foundations.md principles.md simplicity.md audit-tool.ts; do
+      printf 'installed owner template: %s\n' "$template" > "$home/.local/share/omp-audit/$template"
+    done
+  fi
+  snapshot_tree "$home/.hermes" "$home/.local/state" "$home/.local/share" \
+    "$home/.config" "$home/custom-templates" > "$work/assets-before"
+  check "omp retained $mode refresh succeeds" run_retained_install
+  for name in omp-roster omp-audit; do
+    case ",$commands," in
+      *,"$name",*)
+        case "$name" in
+          omp-roster) suffix=ts; runtime=bun ;;
+          omp-audit) suffix=py; runtime=python3 ;;
+        esac
+        check "omp retained $mode $name exact committed bytes" \
+          cmp -s "$work/source/omp-config/bin/$name.$suffix" "$home/.local/bin/$name"
+        check "omp retained $mode $name executable" test -x "$home/.local/bin/$name"
+        if env -i PATH="$retained_path" HOME="$home" OMP_AUDIT_HOME="$home/custom-templates" \
+          "$runtime" "$home/.local/bin/$name" --help > "$work/$mode-$name-help" 2>&1; then
+          check "omp retained $mode $name installed help output" \
+            grep -q "$name" "$work/$mode-$name-help"
+        else
+          printf 'FAIL omp retained %s %s installed load\n' "$mode" "$name" >&2
+          cat "$work/$mode-$name-help" >&2
+          failures=$((failures + 1))
+        fi
+        ;;
+      *) check "omp retained $mode leaves missing $name absent" test ! -e "$home/.local/bin/$name" ;;
+    esac
+  done
+  check "omp retained $mode preserves exact installed dependency" \
+    cmp -s "$work/expected-dependency" "$home/.local/bin/omp-experiments.ts"
+  check "omp retained $mode does not revive experiment controller" test ! -e "$home/.local/bin/omp-experiments"
+  snapshot_tree "$home/.hermes" "$home/.local/state" "$home/.local/share" \
+    "$home/.config" "$home/custom-templates" > "$work/assets-after"
+  check "omp retained $mode preserves templates journals state and timers" cmp -s "$work/assets-before" "$work/assets-after"
+done
+
+# Both owner-header lines matter. Symlinks (including dangling ones) and
+# non-files must refuse the entire selection before agent or CLI mutation.
+for name in omp-roster omp-audit; do
+  for kind in first-header second-header symlink dangling directory; do
+    seed_retained "$name-$kind" omp-roster,omp-audit
+    target="$home/.local/bin/$name"
+    case "$kind" in
+      first-header|second-header)
+        python3 - "$target" "$kind" <<'PY'
+import pathlib, sys
+path = pathlib.Path(sys.argv[1])
+lines = path.read_bytes().splitlines(keepends=True)
+lines[0 if sys.argv[2] == "first-header" else 1] = b"# foreign owner\n"
+path.write_bytes(b"".join(lines))
+PY
+        ;;
+      symlink) mv "$target" "$target-owned"; ln -s "$name-owned" "$target" ;;
+      dangling) rm "$target"; ln -s missing-writer "$target" ;;
+      directory) rm "$target"; mkdir "$target" ;;
+    esac
+    snapshot_tree "$home" > "$work/refusal-before"
+    if run_retained_install > "$work/refusal.log" 2>&1; then
+      printf 'FAIL omp retained %s refuses %s (install succeeded)\n' "$name" "$kind" >&2
+      failures=$((failures + 1))
+    else
+      check "omp retained $name $kind reaches owner guard" grep -q "Refusing foreign $name entrypoint" "$work/refusal.log"
+    fi
+    snapshot_tree "$home" > "$work/refusal-after"
+    check "omp retained $name $kind refuses without partial mutation" cmp -s "$work/refusal-before" "$work/refusal-after"
+  done
+done
+
+for kind in missing-bun missing-dependency; do
+  seed_retained "$kind" omp-roster,omp-audit
+  case "$kind" in
+    missing-bun) retained_path="$work/no-bun"; expected='bun is required' ;;
+    missing-dependency) rm "$home/.local/bin/omp-experiments.ts"; expected='Missing or empty source: .*omp-experiments.ts' ;;
+  esac
+  snapshot_tree "$home" > "$work/refusal-before"
+  if run_retained_install > "$work/refusal.log" 2>&1; then
+    printf 'FAIL omp retained roster refuses %s (install succeeded)\n' "$kind" >&2
+    failures=$((failures + 1))
+  else
+    check "omp retained roster $kind reaches prerequisite guard" grep -q "$expected" "$work/refusal.log"
+  fi
+  snapshot_tree "$home" > "$work/refusal-after"
+  check "omp retained roster $kind refuses without partial mutation" cmp -s "$work/refusal-before" "$work/refusal-after"
 done
 if [ "$failures" -ne 0 ]; then
   printf 'FAIL: %s invariant(s); disposable clone removed on exit\n' "$failures" >&2

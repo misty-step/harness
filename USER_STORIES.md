@@ -574,11 +574,20 @@ by the operator's native configuration/install/skills-only scope decision.
 Native OMP model roles and explicit selectors remain; historical experiment
 records are preserved as data and are not used to control launches.
 
+The Powder caller cutover maintains only the proven installed command's source.
+Its explicit native plan uses current work facts and an approved explicit model;
+it does not revive paired-experiment/default-controller packaging or start work.
+Existing accepted historical records/checks remain in their original custody.
+
 ## US-047 Queue engineer work when the fleet is full — retired
 
 Custom fleet counting, board queue admission and capacity commands are retired
 with `omp-roster`. Native task dispatch remains. Independent memory and display
 isolation (US-043) remain; they are safety boundaries, not a replacement scheduler.
+
+The retained native plan's fleet/memory checks are not a queue, reservation,
+standing Ready mark, phone Start or replacement scheduler. No fresh-home roster
+installation or automatic dispatch is restored.
 
 ## Capability: Protected releases
 

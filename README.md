@@ -30,6 +30,11 @@ primitives. Source retirement does not remove active owners' separate worktrees,
 assets, journals or installed launch/settlement dependencies. Operators keep the
 existing native coordination path; caged engineers keep read-only/own-pane limits.
 
+Bounded maintenance exception: already-installed, owned `omp-roster` and
+`omp-audit` consumers retain source for the Powder caller cutover. The CLI
+installer refreshes them only where present; it does not bootstrap retired
+templates, experiment modules, timers, schedulers or journals.
+
 ## Setup
 
 ```sh

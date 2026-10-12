@@ -22,10 +22,11 @@ through `../agent-config/install`; `AGENT_CONFIG_DIR` can override that source.
 | `bin/omp-task-usage.ts` | Explicit whole-task cost analysis; not a launcher or scheduler |
 | `references/` | On-demand workstation runbooks |
 
-Ticket rosters, automatic paired experiments, grievance bookkeeping, scheduled
-repository auditors are retired. No replacement fleet
-control plane or management skill is installed. Historical journals and runtime
-evidence are not deleted or treated as launch policy.
+Default ticket-roster, paired-experiment, grievance and scheduled-auditor
+packaging remains retired. Only proven already-installed `omp-roster` and
+`omp-audit` consumers have maintained cutover source: owned entrypoints refresh
+conditionally, without installing dependencies, templates, timers or journals.
+No replacement fleet control plane or management skill is installed.
 
 ## Install
 
@@ -90,12 +91,46 @@ and OMP. Use `ai-usage status` for observed subscription headroom; it does not
 attribute quota changes to fast requests.
 
 `omp-engineer` forwards native arguments without injecting a model or effort, so
-fresh engineer sessions use this configuration. The retained `omp-roster` command
-is retired from source: ticket launches use the ticket's explicit roster and
-inherit native service-tier configuration. Its `defaults` subcommand reads
-verdict-backed experiment history, not client startup defaults; it cannot write
-policy defaults and refuses a missing journal. Do not restore experiments to
-configure a native client. This ticket's Glass roster selects Sol xhigh.
+fresh engineer sessions use this configuration. Retained `omp-roster` source
+keeps accepted historical checks and other-company behavior; it does not grant
+new default experiment/controller installation. Do not restore experiments to
+configure a native client.
+
+### Retained installed Powder callers
+
+`omp-roster launch --powder EXACT_ID --model provider/model --thinking effort`
+reads only live Powder at its explicit hosted origin. It requires the current
+three-state shape, independent readiness/waiting facts and complete work.
+Open alone is not admission. The explicit approved model produces a frozen
+plan/overlay, not a claim, prompt, model probe, paired experiment or agent start.
+Its native snapshot retains current owner facts; session binding and outcome
+remain unknown. `check --powder` refuses until the desk supplies verified exact
+claim/session binding; it cannot certify an unbound plan. Historical
+`check --item` and original launch records keep their accepted policy/custody.
+New Misty Step `launch --item` is fenced by exact canonical scope, not an ID
+prefix; use the explicit native path. Other-company historical behavior remains.
+
+`omp-audit` keeps its existing auditor inputs and append-only finding journal.
+Misty Step creates use one native Write with full authored finding/spec and
+Open/needs-discussion facts, not preparation, admission or a claim. Doctrine
+requests from either company target native `misty-step/harness`; R90-origin
+bare legacy enrichment requires the exact current native Misty Step target
+and trusted marker, then combines the work definition and note in one native
+amendment without changing owner, readiness, waiting or state. A closed item
+permits notes only; stale, unresolved or wrong-scope targets retain the request.
+Habitat/R90 filing, keys, priority rules and historical Glass reads stay intact.
+No Glass writes remain in the auditor.
+
+Current native fields own current state. Preserved imported-note marker search
+does not fold old transitions or infer past owners. A native request is fsynced
+before send; lost/malformed acknowledgement stays unknown. `refile` sends the
+original bytes/ID/actor/revision before any current readback, never rekeys,
+refreshes or retries automatically. Accepted acknowledgement is retained
+before fresh Get/complete History verification. An unchanged-repository carry
+is not authority to retry an earlier unknown request.
+
+These ports require compatible live state reads and lossless parity import
+before activation. Source/test success is not installed-runtime proof.
 
 ## Engineering skills
 

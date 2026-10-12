@@ -38,6 +38,13 @@ and release gates remain. Preserve active owners' separate worktrees, assets,
 native inspection/prompting and existing installed launch/settlement dependencies
 until their work completes; source retirement is not permission to remove them.
 
+The bounded exception is maintained source for already-installed roster/audit
+callers, not restored control-plane packaging. `omp-roster.test.ts` and
+`test_omp_audit.py` cover current native facts, atomic writes, uncertainty,
+historical custody and unchanged Habitat contracts. `verify-installers` proves
+conditional owned refresh, fresh-home absence, refusal before partial mutation
+and unchanged dependency/template/journal bytes in disposable homes.
+
 ## Observable contracts
 
 - `scripts/references.test.ts` checks tracked Markdown file targets and canonical
