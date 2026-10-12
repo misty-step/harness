@@ -49,6 +49,25 @@ test("without selection the merger still overlays every source-owned key", () =>
 	});
 });
 
+test("retired presentation settings return to native defaults without deleting foreign preferences", () => {
+	const files = fixture("modelRoles: {default: native/model}\n", `cycleOrder: [smol, default]
+symbolPreset: nerd
+statusLine: {preset: custom, leftSegments: [status], foreign: keep}
+tui: {tight: false, hyperlinks: auto, mouse: true}
+display: {shimmer: classic, showTokenUsage: true, showTurnTime: true}
+composer: {shape: pi, foreign: keep}
+setupVersion: 2
+`);
+	expect(invoke(files).exitCode).toBe(0);
+	expect(parsed(files)).toEqual({
+		modelRoles: { default: "native/model" },
+		statusLine: { foreign: "keep" },
+		tui: { mouse: true },
+		display: { showTurnTime: true },
+		composer: { foreign: "keep" },
+	});
+});
+
 test("full config retirement removes only absent owned leaves and preserves foreign entries", () => {
 	const astra = "openai-codex/gpt-6-astra:high";
 	const flash = "google-antigravity/gemini-3.8-flash:high";
@@ -190,13 +209,14 @@ test("installing the specialist gate preserves foreign disabled agents without d
 	});
 });
 
-test("portable config retires former email pins and preserves foreign account policies", () => {
- const files = fixture("theme: portable\n", Bun.YAML.stringify({auth: {accountPolicies: [
- {provider: "openai-codex", account: {email: "phaedrus@r90.dev"}, priority: 1},
- {provider: "anthropic", account: {email: "other@example.com"}, priority: 2}
- ]}}));
- expect(invoke(files).exitCode).toBe(0);
- expect((parsed(files) as any).auth.accountPolicies).toEqual([{provider: "anthropic", account: {email: "other@example.com"}, priority: 2}]);
+test("portable config preserves every live account policy", () => {
+	const policies = [
+		{ provider: "openai-codex", account: { email: "phaedrus@r90.dev" }, priority: 1 },
+		{ provider: "anthropic", account: { email: "other@example.com" }, priority: 2 },
+	];
+	const files = fixture("theme: portable\n", Bun.YAML.stringify({ auth: { accountPolicies: policies } }));
+	expect(invoke(files).exitCode).toBe(0);
+	expect(parsed(files)).toEqual({ theme: "portable", auth: { accountPolicies: policies } });
 });
 
 test("local overlay selects machine themes and skills while preserving foreign runtime config", () => {

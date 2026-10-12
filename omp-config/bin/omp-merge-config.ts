@@ -64,9 +64,19 @@ function pruneRetiredKeys(source: Yaml, merged: Yaml): void {
 		["retry", "fallbackChains", "reviewer"],
 		["retry", "fallbackChains", "security-reviewer"],
 		["retry", "fallbackChains", "anthropic/claude-opus-5-5"],
+		...[
+			"cycleOrder", "symbolPreset", "setupVersion", "composer.shape",
+			"statusLine.preset", "statusLine.separator", "statusLine.transparent", "statusLine.sessionAccent",
+			"statusLine.compactThinkingLevel", "statusLine.showHookStatus",
+			"statusLine.leftSegments", "statusLine.rightSegments",
+			"statusLine.segmentOptions.git.showBranch", "statusLine.segmentOptions.git.showStaged",
+			"statusLine.segmentOptions.git.showUnstaged", "statusLine.segmentOptions.git.showUntracked",
+			"tui.tight", "tui.hyperlinks", "tui.renderMermaid", "tui.scrollbackRebuild", "tui.titleState",
+			"display.shimmer", "display.smoothStreaming", "display.showTokenUsage", "display.cacheMissMarker",
+		].map(key => key.split(".")),
 	];
 	for (const path of paths) {
-		if (values["model-policy-only"] && path[0] === "providers") continue;
+		if (values["model-policy-only"] && !["modelRoles", "retry", "task"].includes(path[0])) continue;
 		let sourceParent: Yaml | undefined = source;
 		let mergedParent: Yaml | undefined = merged;
 		for (let index = 0; index < path.length - 1; index++) {
@@ -154,22 +164,6 @@ if (live === null) {
 } else {
 	const merged = overlay(source, live ?? {});
 	pruneRetiredKeys(source, merged);
-	// Retire only the former source-owned email pins, preserving local policies.
-	const auth = merged && typeof merged === "object" && !Array.isArray(merged) ? merged.auth : undefined;
-	const sourceAuth = source.auth;
-	const sourcePolicies = sourceAuth && typeof sourceAuth === "object" && !Array.isArray(sourceAuth)
-		? sourceAuth.accountPolicies : undefined;
-	if (!values["model-policy-only"] && !sourcePolicies && auth && typeof auth === "object"
-		&& !Array.isArray(auth) && Array.isArray(auth.accountPolicies)) {
-		auth.accountPolicies = auth.accountPolicies.filter(policy => {
-			if (!policy || typeof policy !== "object" || Array.isArray(policy)) return true;
-			const account = policy.account;
-			return !(["anthropic", "openai-codex"].some(provider => provider === policy.provider) &&
-				policy.priority === 1 && account && typeof account === "object" && !Array.isArray(account) &&
-				account.email === "phaedrus@r90.dev" && Object.keys(account).length === 1 &&
-				Object.keys(policy).length === 3);
-		});
-	}
 	// Adding the fail-closed specialist gate must not enable a foreign agent
 	// that the operator already disabled.
 	const task = merged && typeof merged === "object" && !Array.isArray(merged) ? merged.task : undefined;
