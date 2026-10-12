@@ -494,9 +494,8 @@ Opus required for visual, motion, UX and communications work, so work uses the
 selected reasoning tier without mistaking an authorized account for capacity.
 
 Criteria:
-1. WHEN a fresh OMP session selects `default`, `task`, `slow`, `extreme`, or
-   `plan`, THE SYSTEM SHALL resolve GPT-6.1 Sol xhigh. OpenAI requests SHALL
-   default to the native priority service tier, inherited by Sol task/eval children.
+1. WHEN a fresh OMP session selects `default`, `task`, `slow` or `plan`,
+   THE SYSTEM SHALL use Sol xhigh with native OpenAI priority service.
 2. WHEN OMP resolves `vision` or `designer`, THE SYSTEM SHALL select Opus 5.5
    at high or above. A designer child of a non-Opus parent SHALL use Opus high;
    a designer child of an Opus high/xhigh/max parent SHALL retain that level.
@@ -506,35 +505,12 @@ Criteria:
    the configured Opus primary and that provider fails, THEN THE SYSTEM SHALL
    stop after same-model recovery rather than switch models, at every
    reasoning level.
-3. WHEN OMP resolves `smol`, `tiny`, `commit`, or `sonic`, THE SYSTEM SHALL
-   select GPT-6.1 Sol xhigh; `scout` and `advisor` SHALL also select Sol xhigh.
-   OMP SHALL leave automatic Steward review off by default while preserving
-   explicit `--advisor` and `/advisor on` invocation.
-   Ordinary task children SHALL use their configured agent routes rather than
-   inherit the live parent's model and thinking; explicit tagged model
-   selections and per-item effort SHALL remain available, except designer
-   effort below high SHALL be rejected.
-   Under `K-20261012-model-choice-follows-remaining-usage`, reviewer task/eval
-   dispatch and security-reviewer SHALL choose Anthropic Sonnet 5.5 high
-   regardless of author. Unavailable Sonnet catalog entries or authentication
-   SHALL block dispatch; native startup substitution or thinking drift SHALL abort.
-   Reviewer recovery SHALL retry the selected model or stop, with no fallback
-   chain; primary engineering recovery SHALL remain unchanged. GitHub App
-   approval posting and fleet roster overlays are retired.
-   Missing/unloadable specialist enforcement SHALL keep protected agents
-   disabled; failed reviewer initialization SHALL abort before any provider
-   request, never continue with inherited recovery.
-4. WHERE cross-model recovery is allowed, THE SYSTEM SHALL use only configured
-   subscription routes. All OMP Sol engineering roles SHALL inherit recovery
-   through Astra xhigh, Cursor Sonnet high, then Anthropic Sonnet high.
-   Grok and Antigravity Gemini SHALL NOT be static defaults, task overrides or
-   unconditional recovery links. OMP restricted requests SHALL require the
-   central policy2 exact on-plan choice and open `fallback_gate`: BOTH Anthropic
-   and OpenAI low, no LOW/EXHAUSTED quota reset within inclusive24h. Unknown or
-   stale evidence, unknown low-window resets, missing admission, old policy or
-   incompatible holds SHALL refuse the request. Restricted sessions SHALL retain
-   their exact model hold without inherited cross-model recovery. The catalog
-   SHALL retain these models for approved gated fallback; design SHALL stay Claude.
+3. WHEN OMP delegates ordinary work, THE SYSTEM SHALL use native agent/model
+   resolution, without custom usage routing, per-agent model overlays or
+   protected-agent startup guards. Native effort and explicit held-model
+   selection SHALL remain available. Automatic advisor review SHALL stay off.
+4. OMP SHALL have no paid or cross-model fallback and no default Grok/Gemini
+   reviewer or scout. Visual work SHALL retain the configured Opus hold.
    Pi recovery SHALL use Sol xhigh then Astra xhigh through its native Codex
    pool, without depending on SuperGrok. Explicit effort overrides SHALL remain
    available; the default effort SHALL be xhigh rather than low.
@@ -553,12 +529,9 @@ Criteria:
    unrelated live settings SHALL remain unchanged.
 6. WHEN configuration is deployed, THE SYSTEM SHALL preserve OAuth stores and
    the model already selected in existing sessions.
-7. WHEN OMP model routing is checked, THE SYSTEM SHALL enforce exactly
-   advisor=Sol xhigh, reviewer=Sonnet 5.5 high, security-reviewer=Sonnet 5.5 high,
-   and reject static Grok/Antigravity Gemini chat roles, task overrides and
-   recovery links. Other static chat selectors SHALL remain restricted to
-   Opus 5.5, Sonnet 5.5 and GPT-6; an online predeployment probe SHALL reject
-   a selector not accepted by its provider or resolved to a different model.
+7. WHEN OMP configuration is deployed, THE SYSTEM SHALL remove retired owned
+   routing settings while preserving foreign settings and all live auth/account
+   content. Native OMP, not a copied model/effort validator, owns resolution.
 
 No-gos: no copying OAuth credentials between harnesses; no frontier model
 through OpenRouter as a default; no unauthenticated route treated as usable
@@ -566,11 +539,10 @@ capacity; no Grok builder fallback; no retired Sonnet or unapproved paid model
 fallback.
 
 Evidence: `omp-config/config.yml`, `omp-config/agents/designer.md`,
-`omp-config/bin/omp-merge-config.test.ts`, `omp-config/bin/omp-model-policy.test.ts`,
+`omp-config/bin/omp-merge-config.test.ts`,
 `omp-config/global/AGENTS.md`, `omp-config/README.md`,
 `pi-config/settings.json`, `pi-config/install`,
-`./scripts/verify all`, the online model-policy probe, fresh OMP role-selection
-and forced-outage smoke checks.
+`./scripts/verify all`, fresh native OMP model-selection and loading checks.
 
 ## US-046 Launch engineers only on the ticket's model roster — retired
 

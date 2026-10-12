@@ -18,7 +18,7 @@ through `../agent-config/install`; `AGENT_CONFIG_DIR` can override that source.
 | `mcp.json` | Selected native MCP servers; deployment preserves foreign servers and authentication |
 | `global/` | OMP guidance and native watchdog configuration |
 | `agents/`, `extensions/`, `themes/` | Specialist definitions, runtime boundaries and presentation |
-| `bin/omp-merge-config.ts`, `bin/omp-model-policy.ts` | Installer overlay and concrete model/effort validation |
+| `bin/omp-merge-config.ts` | Source-owned configuration overlay and retirement |
 | `bin/omp-secrets-policy.ts`, `secrets.yml` | Source-owned credential masking configuration |
 | `bin/omp-engineer.py`, `bin/omp-display.py`, `bin/omp-gui.py` | Memory/display isolation and private native GUI execution |
 | `bin/omp-host-install.py` | Typed Workbench host-install client, not a host shell |
@@ -44,7 +44,7 @@ change. `all` selects owned configuration, guidance, MCP, engineering skills,
 agents, themes, extensions, audio isolation and the four workstation safety
 helpers. It stages safety code without activating the engineer cage or restarting
 running sessions. Available targeted components are `config`, `guidance`, `mcp`,
-`model-policy`, `agents`, `extensions`, `secrets`, `audio-sandbox`, `cli`,
+`agents`, `extensions`, `secrets`, `audio-sandbox`, `cli`,
 `engineer-cage`, and `skill:NAME`. `cli` now means only the four safety helpers,
 not fleet management.
 
@@ -59,139 +59,32 @@ overlays declared servers and preserves foreign inventory and owned-server auth.
 Native project MCP definitions/imports remain project-owned. Neither installer
 revokes OAuth or deletes pass entries.
 
-### Routing-only installation
+### Config-only installation
 
-After independent review and merge, run this from `omp-config/` in the exact
-reviewed revision, with the existing agent directory and machine-local overlay:
+From the reviewed merged revision in `omp-config/`, applying native fleet
+defaults without the optional machine-local overlay:
 
 ```sh
-PI_CODING_AGENT_DIR="$(omp config path)" \
-  OMP_CONFIG_LOCAL_CONFIG="$HOME/.config/harness/omp.yml" \
-  OMP_MODEL_PROBE=0 OMP_INSTALL_COMPONENTS=model-policy ./install
+bun bin/omp-merge-config.ts --source config.yml --dest "$(omp config path)/config.yml" --check
+bun bin/omp-merge-config.ts --source config.yml --dest "$(omp config path)/config.yml"
 ```
 
-`model-policy` overlays only `modelRoles`, `retry.fallbackChains`,
-`task.agentModelOverrides` and `task.disabledAgents`. Machine-local routing
-preferences take precedence over source defaults; foreign routing entries and
-already-disabled foreign agents survive. Retired source-owned routing entries
-are pruned only within these leaves. Other configuration, including `auth`,
-provider settings, serving tiers (such as `tier.openai: priority`), theme and task
-execution settings, remains semantically unchanged; YAML formatting may change.
-The effective candidate, including preserved foreign routing, must pass the
-standalone `omp-model-policy.ts --model-policy-only` validator before any live
-configuration or installed source is changed. Invalid/forbidden local roles,
-overrides or recovery chains stop the entire installation.
-
-Only `config.yml`, `extensions/subagent-inheritance/index.ts` and
-`bin/omp-model-policy.ts` under the agent directory are written. No other
-extension files (including foreign files beside the routing extension), tests,
-models, secrets, `.env`, credential helpers, services, skills, guidance or host
-launchers are installed or removed. No provider probe occurs with the invocation
-above, and no active session or service is restarted.
-The guard and validator are staged and atomically renamed before the config
-merge. A source-copy failure therefore leaves the hotfix configuration intact.
-
-Before installation, keep rollback preimages outside the repository and agent
-directory, in a private bundle. Its manifest records the exact reviewed source
-revision, resolved agent directory, and these three paths:
-
-```json
-{
-  "revision": "FULL_REVIEWED_MERGE_SHA",
-  "agent_dir": "/absolute/agent/directory",
-  "files": [
-    {"path": "config.yml", "existed": true, "mode": "0600", "sha256": "PREIMAGE_SHA256", "preimage": "preimages/config.yml"},
-    {"path": "extensions/subagent-inheritance/index.ts", "existed": false, "mode": null, "sha256": null, "preimage": null},
-    {"path": "bin/omp-model-policy.ts", "existed": false, "mode": null, "sha256": null, "preimage": null}
-  ],
-  "directories": [
-    {"path": ".", "existed": true, "mode": "0700"},
-    {"path": "extensions", "existed": true, "mode": "0700"},
-    {"path": "extensions/subagent-inheritance", "existed": false, "mode": null},
-    {"path": "bin", "existed": false, "mode": null}
-  ]
-}
-```
-
-The existence values above are examples: record actual pre-install existence,
-permissions and hashes, and copy every existing file byte-for-byte into its
-matching `preimages/` path. Record installed postimage hashes separately for
-drift-safe rollback/readback. Rollback restores only the three recorded paths,
-removes a newly created file only if it still matches its installed postimage,
-and removes newly created directories only when empty; preserve directory modes
-that existed before installation. Stop rather than overwrite later operator
-changes. Keep the exact revision's operator rollback commands with this bundle,
-not as a generic deployment script in the repository.
-
-Use fresh OMP processes to load changed extensions, guidance or provider policy.
-Do not restart active sessions or services during a routing-only installation.
-Existing sessions keep their selected model; file presence does not prove loading.
+Only `config.yml` changes. Retired owned settings are removed; foreign settings
+and all auth/account content survive. No provider probe, extension write or
+session restart occurs. Rollback is git revert and the same scoped install.
 
 Native `path` and Git status replace ornamental `cwd` and `loc` extensions.
 Use `git diff --numstat` for changed-line counts; `/loc` and `/loc-trend` are retired.
 
-## Model routing (US-014)
+## Native models
 
-`config.yml` is the authority; do not duplicate its full recovery matrix here.
+`config.yml` owns the model and effort defaults. Native OMP resolves agents,
+thinking levels and priority service; there is no custom routing validator,
+usage gate or per-agent model overlay. Cross-model recovery is off; visual
+requests have no fallback chain. Explicit held-model launches remain native.
 
-| Work | Primary |
-| --- | --- |
-| Engineering, planning, `slow`, `extreme`, `smol`, `tiny`, `commit` and sonic | GPT-6.1 Sol xhigh |
-| Visual/design work | Opus 5.5 high or above |
-| Scout and explicit advisor | GPT-6.1 Sol xhigh |
-| Reviewer and security review | Anthropic Sonnet 5.5 high |
-
-`tier.openai: priority` requests OpenAI fast processing; `tier.subagent: inherit`
-keeps it on Sol task/eval children. `defaultThinkingLevel: xhigh` also covers
-explicit model selections without an effort suffix. Native OMP 18.10.0 exposes
-these controls in `omp config list` and
-[upstream settings](https://github.com/can1357/oh-my-pi/blob/main/docs/settings.md#sampling).
-Grok has no OpenAI service-tier setting; the visual Claude route is unchanged.
-
-All Sol engineering roles recover through the default chain: Astra xhigh, Cursor
-Sonnet high, then Anthropic Sonnet high. Grok/Gemini are never unconditional
-builder or advisor recovery. Reviewer recovery retries Sonnet high or stops;
-it cannot inherit the engineer's fallback chain. The specialist extension
-enforces the Sonnet/high pin and protected-agent startup.
-Automatic Steward review remains disabled; explicit advisor invocation remains.
-
-Initiative `K-20261012-model-choice-follows-remaining-usage` preserves Kaylee's
-three-role hotfix. Offline policy validation requires those exact role bindings
-and refuses Grok/Antigravity Gemini in every static chat role, task override or
-recovery chain, including preserved foreign routing. Their bundled catalog
-entries remain available for centrally admitted fallback, not ordinary defaults.
-
-The runtime guard reads `${AI_USAGE_ROUTER_URL}/v1/route` with an exact native
-model hold/eligibility and task kind. A restricted request requires schema1
-policy `K-20261012-2`, `fallback_gate.allowed: true`, and an exact on-plan
-provider/model/reasoning choice. The central policy alone proves that BOTH
-Anthropic and OpenAI are low and no LOW/EXHAUSTED quota window resets within
-inclusive24h; missing/stale evidence or unknown low-window resets close admission.
-No local quota heuristic, provider refresh, credential pin or paid route is added.
-Missing URL, old policy, no-choice, incompatible hold, timeout or failed read
-aborts rather than selecting another model. Restricted sessions disable
-cross-model recovery and refuse later model substitution. Their scoped recovery
-overrides are restored on shutdown or the next session start, so a held session
-cannot disable a subsequent engineer's recovery. Claude design holds and existing
-active owners remain unchanged. Gemini is currently unmeasured by the central
-owner, so catalog presence alone cannot admit it.
-
-
-The installer checks approved concrete selectors and native effort support.
-`OMP_MODEL_PROBE=1 OMP_INSTALL_COMPONENTS=config ./install` additionally makes
-bounded native provider calls, requires the exact requested provider/model and a
-terminal response, and disables fallback during the probe. Account authorization
-and priority are not evidence of available quota. No OAuth is copied between Pi
-and OMP. Use `ai-usage status` for observed subscription headroom; it does not
-attribute quota changes to fast requests.
-
-`omp-engineer` forwards native arguments without injecting a model or effort, so
-fresh engineer sessions use this configuration. The retained `omp-roster` command
-is retired from source: ticket launches use the ticket's explicit roster and
-inherit native service-tier configuration. Its `defaults` subcommand reads
-verdict-backed experiment history, not client startup defaults; it cannot write
-policy defaults and refuses a missing journal. Do not restore experiments to
-configure a native client. This ticket's Glass roster selects Sol xhigh.
+Use a fresh session to check changed defaults. Existing healthy sessions keep
+their selected models; file presence alone does not prove loading.
 
 ## Engineering skills
 
@@ -356,8 +249,8 @@ Portable defaults use the bundled Everforest themes. The installer overlays
 `~/.config/harness/omp.yml` (override: `OMP_CONFIG_LOCAL_CONFIG`) after shared
 config. When `themes/omarchy-system.json` is already installed, configuration
 selects that generated palette for both backgrounds (US-017), without modifying
-it. Explicit local theme preferences take precedence. Account email policies
-belong in this local file.
+it. With the overlay, explicit local theme preferences take precedence.
+The config-only commands above deliberately bypass it and never apply account policies.
 Use native skill path settings or locally owned skill symlinks for OS/host-specific
 packages; installers preserve unmanaged skills. Keep these local files outside
 Git and credentials in native runtime storage. Missing overlays are optional;
