@@ -510,17 +510,17 @@ Criteria:
    stop after same-model recovery rather than switch models, at every
    reasoning level.
 3. WHEN OMP resolves `smol`, `tiny`, `commit`, or `sonic`, THE SYSTEM SHALL
-   select GPT-6.1 Sol xhigh; `scout` and `advisor` SHALL select Cursor Grok 4.7
-   xhigh.
+   select GPT-6.1 Sol xhigh; `scout` and `advisor` SHALL also select Sol xhigh.
    OMP SHALL leave automatic Steward review off by default while preserving
    explicit `--advisor` and `/advisor on` invocation.
    Ordinary task children SHALL use their configured agent routes rather than
    inherit the live parent's model and thinking; explicit tagged model
    selections and per-item effort SHALL remain available, except designer
    effort below high SHALL be rejected.
-   Under the operator's 2026-10-12 route exceptions, reviewer task/eval dispatch
-   and security-reviewer SHALL choose Cursor Grok 4.7 xhigh regardless of author.
-   Unavailable Grok catalog entries or authentication SHALL block dispatch.
+   Under `K-20261012-model-choice-follows-remaining-usage`, reviewer task/eval
+   dispatch and security-reviewer SHALL choose Anthropic Sonnet 5.5 high
+   regardless of author. Unavailable Sonnet catalog entries or authentication
+   SHALL block dispatch; native startup substitution or thinking drift SHALL abort.
    Reviewer recovery SHALL retry the selected model or stop, with no fallback
    chain; primary engineering recovery SHALL remain unchanged. GitHub App
    approval posting and fleet roster overlays are retired.
@@ -529,8 +529,15 @@ Criteria:
    request, never continue with inherited recovery.
 4. WHERE cross-model recovery is allowed, THE SYSTEM SHALL use only configured
    subscription routes. All OMP Sol engineering roles SHALL inherit recovery
-   through Astra xhigh, Cursor Sonnet high, then Anthropic Sonnet high. Grok 4.7 SHALL be allowed
-   only for read-only advisory work, never OMP builder recovery.
+   through Astra xhigh, Cursor Sonnet high, then Anthropic Sonnet high.
+   Grok and Antigravity Gemini SHALL NOT be static defaults, task overrides or
+   unconditional recovery links. OMP restricted requests SHALL require the
+   central policy2 exact on-plan choice and open `fallback_gate`: BOTH Anthropic
+   and OpenAI low, no LOW/EXHAUSTED quota reset within inclusive24h. Unknown or
+   stale evidence, unknown low-window resets, missing admission, old policy or
+   incompatible holds SHALL refuse the request. Restricted sessions SHALL retain
+   their exact model hold without inherited cross-model recovery. The catalog
+   SHALL retain these models for approved gated fallback; design SHALL stay Claude.
    Pi recovery SHALL use Sol xhigh then Astra xhigh through its native Codex
    pool, without depending on SuperGrok. Explicit effort overrides SHALL remain
    available; the default effort SHALL be xhigh rather than low.
@@ -549,9 +556,11 @@ Criteria:
    unrelated live settings SHALL remain unchanged.
 6. WHEN configuration is deployed, THE SYSTEM SHALL preserve OAuth stores and
    the model already selected in existing sessions.
-7. WHEN OMP model routing is checked, THE SYSTEM SHALL reject every chat role,
-   task agent override, or fallback outside Opus 5.5, Sonnet 5.5, GPT-6,
-   Grok 4.7, and Gemini 3.8 Flash; an online predeployment probe SHALL reject
+7. WHEN OMP model routing is checked, THE SYSTEM SHALL enforce exactly
+   advisor=Sol xhigh, reviewer=Sonnet 5.5 high, security-reviewer=Sonnet 5.5 high,
+   and reject static Grok/Antigravity Gemini chat roles, task overrides and
+   recovery links. Other static chat selectors SHALL remain restricted to
+   Opus 5.5, Sonnet 5.5 and GPT-6; an online predeployment probe SHALL reject
    a selector not accepted by its provider or resolved to a different model.
 
 No-gos: no copying OAuth credentials between harnesses; no frontier model

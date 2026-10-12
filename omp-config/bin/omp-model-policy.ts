@@ -35,13 +35,23 @@ function selector(value: unknown, location: string): Selection {
 	const levels = catalogEfforts[`${provider}/${id}`];
 	if (!levels) throw new Error(`${location} selects an unapproved model: ${provider}/${id}`);
 	if (effort && !levels.includes(effort)) throw new Error(`${location} has unsupported effort: ${effort}`);
+	if (id.startsWith("grok-") || (provider === "google-antigravity" && id.startsWith("gemini-"))) {
+		throw new Error(`${location} requires the central fallback gate; static defaults and recovery cannot grant admission`);
+	}
 	return { selector: value, model: { provider, id, ...(effort ? { effort } : {}) } };
 }
 
-function configuredSelectors(config: unknown): Map<string, Model> {
+function configuredSelectors(config: unknown, modelPolicyOnly: boolean): Map<string, Model> {
 	const root = mapping(config, "config");
 	const roles = mapping(root.modelRoles, "modelRoles");
 	if (Object.keys(roles).length === 0) throw new Error("modelRoles must not be empty");
+	for (const [role, required] of Object.entries({
+		advisor: "openai-codex/gpt-6.1-sol:xhigh",
+		reviewer: "anthropic/claude-sonnet-5-5:high",
+		"security-reviewer": "anthropic/claude-sonnet-5-5:high",
+	})) {
+		if (roles[role] !== required) throw new Error(`modelRoles.${role} must be ${required}`);
+	}
 	const chains = mapping(mapping(root.retry, "retry").fallbackChains, "retry.fallbackChains");
 	const selections = new Map<string, Model>();
 	const add = (value: unknown, location: string) => {
@@ -85,7 +95,7 @@ function configuredSelectors(config: unknown): Map<string, Model> {
 			}
 		}
 	}
-	if (root.providers !== undefined) {
+	if (!modelPolicyOnly && root.providers !== undefined) {
 		const tinyModel = mapping(root.providers, "providers").tinyModel;
 		if (tinyModel !== undefined && tinyModel !== null && tinyModel !== "") {
 			throw new Error("providers.tinyModel selects an unapproved local model");
@@ -184,11 +194,14 @@ async function probe(configPath: string, selections: Map<string, Model>): Promis
 }
 
 async function main(): Promise<void> {
-	let values: { config?: string; probe?: boolean };
+	let values: { config?: string; probe?: boolean; "model-policy-only"?: boolean };
 	try {
-		({ values } = parseArgs({ options: { config: { type: "string" }, probe: { type: "boolean", default: false } }, strict: true }));
+		({ values } = parseArgs({ options: {
+			config: { type: "string" }, probe: { type: "boolean", default: false },
+			"model-policy-only": { type: "boolean", default: false },
+		}, strict: true }));
 	} catch {
-		throw new Error("Usage: omp-model-policy.ts [--config PATH] [--probe]");
+		throw new Error("Usage: omp-model-policy.ts [--config PATH] [--probe] [--model-policy-only]");
 	}
 	const configPath = resolve(values.config ?? fileURLToPath(new URL("../config.yml", import.meta.url)));
 	let text: string;
@@ -197,7 +210,7 @@ async function main(): Promise<void> {
 	let config: unknown;
 	try { config = Bun.YAML.parse(text); }
 	catch { throw new Error(`Invalid YAML in model policy config: ${configPath}`); }
-	const selections = configuredSelectors(config);
+	const selections = configuredSelectors(config, values["model-policy-only"] === true);
 	if (values.probe) await probe(configPath, selections);
 	console.log(`Model policy OK: ${selections.size} unique selector/effort combinations${values.probe ? " probed" : " checked"}`);
 }

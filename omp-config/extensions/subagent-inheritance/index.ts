@@ -6,13 +6,14 @@ type Spawn = { agent: string; invocationKind: string };
 type ModelSelection = { model: string } | { block: true; reason: string } | undefined;
 const GUARDED_AGENTS: Record<string, true> = { reviewer: true, "security-reviewer": true, designer: true };
 const REVIEW_PIN = "harness:reviewer-model-pin";
+const REVIEW_MODEL = "anthropic/claude-sonnet-5-5";
 const expectedReviews = new Map<string, { parentId: string; model: string }>();
 
-/** Review retains Grok; visual work retains Opus. */
+/** Reviews retain Sonnet high; visual work retains Opus. */
 function taskModelSelection(spawn: Spawn, ctx: ExtensionContext, thinking: string | undefined): ModelSelection {
 	const parent = ctx.model;
 	if (spawn.agent === "reviewer" || spawn.agent === "security-reviewer") {
-		return { model: "cursor/grok-4.7:xhigh" };
+		return { model: `${REVIEW_MODEL}:high` };
 	}
 	if (spawn.invocationKind !== "task" || spawn.agent !== "designer") return;
 	const opusParent = parent?.provider === "anthropic" && parent.id === "claude-opus-5-5";
@@ -25,13 +26,68 @@ function hasUnsafeDesignerEffort(item: unknown): boolean {
 		&& "effort" in item && item.effort != null && item.effort !== "hi";
 }
 
+type RuntimeModel = { provider: string; id: string };
+const TASK_KINDS: Record<string, string> = {
+	scout: "research", reviewer: "review", "security-reviewer": "review", designer: "design", sonic: "mechanical",
+};
+
+function restricted(model: RuntimeModel): boolean {
+	return /grok/i.test(model.id) || (model.provider === "google-antigravity" && /gemini/i.test(model.id));
+}
+
+/** The central policy owns quota, freshness and reset admission; never infer them here. */
+async function admitRestricted(model: RuntimeModel, reasoning: string, agent: string): Promise<void> {
+	const base = process.env.AI_USAGE_ROUTER_URL;
+	if (!base) throw new Error("AI_USAGE_ROUTER_URL is missing.");
+	const hold = `${model.provider}/${model.id}`;
+	const taskKind = TASK_KINDS[agent] ?? "build";
+	const url = new URL("/v1/route", base);
+	url.searchParams.set("task_kind", taskKind);
+	url.searchParams.set("harness", "omp");
+	url.searchParams.set("model_hold", hold);
+	url.searchParams.set("eligible_model", hold);
+	const controller = new AbortController();
+	let timeout: NodeJS.Timeout | undefined;
+	try {
+		await Promise.race([
+			(async () => {
+				const response = await fetch(url, { signal: controller.signal, redirect: "error" });
+				if (!response.ok) throw new Error("Central route read failed.");
+				const answer = await response.json();
+				const request = answer?.request;
+				const choice = answer?.choice;
+				if (answer?.schema_version !== 1 || answer.policy_version !== "K-20261012-2" || answer.ok !== true
+					|| answer.fallback_gate?.allowed !== true
+					|| request?.task_kind !== taskKind || request.harness !== "omp" || request.model_hold !== hold
+					|| request.family_hold !== null
+					|| !Array.isArray(request.eligible_models) || request.eligible_models.length !== 1
+					|| request.eligible_models[0] !== hold
+					|| choice?.provider !== model.provider || choice.model !== model.id || choice.reasoning !== reasoning
+					|| choice.selector !== `${hold}:${reasoning}` || choice.billing !== "plan") {
+					throw new Error("Central policy2 did not admit the exact restricted model and reasoning on plan.");
+				}
+			})(),
+			new Promise<never>((_, reject) => {
+				timeout = setTimeout(() => {
+					controller.abort();
+					reject(new Error("Central route read timed out."));
+				}, 5_000);
+			}),
+		]);
+	} finally {
+		clearTimeout(timeout);
+	}
+}
+
 export default function registerSubagentInheritance(pi: ExtensionAPI) {
 	let ready = false;
 	let reviewer = true;
 	let reviewerModel: string | undefined;
+	let restrictedModel: string | undefined;
 	let stopExtensions: (() => void) | undefined;
 	let stopDisabledExtensions: (() => void) | undefined;
 	let revokePermissions: (() => void) | undefined;
+	let restoreRecovery: (() => void) | undefined;
 
 	function pinReviewer(ctx: ExtensionContext) {
 		const request = expectedReviews.get(ctx.agent.id);
@@ -52,6 +108,30 @@ export default function registerSubagentInheritance(pi: ExtensionAPI) {
 			selection = taskModelSelection(event, ctx, pi.getThinkingLevel());
 		} catch {
 			return { block: true, reason: "Specialist model selection failed; refusing parent-model fallback." };
+		}
+		// Native patterns are observable before resolution; modelRole is absent
+		// for explicit selectors. Specialist replacements above are authoritative.
+		if (!selection && event.modelRole === undefined) {
+			try {
+				for (const pattern of event.patterns) {
+					const [selector, reasoning = pi.getThinkingLevel()] = pattern.split(":");
+					const separator = selector.indexOf("/");
+					const provider = selector.slice(0, separator);
+					const id = separator < 0 ? undefined : selector.slice(separator + 1);
+					if (!id) {
+						if (/grok|gemini/i.test(pattern)) throw new Error("Restricted model needs an exact native selector.");
+						continue;
+					}
+					const model = { provider, id };
+					if (!restricted(model)) continue;
+					if (!ready || /[*?]/.test(pattern)) throw new Error("Restricted model guard requires an exact initialized route.");
+					await admitRestricted(model, reasoning, event.agent);
+					if (!ready) throw new Error("Restricted model permission was revoked.");
+				}
+			} catch (error) {
+				ctx.abort();
+				return { block: true, reason: `Restricted model refused: ${error instanceof Error ? error.message : String(error)}` };
+			}
 		}
 		if (!selection || "block" in selection) return selection;
 		if (!ready) return { block: true, reason: "Specialist guard is not initialized." };
@@ -85,10 +165,13 @@ export default function registerSubagentInheritance(pi: ExtensionAPI) {
 		ready = false;
 		reviewer = true;
 		reviewerModel = undefined;
+		restrictedModel = ctx.model && restricted(ctx.model) ? `${ctx.model.provider}/${ctx.model.id}` : undefined;
 		try {
 			revokePermissions?.();
 			stopExtensions?.();
 			stopDisabledExtensions?.();
+			restoreRecovery?.();
+			restoreRecovery = undefined;
 			const initialization = ctx.sessionManager.getEntries().findLast(entry => entry.type === "session_init");
 			reviewer = ctx.agent.name === "reviewer" || ctx.agent.name === "security-reviewer"
 				|| initialization?.agent === "reviewer" || initialization?.agent === "security-reviewer";
@@ -105,10 +188,20 @@ export default function registerSubagentInheritance(pi: ExtensionAPI) {
 				// Native session_init.resolvedModel already includes startup auth
 				// substitution. Only the caller's immutable spawn pin is authoritative.
 				pinReviewer(ctx);
-				if (!ctx.model || reviewerModel !== `${ctx.model.provider}/${ctx.model.id}`) return;
+				if (!ctx.model || reviewerModel !== REVIEW_MODEL || reviewerModel !== `${ctx.model.provider}/${ctx.model.id}`) return;
+				pi.setThinkingLevel("high");
+			}
+			if (reviewer || restrictedModel) {
+				const previousFallback = switching.get(settings);
+				const previousChains = structuredClone(chains.get(settings));
+				restoreRecovery = () => {
+					switching.override(settings, previousFallback);
+					chains.override(settings, previousChains);
+				};
+				// A gated fallback is an exact hold, not permission to enter the
+				// engineer's recovery chain before a provider payload exists.
 				switching.override(settings, false);
 				if (switching.get(settings) !== false) return;
-				pi.setThinkingLevel("xhigh");
 				// Record overrides merge keys: empty inherited model/effort/wildcard
 				// chains explicitly, then confirm the effective recovery boundary.
 				const empty: Record<string, string[]> = { default: [], reviewer: [], "security-reviewer": [] };
@@ -142,17 +235,37 @@ export default function registerSubagentInheritance(pi: ExtensionAPI) {
 		revokePermissions?.();
 		stopExtensions?.();
 		stopDisabledExtensions?.();
+		restoreRecovery?.();
+		restoreRecovery = undefined;
 	});
-	pi.on("before_provider_request", (_event, ctx) => {
-		if (!reviewer) return;
-		try {
-			pinReviewer(ctx);
-			if (ready && reviewerModel === `${ctx.model?.provider}/${ctx.model?.id}`) return;
-		} catch {
-			// Provider hooks also isolate errors: abort, never rely on the throw.
+	pi.on("before_provider_request", async (_event, ctx) => {
+		if (restrictedModel && restrictedModel !== `${ctx.model?.provider}/${ctx.model?.id}`) {
+			ctx.abort();
+			throw new Error("Restricted model hold changed; request aborted.");
 		}
-		ctx.abort();
-		throw new Error("Reviewer recovery guard is unavailable; review aborted.");
+		if (reviewer) {
+			try {
+				pinReviewer(ctx);
+				if (!ready || reviewerModel !== REVIEW_MODEL || reviewerModel !== `${ctx.model?.provider}/${ctx.model?.id}`
+					|| pi.getThinkingLevel() !== "high") {
+					throw new Error("Reviewer recovery guard is unavailable.");
+				}
+			} catch {
+				// Provider hooks isolate errors: abort, never rely on the throw.
+				ctx.abort();
+				throw new Error("Reviewer recovery guard is unavailable; review aborted.");
+			}
+		}
+		if (ctx.model && restricted(ctx.model)) {
+			try {
+				if (!ready) throw new Error("Restricted model guard is unavailable.");
+				await admitRestricted(ctx.model, pi.getThinkingLevel(), ctx.agent.name);
+				if (!ready) throw new Error("Restricted model permission was revoked.");
+			} catch (error) {
+				ctx.abort();
+				throw new Error(`Restricted model refused: ${error instanceof Error ? error.message : String(error)}`);
+			}
+		}
 	});
 	pi.on("tool_call", event => {
 		if (event.toolName !== "task") return;

@@ -10,6 +10,7 @@ const { values } = parseArgs({
 		dest: { type: "string" },
 		check: { type: "boolean", default: false },
 		local: { type: "string" },
+		"model-policy-only": { type: "boolean", default: false },
 	},
 	strict: true,
 });
@@ -65,6 +66,7 @@ function pruneRetiredKeys(source: Yaml, merged: Yaml): void {
 		["retry", "fallbackChains", "anthropic/claude-opus-5-5"],
 	];
 	for (const path of paths) {
+		if (values["model-policy-only"] && path[0] === "providers") continue;
 		let sourceParent: Yaml | undefined = source;
 		let mergedParent: Yaml | undefined = merged;
 		for (let index = 0; index < path.length - 1; index++) {
@@ -86,11 +88,11 @@ function pruneRetiredKeys(source: Yaml, merged: Yaml): void {
 
 const sourceText = await readFile(sourcePath, "utf8");
 if (!sourceText.trim()) throw new Error(`Missing or empty source: ${sourcePath}`);
-const source = parseMapping(sourcePath, sourceText);
+let source = parseMapping(sourcePath, sourceText);
 let adjusted = false;
 
 // US-017: installed desktop palettes win over portable defaults, not explicit preferences.
-if (Object.hasOwn(source, "theme") && existsSync(join(dirname(destPath), "themes", "omarchy-system.json"))) {
+if (!values["model-policy-only"] && Object.hasOwn(source, "theme") && existsSync(join(dirname(destPath), "themes", "omarchy-system.json"))) {
 	source.theme = { dark: "omarchy-system", light: "omarchy-system" };
 	adjusted = true;
 }
@@ -104,6 +106,30 @@ if (values.local) {
 	} catch (error) {
 		if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
 	}
+}
+
+if (values["model-policy-only"]) {
+	// Select only routing leaves after the local overlay. Do not retire or
+	// replace any provider, credential, presentation or task-execution setting.
+	const selected: { [key: string]: Yaml } = {};
+	if (Object.hasOwn(source, "modelRoles")) selected.modelRoles = source.modelRoles;
+	for (const [parent, leaves] of [
+		["retry", ["fallbackChains"]],
+		["task", ["agentModelOverrides", "disabledAgents"]],
+	] as const) {
+		const value = source[parent];
+		if (value === undefined) continue;
+		if (!value || typeof value !== "object" || Array.isArray(value)) {
+			throw new Error(`${parent} must be a mapping`);
+		}
+		const selection: { [key: string]: Yaml } = {};
+		for (const leaf of leaves) {
+			if (Object.hasOwn(value, leaf)) selection[leaf] = value[leaf];
+		}
+		if (Object.keys(selection).length > 0) selected[parent] = selection;
+	}
+	source = selected;
+	adjusted = true;
 }
 
 let live: { [key: string]: Yaml } | null = null;
@@ -129,13 +155,20 @@ if (live === null) {
 	const merged = overlay(source, live ?? {});
 	pruneRetiredKeys(source, merged);
 	// Retire only the former source-owned email pins, preserving local policies.
-	const auth = (merged as Record<string, any>).auth;
-	if (!((source.auth as any)?.accountPolicies) && Array.isArray(auth?.accountPolicies)) {
-		auth.accountPolicies = auth.accountPolicies.filter((policy: any) => !(
-			["anthropic", "openai-codex"].includes(policy.provider) &&
-			policy.priority === 1 && policy.account?.email === "phaedrus@r90.dev" &&
-			Object.keys(policy.account).length === 1 && Object.keys(policy).length === 3
-		));
+	const auth = merged && typeof merged === "object" && !Array.isArray(merged) ? merged.auth : undefined;
+	const sourceAuth = source.auth;
+	const sourcePolicies = sourceAuth && typeof sourceAuth === "object" && !Array.isArray(sourceAuth)
+		? sourceAuth.accountPolicies : undefined;
+	if (!values["model-policy-only"] && !sourcePolicies && auth && typeof auth === "object"
+		&& !Array.isArray(auth) && Array.isArray(auth.accountPolicies)) {
+		auth.accountPolicies = auth.accountPolicies.filter(policy => {
+			if (!policy || typeof policy !== "object" || Array.isArray(policy)) return true;
+			const account = policy.account;
+			return !(["anthropic", "openai-codex"].some(provider => provider === policy.provider) &&
+				policy.priority === 1 && account && typeof account === "object" && !Array.isArray(account) &&
+				account.email === "phaedrus@r90.dev" && Object.keys(account).length === 1 &&
+				Object.keys(policy).length === 3);
+		});
 	}
 	// Adding the fail-closed specialist gate must not enable a foreign agent
 	// that the operator already disabled.
