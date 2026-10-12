@@ -168,10 +168,14 @@ with the same request ID, actor, revision and comment. Do not create a new
 request, refresh its revision or retry automatically. Credentials stay out of
 the request and receipts. R90 work remains in Habitat.
 
-The positional `append-note ITEM` and its Glass socket bridge are retained for
-historical session compatibility, not a new Misty Step work route. No old
-session, launch record, experiment journal or receipt is rewritten by this
-cutover. Their presence is not permission to write the old board.
+The positional `append-note ITEM` and its Glass socket bridge remain for
+non-Misty-Step historical compatibility. Both the fresh CLI and fresh bridge
+read the exact canonical scope and reject Misty Step before any append; unknown,
+missing or mismatched owner reads also refuse. The CLI fence protects ordinary
+invocations in cages still running an older bridge. An older bridge's raw socket
+authority is not revoked by staging code: account for retained instances at the
+cutover boundary without restarting engineers. Historical reads, original
+sessions, launch records, journals and receipts remain unchanged.
 
 After independent review and merge, request installation through
 `omp-host-install` and read back the exact installed revision and managed
@@ -193,6 +197,14 @@ omp-host-install readback-repository --repository harness
 omp-host-install install-repository --repository ai-usage --revision FULL_MERGE_SHA
 omp-host-install readback-repository --repository ai-usage
 ```
+
+For new Misty Step installations, retain the repository install/readback
+receipts under the existing initiative and associate their exact revision,
+managed hashes and evidence reference through the reviewed Powder note command
+above. Repository operations do not invoke Glass receipt publication; do not
+use selected-asset `install --item` as a substitute, because that route still
+publishes to Glass. Old selected-asset receipts retain their original readback
+and rollback authority. No Workbench source change or new installer is required.
 
 Workbench fetches and verifies that commit itself; caller checkouts, commands,
 environments, destinations, credentials and auth operations are not accepted.

@@ -29,6 +29,9 @@ EXACT_ITEM` and complete History. Unknown outcomes retain the same request for
 exact replay; never refresh its revision, retry automatically, create replacement
 work or fall back to Glass. R90 stays Habitat. Retained Glass sessions and
 receipts keep their original identities; they do not authorize new board writes.
+The legacy note CLI and fresh bridge reject Misty Step appends after an exact
+canonical scope read; failed scope reads refuse. Old bridge instances still
+need cutover accounting: staged code is not revocation of their raw sockets.
 
 Use descriptive branches and conventional commits. `Fixes` means the merge
 satisfies the referenced issue; partial work uses `Refs` or `Relates to`.
