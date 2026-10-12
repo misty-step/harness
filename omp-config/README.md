@@ -58,14 +58,15 @@ component installers are preferable for targeted changes.
 
 `extensions/kaylee-pane-guard` blocks tool dispatch using the single policy
 installed by hermes-config at
-`~/.hermes/profiles/kaylee-executives/plugins/kaylee/pane_guard.py`.
+`~/.hermes/profiles/kaylee-executives/plugins/delegate-agent-guard/pane_guard.py`.
 Install that reviewed policy first. Missing, timed-out or malformed policy
 results refuse non-read tool calls. The extension changes neither configuration
 nor models, credentials, audio, focus or process lifecycle.
 
-The shared policy admits explicit local Herdr input only after fresh target
-inspection; Kaylee and unknown identities are refused. Raw socket/PTY and
-indirect Herdr input are not executed to resolve their targets.
+The executive's already-enabled native guard uses this same policy; its legacy
+desk plugin stays disabled. Direct native Herdr input gets fresh target checks,
+including local PID argv and profile-specific run paths. Opaque input is refused;
+normal native start/tab/worktree lifecycle remains available.
 This is a native pre-tool boundary, not an arbitrary-code sandbox or replacement
 for the existing engineer host boundary. Fresh sessions load it through native
 extension discovery; existing sessions need an operator's native reload.
