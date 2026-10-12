@@ -528,8 +528,8 @@ Criteria:
    disabled; failed reviewer initialization SHALL abort before any provider
    request, never continue with inherited recovery.
 4. WHERE cross-model recovery is allowed, THE SYSTEM SHALL use only configured
-   subscription routes. OMP default/task recovery SHALL use Astra xhigh,
-   Cursor Sonnet high, then Anthropic Sonnet high. Grok 4.7 SHALL be allowed
+   subscription routes. All OMP Sol engineering roles SHALL inherit recovery
+   through Astra xhigh, Cursor Sonnet high, then Anthropic Sonnet high. Grok 4.7 SHALL be allowed
    only for read-only advisory work, never OMP builder recovery.
    Pi recovery SHALL use Sol xhigh then Astra xhigh through its native Codex
    pool, without depending on SuperGrok. Explicit effort overrides SHALL remain

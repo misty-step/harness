@@ -75,8 +75,8 @@ these controls in `omp config list` and
 [upstream settings](https://github.com/can1357/oh-my-pi/blob/main/docs/settings.md#sampling).
 Grok has no OpenAI service-tier setting; the visual Claude route is unchanged.
 
-Default/task recovery is Astra xhigh, Cursor Sonnet high, then Anthropic Sonnet
-high. Grok is never builder recovery. Reviewer recovery retries the selected
+All Sol engineering roles recover through the default chain: Astra xhigh, Cursor
+Sonnet high, then Anthropic Sonnet high. Grok is never builder recovery. Reviewer recovery retries the selected
 model or stops; it cannot inherit the engineer's fallback chain. The specialist
 extension enforces the Grok pin and protected-agent startup.
 Automatic Steward review remains disabled; explicit advisor invocation remains.

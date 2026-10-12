@@ -119,6 +119,18 @@ foreign: {keep: true}
 		},
 		foreign: { keep: true },
 	});
+	const inherited = {
+		...source,
+		retry: { fallbackChains: { default: ["openai-codex/gpt-6-astra:xhigh"] } },
+	};
+	writeFileSync(files.source, Bun.YAML.stringify(inherited));
+	expect(invoke(files).exitCode).toBe(0);
+	const migrated = parsed(files) as { retry: { fallbackChains: Record<string, string[]> } };
+	expect(migrated.retry.fallbackChains.default).toEqual(["openai-codex/gpt-6-astra:xhigh"]);
+	for (const role of ["slow", "extreme", "plan", "smol", "tiny", "commit"]) {
+		expect(Object.hasOwn(migrated.retry.fallbackChains, role)).toBe(false);
+	}
+	expect(migrated.retry.fallbackChains.custom).toEqual(["foreign/custom"]);
 });
 
 test("US-014 Opus guards fail closed, retire on cutover, and preserve allowed recovery", () => {

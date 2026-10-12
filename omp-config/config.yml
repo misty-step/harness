@@ -117,24 +117,9 @@ retry:
       - openai-codex/gpt-6-astra:xhigh
       - cursor/claude-sonnet-5-5:high
       - anthropic/claude-sonnet-5-5:high
-    plan:
-      - openai-codex/gpt-6.1-sol:xhigh
-      - anthropic/claude-opus-5-5:xhigh
     reviewer: []
-    slow:
-      - openai-codex/gpt-6.1-sol:xhigh
-    extreme: []
     security-reviewer: []
     vision: []
-    smol:
-      - anthropic/claude-sonnet-5-5:medium
-      - google-antigravity/gemini-3.8-flash:high
-    tiny:
-      - anthropic/claude-sonnet-5-5:medium
-      - google-antigravity/gemini-3.8-flash:high
-    commit:
-      - anthropic/claude-sonnet-5-5:medium
-      - google-antigravity/gemini-3.8-flash:high
 task:
   maxRecursionDepth: 3
   showResolvedModelBadge: true
