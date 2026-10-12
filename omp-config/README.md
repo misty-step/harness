@@ -85,6 +85,8 @@ extension files (including foreign files beside the routing extension), tests,
 models, secrets, `.env`, credential helpers, services, skills, guidance or host
 launchers are installed or removed. No provider probe occurs with the invocation
 above, and no active session or service is restarted.
+The guard and validator are staged and atomically renamed before the config
+merge. A source-copy failure therefore leaves the hotfix configuration intact.
 
 Before installation, keep rollback preimages outside the repository and agent
 directory, in a private bundle. Its manifest records the exact reviewed source
@@ -162,9 +164,11 @@ inclusive24h; missing/stale evidence or unknown low-window resets close admissio
 No local quota heuristic, provider refresh, credential pin or paid route is added.
 Missing URL, old policy, no-choice, incompatible hold, timeout or failed read
 aborts rather than selecting another model. Restricted sessions disable
-cross-model recovery and refuse later model substitution. Claude design holds
-and existing active owners remain unchanged. Gemini is currently unmeasured
-by the central owner, so catalog presence alone cannot admit it.
+cross-model recovery and refuse later model substitution. Their scoped recovery
+overrides are restored on shutdown or the next session start, so a held session
+cannot disable a subsequent engineer's recovery. Claude design holds and existing
+active owners remain unchanged. Gemini is currently unmeasured by the central
+owner, so catalog presence alone cannot admit it.
 
 
 The installer checks approved concrete selectors and native effort support.

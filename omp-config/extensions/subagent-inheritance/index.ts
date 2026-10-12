@@ -87,6 +87,7 @@ export default function registerSubagentInheritance(pi: ExtensionAPI) {
 	let stopExtensions: (() => void) | undefined;
 	let stopDisabledExtensions: (() => void) | undefined;
 	let revokePermissions: (() => void) | undefined;
+	let restoreRecovery: (() => void) | undefined;
 
 	function pinReviewer(ctx: ExtensionContext) {
 		const request = expectedReviews.get(ctx.agent.id);
@@ -118,7 +119,7 @@ export default function registerSubagentInheritance(pi: ExtensionAPI) {
 					const provider = selector.slice(0, separator);
 					const id = separator < 0 ? undefined : selector.slice(separator + 1);
 					if (!id) {
-						if (/grok/i.test(pattern)) throw new Error("Restricted model needs an exact native selector.");
+						if (/grok|gemini/i.test(pattern)) throw new Error("Restricted model needs an exact native selector.");
 						continue;
 					}
 					const model = { provider, id };
@@ -169,6 +170,8 @@ export default function registerSubagentInheritance(pi: ExtensionAPI) {
 			revokePermissions?.();
 			stopExtensions?.();
 			stopDisabledExtensions?.();
+			restoreRecovery?.();
+			restoreRecovery = undefined;
 			const initialization = ctx.sessionManager.getEntries().findLast(entry => entry.type === "session_init");
 			reviewer = ctx.agent.name === "reviewer" || ctx.agent.name === "security-reviewer"
 				|| initialization?.agent === "reviewer" || initialization?.agent === "security-reviewer";
@@ -189,6 +192,12 @@ export default function registerSubagentInheritance(pi: ExtensionAPI) {
 				pi.setThinkingLevel("high");
 			}
 			if (reviewer || restrictedModel) {
+				const previousFallback = switching.get(settings);
+				const previousChains = structuredClone(chains.get(settings));
+				restoreRecovery = () => {
+					switching.override(settings, previousFallback);
+					chains.override(settings, previousChains);
+				};
 				// A gated fallback is an exact hold, not permission to enter the
 				// engineer's recovery chain before a provider payload exists.
 				switching.override(settings, false);
@@ -226,6 +235,8 @@ export default function registerSubagentInheritance(pi: ExtensionAPI) {
 		revokePermissions?.();
 		stopExtensions?.();
 		stopDisabledExtensions?.();
+		restoreRecovery?.();
+		restoreRecovery = undefined;
 	});
 	pi.on("before_provider_request", async (_event, ctx) => {
 		if (restrictedModel && restrictedModel !== `${ctx.model?.provider}/${ctx.model?.id}`) {

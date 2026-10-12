@@ -330,7 +330,7 @@ function homeFiles(home: string): Record<string, { body: string; mode: number }>
 	return files;
 }
 
-function scopedInstall(files: InstallFixture) {
+function scopedInstall(files: InstallFixture, environment: Record<string, string> = {}) {
 	return Bun.spawnSync({
 		cmd: [join(import.meta.dir, "../install")],
 		env: {
@@ -340,6 +340,7 @@ function scopedInstall(files: InstallFixture) {
 			OMP_CONFIG_LOCAL_CONFIG: files.local,
 			OMP_INSTALL_COMPONENTS: "model-policy",
 			OMP_MODEL_PROBE: "0",
+			...environment,
 		},
 		stdout: "pipe",
 		stderr: "pipe",
@@ -451,4 +452,19 @@ test("scoped installer rejects unusable source-file targets before changing conf
 		expect(result.stderr.toString()).toContain("Refusing non-file");
 		expect(homeFiles(files.home)).toEqual(before);
 	}
+});
+
+test("a source copy failure leaves the hotfix configuration and prior guard unchanged", () => {
+	const files = installFixture({
+		modelRoles: { advisor: "openai-codex/gpt-6.1-sol:xhigh", reviewer: "anthropic/claude-sonnet-5-5:high", "security-reviewer": "anthropic/claude-sonnet-5-5:high" },
+		tier: { openai: "priority" }, foreign: "keep",
+	});
+	writeFileSync(join(files.agent, "extensions/subagent-inheritance/index.ts"), "prior guard sentinel\n");
+	const tools = join(dirname(files.home), "copy-failure-tools");
+	mkdirSync(tools);
+	writeFileSync(join(tools, "install"), "#!/bin/sh\nexit 73\n", { mode: 0o700 });
+	const before = homeFiles(files.home);
+	const result = scopedInstall(files, { PATH: `${tools}:${dirname(process.execPath)}:${process.env.PATH}` });
+	expect(result.exitCode).toBe(73);
+	expect(homeFiles(files.home)).toEqual(before);
 });

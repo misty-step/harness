@@ -134,9 +134,16 @@ install_model_policy() {
   for target in "$agent_dir" "$agent_dir/extensions" "$agent_dir/extensions/subagent-inheritance" "$agent_dir/bin"; do
     [ -d "$target" ] || install -d -m 700 "$target"
   done
+  for entry in extensions/subagent-inheritance/index.ts bin/omp-model-policy.ts; do
+    mode=600
+    [ "$entry" != bin/omp-model-policy.ts ] || mode=700
+    temporary=$(mktemp "$agent_dir/${entry%/*}/.model-policy.XXXXXX")
+    trap 'rm -f -- "$temporary"' 0 1 2 15
+    install -m "$mode" "$repo_dir/$entry" "$temporary"
+    mv -f -- "$temporary" "$agent_dir/$entry"
+    trap - 0 1 2 15
+  done
   bun "$repo_dir/bin/omp-merge-config.ts" --source "$repo_dir/config.yml" --local "$local_config" --dest "$agent_dir/config.yml" --model-policy-only
-  install -m 600 "$repo_dir/extensions/subagent-inheritance/index.ts" "$agent_dir/extensions/subagent-inheritance/index.ts"
-  install -m 700 "$repo_dir/bin/omp-model-policy.ts" "$agent_dir/bin/omp-model-policy.ts"
 }
 
 validate_mcp() {

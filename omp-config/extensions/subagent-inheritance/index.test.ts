@@ -357,6 +357,24 @@ test("restricted startup holds cannot enter ordinary recovery or a substituted p
 	expect(guard.state.aborted).toBe(true);
 });
 
+test("leaving a restricted session restores the same scope's primary recovery", async () => {
+	const primary = ["openai-codex/gpt-6-astra:xhigh"];
+	const guard = hooks(undefined, true, {
+		chains: { default: primary, reviewer: [], "security-reviewer": [], "foreign/model": ["anthropic/claude-sonnet-5-5:high"] },
+		disabled: [],
+	});
+	guard.revive("main", { provider: "google-antigravity", id: "gemini-3.8-flash" });
+	expect(guard.scope.modelFallback).toBe(false);
+	guard.revive("main", { provider: "openai-codex", id: "gpt-6.1-sol" });
+	expect(guard.scope.modelFallback).toBe(true);
+	expect(guard.scope.chains).toEqual({
+		default: ["openai-codex/gpt-6-astra:xhigh"], reviewer: [], "security-reviewer": [],
+		"foreign/model": ["anthropic/claude-sonnet-5-5:high"],
+	});
+	await expect(guard.request()).resolves.toBeUndefined();
+	expect(guard.state.aborted).toBe(false);
+});
+
 async function withCentralRoute(
 	response: (url: URL) => Response | Promise<Response>, exercise: (reads: URL[]) => Promise<void>,
 ) {
@@ -500,7 +518,7 @@ test("explicit native spawn patterns require exact central admission and recheck
 test("denied explicit spawn blocks without specialist auth and cannot escape an incompatible hold", async () => {
 	await withCentralRoute(() => Response.json(centralAnswer()), async reads => {
 		for (const pattern of ["cursor/grok-4.7:high", "xai-oauth/grok-4.20:xhigh",
-			"google-antigravity/gemini-3-pro:high", "xai-oauth/grok-*:high"]) {
+			"google-antigravity/gemini-3-pro:high", "xai-oauth/grok-*:high", "gemini-flash:high", "grok:high"]) {
 			const auth = mock(async () => "test-key");
 			const guard = hooks(auth);
 			expect(await guard.select("task", undefined, "high", "task", "denied", [pattern]))
