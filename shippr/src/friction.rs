@@ -1,6 +1,7 @@
 //! Friction to Powder (Kent's file-friction, with Powder as the sink).
 //! Qualify first: durable, recurring, owned, a reproducible contract gap, and it cost time.
-//! One-offs soft-skip. Dedupe is by id: `friction-<repo>-<slug>`; a repeat adds a note.
+//! One-offs soft-skip. Dedupe is by id (`item_id`); a repeat on an open item adds a note,
+//! a repeat after the item closed files a fresh `-rN` item pointing back at it.
 use anyhow::{bail, Context, Result};
 use serde_json::{json, Value};
 use std::process::Command;
@@ -55,28 +56,29 @@ pub fn slug(s: &str) -> String {
     out
 }
 
-/// FNV-1a over the normalized title: a stable, dependency-free disambiguator.
-fn title_hash(title: &str) -> String {
+/// FNV-1a over the exact repo plus the normalized title: a stable, dependency-free identity.
+fn identity_hash(repo: &str, title: &str) -> String {
     let norm: Vec<String> = title.to_lowercase().split(|c: char| !c.is_alphanumeric()).filter(|w| !w.is_empty()).map(str::to_string).collect();
     let mut h: u32 = 0x811c9dc5;
-    for b in norm.join(" ").bytes() {
+    for b in format!("{}\n{}", repo.to_lowercase(), norm.join(" ")).bytes() {
         h ^= b as u32;
         h = h.wrapping_mul(0x01000193);
     }
     format!("{h:08x}")
 }
 
-/// `friction-<owner>-<repo>-<slug>-<hash>`: the owner keeps same-named repos apart and the
-/// hash keeps titles that share a long prefix (or slug to nothing) apart.
+/// `friction-<repo slug>-<title slug>-<hash>`. The slugs are for humans; the hash of the exact
+/// `owner/repo` and normalized title is what keeps ids apart.
 pub fn item_id(f: &Friction) -> String {
     let readable = slug(&f.title);
-    let tail = if readable.is_empty() { title_hash(&f.title) } else { format!("{readable}-{}", title_hash(&f.title)) };
+    let hash = identity_hash(&f.repo, &f.title);
+    let tail = if readable.is_empty() { hash } else { format!("{readable}-{hash}") };
     format!("friction-{}-{tail}", slug(&f.repo))
 }
 
 pub fn body(f: &Friction) -> String {
     format!(
-        "Tags: friction\nRepo: {}\nCost: {}m\nProduct decision: {}\n\nContract gap: {}\n\nSuggested fix: {}\n\nFiled by shippr friction (file-friction). Repeats are added as notes.",
+        "Tags: friction\nRepo: {}\nCost: {}m\nProduct decision: {}\n\nContract gap: {}\n\nSuggested fix: {}\n\nFiled by shippr friction (file-friction). Repeats while open are added as notes.",
         f.repo, f.cost_minutes, if f.product_decision { "yes (park for Maren)" } else { "no" }, f.reason, f.fix
     )
 }
@@ -118,7 +120,15 @@ fn powder(method: &str, path: &str, body: Option<&Value>) -> Result<(u16, Value)
     if let Some(b) = body {
         use std::io::Write;
         // create_new refuses an existing path or symlink.
-        std::fs::OpenOptions::new().write(true).create_new(true).open(&tmp)?.write_all(&serde_json::to_vec(b)?)?;
+        let written = std::fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&tmp)
+            .and_then(|mut file| file.write_all(&serde_json::to_vec(b).unwrap_or_default()));
+        if let Err(e) = written {
+            let _ = std::fs::remove_file(&tmp);
+            return Err(e.into());
+        }
         cmd.arg(&tmp);
     }
     let out = cmd.output().with_context(|| format!("running {bin}"));
@@ -141,8 +151,10 @@ pub enum Outcome {
     Noted(String),
 }
 
-fn is_open(item: &Value) -> bool {
-    item["state"]["kind"].as_str() == Some("open")
+/// Powder's terminal states. Anything else (open, waiting, or a state this build does not know)
+/// counts as live, so a recurrence is noted rather than duplicated.
+fn is_closed(item: &Value) -> bool {
+    matches!(item["state"]["kind"].as_str(), Some("done" | "dropped" | "historical_closed"))
 }
 
 fn add_note(id: &str, item: &Value, f: &Friction, actor: &str) -> Result<Outcome> {
@@ -178,7 +190,7 @@ pub fn file(f: &Friction, actor: &str) -> Result<Outcome> {
         let id = if n == 1 { base.clone() } else { format!("{base}-r{n}") };
         let (code, item) = powder("GET", &format!("/items/{id}"), None)?;
         match code {
-            200 if is_open(&item) => return add_note(&id, &item, f, actor),
+            200 if !is_closed(&item) => return add_note(&id, &item, f, actor),
             200 => previous = Some(id),
             404 => return create(&id, f, actor, previous.as_deref()),
             other => bail!("powder lookup failed: HTTP {other}: {item}"),
@@ -223,10 +235,21 @@ mod tests {
         let b = Friction { title: "No seeded review user in preview for the settings flow".into(), ..f() };
         assert_ne!(item_id(&a), item_id(&b));
         assert_ne!(item_id(&f()), item_id(&Friction { repo: "other-org/glass".into(), ..f() }));
+        assert_ne!(item_id(&Friction { repo: "foo-bar/baz".into(), ..f() }), item_id(&Friction { repo: "foo/bar-baz".into(), ..f() }));
         let long = Friction { title: "x".repeat(60), ..f() };
         let unicode = Friction { title: "проблема с входом".into(), ..f() };
         assert!(!item_id(&long).ends_with('-'));
         assert_ne!(item_id(&unicode), item_id(&Friction { title: "другая проблема".into(), ..f() }));
+    }
+
+    #[test]
+    fn only_terminal_states_count_as_closed() {
+        for k in ["done", "dropped", "historical_closed"] {
+            assert!(is_closed(&json!({"state": {"kind": k}})));
+        }
+        for v in [json!({"state": {"kind": "open"}}), json!({"state": {"kind": "waiting"}}), json!({"state": "open"}), json!({})] {
+            assert!(!is_closed(&v), "{v}");
+        }
     }
 
     #[test]
