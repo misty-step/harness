@@ -19,17 +19,6 @@ pub struct Pr {
     pub comments: Vec<Comment>,
     #[serde(default)]
     pub labels: Vec<Label>,
-    #[serde(default)]
-    pub commits: Vec<CommitInfo>,
-}
-
-#[derive(Clone, Debug, Default, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct CommitInfo {
-    #[serde(default)]
-    pub oid: String,
-    #[serde(default)]
-    pub committed_date: String,
 }
 
 /// Only repository insiders may post verdicts or trigger bots.
@@ -62,8 +51,6 @@ pub struct Check {
     pub conclusion: String,
     #[serde(default)]
     pub state: String,
-    #[serde(default)]
-    pub started_at: String,
 }
 
 #[derive(Clone, Debug, Default, Deserialize)]
@@ -170,19 +157,14 @@ impl Pr {
         verdict
     }
 
-    /// When the head arrived, by GitHub's clock: the earliest check run on it. Falls back to the
-    /// commit date only when no check has started. None when the head is unknown.
-    pub fn head_arrived_at(&self) -> Option<&str> {
-        let started = self.status_check_rollup.iter().map(|c| c.started_at.as_str()).filter(|t| !t.is_empty()).min();
-        started.or_else(|| self.commits.iter().find(|c| c.oid == self.head_ref_oid).map(|c| c.committed_date.as_str()))
-    }
-
-    /// Some(true) if a trusted `bugbot run` comment came after the head arrived; None if unknown.
-    pub fn bugbot_triggered_for_head(&self) -> Option<bool> {
-        let arrived = self.head_arrived_at()?;
-        Some(self.comments.iter().any(|c| {
-            trusted(&c.author_association) && c.body.trim().eq_ignore_ascii_case("bugbot run") && c.created_at.as_str() > arrived
-        }))
+    /// True if a trusted `bugbot run` comment names the current head in its shippr marker
+    /// (`<!-- shippr-head: SHA -->`, see `bugbot_comment`). Bound to the SHA, not to any clock.
+    pub fn bugbot_triggered_for_head(&self) -> bool {
+        let marker = head_marker(&self.head_ref_oid);
+        !self.head_ref_oid.is_empty()
+            && self.comments.iter().any(|c| {
+                trusted(&c.author_association) && c.body.trim_start().to_ascii_lowercase().starts_with("bugbot run") && c.body.contains(&marker)
+            })
     }
 
     pub fn has_label(&self, name: &str) -> bool {
@@ -195,4 +177,13 @@ pub enum Verdict {
     Missing,
     Approve,
     Rejected,
+}
+
+fn head_marker(sha: &str) -> String {
+    format!("<!-- shippr-head: {sha} -->")
+}
+
+/// The comment `shippr bugbot` posts: Bugbot's trigger phrase plus a head-SHA marker.
+pub fn bugbot_comment(head: &str) -> String {
+    format!("bugbot run\n\n{}", head_marker(head))
 }
