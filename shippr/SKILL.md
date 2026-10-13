@@ -26,7 +26,7 @@ shippr tick --pr <url> --risk <low|medium|high>
 - `merge`: `shippr merge --pr <url> --risk <risk>`.
 - `park`: high risk parks for Maren: put `Review: ready` plus Review-PR / Review-Deploy /
   Review-Evidence / Review-Summary lines in the Powder item body (Glass review queue).
-- `friction`: file durable friction to Powder (file-friction), then stop.
+- `friction`: file durable friction to Powder with `shippr friction` ([FRICTION.md](FRICTION.md)), then stop.
 
 This replaces ce-babysit-pr: repos that adopt shippr set `auto_babysit: false`
 in `.compound-engineering/config.yaml`.
