@@ -1,9 +1,11 @@
-## What a good diff is
+# [Foundations](https://github.com/misty-step/harness/blob/master/FOUNDATIONS.md)
 
-Do the stated job in the fewest clear lines. Prefer deleting and reusing; add no unneeded layers, frameworks, flags, guards, holds or config.
-Compose exceedingly simple, focused UNIX programs from small modules and packages. Past about 10000 LOC, report and seriously consider separate services; guidance, never a blocking gate or checker.
-Make each project easy for agents to use and verify as end users. Show the real thing working with lean checks; more checking instead of shipping is failure.
-Keep the few good tests proving what users rely on. Delete implementation/wording pins, duplicates, mock echoes and tests costing more than they catch; preserve independent consequential consumer contracts.
+Any agent, any time: report friction/papercuts freely. One-command goal: unshipped; use the owner's current route.
+Make breakage visible to users; never fail silently.
+Prove core user journeys and visible before/after, not infrastructure or diff size.
+Reversing standing behavior needs Phaedrus's explicit yes.
+Do the job; delete/reuse. Compose small, focused UNIX programs; no needless layers, flags, guards, holds or config. Past ~10k LOC, report and seriously consider services; not a gate.
+Keep few good consumer tests; delete low-value tests, implementation/wording pins, duplicates and mock echoes; preserve independent contracts.
+Make end-user proof easy and lean; more checking instead of shipping is failure. Review: job, simplicity, test value.
 
-Reviewers ask: does it do the job, is there a simpler version, and are the tests good or bloat?
 Use plain words in code, commits, PRs and messages; watch net lines per PR and repo over time—down is usually good.

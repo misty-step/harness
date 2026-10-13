@@ -2,12 +2,10 @@
 
 `foundation-standard-v1.json` is the sole normative catalog: applicability,
 evidence, dispositions, defaults and exceptions; current version 1.8.1.
-Use it for commissioned adoption/assessment, not to widen a bug fix. Follow the
-[constitution](constitution.md): simple UNIX compositions, lean end-user proof and
-few good consumer tests. Past about 10000 LOC, report and seriously consider
-separate services; guidance adds no obligation or gate. Preserve independent
-access/data/migration/privacy/recovery contracts. Structured claims, documentation
-and receipt syntax do not prove correctness.
+Use it for commissioned adoption/assessment, not to widen a bug fix.
+[FOUNDATIONS.md](https://github.com/misty-step/harness/blob/master/FOUNDATIONS.md)
+owns operating intent. Preserve independent access/data/migration/privacy/recovery
+contracts. Structured claims, documentation and receipt syntax do not prove correctness.
 
 ## Application feedback and brand kit
 
