@@ -96,13 +96,16 @@ fn powder(method: &str, path: &str, body: Option<&Value>) -> Result<(u16, Value)
     let bin = std::env::var("POWDER_CURL").unwrap_or_else(|_| "powder-curl".into());
     let mut cmd = Command::new(&bin);
     cmd.args([method, path]);
-    let tmp;
+    let tmp = std::env::temp_dir().join(format!("shippr-friction-{}.json", std::process::id()));
     if let Some(b) = body {
-        tmp = std::env::temp_dir().join(format!("shippr-friction-{}.json", std::process::id()));
         std::fs::write(&tmp, serde_json::to_vec(b)?)?;
         cmd.arg(&tmp);
     }
-    let out = cmd.output().with_context(|| format!("running {bin}"))?;
+    let out = cmd.output().with_context(|| format!("running {bin}"));
+    if body.is_some() {
+        let _ = std::fs::remove_file(&tmp);
+    }
+    let out = out?;
     if !out.status.success() {
         bail!("{bin} failed: {}", String::from_utf8_lossy(&out.stderr).trim());
     }
