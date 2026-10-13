@@ -2,7 +2,7 @@ Read `~/.agents/skills/local-facts/SKILL.md`; use: `~/.agents/skills`.
 
 # [Foundations](https://github.com/misty-step/harness/blob/master/FOUNDATIONS.md)
 
-Any agent, any time: report friction/papercuts freely. One-command goal: unshipped; use the owner's current route.
+Any agent, any time: encourage friction and papercut reporting; require one-command filing.
 Make breakage visible to users; never fail silently.
 Prove core user journeys and visible before/after, not infrastructure or diff size.
 Reversing standing behavior needs Phaedrus's explicit yes.
