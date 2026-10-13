@@ -537,6 +537,43 @@ function coreReferences(repo: string, files: Map<string, string>, documents: str
 		}
 	}
 }
+/** Adoptions pinned below catalog 1.9.0 keep this docs/adr/ contract; decision 0012 replaces it from 1.9.0. */
+function adrIssues(repo: string, files: string[], issues: Issue[]): void {
+	// A date-prefixed postmortem is not a decision. Recognize explicit ADR names and the old decisions homes.
+	const numbered = files.filter((path) =>
+		/(?:^|\/)ADR[-_]?\d{3,4}[-_][^/]+\.md$/i.test(path) ||
+		/(?:^|\/)(?:docs\/decisions|decisions)\/\d{3,4}[-_][^/]+\.md$/i.test(path));
+	for (const path of numbered) {
+		if (!/(?:^|\/)docs\/adr\/[^/]+\.md$/.test(path))
+			issues.push({ gap: "doc:adr", message: `${path}: ADRs belong only in docs/adr/ (a monorepo may have one per component)` });
+	}
+	const dirs = new Map<string, Map<string, string>>();
+	for (const path of files.filter((name) => /(?:^|\/)docs\/adr\/[^/]+\.md$/.test(name))) {
+		const dir = dirname(path);
+		const name = path.slice(dir.length + 1);
+		if (/^(?:README|INDEX)\.md$/i.test(name)) continue;
+		const match = name.match(/^(\d{3,4})[-_].+\.md$/);
+		if (!match) { issues.push({ gap: "doc:adr", message: `${path}: ADR name needs a numbered slug` }); continue; }
+		const group = dirs.get(dir) ?? new Map<string, string>();
+		const number = String(Number(match[1]));
+		if (group.has(number)) issues.push({ gap: "doc:adr", message: `${path}: duplicate ADR ${number} in ${dir}` });
+		group.set(number, path);
+		dirs.set(dir, group);
+		if (!repositoryFile(repo, path)) continue;
+		const body = readFileSync(join(repo, path), "utf8");
+		if (!/^Status:\s*\S.+$/m.test(body)) issues.push({ gap: "doc:adr", message: `${path}: missing Status: line` });
+		for (const target of body.matchAll(/\bSuperseded by\s+(?:\[)?(?:ADR[- ]?)?(\d{3,4})\b/gi)) {
+			if (!files.some((name) => dirname(name) === dir && new RegExp(`^0*${Number(target[1])}[-_]`).test(name.slice(dir.length + 1))))
+				issues.push({ gap: "doc:adr", message: `${path}: Superseded by ${target[1]} does not resolve in ${dir}` });
+		}
+	}
+}
+function pinnedAtLeast(adoption: unknown, version: string): boolean {
+	const pinned = record(adoption) && record(adoption.standard) ? String(adoption.standard.version).split(".").map(Number) : [];
+	const floor = version.split(".").map(Number);
+	for (let i = 0; i < floor.length; i++) if ((pinned[i] || 0) !== floor[i]) return (pinned[i] || 0) > floor[i];
+	return true;
+}
 const decisionFile = /^((?:.*\/)?docs\/decisions)\/((?:historical\/)?)([^/]+\.md)$/;
 /** Decision 0012: a steering list per docs/decisions/ home; historical/ shares the number space unchecked. */
 function decisionIssues(repo: string, files: string[], issues: Issue[]): void {
@@ -594,8 +631,21 @@ function primitivesIssues(repo: string, files: string[], headFiles: Map<string, 
 		if (!pinned) issues.push({ gap: "doc:skills-lock", message: ".agents/skills/ needs a tracked skills-lock.json with a skills object" });
 		else for (const skill of skills) {
 			const entry = pinned[skill];
-			if (!record(entry) || !/^[0-9a-f]{64}$/.test(String(entry.computedHash)))
+			if (!record(entry) || !/^[0-9a-f]{64}$/.test(String(entry.computedHash))) {
 				issues.push({ gap: "doc:skills-lock", message: `skills-lock.json: ${skill} needs a computedHash` });
+				continue;
+			}
+			// computedHash: sha256 hex over the tracked files under `source`, sorted by path relative to it,
+			// each contributing relpath + "\0" + bytes + "\0".
+			const source = String(entry.source).replace(/^\.\//, "").replace(/\/$/, "");
+			const members = safePath(source) ? files.filter((file) => file.startsWith(`${source}/`)).sort() : [];
+			const digest = createHash("sha256");
+			for (const file of members) {
+				if (!repositoryFile(repo, file)) continue;
+				digest.update(`${file.slice(source.length + 1)}\0`).update(readFileSync(join(repo, file))).update("\0");
+			}
+			if (members.length === 0) issues.push({ gap: "doc:skills-lock", message: `skills-lock.json: ${skill} source ${entry.source} has no tracked files` });
+			else if (digest.digest("hex") !== entry.computedHash) issues.push({ gap: "doc:skills-lock", message: `skills-lock.json: ${skill} computedHash does not match ${source}` });
 		}
 	}
 	if (!headFiles.has(path) || !repositoryFile(repo, path)) return gap("missing at HEAD (FND-DOC-001, decision 0012)");
@@ -674,9 +724,14 @@ function contentIssues(repo: string, checkerPath: string, adoption: unknown): Is
 			issues.push({ gap: "doc:aliases", message: `${alias}: must be a tracked symlink to AGENTS.md` });
 	}
 	ledgerIssues(repo, headFiles, issues);
-	coreReferences(repo, headFiles, [...required, ...files.filter((file) => decisionFile.test(file))], issues);
-	decisionIssues(repo, files, issues);
-	primitivesIssues(repo, files, headFiles, issues);
+	if (pinnedAtLeast(adoption, "1.9.0")) {
+		coreReferences(repo, headFiles, [...required, ...files.filter((file) => decisionFile.test(file))], issues);
+		decisionIssues(repo, files, issues);
+		primitivesIssues(repo, files, headFiles, issues);
+	} else {
+		coreReferences(repo, headFiles, [...required, ...files.filter((file) => /(?:^|\/)docs\/adr\/[^/]+\.md$/.test(file))], issues);
+		adrIssues(repo, files, issues);
+	}
 	if (!repositoryFile(repo, "scripts/check") || (statSync(join(repo, "scripts/check")).mode & 0o111) === 0)
 		issues.push({ gap: "entry:check", message: "scripts/check must exist and be executable" });
 	const workflows = files.filter((name) => /^\.github\/workflows\/[^/]+\.ya?ml$/.test(name));

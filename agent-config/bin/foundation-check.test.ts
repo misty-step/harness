@@ -481,9 +481,41 @@ describe("foundation-check (US-024)", () => {
 		put(repo, ".agents/skills/ship/SKILL.md", "# Ship\n");
 		commit(repo, "vendored skill");
 		expect(errors()).toContain("[doc:skills-lock] .agents/skills/ needs a tracked skills-lock.json");
-		put(repo, "skills-lock.json", JSON.stringify({ version: 1, skills: { ship: { source: "./.agents/skills/ship", sourceType: "local", computedHash: "a".repeat(64) } } }));
+		const lock = (computedHash: string, source = "./.agents/skills/ship") =>
+			put(repo, "skills-lock.json", JSON.stringify({ version: 1, skills: { ship: { source, sourceType: "local", computedHash } } }));
+		lock(hash("SKILL.md\0# Ship\n\0"));
 		commit(repo, "lock");
 		expect(cli(repo, "check").status).toBe(0);
+		put(repo, ".agents/skills/ship/SKILL.md", "# Ship, edited\n");
+		commit(repo, "edit vendored skill");
+		expect(errors()).toContain("[doc:skills-lock] skills-lock.json: ship computedHash does not match .agents/skills/ship");
+		lock(hash("SKILL.md\0# Ship, edited\n\0"), "./.agents/skills/gone");
+		commit(repo, "missing source");
+		expect(errors()).toContain("[doc:skills-lock] skills-lock.json: ship source ./.agents/skills/gone has no tracked files");
+	});
+
+	test("an adoption pinned below 1.9.0 keeps the docs/adr contract; 1.9.0 requires decisions and primitives", () => {
+		const repo = fixture("pre-decisions");
+		const older = join(repo, "..", "catalog-1.8.1.json");
+		const olderBytes = Buffer.from(JSON.stringify({ ...catalogData, version: "1.8.1" }));
+		writeFileSync(older, olderBytes);
+		const pin = (version: string, bytes: Buffer) => {
+			const state = adoption();
+			state.standard = { ...state.standard, version, catalog_sha256: hash(bytes) };
+			put(repo, "foundation.json", `${JSON.stringify(state, null, 2)}\n`);
+		};
+		exec(repo, ["rm", "-rq", "docs/decisions", "docs/architecture"]);
+		put(repo, "docs/adr/0001-initial.md", "# Initial decision\n\nStatus: Accepted\n");
+		pin("1.8.1", olderBytes);
+		commit(repo, "1.8.1 adoption with docs/adr");
+		const run = (path: string) => spawnSync("bun", [script, "check", "--repo", repo, "--catalog", path, "--stories-checker", checker, "--json"], { cwd: repo, encoding: "utf8", env: { ...process.env, GITHUB_EVENT_PATH: "" } });
+		expect(JSON.parse(run(older).stdout).errors).toEqual([]);
+		pin(catalogData.version, catalogBytes);
+		commit(repo, "re-pin to 1.9.0");
+		const errors = JSON.parse(run(catalog).stdout).errors.join("\n");
+		expect(errors).toContain("[doc:decisions] FND-DOC-001: missing docs/decisions/");
+		expect(errors).toContain("[doc:primitives] docs/architecture/primitives.yaml: missing at HEAD");
+		expect(errors).toContain("[doc:adr] docs/adr/ is legacy");
 	});
 
 	test("decision index pointer and tracked dated postmortem are not decision records", () => {
