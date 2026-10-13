@@ -1,6 +1,7 @@
 # Foundations
 
-Read the task, do it, check the real user path, and ship it.
+Run independent work in parallel with an explicit model and reasoning effort for each engineer.
+Ship the smallest complete piece and check the real user path; never wait on another lane: take the piece or report the blocker in one line.
 Use one independent code review for code that ships; repeat only for real bugs.
 Documents, briefs, and measurements do not need review.
 
