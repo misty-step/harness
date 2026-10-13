@@ -11,6 +11,8 @@ pub enum Step {
     Waiting { reason: String, poll_after_seconds: u64 },
     FixChecks { failed: Vec<String> },
     Review { missing: Vec<String> },
+    /// Bugbot has not reviewed the head and was not asked to: post `bugbot run` (`shippr bugbot`).
+    TriggerBugbot,
     Evidence { needs: Vec<String> },
     Merge,
     Park { reason: String },
@@ -58,6 +60,9 @@ pub fn tick(pr: &Pr, risk: Risk, allow_no_ci: bool) -> Step {
     if !missing.is_empty() {
         return Step::Review { missing };
     }
+    if bots_pending.iter().any(|b| b == "cursor") && !pr.bugbot_triggered_for_head() {
+        return Step::TriggerBugbot;
+    }
     if !bots_pending.is_empty() {
         return Step::Waiting { reason: format!("waiting for {}", bots_pending.join(", ")), poll_after_seconds: POLL_SECONDS };
     }
@@ -68,7 +73,7 @@ pub fn tick(pr: &Pr, risk: Risk, allow_no_ci: bool) -> Step {
         return Step::Evidence { needs };
     }
     if !g.agent_may_merge {
-        return Step::Park { reason: "high risk: parked for human review".into() };
+        return Step::Park { reason: "high risk: parked for Maren (Glass review queue)".into() };
     }
     match pr.mergeable.as_str() {
         "MERGEABLE" => Step::Merge,
@@ -80,7 +85,7 @@ pub fn tick(pr: &Pr, risk: Risk, allow_no_ci: bool) -> Step {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::state::{Author, Check, Comment, CommitRef, Label, Review};
+    use crate::state::{Author, Check, Comment, CommitInfo, CommitRef, Label, Review};
 
     const HEAD: &str = "abc1234def5678";
 
@@ -88,7 +93,7 @@ mod tests {
         vec![Check { name: "check".into(), status: "COMPLETED".into(), conclusion: "SUCCESS".into(), ..Default::default() }]
     }
     fn review(login: &str, body: &str) -> Review {
-        Review { author: Author { login: login.into() }, submitted_at: "2026-10-13T10:00:00Z".into(), commit: Some(CommitRef { oid: HEAD.into() }), body: body.into() }
+        Review { author: Author { login: login.into() }, author_association: "MEMBER".into(), submitted_at: "2026-10-13T10:00:00Z".into(), commit: Some(CommitRef { oid: HEAD.into() }), body: body.into() }
     }
     fn ready() -> Pr {
         Pr {
@@ -98,6 +103,7 @@ mod tests {
             status_check_rollup: green(),
             reviews: vec![review("moomooskycow", "Codex review: APPROVE @abc1234\nClaude review: APPROVE @abc1234"), review("cursor", "")],
             labels: vec![Label { name: SCREENSHOTS_LABEL.into() }, Label { name: VIDEO_LABEL.into() }],
+            commits: vec![CommitInfo { oid: HEAD.into(), committed_date: "2026-10-13T09:00:00Z".into() }],
             ..Default::default()
         }
     }
@@ -114,7 +120,11 @@ mod tests {
     fn medium_waits_for_bugbot_then_merges() {
         let mut pr = ready();
         pr.reviews.truncate(1);
+        assert_eq!(tick(&pr, Risk::Medium, false), Step::TriggerBugbot);
+        pr.comments.push(Comment { author_association: "MEMBER".into(), body: "bugbot run".into(), created_at: "2026-10-13T11:00:00Z".into() });
         assert!(matches!(tick(&pr, Risk::Medium, false), Step::Waiting { .. }));
+        pr.comments[0].author_association = "NONE".into();
+        assert_eq!(tick(&pr, Risk::Medium, false), Step::TriggerBugbot, "outsider trigger does not count");
         assert_eq!(tick(&ready(), Risk::Medium, false), Step::Merge);
     }
 
@@ -159,9 +169,9 @@ mod tests {
         let mut pr = ready();
         pr.reviews = vec![review("x", "Codex review: CHANGES REQUESTED @abc1234\nClaude review: APPROVE @abc1234")];
         assert!(matches!(tick(&pr, Risk::Low, false), Step::Review { .. }));
-        pr.comments = vec![Comment { body: "Codex review: APPROVE @abc1234".into(), created_at: "2026-10-13T11:00:00Z".into() }];
+        pr.comments = vec![Comment { author_association: "MEMBER".into(), body: "Codex review: APPROVE @abc1234".into(), created_at: "2026-10-13T11:00:00Z".into() }];
         assert_eq!(tick(&pr, Risk::Low, false), Step::Merge);
-        pr.comments.push(Comment { body: "Codex review: CHANGES REQUESTED @abc1234".into(), created_at: "2026-10-13T12:00:00Z".into() });
+        pr.comments.push(Comment { author_association: "MEMBER".into(), body: "Codex review: CHANGES REQUESTED @abc1234".into(), created_at: "2026-10-13T12:00:00Z".into() });
         assert!(matches!(tick(&pr, Risk::Low, false), Step::Review { .. }));
     }
 
@@ -181,9 +191,16 @@ mod tests {
             tick(&pr, Risk::Low, false),
             Step::Review { missing: vec!["Codex review".into(), "Claude review".into()] }
         );
-        pr.comments = vec![Comment { body: "Codex review: APPROVE @fff0000\nClaude review: APPROVE @fff0000".into(), created_at: "2026-10-13T13:00:00Z".into() }];
+        pr.comments = vec![Comment { author_association: "MEMBER".into(), body: "Codex review: APPROVE @fff0000\nClaude review: APPROVE @fff0000".into(), created_at: "2026-10-13T13:00:00Z".into() }];
         assert_eq!(tick(&pr, Risk::Low, false), Step::Merge);
-        assert!(matches!(tick(&pr, Risk::Medium, false), Step::Waiting { .. }), "stale Bugbot review must not count");
+        assert_eq!(tick(&pr, Risk::Medium, false), Step::TriggerBugbot, "stale Bugbot review must not count");
+    }
+
+    #[test]
+    fn verdicts_from_outsiders_are_ignored() {
+        let mut pr = ready();
+        pr.reviews[0].author_association = "CONTRIBUTOR".into();
+        assert!(matches!(tick(&pr, Risk::Low, false), Step::Review { .. }));
     }
 
     #[test]

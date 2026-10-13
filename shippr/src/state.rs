@@ -19,11 +19,29 @@ pub struct Pr {
     pub comments: Vec<Comment>,
     #[serde(default)]
     pub labels: Vec<Label>,
+    #[serde(default)]
+    pub commits: Vec<CommitInfo>,
+}
+
+#[derive(Clone, Debug, Default, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CommitInfo {
+    #[serde(default)]
+    pub oid: String,
+    #[serde(default)]
+    pub committed_date: String,
+}
+
+/// Only repository insiders may post verdicts or trigger bots.
+pub fn trusted(association: &str) -> bool {
+    matches!(association, "OWNER" | "MEMBER" | "COLLABORATOR")
 }
 
 #[derive(Clone, Debug, Default, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Comment {
+    #[serde(default)]
+    pub author_association: String,
     #[serde(default)]
     pub body: String,
     #[serde(default)]
@@ -51,6 +69,8 @@ pub struct Check {
 pub struct Review {
     #[serde(default)]
     pub author: Author,
+    #[serde(default)]
+    pub author_association: String,
     #[serde(default)]
     pub submitted_at: String,
     #[serde(default)]
@@ -127,8 +147,8 @@ impl Pr {
     /// The latest line per vendor wins; only APPROVE passes.
     pub fn verdict(&self, vendor: &str) -> Verdict {
         let tag = format!("{vendor} review:");
-        let mut posts: Vec<(&str, &str)> = self.reviews.iter().map(|r| (r.submitted_at.as_str(), r.body.as_str()))
-            .chain(self.comments.iter().map(|c| (c.created_at.as_str(), c.body.as_str())))
+        let mut posts: Vec<(&str, &str)> = self.reviews.iter().filter(|r| trusted(&r.author_association)).map(|r| (r.submitted_at.as_str(), r.body.as_str()))
+            .chain(self.comments.iter().filter(|c| trusted(&c.author_association)).map(|c| (c.created_at.as_str(), c.body.as_str())))
             .collect();
         posts.sort_by_key(|p| p.0);
         let mut verdict = Verdict::Missing;
@@ -146,6 +166,14 @@ impl Pr {
             }
         }
         verdict
+    }
+
+    /// A trusted `bugbot run` comment posted after the head commit landed.
+    pub fn bugbot_triggered_for_head(&self) -> bool {
+        let Some(head) = self.commits.iter().find(|c| c.oid == self.head_ref_oid) else { return false };
+        self.comments.iter().any(|c| {
+            trusted(&c.author_association) && c.body.trim().eq_ignore_ascii_case("bugbot run") && c.created_at > head.committed_date
+        })
     }
 
     pub fn has_label(&self, name: &str) -> bool {

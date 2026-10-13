@@ -16,6 +16,7 @@ shippr tick --pr <url> --risk <low|medium|high>
 
 - `waiting`: end the turn or come back after `poll_after_seconds`. Never tight-loop.
 - `fix_checks`: fix, push, tick.
+- `trigger_bugbot`: Bugbot did not review the head (it does not re-review every push): `shippr bugbot --pr <url>`, then tick later.
 - `review`: get the missing Codex / Claude review and post its verdict line
   (`Codex review: APPROVE @<head sha7>` or `... CHANGES REQUESTED @<sha7>`) as a PR
   comment or review. Only verdicts naming the current head count; the latest wins.
@@ -23,7 +24,8 @@ shippr tick --pr <url> --risk <low|medium|high>
 - Repos without pull_request CI (harness proves locally) pass `--allow-no-ci`.
 - `evidence`: attach screenshots (label `evidence:screenshots`); high risk also a video walkthrough (`evidence:video`).
 - `merge`: `shippr merge --pr <url> --risk <risk>`.
-- `park`: report the reason; a human decides.
+- `park`: high risk parks for Maren: put `Review: ready` plus Review-PR / Review-Deploy /
+  Review-Evidence / Review-Summary lines in the Powder item body (Glass review queue).
 - `friction`: file durable friction to Powder (file-friction), then stop.
 
 This replaces ce-babysit-pr: repos that adopt shippr set `auto_babysit: false`

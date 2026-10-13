@@ -18,9 +18,12 @@ Risk tiers (from `primitives.yaml`: composes / extends / adds):
 | --- | --- | --- |
 | low | green CI, Codex + Claude `APPROVE @<head sha>` verdicts | yes |
 | medium | + Bugbot review of the head commit, screenshots (label `evidence:screenshots`) | yes |
-| high | + video walkthrough (label `evidence:video`) | no: parks for human review |
+| high | + video walkthrough (label `evidence:video`) | no: parks for Maren via the Glass review queue |
 
-Tick steps: `waiting` (come back after `poll_after_seconds`, never tight-loop),
+Only verdicts and `bugbot run` triggers from OWNER/MEMBER/COLLABORATOR count. Bugbot does not
+re-review every push (seen on omp-config#30), so a missing head review yields `trigger_bugbot`.
+
+Tick steps: `waiting`, `trigger_bugbot` (come back after `poll_after_seconds`, never tight-loop),
 `fix_checks`, `review`, `evidence`, `merge`, `park`, `friction`, `done`.
 
 Status: scaffold. Not yet: `decide`, `reply`, deploy health by SHA, `summary`,

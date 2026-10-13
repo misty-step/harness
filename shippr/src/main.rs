@@ -32,6 +32,11 @@ enum Cmd {
         #[arg(long, value_enum)]
         risk: Risk,
     },
+    /// Ask Bugbot to review the current head (posts `bugbot run`).
+    Bugbot {
+        #[arg(long)]
+        pr: String,
+    },
     /// Squash-merge when tick says Merge.
     Merge {
         #[arg(long)]
@@ -43,7 +48,7 @@ enum Cmd {
     },
 }
 
-const FIELDS: &str = "state,isDraft,mergeable,headRefOid,statusCheckRollup,reviews,comments,labels";
+const FIELDS: &str = "state,isDraft,mergeable,headRefOid,statusCheckRollup,reviews,comments,labels,commits";
 
 fn view(pr: &str) -> Result<state::Pr> {
     let out = Command::new("gh").args(["pr", "view", pr, "--json", FIELDS]).output().context("running gh")?;
@@ -57,6 +62,11 @@ fn main() -> Result<()> {
     match Cli::parse().cmd {
         Cmd::Tick { pr, risk, allow_no_ci } => println!("{}", serde_json::to_string_pretty(&tick::tick(&view(&pr)?, risk, allow_no_ci))?),
         Cmd::Policy { risk } => println!("{}", serde_json::to_string_pretty(&policy::gates(risk))?),
+        Cmd::Bugbot { pr } => {
+            if !Command::new("gh").args(["pr", "comment", &pr, "--body", "bugbot run"]).status()?.success() {
+                bail!("gh pr comment failed");
+            }
+        }
         Cmd::Merge { pr, risk, allow_no_ci } => {
             let state = view(&pr)?;
             let step = tick::tick(&state, risk, allow_no_ci);
