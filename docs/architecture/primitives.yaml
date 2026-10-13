@@ -32,7 +32,7 @@ primitives:
     group: deploy
     name: OMP harness
     summary: OMP routing, models, MCP, secrets policy and installer for a live OMP agent directory.
-    code: [omp-config/install, omp-config/config.yml, omp-config/models.yml, omp-config/mcp.json, omp-config/secrets.yml, omp-config/bin/, omp-config/units/, omp-config/patches/]
+    code: [omp-config/install, omp-config/config.yml, omp-config/models.yml, omp-config/mcp.json, omp-config/secrets.yml, omp-config/bin/, omp-config/patches/]
     docs: [omp-config/README.md]
   - id: guidance
     group: guidance
@@ -54,16 +54,11 @@ primitives:
     name: OMP extensions, agents and themes
     summary: OMP runtime boundaries, specialist definitions and presentation.
     code: [omp-config/extensions/, omp-config/agents/, omp-config/themes/]
-  - id: system-one
-    group: runtime
-    name: System One judgments
-    summary: Shared typed judgments, Git adapters and cache behind automatic review and assessment.
-    code: [agent-config/system-one/, agent-config/skills/system-one/]
   - id: host-guards
     group: runtime
     name: Host components
-    summary: Opt-in audio sandbox, desktop memory guard and session backup.
-    code: [agent-config/audio-sandbox/, agent-config/desktop-guard/, agent-config/session-backup/, pi-config/extensions/audio-sandbox/]
+    summary: Audio sandbox and session backup.
+    code: [agent-config/audio-sandbox/, agent-config/session-backup/, pi-config/extensions/audio-sandbox/]
   - id: pass-env
     group: trust
     name: Credential launchers
@@ -74,13 +69,6 @@ primitives:
     name: Secret scanning hooks
     summary: Pre-commit and pre-push secret scans every clone wires through bootstrap.
     code: [.githooks/, scripts/bootstrap]
-  - id: foundation
-    group: platform
-    name: Foundation Standard and checker
-    summary: The versioned catalog other repositories pin and the checker that enforces it.
-    code: [agent-config/skills/foundation/, agent-config/bin/foundation-check.ts]
-    docs: [agent-config/skills/foundation/foundation-standard-v1.md]
-    decisions: ["0012"]
   - id: gate
     group: platform
     name: Repository gate
@@ -92,5 +80,3 @@ primitives:
     name: Release stream
     summary: Landmark automation owns the single conventional-commit release stream.
     code: [.landmark.yml, .github/workflows/landmark-release.yml]
-# Primitive audit (from "Your Coding Agent Needs Better Primitives"): quarterly, ask an agent
-# for create / combine / delete / expand candidates against this file; file results to Powder.

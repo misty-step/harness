@@ -3,13 +3,6 @@ import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:
 import { homedir } from "node:os";
 import { join } from "node:path";
 
-// Regression tests for the four confirmed review findings on imagine.py:
-//  1. the default budget cap must always apply (fail closed without price evidence)
-//  2. unsafe job ids must be refused before any network call or write
-//  3. (covered by --self-test) URL downloads are status/payload validated
-//  4. (covered by --self-test) artifact paths cannot escape the output directory
-// Everything here is credential-free and network-free: refusals happen before
-// the credential resolver is reached, and --dry-run returns before it too.
 
 const script = join(import.meta.dir, "imagine.py");
 const roots: string[] = [];
@@ -60,97 +53,11 @@ test("unsafe job ids are refused before any network call or write", () => {
 	}
 });
 
-test("the default budget cap applies without any pricing flags", () => {
+test("an unpriced batch above the former image ceiling can run without admission", () => {
 	const root = dir();
-	const result = run(["--jobs", jobsFile(root, [
-		{ id: "a", prompt: "x", price_usd: 2.0 },
-		{ id: "b", prompt: "x", price_usd: 2.0 },
-	]), "--out", join(root, "out"), "--dry-run"]);
-	expect(result.code).toBe(3);
-	expect(result.out).toContain("budget_exceeded");
-});
-
-test("unknown price evidence fails closed", () => {
-	const root = dir();
-	const result = run(["--jobs", jobsFile(root, [{ id: "a", prompt: "x" }]),
+	const ids = Array.from({ length: 13 }, (_, i) => `image-${i}`);
+	const result = run(["--jobs", jobsFile(root, ids.map(id => ({ id, prompt: "x" }))),
 		"--out", join(root, "out"), "--dry-run"]);
-	expect(result.code).toBe(3);
-	expect(result.out).toContain("price_unknown");
-});
-
-test("--budget-usd 0 refuses every non-zero estimate", () => {
-	const root = dir();
-	const result = run(["--jobs", jobsFile(root, [{ id: "a", prompt: "x" }]),
-		"--out", join(root, "out"), "--budget-usd", "0", "--price-per-image", "0.05", "--dry-run"]);
-	expect(result.code).toBe(3);
-	expect(result.out).toContain("budget_exceeded");
-});
-
-test("budget 0 with explicitly zero-priced jobs is honored literally", () => {
-	const root = dir();
-	const result = run(["--jobs", jobsFile(root, [{ id: "a", prompt: "x", price_usd: 0 }]),
-		"--out", join(root, "out"), "--budget-usd", "0", "--dry-run"]);
 	expect(result.code).toBe(0);
-	expect(result.out).toContain("dry_run");
-});
-
-test("a raised cap proceeds and the dry run reports the estimate", () => {
-	const root = dir();
-	const result = run(["--jobs", jobsFile(root, [
-		{ id: "a", prompt: "x" },
-		{ id: "b", prompt: "x" },
-	]), "--out", join(root, "out"), "--budget-usd", "1", "--price-per-image", "0.25", "--dry-run"]);
-	expect(result.code).toBe(0);
-	expect(result.out).toContain("\"estimate_usd\": 0.5");
-});
-
-test("the environment override caps the batch", () => {
-	const root = dir();
-	const result = run(["--jobs", jobsFile(root, [{ id: "a", prompt: "x" }]),
-		"--out", join(root, "out"), "--price-per-image", "0.05", "--dry-run"],
-		{ DESIGN_STUDIO_BUDGET_USD: "0.01" });
-	expect(result.code).toBe(3);
-	expect(result.out).toContain("budget_exceeded");
-});
-
-test("a global price still has to satisfy the cap", () => {
-	const root = dir();
-	const result = run(["--jobs", jobsFile(root, [{ id: "a", prompt: "x" }]),
-		"--out", join(root, "out"), "--budget-usd", "0.01", "--price-per-image", "0.02", "--dry-run"]);
-	expect(result.code).toBe(3);
-	expect(result.out).toContain("budget_exceeded");
-});
-
-test("max-images remains a hard bound", () => {
-	const root = dir();
-	const jobs = Array.from({ length: 13 }, (_, i) => ({ id: `j${i}`, prompt: "x", price_usd: 0.01 }));
-	const result = run(["--jobs", jobsFile(root, jobs), "--out", join(root, "out"), "--dry-run"]);
-	expect(result.code).toBe(3);
-	expect(result.out).toContain("max_images_exceeded");
-});
-
-test("non-finite budgets are rejected (flag and environment)", () => {
-	const root = dir();
-	for (const value of ["nan", "inf", "-inf"]) {
-		const result = run(["--jobs", jobsFile(root, [{ id: "a", prompt: "x", price_usd: 0.05 }]),
-			"--out", join(root, "out"), `--budget-usd=${value}`, "--dry-run"]);
-		expect(result.code).toBe(2);
-		expect(result.out).toContain("invalid_budget");
-	}
-	const envResult = run(["--jobs", jobsFile(root, [{ id: "a", prompt: "x", price_usd: 0.05 }]),
-		"--out", join(root, "out"), "--dry-run"], { DESIGN_STUDIO_BUDGET_USD: "-inf" });
-	expect(envResult.code).toBe(2);
-	expect(envResult.out).toContain("invalid_budget");
-});
-
-test("non-finite price evidence fails closed or refuses", () => {
-	const root = dir();
-	const nanPrice = run(["--jobs", jobsFile(root, [{ id: "a", prompt: "x" }]),
-		"--out", join(root, "out"), "--price-per-image", "nan", "--dry-run"]);
-	expect(nanPrice.code).toBe(3);
-	expect(nanPrice.out).toContain("price_unknown");
-	const infPrice = run(["--jobs", jobsFile(root, [{ id: "a", prompt: "x" }]),
-		"--out", join(root, "out"), "--price-per-image", "inf", "--dry-run"]);
-	expect(infPrice.code).toBe(3);
-	expect(infPrice.out).toContain("budget_exceeded");
+	expect(JSON.parse(result.out)).toEqual({ dry_run: true, jobs: ids, estimate_usd: null });
 });

@@ -1,11 +1,4 @@
-Read `~/.agents/skills/local-facts/SKILL.md`; use: `~/.agents/skills`.
-
-# [Foundations](https://github.com/misty-step/harness/blob/master/FOUNDATIONS.md)
-
-Any agent, any time: encourage friction and papercut reporting; require one-command filing.
-Make breakage visible to users; never fail silently.
-Prove core user journeys and visible before/after, not infrastructure or diff size.
-Reversing standing behavior needs Phaedrus's explicit yes.
-Do the job; delete/reuse. Compose small, focused UNIX programs; no needless layers, flags, guards, holds or config. Past ~10k LOC, report and seriously consider services; not a gate.
-Keep few good consumer tests; delete low-value tests, implementation/wording pins, duplicates and mock echoes; preserve independent contracts.
-Make end-user proof easy and lean; more checking instead of shipping is failure. Review: job, simplicity, test value.
+Use `~/.agents/skills` for task-specific tools and facts.
+Follow [Foundations](https://github.com/misty-step/harness/blob/master/FOUNDATIONS.md).
+Use native OMP launch and session state. Subscription models first; design on
+Claude. Keep credentials and private context out of public repositories.

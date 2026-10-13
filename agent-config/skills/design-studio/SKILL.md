@@ -26,8 +26,6 @@ name through the flow (Publish, then Published); errors say what happened and
 how to fix it, without apology. Draw brand marks at 16px first, check light,
 dark and browser-tab backgrounds, and ship the optical small variant.
 
-`npx @google/design.md lint` validates DESIGN.md; the bundled fallback
-`scripts/check_design_md.py` checks structure only, not schema or WCAG contrast.
 Inspect rendered states with `skill://visual-state-review`.
 
 ## Generated mockups
@@ -42,5 +40,5 @@ Dated evidence (2026-09-19, 34 samples, 11 models): `openai/gpt-5.4-image-2`
 (≈$0.14/image) and GPT-image-2 via Codex led, Grok Imagine 2.0 was strong,
 `google/gemini-3-pro-image` best kept exact strings and edits, and
 `bytedance-seed/seedream-5-0-pro` corrupted required labels. Re-check IDs and
-prices before use. `scripts/imagine.py` generates xAI mockups under a price cap
-(usage in its docstring); `scripts/contact_sheet.py` lays a run out side by side.
+prices before use. `scripts/imagine.py` generates xAI mockups;
+`scripts/contact_sheet.py` lays a run out side by side.

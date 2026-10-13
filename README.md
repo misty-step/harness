@@ -14,7 +14,7 @@ agent-config/ ── shared install contract ──┬── pi-config/  → pi 
 | --- | --- | --- |
 | `agent-config/` | Portable skills, shared global guidance, `pass-env`, shared deployment | [README](agent-config/README.md) |
 | `pi-config/` | pi settings, extensions, chrome, guidance intro | [README](pi-config/README.md) |
-| `omp-config/` | OMP routing, config/MCP, extensions, themes, guidance, watchdog | [README](omp-config/README.md) |
+| `omp-config/` | OMP routing, config/MCP, extensions, themes, guidance | [README](omp-config/README.md) |
 | `codex-config/` | Native Codex model, effort and service-tier defaults only | [Deployment](#codex-defaults-native-installation) |
 
 Foundations: [FOUNDATIONS.md](FOUNDATIONS.md). Intent: [USER_STORIES.md](USER_STORIES.md). Vocabulary, boundaries and
@@ -24,11 +24,9 @@ rules: [AGENTS.md](AGENTS.md).
 Runtime scope is native Pi/OMP configuration, native Codex model defaults,
 installation, engineering skills, and necessary credential/audio/workstation isolation. Custom ticket dispatch,
 fleet rosters, experiment scheduling, automated audits and session-close control
-are retired. Repository verification and release gates remain.
-Native Herdr agent inspection/prompting and native OMP/Pi launch remain necessary
-primitives. Source retirement does not remove active owners' separate worktrees,
-assets, journals or installed launch/settlement dependencies. Operators keep the
-existing native coordination path; caged engineers keep read-only/own-pane limits.
+are retired. Native Herdr and OMP/Pi launch own coordination. Installers remove
+retired launchers, automatic review, and resource admission while preserving
+sessions, journals, private credentials, and desktop isolation.
 
 ## Setup
 
@@ -39,12 +37,8 @@ cd harness
 ```
 
 Bootstrap requires Git, gitleaks, trufflehog, and Python 3 and wires the tracked
-root hooks. Pre-commit blocks staged secrets with gitleaks, then runs advisory
-semantic test-evidence checks when Bun is available (`JEV_HOOK_OFF=1` skips only
-that advice). Pre-push retains blocking gitleaks/trufflehog scans, outgoing diff
-review, and advisory semantic checks. Advisory checks read keys from `.env.pass`
-and never block, but each records its run through `outcome record`; one that
-could not run is a failed run that reaches Kaylee's alert triage (ADR-009).
+root hooks. Pre-commit scans staged secrets with gitleaks. Pre-push scans outgoing
+commits with gitleaks and trufflehog. Neither invokes a model or a review service.
 Bootstrap installs no dependencies and deploys no agent configuration.
 Verification requires Bun 1.4.2 or later, Git, jq, and Python 3 (root scanner and shared gallery checks). Tests use synthetic
 credentials and isolated destinations; no provider tokens or model calls are needed.
@@ -81,31 +75,12 @@ automation owns `CHANGELOG.md`, so do not manually edit it.
 [verification and local resource limits](docs/verification.md). The root owns
 CI, hooks, and releases; component directories retain their focused tests.
 
-## Foundation Standard
+## Foundations
 
-[FOUNDATIONS.md](https://github.com/misty-step/harness/blob/master/FOUNDATIONS.md)
-is the short operating rubric. Loaded guidance carries its complete text;
-change that source and its copies together. The catalog below remains the sole
-normative adoption contract; this consolidation does not re-pin any project.
-
-Catalog [1.9.0](agent-config/skills/foundation/foundation-standard-v1.json)
-and its [rationale](agent-config/skills/foundation/foundation-standard-v1.md)
-ship with the pinned `foundation-check` checker (ADR-006). A repository's
-`foundation.json` pins its catalog digest and harness revision. Run
-`foundation-check check --repo <path>` for documents, mapped stories, dated
-`obl:`/`ops:` gaps, repository-side security and evidence shape;
-`foundation-check affected --base <rev> --repo <path>` identifies stories to
-walk and cite as `Stories: US-001` in a mapped-source PR.
-Structural checks cannot prove runtime coverage. Exercise the affected path and
-retain observed evidence. Existing adopters re-pin explicitly only after their
-2026-10-25 cliff entries close or are extended (ADR-006).
-
-Deletion proposals and PRs also have a narrow
-[story-capability check](agent-config/README.md#story-preserving-deletion-us-051)
-(US-051). Jev compares the exact change with base story criteria; only supported
-capability removal is held for Phaedrus's explicit approval through Kaylee.
-Ordinary deletion and unavailable judgments do not acquire an approval gate.
-The independent reviewer handles uncertainty; no server setting is changed.
+[FOUNDATIONS.md](FOUNDATIONS.md) is the operating rubric. Foundation adoption,
+story-deletion judgments, prose-density checks, and semantic review gates are
+retired. Check the real affected user path; shipped code gets one independent
+review, with another round only for real bugs.
 
 
 ## Token-cost evidence (US-018, US-019)
@@ -141,22 +116,7 @@ credentials. Only Pi's `auth.json.openrouter` mapping is source-owned; other
 credentials, sessions, foreign packages, and generated desktop themes are not.
 See [US-028](USER_STORIES.md) for project-aware billing and failure behavior.
 
-Caged engineers use the [audited host-install client](omp-config/README.md#audited-host-installation-us-052)
-after Workbench's one-time desk-side bootstrap. The fixed repository route runs
-Harness's configuration installers or ai-usage's app installer at an exact
-default-branch PR merge commit, then compares installed code on live readback.
-It accepts no host command, environment, destination or auth operation.
-The earlier selected-asset route retains reviewed-green admission and guarded
-receipt rollback. Installation and running-consumer loading remain distinct.
-New `workbench-item` executable-release installs are deferred: launch-time
-mounts cannot protect late-created assets from existing same-UID cages.
-CLI, individual shared skills/bins, and historical receipt readback/rollback
-remain on the typed route; no cage refresh is implied.
 
-The opt-in [desktop memory guard](docs/desktop-memory-guard.md) (US-043) stages a
-native Herdr user service, bounded development slices, two-slot local-job
-admission and an Omarchy launcher override. Staging never activates or restarts
-the fleet. Its runbook owns the operator-only cutover and rollback.
 
 ### Codex defaults (native installation)
 

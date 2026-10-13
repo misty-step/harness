@@ -44,7 +44,7 @@ run_shared() {
   "$base_dir/install" $mode --agent-dir "$agent_dir" "$@"
 }
 
-guidance_files='AGENTS.md WATCHDOG.md WATCHDOG.yml'
+guidance_files='AGENTS.md'
 
 validate_guidance() {
   for file in $guidance_files; do
@@ -56,7 +56,7 @@ install_guidance() {
   for file in $guidance_files; do
     install -m 600 "$repo_dir/global/$file" "$agent_dir/$file"
   done
-  rm -f -- "$agent_dir/RULES.md" "$agent_dir/OPERATIONS.md"
+  rm -f -- "$agent_dir/RULES.md" "$agent_dir/OPERATIONS.md" "$agent_dir/WATCHDOG.md" "$agent_dir/WATCHDOG.yml"
 }
 validate_config() {
   require_bun
@@ -124,14 +124,9 @@ install_mcp() {
 
 
 
-# Engineering craft only. Management/review packages belong to Kaylee.
-engineering_skills='agent-design authenticated-commands cloudflare-workers design-studio engineering-operations foundation pokayoke remote-execution story-qa system-one test-audit typesafe-ai user-stories visual-state-review'
+engineering_skills='agent-design authenticated-commands cloudflare-workers design-studio engineering-operations pokayoke remote-execution story-qa system-one test-audit typesafe-ai user-stories visual-state-review'
 validate_skill() {
   case "${1-}" in
-    herdr|pr-preview|session-close|frontend-design|show-me|wrangler|using-exe-dev|all)
-      printf 'Not an OMP engineering skill: %s\n' "$1" >&2
-      exit 1
-      ;;
     ''|*[!a-zA-Z0-9_-]*)
       printf 'Invalid skill name: %s\n' "${1-}" >&2
       exit 1
@@ -147,13 +142,13 @@ install_skill() {
 
 validate_shared() {
   require_base
-  set -- --check --bin pass-env.ts --bin openrouter-key.ts --bin design-check.ts --bin foundation-check.ts --bin review-check.ts --bin story-deletion-check.ts
+  set -- --check --bin pass-env.ts --bin openrouter-key.ts
   for skill in $engineering_skills; do set -- "$@" --skill "$skill"; done
   run_shared "$@"
 }
 
 install_shared() {
-  set -- --bin pass-env.ts --bin openrouter-key.ts --bin design-check.ts --bin foundation-check.ts --bin review-check.ts --bin story-deletion-check.ts
+  set -- --bin pass-env.ts --bin openrouter-key.ts
   for skill in $engineering_skills; do set -- "$@" --skill "$skill"; done
   run_shared "$@"
   for skill in pr-preview sachstand session-close decide parlor ast-grep now-next; do
@@ -260,15 +255,6 @@ install_audio_sandbox() {
   run_shared --audio-sandbox
 }
 
-validate_display_tools() {
-  for tool in bwrap slirp4netns Xvfb dbus-run-session; do
-    command -v "$tool" >/dev/null 2>&1 || { echo "$tool is required" >&2; exit 1; }
-  done
-  [ "$(cat /proc/sys/dev/tty/legacy_tiocsti 2>/dev/null)" = 0 ] || {
-    echo "Engineer display isolation requires dev.tty.legacy_tiocsti=0" >&2; exit 1;
-  }
-}
-
 validate_cli() {
   command -v python3 >/dev/null 2>&1 || { echo "python3 is required" >&2; exit 1; }
   for name in omp-engineer omp-display omp-gui omp-host-install; do
@@ -284,73 +270,6 @@ validate_cli() {
       }
     fi
   done
-  if [ -L "$HOME/.local/bin/omp" ] && [ "$(readlink "$HOME/.local/bin/omp")" = omp-engineer ]; then
-    validate_display_tools
-  fi
-}
-
-validate_engineer_cage() {
-  validate_cli
-  # Reject a layout cutover before writes when its installed updater has not
-  # accepted this versioned contract. The query is inert in Workbench.
-  updater="$HOME/.local/bin/workbench-host-update"
-  if [ -e "$updater" ] || [ -L "$updater" ]; then
-    if ! layouts=$(timeout 5 "$updater" omp-install-layouts) ||
-      ! printf '%s\n' "$layouts" | jq -e \
-        '.schema_version == 1 and (.layouts | type == "array") and (.layouts | index("harness-engineer-cage-v1") != null)' >/dev/null; then
-      echo "Workbench does not support harness-engineer-cage-v1; upgrade its host-update release before activation" >&2
-      exit 1
-    fi
-  fi
-  require_nonempty "$repo_dir/units/omp.slice"
-  validate_display_tools
-  for tool in systemctl systemd-run oomctl; do
-    command -v "$tool" >/dev/null 2>&1 || { echo "$tool is required" >&2; exit 1; }
-  done
-  entry="$HOME/.local/bin/omp"
-  native="$HOME/.local/lib/omp-engineer/omp"
-  if [ -L "$entry" ]; then
-    [ "$(readlink "$entry")" = omp-engineer ] && [ -x "$native" ] || {
-      echo "Refusing foreign omp symlink or missing retained native binary" >&2; exit 1;
-    }
-  else
-    [ -f "$entry" ] && [ -x "$entry" ] && [ ! -e "$native" ] || {
-      echo "Expected an executable native omp and an unused native destination" >&2; exit 1;
-    }
-    [ "$(od -An -tx1 -N4 "$entry" | tr -d ' \n')" = 7f454c46 ] || {
-      echo "Refusing to replace a non-ELF omp entrypoint" >&2; exit 1;
-    }
-    case "$("$entry" --version)" in
-      omp/[0-9]*) ;;
-      *) echo "Refusing an unrecognised native omp binary" >&2; exit 1 ;;
-    esac
-  fi
-  unit="$HOME/.config/systemd/user/omp.slice"
-  if [ -e "$unit" ] || [ -L "$unit" ]; then
-    [ ! -L "$unit" ] && [ "$(IFS= read -r line < "$unit"; printf '%s' "$line")" = \
-      '# owned by misty-step/harness omp-config engineer-cage' ] || {
-      echo "Refusing foreign omp.slice configuration" >&2; exit 1;
-    }
-  fi
-}
-
-install_engineer_cage() {
-  # Explicit live cutover of future starts only. Never relocate running PIDs.
-  install_cli
-  install -d -m 700 "$HOME/.config/systemd/user" "$HOME/.local/lib/omp-engineer"
-  install -m 600 "$repo_dir/units/omp.slice" "$HOME/.config/systemd/user/omp.slice"
-  systemctl --user daemon-reload
-  systemctl --user start omp.slice
-  # Refresh a populated former 36-GiB parent in place; start is inert if active.
-  # The source unit persists infinity; this only converges its live property.
-  systemctl --user set-property --runtime omp.slice MemoryMax=infinity
-  "$HOME/.local/bin/omp-engineer" memory --json
-  entry="$HOME/.local/bin/omp"
-  native="$HOME/.local/lib/omp-engineer/omp"
-  if [ ! -L "$entry" ]; then
-    mv -- "$entry" "$native"
-    ln -s omp-engineer "$entry"
-  fi
 }
 
 install_cli() {
@@ -359,6 +278,36 @@ install_cli() {
   install -m 700 "$repo_dir/bin/omp-display.py" "$HOME/.local/bin/omp-display"
   install -m 700 "$repo_dir/bin/omp-gui.py" "$HOME/.local/bin/omp-gui"
   install -m 700 "$repo_dir/bin/omp-host-install.py" "$HOME/.local/bin/omp-host-install"
+  # Stop the retired scheduler before removing its launch dependency.
+  for name in omp-audit-foundations.timer omp-audit-principles.timer omp-audit-simplicity.timer omp-audit@.service; do
+    audit_unit="$HOME/.config/systemd/user/$name"
+    if [ -f "$audit_unit" ] && grep -Fqx '# owned by misty-step/harness omp-config auditors' "$audit_unit"; then
+      case $name in
+        *.timer) systemctl --user disable --now "$name" ;;
+        *) systemctl --user stop 'omp-audit@*.service' ;;
+      esac
+      rm -f -- "$audit_unit"
+      systemctl --user daemon-reload
+    fi
+  done
+  audit="$HOME/.local/bin/omp-audit"
+  if [ -f "$audit" ] && grep -Fqx '# owned by misty-step/harness omp-config auditors' "$audit"; then
+    rm -f -- "$audit"
+  fi
+  # Retired launchers must not survive source removal. Keep native sessions and
+  # historical journals; new engineers use OMP directly.
+  rm -f -- "$HOME/.local/bin/omp-roster" "$HOME/.local/bin/omp-experiments.ts"
+  unit="$HOME/.config/systemd/user/omp.slice"
+  if [ -f "$unit" ] && [ "$(IFS= read -r line < "$unit"; printf '%s' "$line")" = \
+    '# owned by misty-step/harness omp-config engineer-cage' ]; then
+    systemctl --user set-property --runtime omp.slice MemoryMax=infinity MemoryHigh=infinity MemorySwapMax=infinity
+    scopes=$(systemctl --user --all --type=scope --output=json list-units 'omp-engineer-*.scope')
+    for scope in $(printf '%s\n' "$scopes" | jq -r '.[] | select(.active == "active") | .unit'); do
+      systemctl --user set-property --runtime "$scope" MemoryMax=infinity MemoryHigh=infinity MemorySwapMax=infinity
+    done
+    rm -f -- "$unit"
+    systemctl --user daemon-reload
+  fi
 }
 
 
@@ -395,7 +344,6 @@ for component do
     secrets) validate_secrets ;;
     audio-sandbox) validate_audio_sandbox ;;
     cli) validate_cli ;;
-    engineer-cage) validate_engineer_cage ;;
     skill:*) validate_skill "${component#skill:}" ;;
     *)
       printf 'Unknown install component: %s\n' "$component" >&2
@@ -415,7 +363,6 @@ if [ "$1" != all ]; then
       secrets) install_secrets ;;
       audio-sandbox) install_audio_sandbox ;;
       cli) install_cli ;;
-      engineer-cage) install_engineer_cage ;;
       skill:*) install_skill "${component#skill:}" ;;
     esac
   done

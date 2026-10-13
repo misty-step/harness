@@ -14,12 +14,3 @@
   [`hermes-config`](https://github.com/misty-step/hermes-config); do not copy OMP
   wiring there.
 
-## Diff review
-
-`agent-config/system-one/engine.ts` deploys into Pi's `diff-review` extension
-(`/diff-review [taste|security]`); engine policy owns thresholds and chunking.
-OMP's turn-end review is retired; explicit CLI review remains:
-
-```sh
-pass-env run -f .env.pass -- bun omp-config/bin/omp-diff-review.ts [--staged] [--battery security]
-```

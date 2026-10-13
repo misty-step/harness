@@ -14,9 +14,3 @@ empty panels, overflow and the wrong state. Keep captures outside Git. For many
 captures, `scripts/gallery.py` lays a [manifest](templates/manifest.json) out
 side by side; its exit code only proves the files exist.
 
-For changed user-facing copy run `bun ~/.local/bin/design-check <paths>`: it
-flags dashes, engineering vocabulary and placeholders by file and line; mark an
-intended line with a `design-check: ignore` comment. Run axe-core on rendered
-states. Use `npx impeccable detect <file>` only where a pinned Impeccable is
-already installed; do not let npx fetch it. Screenshots prove appearance, not
-backend effects.
