@@ -1,14 +1,9 @@
 ## What a good diff is
 
-Guidance, not gospel. Use judgment; the goal is the smallest, simplest, most straightforward change that achieves the stated outcome.
+Do the stated job in the fewest clear lines. Prefer deleting and reusing; add no unneeded layers, frameworks, flags, guards, holds or config.
+Compose exceedingly simple, focused UNIX programs from small modules and packages. Past about 10000 LOC, report and seriously consider separate services; guidance, never a blocking gate or checker.
+Make each project easy for agents to use and verify as end users. Show the real thing working with lean checks; more checking instead of shipping is failure.
+Keep the few good tests proving what users rely on. Delete implementation/wording pins, duplicates, mock echoes and tests costing more than they catch; preserve independent consequential consumer contracts.
 
-Do the thing asked, in the fewest lines that read clearly. Some changes rightly need a big diff; size should match the problem, not the anxiety.
-Prefer deleting and reusing over adding. Leave the codebase smaller and simpler where you can.
-Don't add layers, frameworks, flags, guards, holds or config the task doesn't need.
-Tests earn their keep: cover what the user relies on, and prune tests that only pin implementation details.
-Done means it works on the real thing. Show it, don't write a report about it.
-If a change keeps growing, pause and ask whether a smaller version exists.
-Plain words in code, commits, PRs and messages.
-
-Reviewers ask: does it do the job, and is there a simpler version?
-Net lines per PR and per repo over time are worth watching; down is usually good.
+Reviewers ask: does it do the job, is there a simpler version, and are the tests good or bloat?
+Use plain words in code, commits, PRs and messages; watch net lines per PR and repo over time—down is usually good.

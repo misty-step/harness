@@ -1,8 +1,9 @@
 # Check cadence (US-023)
 
-First ask whether the check earns its place: name the real consumer failure it
-catches and inspect its signal. Delete redundant or paperwork-only checks rather
-than merely moving them. Keep independent access, data-safety and recovery proof.
+Make end-user verification easy and lean: show the real thing working, not more
+checking instead of shipping. Keep few good consumer tests; delete implementation/
+wording pins, duplicates, mock echoes and checks costing more than they catch.
+Preserve independent access/data/migration/package/protocol/privacy/recovery proof.
 
 For a repository deliberately migrated to catalog 1.7.0's lean cadence (ADR-007):
 - Before merge: engineer-run affected-contract proof, independent exact-head
@@ -20,8 +21,7 @@ A demonstrated defect in the shipping candidate stops that candidate; unrelated
 nightly red is not a blanket veto. Preserve hosted runners, existing scanners,
 artifact identity, serialization and non-destructive rollback.
 
-Migrate useful checks with their deployed triggers and existing failure response,
-not by adding the nightly suite on top of repeated PR/main execution. Measure the
-real changed path when runtime matters; do not call proposed schedules observed
-coverage. Glass is the first rollout; other adopted pins retain their cadence
-until explicitly migrated. No server or plan purchase is authorized.
+Migrate useful checks with deployed triggers and existing failure response; remove
+repeated PR/main execution rather than layering nightly on top. When runtime matters,
+measure the real changed path, not proposed coverage. Glass rolls out first; other
+adopted pins retain their cadence until explicitly migrated. No server or plan purchase is authorized.

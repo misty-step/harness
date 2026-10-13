@@ -244,11 +244,11 @@ export const TASTE_BATTERY: Record<string, Question> = {
 	torvalds_taste: {
 		type: "score",
 		instructions:
-			"Linus Torvalds taste criterion: is this a real, necessary, surgical change with no garbage, or an ugly hack that will rot?",
+			"Does this do the stated job in the fewest clear lines, deleting and reusing instead of adding unneeded layers, frameworks, flags, guards, holds or config?",
 		criteria: [
-			"Garbage or a clever hack that papers over the real bug",
-			"Works, but ugly; would be rejected in a disciplined kernel-style review",
-			"Clean, necessary, and no more than the problem requires",
+			"Misses the stated job or papers over the real bug with a clever hack",
+			"Does the job, but a simpler deletion or reuse would suffice",
+			"Does the stated job clearly with no more than it requires",
 		],
 	},
 	ousterhout_complexity: {
@@ -264,10 +264,10 @@ export const TASTE_BATTERY: Record<string, Question> = {
 	needless_abstraction: {
 		type: "noul",
 		instructions:
-			"Does this diff introduce a helper, wrapper class, factory, or abstraction layer that is only used by a single caller?",
+			"Is an introduced helper, wrapper class, factory or layer unneeded because deleting, reusing or direct composition would do the stated job more simply?",
 		criteria: {
-			true: "Introduces single-caller indirection or speculative abstraction",
-			false: "Inlines behavior or serves multiple independent callsites",
+			true: "Unneeded indirection or speculative abstraction",
+			false: "Necessary focused module or simpler direct composition",
 		},
 	},
 	weightless_code: {
@@ -333,15 +333,6 @@ export const POKAYOKE_BATTERY: Record<string, Question> = {
 			false: "Fails closed, safely rejects invalid input, or diff does not modify boundary guards",
 		},
 	},
-	tests_missing: {
-		type: "noul",
-		instructions:
-			"Is this a non-trivial behavioral change that lacks any corresponding test in the diff or nearby test files?",
-		criteria: {
-			true: "Behavior changed and no test defense came with it",
-			false: "Tests are included or change is purely docs/trivia",
-		},
-	},
 };
 
 export const STRATEGY_BATTERY: Record<string, Question> = {
@@ -366,10 +357,10 @@ export const STRATEGY_BATTERY: Record<string, Question> = {
 	small_app: {
 		type: "noul",
 		instructions:
-			"Does this diff grow a kernel/framework where a focused small tool or caller-owned script would be simpler and more inspectable?",
+			"Does this grow a framework where an exceedingly simple, focused UNIX composition of small modules, programs and packages would do the job? Past about 10000 LOC, report and seriously consider separate services; size is guidance, never a blocking gate.",
 		criteria: {
-			true: "Framework or kernel expansion instead of a focused tool",
-			false: "Minimal focused mechanism",
+			true: "Unneeded framework growth instead of focused UNIX composition",
+			false: "Simple, focused modules, programs and packages",
 		},
 	},
 	scope_creep: {
@@ -396,25 +387,25 @@ export const VERIFICATION_BATTERY: Record<string, Question> = {
 	test_asserts_implementation: {
 		type: "noul",
 		instructions:
-			"Do the added tests merely assert internal wiring, mock calls, or parameter forwarding rather than observable consumer postconditions?",
+			"Do these tests merely pin internal wiring, mock calls or parameter forwarding rather than prove independent consequential consumer contracts?",
 		criteria: {
-			true: "Asserts mocks, spy counts, or internal implementation details",
-			false: "Asserts observable contract output and domain behavior",
+			true: "Pins implementation or mock echoes without a distinct consumer contract",
+			false: "Proves observable consumer behavior or an independent consequential contract",
 		},
 	},
 	is_test_padding: {
 		type: "noul",
 		instructions:
-			"Is any added test a tautology, a bare not-throw, or testing incidental wording rather than defending against a plausible regression?",
+			"Are these tests good consumer proof or bloat: duplicates, tautologies, bare not-throw, implementation/wording pins, mock echoes, or tests costing more than they catch? Preserve independent access/data/migration/package/protocol/privacy/recovery contracts.",
 		criteria: {
-			true: "Padding test that cannot fail on realistic regression",
-			false: "High-signal test defending against plausible bug",
+			true: "Test bloat with no distinct consequential consumer failure",
+			false: "Few good tests proving what users rely on, including independent contracts",
 		},
 	},
 	plausible_bug_defense: {
 		type: "score",
 		instructions:
-			"Rate how effectively added tests defend against realistic regressions: 0 is tautology; 3 is critical contract invariant.",
+			"Rate tests by consequential consumer failures they reject, not how many were added: 0 is padding; 3 is independent critical contract proof.",
 		criteria: [
 			"Tautology or bare not-throw (zero regression defense)",
 			"Tests implementation trivia that changes with refactors",
@@ -707,8 +698,6 @@ export class HeuristicEngine implements SystemOneProvider {
 					}
 				} else if (key === "fails_open") {
 					prob = 0.05;
-				} else if (key === "tests_missing") {
-					prob = 0.10;
 				} else if (key === "hickey_complecting") {
 					if (/complect|braided_state|intertwined/i.test(state)) {
 						prob = 0.90;
@@ -1041,16 +1030,6 @@ export function routeBatteryForChunk(
 	const isAllDocs =
 		paths.length > 0 &&
 		paths.every((p) => p.endsWith(".md") || p.endsWith(".txt") || p.startsWith("docs/"));
-	const isAllTests =
-		paths.length > 0 &&
-		paths.every(
-			(p) =>
-				p.includes("test") ||
-				p.endsWith(".test.ts") ||
-				p.endsWith(".test.js") ||
-				p.endsWith("_test.go") ||
-				p.endsWith("_test.py"),
-		);
 
 	if (isAllDocs) {
 		const routed = { ...baseBattery };
@@ -1059,12 +1038,6 @@ export function routeBatteryForChunk(
 		delete routed.needless_abstraction;
 		delete routed.incomplete_cutover;
 		delete routed.fails_open;
-		return routed;
-	}
-
-	if (isAllTests) {
-		const routed = { ...baseBattery };
-		delete routed.tests_missing;
 		return routed;
 	}
 
@@ -1485,16 +1458,6 @@ export function parseRuleFindings(answers: Record<string, Answer>): {
 						confidence: conf,
 					});
 				}
-			} else if (key === "tests_missing" && p > 0.85) {
-				warnings.push({
-					rule: key,
-					category: "pokayoke",
-					severity: "warning",
-					message: "Non-trivial behavioral change appears to lack corresponding test defense.",
-					evidence: `Probability: ${p.toFixed(2)}, Confidence: ${conf.toFixed(2)}`,
-					probability: p,
-					confidence: conf,
-				});
 			} else if (key === "hickey_complecting" && p > 0.85) {
 				warnings.push({
 					rule: key,

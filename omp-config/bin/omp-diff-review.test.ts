@@ -340,15 +340,6 @@ diff --git a/src/b.ts b/src/b.ts
 		expect(docBattery.credential_leak).toBeDefined();
 	});
 
-	test("routeBatteryForChunk omits tests_missing rule on test-only chunks", () => {
-		const testBattery = routeBatteryForChunk(HARNESS_BATTERY, [
-			"src/math.test.ts",
-			"tests/integration.test.ts",
-		]);
-		expect(testBattery.tests_missing).toBeUndefined();
-		expect(testBattery.credential_leak).toBeDefined();
-	});
-
 	test("generateStructuralMap extracts symbols and stats concisely", () => {
 		const sampleDiff = `diff --git a/src/math.ts b/src/math.ts
 new file mode 100644

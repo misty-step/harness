@@ -1,34 +1,31 @@
 # Foundation Standard
 
 `foundation-standard-v1.json` is the sole normative catalog: applicability,
-evidence, dispositions, defaults and exceptions. Its current version is 1.8.1.
-The checker enforces structured claims, not product correctness.
-
-Use this standard for commissioned adoption/assessment, not as permission to
-widen a bug fix. Existing independent access, migration, privacy and recovery
-contracts remain meaningful; documentation or receipt syntax is not their proof.
+evidence, dispositions, defaults and exceptions; current version 1.8.1.
+Use it for commissioned adoption/assessment, not to widen a bug fix. Follow the
+[constitution](constitution.md): simple UNIX compositions, lean end-user proof and
+few good consumer tests. Past about 10000 LOC, report and seriously consider
+separate services; guidance adds no obligation or gate. Preserve independent
+access/data/migration/privacy/recovery contracts. Structured claims, documentation
+and receipt syntax do not prove correctness.
 
 ## Application feedback and brand kit
-
-Application assessments include two catalog obligations:
 
 | Obligation | Assessment |
 | --- | --- |
 | FND-FBK-001: Agent feedback loop | Trace an exercised structured bug or missing-feature report from the agent endpoint to the project backlog, an agent's draft fix and a person's approval before application. |
 | FND-BRD-001: Brand and marketing kit | Inspect the complete kit named in the catalog, including the custom-art marketing page and playable promo video; placeholders are not assets. |
 
-Assess both for applications, including internal tools and private betas; the
-constitution's website and portfolio exceptions do not waive them. This guidance
-does not install a scheduled auditor or build either obligation in a project.
-Existing catalog pins migrate explicitly.
+Assess both for applications, including internal tools and private betas; website
+and portfolio exceptions do not waive them. This guidance neither installs a
+scheduled auditor nor builds either obligation; existing pins migrate explicitly.
 
 ## Lean safety cadence
 
-The approved 2026-10-02 amendment to
-[ADR-007](https://github.com/misty-step/harness/blob/master/docs/adr/007-braver-engineers-continuous-deployment.md#lean-ci-amendment-2026-10-02)
-changes FND-CHG-002's cadence and FND-REL-001's deployment proof;
-`skill://story-qa/check-cadence.md` owns the cadence. Existing pins keep their
-adopted contract until deliberately migrated; Glass is the first rollout.
+The [approved ADR-007 amendment](https://github.com/misty-step/harness/blob/master/docs/adr/007-braver-engineers-continuous-deployment.md#lean-ci-amendment-2026-10-02)
+changes FND-CHG-002's cadence and FND-REL-001's deployment proof; see
+`skill://story-qa/check-cadence.md`. Existing pins retain their adopted contract
+until deliberately migrated; Glass is the first rollout.
 
 ## Existing adoption interface
 
