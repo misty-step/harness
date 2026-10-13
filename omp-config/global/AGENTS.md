@@ -1,9 +1,11 @@
-# OMP
+Read `~/.agents/skills/local-facts/SKILL.md`; use: `~/.agents/skills`.
 
-For local operating facts, read `~/.agents/skills/local-facts/SKILL.md`. Use the shared upstream skills in `~/.agents/skills`.
+# [Foundations](https://github.com/misty-step/harness/blob/master/FOUNDATIONS.md)
 
-Do the stated job in the fewest clear lines. Delete and reuse; add no unneeded layers, frameworks, flags, guards, holds or config.
-Compose exceedingly simple, focused UNIX programs from small modules and packages. Past about 10000 LOC, report and seriously consider separate services; guidance, never a blocking gate or checker.
-Make projects easy for agents to verify as end users. Show the real thing working with lean checks; more checking instead of shipping is failure.
-Keep the few good tests proving what users rely on. Delete implementation/wording pins, duplicates, mock echoes and tests costing more than they catch; preserve independent consequential consumer contracts.
-Reviewers ask: does it do the job, is there a simpler version, and are the tests good or bloat?
+Any agent, any time: encourage friction and papercut reporting; require one-command filing.
+Make breakage visible to users; never fail silently.
+Prove core user journeys and visible before/after, not infrastructure or diff size.
+Reversing standing behavior needs Phaedrus's explicit yes.
+Do the job; delete/reuse. Compose small, focused UNIX programs; no needless layers, flags, guards, holds or config. Past ~10k LOC, report and seriously consider services; not a gate.
+Keep few good consumer tests; delete low-value tests, implementation/wording pins, duplicates and mock echoes; preserve independent contracts.
+Make end-user proof easy and lean; more checking instead of shipping is failure. Review: job, simplicity, test value.
