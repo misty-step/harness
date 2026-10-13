@@ -54,6 +54,11 @@ entrypoints fail closed. Redirecting the agent directory alone does not isolate
 HOME or host writes. The root `../install` installs both native harnesses;
 component installers are preferable for targeted changes.
 
+### Kaylee pane input
+
+Copy hermes-config's `plugins/delegate-agent-guard/pane_guard.py` beside this
+extension's installed `index.ts`. Verify identical bytes in both native guards.
+
 Configuration overlays source-owned keys while preserving foreign keys. MCP
 overlays declared servers and preserves foreign inventory and owned-server auth.
 Native project MCP definitions/imports remain project-owned. Neither installer
