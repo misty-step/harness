@@ -160,9 +160,11 @@ Criteria:
    SHALL accept it.
 6. WHEN catalog 1.5.0 applies, THE SYSTEM SHALL require README, AGENTS,
    USER_STORIES and DOMAIN with a well-formed invariants ledger; SHALL check
-   the ADR-004 surface files, aliases, core links, routing targets, ADR
+   the ADR-004 surface files, aliases, core links, routing targets, decision
    integrity and executable CI gate; and SHALL reject `Check:` or an
-   invariant's missing resolvable check.
+   invariant's missing resolvable check. From catalog 1.9.0 (decision 0012)
+   it SHALL check `docs/decisions/` and `docs/architecture/primitives.yaml`
+   and report `docs/adr/` as a legacy gap.
 7. IF a `satisfied` disposition cites a missing, committed, wrong-revision
    or wrong-digest receipt, THEN the checker SHALL reject it; IF a
    `not_applicable` or `exception` disposition lacks a matching tracked
