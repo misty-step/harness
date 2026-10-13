@@ -16,8 +16,8 @@ Risk tiers (from `primitives.yaml`: composes / extends / adds):
 
 | Risk | Gates before the agent acts | Agent may merge |
 | --- | --- | --- |
-| low | green CI, Codex + Claude review verdicts | yes |
-| medium | + Bugbot review, screenshots (label `evidence:screenshots`) | yes |
+| low | green CI, Codex + Claude `APPROVE @<head sha>` verdicts | yes |
+| medium | + Bugbot review of the head commit, screenshots (label `evidence:screenshots`) | yes |
 | high | + video walkthrough (label `evidence:video`) | no: parks for human review |
 
 Tick steps: `waiting` (come back after `poll_after_seconds`, never tight-loop),

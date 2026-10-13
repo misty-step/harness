@@ -80,20 +80,23 @@ pub fn tick(pr: &Pr, risk: Risk, allow_no_ci: bool) -> Step {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::state::{Author, Check, Comment, Label, Review};
+    use crate::state::{Author, Check, Comment, CommitRef, Label, Review};
+
+    const HEAD: &str = "abc1234def5678";
 
     fn green() -> Vec<Check> {
         vec![Check { name: "check".into(), status: "COMPLETED".into(), conclusion: "SUCCESS".into(), ..Default::default() }]
     }
     fn review(login: &str, body: &str) -> Review {
-        Review { author: Author { login: login.into() }, submitted_at: "2026-10-13T10:00:00Z".into(), body: body.into() }
+        Review { author: Author { login: login.into() }, submitted_at: "2026-10-13T10:00:00Z".into(), commit: Some(CommitRef { oid: HEAD.into() }), body: body.into() }
     }
     fn ready() -> Pr {
         Pr {
             state: "OPEN".into(),
             mergeable: "MERGEABLE".into(),
+            head_ref_oid: HEAD.into(),
             status_check_rollup: green(),
-            reviews: vec![review("moomooskycow", "Codex review: APPROVE\nClaude review: APPROVE"), review("cursor", "")],
+            reviews: vec![review("moomooskycow", "Codex review: APPROVE @abc1234\nClaude review: APPROVE @abc1234"), review("cursor", "")],
             labels: vec![Label { name: SCREENSHOTS_LABEL.into() }, Label { name: VIDEO_LABEL.into() }],
             ..Default::default()
         }
@@ -147,18 +150,18 @@ mod tests {
     #[test]
     fn missing_cross_vendor_review_is_named() {
         let mut pr = ready();
-        pr.reviews = vec![review("moomooskycow", "Codex review: APPROVE")];
+        pr.reviews = vec![review("moomooskycow", "Codex review: APPROVE @abc1234")];
         assert_eq!(tick(&pr, Risk::Low, false), Step::Review { missing: vec!["Claude review".into()] });
     }
 
     #[test]
     fn rejection_or_later_rejection_blocks_and_comments_count() {
         let mut pr = ready();
-        pr.reviews = vec![review("x", "Codex review: CHANGES REQUESTED\nClaude review: APPROVE")];
+        pr.reviews = vec![review("x", "Codex review: CHANGES REQUESTED @abc1234\nClaude review: APPROVE @abc1234")];
         assert!(matches!(tick(&pr, Risk::Low, false), Step::Review { .. }));
-        pr.comments = vec![Comment { body: "Codex review: APPROVE".into(), created_at: "2026-10-13T11:00:00Z".into() }];
+        pr.comments = vec![Comment { body: "Codex review: APPROVE @abc1234".into(), created_at: "2026-10-13T11:00:00Z".into() }];
         assert_eq!(tick(&pr, Risk::Low, false), Step::Merge);
-        pr.comments.push(Comment { body: "Codex review: CHANGES REQUESTED".into(), created_at: "2026-10-13T12:00:00Z".into() });
+        pr.comments.push(Comment { body: "Codex review: CHANGES REQUESTED @abc1234".into(), created_at: "2026-10-13T12:00:00Z".into() });
         assert!(matches!(tick(&pr, Risk::Low, false), Step::Review { .. }));
     }
 
@@ -168,6 +171,19 @@ mod tests {
         pr.status_check_rollup.clear();
         assert!(matches!(tick(&pr, Risk::Low, false), Step::Waiting { .. }));
         assert_eq!(tick(&pr, Risk::Low, true), Step::Merge);
+    }
+
+    #[test]
+    fn a_push_after_review_invalidates_verdicts_and_bugbot() {
+        let mut pr = ready();
+        pr.head_ref_oid = "fff0000aaaa".into();
+        assert_eq!(
+            tick(&pr, Risk::Low, false),
+            Step::Review { missing: vec!["Codex review".into(), "Claude review".into()] }
+        );
+        pr.comments = vec![Comment { body: "Codex review: APPROVE @fff0000\nClaude review: APPROVE @fff0000".into(), created_at: "2026-10-13T13:00:00Z".into() }];
+        assert_eq!(tick(&pr, Risk::Low, false), Step::Merge);
+        assert!(matches!(tick(&pr, Risk::Medium, false), Step::Waiting { .. }), "stale Bugbot review must not count");
     }
 
     #[test]

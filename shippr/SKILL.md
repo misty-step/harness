@@ -17,8 +17,9 @@ shippr tick --pr <url> --risk <low|medium|high>
 - `waiting`: end the turn or come back after `poll_after_seconds`. Never tight-loop.
 - `fix_checks`: fix, push, tick.
 - `review`: get the missing Codex / Claude review and post its verdict line
-  (`Codex review: APPROVE` or `... CHANGES REQUESTED`) as a PR comment or review.
-  The latest line per vendor wins.
+  (`Codex review: APPROVE @<head sha7>` or `... CHANGES REQUESTED @<sha7>`) as a PR
+  comment or review. Only verdicts naming the current head count; the latest wins.
+  Bugbot findings are handled through those verdicts; Bugbot must have reviewed the head.
 - Repos without pull_request CI (harness proves locally) pass `--allow-no-ci`.
 - `evidence`: attach screenshots (label `evidence:screenshots`); high risk also a video walkthrough (`evidence:video`).
 - `merge`: `shippr merge --pr <url> --risk <risk>`.

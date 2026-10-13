@@ -54,6 +54,8 @@ pub struct Review {
     #[serde(default)]
     pub submitted_at: String,
     #[serde(default)]
+    pub commit: Option<CommitRef>,
+    #[serde(default)]
     pub body: String,
 }
 
@@ -61,6 +63,12 @@ pub struct Review {
 pub struct Author {
     #[serde(default)]
     pub login: String,
+}
+
+#[derive(Clone, Debug, Default, Deserialize)]
+pub struct CommitRef {
+    #[serde(default)]
+    pub oid: String,
 }
 
 #[derive(Clone, Debug, Default, Deserialize)]
@@ -109,11 +117,14 @@ impl Pr {
     }
 
     pub fn reviewed_by(&self, login: &str) -> bool {
-        self.reviews.iter().any(|r| r.author.login == login)
+        // Only a review of the current head counts; a push after the review needs a new one.
+        self.reviews.iter().any(|r| r.author.login == login && r.commit.as_ref().is_some_and(|c| c.oid == self.head_ref_oid))
     }
 
     /// Cross-vendor verdicts are lines `Codex review: <VERDICT>` / `Claude review: <VERDICT>`
-    /// in any PR review or comment. The latest line per vendor wins; only APPROVE passes.
+    /// in any PR review or comment, e.g. `Codex review: APPROVE @abc1234`. The line must name
+    /// the current head SHA (7+ hex chars), so a push after a verdict needs a new verdict.
+    /// The latest line per vendor wins; only APPROVE passes.
     pub fn verdict(&self, vendor: &str) -> Verdict {
         let tag = format!("{vendor} review:");
         let mut posts: Vec<(&str, &str)> = self.reviews.iter().map(|r| (r.submitted_at.as_str(), r.body.as_str()))
@@ -124,6 +135,12 @@ impl Pr {
         for (_, body) in posts {
             for line in body.lines() {
                 if let Some(rest) = line.trim().strip_prefix(&tag) {
+                    let names_head = rest.split(|c: char| !c.is_ascii_hexdigit()).any(|w| {
+                        w.len() >= 7 && !self.head_ref_oid.is_empty() && self.head_ref_oid.starts_with(&w.to_ascii_lowercase())
+                    });
+                    if !names_head {
+                        continue;
+                    }
                     verdict = if rest.trim().to_ascii_uppercase().starts_with("APPROVE") { Verdict::Approve } else { Verdict::Rejected };
                 }
             }
