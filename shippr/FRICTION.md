@@ -16,5 +16,5 @@ shippr friction --repo misty-step/glass --title "No seeded review user in previe
 
 - File it when the gap would bite the next agent too. Pass `--one-off` for noise; it soft-skips.
 - Less than 5 minutes lost: it soft-skips.
-- The same title in the same repo adds a "seen again" note instead of a duplicate.
+- The same title in the same repo adds a "seen again" note to the open item instead of a duplicate. If that item is done or dropped, `file` creates a new `-rN` item marked "Recurs after closed item".
 - `--product-decision` when fixing it needs a product call; Maren's friction sweep parks it.

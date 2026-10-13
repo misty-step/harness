@@ -120,9 +120,14 @@ fn powder(method: &str, path: &str, body: Option<&Value>) -> Result<(u16, Value)
     if let Some(b) = body {
         use std::io::Write;
         // create_new refuses an existing path or symlink.
-        let written = std::fs::OpenOptions::new()
-            .write(true)
-            .create_new(true)
+        let mut opts = std::fs::OpenOptions::new();
+        opts.write(true).create_new(true);
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::OpenOptionsExt;
+            opts.mode(0o600);
+        }
+        let written = opts
             .open(&tmp)
             .and_then(|mut file| file.write_all(&serde_json::to_vec(b).unwrap_or_default()));
         if let Err(e) = written {
@@ -142,7 +147,9 @@ fn powder(method: &str, path: &str, body: Option<&Value>) -> Result<(u16, Value)
     let text = String::from_utf8_lossy(&out.stdout);
     let (json_part, code) = text.trim_end().rsplit_once("\nHTTP ").context("no HTTP status from powder-curl")?;
     let code: u16 = code.trim().parse()?;
-    Ok((code, serde_json::from_str(json_part.trim()).unwrap_or(Value::Null)))
+    let raw = json_part.trim();
+    // Keep a non-JSON error body (proxy HTML, plain text) as a string so errors stay readable.
+    Ok((code, serde_json::from_str(raw).unwrap_or_else(|_| if raw.is_empty() { Value::Null } else { Value::String(raw.to_string()) })))
 }
 
 pub enum Outcome {
