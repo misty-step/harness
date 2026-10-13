@@ -1,4 +1,5 @@
 //! shippr: risk-gated PR ship loop. `tick` prints the one focused next step as JSON.
+mod friction;
 mod policy;
 mod state;
 mod tick;
@@ -37,6 +38,27 @@ enum Cmd {
         #[arg(long)]
         pr: String,
     },
+    /// File durable friction to Powder (qualify, dedupe by id, soft-skip one-offs).
+    Friction {
+        /// owner/repo, used as the Powder scope.
+        #[arg(long)]
+        repo: String,
+        #[arg(long)]
+        title: String,
+        /// The contract gap.
+        #[arg(long)]
+        reason: String,
+        #[arg(long)]
+        cost_minutes: u32,
+        #[arg(long)]
+        fix: String,
+        #[arg(long)]
+        one_off: bool,
+        #[arg(long)]
+        product_decision: bool,
+        #[arg(long, default_value = "Chips")]
+        actor: String,
+    },
     /// Squash-merge when tick says Merge.
     Merge {
         #[arg(long)]
@@ -66,6 +88,14 @@ fn main() -> Result<()> {
             let body = state::bugbot_comment(&view(&pr)?.head_ref_oid);
             if !Command::new("gh").args(["pr", "comment", &pr, "--body", &body]).status()?.success() {
                 bail!("gh pr comment failed");
+            }
+        }
+        Cmd::Friction { repo, title, reason, cost_minutes, fix, one_off, product_decision, actor } => {
+            let f = friction::Friction { repo, title, reason, cost_minutes, fix, one_off, product_decision };
+            match friction::file(&f, &actor)? {
+                friction::Outcome::Skipped(why) => println!("{{\"friction\":\"skipped\",\"reason\":{}}}", serde_json::to_string(&why)?),
+                friction::Outcome::Created(id) => println!("{{\"friction\":\"created\",\"id\":\"{id}\"}}"),
+                friction::Outcome::Noted(id) => println!("{{\"friction\":\"noted\",\"id\":\"{id}\"}}"),
             }
         }
         Cmd::Merge { pr, risk, allow_no_ci } => {
