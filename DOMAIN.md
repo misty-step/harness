@@ -1,7 +1,7 @@
 # Harness domain
 
 Vocabulary, boundaries and invariants for this repository (ADR-004). Intent
-lives in [USER_STORIES.md](USER_STORIES.md), decisions in [docs/adr/](docs/adr/),
+lives in [USER_STORIES.md](USER_STORIES.md), decisions in [docs/decisions/](docs/decisions/index.md),
 and agent rules in [AGENTS.md](AGENTS.md).
 
 ## Terms
@@ -115,12 +115,13 @@ the Foundation Standard tooling. It does not own:
 
 - `agent-config/`: shared primitives (skills, guidance sections, launchers),
   the shared installer, the audio sandbox, and System One (`system-one/`).
-- `docs/`: cross-component decisions (`docs/adr/`), verification and migration
-  records, and token-efficiency measurements.
+- `docs/`: cross-component decisions (`docs/decisions/`), principles, the
+  primitives map (`docs/architecture/primitives.yaml`), verification and
+  migration records, and token-efficiency measurements.
 - `omp-config/`: OMP routing, config and MCP, extensions, themes, guidance
   intro, watchdog, and its installer.
 - `pi-config/`: pi settings, extensions, chrome, guidance intro, its component
-  decisions (`pi-config/docs/adr/`), and its installer.
+  decisions (`pi-config/docs/decisions/`), and its installer.
 - `scripts/`: workspace bootstrap, the fixed `check` gate entry point and the
   canonical `verify` checks it runs, the isolated installer checks, and the
   workspace inventory.

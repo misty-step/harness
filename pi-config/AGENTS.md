@@ -6,7 +6,8 @@ Owned keys/packages overlay foreign settings, sessions and credentials.
 
 Shared primitives come from sibling `../agent-config` (`AGENT_CONFIG_DIR`
 overrides it). `README.md` owns the component/divergence ledger and foreign
-paths; `docs/adr/` records architectural decisions.
+paths; `docs/decisions/index.md` lists steering decisions: open it before
+proposing a new primitive, surface, or storage home.
 
 Run `../scripts/check pi`, including both committed-HEAD installer compositions.
 Observe a fresh Pi session to prove extension loading. Keep extensions focused

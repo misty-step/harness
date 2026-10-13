@@ -1,0 +1,96 @@
+# harness system primitives map (taxonomy)
+# Stable vocabulary for the `recap` PR classifier and for agents choosing what to compose.
+# NOT a changelog and NOT behavior truth; code and linked docs are.
+# Risk (rolled up per PR, highest wins):
+#   composes - wires existing primitives without changing them        -> low
+#   extends  - changes a primitive's behavior, shape, or contract      -> medium
+#   adds     - introduces/removes/reshapes a primitive                 -> high (edit this file in the same PR)
+# Edit only when a primitive is added, removed, renamed, or its code roots move.
+# `code` = coarse ownership roots, longest-prefix match. Prefer directories. Keep it small.
+version: 1
+owner: chips
+groups:
+  - { id: deploy, name: Installers and deployment }
+  - { id: guidance, name: Guidance and skills }
+  - { id: runtime, name: Harness runtime }
+  - { id: trust, name: Credentials and secrets }
+  - { id: platform, name: Verification and release }
+primitives:
+  - id: shared-install
+    group: deploy
+    name: Shared deploy contract
+    summary: The one installer that deploys selected skills, guidance and launchers for every harness.
+    code: [agent-config/install]
+    docs: [agent-config/README.md]
+  - id: pi-config
+    group: deploy
+    name: Pi harness
+    summary: Pi settings, selection and installer that overlays owned keys onto a live Pi agent directory.
+    code: [pi-config/install, pi-config/settings.json, pi-config/bin/]
+    docs: [pi-config/README.md]
+  - id: omp-config
+    group: deploy
+    name: OMP harness
+    summary: OMP routing, models, MCP, secrets policy and installer for a live OMP agent directory.
+    code: [omp-config/install, omp-config/config.yml, omp-config/models.yml, omp-config/mcp.json, omp-config/secrets.yml, omp-config/bin/, omp-config/units/, omp-config/patches/]
+    docs: [omp-config/README.md]
+  - id: guidance
+    group: guidance
+    name: Global guidance
+    summary: Harness intros plus shared sections spliced into each harness's deployed global AGENTS.md.
+    code: [agent-config/guidance/, pi-config/global/, omp-config/global/]
+  - id: skills
+    group: guidance
+    name: Portable skills
+    summary: Harness-neutral skill packages each harness selects and deploys.
+    code: [agent-config/skills/]
+  - id: pi-extensions
+    group: runtime
+    name: Pi extensions
+    summary: Focused, removable Pi runtime behavior and composer chrome.
+    code: [pi-config/extensions/]
+  - id: omp-extensions
+    group: runtime
+    name: OMP extensions, agents and themes
+    summary: OMP runtime boundaries, specialist definitions and presentation.
+    code: [omp-config/extensions/, omp-config/agents/, omp-config/themes/]
+  - id: system-one
+    group: runtime
+    name: System One judgments
+    summary: Shared typed judgments, Git adapters and cache behind automatic review and assessment.
+    code: [agent-config/system-one/, agent-config/skills/system-one/]
+  - id: host-guards
+    group: runtime
+    name: Host components
+    summary: Opt-in audio sandbox, desktop memory guard and session backup.
+    code: [agent-config/audio-sandbox/, agent-config/desktop-guard/, agent-config/session-backup/, pi-config/extensions/audio-sandbox/]
+  - id: pass-env
+    group: trust
+    name: Credential launchers
+    summary: Inject pass-backed credentials into a launch; repositories commit names, never values.
+    code: [agent-config/bin/pass-env.ts, agent-config/bin/openrouter-key.ts]
+  - id: secret-scan
+    group: trust
+    name: Secret scanning hooks
+    summary: Pre-commit and pre-push secret scans every clone wires through bootstrap.
+    code: [.githooks/, scripts/bootstrap]
+  - id: foundation
+    group: platform
+    name: Foundation Standard and checker
+    summary: The versioned catalog other repositories pin and the checker that enforces it.
+    code: [agent-config/skills/foundation/, agent-config/bin/foundation-check.ts]
+    docs: [agent-config/skills/foundation/foundation-standard-v1.md]
+    decisions: ["0012"]
+  - id: gate
+    group: platform
+    name: Repository gate
+    summary: The fixed scripts/check entry point, its verify checks and CI.
+    code: [scripts/, .github/workflows/ci.yml]
+    docs: [docs/verification.md]
+  - id: release
+    group: platform
+    name: Release stream
+    summary: Landmark automation owns the single conventional-commit release stream.
+    code: [.landmark.yml, .github/workflows/landmark-release.yml]
+# Primitive audit (from "Your Coding Agent Needs Better Primitives"): quarterly, ask an agent
+# for create / combine / delete / expand candidates against this file; file results to Powder.

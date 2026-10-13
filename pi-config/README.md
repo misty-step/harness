@@ -362,11 +362,12 @@ resolves the same file into the OMP theme.
 
 ## Decision log
 
-Decisions live one per file in [docs/adr/](docs/adr/) with their original ids,
-statuses and dates. These ids are pi-config's own namespace; cross-component
-decisions live in the harness's [docs/adr/](../docs/adr/).
+Decisions live one per file under [docs/decisions/](docs/decisions/index.md);
+former ADRs keep their original ids, statuses and dates in `historical/`. These
+ids are pi-config's own namespace; cross-component decisions live in the
+harness's [docs/decisions/](../docs/decisions/index.md).
 
-See [ADR-023](docs/adr/023-resolve-openrouter-account-by-launch-directory.md)
+See [ADR-023](docs/decisions/historical/023-resolve-openrouter-account-by-launch-directory.md)
 for the OpenRouter account policy (US-028).
 
 ## Pi versus OMP

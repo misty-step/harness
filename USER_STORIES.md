@@ -482,7 +482,7 @@ the scoped surface list.
 
 Evidence: `agent-config/bin/design-check.test.ts`,
 `agent-config/skills/visual-state-review/SKILL.md`,
-`docs/adr/002-design-toolkit-trial.md`
+`docs/decisions/historical/002-design-toolkit-trial.md`
 
 ## Capability: Model routing
 
@@ -773,7 +773,7 @@ No-gos: no automatic waivers, no baseline for adoption-record errors, no
 baseline entry more than 30 days out.
 
 Evidence: `agent-config/bin/foundation-check.test.ts` (US-027 block);
-`docs/adr/003-foundation-checks.md`.
+`docs/decisions/historical/003-foundation-checks.md`.
 
 ## US-028 Bill OpenRouter to the project account
 
@@ -895,7 +895,7 @@ readback evidence); no heuristic guessing of deploy commands or silent tenant
 exclusions.
 
 Evidence: `agent-config/bin/foundation-check.test.ts` (ADR-005 block);
-`docs/adr/005-operational-obligations.md`.
+`docs/decisions/historical/005-operational-obligations.md`.
 
 ## US-041 Meet the foundations while working
 
@@ -918,7 +918,7 @@ instructions in the constitution (they live in the skill's authoring notes);
 no authority granted beyond ADR-006.
 
 Evidence: `scripts/references.test.ts`, `scripts/verify-installers`;
-`docs/adr/006-foundation-decisions.md`.
+`docs/decisions/historical/006-foundation-decisions.md`.
 
 ## US-042 See where a foundation looks weak before a check can decide it
 
@@ -1066,8 +1066,8 @@ No-gos: no reading, copying, or refreshing another harness's stored tokens; no
 Claude Code or Google client impersonation added by this repository.
 
 Evidence: `pi-config/extensions/accounts/slots.test.ts`,
-`pi-config/extensions/accounts/pool.test.ts`, `pi-config/docs/adr/026-pool-accounts-behind-one-provider-with-shared-blocks.md`,
-`pi-config/docs/adr/024-extra-accounts-are-cloned-providers-with-pi-owned-logins.md`,
+`pi-config/extensions/accounts/pool.test.ts`, `pi-config/docs/decisions/historical/026-pool-accounts-behind-one-provider-with-shared-blocks.md`,
+`pi-config/docs/decisions/historical/024-extra-accounts-are-cloned-providers-with-pi-owned-logins.md`,
 and the isolated `/login` walk recorded in the PR.
 
 ## US-048 Carry lean, useful agent guidance
