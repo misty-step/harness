@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Bounded image-generation adapter for design-studio (xAI Imagine path).
+"""Image-generation adapter for design-studio (xAI Imagine path).
 
 This is ONE adapter among several possible ones — not a quality default. Provider
 selection is provider-neutral: see references/media-policy.md. It requires a Python
@@ -10,12 +10,6 @@ that can import the Hermes credential resolver for an AUTHORIZED profile:
 Never prints credentials. Writes <id>.<ext> + <id>.provenance.json per job
 (ext = png | jpg | gif | webp, as detected from the payload).
 
-Budget: the cap (default $3.00; override with --budget-usd or
-DESIGN_STUDIO_BUDGET_USD) is ALWAYS enforced against caller-supplied price
-evidence (--price-per-image, or a per-job "price_usd"). If any job has no price
-evidence, the adapter fails closed (exit 3) instead of running unbounded; the
-budget must be a finite number >= 0, and --budget-usd 0 refuses any non-zero
-estimate. The effective price is recorded per artifact as an estimate.
 
 Output safety: job ids must be safe file basenames (letters, digits, ".", "_",
 "-"; no path separators, no "..", non-empty). Invalid ids are refused before
@@ -23,8 +17,7 @@ any network call or write, and artifact paths are re-checked against the output
 directory at write time.
 
 Usage:
-  python3 imagine.py --jobs jobs.json --out DIR [--max-images 12]
-                     [--budget-usd 3.0 --price-per-image 0.07] [--dry-run]
+  python3 imagine.py --jobs jobs.json --out DIR [--price-per-image 0.07] [--dry-run]
   python3 imagine.py --prompt "..." --out DIR [--id name] [--model M]
                      [--aspect 16:9] [--resolution 1k]
   python3 imagine.py --self-test
@@ -32,8 +25,7 @@ Usage:
 jobs.json: [{"id": "...", "prompt": "...", "model": "...", "aspect": "16:9",
              "resolution": "1k", "price_usd": 0.07}, ...]
 
-Exit codes: 0 ok; 2 access/environment or invalid input; 3 budget refusal;
-4 partial failure.
+Exit codes: 0 ok; 2 access/environment or invalid input; 4 partial failure.
 """
 from __future__ import annotations
 
@@ -51,7 +43,6 @@ DEFAULT_MODEL = "grok-imagine-image-2.0"
 DEFAULT_ASPECT = "16:9"
 DEFAULT_RESOLUTION = "1k"
 MAX_RETRIES = 2
-DEFAULT_BUDGET_USD = 3.00
 SAFE_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
 IMAGE_MAGIC = (
     (b"\x89PNG\r\n\x1a\n", "png"),
@@ -328,8 +319,6 @@ def main() -> int:
     ap.add_argument("--model")
     ap.add_argument("--aspect", default=DEFAULT_ASPECT)
     ap.add_argument("--resolution", default=DEFAULT_RESOLUTION)
-    ap.add_argument("--max-images", type=int, default=12)
-    ap.add_argument("--budget-usd", type=float)
     ap.add_argument("--price-per-image", type=float)
     ap.add_argument("--dry-run", action="store_true")
     ap.add_argument("--self-test", action="store_true")
@@ -359,46 +348,12 @@ def main() -> int:
         }))
         return 2
 
-    if len(jobs) > args.max_images:
-        print(json.dumps({"error": "max_images_exceeded", "jobs": len(jobs), "cap": args.max_images}))
-        return 3
-
-    budget = args.budget_usd
-    if budget is None:
-        raw_budget = os.environ.get("DESIGN_STUDIO_BUDGET_USD")
-        if raw_budget not in (None, ""):
-            try:
-                budget = float(raw_budget)
-            except ValueError:
-                print(json.dumps({"error": "invalid_budget",
-                                  "hint": "DESIGN_STUDIO_BUDGET_USD must be a number"}))
-                return 2
-        else:
-            budget = DEFAULT_BUDGET_USD
-    if not math.isfinite(budget) or budget < 0:
-        print(json.dumps({"error": "invalid_budget",
-                          "hint": "budget must be a finite number >= 0"}))
-        return 2
-
     estimate, missing_price = estimate_batch_usd(jobs, args.price_per_image)
-    if missing_price:
-        print(json.dumps({
-            "error": "price_unknown", "jobs_missing_price": missing_price[:10],
-            "hint": "supply --price-per-image (or per-job price_usd) so the budget cap "
-                    "is enforceable; the adapter fails closed without price evidence",
-        }))
-        return 3
-    if estimate > budget:
-        print(json.dumps({"error": "budget_exceeded", "estimate_usd": estimate,
-                          "cap_usd": budget,
-                          "note": "estimate uses caller-supplied price evidence; "
-                                  "raise the cap explicitly to proceed"}))
-        return 3
 
     os.makedirs(args.out, exist_ok=True)
     if args.dry_run:
         print(json.dumps({"dry_run": True, "jobs": [job["id"] for job in jobs],
-                          "estimate_usd": estimate, "cap_usd": budget}))
+                          "estimate_usd": estimate if not missing_price else None}))
         return 0
 
     creds, agent = resolve_env()

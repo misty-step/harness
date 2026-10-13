@@ -1,9 +1,9 @@
-# [Foundations](https://github.com/misty-step/harness/blob/master/FOUNDATIONS.md)
+# Foundations
 
-Any agent, any time: encourage friction and papercut reporting; require one-command filing.
-Make breakage visible to users; never fail silently.
-Prove core user journeys and visible before/after, not infrastructure or diff size.
-Reversing standing behavior needs Phaedrus's explicit yes.
-Do the job; delete/reuse. Compose small, focused UNIX programs; no needless layers, flags, guards, holds or config. Past ~10k LOC, report and seriously consider services; not a gate.
-Keep few good consumer tests; delete low-value tests, implementation/wording pins, duplicates and mock echoes; preserve independent contracts.
-Make end-user proof easy and lean; more checking instead of shipping is failure. Review: job, simplicity, test value.
+Read the task, do it, check the real user path, and ship it.
+Use one independent code review for code that ships; repeat only for real bugs.
+Documents, briefs, and measurements do not need review.
+
+Keep private information and credentials private. Get the owner's decision for
+material spend, production data deletion, third-party effects, and irreversible
+actions. Respect protected human sessions and the live desktop.

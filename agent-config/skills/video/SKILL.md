@@ -31,8 +31,7 @@ polish; the first build of every act failed the frozen-time bar.
   repaint after each seek, never overlap two tweens on one property of one target.
 - `film.html` sets `window.__built = true` and exposes `window.__seek(t)`.
   `bun scripts/render.ts FILM_DIR OUT FROM TO [workers] [query]` screenshots each
-  frame (run full renders under `desktop-guard run --` with a worker cap; test a
-  5 s range first), then `scripts/encode.sh OUT FIRST_FRAME film.mp4`.
+  frame, then `scripts/encode.sh OUT FIRST_FRAME film.mp4`.
 - Sound: see Sound below. Ship licences for fonts, GSAP and audio with the source.
 
 ## Sound
@@ -118,15 +117,7 @@ that drives the cut and sits under on-screen text, not a piece to be listened to
 
 ## Verify
 
-`bun scripts/determinism.ts FILM_DIR "" "1,3.3,0.2"` must print `deterministic`.
-The builder never grades its own pixels: each round, brief a fresh visual critic
-(`designer` subagent or the `vision` role, never a `task` agent; stop rather than
-fall back to another model family) with what to judge (the render, brief, facts
-and the kit's critic prompts), the bar (no still stretch over about 0.5 s, frozen
-time near 1 s per 30 s, kit contrast and loudness scripts) and that it measures
-its own frames. Record the resolved model, findings and before/after numbers in
-a ledger; the next critic checks each finding and hunts regressions.
-
-Deliver a 1920x1080 60 fps MP4, a music-only MP4, a contact sheet, the critic
-ledger, `FACTS.md` and the source on one review page that separates what was
-measured from what a human must still watch or hear.
+Check deterministic seeking with `scripts/determinism.ts`, inspect the rendered
+film and listen to the final audio. Use Claude for visual design. Shipped code
+gets one independent review; do not run repeated critique rounds or document
+reviews. Deliver the requested film, source, licences and useful evidence.

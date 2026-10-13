@@ -48,8 +48,8 @@ require_base() {
   }
 }
 
-components_all="config guidance pi-chrome loc web-search failover accounts image-budget openrouter-live continuation-nudge diff-review audio-sandbox pass-env skills openrouter-auth"
-engineering_skills='agent-design authenticated-commands cloudflare-workers design-studio engineering-operations foundation pokayoke remote-execution story-qa system-one test-audit typesafe-ai user-stories visual-state-review'
+components_all="config guidance pi-chrome loc web-search failover accounts image-budget openrouter-live audio-sandbox pass-env skills openrouter-auth"
+engineering_skills='agent-design authenticated-commands cloudflare-workers design-studio engineering-operations pokayoke remote-execution story-qa system-one test-audit typesafe-ai user-stories visual-state-review'
 
 selected=${PI_CONFIG_COMPONENTS:-all}
 case "$selected" in
@@ -153,12 +153,9 @@ run_shared() {
   mode=${1-}
   set --
   if has pass-env; then set -- "$@" --bin pass-env.ts; fi
-  if has guidance; then set -- "$@" --bin design-check.ts; fi
   if has skills; then
     for skill in $engineering_skills; do set -- "$@" --skill "$skill"; done
-    set -- "$@" --bin foundation-check.ts --bin review-check.ts
   fi
-  if has skills || has guidance; then set -- "$@" --bin story-deletion-check.ts; fi
   if has audio-sandbox; then set -- "$@" --audio-sandbox; fi
   if has guidance; then
     set -- "$@" \
@@ -177,6 +174,7 @@ validate_shared() {
 
 install_shared() {
   run_shared
+  rm -rf -- "$agent_dir/extensions/diff-review" "$agent_dir/extensions/continuation-nudge"
   if has skills; then
     for skill in session-close pr-preview sachstand video; do
       rm -rf -- "$agent_dir/skills/$skill"
@@ -286,46 +284,6 @@ install_openrouter_live() {
   done
 }
 
-validate_continuation_nudge() {
-  for file in index.ts decide.ts index.test.ts decide.test.ts; do
-    require_nonempty "$repo_dir/extensions/continuation-nudge/$file"
-  done
-  # The repo ships monorepo-only shims for the shared modules; the installed
-  # package must carry the real files (same pattern as diff-review/engine.ts).
-  require_base
-  require_nonempty "$base_dir/system-one/continuation.ts"
-  require_nonempty "$base_dir/system-one/engine.ts"
-}
-
-install_continuation_nudge() {
-  # Pokayoke: clean-replace the owned package so obsolete files cannot survive.
-  # Materialize the real shared continuation.ts and engine.ts over the repo
-  # shims so the deployed package loads self-contained.
-  rm -rf "$agent_dir/extensions/continuation-nudge"
-  install -d -m 700 "$agent_dir/extensions/continuation-nudge"
-  for file in index.ts decide.ts index.test.ts decide.test.ts; do
-    install -m 600 "$repo_dir/extensions/continuation-nudge/$file" "$agent_dir/extensions/continuation-nudge/$file"
-  done
-  install -m 600 "$base_dir/system-one/continuation.ts" "$agent_dir/extensions/continuation-nudge/continuation.ts"
-  install -m 600 "$base_dir/system-one/engine.ts" "$agent_dir/extensions/continuation-nudge/engine.ts"
-}
-
-validate_diff_review() {
-  require_base
-  require_nonempty "$base_dir/system-one/engine.ts"
-  for file in index.ts engine.ts diff-review.test.ts; do
-    require_nonempty "$repo_dir/extensions/diff-review/$file"
-  done
-}
-
-install_diff_review() {
-  # Pokayoke: clean-replace the owned package so obsolete files cannot survive.
-  rm -rf "$agent_dir/extensions/diff-review"
-  install -d -m 700 "$agent_dir/extensions/diff-review"
-  install -m 600 "$repo_dir/extensions/diff-review/index.ts" "$agent_dir/extensions/diff-review/index.ts"
-  install -m 600 "$repo_dir/extensions/diff-review/diff-review.test.ts" "$agent_dir/extensions/diff-review/diff-review.test.ts"
-  install -m 600 "$base_dir/system-one/engine.ts" "$agent_dir/extensions/diff-review/engine.ts"
-}
 
 # Agent audio sandbox (US-026), two layers. The owned `shellCommandPrefix`
 # routes the bash tool from settings, independent of any extension loading;
@@ -360,8 +318,6 @@ if has failover; then validate_failover; fi
 if has accounts; then validate_accounts; fi
 if has image-budget; then validate_image_budget; fi
 if has openrouter-live; then validate_openrouter_live; fi
-if has continuation-nudge; then validate_continuation_nudge; fi
-if has diff-review; then validate_diff_review; fi
 if has audio-sandbox; then validate_audio_sandbox; fi
 if has openrouter-auth; then validate_openrouter_auth; fi
 
@@ -374,7 +330,5 @@ if has failover; then install_failover; fi
 if has accounts; then install_accounts; fi
 if has image-budget; then install_image_budget; fi
 if has openrouter-live; then install_openrouter_live; fi
-if has continuation-nudge; then install_continuation_nudge; fi
-if has diff-review; then install_diff_review; fi
 if has audio-sandbox; then install_audio_sandbox; fi
 if has openrouter-auth; then install_openrouter_auth; fi

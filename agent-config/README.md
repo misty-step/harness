@@ -11,14 +11,7 @@ harness installer declares which primitives it selects.
 | `guidance/*.md` | Global-guidance sections spliced at the harness marker |
 | `bin/pass-env.ts` | pass-backed environment launcher |
 | `bin/openrouter-key.ts` | OpenRouter key resolver: R90 checkouts get the R90 entry, others `--personal` (US-028) |
-| `bin/foundation-check.ts` | Foundation Standard validator (US-024; [ADR-003](../docs/decisions/historical/003-foundation-checks.md), [ADR-005](../docs/decisions/historical/005-operational-obligations.md), [0012](../docs/decisions/0012-decisions-and-primitives-in-foundation.md), `--help`) |
-| `bin/design-check.ts` | Player-surface copy checker |
-| `bin/review-check.ts` | Headless-Chromium first-screen check for operator review pages (US-050) |
-| `bin/story-deletion-check.ts` | Exact-commit base-story capability check (US-051) |
-| `bin/semantic-*.ts`, `bin/feature-map.ts` | Undeployed source candidates ([semantic quality](../docs/semantic-quality.md), ADR-003) |
-| `system-one/` | Shared typed judgments, Git adapters, fixtures and cache |
 | `audio-sandbox/` | Silent agent sink contract and host deploy ([README](audio-sandbox/README.md), US-026) |
-| `desktop-guard/` | Opt-in memory guard ([runbook](../docs/desktop-memory-guard.md), US-043) |
 | `session-backup/` | Opt-in nightly session-store backup ([README](session-backup/README.md)) |
 
 ## Install contract
@@ -39,26 +32,19 @@ Drop `--check` to deploy. `--home` overrides `$HOME` for `~/.local/bin`.
 Launchers are bundled into self-contained executables in private scratch and
 replaced atomically; unchanged owned launchers stay, foreign files are rejected,
 and preflight never executes candidate source. Both harness installs select
-`--audio-sandbox`; `--desktop-guard` and `--session-backup` are opt-in.
+`--audio-sandbox`; `--session-backup` is opt-in.
 
 Each guidance file is one complete `##` section. The installer replaces the
 harness file's `<!-- shared guidance: agent-config -->` line with the selected
 sections in order; a missing marker aborts the deploy.
 
-## Story-preserving deletion (US-051)
+## Retired checks
 
-```sh
-pass-env run -f .env.pass -- bun --no-env-file --no-install \
-  agent-config/bin/story-deletion-check.ts \
-  --repo /path/to/project --base BASE --head HEAD --json
-```
-
-Use the merge base and exact PR head. Only a Jev `removes` choice with removal
-probability ≥0.80 is a `hold` (exit 1); `pass`, `skipped` and `unavailable` exit
-0, bad invocation or Git failure exits 2. Send a hold to Kaylee for Phaedrus's
-approval of that exact change. The [PR workflow](../.github/workflows/story-deletion.yml)
-runs trusted checker code from `github.workflow_sha` and never executes candidate
-objects.
+Foundation adoption, story-deletion judgments, prose density, copy lint, semantic
+review, launch admission and memory cages are removed. Installs remove owned
+stale check binaries, resource launchers, units and foundation skills while
+leaving running processes alone. Native user-path proof and one independent
+code review remain.
 
 ## Official TypeSafe skill
 

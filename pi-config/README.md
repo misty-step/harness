@@ -6,8 +6,8 @@ composer chrome, the LOC status extension, the Exa web-search tool, the
 image-budget extension, the model-fallback-chain extension, the OpenRouter
 live-model bridge, and
 the `pi()` key-injection wrapper block in `~/.bashrc`. Shared primitives —
-skill packages, global guidance, and the `pass-env`, `openrouter-key`,
-`design-check`, `foundation-check`, `review-check`, and `ws` launchers — come from the sibling
+skill packages, global guidance, and the `pass-env` and `openrouter-key`
+launchers — come from the sibling
 base `agent-config`. `./install`
 deploys the owned agent-directory components into `$PI_CODING_AGENT_DIR`
 (default `~/.pi/agent`); the wrapper block is applied to `~/.bashrc` by hand
@@ -66,7 +66,6 @@ presentation; "behavioral" changes agent capability, model input, or data flow.
 | `extensions/accounts/` | this repo | behavioral | yes | Extra account slots (`openai-2`…`-4`, legacy `openai-codex-2`…`-4`, `xai-2`, `openrouter-2`): built-in login, refresh and streaming under their own `auth.json` keys, plus `openai-pool`/`xai-pool`/`openrouter-pool` that balance a request across a provider's accounts, block one at its usage limit until reset and share that state in `account-pool.json`; `/pool` lists them; no shared OMP credentials (US-045, ADR-024/026) |
 | `extensions/image-budget/` | this repo | behavioral | yes | Inline-image ceiling: oldest images dropped over 15 MB per request; large images shrunk with ffmpeg at ingest (ADR-019) |
 | `extensions/openrouter-live/` | this repo | behavioral | yes | Live OpenRouter bridge: models the `pi.dev` mirror lacks are appended to `models.json`, additive-only, at session start (≥2 h) and `/models-live` (ADR-022) |
-| `extensions/continuation-nudge/` | this repo | behavioral | yes (component `continuation-nudge`; shared modules materialized) | Bounded Jev continuation nudge at agent settle: advisory, fail-open, max 2 per prompt, `JEV_NUDGE_MODE=off` disables. Review trigger: pi gains a native anti-premature-stop or continuation control, or nudges fire on completed work |
 | `extensions/audio-sandbox/` | this repo | behavioral | yes (component `audio-sandbox`; shared contract materialized) | Agent audio routed to the silent `agent-sandbox` sink (US-026): owned `shellCommandPrefix` for the bash tool plus `process.env` for every other child |
 | `auth.json.openrouter` | this repo (only this entry) | behavioral | yes (component `openrouter-auth`) | Command key bills R90 for its checkout or linked worktrees and the existing Pi personal entry elsewhere; invalid token on failed lookup blocks fallback (US-028, ADR-023) |
 | `agent-config` (skills, guidance, credential and skill helpers) | shared base | behavioral | yes | Selected engineering skills and self-contained helpers; management packages are not default runtime |
@@ -233,25 +232,6 @@ replaces same-id entries through pi's own merge, the overlay needs no cleanup
 once `pi.dev` catches up. Removing the directory restores stock behavior: pi
 sees OpenRouter models on the mirror's schedule.
 
-**`continuation-nudge/` — behavioral, installed.** Owns the
-anti-premature-stop nudge (US-010). On `agent_settled` it asks one byte-frozen
-Choice question through the OpenRouter Decisions API (`typesafe/jev-1.13`;
-OpenRouter credentials only — no TypeSafe-direct fallback) and, only on a
-confident `nudge`, injects the fixed advisory message as a follow-up turn.
-Advisory only: it registers nothing on tool, permission, or approval paths,
-and the answer never authorizes new work. Every error, timeout, missing key,
-or unusable answer fails open and ends the run like stock pi. Loops are
-bounded deterministically: at most `JEV_NUDGE_MAX` nudges per user prompt
-(default 2), and a previous nudge with no tool result after it is suppressed
-without calling Jev. Credentials never enter classifier state; previews are
-redacted and capped, and the serialized state is bounded. Status and decision
-files live in the agent dir (`continuation-nudge-status.json`,
-`continuation-nudge.jsonl`, rotated); `/continuation` is read-only status.
-`JEV_NUDGE_MODE=off` restores stock pi. `decide.ts` is pure and bun-tested;
-`index.ts` is the harness edge. `pi-config/install` deploys this directory
-(component `continuation-nudge`) and materializes the real shared
-`continuation.ts` and `engine.ts` over the repo shims, exactly like
-`diff-review/engine.ts`, so the installed package loads self-contained.
 
 **`audio-sandbox/` — behavioral, installed.** Keeps agent audio out of the
 operator's ears (US-026). The component writes an owned `shellCommandPrefix`
@@ -443,8 +423,9 @@ failover became sticky (then revisit the once-per-session latch).
 
 Unset `PI_CONFIG_COMPONENTS` means `all`. Select a subset with a space-separated
 list: `config`, `guidance`, `pi-chrome`, `loc`, `web-search`, `failover`,
-`accounts`, `image-budget`, `openrouter-live`, `continuation-nudge`,
-`diff-review`, `audio-sandbox`, `pass-env`, `skills`, `openrouter-auth`.
+`accounts`, `image-budget`, `openrouter-live`, `audio-sandbox`, `pass-env`,
+`skills`, `openrouter-auth`. Installs remove old diff-review and continuation
+nudge packages; no model review runs automatically.
 
 `agent-config` must be checked out beside this repo (default
 `$repo_dir/../agent-config`; override with `AGENT_CONFIG_DIR`). `guidance`,

@@ -18,7 +18,6 @@ secrets:
 retry:
   modelFallback: false
 task:
-  maxRecursionDepth: 3
   enableEffort: true
   enableLsp: true
   isolation:

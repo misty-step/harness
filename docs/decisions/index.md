@@ -1,15 +1,9 @@
 # Decisions
 
-A steering veto list. Open it before proposing a new primitive, surface, or
-storage home. Write a record after deciding *not* to build something the next
-agent will otherwise re-propose. Do not write one per PR. Start from
-[0000-template.md](0000-template.md); the primitives map is
-[primitives.yaml](../architecture/primitives.yaml). Component decisions:
-[pi-config](../../pi-config/docs/decisions/index.md).
+Historical decisions and optional design references. Current operating guidance
+is [Foundations](../../FOUNDATIONS.md); records are not permission gates.
+The [primitives map](../architecture/primitives.yaml) describes ownership.
 
-## Steering
-
-- [0012](0012-decisions-and-primitives-in-foundation.md): decisions and primitives in the Foundation Standard, not an ADR diary.
 
 ## Principles
 

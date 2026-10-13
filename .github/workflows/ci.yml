@@ -2,9 +2,6 @@ name: CI
 on:
   pull_request:
   workflow_call:
-    secrets:
-      OPENROUTER_API_KEY:
-        required: true
   workflow_dispatch:
 permissions:
   contents: read
@@ -20,14 +17,6 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
-      # Local-only validation uses the same candidate classifier as publication.
-      # Any newly generated changelog stays in this disposable checkout.
-      - name: Validate protected release candidate before merge
-        uses: misty-step/landmark@0be932f9fd775f826427eb5ada2f24efb9a393d8 # v0.28.9
-        with:
-          mode: prepare-protected
-          github-token: ${{ github.token }}
-          synthesis: 'false'
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: '1.4.2'
@@ -41,17 +30,3 @@ jobs:
           fi
       - name: Check workspace and all components sequentially
         run: ./scripts/check all
-      # A review that cannot run fails this step (exit 2); only fork pull requests,
-      # which receive no secrets by design, skip it.
-      - name: System One semantic review gate
-        env:
-          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
-          FORK: ${{ github.event.pull_request.head.repo.fork }}
-        run: |
-          if [ "$FORK" = "true" ]; then
-            echo "Semantic review gate skipped: fork pull requests receive no secrets."
-          elif [ "${{ github.event_name }}" = "pull_request" ]; then
-            bun omp-config/bin/omp-diff-review.ts --range "origin/${{ github.base_ref }}..HEAD" --strict
-          else
-            bun omp-config/bin/omp-diff-review.ts --commit HEAD --strict
-          fi

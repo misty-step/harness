@@ -3,57 +3,15 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "nod
 import { homedir } from "node:os";
 import { join } from "node:path";
 
-const root = join(import.meta.dir, "..");
 const roots: string[] = [];
 const landmark = process.env.LANDMARK_BIN;
 
-function object(value: unknown): Record<string, unknown> {
-	if (value === null || typeof value !== "object" || Array.isArray(value)) throw new Error("Expected a workflow mapping");
-	return value as Record<string, unknown>;
-}
-
-function steps(job: Record<string, unknown>): Record<string, unknown>[] {
-	if (!Array.isArray(job.steps)) throw new Error("Expected workflow steps");
-	return job.steps.map(object);
-}
-
-// This is a required-check configuration contract, not an assertion about
-// private source: a skipped/different validator lets the release race land.
-test("US-015 required verify validates the merge candidate with the publisher's Landmark", () => {
-	if (process.env.CI === "true") {
-		expect(landmark, "CI must supply LANDMARK_BIN; the real release replay must not silently skip").toBeTruthy();
-	}
-	const ci = object(Bun.YAML.parse(readFileSync(join(root, ".github/workflows/ci.yml"), "utf8")));
-	const release = object(Bun.YAML.parse(readFileSync(join(root, ".github/workflows/landmark-release.yml"), "utf8")));
-	const job = object(object(ci.jobs).verify);
-	expect(ci.permissions).toEqual({ contents: "read" });
-	expect(job.permissions).toBeUndefined();
-	expect(job.if).toBeUndefined();
-	expect(job["continue-on-error"]).toBeUndefined();
-	const checkout = steps(job).find(step => typeof step.uses === "string" && step.uses.startsWith("actions/checkout@"));
-	expect(object(checkout?.with)["fetch-depth"]).toBe(0);
-	expect(object(checkout?.with)["persist-credentials"]).toBe(false);
-	expect(object(checkout?.with).ref).toBeUndefined(); // PR default is the prospective merge, not just its head.
-	const validator = steps(job).find(step => step.with && object(step.with).mode === "prepare-protected");
-	expect(validator, "Required verify must reject stale protected release candidates before merge").toBeDefined();
-	if (!validator) throw new Error("Missing release validator");
-	expect(steps(job).indexOf(validator)).toBeGreaterThan(steps(job).indexOf(checkout!));
-	expect(validator.if).toBeUndefined();
-	expect(validator["continue-on-error"]).toBeUndefined();
-	expect(object(validator.with).synthesis).toBe("false");
-	for (const name of ["publish-landed-release", "prepare-release-pr"]) {
-		const owner = steps(object(object(release.jobs)[name])).find(step => typeof step.uses === "string" && step.uses.startsWith("misty-step/landmark@"));
-		expect(validator.uses).toBe(owner?.uses);
-	}
-});
 
 afterEach(() => {
 	for (const path of roots.splice(0)) rmSync(path, { recursive: true, force: true });
 });
 
-// CI receives the checksum-verified binary from the native Landmark action.
-// Local offline checks retain the configuration contract; opt into this real
-// binary replay with LANDMARK_BIN, using the same version as the action pin.
+// Optional replay against the installed Landmark binary.
 test.skipIf(!landmark)("US-015 a docs-only base advance invalidates a candidate before landing; regeneration recovers", () => {
 	const scratch = process.env.TMPDIR ?? join(homedir(), ".cache/tmp");
 	mkdirSync(scratch, { recursive: true });

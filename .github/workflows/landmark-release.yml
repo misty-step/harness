@@ -11,8 +11,6 @@ permissions:
 jobs:
   verify:
     uses: ./.github/workflows/ci.yml
-    secrets:
-      OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
   publish-landed-release:
     if: github.ref == 'refs/heads/master'
     needs: verify

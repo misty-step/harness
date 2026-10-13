@@ -16,7 +16,7 @@ and agent rules in [AGENTS.md](AGENTS.md).
 - **Composed guidance:** the deployed global `AGENTS.md`: a harness intro plus
   its selected sections. It is generated; never edit the deployed copy.
 - **Launcher:** an executable deployed to `~/.local/bin` from
-  `agent-config/bin/` (`pass-env`, `design-check`, `foundation-check`).
+  `agent-config/bin/` (`pass-env`, `openrouter-key`).
 - **Selection:** the skills, guidance sections, launchers and components a
   harness installer declares for deployment.
 - **Deploy (install):** a live mutation of an agent directory and `~/.local/bin`.
@@ -26,33 +26,16 @@ and agent rules in [AGENTS.md](AGENTS.md).
   Repository installs own exact merged-default-branch admission, fixed existing
   Harness/ai-usage installer execution and live managed-code readback. OMP owns
   the client and cage exposure. Neither accepts caller commands or auth changes.
-- **Foundation Standard:** the versioned obligation catalog in
-  `agent-config/skills/foundation/`. `foundation-check` enforces it, and a
-  project repository pins a harness revision to adopt it.
-- **Constitution:** the canonical short statement of the foundations,
-  `agent-config/skills/foundation/constitution.md` (ADR-006). The catalog
-  holds the normative obligations behind it.
-- **Invariants ledger:** the `## Invariants` section of a repository's
-  `DOMAIN.md`: every invariant and review rule for what must hold in that
-  repository, each naming its check or marked `unenforced` (ADR-004
-  amendment, ADR-006).
-- **Adoption record:** a project's `foundation.json`, which pins the catalog
-  and records a disposition for every obligation.
-- **Gap, baseline:** a named deficiency (`doc:…`, `map:…`, `walk:US-…`), and
-  the dated list of gaps that ratchet mode tolerates until each expires.
 
 ## Owns and delegates
 
-This repository owns the source of agent configuration for both harnesses and
-the Foundation Standard tooling. It does not own:
+This repository owns agent configuration source for both harnesses. It does not own:
 
 - runtime state, sessions, logs, or authentication files in agent directories,
   which installers preserve;
 - credential values, which live in the pass store; this repository holds entry
   names only;
 - deployed copies, which installers generate from source;
-- a project's foundations: each repository owns its adoption record, stories,
-  walk runner and gate, and this repository supplies the checker;
 - work status, which lives in the project's existing work authority.
 
 ## Invariants
@@ -63,53 +46,18 @@ the Foundation Standard tooling. It does not own:
   files. Enforced by `scripts/verify-installers`.
 - **INV-003** Deployed composed guidance equals the intro plus the selected
   sections. Enforced by `scripts/verify-installers`.
-- **INV-004** The installed `foundation-check` fails closed on a repository
-  without `foundation.json`. Enforced by `scripts/verify-installers`.
-- **INV-005** Relative Markdown links resolve inside the tree. Enforced by
-  `scripts/references.test.ts`.
 - **INV-006** No secret reaches the remote. Enforced by the pre-push gitleaks
   and trufflehog scan (`.githooks/pre-push`, wired by `scripts/bootstrap`).
-- **INV-007** `USER_STORIES.md` passes `check-stories.sh`. `unenforced`: no
-  check runs it on this repository.
-- **INV-008** Desktop-guard staging cannot alter active user units or desktop
-  bindings. Enforced by `agent-config/desktop-guard/test_install.py`.
-- **INV-009** Managed fleet launch refuses missing effective bounds, an
-  unmanaged server or an oomd monitoring ancestor. Enforced at runtime by
-  `agent-config/desktop-guard/desktop-guard.py`; the native owner-path walk is
-  documented in `docs/desktop-memory-guard.md`.
-- **INV-010** A release candidate passes Landmark's own validation on an
-  up-to-date merge candidate before it can land (US-015). `unenforced`: reviewers judge it.
-  Why: CI's `verify` runs the validator in `.github/workflows/ci.yml`;
-  `scripts/protected-release.test.ts` checks current-base replay.
-  Scope: Before an ordinary merge, the agent observes green CI and verifies an
-  up-to-date merge candidate against the current default head. GitHub approval
-  and required-status merge gates were removed by ADR-003's uniform cutover.
 - **INV-011 — retired:** The custom session landing/lease gate was removed with
   US-004 automation. Native Git/SSH facts and explicit user authorization govern
   owned cleanup; foreign work and durable task evidence must be preserved.
-- **INV-012** Activated OMP engineer starts are admitted under one launch lock
-  and enter a verified 4-GiB/zero-swap/group-OOM leaf before native execution.
-  Live cgroups, not launcher PIDs or environment markers, own reservations;
-  measured uncaged memory remains visible during natural-restart migration.
-  Enforced by `omp-config/bin/omp-engineer.py`, with admission/transition
-  coverage in `omp-config/bin/test_omp_engineer.py`. Native Herdr/Glass visibility,
-  terminal recovery and actual low-headroom refusal require the recorded live
-  rollout walk in addition to these isolated tests.
-  Explicit layout activation also requires the installed Workbench updater's
-  versioned capability before writes (`omp-config/install`,
-  `scripts/verify-installers`; MIS-203).
 - **INV-013** The host-install client cannot submit a shell, caller environment,
   destination or source-proof object. Selected-asset installation cannot activate
   consumers; the fixed ai-usage repository installer uses its supported plugin
   rescan without activating the collector or restarting OMP/Pi.
   Enforced by `omp-config/bin/omp-host-install.py` and
   `omp-config/bin/test_omp_host_install.py`; Workbench enforces the host boundary.
-  Existing-cage library socket exposure and native private/library exclusions
-  are checked by `omp-config/bin/test_omp_display.py` (US-052). Late-created
-  Workbench releases remain writable to existing same-UID cages, so new
-  `workbench-item` installs are deferred rather than adding mounts or restarts.
-  Real source eligibility, installation and rollback require the installed
-  owner-path walk, not fixtures.
+  Native installation is also available directly through the scoped installers.
 
 ## Code map
 
@@ -119,7 +67,7 @@ the Foundation Standard tooling. It does not own:
   primitives map (`docs/architecture/primitives.yaml`), verification and
   migration records, and token-efficiency measurements.
 - `omp-config/`: OMP routing, config and MCP, extensions, themes, guidance
-  intro, watchdog, and its installer.
+  intro and installer.
 - `pi-config/`: pi settings, extensions, chrome, guidance intro, its component
   decisions (`pi-config/docs/decisions/`), and its installer.
 - `scripts/`: workspace bootstrap, the fixed `check` gate entry point and the

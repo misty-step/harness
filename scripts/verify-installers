@@ -34,6 +34,12 @@ for consumer in pi omp; do
   printf '{"synthetic":"auth sentinel","anthropic":{"type":"api_key","key":"synthetic-foreign"},"openrouter":{"type":"api_key","key":"synthetic-old"}}\n' > "$work/expected-auth"
   cp "$work/expected-skill" "$agent/skills/foreign/SKILL.md"
   cp "$work/expected-auth" "$agent/auth.json"
+  mkdir -p "$agent/skills/foundation" "$home/.local/bin"
+  printf 'retired foundation package\n' > "$agent/skills/foundation/SKILL.md"
+  printf '#!/usr/bin/env bun\n// review-check: owned standalone launcher (misty-step/harness).\n' > "$home/.local/bin/review-check"
+  mkdir -p "$agent/extensions/diff-review" "$agent/extensions/continuation-nudge"
+  printf 'retired review\n' > "$agent/extensions/diff-review/index.ts"
+  printf 'retired nudge\n' > "$agent/extensions/continuation-nudge/index.ts"
   mkdir -p "$agent/extensions/loc"
   printf 'old owned LOC warming hook\n' > "$agent/extensions/loc/git-hook.sh"
   # Claude Code settings carry foreign keys the audio sandbox must preserve.
@@ -56,6 +62,9 @@ for consumer in pi omp; do
     mkdir -p "$home/.local/bin"
     printf 'foreign native executable sentinel\n' > "$work/expected-native"
     cp "$work/expected-native" "$home/.local/bin/omp"
+    printf 'retired roster\n' > "$home/.local/bin/omp-roster"
+    printf 'retired experiment controller\n' > "$home/.local/bin/omp-experiments.ts"
+    printf 'retired watchdog\n' > "$agent/WATCHDOG.md"
     mkdir -p "$home/.hermes/profiles/kaylee/journal"
     printf '# Experiments\n\n## E-018 Preserved runtime journal sentinel\n' > "$work/expected-experiments"
     cp "$work/expected-experiments" "$home/.hermes/profiles/kaylee/journal/experiments.md"
@@ -107,69 +116,15 @@ for consumer in pi omp; do
   fi
   check "$consumer launcher executable" test -x "$home/.local/bin/pass-env"
   check "$consumer OpenRouter launcher executable" test -x "$home/.local/bin/openrouter-key"
-  check "$consumer design-check executable" test -x "$home/.local/bin/design-check"
-  # The deployed design-check must gate for real: exit 1 on player-copy findings.
-  printf '<p>Ask the operator — the backend is down.</p>\n' > "$home/dirty.html"
-  if env -i PATH="$PATH" HOME="$home" TMPDIR="$work" \
-    bun "$home/.local/bin/design-check" "$home/dirty.html" >"$work/design-check.log" 2>&1; then
-    printf 'FAIL %s design-check gate (exited 0 on findings)\n' "$consumer" >&2
-    failures=$((failures + 1))
-  elif grep -q '\[vocabulary\]' "$work/design-check.log" && grep -q '\[dash\]' "$work/design-check.log"; then
-    printf 'PASS %s design-check gate\n' "$consumer"
-  else
-    printf 'FAIL %s design-check gate (missing findings)\n' "$consumer" >&2
-    cat "$work/design-check.log" >&2
-    failures=$((failures + 1))
-  fi
-  rm -f "$home/dirty.html"
-  check "$consumer foundation-check executable" test -x "$home/.local/bin/foundation-check"
-  check "$consumer review-check executable" test -x "$home/.local/bin/review-check"
-  check "$consumer engineering-operations ships review-page guidance" test -s "$agent/skills/engineering-operations/review-page.md"
-  # The deployed review-check must gate in a real browser: a ninety-word opening
-  # paragraph fails, the same words folded behind the point and the ask pass.
-  prose=$(i=0; while [ "$i" -lt 6 ]; do printf 'Each fix landed as one more sentence in a skill and the same few mistakes kept coming back every week. '; i=$((i + 1)); done)
-  printf '<p>%s</p>\n<p data-review="point">Code fixes hold.</p>\n<p data-review="ask">Approve it.</p>\n' "$prose" > "$home/dense-review.html"
-  printf '<p data-review="point">Code fixes hold.</p>\n<p data-review="ask">Approve it.</p>\n<details><summary>Why</summary><p>%s</p></details>\n' "$prose" > "$home/recut-review.html"
-  if env -i PATH="$PATH" HOME="$home" TMPDIR="$work" \
-    bun "$home/.local/bin/review-check" "$home/dense-review.html" >"$work/review-check-dense.log" 2>&1; then
-    printf 'FAIL %s review-check gate (exited 0 on a dense first screen)\n' "$consumer" >&2
-    failures=$((failures + 1))
-  elif grep -q '\[dense-block\]' "$work/review-check-dense.log"; then
-    printf 'PASS %s review-check rejects a dense first screen\n' "$consumer"
-  else
-    printf 'FAIL %s review-check gate (missing finding)\n' "$consumer" >&2
-    cat "$work/review-check-dense.log" >&2
-    failures=$((failures + 1))
-  fi
-  if env -i PATH="$PATH" HOME="$home" TMPDIR="$work" \
-    bun "$home/.local/bin/review-check" "$home/recut-review.html" >"$work/review-check-recut.log" 2>&1; then
-    printf 'PASS %s review-check accepts the concise recut\n' "$consumer"
-  else
-    printf 'FAIL %s review-check rejected the concise recut\n' "$consumer" >&2
-    cat "$work/review-check-recut.log" >&2
-    failures=$((failures + 1))
-  fi
-  rm -f "$home/dense-review.html" "$home/recut-review.html"
+  check "$consumer removes installed foundation package" test ! -e "$agent/skills/foundation"
+  check "$consumer removes installed review-check" test ! -e "$home/.local/bin/review-check"
+  check "$consumer removes automatic review" test ! -e "$agent/extensions/diff-review"
+  check "$consumer removes automatic nudge" test ! -e "$agent/extensions/continuation-nudge"
   if [ "$consumer" = omp ]; then
     for skill in herdr pr-preview sachstand session-close parlor ast-grep now-next; do
       check "omp retires $skill" test ! -e "$agent/skills/$skill"
     done
   fi
-  # The deployed checker must resolve the catalog and story checker from the
-  # installed skills, then fail closed on a repository with no adoption record.
-  git init --quiet "$home/bare-repo"
-  if env -i PATH="$PATH" HOME="$home" TMPDIR="$work" PI_CODING_AGENT_DIR="$agent" \
-    bun "$home/.local/bin/foundation-check" check --repo "$home/bare-repo" >"$work/foundation-check.log" 2>&1; then
-    printf 'FAIL %s foundation-check gate (exited 0 without foundation.json)\n' "$consumer" >&2
-    failures=$((failures + 1))
-  elif grep -q 'foundation.json' "$work/foundation-check.log" && ! grep -q 'Cannot find' "$work/foundation-check.log"; then
-    printf 'PASS %s foundation-check gate\n' "$consumer"
-  else
-    printf 'FAIL %s foundation-check gate (installed resolution)\n' "$consumer" >&2
-    cat "$work/foundation-check.log" >&2
-    failures=$((failures + 1))
-  fi
-  rm -rf "$home/bare-repo"
   check "$consumer foreign skill" cmp -s "$work/expected-skill" "$agent/skills/foreign/SKILL.md"
   if [ "$consumer" = pi ]; then
     check "pi retires installed LOC warming hook" test ! -e "$agent/extensions/loc/git-hook.sh"
@@ -201,48 +156,13 @@ for consumer in pi omp; do
     done
     check "omp default install preserves native entrypoint" cmp -s "$work/expected-native" "$home/.local/bin/omp"
     check "omp default install does not activate memory units" test ! -e "$home/.config/systemd/user/omp.slice"
+    check "omp removes installed roster" test ! -e "$home/.local/bin/omp-roster"
+    check "omp removes installed experiment controller" test ! -e "$home/.local/bin/omp-experiments.ts"
+    check "omp removes installed watchdog" test ! -e "$agent/WATCHDOG.md"
     check "omp engineer launcher bytes" cmp -s "$work/source/omp-config/bin/omp-engineer.py" "$home/.local/bin/omp-engineer"
     check "omp engineer launcher executable" test -x "$home/.local/bin/omp-engineer"
     check "omp engineer launcher installed load" "$home/.local/bin/omp-engineer" --help
     check "omp CLI preserves the sole runtime experiment ledger" cmp -s "$work/expected-experiments" "$home/.hermes/profiles/kaylee/journal/experiments.md"
-    # MIS-203: an installed updater must accept the new layout before live
-    # activation writes anything. The virgin-host/native sentinels stay intact.
-    printf '#!/bin/sh\nexit 2\n' > "$home/.local/bin/workbench-host-update"
-    chmod 700 "$home/.local/bin/workbench-host-update"
-    if env -i PATH="$PATH" HOME="$home" TMPDIR="$work" PI_CODING_AGENT_DIR="$agent" \
-      OMP_INSTALL_COMPONENTS=engineer-cage \
-      "$work/source/omp-config/install" >"$work/omp-layout.log" 2>&1; then
-      printf 'FAIL omp cage refuses an incompatible installed updater\n' >&2
-      failures=$((failures + 1))
-    elif cmp -s "$work/expected-native" "$home/.local/bin/omp" \
-      && [ ! -e "$home/.local/lib/omp-engineer/omp" ] \
-      && [ ! -e "$home/.config/systemd/user/omp.slice" ]; then
-      printf 'PASS omp cage refuses incompatible updater before live writes\n'
-    else
-      printf 'FAIL omp cage incompatible-updater refusal before live writes\n' >&2
-      cat "$work/omp-layout.log" >&2
-      failures=$((failures + 1))
-    fi
-    # Staging on an already owned layout must not migrate the old parent policy
-    # or replace the stable alias/native binary: only engineer-cage can do that.
-    mkdir -p "$home/.config/systemd/user" "$home/.local/lib/omp-engineer"
-    printf '# owned by misty-step/harness omp-config engineer-cage\n[Slice]\nMemoryMax=36G\nMemoryHigh=infinity\nMemorySwapMax=0\n' > "$work/expected-active-unit"
-    cp "$work/expected-active-unit" "$home/.config/systemd/user/omp.slice"
-    mv "$home/.local/bin/omp" "$home/.local/lib/omp-engineer/omp"
-    chmod 700 "$home/.local/lib/omp-engineer/omp"
-    ln -s omp-engineer "$home/.local/bin/omp"
-    if env -i PATH="$PATH" HOME="$home" TMPDIR="$work" PI_CODING_AGENT_DIR="$agent" \
-      OMP_INSTALL_COMPONENTS=cli \
-      "$work/source/omp-config/install" >"$work/omp-stage.log" 2>&1 \
-      && cmp -s "$work/expected-active-unit" "$home/.config/systemd/user/omp.slice" \
-      && [ "$(readlink "$home/.local/bin/omp")" = omp-engineer ] \
-      && cmp -s "$work/expected-native" "$home/.local/lib/omp-engineer/omp"; then
-      printf 'PASS omp CLI staging preserves an existing cage layout and parent policy\n'
-    else
-      printf 'FAIL omp CLI staging mutated an existing cage layout or parent policy\n' >&2
-      cat "$work/omp-stage.log" >&2
-      failures=$((failures + 1))
-    fi
     check "omp OpenRouter personal billing entry" \
       env -i PATH="$home/.local/bin:$PATH" HOME="$home" AGENT="$agent" bun -e '
         const doc = Bun.YAML.parse(await Bun.file(`${process.env.AGENT}/models.yml`).text());
@@ -306,16 +226,7 @@ for consumer in pi omp; do
     fi
   fi
 
-  # Installed-load assertions must resolve shared modules inside the
-  # installed home. OMP instead retires its previously deployed nudge.
-  if [ "$consumer" = pi ]; then
-    check "pi continuation-nudge installed load" \
-      env -i PATH="$PATH" HOME="$home" TMPDIR="$work" \
-      bun -e "const m = await import('$agent/extensions/continuation-nudge/index.ts'); if (typeof m.registerContinuationNudge !== 'function') throw new Error('missing registerContinuationNudge export');"
-    check "pi diff-review installed load" \
-      env -i PATH="$PATH" HOME="$home" TMPDIR="$work" \
-      bun -e "const m = await import('$agent/extensions/diff-review/index.ts'); if (typeof m.default !== 'function') throw new Error('missing diff-review register export');"
-  else
+  if [ "$consumer" = omp ]; then
     check "omp continuation-nudge retired" test ! -e "$agent/extensions/continuation-nudge"
     check "omp diff-review retired" test ! -e "$agent/extensions/diff-review"
     check "omp cwd retired" test ! -e "$agent/extensions/cwd"

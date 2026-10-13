@@ -16,11 +16,11 @@ through `../agent-config/install`; `AGENT_CONFIG_DIR` can override that source.
 | --- | --- |
 | `config.yml`, `models.yml` | Native roles, recovery, account policy and provider configuration |
 | `mcp.json` | Selected native MCP servers; deployment preserves foreign servers and authentication |
-| `global/` | OMP guidance and native watchdog configuration |
+| `global/` | OMP guidance |
 | `agents/`, `extensions/`, `themes/` | Specialist definitions, runtime boundaries and presentation |
 | `bin/omp-merge-config.ts` | Source-owned configuration overlay and retirement |
 | `bin/omp-secrets-policy.ts`, `secrets.yml` | Source-owned credential masking configuration |
-| `bin/omp-engineer.py`, `bin/omp-display.py`, `bin/omp-gui.py` | Memory/display isolation and private native GUI execution |
+| `bin/omp-engineer.py`, `bin/omp-display.py`, `bin/omp-gui.py` | Native launch, desktop isolation and private GUI execution |
 | `bin/omp-host-install.py` | Typed Workbench host-install client, not a host shell |
 | `bin/omp-task-usage.ts` | Explicit whole-task cost analysis; not a launcher or scheduler |
 | `references/` | On-demand workstation runbooks |
@@ -42,11 +42,9 @@ The component installer accepts no positional arguments, including `--check`.
 Use [root verification](../docs/verification.md), not live deployment, to check a
 change. `all` selects owned configuration, guidance, MCP, engineering skills,
 agents, themes, extensions, audio isolation and the four workstation safety
-helpers. It stages safety code without activating the engineer cage or restarting
-running sessions. Available targeted components are `config`, `guidance`, `mcp`,
-`agents`, `extensions`, `secrets`, `audio-sandbox`, `cli`,
-`engineer-cage`, and `skill:NAME`. `cli` now means only the four safety helpers,
-not fleet management.
+helpers. It updates future launches without restarting running sessions.
+Available targeted components are `config`, `guidance`, `mcp`, `agents`,
+`extensions`, `secrets`, `audio-sandbox`, `cli`, and `skill:NAME`.
 
 OMP uses `$PI_CODING_AGENT_DIR` when set, otherwise `$(omp config path)`.
 Shared helpers and safety entrypoints deploy to `$HOME/.local/bin`. Foreign
@@ -118,19 +116,18 @@ OMP's source masking configuration retains credential-value redaction. Agent
 audio stays in the silent `agent-sandbox`; startup configuration and the runtime
 extension cover different child-process paths and are both necessary.
 
-## Engineer memory containment
+## Native engineer launch
 
-Explicit `OMP_INSTALL_COMPONENTS=engineer-cage ./install` changes future starts
-only. It retains the native OMP executable, installs the stable safety wrapper,
-and activates the owned systemd slice after validating layout support. It never
-moves running PIDs or restarts the existing fleet. Native memory inspection is
-`omp-engineer memory --json`, not a ticket/fleet admission command. Each verified
-engineer leaf retains its independent memory boundary; capacity guidance warns
-rather than replacing native safety checks with a scheduler.
+`OMP_INSTALL_COMPONENTS='config guidance cli' ./install` removes the stale
+`omp-roster` and experiment controller, replaces the installed `omp-engineer`,
+and removes the owned `omp.slice` unit. It preserves the retained native OMP
+binary and the stable `omp` alias. Launch directly with `omp --model MODEL`.
+No ticket roster, provider probe, memory inspection, lock, resource cap, or
+systemd readiness handshake runs before OMP.
 
-The [desktop memory guard runbook](../docs/desktop-memory-guard.md) owns separate
-opt-in host activation, evidence and rollback. Do not activate either boundary
-merely to verify source changes.
+The CLI install lifts owned slice and active engineer scope memory limits without
+stopping or relocating PIDs. Existing namespaces retain old read-only mounts
+until exit; fresh sessions get writable config/executable paths.
 
 ## Engineer display isolation
 
@@ -141,118 +138,22 @@ screenshot/input commands together on a private Xvfb display. Inspect saved
 images before choosing coordinates. Never reconnect host display sockets or
 browser/debug endpoints. Headless browser QA uses the native browser tool.
 
-### Powder evidence notes
+### Native work records and installation
 
-New Misty Step evidence goes to the exact existing work item in live Powder,
-not the old board. Retain a native request file before sending:
+Use `work-tracker --url https://powder.mistystep.io` directly for work records.
+The legacy Glass writer bridge and note-only Powder wrapper are removed.
+Powder owns native validation, revisions and receipts; R90 work stays in Habitat.
 
-```json
-{"request_id":"unique-retained-request","actor":"exact-engineer-owner","id":"existing-initiative-id","expected_revision":"opaque-current-revision","change":{"kind":"note","comment":"Observed result, proof and remaining gap."}}
-```
-
-Bind the existing Powder Access credential references through `pass-env`
-(`authenticated-commands`), then run:
-
-```sh
-omp-display append-note --powder existing-initiative-id < native-note-request.json
-work-tracker --url https://powder.mistystep.io get existing-initiative-id
-work-tracker --url https://powder.mistystep.io history existing-initiative-id
-```
-
-Follow History's cursor to completion. The command accepts only the native note
-change for that exact ID and calls `work-tracker` at the explicit hosted origin;
-it ignores `POWDER_URL` and never uses Glass or a local store as fallback.
-Powder owns validation, revision checks, immutable history, outcome and request
-replay. A lost acknowledgement remains unknown: replay the exact retained file,
-with the same request ID, actor, revision and comment. Do not create a new
-request, refresh its revision or retry automatically. Credentials stay out of
-the request and receipts. R90 work remains in Habitat.
-
-The positional `append-note ITEM` and its Glass socket bridge remain for
-non-Misty-Step historical compatibility. Both the fresh CLI and fresh bridge
-read the exact canonical scope and reject Misty Step before any append; unknown,
-missing or mismatched owner reads also refuse. The CLI fence protects ordinary
-invocations in cages still running an older bridge. An older bridge's raw socket
-authority is not revoked by staging code: account for retained instances at the
-cutover boundary without restarting engineers. Historical reads, original
-sessions, launch records, journals and receipts remain unchanged.
-
-After independent review and merge, request installation through
-`omp-host-install` and read back the exact installed revision and managed
-hashes. A fresh native command, acknowledged Powder note, exact replay and
-complete History are runtime proof; green tests and staged files are not.
-
-## Audited host installation (US-052)
-
-`omp-host-install` uses Workbench's existing typed socket, not a host shell.
-Selected-asset `install`, receipt `readback` and drift-safe `rollback` retain
-their reviewed-source contract. `capabilities` lists the available operations.
-
-For repository configuration and app updates, use the exact **merge commit**
-of a PR merged into the repository's default branch:
-
-```sh
-omp-host-install install-repository --repository harness --revision FULL_MERGE_SHA
-omp-host-install readback-repository --repository harness
-omp-host-install install-repository --repository ai-usage --revision FULL_MERGE_SHA
-omp-host-install readback-repository --repository ai-usage
-omp-host-install install-repository --repository iron-forest --revision FULL_MERGE_SHA
-omp-host-install readback-repository --repository iron-forest
-```
-
-For new Misty Step installations, retain the repository install/readback
-receipts under the existing initiative and associate their exact revision,
-managed hashes and evidence reference through the reviewed Powder note command
-above. Repository operations do not invoke Glass receipt publication; do not
-use selected-asset `install --item` as a substitute, because that route still
-publishes to Glass. Old selected-asset receipts retain their original readback
-and rollback authority. Iron Forest requires the companion reviewed Workbench
-native recipe to be bootstrapped by the host owner before using this route.
-
-Workbench fetches and verifies that commit itself; caller checkouts, commands,
-environments, destinations, credentials and auth operations are not accepted.
-The fixed repository allowlist is `misty-step/harness`, `misty-step/ai-usage`
-and `misty-step/iron-forest`.
-The existing host-only GitHub read binding also permits the private ai-usage
-fetch; it never enters the source installer's environment or reply.
-
-Harness runs its own OMP installer for `config guidance agents extensions cli`
-and its Pi installer for `config pi-chrome accounts`. Local overlays and foreign
-state remain owned by those installers; auth components and consumer restarts
-are not selected. ai-usage runs its own `install.sh install-app`, including the
-supported Omarchy plugin rescan, without replacing or activating its collector
-timer. Live readback compares the managed code with the recorded install;
-installation does not prove a running OMP/Pi process loaded the new code.
-Repository installs do not use the selected-asset rollback engine.
-
-Iron Forest builds only the embedded-UI `forest` binary with Cargo offline,
-locked dependencies and two build jobs. It retains the immutable executable at
-`~/.local/lib/iron-forest-ship/releases/<full-merge-sha>.native/bin/forest`,
-preserving older releases. Its fixed activation changes only the exact
-executable path in the existing protected `forest-view.service`, preserving
-the publisher's sandbox, state and publish arguments; it reloads systemd and
-restarts only that view unit. The existing API executable and process, Ready,
-native authority/state, credentials and proxy routes remain untouched. No
-caller-supplied command, state path or restart flag is admitted. Readback
-records executable and view-unit hashes and verifies the running publisher;
-it does not hash mutable projections or native authority.
-
-The operator must bootstrap the reviewed, merged Workbench service once outside
-the cage. Existing engineers then reach it through the read-only library mount;
-do not bypass protected mounts when it is unavailable. Earlier lineage:
-[Harness #233](https://github.com/misty-step/harness/pull/233) and
-[Workbench #46](https://github.com/moomooskycow/workbench/pull/46) shipped the
-client/broker without live bootstrap and admitted only CLI/single-skill/bin
-recipes, not these configuration/app updates.
+Run this repository's scoped installer directly after merge. The optional
+Workbench host-install client remains available for its existing operator route,
+but writable local config and executable paths no longer require that broker.
 
 ## Isolated installer checks
 
-Run `../scripts/check omp` after integration. Its installer fixture uses a
-sanitized disposable HOME, agent directories and source checkout; it checks
-foreign settings/auth/MCP preservation, selected package deployment, native
-entrypoint preservation and incompatible safety-layout refusal. It does not
-activate host units or prove provider authentication. Native role/provider and
-changed extension behavior also require a fresh-session smoke.
+Run `../scripts/check omp` for native tests and isolated installer checks.
+They preserve foreign settings/auth/MCP and exercise the desktop boundary.
+An actual native OMP launch proves the launch path; installer checks do not
+prove a running session loaded new guidance.
 
 ## Machine-local preferences
 

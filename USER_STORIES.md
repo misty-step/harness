@@ -43,7 +43,7 @@ Criteria:
 No-gos: no automatic portfolio sweep, model gate, or OpenClaw-specific runner
 commands in a portable skill.
 
-Evidence: `scripts/references.test.ts`,
+Evidence: `scripts/verify-installers`,
 `agent-config/skills/test-audit/SKILL.md`,
 `./scripts/verify all`; working-tree disposable installer smoke for both consumers.
 
@@ -73,113 +73,17 @@ Criteria:
 No-gos: no Playwright-only proof, invented browser walk for internal work,
 universal receipt format, or scheduler created by installing a skill.
 
-Evidence: `scripts/references.test.ts`,
+Evidence: `scripts/verify-installers`,
 `agent-config/skills/story-qa/SKILL.md`;
 disposable Pi and OMP installer smoke.
 
-## US-045 Open the exact review round from the board
+## US-023 Keep verification useful
 
-Statement: When an agent hands me work to review, I want the board to open that
-exact round and keep earlier rounds distinct, so I can review the right page
-without searching folders or exposing private text.
-Retired: 2026-10-01 — Phaedrus assigns review publication and choreography to
-Kaylee's harness, not engineering guidance.
+Run affected native checks and walk the real user path. Code that ships gets
+one independent review, repeated only for real bugs. Documents, briefs and
+measurements need no review.
 
-Criteria:
-1. WHEN Pi or OMP composes global guidance, THE SYSTEM SHALL route review
-   handoffs to the on-demand `engineering-operations` skill.
-2. WHEN that skill is loaded for a handoff, THE SYSTEM SHALL direct each round
-   to its own file under `~/review` and register one exact page with
-   `glass review publish --item <board item id> --page <file under ~/review>`.
-3. THE SYSTEM SHALL explain that publication links that page on the board and
-   marks earlier rounds old.
-4. THE SYSTEM SHALL keep private context, including pile words, in its owning
-   tools, with R90 data in R90 tools and review pages containing public evidence.
-5. THE SYSTEM SHALL define `~/review` as storage for distinct rounds.
-6. IF the work has no board item, THEN THE SYSTEM SHALL direct the agent to ask
-   Kaylee to add one before registering the review.
-
-No-gos: no private text in review pages, folder links, overwritten rounds, or
-review index pages. The board owns publication and history; this story owns
-the shared instructions.
-
-Evidence: `agent-config/review/README.md`; retained as maintainer-only procedure,
-not installed engineering guidance.
-
-## US-023 Keep verification cadence useful
-
-Statement: When I plan repository checks, I want engineer-run affected proof,
-one proven main candidate and owned complete nightly runs, so shipping does not
-rerun an expensive suite on every PR or wait for unrelated regressions.
-
-Criteria:
-1. WHEN Pi or OMP installs shared skills, THE SYSTEM SHALL provide
-   `story-qa/check-cadence.md` and route CI tiering decisions through `story-qa`.
-2. WHEN migrating a repository to lean CI, THE SYSTEM SHALL retain affected local
-   proof, independent exact-head review and cheap pre-main secret/privacy scans,
-   and SHALL remove automatic PR and PR-target CI.
-3. WHEN main selects a candidate, THE SYSTEM SHALL build once, prove affected
-   journeys and consequential boundaries on isolated preprod, then automatically
-   promote the same bytes only after proof succeeds.
-4. WHEN a complete nightly suite runs, THE SYSTEM SHALL record its main revision,
-   check completion and send failures or missing runs through the existing owned
-   triage route; unrelated nightly red SHALL NOT become a blanket shipping veto.
-5. WHEN claiming improved cadence, THE SYSTEM SHALL distinguish proposed
-   schedules from observed candidate and nightly runs.
-
-No-gos: no implicit deletion of required gates, unapproved recurring spend, or
-CI change to Habitat or Tach in this harness PR.
-
-Evidence: `scripts/references.test.ts`,
-`agent-config/skills/story-qa/check-cadence.md`;
-disposable Pi and OMP installer smoke.
-
-## US-024 Enforce repository foundations with required checks
-
-Statement: When I change a project, I want its foundations checked against
-its declared standard and affected user journeys, so an incomplete map or
-unwalked behavior cannot be mistaken for release evidence.
-
-Criteria:
-1. WHEN a repository adopts the Foundation Standard, THE SYSTEM SHALL validate
-   every catalog obligation and approved default against the pinned catalog
-   digest and report pending items as needs-evidence, not compliance passes.
-2. IF required project documents, mapped live stories, tracked source globs,
-   or the verify-skill sections are missing, THEN THE SYSTEM SHALL fail the
-   repository check with the deficient item named.
-3. WHEN a base revision is supplied, THE SYSTEM SHALL identify live stories
-   affected by source files, feature files, and edited story sections; feature
-   files SHALL count only if some `features/` file existed at the merge base,
-   because the change that first creates the map adds no behaviour.
-4. IF a walk receipt omits or fails an affected story, reports a set of
-   criterion numbers that differs from that story's numbered criteria at HEAD
-   (missing, duplicated, or extra), cites an unlisted or tampered artifact, or
-   names a different head or tree, THEN THE SYSTEM SHALL reject it.
-5. WHEN a receipt binds the candidate head and tree, passes every affected
-   story and criterion, and matches all cited artifact digests, THE SYSTEM
-   SHALL accept it.
-6. WHEN catalog 1.5.0 applies, THE SYSTEM SHALL require README, AGENTS,
-   USER_STORIES and DOMAIN with a well-formed invariants ledger; SHALL check
-   the ADR-004 surface files, aliases, core links, routing targets, decision
-   integrity and executable CI gate; and SHALL reject `Check:` or an
-   invariant's missing resolvable check. From catalog 1.9.0 (decision 0012)
-   it SHALL check `docs/decisions/` and `docs/architecture/primitives.yaml`
-   and report `docs/adr/` as a legacy gap.
-7. IF a `satisfied` disposition cites a missing, committed, wrong-revision
-   or wrong-digest receipt, THEN the checker SHALL reject it; IF a
-   `not_applicable` or `exception` disposition lacks a matching tracked
-   `foundation-approval/1` record THEN it SHALL reject it.
-8. IF FND-SEC-001 is `satisfied`, THEN the checker SHALL confirm a
-   secret-scanning job, a configured dependency bot with a green-gated
-   auto-merge job, and an authorization-test job for applications; a runtime
-   receipt SHALL carry the exercise these file checks cannot prove.
-
-No-gos: no deployment, automatic waivers, or replacing an actual story walk
-with a syntactic receipt check.
-
-Evidence: `agent-config/bin/foundation-check.test.ts`,
-`agent-config/skills/foundation/foundation-standard.test.ts`;
-`bun agent-config/bin/foundation-check.ts --help`.
+Evidence: `agent-config/skills/story-qa/check-cadence.md`.
 
 ## Capability: Deployment
 
@@ -275,112 +179,6 @@ the operator's scope decision. Inspect native Git/SSH state, preserve foreign
 work, remove only owned resources when authorized, and report unfinished work
 honestly. No replacement control plane, tracker or automatic cleanup is added.
 
-## Capability: Semantic Review
-
-## US-005 Semantic diff review and security sentinel
-
-Statement: When an agent produces working tree diffs, I want continuous semantic
-evaluation against our standing harness principles, security rules, and pokayoke
-invariants using a System One decision model, so violations and credential leaks are
-intercepted before commit without token or latency waste.
-
-Criteria:
-1. WHEN diff review runs with neither `OPENROUTER_API_KEY` nor `TYPESAFE_API_KEY`
-   configured, THE SYSTEM SHALL report disabled-uncredentialed status without
-   fabricating confidence scores or failing live turns.
-2. WHEN evaluating diffs via OpenRouter (`typesafe/jev-1.13`) or TypeSafe direct,
-   THE SYSTEM SHALL encode queries to the native System One API schema
-   (`map<string, Question>` with Noul, Choice, and Score).
-3. IF a diff contains an active credential, unmasked disk secret, or authority
-   escalation, THEN THE SYSTEM SHALL flag a hard block.
-4. IF a diff silences an error or handles invalid state after occurrence rather
-   than eliminating root cause, THEN THE SYSTEM SHALL flag a pokayoke violation.
-5. WHEN the Pi extension is installed, THE SYSTEM SHALL load all review modules
-   self-contained from the deployed extension directory.
-6. WHEN testing offline or without remote keys, THE SYSTEM SHALL evaluate using
-   deterministic heuristics only under explicit request (`--provider heuristic` or
-   `MOCK_SYSTEM_ONE=1`).
-7. WHEN reviewing working tree diffs, THE SYSTEM SHALL include untracked files
-   by default unless explicitly disabled.
-8. WHEN a diff exceeds context limits, THE SYSTEM SHALL chunk changes by file
-   and hunk boundaries, evaluating chunks in parallel without truncation.
-9. WHEN OMP is installed, THE SYSTEM SHALL remove the retired automatic
-   turn-end diff-review extension. Explicit CLI review remains available.
-10. IF a review or semantic check cannot run (no key, unreadable key entry,
-    provider error, provider unavailable), THEN THE SYSTEM SHALL treat it as a
-    failed run, never a pass: the diff review CLI exits 2, `semantic-check`
-    exits 3, and the root hooks and the Pi automatic review record a failed
-    outcome with its cause through `outcome record` (ADR-009).
-
-No-gos: no fabricated probability or confidence numbers in live sessions; no
-live credential storage on disk; no uncredentialed blocking of interactive turns;
-no silent truncation of multi-file diffs; no unreported review that did not run.
-Evidence: `omp-config/bin/omp-diff-review.test.ts`, `agent-config/bin/hook.test.ts`, `agent-config/bin/semantic-check.test.ts`, `scripts/verify-installers`, `pi-config/extensions/diff-review/diff-review.test.ts`
-
-## US-051 Preserve story capability when deleting
-
-Statement: When an agent proposes or reviews deletion, I want the project's
-base user stories checked for removed or weakened capability, so no story
-disappears without Phaedrus's explicit approval through Kaylee.
-
-Criteria:
-1. WHEN a deletion proposal or PR is assessed, THE SYSTEM SHALL compare its
-   exact base/head Git objects with live statements and numbered criteria in
-   base `USER_STORIES.md`; editing or retiring a story in that proposal SHALL
-   NOT authorize removal of its capability.
-2. IF the proposal contains no deletion, THEN THE SYSTEM SHALL make no model
-   request; a behaviour-preserving deletion SHALL pass without an approval hold.
-3. IF Jev selects capability removal with removal probability at least 0.80,
-   THEN THE SYSTEM SHALL hold the exact head with the base story criteria and
-   deletion evidence, routed to Kaylee for Phaedrus's explicit approval.
-4. WHEN independent review encounters uncertainty or an unavailable Jev check,
-   THE SYSTEM SHALL assess the base-story contract itself; missing keys,
-   provider failures, and incomplete evidence SHALL NOT become capability-loss
-   findings or fabricated clearance.
-5. Recorded App-launcher hold persistence is retired with `agent-review`.
-   The exact-base/head checker and explicit operator authorization requirement
-   remain; an unavailable judgment is not clearance.
-6. WHEN Pi or OMP installs shared skills, THE SYSTEM SHALL provide the
-   self-contained `story-deletion-check` CLI and deletion-proposal guidance.
-
-No-gos: no server-required gate, shared-account approval inference, authorization
-flag, unapproved provider call, or blocking ordinary capability-preserving deletion.
-
-Evidence: `agent-config/system-one/story-deletion.test.ts`,
-`.github/workflows/story-deletion.yml`,
-real past-PR replays and isolated installed CLI walks in `docs/verification.md`.
-
-## US-010 Bounded continuation nudge
-
-Statement: When an agent settles with unfinished actionable work inside the
-user's existing request, I want one bounded advisory continuation nudge from
-Jev, so the agent can advance carried-forward work without looping, without
-stalling on permission or external events, and without the classifier ever
-becoming authority.
-
-Criteria:
-1. WHEN the agent settles with unfinished, actionable work in the user's
-   existing request and Jev returns `nudge` with sufficient confidence, THE
-   SYSTEM SHALL inject exactly one bounded advisory continuation message and a
-   marker, triggering a single follow-up turn.
-2. WHEN the request is complete, a direction is undecided, or progress needs
-   permission, information, or an external event, THE SYSTEM SHALL not nudge.
-3. WHEN the previous nudge in the same user-prompt span saw no new tool
-   result, THE SYSTEM SHALL not nudge again and SHALL not call Jev.
-4. WHEN Jev is unreachable, uncredentialed, or returns an unusable answer,
-   THE SYSTEM SHALL fail open and end the run like stock.
-5. WHEN nudges accumulate, THE SYSTEM SHALL bound consecutive nudges per user
-   prompt (default 2, `JEV_NUDGE_MAX`) and SHALL NOT trap the loop.
-6. WHEN `JEV_NUDGE_MODE=off`, THE SYSTEM SHALL behave like stock (no message,
-   no decision log).
-
-No-gos: no tool, permission, or merge gate; no authorization for new work; no
-credentials, whole transcripts, or file contents in classifier state; no
-unbounded loop.
-
-Evidence: `agent-config/system-one/continuation.test.ts`,
-`pi-config/extensions/continuation-nudge/` (pi only; OMP retired).
-
 ## Capability: Visual verification
 
 ## US-006 Review named UI states
@@ -437,7 +235,6 @@ without new evidence or a named open decision; no committed screenshots or
 binary artifacts; no secrets or sensitive product data in prompts or artifacts.
 
 Evidence: `agent-config/skills/design-studio/SKILL.md`,
-`agent-config/skills/design-studio/scripts/check_design_md.test.ts`,
 `agent-config/skills/design-studio/scripts/imagine.test.ts`.
 
 ## US-044 Subtract content before shipping a designed surface
@@ -456,35 +253,6 @@ No-gos: no global word budget, automatic judgment of semantic redundancy, or
 hiding required safety, status, or accessibility information to meet a count.
 
 Evidence: `agent-config/skills/design-studio/SKILL.md`.
-
-## Capability: Design-surface verification
-
-## US-013 Check player-surface copy before done
-
-Statement: When a design-surface change is about to be called done, I want the
-deterministic copy checks from the design-toolkit trial run over the changed
-player surfaces, so leaked engineering vocabulary, dash characters, and
-placeholder text are caught before acceptance instead of after.
-
-Criteria:
-1. WHEN a design-surface change is called done, THE SYSTEM SHALL run
-   `design-check` over the changed player-surface paths and SHALL route each
-   reported finding to the file and line that produced it.
-2. WHEN player copy sits on its own lines between tags, spans lines, or
-   surrounds an interpolation, THE SYSTEM SHALL scan it all the same.
-3. WHEN a finding is intentional, THE SYSTEM SHALL suppress it with a
-   `design-check: ignore` comment on that line rather than weakening the rule.
-4. WHEN a harness installer deploys shared guidance, THE SYSTEM SHALL deploy
-   the `design-check` launcher with it, so the guidance step resolves outside
-   this repository.
-
-No-gos: no gate on taste; no mandatory vendor install; no model calls or
-network from the check itself; API-route and other backend code stays out of
-the scoped surface list.
-
-Evidence: `agent-config/bin/design-check.test.ts`,
-`agent-config/skills/visual-state-review/SKILL.md`,
-`docs/decisions/historical/002-design-toolkit-trial.md`
 
 ## Capability: Model routing
 
@@ -550,9 +318,9 @@ records are preserved as data and are not used to control launches.
 
 ## US-047 Queue engineer work when the fleet is full — retired
 
-Custom fleet counting, board queue admission and capacity commands are retired
-with `omp-roster`. Native task dispatch remains. Independent memory and display
-isolation (US-043) remain; they are safety boundaries, not a replacement scheduler.
+Custom fleet counting, board queue admission and capacity commands are retired.
+Installs remove stale `omp-roster` launchers. Native task dispatch and desktop
+isolation remain; memory caps and admission checks are removed.
 
 ## Capability: Protected releases
 
@@ -732,51 +500,6 @@ Evidence: `agent-config/audio-sandbox/audio-sandbox.test.ts`,
 `agent-config/audio-sandbox/install.ts host`, and a fresh engineer-session smoke
 recorded in the pull request.
 
-## Capability: Incremental foundation adoption
-
-## US-027 Adopt foundations incrementally without stalling work
-
-Statement: When a repository adopts the Foundation Standard with existing gaps,
-I want those gaps recorded as an expiring baseline that can only shrink, so work
-continues while compliance grows and no gap is silently waived.
-
-Criteria:
-1. WHEN a repository has no `foundation.json`, `foundation-check check` SHALL
-   list every document, story, map, and verify-skill gap instead of failing to
-   run, and `foundation-check baseline --write` SHALL create a bootstrap
-   adoption record whose baseline names exactly those gaps plus one walk entry
-   per live story.
-2. WHILE a repository is in bootstrap mode, `check` SHALL pass only if every
-   current gap has an unexpired baseline entry with an owner and an expiry at
-   most 30 days out, and SHALL fail an expired entry, an entry whose gap is
-   fixed, or a baseline carried in enforced mode.
-3. WHEN a base revision is supplied, `check` SHALL fail a new baseline entry or
-   a later expiry unless an added `foundation/extensions/` record names that
-   gap and expiry, and SHALL fail a story edited in the change that stays
-   unmapped; a first adoption MAY create its baseline.
-4. WHEN validating a walk receipt, THE SYSTEM SHALL accept `unwalked` for a
-   story with an unexpired baseline walk entry (no walk yet), whether or not the
-   change affects it, and report it as advisory; IF a story's walk ran and
-   failed, or a story is `unwalked` without such an entry, THEN THE SYSTEM SHALL
-   fail the receipt (operator decision 2026-09-26). WITH `--all`, THE SYSTEM
-   SHALL require every live story and fail a walk entry whose story now passes.
-5. The designated GitHub App approval/escalation controller is retired. Local
-   baseline-extension records remain validated for shape; that validation does
-   not authenticate the reviewer or authorize an exception.
-6. WHEN an applicable non-ADR-005 obligation stays `pending`, `check` SHALL
-   require its current `obl:<ID>` baseline entry with an owner and expiry
-   within 30 days; `baseline --revision SHA` SHALL add new obligation gaps,
-   while ADR-005's three existing `ops:` keys remain their sole gaps.
-7. Independent review remains engineering work, not a harness-managed GitHub
-   posting/approval gate. `foundation-check` retains `check`, `baseline`,
-   `affected` and `receipt`; its former `review` command is retired.
-
-No-gos: no automatic waivers, no baseline for adoption-record errors, no
-baseline entry more than 30 days out.
-
-Evidence: `agent-config/bin/foundation-check.test.ts` (US-027 block);
-`docs/decisions/historical/003-foundation-checks.md`.
-
 ## US-028 Bill OpenRouter to the project account
 
 Statement: When I work in an R90 checkout through OMP or Pi, I want OpenRouter
@@ -834,202 +557,6 @@ stored; no network or model call in the check.
 
 Evidence: `omp-config/bin/omp-secrets-policy.test.ts`,
 `scripts/verify-installers`
-
-## US-040 Hold every application to shipping, alerting and incident response
-
-Statement: When I run an application in either org, I want the foundation
-check to require that green on the default branch ships, that production
-failures alert loudly, and that incidents end in a fix for the whole class, so
-none of the three can be waived and a missing one cannot pass as done.
-
-Criteria:
-1. WHEN an adoption record's surfaces include `ui`, `cli`, `api` or `deployed`,
-   or it has no surfaces, `foundation-check check` SHALL treat FND-REL-001,
-   FND-ALR-001 and FND-INC-001 as owed, report each one still pending as the
-   gap `ops:ship`, `ops:alert` or `ops:incident`, and fail it unless a valid
-   bootstrap baseline entry covers it.
-2. IF one of the three is dispositioned `exception`, or `not_applicable` for an
-   application, THEN `check` SHALL fail.
-3. WHEN FND-REL-001 is `satisfied`, `check` SHALL fail unless
-   `operations.ship` names the repository's confirmed default branch and either
-   a platform or a workflow that fires on every push to that branch (or on its
-   successful `workflow_run`), honouring branch globs and exclusions and
-   rejecting path and tag-only filters and a `workflow_run` whose upstream is
-   not itself that push-triggered gate, with a named ship job that waits on the
-   gate, where the ship job and every job it needs exist, use only `if:` guards
-   that keep every green push to the default branch, and (for gate jobs) do not
-   continue on error.
-4. WHEN FND-ALR-001 is `satisfied`, `check` SHALL fail unless
-   `operations.alert` names an error-capture file that references its
-   provider, a scheduled health workflow or a named external monitor, and an
-   alert destination.
-5. WHEN FND-ALR-001 is `satisfied`, `operations.alert.destination` SHALL
-   name an approved agent triage route; no other destination SHALL pass.
-6. WHEN FND-INC-001 is `satisfied`, `check` SHALL fail unless
-   `docs/runbook.md` has a non-empty `## Incidents` section and every
-   postmortem in `docs/postmortems/` has `## Pokayoke` and `## Follow-up`
-   sections, with a closed one linking the change that closed its class.
-7. WHEN `baseline --revision SHA` runs on an existing record, THE SYSTEM SHALL
-   re-pin its standard to that revision and add every obligation the catalog
-   gained as `pending`, leaving existing dispositions and walk entries
-   unchanged and adding no new walk entry.
-8. The designated-review trigger for application reclassification is retired;
-   the adopted repository's own review authority governs that decision.
-9. WHEN FND-REL-001 is `satisfied`, `operations.ship.tenancy` SHALL declare
-   `single` or `multi`; for `multi`, `check` SHALL require an existing complete
-   tenant registry and tenant-state command or workflow, with each exclusion
-   naming a registry tenant and giving a reason. A platform-only multi-tenant
-   ship SHALL fail; the migration job SHALL exist in the ship workflow and be
-   in the ship job's transitive `needs` chain, subject to the same gate guards.
-   The receipt SHALL read back every non-excluded tenant's deployed revision
-   and migration level after deploy; migrations SHALL run for each tenant
-   before deploy, remain backward-compatible with still-running code, and
-   stop rollout on failure (operator decision 2026-09-26).
-10. WHEN an ADR-005 operational obligation is satisfied, its ordinary
-    `foundation-evidence/1` receipt SHALL bind a retained payload digest and
-    HEAD revision without weakening the existing structural ship, alert and
-    incident checks. Its pending `ops:` gap SHALL still be dated under the
-    ratchet, rather than silently treated as compliance.
-
-No-gos: no exception path for the three; no lint claiming runtime practice (a
-receipt carries the controlled-failure, migration and every-tenant shipping
-readback evidence); no heuristic guessing of deploy commands or silent tenant
-exclusions.
-
-Evidence: `agent-config/bin/foundation-check.test.ts` (ADR-005 block);
-`docs/decisions/historical/005-operational-obligations.md`.
-
-## US-041 Meet the foundations while working
-
-Statement: When an agent works in any of my projects, I want it to meet the
-foundations every project keeps, stated once in a short constitution, so its
-work implements, maintains and improves them without me restating them.
-
-Criteria:
-1. WHEN Pi or OMP installs shared guidance, THE SYSTEM SHALL name the
-   constitution as `skill://foundation/constitution.md` and as a path, relative
-   to deployed `AGENTS.md`, that resolves to the deployed constitution.
-2. WHEN Pi or OMP installs shared skills, THE SYSTEM SHALL deploy the
-   constitution with the `foundation` skill, and every relative link in that
-   package SHALL resolve inside it.
-3. WHEN composed guidance is deployed, THE SYSTEM SHALL equal the harness
-   intro plus every selected section in the declared order.
-
-No-gos: no catalog obligations restated in guidance; no authoring
-instructions in the constitution (they live in the skill's authoring notes);
-no authority granted beyond ADR-006.
-
-Evidence: `scripts/references.test.ts`, `scripts/verify-installers`;
-`docs/decisions/historical/006-foundation-decisions.md`.
-
-## US-042 See where a foundation looks weak before a check can decide it
-
-Statement: When a foundation in one of my adopted repositories cannot yet be
-decided by a deterministic check, I want an advisory read of the repository's
-own evidence, so agents see likely gaps early, uncertain answers go to a
-frontier agent, and no merge ever waits on a model's guess.
-
-Criteria:
-1. WHEN `foundation-assess` runs, THE SYSTEM SHALL read only tracked Git
-   content at the chosen ref (`origin/HEAD`, else `HEAD`) and SHALL NOT write
-   to the repository.
-2. WHEN it assesses a packet within the request budget using OpenRouter, THE
-   SYSTEM SHALL ask `typesafe/jev-1.13` every question for that packet in one
-   request and record the packet hash, coverage manifest, requested and
-   resolved models, raw answers and an outcome of `finding`, `no_finding`,
-   `escalate`, `abstained` or `unavailable` from the thresholds stored beside
-   the questions; a packet over the budget, and a run with the offline
-   heuristic, SHALL send nothing to Jev and report `abstained`, and a run with
-   no provider SHALL report `unavailable`.
-3. IF the provider fails or times out, THEN THE SYSTEM SHALL report
-   `unavailable`; IF the requested model is not `typesafe/jev-1.13`, THEN THE
-   SYSTEM SHALL NOT send the packet; IF any revision other than the approved
-   one resolves, THEN THE SYSTEM SHALL report `abstained`; none of these SHALL
-   become `no_finding`.
-4. IF an answer would conclude from code excerpts that a setting is absent,
-   THEN THE SYSTEM SHALL abstain however complete the excerpts look; IF other
-   evidence was truncated, THEN THE SYSTEM SHALL abstain instead of reporting
-   a confident absence; IF ledger prose has no single-rule boundaries, THEN THE
-   SYSTEM SHALL list it as not assessed.
-5. WHEN selected evidence contains a secret, THE SYSTEM SHALL redact it before
-   any provider receives the packet.
-6. THE SYSTEM SHALL exit 0 for every advisory outcome and 2 for invalid
-   invocation.
-
-No-gos: no required check, merge gate or disposition change, and no
-replacement for a drill or walk (ADR-003, ADR-006); no working-tree reads; no
-credential values in output.
-
-Evidence: `agent-config/system-one/foundation-assess.test.ts`,
-`docs/semantic-quality.md`.
-
-## Capability: Desktop memory containment
-
-## US-043 Keep development memory failures out of the desktop fleet
-
-Statement: When engineers and verification jobs run on my workstation, I want
-native resource boundaries and bounded local admission, so a terminal-scope
-memory kill cannot take the entire fleet with it.
-
-Criteria:
-1. WHEN the desktop guard is staged, THE SYSTEM SHALL preserve running servers,
-   engineers, active desktop configuration, and existing user-unit configuration.
-2. WHEN the managed launcher starts or attaches to Herdr, THE SYSTEM SHALL
-   verify the server belongs to its bounded user service outside every active
-   oomd monitoring ancestor, and refuse an unmanaged server without replacing it.
-3. WHEN that service restores panes or starts explicit-command panes, THE SYSTEM
-   SHALL charge their newly allocated memory beneath the same bounded fleet
-   hierarchy without relying on an interactive-shell wrapper.
-4. WHEN a child exhausts a deliberately small test memory limit, THE SYSTEM
-   SHALL keep the test Herdr server and an unrelated sentinel alive, without
-   systemd stopping the fleet service because of the child OOM.
-5. WHILE two admitted local heavy jobs are active, THE SYSTEM SHALL refuse a
-   third; admitted jobs SHALL have independent memory/swap bounds and preserve
-   command arguments, working directory, exit status, and environment except
-   for the guard-owned TMPDIR under `~/.cache/tmp`.
-6. WHEN cutover is requested, THE SYSTEM SHALL provide explicit operator-owned
-   activation and rollback steps that reconcile existing limits without
-   silently restarting a running fleet.
-7. WHEN OMP engineer caging is explicitly activated, THE SYSTEM SHALL serialize
-   live inspection through verified native startup and retain each leaf's
-   independent 4-GiB containment while descendants remain.
-8. WHEN available memory is below the 20-GiB guideline or measured fleet memory exceeds
-   its advisory guideline, THE SYSTEM SHALL warn in stderr and launch JSON,
-   then launch anyway. Memory capacity SHALL NOT refuse a native wrapper
-   launch, and no opt-out flag SHALL be required. Memory warnings SHALL NOT
-   create or update Glass board items; verified containment remains mandatory.
-9. WHEN an interactive native OMP engineer starts, THE SYSTEM SHALL verify effective 4-GiB memory,
-   zero swap, group-OOM and actual membership outside every live oomd-monitored
-   ancestor, while preserving argv, cwd, environment, PTY and session identity.
-10. WHEN a caged engineer is killed, THE SYSTEM SHALL restore sane terminal
-    state and discard stale query input before returning to the shell, without
-    replaying the interrupted tool or releasing the surviving leaf's containment.
-11. WHEN the rollout is activated, THE SYSTEM SHALL preserve running Herdr and
-    existing engineers; only their natural exits/restarts migrate them.
-    Mandatory inspection SHALL NOT enumerate legacy processes, ancestry,
-    RSS/PSS/smaps or heavy jobs; unavailable capacity guidance SHALL only warn.
-12. WHEN the native binary updates or Herdr restores a saved engineer, THE
-    SYSTEM SHALL retain the caged entrypoint; staging on an unactivated host
-    SHALL preserve the native executable and leave active units unchanged.
-13. WHEN an installed Workbench updater has not accepted the versioned cage
-    layout, explicit activation SHALL refuse before changing the entrypoint or
-    live units; source-only updater changes SHALL NOT count as compatibility.
-14. WHEN OMP is used for native print, explicit modes, management roots/aliases,
-    help/version/export/profile alias creation or non-TTY stdin, THE SYSTEM SHALL
-    execute the native binary in the caller's cgroup without engineer inspection.
-    Native argument value boundaries and end-of-options SHALL be preserved;
-    print-shaped prompt data SHALL NOT bypass interactive containment.
-
-No-gos: no Herdr fork, privileged changes, global oomd tuning, automatic live
-cutover, or claim of protection from arbitrary same-user cgroup escapes or a
-kernel OOM selecting the Herdr server itself. A shared fleet cap is not
-per-engineer memory isolation. Transitional uncaged engineers remain unbounded
-until their natural restart; advisory guidance does not retroactively cap them.
-
-Evidence: `agent-config/desktop-guard/`, `omp-config/bin/omp-engineer.py`,
-`omp-config/bin/test_omp_engineer.py`,
-`docs/desktop-memory-guard.md`, and
-`docs/postmortems/2026-09-26-shared-terminal-oom.md`.
 
 ## US-045 Sign Pi into more than one account per provider
 
@@ -1092,9 +619,8 @@ Criteria:
 4. WHEN skills are consolidated, THE SYSTEM SHALL migrate current callers,
    remove retired owned packages and preserve foreign packages and executable
    contracts.
-5. WHEN verifying this subtraction, THE ENGINEER SHALL replay the same five
-   authentic recent engineer first turns before and after, report word counts
-   and scope/delivery regressions, and distinguish planning proof from execution.
+5. WHEN verifying changed guidance, THE ENGINEER SHALL inspect the composed
+   instructions and exercise the affected actual consumer.
 
 No-gos: no code/config permission changes or new message templates; Kaylee's
 existing Hermes operating skill remains outside this operator-approved
@@ -1111,31 +637,3 @@ and native GitHub evidence remain application capabilities, not harness-managed
 lifecycle. `story-qa` still guides actual affected-path verification; no replacement
 preview service, scheduler or upload credential is introduced.
 
-## US-050 Understand every review page at a glance
-
-Statement: When an agent hands me a review page, I want its whole point and every
-ask on the first laptop screen, in short lines, with detail one click down, so I
-can decide without scrolling or reading a book.
-
-Criteria:
-1. WHEN an agent is asked for an operator review page, THE SYSTEM SHALL carry
-   the one-screen rule on demand through `engineering-operations`: point, each
-   ask and short blocks first, all detail folded behind drill-down, none deleted.
-2. WHEN an agent checks a page with `review-check`, THE SYSTEM SHALL load it in
-   real headless Chromium at 1280x640 and report a missing point or ask, a point
-   or ask hidden, folded, clipped or below the first screen, a visible block
-   over 35 words and a screen over 300 visible words. Visual occlusion SHALL be
-   judged from the saved screenshot, not mouse hit targets.
-3. IF the browser or the page cannot be loaded, THEN THE SYSTEM SHALL exit 2
-   with the reason, never a pass.
-4. WHEN either harness installs shared skills, THE SYSTEM SHALL deploy the same
-   `review-check` launcher and the guidance beside it.
-5. WHEN the maintainer procedure publishes a review round, THE SYSTEM SHALL direct
-   `review-check` before `glass review publish`, with each round its own file
-   beside the earlier rounds.
-
-No-gos: no restyling of pages, no content rules beyond the first screen, no model
-call, no change to Glass, no second registry of pages.
-
-Evidence: `agent-config/bin/review-check.test.ts`, `scripts/verify-installers`,
-`agent-config/skills/engineering-operations/review-page.md`.

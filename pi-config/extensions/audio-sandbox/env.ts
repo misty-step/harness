@@ -1,3 +1,2 @@
-// Repo shim: the installer materializes the real shared contract over this file
-// in the deployed extension directory, exactly like continuation-nudge/engine.ts.
+// Repo shim: the installer materializes the shared contract in the deployed package.
 export * from "../../../agent-config/audio-sandbox/env.ts";
