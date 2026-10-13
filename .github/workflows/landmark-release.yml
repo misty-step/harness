@@ -83,4 +83,3 @@ jobs:
           commit-message: ${{ steps.prepare.outputs.commit-message }}
           body: |
             Automated changelog for `${{ steps.prepare.outputs.release-tag }}` (US-015).
-            An agent obtains independent model review, observes green CI and verifies the current base before merging this exact head normally; no human approval or server-required check gates it.

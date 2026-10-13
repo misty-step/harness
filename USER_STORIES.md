@@ -59,8 +59,8 @@ Criteria:
    agent-invocable `story-qa` and route user-facing change review to it by
    default from composed guidance.
 2. WHEN an agent prepares to call work done, THE SYSTEM SHALL direct it to
-   adversarially review the entire change and verify the relevant path,
-   proportionately for documentation-only and internal work.
+   verify the relevant actual user path; documents and measurements need no
+   review round.
 3. WHEN selecting a QA walk, THE SYSTEM SHALL tie each affected journey to a
    root story ID or request criterion, user actions, observable postconditions,
    and owned cleanup.

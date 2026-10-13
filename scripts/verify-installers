@@ -64,6 +64,19 @@ for consumer in pi omp; do
     cp "$work/expected-native" "$home/.local/bin/omp"
     printf 'retired roster\n' > "$home/.local/bin/omp-roster"
     printf 'retired experiment controller\n' > "$home/.local/bin/omp-experiments.ts"
+    printf '#!/usr/bin/env python3\n# owned by misty-step/harness omp-config auditors\n' > "$home/.local/bin/omp-audit"
+    mkdir -p "$home/.local/state/omp-audit"
+    printf 'retained audit history\n' > "$home/.local/state/omp-audit/history"
+    mkdir -p "$home/.config/systemd/user" "$home/.fixture-bin"
+    # An isolated HOME has no user manager. Acknowledge unit control locally;
+    # assertions below cover file retirement, not live timer shutdown.
+    printf '#!/bin/sh\nexit 0\n' > "$home/.fixture-bin/systemctl"
+    chmod 700 "$home/.fixture-bin/systemctl"
+    printf '# owned by misty-step/harness omp-config auditors\n[Service]\nType=oneshot\nExecStart=/usr/bin/true\n' > "$home/.config/systemd/user/omp-audit@.service"
+    for name in foundations principles simplicity; do
+      printf '# owned by misty-step/harness omp-config auditors\n[Timer]\nUnit=omp-audit@%s.service\nOnActiveSec=1h\n' "$name" > "$home/.config/systemd/user/omp-audit-$name.timer"
+    done
+    printf 'foreign presentation owner\n' > "$home/.config/systemd/user/forest-view.service"
     printf 'retired watchdog\n' > "$agent/WATCHDOG.md"
     mkdir -p "$home/.hermes/profiles/kaylee/journal"
     printf '# Experiments\n\n## E-018 Preserved runtime journal sentinel\n' > "$work/expected-experiments"
@@ -87,7 +100,7 @@ for consumer in pi omp; do
       printf 'old owned retired skill\n' > "$agent/skills/$skill/SKILL.md"
     done
   fi
-  if env -i PATH="$PATH" HOME="$home" TMPDIR="$work" \
+  if env -i PATH="$home/.fixture-bin:$PATH" HOME="$home" TMPDIR="$work" \
     PI_CODING_AGENT_DIR="$agent" \
     OMP_TODOIST_OWNER="$home/missing-todoist" \
     "$work/source/$consumer-config/install" >"$work/$consumer.log" 2>&1; then
@@ -158,6 +171,12 @@ for consumer in pi omp; do
     check "omp default install does not activate memory units" test ! -e "$home/.config/systemd/user/omp.slice"
     check "omp removes installed roster" test ! -e "$home/.local/bin/omp-roster"
     check "omp removes installed experiment controller" test ! -e "$home/.local/bin/omp-experiments.ts"
+    check "omp removes installed obsolete auditor" test ! -e "$home/.local/bin/omp-audit"
+    check "omp preserves audit history" grep -Fxq 'retained audit history' "$home/.local/state/omp-audit/history"
+    for name in omp-audit@.service omp-audit-foundations.timer omp-audit-principles.timer omp-audit-simplicity.timer; do
+      check "omp removes owned $name" test ! -e "$home/.config/systemd/user/$name"
+    done
+    check "omp preserves foreign presentation owner" grep -Fxq 'foreign presentation owner' "$home/.config/systemd/user/forest-view.service"
     check "omp removes installed watchdog" test ! -e "$agent/WATCHDOG.md"
     check "omp engineer launcher bytes" cmp -s "$work/source/omp-config/bin/omp-engineer.py" "$home/.local/bin/omp-engineer"
     check "omp engineer launcher executable" test -x "$home/.local/bin/omp-engineer"

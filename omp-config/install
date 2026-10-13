@@ -278,6 +278,22 @@ install_cli() {
   install -m 700 "$repo_dir/bin/omp-display.py" "$HOME/.local/bin/omp-display"
   install -m 700 "$repo_dir/bin/omp-gui.py" "$HOME/.local/bin/omp-gui"
   install -m 700 "$repo_dir/bin/omp-host-install.py" "$HOME/.local/bin/omp-host-install"
+  # Stop the retired scheduler before removing its launch dependency.
+  for name in omp-audit-foundations.timer omp-audit-principles.timer omp-audit-simplicity.timer omp-audit@.service; do
+    audit_unit="$HOME/.config/systemd/user/$name"
+    if [ -f "$audit_unit" ] && grep -Fqx '# owned by misty-step/harness omp-config auditors' "$audit_unit"; then
+      case $name in
+        *.timer) systemctl --user disable --now "$name" ;;
+        *) systemctl --user stop 'omp-audit@*.service' ;;
+      esac
+      rm -f -- "$audit_unit"
+      systemctl --user daemon-reload
+    fi
+  done
+  audit="$HOME/.local/bin/omp-audit"
+  if [ -f "$audit" ] && grep -Fqx '# owned by misty-step/harness omp-config auditors' "$audit"; then
+    rm -f -- "$audit"
+  fi
   # Retired launchers must not survive source removal. Keep native sessions and
   # historical journals; new engineers use OMP directly.
   rm -f -- "$HOME/.local/bin/omp-roster" "$HOME/.local/bin/omp-experiments.ts"
