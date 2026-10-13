@@ -1,0 +1,16 @@
+[package]
+name = "shippr"
+version = "0.1.0"
+edition = "2021"
+description = "Risk-gated PR ship loop (port of Kent C. Dodds's ship-pr engine shape)"
+license = "MIT"
+publish = false
+
+[dependencies]
+anyhow = "1"
+clap = { version = "4", features = ["derive"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[profile.release]
+strip = true
