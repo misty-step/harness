@@ -48,7 +48,7 @@ enum Cmd {
     },
 }
 
-const FIELDS: &str = "state,isDraft,mergeable,headRefOid,statusCheckRollup,reviews,comments,labels,commits";
+const FIELDS: &str = "state,isDraft,mergeable,headRefOid,statusCheckRollup,reviews,comments,labels";
 
 fn view(pr: &str) -> Result<state::Pr> {
     let out = Command::new("gh").args(["pr", "view", pr, "--json", FIELDS]).output().context("running gh")?;
@@ -63,7 +63,8 @@ fn main() -> Result<()> {
         Cmd::Tick { pr, risk, allow_no_ci } => println!("{}", serde_json::to_string_pretty(&tick::tick(&view(&pr)?, risk, allow_no_ci))?),
         Cmd::Policy { risk } => println!("{}", serde_json::to_string_pretty(&policy::gates(risk))?),
         Cmd::Bugbot { pr } => {
-            if !Command::new("gh").args(["pr", "comment", &pr, "--body", "bugbot run"]).status()?.success() {
+            let body = state::bugbot_comment(&view(&pr)?.head_ref_oid);
+            if !Command::new("gh").args(["pr", "comment", &pr, "--body", &body]).status()?.success() {
                 bail!("gh pr comment failed");
             }
         }

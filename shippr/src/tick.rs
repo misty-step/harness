@@ -60,7 +60,7 @@ pub fn tick(pr: &Pr, risk: Risk, allow_no_ci: bool) -> Step {
     if !missing.is_empty() {
         return Step::Review { missing };
     }
-    if bots_pending.iter().any(|b| b == BUGBOT) && pr.bugbot_triggered_for_head() == Some(false) {
+    if bots_pending.iter().any(|b| b == BUGBOT) && !pr.bugbot_triggered_for_head() {
         return Step::TriggerBugbot;
     }
     if !bots_pending.is_empty() {
@@ -85,7 +85,7 @@ pub fn tick(pr: &Pr, risk: Risk, allow_no_ci: bool) -> Step {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::state::{Author, Check, Comment, CommitInfo, CommitRef, Label, Review};
+    use crate::state::{bugbot_comment, Author, Check, Comment, CommitRef, Label, Review};
 
     const HEAD: &str = "abc1234def5678";
 
@@ -103,7 +103,6 @@ mod tests {
             status_check_rollup: green(),
             reviews: vec![review("moomooskycow", "Codex review: APPROVE @abc1234\nClaude review: APPROVE @abc1234"), review("cursor", "")],
             labels: vec![Label { name: SCREENSHOTS_LABEL.into() }, Label { name: VIDEO_LABEL.into() }],
-            commits: vec![CommitInfo { oid: HEAD.into(), committed_date: "2026-10-13T09:00:00Z".into() }],
             ..Default::default()
         }
     }
@@ -121,18 +120,16 @@ mod tests {
         let mut pr = ready();
         pr.reviews.truncate(1);
         assert_eq!(tick(&pr, Risk::Medium, false), Step::TriggerBugbot);
-        pr.comments.push(Comment { author_association: "MEMBER".into(), body: "bugbot run".into(), created_at: "2026-10-13T11:00:00Z".into() });
+        pr.comments.push(Comment { author_association: "MEMBER".into(), body: bugbot_comment(HEAD), created_at: "2026-10-13T11:00:00Z".into() });
         assert!(matches!(tick(&pr, Risk::Medium, false), Step::Waiting { .. }));
         pr.comments[0].author_association = "NONE".into();
         assert_eq!(tick(&pr, Risk::Medium, false), Step::TriggerBugbot, "outsider trigger does not count");
-        // GitHub's clock wins over a back-dated commit: checks started at 12:00, so an 11:00 trigger is stale.
+        // A trigger for an earlier head does not count for a new push, whatever the clocks say.
         pr.comments[0].author_association = "MEMBER".into();
-        pr.status_check_rollup[0].started_at = "2026-10-13T12:00:00Z".into();
+        pr.comments[0].body = bugbot_comment("0ld0000");
         assert_eq!(tick(&pr, Risk::Medium, false), Step::TriggerBugbot);
-        // Unknown head arrival: wait instead of spamming triggers.
-        pr.status_check_rollup[0].started_at.clear();
-        pr.commits.clear();
-        assert!(matches!(tick(&pr, Risk::Medium, false), Step::Waiting { .. }));
+        pr.comments[0].body = "bugbot run".into();
+        assert_eq!(tick(&pr, Risk::Medium, false), Step::TriggerBugbot, "unmarked trigger is not bound to a head");
         assert_eq!(tick(&ready(), Risk::Medium, false), Step::Merge);
     }
 
