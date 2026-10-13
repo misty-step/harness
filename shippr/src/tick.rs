@@ -1,7 +1,7 @@
 //! The tick: a pure function from PR state + risk to the one focused next step.
 //! The agent acts on the step, then ticks again. `Waiting` means come back after
 //! `poll_after_seconds`; never tight-loop.
-use crate::policy::{gates, Risk};
+use crate::policy::{gates, Risk, BUGBOT};
 use crate::state::{Ci, Pr, Verdict};
 use serde::Serialize;
 
@@ -60,7 +60,7 @@ pub fn tick(pr: &Pr, risk: Risk, allow_no_ci: bool) -> Step {
     if !missing.is_empty() {
         return Step::Review { missing };
     }
-    if bots_pending.iter().any(|b| b == "cursor") && !pr.bugbot_triggered_for_head() {
+    if bots_pending.iter().any(|b| b == BUGBOT) && pr.bugbot_triggered_for_head() == Some(false) {
         return Step::TriggerBugbot;
     }
     if !bots_pending.is_empty() {
@@ -125,6 +125,14 @@ mod tests {
         assert!(matches!(tick(&pr, Risk::Medium, false), Step::Waiting { .. }));
         pr.comments[0].author_association = "NONE".into();
         assert_eq!(tick(&pr, Risk::Medium, false), Step::TriggerBugbot, "outsider trigger does not count");
+        // GitHub's clock wins over a back-dated commit: checks started at 12:00, so an 11:00 trigger is stale.
+        pr.comments[0].author_association = "MEMBER".into();
+        pr.status_check_rollup[0].started_at = "2026-10-13T12:00:00Z".into();
+        assert_eq!(tick(&pr, Risk::Medium, false), Step::TriggerBugbot);
+        // Unknown head arrival: wait instead of spamming triggers.
+        pr.status_check_rollup[0].started_at.clear();
+        pr.commits.clear();
+        assert!(matches!(tick(&pr, Risk::Medium, false), Step::Waiting { .. }));
         assert_eq!(tick(&ready(), Risk::Medium, false), Step::Merge);
     }
 

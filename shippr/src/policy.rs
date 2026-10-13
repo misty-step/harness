@@ -2,6 +2,9 @@
 //! with Maren's 2026-10-13 calls (Powder init-kent-autopilot-flow).
 use serde::{Deserialize, Serialize};
 
+/// Bugbot's login as `gh pr view` reports it.
+pub const BUGBOT: &str = "cursor";
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, clap::ValueEnum)]
 #[serde(rename_all = "snake_case")]
 pub enum Risk {
@@ -41,7 +44,7 @@ pub fn gates(risk: Risk) -> Gates {
         },
         Risk::Medium => Gates {
             green_ci: true,
-            bots: vec!["cursor"],
+            bots: vec![BUGBOT],
             cross_vendor_review: true,
             screenshots: true,
             video: false,
@@ -49,7 +52,7 @@ pub fn gates(risk: Risk) -> Gates {
         },
         Risk::High => Gates {
             green_ci: true,
-            bots: vec!["cursor"],
+            bots: vec![BUGBOT],
             cross_vendor_review: true,
             screenshots: true,
             video: true,

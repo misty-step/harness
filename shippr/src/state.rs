@@ -62,6 +62,8 @@ pub struct Check {
     pub conclusion: String,
     #[serde(default)]
     pub state: String,
+    #[serde(default)]
+    pub started_at: String,
 }
 
 #[derive(Clone, Debug, Default, Deserialize)]
@@ -168,12 +170,19 @@ impl Pr {
         verdict
     }
 
-    /// A trusted `bugbot run` comment posted after the head commit landed.
-    pub fn bugbot_triggered_for_head(&self) -> bool {
-        let Some(head) = self.commits.iter().find(|c| c.oid == self.head_ref_oid) else { return false };
-        self.comments.iter().any(|c| {
-            trusted(&c.author_association) && c.body.trim().eq_ignore_ascii_case("bugbot run") && c.created_at > head.committed_date
-        })
+    /// When the head arrived, by GitHub's clock: the earliest check run on it. Falls back to the
+    /// commit date only when no check has started. None when the head is unknown.
+    pub fn head_arrived_at(&self) -> Option<&str> {
+        let started = self.status_check_rollup.iter().map(|c| c.started_at.as_str()).filter(|t| !t.is_empty()).min();
+        started.or_else(|| self.commits.iter().find(|c| c.oid == self.head_ref_oid).map(|c| c.committed_date.as_str()))
+    }
+
+    /// Some(true) if a trusted `bugbot run` comment came after the head arrived; None if unknown.
+    pub fn bugbot_triggered_for_head(&self) -> Option<bool> {
+        let arrived = self.head_arrived_at()?;
+        Some(self.comments.iter().any(|c| {
+            trusted(&c.author_association) && c.body.trim().eq_ignore_ascii_case("bugbot run") && c.created_at.as_str() > arrived
+        }))
     }
 
     pub fn has_label(&self, name: &str) -> bool {
