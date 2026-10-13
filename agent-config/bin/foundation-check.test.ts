@@ -489,9 +489,17 @@ describe("foundation-check (US-024)", () => {
 		put(repo, ".agents/skills/ship/SKILL.md", "# Ship, edited\n");
 		commit(repo, "edit vendored skill");
 		expect(errors()).toContain("[doc:skills-lock] skills-lock.json: ship computedHash does not match .agents/skills/ship");
-		lock(hash("SKILL.md\0# Ship, edited\n\0"), "./.agents/skills/gone");
-		commit(repo, "missing source");
-		expect(errors()).toContain("[doc:skills-lock] skills-lock.json: ship source ./.agents/skills/gone has no tracked files");
+		put(repo, "vendor/ship/SKILL.md", "# Ship\n");
+		lock(hash("SKILL.md\0# Ship\n\0"), "./vendor/ship");
+		commit(repo, "source elsewhere");
+		expect(errors()).toContain("[doc:skills-lock] skills-lock.json: ship source ./vendor/ship must be ./.agents/skills/ship");
+		lock(hash("SKILL.md\0# Ship, edited\n\0"));
+		put(repo, ".agents/skills/extra/SKILL.md", "# Extra\n");
+		commit(repo, "unlocked vendored skill");
+		expect(errors()).toContain("[doc:skills-lock] skills-lock.json: extra needs a computedHash");
+		exec(repo, ["rm", "-q", "-r", ".agents/skills/extra"]);
+		commit(repo, "drop extra");
+		expect(cli(repo, "check").status).toBe(0);
 	});
 
 	test("an adoption pinned below 1.9.0 keeps the docs/adr contract; 1.9.0 requires decisions and primitives", () => {

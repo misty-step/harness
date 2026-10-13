@@ -629,15 +629,20 @@ function primitivesIssues(repo: string, files: string[], headFiles: Map<string, 
 		const lock = files.includes("skills-lock.json") && repositoryFile(repo, "skills-lock.json") ? jsonOrUndefined(readFileSync(join(repo, "skills-lock.json"), "utf8")) : undefined;
 		const pinned = record(lock) && record(lock.skills) ? lock.skills : undefined;
 		if (!pinned) issues.push({ gap: "doc:skills-lock", message: ".agents/skills/ needs a tracked skills-lock.json with a skills object" });
-		else for (const skill of skills) {
+		else for (const skill of new Set([...skills, ...Object.keys(pinned)])) {
 			const entry = pinned[skill];
 			if (!record(entry) || !/^[0-9a-f]{64}$/.test(String(entry.computedHash))) {
 				issues.push({ gap: "doc:skills-lock", message: `skills-lock.json: ${skill} needs a computedHash` });
 				continue;
 			}
+			// The lock pins the vendored copy itself: source must be exactly .agents/skills/<skill>.
+			const source = `.agents/skills/${skill}`;
+			if (String(entry.source).replace(/^\.\//, "").replace(/\/$/, "") !== source) {
+				issues.push({ gap: "doc:skills-lock", message: `skills-lock.json: ${skill} source ${entry.source} must be ./${source}` });
+				continue;
+			}
 			// computedHash: sha256 hex over the tracked files under `source`, sorted by path relative to it,
 			// each contributing relpath + "\0" + bytes + "\0".
-			const source = String(entry.source).replace(/^\.\//, "").replace(/\/$/, "");
 			const members = safePath(source) ? files.filter((file) => file.startsWith(`${source}/`)).sort() : [];
 			const digest = createHash("sha256");
 			for (const file of members) {
