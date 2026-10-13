@@ -93,6 +93,30 @@ const skill = `# Verify
 ## Evidence
 ## Cleanup
 `;
+const decision = `# 0001: No second journey
+
+- **Status:** accepted
+- **Date:** 2026-10-13
+
+## Context
+A second journey was proposed.
+
+## Decision
+We will not build it; the journey covers the need.
+
+## Consequences
+Revisit if users need two results.
+`;
+const primitives = `version: 1
+groups:
+  - { id: runtime, name: Runtime }
+primitives:
+  - id: journey
+    group: runtime
+    name: Journey
+    summary: Produces the result.
+    code: [src/]
+`;
 function fixture(name: string) {
 	const repo = join(root, name);
 	mkdirSync(repo, { recursive: true });
@@ -106,7 +130,10 @@ function fixture(name: string) {
 	put(repo, "AGENTS.md", "# Agents\n\n## Routing\n\n| Owner | Command |\n| --- | --- |\n| Gate | `scripts/check` |\n\nRead `DOMAIN.md` for invariants.\n");
 	put(repo, "DOMAIN.md", "# Domain\n\n## Glossary\n\nResult: the user outcome.\n\n## Boundaries\n\nThe library owns its result.\n\n## Invariants\n\n- **INV-001** The repository gate decides whether a change is safe. Enforced by `scripts/check`.\n\n## Code map\n\nSource lives under src/.\n");
 	put(repo, "USER_STORIES.md", `# Stories\n\n${liveStory}\n${retiredStory}\n${headingRetiredStory}`);
-	put(repo, "docs/adr/0001-initial.md", "# Initial decision\n\nStatus: Accepted\n");
+	put(repo, "docs/decisions/0000-template.md", "# NNNN: Short decision title\n");
+	put(repo, "docs/decisions/index.md", "# Decisions\n\n- [0001](0001-initial.md)\n");
+	put(repo, "docs/decisions/0001-initial.md", decision);
+	put(repo, "docs/architecture/primitives.yaml", primitives);
 	put(repo, "features/README.md", "# Index\n\n[Journey](journey.md)\n");
 	put(repo, "features/journey.md", feature);
 	put(repo, "src/nested/journey.ts", "export const result = 1;\n");
@@ -397,21 +424,109 @@ describe("foundation-check (US-024)", () => {
 		expect(cli(repo, "check").status).toBe(0);
 	});
 
-	test("ADR integrity rejects duplicate numbers, missing supersession and wrong homes", () => {
-		const repo = fixture("adr-integrity");
-		put(repo, "docs/adr/0001-another.md", "# Duplicate\n\nStatus: Accepted\n");
-		commit(repo, "duplicate ADR number");
-		expect(cli(repo, "check").output.errors.join(" ")).toContain("duplicate ADR 1");
-		exec(repo, ["rm", "-q", "docs/adr/0001-another.md"]);
-		put(repo, "docs/adr/0001-initial.md", "# Decision\n\nStatus: Superseded\n\nSuperseded by ADR-0002\n");
-		expect(cli(repo, "check").output.errors.join(" ")).toContain("Superseded by 0002 does not resolve");
-		put(repo, "docs/adr/0001-initial.md", "# Decision\n\nStatus: Accepted\n");
-		put(repo, "docs/decisions/0002-retired.md", "# Wrong home\n\nStatus: Accepted\n");
-		commit(repo, "outside ADR home");
-		expect(cli(repo, "check").output.errors.join(" ")).toContain("ADRs belong only in docs/adr/");
+	test("decision integrity rejects duplicate numbers, missing headings, unresolved supersession and wrong homes (0012)", () => {
+		const repo = fixture("decision-integrity");
+		const errors = () => cli(repo, "check").output.errors.join("\n");
+		put(repo, "docs/decisions/historical/001-old.md", "# ADR-001: Old\n\nAccepted.\n");
+		commit(repo, "duplicate number across historical");
+		expect(errors()).toContain("[doc:decisions] docs/decisions/historical/001-old.md: duplicate decision 1");
+		exec(repo, ["rm", "-q", "docs/decisions/historical/001-old.md"]);
+		put(repo, "docs/decisions/0001-initial.md", decision.replace("## Consequences", "## Outcome"));
+		expect(errors()).toContain("docs/decisions/0001-initial.md: missing ## Consequences");
+		put(repo, "docs/decisions/0001-initial.md", decision.replace("- **Status:** accepted\n", ""));
+		expect(errors()).toContain("missing Status line");
+		put(repo, "docs/decisions/0001-initial.md", decision.replace("accepted", "superseded by [0002](0002-next.md)"));
+		expect(errors()).toContain("Status must be accepted or superseded by a decision in docs/decisions");
+		put(repo, "docs/decisions/0002-next.md", decision.replace("0001", "0002"));
+		commit(repo, "supersede");
+		expect(cli(repo, "check").status).toBe(0);
+		put(repo, "decisions/0003-elsewhere.md", decision);
+		commit(repo, "outside decision home");
+		expect(errors()).toContain("decisions belong only in docs/decisions/");
+		exec(repo, ["rm", "-rq", "decisions", "docs/decisions"]);
+		commit(repo, "no decisions");
+		expect(errors()).toContain("[doc:decisions] FND-DOC-001: missing docs/decisions/");
 	});
 
-	test("generated ADR index and tracked dated postmortem are not decision records", () => {
+	test("legacy docs/adr is a gap a baseline can time-box; its README pointer is not", () => {
+		const repo = fixture("decision-legacy");
+		put(repo, "docs/adr/0001-initial.md", "# Initial decision\n\nStatus: Accepted\n");
+		commit(repo, "legacy ADR");
+		expect(cli(repo, "check").output.errors.join("\n")).toContain("[doc:adr] docs/adr/ is legacy: migrate to docs/decisions/ (decision 0012)");
+		bootstrap(repo, [{ gap: "doc:adr", owner: "team", expires: day(10) }]);
+		expect(cli(repo, "check").status).toBe(0);
+		exec(repo, ["rm", "-q", "docs/adr/0001-initial.md"]);
+		put(repo, "foundation.json", `${JSON.stringify(adoption(), null, 2)}\n`);
+		put(repo, "docs/adr/README.md", "Moved to [docs/decisions/](../decisions/index.md).\n");
+		commit(repo, "pointer");
+		expect(cli(repo, "check").status).toBe(0);
+	});
+
+	test("primitives map is required, resolves groups and code roots at HEAD, and vendored skills are locked (0012)", () => {
+		const repo = fixture("primitives");
+		const errors = () => cli(repo, "check").output.errors.join("\n");
+		exec(repo, ["rm", "-q", "docs/architecture/primitives.yaml"]);
+		commit(repo, "no map");
+		expect(errors()).toContain("[doc:primitives] docs/architecture/primitives.yaml: missing at HEAD");
+		put(repo, "docs/architecture/primitives.yaml", primitives.replace("[src/]", "[src/, ghost/]"));
+		commit(repo, "ghost root");
+		expect(errors()).toContain("journey: code root ghost/ does not exist at HEAD");
+		put(repo, "ghost/journey.ts", "export {};\n");
+		expect(errors()).toContain("code root ghost/ does not exist at HEAD"); // untracked is not HEAD
+		put(repo, "docs/architecture/primitives.yaml", `${primitives}  - id: journey\n    group: platform\n    name: Twin\n    summary: Duplicate.\n    code: [src/]\n`);
+		commit(repo, "duplicate and undeclared group");
+		expect(errors()).toContain("duplicate primitive journey");
+		expect(errors()).toContain("journey: group platform is not declared");
+		put(repo, "docs/architecture/primitives.yaml", primitives);
+		put(repo, ".agents/skills/ship/SKILL.md", "# Ship\n");
+		commit(repo, "vendored skill");
+		expect(errors()).toContain("[doc:skills-lock] .agents/skills/ needs a tracked skills-lock.json");
+		const lock = (computedHash: string, source = "./.agents/skills/ship") =>
+			put(repo, "skills-lock.json", JSON.stringify({ version: 1, skills: { ship: { source, sourceType: "local", computedHash } } }));
+		lock(hash("SKILL.md\0# Ship\n\0"));
+		commit(repo, "lock");
+		expect(cli(repo, "check").status).toBe(0);
+		put(repo, ".agents/skills/ship/SKILL.md", "# Ship, edited\n");
+		commit(repo, "edit vendored skill");
+		expect(errors()).toContain("[doc:skills-lock] skills-lock.json: ship computedHash does not match .agents/skills/ship");
+		put(repo, "vendor/ship/SKILL.md", "# Ship\n");
+		lock(hash("SKILL.md\0# Ship\n\0"), "./vendor/ship");
+		commit(repo, "source elsewhere");
+		expect(errors()).toContain("[doc:skills-lock] skills-lock.json: ship source ./vendor/ship must be ./.agents/skills/ship");
+		lock(hash("SKILL.md\0# Ship, edited\n\0"));
+		put(repo, ".agents/skills/extra/SKILL.md", "# Extra\n");
+		commit(repo, "unlocked vendored skill");
+		expect(errors()).toContain("[doc:skills-lock] skills-lock.json: extra needs a computedHash");
+		exec(repo, ["rm", "-q", "-r", ".agents/skills/extra"]);
+		commit(repo, "drop extra");
+		expect(cli(repo, "check").status).toBe(0);
+	});
+
+	test("an adoption pinned below 1.9.0 keeps the docs/adr contract; 1.9.0 requires decisions and primitives", () => {
+		const repo = fixture("pre-decisions");
+		const older = join(repo, "..", "catalog-1.8.1.json");
+		const olderBytes = Buffer.from(JSON.stringify({ ...catalogData, version: "1.8.1" }));
+		writeFileSync(older, olderBytes);
+		const pin = (version: string, bytes: Buffer) => {
+			const state = adoption();
+			state.standard = { ...state.standard, version, catalog_sha256: hash(bytes) };
+			put(repo, "foundation.json", `${JSON.stringify(state, null, 2)}\n`);
+		};
+		exec(repo, ["rm", "-rq", "docs/decisions", "docs/architecture"]);
+		put(repo, "docs/adr/0001-initial.md", "# Initial decision\n\nStatus: Accepted\n");
+		pin("1.8.1", olderBytes);
+		commit(repo, "1.8.1 adoption with docs/adr");
+		const run = (path: string) => spawnSync("bun", [script, "check", "--repo", repo, "--catalog", path, "--stories-checker", checker, "--json"], { cwd: repo, encoding: "utf8", env: { ...process.env, GITHUB_EVENT_PATH: "" } });
+		expect(JSON.parse(run(older).stdout).errors).toEqual([]);
+		pin(catalogData.version, catalogBytes);
+		commit(repo, "re-pin to 1.9.0");
+		const errors = JSON.parse(run(catalog).stdout).errors.join("\n");
+		expect(errors).toContain("[doc:decisions] FND-DOC-001: missing docs/decisions/");
+		expect(errors).toContain("[doc:primitives] docs/architecture/primitives.yaml: missing at HEAD");
+		expect(errors).toContain("[doc:adr] docs/adr/ is legacy");
+	});
+
+	test("decision index pointer and tracked dated postmortem are not decision records", () => {
 		const repo = fixture("adr-index-history");
 		put(repo, "docs/adr/README.md", "# Decision index\n");
 		put(repo, "docs/postmortems/2026-09-01-stale-cache.md", "# Incident record\n");
@@ -421,9 +536,9 @@ describe("foundation-check (US-024)", () => {
 
 	test("documents, feature map, source matches and verify skill are enforced", () => {
 		const repo = fixture("map");
-		put(repo, "docs/adr/0001-initial.md", "# Decision without status\n");
-		expect(cli(repo, "check").output.errors.join(" ")).toContain("doc:adr");
-		put(repo, "docs/adr/0001-initial.md", "# Decision\n\nStatus: Accepted\n");
+		put(repo, "docs/decisions/0001-initial.md", "# Decision without status\n");
+		expect(cli(repo, "check").output.errors.join(" ")).toContain("doc:decisions");
+		put(repo, "docs/decisions/0001-initial.md", decision);
 		put(repo, "features/journey.md", feature.replace("src/**", "ghost/**"));
 		expect(cli(repo, "check").output.errors.join(" ")).toContain("matches no tracked files");
 		put(repo, "features/journey.md", feature.replace("src/**", "src/*"));
@@ -640,12 +755,12 @@ describe("foundation-check ratchet (US-027)", () => {
 		commit(repo, "record");
 		expect(against().status).toBe(0);
 		fromBase("new-entry");
-		put(repo, "docs/adr/0001-initial.md", "# Decision missing status\n");
-		bootstrap(repo, [{ gap: "doc:DOMAIN.md", owner: "team", expires: day(10) }, { gap: "doc:adr", owner: "team", expires: day(10) }]);
+		put(repo, "docs/decisions/0001-initial.md", "# Decision missing status\n");
+		bootstrap(repo, [{ gap: "doc:DOMAIN.md", owner: "team", expires: day(10) }, { gap: "doc:decisions", owner: "team", expires: day(10) }]);
 		put(repo, "foundation/extensions/stale.json", JSON.stringify({ schema: "foundation-baseline-extension/1", reason: "Unrelated", entries: [{ gap: "skill:verify", expires: day(10) }] }));
 		commit(repo, "regress");
 		const regressed = against().output.errors.join("\n");
-		expect(regressed).toContain("baseline doc:adr: new entry");
+		expect(regressed).toContain("baseline doc:decisions: new entry");
 		expect(regressed).toContain("skill:verify");
 		expect(regressed).toContain("is not an extension in this change");
 	});

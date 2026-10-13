@@ -406,10 +406,10 @@ engineering plans/dispatch and keeps driving full delivery; Kaylee owns
 commitments and gets board-ready refinements, results and genuine approval
 blockers, not raw worker chatter.
 
-Sources: [constitution](../../agent-config/skills/foundation/constitution.md),
-[normative catalog](../../agent-config/skills/foundation/foundation-standard-v1.json),
-[adoption/cadence](../../agent-config/skills/foundation/foundation-standard-v1.md),
-[ADR-007](007-braver-engineers-continuous-deployment.md),
-[ADR-009](009-nothing-fails-silently.md),
+Sources: [constitution](../../../agent-config/skills/foundation/constitution.md),
+[normative catalog](../../../agent-config/skills/foundation/foundation-standard-v1.json),
+[adoption/cadence](../../../agent-config/skills/foundation/foundation-standard-v1.md),
+[ADR-007](../../principles/007-braver-engineers-continuous-deployment.md),
+[ADR-009](../../principles/009-nothing-fails-silently.md),
 [existing architecture review](https://mirrodin.tail5f5eb4.ts.net/review/summon-architectures-2026-10-03/),
 [retained factory-state dossier](https://mirrodin.tail5f5eb4.ts.net/review/harness/laboratory/factory.html).

@@ -1,13 +1,11 @@
 # Foundation Standard
 
 `foundation-standard-v1.json` is the sole normative catalog: applicability,
-evidence, dispositions, defaults and exceptions; current version 1.8.1.
-Use it for commissioned adoption/assessment, not to widen a bug fix. Follow the
-[constitution](constitution.md): simple UNIX compositions, lean end-user proof and
-few good consumer tests. Past about 10000 LOC, report and seriously consider
-separate services; guidance adds no obligation or gate. Preserve independent
-access/data/migration/privacy/recovery contracts. Structured claims, documentation
-and receipt syntax do not prove correctness.
+evidence, dispositions, defaults and exceptions; current version 1.9.0.
+Use it for commissioned adoption/assessment, not to widen a bug fix.
+[FOUNDATIONS.md](https://github.com/misty-step/harness/blob/master/FOUNDATIONS.md)
+owns operating intent. Preserve independent access/data/migration/privacy/recovery
+contracts. Structured claims, documentation and receipt syntax do not prove correctness.
 
 ## Application feedback and brand kit
 
@@ -22,10 +20,17 @@ scheduled auditor nor builds either obligation; existing pins migrate explicitly
 
 ## Lean safety cadence
 
-The [approved ADR-007 amendment](https://github.com/misty-step/harness/blob/master/docs/adr/007-braver-engineers-continuous-deployment.md#lean-ci-amendment-2026-10-02)
+The [approved ADR-007 amendment](https://github.com/misty-step/harness/blob/master/docs/principles/007-braver-engineers-continuous-deployment.md#lean-ci-amendment-2026-10-02)
 changes FND-CHG-002's cadence and FND-REL-001's deployment proof; see
 `skill://story-qa/check-cadence.md`. Existing pins retain their adopted contract
 until deliberately migrated; Glass is the first rollout.
+
+## Decisions and primitives
+
+1.9.0 replaces `docs/adr/` with a steering `docs/decisions/` list and a
+`docs/architecture/primitives.yaml` map ([decision 0012](https://github.com/misty-step/harness/blob/master/docs/decisions/0012-decisions-and-primitives-in-foundation.md)).
+A re-pin baselines `doc:decisions`, `doc:primitives`, `doc:skills-lock` and
+legacy `doc:adr` as dated gaps; move old ADRs unchanged to `historical/`.
 
 ## Existing adoption interface
 

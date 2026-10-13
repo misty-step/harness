@@ -9,7 +9,7 @@ bootstrap/cadence/review instructions below are not current setup commands.
 Local `check`/`baseline`/`affected`/`receipt`, independent engineering review and
 each adopted repository's existing gates remain; no bulk pin migration is implied.
 
-The accepted [2026-10-02 lean CI amendment](007-braver-engineers-continuous-deployment.md#lean-ci-amendment-2026-10-02)
+The accepted [2026-10-02 lean CI amendment](../../principles/007-braver-engineers-continuous-deployment.md#lean-ci-amendment-2026-10-02)
 supersedes the automatic PR cadence below for deliberately migrated pins:
 engineer proof/review and cheap pre-main scans, one main build with targeted
 preprod proof and automatic same-artifact promotion, full suite nightly through
@@ -363,7 +363,7 @@ approval for any intentional removal and owns that authorized merge outside the
 automatic approval command; this command provides no bypass.
 
 The two public historical replays, model identity, timing and measured cost are
-recorded in [verification](../verification.md#story-deletion-replays-us-051).
+recorded in [verification](../../verification.md#story-deletion-replays-us-051).
 They establish the commissioned loss/preservation cases, not general classifier
 accuracy or server enforcement. Existing fleet pins and live installations are
 unchanged until their owner explicitly deploys the source change.

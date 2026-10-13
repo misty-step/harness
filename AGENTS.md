@@ -48,5 +48,6 @@ launcher writes; use `./scripts/verify`.
 - Use conventional commits. Root Landmark automation owns the single release
   stream. Do not bypass secret scanners.
 
-Cross-component decisions live in `docs/adr/`; component decisions stay in the
-component's own `docs/adr/`.
+Open `docs/decisions/index.md` before proposing a new primitive, surface, or
+storage home; component decisions stay in the component's own
+`docs/decisions/`. `docs/architecture/primitives.yaml` maps the primitives.

@@ -5,7 +5,7 @@ import { evaluateDiff, getGitDiff, resolveProvider, reviewFailure, type ReviewVe
 const OUTCOME_JOB = "pi-diff-review";
 
 /**
- * One outcome record per automatic review (docs/adr/009-nothing-fails-silently.md): a review that could not run is a
+ * One outcome record per automatic review (docs/principles/009-nothing-fails-silently.md): a review that could not run is a
  * failed run that screams through Kaylee's outcome route, never a hidden status. A missing recorder is shown, not swallowed.
  */
 function recordOutcome(ctx: ExtensionContext, cause: string | null, detail?: string): void {

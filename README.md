@@ -17,8 +17,8 @@ agent-config/ ── shared install contract ──┬── pi-config/  → pi 
 | `omp-config/` | OMP routing, config/MCP, extensions, themes, guidance, watchdog | [README](omp-config/README.md) |
 | `codex-config/` | Native Codex model, effort and service-tier defaults only | [Deployment](#codex-defaults-native-installation) |
 
-Intent: [USER_STORIES.md](USER_STORIES.md). Vocabulary, boundaries and
-invariants: [DOMAIN.md](DOMAIN.md). Decisions: [docs/adr/](docs/adr/). Agent
+Foundations: [FOUNDATIONS.md](FOUNDATIONS.md). Intent: [USER_STORIES.md](USER_STORIES.md). Vocabulary, boundaries and
+invariants: [DOMAIN.md](DOMAIN.md). Decisions: [docs/decisions/](docs/decisions/index.md). Agent
 rules: [AGENTS.md](AGENTS.md).
 
 Runtime scope is native Pi/OMP configuration, native Codex model defaults,
@@ -83,7 +83,12 @@ CI, hooks, and releases; component directories retain their focused tests.
 
 ## Foundation Standard
 
-Catalog [1.8.1](agent-config/skills/foundation/foundation-standard-v1.json)
+[FOUNDATIONS.md](https://github.com/misty-step/harness/blob/master/FOUNDATIONS.md)
+is the short operating rubric. Loaded guidance carries its complete text;
+change that source and its copies together. The catalog below remains the sole
+normative adoption contract; this consolidation does not re-pin any project.
+
+Catalog [1.9.0](agent-config/skills/foundation/foundation-standard-v1.json)
 and its [rationale](agent-config/skills/foundation/foundation-standard-v1.md)
 ship with the pinned `foundation-check` checker (ADR-006). A repository's
 `foundation.json` pins its catalog digest and harness revision. Run
@@ -244,7 +249,7 @@ The former `misty-step/{agent-config,pi-config,omp-config}` repositories are
 historical archives. Their original commit histories are reachable here through
 unsquashed subtree imports. Use `git log --all` for pre-import history (old commits
 retain their original paths), or browse the archived repositories and releases.
-See [ADR-001](docs/adr/001-monorepo.md) and the
+See [ADR-001](docs/decisions/historical/001-monorepo.md) and the
 [migration record](docs/migration.md).
 
 [Landmark](https://github.com/misty-step/landmark) owns release machinery.
