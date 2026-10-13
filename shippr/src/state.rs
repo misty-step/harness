@@ -4,8 +4,6 @@ use serde::Deserialize;
 #[derive(Clone, Debug, Default, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Pr {
-    pub number: u64,
-    pub url: String,
     pub state: String,
     #[serde(default)]
     pub is_draft: bool,
@@ -41,8 +39,6 @@ pub struct Check {
 pub struct Review {
     #[serde(default)]
     pub author: Author,
-    #[serde(default)]
-    pub state: String,
     #[serde(default)]
     pub body: String,
 }

@@ -74,11 +74,10 @@ mod tests {
         vec![Check { name: "check".into(), status: "COMPLETED".into(), conclusion: "SUCCESS".into(), ..Default::default() }]
     }
     fn review(login: &str, body: &str) -> Review {
-        Review { author: Author { login: login.into() }, state: "COMMENTED".into(), body: body.into() }
+        Review { author: Author { login: login.into() }, body: body.into() }
     }
     fn ready() -> Pr {
         Pr {
-            number: 1,
             state: "OPEN".into(),
             mergeable: "MERGEABLE".into(),
             status_check_rollup: green(),
