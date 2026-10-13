@@ -12,4 +12,3 @@ __pycache__/
 !/.env.pass
 .landmark/
 coverage/
-shippr/target/
