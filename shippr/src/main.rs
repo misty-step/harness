@@ -2,6 +2,9 @@
 mod policy;
 mod state;
 mod tick;
+mod mermaid;
+mod upsert;
+mod recap;
 
 use anyhow::{bail, Context, Result};
 use clap::{Parser, Subcommand};
@@ -17,6 +20,11 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Cmd {
+    /// Render or maintain the System recap in a PR body.
+    Recap {
+        #[command(subcommand)]
+        cmd: recap::RecapCmd,
+    },
     /// Read the PR and print the focused next step (JSON).
     Tick {
         #[arg(long)]
@@ -60,6 +68,7 @@ fn view(pr: &str) -> Result<state::Pr> {
 
 fn main() -> Result<()> {
     match Cli::parse().cmd {
+        Cmd::Recap { cmd } => recap::run(cmd)?,
         Cmd::Tick { pr, risk, allow_no_ci } => println!("{}", serde_json::to_string_pretty(&tick::tick(&view(&pr)?, risk, allow_no_ci))?),
         Cmd::Policy { risk } => println!("{}", serde_json::to_string_pretty(&policy::gates(risk))?),
         Cmd::Bugbot { pr } => {
