@@ -1,19 +1,18 @@
 # Foundations
 
-Build less and build it well: the smallest change that solves the original
-problem, simple interfaces, one owner per fact, and no obsolete replacement path.
-Split new work rather than widening the ticket. Speed beats ceremony.
+Do the stated job in the fewest clear lines; delete and reuse before adding layers,
+frameworks, flags, guards, holds or config. One owner per fact; remove obsolete paths.
+Compose exceedingly simple, focused UNIX programs from small modules and packages.
+Past about 10000 LOC, report and seriously consider separate services:
+guidance, never a blocking gate. Keep unrelated work outside the ticket.
 
 ## Ten foundations every project keeps
 
 Critical: a gap here can hurt people, data or money.
 
-1. **Runs and QA'd in full.** The whole app starts from its README in a fresh
-   workspace with realistic privacy-safe data and its real consumer surface.
-   In the lean cadence, main builds once, deploys isolated production-like
-   preprod and proves affected journeys and consequential boundaries there.
-   The complete suite and every user story run nightly and on demand, not on
-   every PR. Failed or absent candidate proof never authorizes production.
+1. **Runs and QA'd in full.** Agents can start the whole app from its README in
+   a fresh workspace with realistic privacy-safe data and verify it as end users.
+   Show the real thing working; more checking instead of shipping is failure.
 2. **Screams in production.** Every production error, failed health check or
    broken story reaches Sentry or an outside probe and starts agentic incident
    response and triage within minutes. Our own machinery screams the same way:
@@ -32,11 +31,12 @@ Table stakes: a gap here makes a project look or work unlike ours.
    says what it is and how to run and ship it, and a licence if it is public.
 7. **Written down.** The project has a short spec, user stories, and a ranked
    backlog of tickets in its tracker.
-8. **Tested on every change.** Engineers exercise changed contracts, obtain
-   independent review and run cheap secret/privacy scans before merge. Lean CI
-   runs no automatic PR or PR-target jobs: main proves the exact candidate before
-   automatic same-byte promotion; the full suite is an owned nightly run whose
-   failed or missing completion screams through the existing approved intake.
+8. **Tested on every change.** Engineers exercise affected consumer contracts,
+   obtain independent review and run cheap secret/privacy scans before merge.
+   No automatic PR or PR-target CI: main proves the exact candidate before
+   automatic same-byte promotion. The complete suite and every user story run
+   nightly/on demand with an owner; failed or missing runs scream through the
+   existing approved intake.
 9. **Public website.** A well-designed, marketing-minded site explains the
    project and holds its documentation.
 10. **In a portfolio.** The project appears on the R90 site, mistystep.io or
@@ -66,9 +66,9 @@ hosted service keeps 4 in full.
 3. **A lost promise or silent check creates owned repair work.** Real failures
    go to the native tracker for triage and repair. Restore service before
    investigation; keep repair bounded to the failure.
-4. **Every check earns its keep, or it goes.** Name the real failure and the
-   smallest proof that rejects it. Delete prose hashes, duplicate gates and
-   report rituals; preserve independent safety contracts.
+4. **Keep the few good tests and checks.** Use the smallest proof of what users
+   rely on. Delete implementation/wording pins, duplicates, mock echoes and checks
+   costing more than they catch; preserve independent consequential contracts.
 5. **Keep intent and proof together.** The existing ticket or PR names the story
    or spec it serves and retains the bounded change and observed proof.
 

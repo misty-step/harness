@@ -8,15 +8,14 @@ description: Write, change, review, or prune tests while preserving independent 
 Adapted from [OpenClaw test-audit](https://github.com/openclaw/openclaw/blob/80930af448ebabc84174146b56bc106d37fab3b4/.agents/skills/test-audit/SKILL.md);
 [LICENSE](LICENSE) preserves its MIT notice.
 
-Give each real consumer contract one primary proof at its owner boundary.
-Another layer needs a distinct failure. Before adding/deleting, inspect that
-boundary and existing proof; use history only to resolve concrete uncertainty.
+Keep the few good tests proving what users rely on. Inspect existing consumer
+boundary proof first: one primary proof per contract, another layer only for a
+distinct consequential failure; history resolves concrete uncertainty.
+Delete implementation/wording pins, inventories, duplicates, mock echoes,
+tautologies and tests costing more than they catch. Preserve independent
+access/data/migration/package/protocol contracts; negative cases reach the guard.
 
-Delete wording/source pins, copied inventories, mock echoes, tautologies and
-duplicate layers. Preserve independently expected access, data, migration,
-package and protocol contracts, regardless of test shape. Negative cases must
-reach the guard; behavior on the real path beats paperwork.
-
-Run affected checks and the actual consumer. Report deletions and remaining risk
-in the existing PR, not a per-test ledger. Harness installer verification reads
-committed HEAD; smoke working-source composition in a disposable destination.
+Make end-user verification easy and lean: run affected checks and the actual
+consumer; show the real thing working, not more checking instead of shipping.
+Report deletions and risk in the PR, not a ledger. Installers read committed HEAD;
+smoke working-source composition in a disposable destination.
