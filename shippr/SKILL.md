@@ -17,8 +17,10 @@ shippr tick --pr <url> --risk <low|medium|high>
 - `waiting`: end the turn or come back after `poll_after_seconds`. Never tight-loop.
 - `fix_checks`: fix, push, tick.
 - `review`: get the missing Codex / Claude review and post its verdict line
-  (`Codex review: ...`, `Claude review: ...`) on the PR.
-- `evidence`: attach screenshots (video only for high), add label `evidence:attached`.
+  (`Codex review: APPROVE` or `... CHANGES REQUESTED`) as a PR comment or review.
+  The latest line per vendor wins.
+- Repos without pull_request CI (harness proves locally) pass `--allow-no-ci`.
+- `evidence`: attach screenshots (label `evidence:screenshots`); high risk also a video walkthrough (`evidence:video`).
 - `merge`: `shippr merge --pr <url> --risk <risk>`.
 - `park`: report the reason; a human decides.
 - `friction`: file durable friction to Powder (file-friction), then stop.

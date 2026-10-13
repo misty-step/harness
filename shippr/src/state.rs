@@ -16,7 +16,18 @@ pub struct Pr {
     #[serde(default)]
     pub reviews: Vec<Review>,
     #[serde(default)]
+    pub comments: Vec<Comment>,
+    #[serde(default)]
     pub labels: Vec<Label>,
+}
+
+#[derive(Clone, Debug, Default, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Comment {
+    #[serde(default)]
+    pub body: String,
+    #[serde(default)]
+    pub created_at: String,
 }
 
 #[derive(Clone, Debug, Default, Deserialize)]
@@ -36,9 +47,12 @@ pub struct Check {
 }
 
 #[derive(Clone, Debug, Default, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct Review {
     #[serde(default)]
     pub author: Author,
+    #[serde(default)]
+    pub submitted_at: String,
     #[serde(default)]
     pub body: String,
 }
@@ -56,6 +70,8 @@ pub struct Label {
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum Ci {
+    /// No check has reported. Never treated as green.
+    None,
     Green,
     Pending(Vec<String>),
     Failed(Vec<String>),
@@ -80,6 +96,9 @@ impl Pr {
                 _ => failed.push(c.label()),
             }
         }
+        if self.status_check_rollup.is_empty() {
+            return Ci::None;
+        }
         if !failed.is_empty() {
             Ci::Failed(failed)
         } else if !pending.is_empty() {
@@ -93,14 +112,33 @@ impl Pr {
         self.reviews.iter().any(|r| r.author.login == login)
     }
 
-    /// Cross-vendor review is recorded as a PR review or comment whose body carries
-    /// both `Codex review:` and `Claude review:` verdict lines (any author).
-    pub fn cross_vendor_verdicts(&self) -> (bool, bool) {
-        let has = |tag: &str| self.reviews.iter().any(|r| r.body.contains(tag));
-        (has("Codex review:"), has("Claude review:"))
+    /// Cross-vendor verdicts are lines `Codex review: <VERDICT>` / `Claude review: <VERDICT>`
+    /// in any PR review or comment. The latest line per vendor wins; only APPROVE passes.
+    pub fn verdict(&self, vendor: &str) -> Verdict {
+        let tag = format!("{vendor} review:");
+        let mut posts: Vec<(&str, &str)> = self.reviews.iter().map(|r| (r.submitted_at.as_str(), r.body.as_str()))
+            .chain(self.comments.iter().map(|c| (c.created_at.as_str(), c.body.as_str())))
+            .collect();
+        posts.sort_by_key(|p| p.0);
+        let mut verdict = Verdict::Missing;
+        for (_, body) in posts {
+            for line in body.lines() {
+                if let Some(rest) = line.trim().strip_prefix(&tag) {
+                    verdict = if rest.trim().to_ascii_uppercase().starts_with("APPROVE") { Verdict::Approve } else { Verdict::Rejected };
+                }
+            }
+        }
+        verdict
     }
 
     pub fn has_label(&self, name: &str) -> bool {
         self.labels.iter().any(|l| l.name == name)
     }
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub enum Verdict {
+    Missing,
+    Approve,
+    Rejected,
 }

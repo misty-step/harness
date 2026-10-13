@@ -23,6 +23,9 @@ enum Cmd {
         pr: String,
         #[arg(long, value_enum)]
         risk: Risk,
+        /// The repo proves changes locally and runs no pull_request CI.
+        #[arg(long)]
+        allow_no_ci: bool,
     },
     /// Print the gates a risk tier requires (JSON).
     Policy {
@@ -35,10 +38,12 @@ enum Cmd {
         pr: String,
         #[arg(long, value_enum)]
         risk: Risk,
+        #[arg(long)]
+        allow_no_ci: bool,
     },
 }
 
-const FIELDS: &str = "number,url,state,isDraft,mergeable,headRefOid,statusCheckRollup,reviews,labels";
+const FIELDS: &str = "state,isDraft,mergeable,headRefOid,statusCheckRollup,reviews,comments,labels";
 
 fn view(pr: &str) -> Result<state::Pr> {
     let out = Command::new("gh").args(["pr", "view", pr, "--json", FIELDS]).output().context("running gh")?;
@@ -50,11 +55,11 @@ fn view(pr: &str) -> Result<state::Pr> {
 
 fn main() -> Result<()> {
     match Cli::parse().cmd {
-        Cmd::Tick { pr, risk } => println!("{}", serde_json::to_string_pretty(&tick::tick(&view(&pr)?, risk))?),
+        Cmd::Tick { pr, risk, allow_no_ci } => println!("{}", serde_json::to_string_pretty(&tick::tick(&view(&pr)?, risk, allow_no_ci))?),
         Cmd::Policy { risk } => println!("{}", serde_json::to_string_pretty(&policy::gates(risk))?),
-        Cmd::Merge { pr, risk } => {
+        Cmd::Merge { pr, risk, allow_no_ci } => {
             let state = view(&pr)?;
-            let step = tick::tick(&state, risk);
+            let step = tick::tick(&state, risk, allow_no_ci);
             if step != tick::Step::Merge {
                 bail!("refusing to merge: tick says {}", serde_json::to_string(&step)?);
             }

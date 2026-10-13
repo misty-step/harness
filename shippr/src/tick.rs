@@ -2,7 +2,7 @@
 //! The agent acts on the step, then ticks again. `Waiting` means come back after
 //! `poll_after_seconds`; never tight-loop.
 use crate::policy::{gates, Risk};
-use crate::state::{Ci, Pr};
+use crate::state::{Ci, Pr, Verdict};
 use serde::Serialize;
 
 #[derive(Debug, PartialEq, Eq, Serialize)]
@@ -19,9 +19,12 @@ pub enum Step {
 }
 
 pub const POLL_SECONDS: u64 = 120;
-pub const EVIDENCE_LABEL: &str = "evidence:attached";
+pub const SCREENSHOTS_LABEL: &str = "evidence:screenshots";
+pub const VIDEO_LABEL: &str = "evidence:video";
 
-pub fn tick(pr: &Pr, risk: Risk) -> Step {
+/// `allow_no_ci`: the repo proves changes locally (no pull_request CI, e.g. harness FND-CHG-002);
+/// only then may an empty check rollup pass.
+pub fn tick(pr: &Pr, risk: Risk, allow_no_ci: bool) -> Step {
     match pr.state.as_str() {
         "MERGED" => return Step::Friction,
         "CLOSED" => return Step::Done { merged: false },
@@ -36,13 +39,20 @@ pub fn tick(pr: &Pr, risk: Risk) -> Step {
         Ci::Pending(names) => {
             return Step::Waiting { reason: format!("checks pending: {}", names.join(", ")), poll_after_seconds: POLL_SECONDS }
         }
-        Ci::Green => {}
+        Ci::None if !allow_no_ci => {
+            return Step::Waiting { reason: "no CI check has reported".into(), poll_after_seconds: POLL_SECONDS }
+        }
+        Ci::None | Ci::Green => {}
     }
     let mut missing = vec![];
     if g.cross_vendor_review {
-        let (codex, claude) = pr.cross_vendor_verdicts();
-        if !codex { missing.push("Codex review".to_string()); }
-        if !claude { missing.push("Claude review".to_string()); }
+        for vendor in ["Codex", "Claude"] {
+            match pr.verdict(vendor) {
+                Verdict::Approve => {}
+                Verdict::Missing => missing.push(format!("{vendor} review")),
+                Verdict::Rejected => missing.push(format!("{vendor} review (latest verdict is not APPROVE)")),
+            }
+        }
     }
     let bots_pending: Vec<String> = g.bots.iter().filter(|b| !pr.reviewed_by(b)).map(|b| b.to_string()).collect();
     if !missing.is_empty() {
@@ -51,30 +61,32 @@ pub fn tick(pr: &Pr, risk: Risk) -> Step {
     if !bots_pending.is_empty() {
         return Step::Waiting { reason: format!("waiting for {}", bots_pending.join(", ")), poll_after_seconds: POLL_SECONDS };
     }
-    if (g.screenshots || g.video) && !pr.has_label(EVIDENCE_LABEL) {
-        let mut needs = vec!["screenshots".to_string()];
-        if g.video { needs.push("video walkthrough".to_string()); }
+    let mut needs = vec![];
+    if g.screenshots && !pr.has_label(SCREENSHOTS_LABEL) { needs.push("screenshots".to_string()); }
+    if g.video && !pr.has_label(VIDEO_LABEL) { needs.push("video walkthrough".to_string()); }
+    if !needs.is_empty() {
         return Step::Evidence { needs };
     }
     if !g.agent_may_merge {
         return Step::Park { reason: "high risk: parked for human review".into() };
     }
-    if pr.mergeable == "CONFLICTING" {
-        return Step::FixChecks { failed: vec!["merge conflict".into()] };
+    match pr.mergeable.as_str() {
+        "MERGEABLE" => Step::Merge,
+        "CONFLICTING" => Step::FixChecks { failed: vec!["merge conflict".into()] },
+        other => Step::Waiting { reason: format!("mergeability is {other:?}"), poll_after_seconds: POLL_SECONDS },
     }
-    Step::Merge
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::state::{Author, Check, Label, Review};
+    use crate::state::{Author, Check, Comment, Label, Review};
 
     fn green() -> Vec<Check> {
         vec![Check { name: "check".into(), status: "COMPLETED".into(), conclusion: "SUCCESS".into(), ..Default::default() }]
     }
     fn review(login: &str, body: &str) -> Review {
-        Review { author: Author { login: login.into() }, body: body.into() }
+        Review { author: Author { login: login.into() }, submitted_at: "2026-10-13T10:00:00Z".into(), body: body.into() }
     }
     fn ready() -> Pr {
         Pr {
@@ -82,7 +94,7 @@ mod tests {
             mergeable: "MERGEABLE".into(),
             status_check_rollup: green(),
             reviews: vec![review("moomooskycow", "Codex review: APPROVE\nClaude review: APPROVE"), review("cursor", "")],
-            labels: vec![Label { name: EVIDENCE_LABEL.into() }],
+            labels: vec![Label { name: SCREENSHOTS_LABEL.into() }, Label { name: VIDEO_LABEL.into() }],
             ..Default::default()
         }
     }
@@ -92,29 +104,32 @@ mod tests {
         let mut pr = ready();
         pr.reviews.truncate(1);
         pr.labels.clear();
-        assert_eq!(tick(&pr, Risk::Low), Step::Merge);
+        assert_eq!(tick(&pr, Risk::Low, false), Step::Merge);
     }
 
     #[test]
     fn medium_waits_for_bugbot_then_merges() {
         let mut pr = ready();
         pr.reviews.truncate(1);
-        assert!(matches!(tick(&pr, Risk::Medium), Step::Waiting { .. }));
-        assert_eq!(tick(&ready(), Risk::Medium), Step::Merge);
+        assert!(matches!(tick(&pr, Risk::Medium, false), Step::Waiting { .. }));
+        assert_eq!(tick(&ready(), Risk::Medium, false), Step::Merge);
     }
 
     #[test]
     fn high_risk_parks_even_when_everything_is_green() {
-        assert!(matches!(tick(&ready(), Risk::High), Step::Park { .. }));
+        assert!(matches!(tick(&ready(), Risk::High, false), Step::Park { .. }));
     }
 
     #[test]
     fn video_is_required_only_for_high() {
         let mut pr = ready();
+        pr.labels = vec![Label { name: SCREENSHOTS_LABEL.into() }];
+        assert_eq!(tick(&pr, Risk::Medium, false), Step::Merge);
+        assert_eq!(tick(&pr, Risk::High, false), Step::Evidence { needs: vec!["video walkthrough".into()] });
         pr.labels.clear();
-        assert_eq!(tick(&pr, Risk::Medium), Step::Evidence { needs: vec!["screenshots".into()] });
+        assert_eq!(tick(&pr, Risk::Medium, false), Step::Evidence { needs: vec!["screenshots".into()] });
         assert_eq!(
-            tick(&pr, Risk::High),
+            tick(&pr, Risk::High, false),
             Step::Evidence { needs: vec!["screenshots".into(), "video walkthrough".into()] }
         );
     }
@@ -123,24 +138,50 @@ mod tests {
     fn failing_and_pending_checks_come_first() {
         let mut pr = ready();
         pr.status_check_rollup[0].conclusion = "FAILURE".into();
-        assert_eq!(tick(&pr, Risk::Low), Step::FixChecks { failed: vec!["check".into()] });
+        assert_eq!(tick(&pr, Risk::Low, false), Step::FixChecks { failed: vec!["check".into()] });
         pr.status_check_rollup[0].status = "IN_PROGRESS".into();
         pr.status_check_rollup[0].conclusion = String::new();
-        assert!(matches!(tick(&pr, Risk::Low), Step::Waiting { .. }));
+        assert!(matches!(tick(&pr, Risk::Low, false), Step::Waiting { .. }));
     }
 
     #[test]
     fn missing_cross_vendor_review_is_named() {
         let mut pr = ready();
         pr.reviews = vec![review("moomooskycow", "Codex review: APPROVE")];
-        assert_eq!(tick(&pr, Risk::Low), Step::Review { missing: vec!["Claude review".into()] });
+        assert_eq!(tick(&pr, Risk::Low, false), Step::Review { missing: vec!["Claude review".into()] });
+    }
+
+    #[test]
+    fn rejection_or_later_rejection_blocks_and_comments_count() {
+        let mut pr = ready();
+        pr.reviews = vec![review("x", "Codex review: CHANGES REQUESTED\nClaude review: APPROVE")];
+        assert!(matches!(tick(&pr, Risk::Low, false), Step::Review { .. }));
+        pr.comments = vec![Comment { body: "Codex review: APPROVE".into(), created_at: "2026-10-13T11:00:00Z".into() }];
+        assert_eq!(tick(&pr, Risk::Low, false), Step::Merge);
+        pr.comments.push(Comment { body: "Codex review: CHANGES REQUESTED".into(), created_at: "2026-10-13T12:00:00Z".into() });
+        assert!(matches!(tick(&pr, Risk::Low, false), Step::Review { .. }));
+    }
+
+    #[test]
+    fn no_checks_is_not_green_unless_repo_proves_locally() {
+        let mut pr = ready();
+        pr.status_check_rollup.clear();
+        assert!(matches!(tick(&pr, Risk::Low, false), Step::Waiting { .. }));
+        assert_eq!(tick(&pr, Risk::Low, true), Step::Merge);
+    }
+
+    #[test]
+    fn unknown_mergeability_waits() {
+        let mut pr = ready();
+        pr.mergeable = "UNKNOWN".into();
+        assert!(matches!(tick(&pr, Risk::Low, false), Step::Waiting { .. }));
     }
 
     #[test]
     fn merged_pr_moves_to_friction() {
         let mut pr = ready();
         pr.state = "MERGED".into();
-        assert_eq!(tick(&pr, Risk::Low), Step::Friction);
+        assert_eq!(tick(&pr, Risk::Low, false), Step::Friction);
     }
 
     #[test]
