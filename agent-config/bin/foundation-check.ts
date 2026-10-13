@@ -52,7 +52,7 @@ const featureHeadings: Record<string, string> = {
 };
 // Each independent defect has its own key, so a baselined defect cannot cover a new one in the same file.
 const gapPattern = new RegExp(
-	"^(?:doc:(?:README\\.md|AGENTS\\.md|DOMAIN\\.md|DESIGN\\.md|USER_STORIES\\.md|runbook|content-schema|env-pass|aliases|refs|adr)" +
+	"^(?:doc:(?:README\\.md|AGENTS\\.md|DOMAIN\\.md|DESIGN\\.md|USER_STORIES\\.md|runbook|content-schema|env-pass|aliases|refs|adr|decisions|primitives|skills-lock)" +
 	"|entry:check|stories:format|skill:verify|walk:US-\\d{3}|obl:FND-[A-Z]+(?:-[A-Z]+)*-\\d{3}" +
 	"|ops:(?:ship|alert|incident)" +
 	"|map:(?:index|US-\\d{3}|features/[^/:]+\\.md:(?:unlinked|stories-line|source-line|story:US-\\d{3}|source:[^\\s,]+" +
@@ -537,6 +537,7 @@ function coreReferences(repo: string, files: Map<string, string>, documents: str
 		}
 	}
 }
+/** Adoptions pinned below catalog 1.9.0 keep this docs/adr/ contract; decision 0012 replaces it from 1.9.0. */
 function adrIssues(repo: string, files: string[], issues: Issue[]): void {
 	// A date-prefixed postmortem is not a decision. Recognize explicit ADR names and the old decisions homes.
 	const numbered = files.filter((path) =>
@@ -564,6 +565,117 @@ function adrIssues(repo: string, files: string[], issues: Issue[]): void {
 		for (const target of body.matchAll(/\bSuperseded by\s+(?:\[)?(?:ADR[- ]?)?(\d{3,4})\b/gi)) {
 			if (!files.some((name) => dirname(name) === dir && new RegExp(`^0*${Number(target[1])}[-_]`).test(name.slice(dir.length + 1))))
 				issues.push({ gap: "doc:adr", message: `${path}: Superseded by ${target[1]} does not resolve in ${dir}` });
+		}
+	}
+}
+function pinnedAtLeast(adoption: unknown, version: string): boolean {
+	const pinned = record(adoption) && record(adoption.standard) ? String(adoption.standard.version).split(".").map(Number) : [];
+	const floor = version.split(".").map(Number);
+	for (let i = 0; i < floor.length; i++) if ((pinned[i] || 0) !== floor[i]) return (pinned[i] || 0) > floor[i];
+	return true;
+}
+const decisionFile = /^((?:.*\/)?docs\/decisions)\/((?:historical\/)?)([^/]+\.md)$/;
+/** Decision 0012: a steering list per docs/decisions/ home; historical/ shares the number space unchecked. */
+function decisionIssues(repo: string, files: string[], issues: Issue[]): void {
+	const gap = (message: string) => issues.push({ gap: "doc:decisions", message });
+	// docs/adr/ is legacy; its one-line README pointer stays for one release.
+	const legacy = new Set(files.filter((path) => !/(?:^|\/)docs\/adr\/README\.md$/i.test(path))
+		.map((path) => path.match(/^((?:.*\/)?docs\/adr)\//)?.[1]).filter(text));
+	for (const dir of legacy) issues.push({ gap: "doc:adr", message: `${dir}/ is legacy: migrate to docs/decisions/ (decision 0012)` });
+	// A date-prefixed postmortem is not a decision. Recognize explicit ADR names and the other old homes.
+	for (const path of files) {
+		if ((/(?:^|\/)ADR[-_]?\d{3,4}[-_][^/]+\.md$/i.test(path) || /(?:^|\/)decisions\/(?:historical\/)?\d{3,4}[-_][^/]+\.md$/i.test(path)) &&
+			!decisionFile.test(path) && !/(?:^|\/)docs\/adr\//.test(path))
+			gap(`${path}: decisions belong only in docs/decisions/ (a monorepo may have one per component)`);
+	}
+	const dirs = new Map<string, { path: string; historical: boolean; number?: number }[]>();
+	for (const path of files) {
+		const match = path.match(decisionFile);
+		if (match) dirs.set(match[1], [...(dirs.get(match[1]) ?? []), { path, historical: match[2] !== "" }]);
+	}
+	if (!dirs.has("docs/decisions")) gap("FND-DOC-001: missing docs/decisions/ with 0000-template.md and index.md (decision 0012)");
+	for (const [dir, entries] of dirs) {
+		for (const name of ["0000-template.md", "index.md"]) if (!files.includes(`${dir}/${name}`)) gap(`${dir}: missing ${name}`);
+		const numbers = new Set<number>();
+		for (const entry of entries) {
+			const name = entry.path.slice(entry.path.lastIndexOf("/") + 1);
+			if (/^(?:README|index)\.md$/i.test(name)) continue;
+			const match = name.match(/^(\d{3,4})[-_].+\.md$/);
+			if (!match) { gap(`${entry.path}: decision name needs a numbered slug`); continue; }
+			entry.number = Number(match[1]);
+			if (numbers.has(entry.number)) gap(`${entry.path}: duplicate decision ${entry.number} in ${dir}`);
+			numbers.add(entry.number);
+		}
+		// 0000 is the template, not a record.
+		for (const { path, historical, number } of entries) {
+			if (historical || !number || !repositoryFile(repo, path)) continue;
+			const body = readFileSync(join(repo, path), "utf8").replace(/<!--[\s\S]*?-->/g, "");
+			const status = body.match(/^(?:[-*]\s+)?\**Status:\**\s*(.*\S)\s*$/im)?.[1];
+			const superseded = status?.match(/^superseded by\s+\[?(\d{3,4})\b/i)?.[1];
+			if (!status) gap(`${path}: missing Status line`);
+			else if (superseded ? !numbers.has(Number(superseded)) || Number(superseded) === number : !/^accepted$/i.test(status))
+				gap(`${path}: Status must be accepted or superseded by a decision in ${dir}`);
+			for (const heading of ["Context", "Decision", "Consequences"])
+				if (!new RegExp(`^## ${heading}\\s*$`, "m").test(body)) gap(`${path}: missing ## ${heading}`);
+		}
+	}
+}
+/** Decision 0012: the primitives map's ids, groups and code roots resolve at HEAD; vendored skills are locked. */
+function primitivesIssues(repo: string, files: string[], headFiles: Map<string, string>, issues: Issue[]): void {
+	const path = "docs/architecture/primitives.yaml";
+	const gap = (message: string) => issues.push({ gap: "doc:primitives", message: `${path}: ${message}` });
+	const skills = new Set(files.map((file) => file.match(/^\.agents\/skills\/([^/]+)\//)?.[1]).filter(text));
+	if (skills.size > 0) {
+		const lock = files.includes("skills-lock.json") && repositoryFile(repo, "skills-lock.json") ? jsonOrUndefined(readFileSync(join(repo, "skills-lock.json"), "utf8")) : undefined;
+		const pinned = record(lock) && record(lock.skills) ? lock.skills : undefined;
+		if (!pinned) issues.push({ gap: "doc:skills-lock", message: ".agents/skills/ needs a tracked skills-lock.json with a skills object" });
+		else for (const skill of new Set([...skills, ...Object.keys(pinned)])) {
+			const entry = pinned[skill];
+			if (!record(entry) || !/^[0-9a-f]{64}$/.test(String(entry.computedHash))) {
+				issues.push({ gap: "doc:skills-lock", message: `skills-lock.json: ${skill} needs a computedHash` });
+				continue;
+			}
+			// The lock pins the vendored copy itself: source must be exactly .agents/skills/<skill>.
+			const source = `.agents/skills/${skill}`;
+			if (String(entry.source).replace(/^\.\//, "").replace(/\/$/, "") !== source) {
+				issues.push({ gap: "doc:skills-lock", message: `skills-lock.json: ${skill} source ${entry.source} must be ./${source}` });
+				continue;
+			}
+			// computedHash: sha256 hex over the tracked files under `source`, sorted by path relative to it,
+			// each contributing relpath + "\0" + bytes + "\0".
+			const members = safePath(source) ? files.filter((file) => file.startsWith(`${source}/`)).sort() : [];
+			const digest = createHash("sha256");
+			for (const file of members) {
+				if (!repositoryFile(repo, file)) continue;
+				digest.update(`${file.slice(source.length + 1)}\0`).update(readFileSync(join(repo, file))).update("\0");
+			}
+			if (members.length === 0) issues.push({ gap: "doc:skills-lock", message: `skills-lock.json: ${skill} source ${entry.source} has no tracked files` });
+			else if (digest.digest("hex") !== entry.computedHash) issues.push({ gap: "doc:skills-lock", message: `skills-lock.json: ${skill} computedHash does not match ${source}` });
+		}
+	}
+	if (!headFiles.has(path) || !repositoryFile(repo, path)) return gap("missing at HEAD (FND-DOC-001, decision 0012)");
+	let map: unknown;
+	try { map = Bun.YAML.parse(readFileSync(join(repo, path), "utf8")); } catch { return gap("is not valid YAML"); }
+	if (!record(map) || map.version === undefined || !Array.isArray(map.groups) || !Array.isArray(map.primitives))
+		return gap("needs version, groups and primitives");
+	const groups = new Set<string>();
+	for (const group of map.groups) {
+		if (!record(group) || !text(group.id) || groups.has(group.id)) gap(`group ${JSON.stringify(record(group) ? group.id : group)} needs a unique id`);
+		else groups.add(group.id);
+	}
+	const ids = new Set<string>();
+	for (const item of map.primitives) {
+		const id = record(item) && text(item.id) ? item.id : JSON.stringify(record(item) ? item.id : item);
+		if (!record(item) || ![item.id, item.group, item.name, item.summary].every(text) || !Array.isArray(item.code) || item.code.length === 0 || !item.code.every(text)) {
+			gap(`primitive ${id} needs id, group, name, summary and code roots`);
+			continue;
+		}
+		if (ids.has(id)) gap(`duplicate primitive ${id}`);
+		ids.add(id);
+		if (!groups.has(item.group as string)) gap(`${id}: group ${item.group} is not declared`);
+		for (const root of item.code as string[]) {
+			const target = root.replace(/\/$/, "");
+			if (!safePath(target) || !(headFiles.has(target) || headDirectory(target, headFiles))) gap(`${id}: code root ${root} does not exist at HEAD`);
 		}
 	}
 }
@@ -617,8 +729,14 @@ function contentIssues(repo: string, checkerPath: string, adoption: unknown): Is
 			issues.push({ gap: "doc:aliases", message: `${alias}: must be a tracked symlink to AGENTS.md` });
 	}
 	ledgerIssues(repo, headFiles, issues);
-	coreReferences(repo, headFiles, [...required, ...files.filter((file) => /(?:^|\/)docs\/adr\/[^/]+\.md$/.test(file))], issues);
-	adrIssues(repo, files, issues);
+	if (pinnedAtLeast(adoption, "1.9.0")) {
+		coreReferences(repo, headFiles, [...required, ...files.filter((file) => decisionFile.test(file))], issues);
+		decisionIssues(repo, files, issues);
+		primitivesIssues(repo, files, headFiles, issues);
+	} else {
+		coreReferences(repo, headFiles, [...required, ...files.filter((file) => /(?:^|\/)docs\/adr\/[^/]+\.md$/.test(file))], issues);
+		adrIssues(repo, files, issues);
+	}
 	if (!repositoryFile(repo, "scripts/check") || (statSync(join(repo, "scripts/check")).mode & 0o111) === 0)
 		issues.push({ gap: "entry:check", message: "scripts/check must exist and be executable" });
 	const workflows = files.filter((name) => /^\.github\/workflows\/[^/]+\.ya?ml$/.test(name));

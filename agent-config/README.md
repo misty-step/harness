@@ -11,7 +11,7 @@ harness installer declares which primitives it selects.
 | `guidance/*.md` | Global-guidance sections spliced at the harness marker |
 | `bin/pass-env.ts` | pass-backed environment launcher |
 | `bin/openrouter-key.ts` | OpenRouter key resolver: R90 checkouts get the R90 entry, others `--personal` (US-028) |
-| `bin/foundation-check.ts` | Foundation Standard validator (US-024; [ADR-003](../docs/adr/003-foundation-checks.md), [ADR-005](../docs/adr/005-operational-obligations.md), `--help`) |
+| `bin/foundation-check.ts` | Foundation Standard validator (US-024; [ADR-003](../docs/decisions/historical/003-foundation-checks.md), [ADR-005](../docs/decisions/historical/005-operational-obligations.md), [0012](../docs/decisions/0012-decisions-and-primitives-in-foundation.md), `--help`) |
 | `bin/design-check.ts` | Player-surface copy checker |
 | `bin/review-check.ts` | Headless-Chromium first-screen check for operator review pages (US-050) |
 | `bin/story-deletion-check.ts` | Exact-commit base-story capability check (US-051) |

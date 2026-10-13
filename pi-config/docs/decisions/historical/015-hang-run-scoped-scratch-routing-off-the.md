@@ -3,7 +3,7 @@
 Accepted 2026-09-15.
 
 Element A3-pi of the 2026-09-15 workstation pressure
-report: the [scratch-routing design](../../../omp-config/references/scratch-routing.md) specifies the mechanism —
+report: the [scratch-routing design](../../../../omp-config/references/scratch-routing.md) specifies the mechanism —
 run-scoped `TMPDIR` under `~/.cache/tmp/runs/<run-id>`, an owner trap, and a
 `flock`-keyed sweep, proven by an executed five-act POC — and its §6.2 assigns
 deployment to the launcher owners. This repo owns the launcher for pi:

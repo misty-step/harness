@@ -1,7 +1,7 @@
 {
   "schema": "foundation-standard/1",
   "id": "misty-step.foundation",
-  "version": "1.8.1",
+  "version": "1.9.0",
   "principles": [
     {
       "id": "FND-P-APPLICABILITY",
@@ -122,7 +122,9 @@
       "applies_when": "The repository is maintained as a project.",
       "required_evidence": [
         "Root README.md, AGENTS.md, DOMAIN.md with its invariants ledger, and USER_STORIES.md own orientation, operating instructions, boundaries and user intent; every repository has an executable scripts/check invoked by CI.",
-        "Surface-specific evidence: DESIGN.md for ui, a Release/Rollback/Recover runbook for deployed, a content schema and lint for content; ADRs, when present, have unique numbers, status and resolvable supersessions under docs/adr/.",
+        "Surface-specific evidence: DESIGN.md for ui, a Release/Rollback/Recover runbook for deployed, a content schema and lint for content.",
+        "Decisions live under docs/decisions/ (component: <component>/docs/decisions/) with 0000-template.md and index.md; numbers are unique per directory, historical/ included; each non-historical record has Status accepted or superseded by a resolving NNNN, and ## Context, ## Decision and ## Consequences. docs/adr/ is legacy (decision 0012).",
+        "docs/architecture/primitives.yaml has version, groups and primitives; each primitive has a unique id, a resolving group, name, summary and code roots that exist at HEAD. A vendored .agents/skills/ is pinned by skills-lock.json: each skill's computedHash is sha256 hex over the tracked files under its source dir, sorted by relative path, each contributing relpath + \"\\0\" + bytes + \"\\0\".",
         "Aliases are symlinks to AGENTS.md; core Markdown links and AGENTS routing commands resolve at HEAD. A committed .env.pass, when present, contains names-only credential references. Other generated references and the public face remain follow-up checks (ADR-004)."
       ],
       "exception_authority": "Accountable project owner with a documented substitute for the missing project record."
