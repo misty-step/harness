@@ -46,5 +46,5 @@ errors. Without `-o`, it prints the updated body. `apply` uses `gh pr view` and
 `gh pr edit`; `--repo` is optional and all render arguments also apply.
 
 Status: scaffold. Not yet: `decide`, `reply`, deploy health by SHA, `summary`,
-the friction step (files to Powder, task-kaf-08), and the system-recap check.
+the friction step (files to Powder, task-kaf-08), and the system-recap gate in tick.
 Build and test on runner-01, never on the box.
