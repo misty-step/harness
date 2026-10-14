@@ -314,9 +314,6 @@ validate_cli() {
       }
     fi
   done
-  if [ -L "$HOME/.local/bin/omp" ] && [ "$(readlink "$HOME/.local/bin/omp")" = omp-engineer ]; then
-    validate_browser_tools
-  fi
 }
 
 install_cli() {

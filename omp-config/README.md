@@ -175,7 +175,8 @@ browser/debug endpoints. Headless browser QA uses the native browser tool.
 it does not run the CLI retirement
 step, change accounts/settings, register an owner, or alter any shared limit.
 It requires Rust/libsystemd, Chromium, bubblewrap, slirp and disk-backed private
-scratch. Active CLI updates also preflight the browser/display prerequisites.
+scratch. Only the explicit `browser-helper` component preflights these browser
+prerequisites; ordinary CLI and default updates do not require Chromium.
 The default component selection remains unchanged.
 
 Opt in with `OMP_ENGINEER_BROWSER_ISOLATION=chromium-v1` only inside an already
