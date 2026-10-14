@@ -9,6 +9,7 @@ from pathlib import Path
 import pwd
 import selectors
 import re
+import secrets
 import signal
 import socket
 import stat
@@ -247,18 +248,312 @@ class GpgBridge(HerdrBridge):
                         pass
 
 
-def mounts(home, dns, private_tmp, bridge=None, upstream=None, gpg=None):
+SCOPE = re.compile(r"omp-engineer-[0-9a-f]{24}\.scope\Z")
+HELPER_BYTES = 4 * 1024 ** 3
+
+
+def capture(argv, *, deadline=None, pass_fds=()):
+    remaining = 4 if deadline is None else min(4, deadline - time.monotonic())
+    if remaining <= 0:
+        raise DisplayError("Browser handoff deadline expired")
+    result = subprocess.run(argv, capture_output=True, text=True, timeout=remaining,
+                            pass_fds=pass_fds, check=False)
+    if result.returncode:
+        raise DisplayError(f"{argv[0]} inspection failed (exit {result.returncode})")
+    return result.stdout
+
+
+def unit_state(unit, *, deadline=None):
+    fields = ("Id", "LoadState", "ActiveState", "ControlGroup", "InvocationID", "Slice",
+              "MemoryMax", "MemoryHigh", "MemorySwapMax", "OOMPolicy")
+    output = capture(["/usr/bin/systemctl", "--user", "--no-pager", "show", unit,
+                      *["-p" + key for key in fields]], deadline=deadline)
+    values = {}
+    for line in output.splitlines():
+        key, separator, value = line.partition("=")
+        if not separator or key in values:
+            raise DisplayError("Unrecognized manager unit state")
+        values[key] = value
+    if any(key not in values for key in fields) or values["Id"] != unit:
+        raise DisplayError("Incomplete manager unit state")
+    return values
+
+
+def process_group(pid):
+    paths = [line[3:] for line in Path(f"/proc/{pid}/cgroup").read_text().splitlines()
+             if line.startswith("0::")]
+    if len(paths) != 1:
+        raise DisplayError("Unrecognized unified process membership")
+    return paths[0]
+
+
+def member(pid, group):
+    members = (Path("/sys/fs/cgroup") / group.lstrip("/") / "cgroup.procs").read_text().splitlines()
+    if process_group(pid) != group or str(pid) not in members:
+        raise DisplayError("Browser handoff is not an actual registered leaf member")
+
+
+def pidfd_alive(descriptor):
+    with selectors.DefaultSelector() as selector:
+        selector.register(descriptor, selectors.EVENT_READ)
+        if selector.select(0):
+            raise DisplayError("Browser handoff root or peer has exited")
+
+
+def verify_helper_controls(props, controls):
+    if (props["MemoryMax"] != str(HELPER_BYTES) or props["MemorySwapMax"] != "0"
+            or props["MemoryHigh"] != "infinity" or props["OOMPolicy"] != "kill"
+            or controls != {"memory.max": str(HELPER_BYTES), "memory.swap.max": "0",
+                            "memory.high": "max", "memory.oom.group": "1"}):
+        raise DisplayError("Chromium helper lacks its finite zero-swap/group-OOM controls")
+
+
+class BrowserOwner:
+    """Pin the actual uncapped controller root and unit incarnation, not an env name."""
+
+    def __init__(self):
+        self.pid = os.getpid()
+        self.descriptor = os.pidfd_open(self.pid)
+        try:
+            self.group = process_group(self.pid)
+            self.fleet = f"/user.slice/user-{os.getuid()}.slice/user@{os.getuid()}.service/omp.slice"
+            self.unit = self.group.rsplit("/", 1)[-1]
+            if SCOPE.fullmatch(self.unit) is None or self.group != self.fleet + "/" + self.unit:
+                raise DisplayError("Chromium isolation requires a registered uncapped owner leaf")
+            self.properties = unit_state(self.unit)
+            self.invocation = self.properties["InvocationID"]
+            self.namespaces = {name: os.readlink(f"/proc/{self.pid}/ns/{name}")
+                               for name in ("pid", "mnt", "net")}
+            self.verify()
+        except BaseException:
+            self.close()
+            raise
+
+    def verify(self, *, deadline=None):
+        pidfd_alive(self.descriptor)
+        props = unit_state(self.unit, deadline=deadline)
+        if (props != self.properties or props["LoadState"] != "loaded" or props["ActiveState"] != "active"
+                or props["ControlGroup"] != self.group or props["Slice"] != "omp.slice"
+                or re.fullmatch(r"[0-9a-f]{32}", self.invocation) is None):
+            raise DisplayError("Chromium owner unit incarnation changed or is not registered")
+        member(self.pid, self.group)
+        directory = Path("/sys/fs/cgroup") / self.group.lstrip("/")
+        for file, expected in (("memory.max", "max"), ("memory.high", "max"),
+                               ("memory.swap.max", "max"), ("memory.oom.group", "0")):
+            if (directory / file).read_text().strip() != expected:
+                raise DisplayError("Chromium owner must remain uncapped and ungrouped")
+        if any(props[key] != "infinity" for key in ("MemoryMax", "MemoryHigh", "MemorySwapMax")):
+            raise DisplayError("Chromium owner manager controls are not uncapped")
+        if any(os.readlink(f"/proc/{self.pid}/ns/{name}") != value for name, value in self.namespaces.items()):
+            raise DisplayError("Chromium controller root namespace changed")
+
+    def verify_helper(self, unit, pid, descriptor, *, deadline):
+        self.verify(deadline=deadline)
+        pidfd_alive(descriptor)
+        props = unit_state(unit, deadline=deadline)
+        group = self.fleet + "/" + unit
+        if (unit == self.unit or SCOPE.fullmatch(unit) is None or props["LoadState"] != "loaded"
+                or props["ActiveState"] != "active" or props["ControlGroup"] != group
+                or props["Slice"] != "omp.slice" or re.fullmatch(r"[0-9a-f]{32}", props["InvocationID"]) is None):
+            raise DisplayError("Chromium helper is not a registered distinct sibling incarnation")
+        directory = Path("/sys/fs/cgroup") / group.lstrip("/")
+        controls = {file: (directory / file).read_text().strip()
+                    for file in ("memory.max", "memory.swap.max", "memory.high", "memory.oom.group")}
+        verify_helper_controls(props, controls)
+        member(pid, group)
+        # Inspect only this helper's actual ancestors. No fleet inventory, capacity
+        # admission or mutation of owner/shared properties belongs at this seam.
+        for ancestor in list(directory.parents)[:-1]:
+            if ancestor == Path("/sys/fs/cgroup"):
+                break
+            for file in ("memory.max", "memory.swap.max", "memory.high"):
+                raw = (ancestor / file).read_text().strip()
+                if raw != "max" and re.fullmatch(r"[0-9]+", raw) is None:
+                    raise DisplayError("Unrecognized helper ancestor controls")
+            if (ancestor / "memory.oom.group").read_text().strip() != "0":
+                raise DisplayError("Chromium helper ancestor enables group OOM")
+        output = capture(["/usr/bin/oomctl", "--no-pager", "dump"], deadline=deadline)
+        if output.count("Swap Monitored CGroups:") != 1 or output.count("Memory Pressure Monitored CGroups:") != 1:
+            raise DisplayError("Unrecognized live systemd-oomd inventory")
+        for line in output.splitlines():
+            if "Path:" not in line:
+                continue
+            match = re.fullmatch(r"\s*Path: (/\S+)\s*", line)
+            if match is None:
+                raise DisplayError("Unrecognized systemd-oomd path")
+            path = match[1].rstrip("/")
+            if path and path != os.path.normpath(path):
+                raise DisplayError("Unrecognized systemd-oomd cgroup identity")
+            if not path or group == path or group.startswith(path + "/"):
+                raise DisplayError("systemd-oomd monitors the Chromium helper hierarchy")
+        if unit_state(unit, deadline=deadline) != props:
+            raise DisplayError("Chromium helper incarnation changed during verification")
+        pidfd_alive(descriptor)
+        member(pid, group)
+
+    def close(self):
+        os.close(self.descriptor)
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_):
+        self.close()
+
+
+class BrowserBridge(HerdrBridge):
+    """Reviewed immutable-pidfd handoff; registration is not permission to exec."""
+
+    def __init__(self, destination, helper):
+        self.destination = destination
+        self.helper = helper
+        self.namespace_pid = self.namespace_fd = self.namespaces = None
+        self.helper_fd = os.open(helper, os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW)
+        try:
+            self.helper_info = os.fstat(self.helper_fd)
+            if (not stat.S_ISREG(self.helper_info.st_mode) or self.helper_info.st_uid != os.getuid()
+                    or self.helper_info.st_mode & 0o022 or not self.helper_info.st_mode & stat.S_IXUSR):
+                raise DisplayError("Chromium shim is not a safe owned executable")
+            self.owner = BrowserOwner()
+            try:
+                super().__init__(destination, None, None)
+                os.chmod(destination, 0o600)
+            except BaseException:
+                self.owner.close()
+                raise
+        except BaseException:
+            os.close(self.helper_fd)
+            raise
+
+    def pin_namespace(self, pid):
+        descriptor = os.pidfd_open(pid)
+        try:
+            self.owner.verify()
+            member(pid, self.owner.group)
+            namespaces = {name: os.readlink(f"/proc/{pid}/ns/{name}") for name in ("pid", "mnt", "net")}
+            if any(value == self.owner.namespaces[name] for name, value in namespaces.items()):
+                raise DisplayError("Browser handoff requires private kernel namespaces")
+            pidfd_alive(descriptor)
+            self.namespace_pid, self.namespace_fd, self.namespaces = pid, descriptor, namespaces
+        except BaseException:
+            os.close(descriptor)
+            raise
+
+    def verify_namespace(self):
+        if self.namespace_fd is None or self.namespaces is None:
+            raise DisplayError("Browser namespace root is not pinned")
+        pidfd_alive(self.namespace_fd)
+        member(self.namespace_pid, self.owner.group)
+        if any(os.readlink(f"/proc/{self.namespace_pid}/ns/{name}") != value
+               for name, value in self.namespaces.items()):
+            raise DisplayError("Browser namespace root changed")
+
+    def serve(self):
+        while not self.stopped.is_set():
+            try:
+                connection, _ = self.server.accept()
+            except socket.timeout:
+                continue
+            except OSError:
+                return
+            descriptor = None
+            owned = admitted = False
+            with connection:
+                deadline = time.monotonic() + 15
+                connection.settimeout(15)
+                try:
+                    pid, uid, _ = struct.unpack("3i", connection.getsockopt(socket.SOL_SOCKET, socket.SO_PEERCRED, 12))
+                    if uid != os.getuid():
+                        raise DisplayError("Unauthenticated browser handoff")
+                    descriptor = struct.unpack("i", connection.getsockopt(socket.SOL_SOCKET, 77, 4))[0]  # SO_PEERPIDFD
+                    pidfd_alive(descriptor)
+                    self.owner.verify(deadline=deadline)
+                    self.verify_namespace()
+                    assert self.namespaces is not None
+                    if any(os.readlink(f"/proc/{pid}/ns/{name}") != value for name, value in self.namespaces.items()):
+                        raise DisplayError("Browser handoff is outside this private namespace")
+                    executable = os.stat(f"/proc/{pid}/exe")
+                    if (executable.st_dev, executable.st_ino) != (self.helper_info.st_dev, self.helper_info.st_ino):
+                        raise DisplayError("Browser handoff is not the pinned launch shim")
+                    member(pid, self.owner.group)
+                    owned = True
+                    if self.line(connection, limit=16, deadline=deadline) != b"CHROMIUM":
+                        raise DisplayError("Invalid browser handoff request")
+                    unit = "omp-engineer-" + secrets.token_hex(12) + ".scope"
+                    capture([f"/proc/self/fd/{self.helper_fd}", "--register", str(descriptor), unit,
+                             self.owner.unit, str(HELPER_BYTES)], deadline=deadline,
+                            pass_fds=(descriptor, self.helper_fd))
+                    while True:
+                        props = unit_state(unit, deadline=deadline)
+                        if props["ActiveState"] == "active":
+                            break
+                        if props["ActiveState"] == "failed" or props["LoadState"] != "loaded":
+                            raise DisplayError("Browser helper registration did not become active")
+                        if time.monotonic() >= deadline:
+                            raise DisplayError("Browser helper registration deadline expired")
+                        time.sleep(0.05)
+                    self.owner.verify_helper(unit, pid, descriptor, deadline=deadline)
+                    self.verify_namespace()
+                    connection.settimeout(max(0.001, deadline - time.monotonic()))
+                    connection.sendall(f"EXEC {unit} {HELPER_BYTES}\n".encode())
+                    admitted = True
+                except (OSError, ValueError, DisplayError, subprocess.TimeoutExpired) as exc:
+                    try:
+                        connection.sendall(b"ERR browser isolation admission failed\n")
+                    except OSError:
+                        pass
+                    print(f"omp-display: browser isolation: {exc}", file=sys.stderr)
+                finally:
+                    if descriptor is not None:
+                        if owned and not admitted:
+                            try:
+                                signal.pidfd_send_signal(descriptor, signal.SIGKILL)
+                            except ProcessLookupError:
+                                pass
+                        os.close(descriptor)
+
+    def close(self):
+        super().close()
+        if self.thread.is_alive():
+            self.thread.join(timeout=16)
+        if self.namespace_fd is not None:
+            os.close(self.namespace_fd)
+        self.owner.close()
+        os.close(self.helper_fd)
+        self.destination.unlink(missing_ok=True)
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_):
+        self.close()
+
+
+def disk_scratch(path):
+    info = path.lstat()
+    if not stat.S_ISDIR(info.st_mode) or info.st_uid != os.getuid() or info.st_mode & 0o077:
+        raise DisplayError("Display scratch must be private and owned")
+    filesystem = capture(["/usr/bin/findmnt", "--noheadings", "--output", "FSTYPE", "--target", str(path)]).strip()
+    if (re.fullmatch(r"[a-zA-Z0-9_.-]+", filesystem) is None
+            or filesystem in ("tmpfs", "ramfs", "devtmpfs", "hugetlbfs")):
+        raise DisplayError("Display scratch requires disk-backed storage")
+
+
+def mounts(home, dns, private_tmp, bridge=None, upstream=None, gpg=None, browser=None, *, private_run):
     uid = os.getuid()
     runtime = Path(f"/run/user/{uid}")
     args = ["--ro-bind", "/", "/", "--bind", str(home), str(home),
             "--proc", "/proc", "--dev", "/dev", "--tmpfs", "/run",
             "--dir", str(runtime), "--chmod", "0700", str(runtime),
-            "--tmpfs", "/tmp", "--tmpfs", "/var/tmp",
-            "--tmpfs", str(home / ".omp/run"),
+            "--bind", str(private_tmp), "/tmp", "--bind", str(private_tmp), "/var/tmp",
+            "--bind", str(private_run), str(home / ".omp/run"),
             "--bind", str(private_tmp), str(home / ".cache/tmp"),
             "--ro-bind", str(dns), str(Path("/etc/resolv.conf").resolve())]
-    # Desktop configuration is not an engineer workspace.
-    for path in (home / ".config/hypr", home / ".config/omarchy"):
+    # Host executables, service/desktop settings and shell startup stay host-owned.
+    for path in (home / ".config", home / ".local/bin", home / ".local/lib",
+                 *[home / name for name in (".bashrc", ".bash_profile", ".bash_logout",
+                                            ".profile", ".zshrc", ".zprofile",
+                                            ".gnupg/gpg-agent.conf")]):
         if path.exists():
             args.extend(["--ro-bind", str(path), str(path)])
     # Do not let tools reuse out-of-namespace command/browser supervisors.
@@ -275,6 +570,8 @@ def mounts(home, dns, private_tmp, bridge=None, upstream=None, gpg=None):
         args.extend(["--ro-bind", str(gpg), str(runtime / "gnupg/S.gpg-agent")])
     if bridge is not None:
         args.extend(["--ro-bind", str(bridge), str(upstream)])
+    if browser is not None:
+        args.extend(["--ro-bind", str(browser), str(runtime / "omp-browser-helper.sock")])
     return args
 
 
@@ -336,14 +633,17 @@ def namespace(command):
             raise DisplayError(f"{binary} is required; refusing a host-display fallback")
     home = Path(pwd.getpwuid(os.getuid()).pw_dir)
     scratch = home / ".cache/tmp"
-    scratch.mkdir(parents=True, exist_ok=True)
-    child = network = bridge = gpg_bridge = None
+    scratch.mkdir(mode=0o700, parents=True, exist_ok=True)
+    disk_scratch(scratch)
+    child = network = bridge = gpg_bridge = browser_bridge = None
     fds = []
     with tempfile.TemporaryDirectory(prefix="omp-display-", dir=scratch) as directory:
         base = Path(directory)
         # Keep scratch on the existing disk filesystem.
         private_tmp = base / "engineer-tmp"
         private_tmp.mkdir(mode=0o700)
+        private_run = base / "engineer-run"
+        private_run.mkdir(mode=0o700)
         dns = base / "resolv.conf"
         dns.write_text("nameserver 10.0.2.3\n")
         upstream = os.environ.get("HERDR_SOCKET_PATH")
@@ -362,6 +662,17 @@ def namespace(command):
             if gpg_upstream.exists():
                 gpg_endpoint = base / "gpg.sock"
                 gpg_bridge = GpgBridge(gpg_endpoint, gpg_upstream, None)
+            browser_endpoint = None
+            environment = clean_environment(os.environ)
+            isolation = environment.get("OMP_ENGINEER_BROWSER_ISOLATION")
+            if isolation is not None:
+                if isolation != "chromium-v1":
+                    raise DisplayError("Unsupported Chromium isolation contract")
+                helper = Path(__file__).resolve().with_name("omp-browser-helper")
+                browser_endpoint = base / "browser.sock"
+                browser_bridge = BrowserBridge(browser_endpoint, helper)
+                environment["OMP_CHROMIUM_EXECUTABLE"] = environment.get("PUPPETEER_EXECUTABLE_PATH") or "/usr/bin/chromium"
+                environment["PUPPETEER_EXECUTABLE_PATH"] = str(helper)
             info_read, info_write = os.pipe()
             gate_read, gate_write = os.pipe()
             ready_read, ready_write = os.pipe()
@@ -373,12 +684,12 @@ def namespace(command):
             args = [BWRAP, "--unshare-user", "--unshare-pid", "--unshare-ipc", "--unshare-net",
                     "--die-with-parent", "--cap-drop", "ALL", "--info-fd", str(info_write),
                     "--block-fd", str(gate_read), *mounts(home, dns, private_tmp, endpoint, upstream,
-                                                       gpg_endpoint),
+                                                       gpg_endpoint, browser_endpoint, private_run=private_run),
                     "--", "/usr/bin/python3", str(Path(__file__).resolve()), "--_exec", *command]
             # bwrap's monitor must survive foreground/caller signals so the real
             # command can flush and stop gracefully instead of receiving SIGKILL.
             child = subprocess.Popen([sys.executable, str(Path(__file__).resolve()), "--_bwrap", *args[1:]],
-                                     env=clean_environment(os.environ), pass_fds=(info_write, gate_read))
+                                     env=environment, pass_fds=(info_write, gate_read))
             os.close(info_write)
             fds.remove(info_write)
             status = setup_status(info_read, child)
@@ -388,6 +699,8 @@ def namespace(command):
             if type(pid) is not int or pid <= 0:
                 raise DisplayError("Invalid bubblewrap namespace identity")
             private_pid_namespace = os.readlink(f"/proc/{pid}/ns/pid")
+            if browser_bridge is not None:
+                browser_bridge.pin_namespace(pid)
             # --dev can make bwrap enter a second user namespace for devpts.
             # The network still belongs to the first: joining the command's
             # final user namespace would lose permission to configure it.
@@ -456,6 +769,8 @@ def namespace(command):
                 bridge.close()
             if gpg_bridge is not None:
                 gpg_bridge.close()
+            if browser_bridge is not None:
+                browser_bridge.close()
 
 
 def execute(command):
