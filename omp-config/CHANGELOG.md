@@ -42,6 +42,7 @@
 * **workstation:** add a user-scope bounded execution workflow and tracked disk/inode, RAM, swap-growth, and slice-pressure notifier; document the 1 GiB containment and visible alert proof.
 
 ### Bug Fixes
+* **steering:** use native `interruptMode: wait` so current-turn corrections wait for active tools to finish; explicit follow-up remains unchanged.
 * **simplification:** retire the ticket roster, automatic experiment/verdict runtime, grievance inbox, and scheduled repository auditors with their dedicated tests, assets, and units. Native workstation safety and explicit diff review remain; runtime journals and sessions are not migrated or deleted.
 * **routing:** validate concrete model selectors independently of fleet management; allow GPT-6.1 Sol low for lightweight helpers, retain high-reasoning review routes and exact-provider probes, and retire Luna approval.
 * **routing:** reject retired or unapproved OMP role and recovery models before deployment, probe provider acceptance on demand, and remove unapproved paid and local tiny routes (US-014).

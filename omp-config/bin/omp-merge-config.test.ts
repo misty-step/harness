@@ -49,6 +49,30 @@ test("without selection the merger still overlays every source-owned key", () =>
 	});
 });
 
+test("portable steering waits for tools after upgrading an immediate installation", () => {
+	const files = fixture(
+		readFileSync(join(import.meta.dir, "../config.yml"), "utf8"),
+		`interruptMode: immediate
+steeringMode: all
+followUpMode: all
+modelRoles: {foreign: foreign/model}
+auth: {accountPolicies: [{provider: example, priority: 2}]}
+bash: {autoBackground: {enabled: false, thresholdMs: 90000}}
+foreign: {keep: true}
+`,
+	);
+	expect(invoke(files).exitCode).toBe(0);
+	expect(parsed(files)).toMatchObject({
+		interruptMode: "wait",
+		steeringMode: "all",
+		followUpMode: "all",
+		modelRoles: { foreign: "foreign/model" },
+		auth: { accountPolicies: [{ provider: "example", priority: 2 }] },
+		bash: { autoBackground: { enabled: false, thresholdMs: 90000 } },
+		foreign: { keep: true },
+	});
+});
+
 test("retired presentation settings return to native defaults without deleting foreign preferences", () => {
 	const files = fixture("modelRoles: {default: native/model}\n", `cycleOrder: [smol, default]
 symbolPreset: nerd
