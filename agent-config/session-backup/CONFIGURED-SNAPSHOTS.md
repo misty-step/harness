@@ -4,9 +4,12 @@ This is a snapshot/verification primitive, not a complete fleet rebuild. No
 installer, service, timer, credentials or retention policy is changed by opting
 into a config. Without `--config`, the existing legacy source selection,
 OMP prerequisite, schema-1 manifest and Glass drill layout remain. Both Hermes
-staging paths now reject symlinks/special files and snapshot `.sqlite3` as well as
-`.db` and SQLite-header files. The legacy OMP input remains direct to restic;
-configured OMP is staged and inventoried instead.
+staging paths reject special files and snapshot `.sqlite3` as well as `.db` and
+SQLite-header files. Legacy Hermes staging retains its previous file/directory
+link dereferencing (including external targets); linked SQLite uses the online
+backup API, and directory cycles fail clearly. Configured sources still reject
+every link. Legacy real link targets cannot overlap backup state/scratch. The
+legacy OMP input remains direct to restic; configured OMP is staged/inventoried.
 
 ## Source config schema 1
 
@@ -76,6 +79,11 @@ service. An existing target (even empty) and overlaps with selected input are
 refused. Failure removes only the newly created staging tree. Staging uses a
 private 0700 outer directory, preserves selected file/directory mode and mtime,
 and materializes synthetic parent directories as 0700. The CLI uses umask 077.
+HOME and staging destinations reject `..` spellings and symlink ancestors before
+containment checks or removal; they are never silently resolved through links.
+Cleanup adds owner permissions only to opened, owned staging/proof directories,
+does not follow links or chmod source files, and supports preserved 0555 trees.
+If cleanup itself fails, the primary failure is retained with a cleanup note.
 No secret file is needed for fixture inputs: use synthetic `private-config.json`,
 not a copied `.env`, auth store, vault or password-store entry.
 
@@ -159,6 +167,8 @@ all configured files/DBs are restored and verified. Do not execute it as a
 read-only inspection. The last-success receipt adds `scope_restore`,
 `oldest_required_cut`, `source_host`, `verified_at`, `manifest_sha256` and `stage`
 to the legacy snapshot/count fields. Failed upload/restore/integrity checks never
-apply retention or overwrite the prior success receipt. Production activation,
+apply retention or overwrite the prior success receipt. Owned proof and staging
+cleanup must finish before retention, receipt writing or success JSON; a cleanup
+failure is not a success. Production activation,
 full private hot/cold source reconciliation, independent key escrow, offsite
 retrieval and a real fresh-host rebuild are separate approved work.

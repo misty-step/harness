@@ -2,7 +2,7 @@
 # owned by misty-step/harness agent-session-backup
 """Back up legacy sessions or explicit bounded sources to the existing restic repository."""
 import argparse
-from contextlib import closing
+from contextlib import closing, contextmanager
 from datetime import datetime, timezone
 import fcntl
 import hashlib
@@ -43,12 +43,13 @@ def snapshot_database(source, target):
 
 
 def stage_hermes(profile, target):
-    # Retain the legacy selection/layout, but share safe SQLite/link handling.
+    # Legacy copytree dereferenced links. Keep that selection/layout policy,
+    # including linked SQLite stores, without imposing configured-mode rejection.
     databases, directories = [], []
     for name in ("state.db", "sessions", "cron", "plugin-data/kaylee"):
-        for path, kind in source_entries(profile / name):
+        for path, kind in source_entries(profile / name, follow_links=True):
             saved = target / path.relative_to(profile)
-            save_entry(path, kind, saved)
+            save_entry(path.resolve(strict=True), kind, saved)
             if kind == "directory":
                 directories.append((path, saved))
             elif kind == "sqlite":
@@ -76,8 +77,83 @@ def no_symlinks(path):
     # omitted tree. Configured sources must be stable against rename/link swaps
     # during a cut; ordinary concurrent file/SQLite writers are supported.
     for parent in reversed((path, *path.parents)):
-        if parent.is_symlink():
+        try:
+            info = parent.lstat()
+        except FileNotFoundError:
+            continue
+        if stat.S_ISLNK(info.st_mode):
             raise ValueError(f"Symlinks are not supported in configured snapshots: {parent}")
+
+
+def safe_destination(path):
+    # Do not resolve() away links or '..' before the destructive-boundary checks.
+    path = path.expanduser().absolute()
+    if ".." in path.parts or path.anchor != "/" or path == Path("/"):
+        raise ValueError(f"Destination must be bounded and absolute without '..': {path}")
+    no_symlinks(path)
+    return path
+
+
+def path_present(path):
+    # exists()/is_file() suppress denied I/O on supported Python versions.
+    # Only ENOENT is absence; malformed parents, EACCES and other I/O fail.
+    try:
+        path.lstat()
+    except FileNotFoundError:
+        return False
+    return True
+
+
+def paths_overlap(first, second):
+    return first == second or first.is_relative_to(second) or second.is_relative_to(first)
+
+
+def remove_owned_tree(path):
+    """Remove only a vetted owned tree; never chmod/follow linked source targets."""
+    path = safe_destination(path)
+    flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
+
+    def remove_directory(parent_fd, name):
+        fd = os.open(name, flags, dir_fd=parent_fd)
+        try:
+            info = os.fstat(fd)
+            if info.st_uid != os.getuid():
+                raise PermissionError(f"Refusing cleanup of a foreign-owned directory: {name}")
+            os.fchmod(fd, stat.S_IMODE(info.st_mode) | stat.S_IRWXU)
+            with os.scandir(fd) as entries:
+                for entry in entries:
+                    if entry.is_dir(follow_symlinks=False):
+                        remove_directory(fd, entry.name)
+                    else:
+                        os.unlink(entry.name, dir_fd=fd)
+        finally:
+            os.close(fd)
+        os.rmdir(name, dir_fd=parent_fd)
+
+    parent_fd = os.open(path.parent, flags)
+    try:
+        remove_directory(parent_fd, path.name)
+    finally:
+        os.close(parent_fd)
+
+
+def cleanup_after_error(path, error):
+    try:
+        remove_owned_tree(path)
+    except Exception as cleanup_error:
+        error.add_note(f"Owned snapshot cleanup failed at {path}: {cleanup_error}")
+
+
+@contextmanager
+def proof_directory(scratch):
+    target = Path(tempfile.mkdtemp(prefix="agent-session-proof-", dir=scratch))
+    try:
+        yield target
+    except BaseException as error:
+        cleanup_after_error(target, error)
+        raise
+    else:
+        remove_owned_tree(target)
 
 
 def validate_config(config, check_sources=True):
@@ -158,25 +234,31 @@ def is_database(path):
         return stream.read(16) == b"SQLite format 3\x00"
 
 
-def source_entries(path, live=True):
-    no_symlinks(path)
-    info = path.lstat()
+def source_entries(path, live=True, follow_links=False, ancestors=frozenset()):
+    if not follow_links:
+        no_symlinks(path)
+    info = path.stat() if follow_links else path.lstat()
     if stat.S_ISDIR(info.st_mode):
+        identity = (info.st_dev, info.st_ino)
+        if identity in ancestors:
+            raise ValueError(f"Source directory link cycle: {path}")
         yield path, "directory"
         for child in sorted(path.iterdir()):
-            no_symlinks(child)
+            if not follow_links:
+                no_symlinks(child)
             if child.name.endswith(("-wal", "-shm", "-journal")):
                 if not live:
                     raise ValueError(f"Unexpected restored SQLite sidecar: {child}")
                 if not child.is_file():
                     raise ValueError(f"Unsupported SQLite sidecar type: {child}")
                 main = child.with_name(child.name.rsplit("-", 1)[0])
-                no_symlinks(main)
+                if not follow_links:
+                    no_symlinks(main)
                 if not main.is_file() or not is_database(main):
                     raise ValueError(f"Orphan/non-SQLite sidecar cannot be omitted: {child}")
                 # The online backup API, not a raw copy, owns these bytes.
                 continue
-            yield from source_entries(child, live=live)
+            yield from source_entries(child, live=live, follow_links=follow_links, ancestors=ancestors | {identity})
     elif stat.S_ISREG(info.st_mode):
         yield path, "sqlite" if is_database(path) else "file"
     else:
@@ -207,9 +289,9 @@ def save_entry(path, kind, saved):
 def stage_configured(config, target):
     """Produce schema 2 in a new exclusive directory; no restic or live activation."""
     validate_config(config)
-    no_symlinks(target)
+    target = safe_destination(target)
     selections = [Path(source["root"]) / value for source in config["sources"] for value in source["include"]]
-    if any(target == path or target.is_relative_to(path) or path.is_relative_to(target) for path in selections):
+    if any(paths_overlap(target, path) for path in selections):
         raise ValueError("Staging target overlaps a source selection")
     target.mkdir(mode=0o700)  # Refuse every existing target, including an empty one.
     manifest = {
@@ -221,7 +303,7 @@ def stage_configured(config, target):
         for source in config["sources"]:
             started = utc_now()
             root = Path(source["root"])
-            missing = [value for value in source["include"] if not (root / value).exists()]
+            missing = [value for value in source["include"] if not path_present(root / value)]
             if missing and source["required"]:
                 raise ValueError(f"Required source {source['id']} is missing: {', '.join(missing)}")
             record = {key: source[key] for key in ("root", "role", "tier", "required", "include")}
@@ -267,8 +349,8 @@ def stage_configured(config, target):
         # immutable snapshot; neither upload nor restore mutates its manifest.
         (target / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
         return manifest
-    except BaseException:
-        shutil.rmtree(target)
+    except BaseException as error:
+        cleanup_after_error(target, error)
         raise
 
 
@@ -380,33 +462,39 @@ def restic(binary, *args):
 
 
 def backup(home, binary, config=None):
+    home = safe_destination(home)
     sessions = home / ".omp/agent/sessions"
     profile = home / ".hermes/profiles/kaylee"
     if config is None and (not sessions.is_dir() or not (profile / "state.db").is_file()):
         raise ValueError("OMP sessions and Kaylee state.db must both exist")
     state = home / ".local/state/agent-session-backup"
     scratch = home / ".cache/tmp"
+    stage = state / "snapshot"
+    for path in (state, scratch, stage, state / "backup.lock", state / "last-success.json"):
+        safe_destination(path)
     if config is not None:
         validate_config(config)
-        for source in config["sources"]:
-            for value in source["include"]:
-                selected = Path(source["root"]) / value
-                for reserved in (state, scratch):
-                    if selected == reserved or selected.is_relative_to(reserved) or reserved.is_relative_to(selected):
-                        raise ValueError("Configured source overlaps backup state/scratch")
-        no_symlinks(state)
-        no_symlinks(scratch)
+        selections = [Path(source["root"]) / value for source in config["sources"] for value in source["include"]]
+    else:
+        # Legacy links remain supported, but cannot point into bytes this run
+        # writes/removes. Inspect real targets before even creating the lock.
+        selections = [sessions.resolve(strict=True)]
+        for name in ("state.db", "sessions", "cron", "plugin-data/kaylee"):
+            selections.extend(path.resolve(strict=True) for path, kind in
+                              source_entries(profile / name, follow_links=True))
+    if any(paths_overlap(selected, reserved) for selected in selections for reserved in (state, scratch)):
+        raise ValueError("Source overlaps backup state/scratch")
     state.mkdir(parents=True, exist_ok=True, mode=0o700)
     scratch.mkdir(parents=True, exist_ok=True, mode=0o700)
     with (state / "backup.lock").open("w") as lock:
         fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        stage = state / "snapshot"
-        if stage.exists():
-            shutil.rmtree(stage)
-        if config is None:
-            stage.mkdir(mode=0o700)
+        if path_present(stage):
+            remove_owned_tree(stage)
+        stage_owned = False
         try:
             if config is None:
+                stage.mkdir(mode=0o700)
+                stage_owned = True
                 databases = stage_hermes(profile, stage / "hermes")
                 manifest = {
                     "schema": 1, "home": str(home), "sessions": str(sessions),
@@ -418,6 +506,7 @@ def backup(home, binary, config=None):
                 inputs = (sessions, stage)
             else:
                 manifest = stage_configured(config, stage)
+                stage_owned = True
                 inputs = (stage,)
             manifest_sha256 = digest(stage / "manifest.json")
             output = restic(binary, "backup", "--json", "--tag", TAG,
@@ -428,8 +517,7 @@ def backup(home, binary, config=None):
             if not snapshot:
                 raise ValueError("restic returned no snapshot ID")
             # Prove the exact uploaded SQLite snapshots, not a local staging copy.
-            with tempfile.TemporaryDirectory(prefix="agent-session-proof-", dir=scratch) as directory:
-                target = Path(directory)
+            with proof_directory(scratch) as target:
                 restic(binary, "restore", snapshot + ":" + str(stage), "--target", target, "--verify")
                 no_symlinks(target / "manifest.json")
                 if digest(target / "manifest.json") != manifest_sha256:
@@ -442,6 +530,9 @@ def backup(home, binary, config=None):
                     for relative, expected in manifest["databases"].items():
                         if digest(target / relative) != expected:
                             raise ValueError(f"Restored SQLite snapshot differs: {relative}")
+            # Settle owned-stage cleanup before retention or any success receipt.
+            remove_owned_tree(stage)
+            stage_owned = False
             # Match Pile retention, scoped exclusively to this backup's tag/host.
             restic(binary, "forget", "--tag", TAG, "--host", os.uname().nodename,
                    "--keep-daily", "30", "--keep-monthly", "24")
@@ -451,11 +542,12 @@ def backup(home, binary, config=None):
                 result.update(scope_restore="matched", oldest_required_cut=manifest["oldest_required_cut"],
                               source_host=manifest["source_host"], verified_at=utc_now(),
                               manifest_sha256=manifest_sha256, stage=str(stage))
-            print(json.dumps(result), flush=True)
             (state / "last-success.json").write_text(json.dumps(result, indent=2) + "\n")
-        finally:
-            if stage.exists():
-                shutil.rmtree(stage)
+            print(json.dumps(result), flush=True)
+        except BaseException as error:
+            if stage_owned:
+                cleanup_after_error(stage, error)
+            raise
 
 
 def main():
@@ -489,6 +581,8 @@ def main():
                 backup(args.home.expanduser().absolute(), args.restic, config=config)
     except (OSError, ValueError, TypeError, KeyError, sqlite3.Error, subprocess.CalledProcessError, StopIteration) as error:
         print(f"agent-session-backup: {error}", file=sys.stderr)
+        for note in getattr(error, "__notes__", ()):
+            print(note, file=sys.stderr)
         return 1
     return 0
 

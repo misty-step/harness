@@ -255,7 +255,7 @@ class ConfiguredBackupTests(unittest.TestCase):
         with self.assertRaises(sqlite3.Error):
             verify_configured(self.target)
 
-    def test_legacy_selected_sqlite3_uses_backup_api_and_rejects_links(self):
+    def test_legacy_selected_sqlite3_uses_backup_api_and_dereferences_links(self):
         for name in ("sessions", "cron", "plugin-data/kaylee"):
             (self.profile / name).mkdir(parents=True)
         live = sqlite3.connect(self.profile / "cron/fixture.sqlite3")
@@ -271,8 +271,10 @@ class ConfiguredBackupTests(unittest.TestCase):
                 self.assertEqual(restored.execute("SELECT id FROM fixture").fetchall(), [(8,)])
             self.assertFalse(list(saved.rglob("*-wal")))
             (self.profile / "sessions/link").symlink_to(self.profile / "omitted")
-            with self.assertRaisesRegex(ValueError, "Symlinks"):
-                stage_hermes(self.profile, self.base / "legacy-with-link")
+            linked = self.base / "legacy-with-link"
+            stage_hermes(self.profile, linked)
+            self.assertEqual((linked / "sessions/link/not-selected.txt").read_text(), "Do not copy this fixture.\n")
+            self.assertFalse((linked / "sessions/link").is_symlink())
         finally:
             live.close()
 
