@@ -14,7 +14,7 @@ Change this convention with a normal pull request to this file.
 reviewed PR with a Conventional Commit title
   -> squash commit on the protected default branch
   -> one generator per release unit decides the SemVer bump
-  -> release PR containing only version files and CHANGELOG.md
+  -> release PR containing only generator output (versions, CHANGELOG.md)
   -> merged release PR: tag and GitHub Release with the same notes
   -> deployment, separately: /changelog built from the deployed revision
 ```
@@ -135,7 +135,8 @@ on client data. Inspect desktop and mobile screenshots of `/changelog` built
 from synthetic or public content.
 
 Adoption is complete when a real reviewed merge has produced the expected
-version, a merged release PR, an immutable GitHub Release, a matching
-changelog entry and a live `/changelog` at the deployed revision. Record the
-expected and actual version and the PR, head, CI, release, provider revision
-and HTTP readbacks. A dry run or an open pull request is not adoption.
+version, a merged release PR (where the generator uses one), an immutable
+GitHub Release, a matching changelog entry and a live `/changelog` at the
+deployed revision. Record the expected and actual version and the PR, head,
+CI, release, provider revision and HTTP readbacks. A dry run or an open pull
+request is not adoption.
