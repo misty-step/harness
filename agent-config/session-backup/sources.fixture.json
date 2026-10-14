@@ -1,0 +1,46 @@
+{
+  "schema": 1,
+  "mode": "hermes-only",
+  "sources": [
+    {
+      "id": "chief",
+      "role": "chief",
+      "tier": "hot",
+      "required": true,
+      "root": "/home/fixture/recovery-input/chief",
+      "include": ["state.db", "projects.db", "memories", "sessions", "cron", "plugin-data", "private-config.json"]
+    },
+    {
+      "id": "executives",
+      "role": "executives",
+      "tier": "hot",
+      "required": true,
+      "root": "/home/fixture/recovery-input/executives",
+      "include": ["state.db", "projects.db", "memories", "private-config.json"]
+    },
+    {
+      "id": "default",
+      "role": "default",
+      "tier": "hot",
+      "required": true,
+      "root": "/home/fixture/recovery-input/default",
+      "include": ["state.db", "kanban.db", "projects.db", "kanban/boards", "memories", "cron"]
+    },
+    {
+      "id": "triage",
+      "role": "triage",
+      "tier": "hot",
+      "required": true,
+      "root": "/home/fixture/recovery-input/triage",
+      "include": ["triage.sqlite3"]
+    },
+    {
+      "id": "decisions",
+      "role": "decisions",
+      "tier": "cold",
+      "required": true,
+      "root": "/home/fixture/recovery-input/decisions",
+      "include": ["accepted"]
+    }
+  ]
+}
