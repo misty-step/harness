@@ -49,7 +49,8 @@ class BrowserPrerequisiteTests(unittest.TestCase):
         for name in ("tmp", "var-tmp"):
             (self.root / name).mkdir()
         # Preserve real absence; only mask Chromium when the host has it.
-        chromium_mask = ["--ro-bind", str(mask), "/usr/bin/chromium"] if Path("/usr/bin/chromium").exists() else []
+        chromium = Path("/usr/bin/chromium")
+        chromium_mask = ["--ro-bind", str(mask), str(chromium.resolve())] if chromium.exists() else []
         self.command = [
             "bwrap", "--ro-bind", "/", "/", "--proc", "/proc", "--dev-bind", "/dev", "/dev",
             "--bind", str(self.root), "/mnt", "--bind", str(self.root / "tmp"), "/tmp",
