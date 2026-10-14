@@ -6,9 +6,11 @@ blocks, normal refresh and pre-output recovery. Pi still owns its agent loop,
 local tools and tool results. No OMP agent, HTTP listener, gateway token,
 credential copying, login or replacement pool store is involved.
 
-The child uses the OS user's home/default OMP directory, not the caller's
-`PI_CODING_AGENT_DIR`, `OMP_PROFILE` or `PI_PACKAGE_DIR`. Before dispatch it
-reads `retry.modelFallback` through the native JSON config interface and
+The child uses the OS user's home/default OMP directory. Its environment is an
+allowlist of PATH, locale/timezone, TMPDIR and XDG paths, with HOME from the OS;
+provider keys, credential overrides and Pi/OMP profile variables are not inherited.
+Before dispatch it reads `retry.modelFallback` through the native JSON config
+interface and
 refuses inference unless the value is explicitly false. It never changes that
 setting. Models are literal `openai-codex/<id>` selectors; Pi's existing model
 policy and Sol/xhigh default remain unchanged. Existing native account policy
@@ -21,7 +23,27 @@ request. The body uses a top-level **string `model`**, not `modelId` or a model
 object. Pi's native transcript helpers fold system sections/tool declarations
 into OMP's context; user, assistant, image and tool-result messages remain
 structured. Serializable options are forwarded, except client auth, headers
-and abort signal. Function-valued callbacks cannot cross this wire.
+and abort signal; provider environment overrides and unsupported callbacks
+are rejected locally.
+
+Pi 1.2's `onPayload` bridge is awaited **locally before native dispatch**.
+This runs the unchanged `before_provider_request` model guard; cancellation
+settles even while a hook is pending. The hook receives the adapter's canonical
+`{model, context, options, stream}` body, not an upstream OpenAI payload.
+Undefined keeps the body (including in-place mutations); a replacement may
+change canonical context or `maxTokens`/`reasoning`, but must preserve the
+literal held Codex selector, streaming mode and all other options. Unsupported
+vendor-payload transforms, callbacks or route changes fail before inference;
+direct callback errors also settle without dispatch. Pi's SDK continues to own
+extension-handler error handling.
+
+`onResponse` observes the native gateway's transport status with empty headers
+(STDIO does not export upstream HTTP headers), not an invented upstream
+response. `onProviderStreamEvent` observes original buffered native records.
+These callbacks run locally; no functions are serialized to the owner.
+Pi 1.2 also passes its agent-loop controls in provider options. Tool guards,
+turn completion, context preparation and queue callbacks remain executed by
+Pi; they are neither invoked again nor forwarded to OMP.
 
 **Native STDIO buffers the complete SSE response.** First output arrives only
 after provider completion, not at provider time-to-first-token. The adapter
@@ -65,3 +87,9 @@ or failover proof.** A genuine unavailable-account bypass still requires an
 actual unavailable native subscription plus a successful included sibling
 response and native account attribution; a healthy response alone does not
 prove it.
+
+Set `PI_NATIVE_SDK_ENTRY` to the installed Pi 1.2 `dist/index.js` when running
+the focused suite to also exercise its real SDK bridge with the unchanged
+model guard, tool continuation and an **offline** gateway. Synthetic provider
+keys test child-environment isolation; no stored grants or live model requests
+are used. Run-scoped TMPDIR keeps fixtures private.
