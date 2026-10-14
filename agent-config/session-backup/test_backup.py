@@ -1,3 +1,4 @@
+from contextlib import closing
 import os
 from pathlib import Path
 import sqlite3
@@ -30,7 +31,7 @@ class SessionBackupTests(unittest.TestCase):
                 live.execute("INSERT INTO messages VALUES ('not committed')")
                 saved = Path(directory) / "saved"
                 stage_hermes(profile, saved)
-                with sqlite3.connect(saved / "state.db") as restored:
+                with closing(sqlite3.connect(saved / "state.db")) as restored:
                     self.assertEqual(restored.execute("SELECT body FROM messages").fetchall(),
                                      [("committed in WAL",)])
                     self.assertEqual(restored.execute("PRAGMA quick_check").fetchall(), [("ok",)])
