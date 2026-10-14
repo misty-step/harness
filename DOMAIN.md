@@ -62,7 +62,7 @@ This repository owns agent configuration source for both harnesses. It does not 
 ## Code map
 
 - `agent-config/`: shared primitives (skills, guidance sections, launchers),
-  the shared installer, the audio sandbox, and System One (`system-one/`).
+  the shared installer, the audio sandbox, and session backup.
 - `docs/`: cross-component decisions (`docs/decisions/`), principles, the
   primitives map (`docs/architecture/primitives.yaml`), verification and
   migration records, and token-efficiency measurements.

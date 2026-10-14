@@ -1,12 +1,8 @@
 # harness system primitives map (taxonomy)
-# Stable vocabulary for the `recap` PR classifier and for agents choosing what to compose.
+# Stable vocabulary for agents choosing what to compose.
 # NOT a changelog and NOT behavior truth; code and linked docs are.
-# Risk (rolled up per PR, highest wins):
-#   composes - wires existing primitives without changing them        -> low
-#   extends  - changes a primitive's behavior, shape, or contract      -> medium
-#   adds     - introduces/removes/reshapes a primitive                 -> high (edit this file in the same PR)
 # Edit only when a primitive is added, removed, renamed, or its code roots move.
-# `code` = coarse ownership roots, longest-prefix match. Prefer directories. Keep it small.
+# `code` = coarse ownership roots. Prefer directories. Keep it small.
 version: 1
 owner: chips
 groups:
