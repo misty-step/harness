@@ -48,12 +48,14 @@ class BrowserPrerequisiteTests(unittest.TestCase):
         (self.root / "passwd").write_text("\n".join(passwd) + "\n")
         for name in ("tmp", "var-tmp"):
             (self.root / name).mkdir()
+        # Preserve real absence; only mask Chromium when the host has it.
+        chromium_mask = ["--ro-bind", str(mask), "/usr/bin/chromium"] if Path("/usr/bin/chromium").exists() else []
         self.command = [
             "bwrap", "--ro-bind", "/", "/", "--proc", "/proc", "--dev-bind", "/dev", "/dev",
             "--bind", str(self.root), "/mnt", "--bind", str(self.root / "tmp"), "/tmp",
             "--bind", str(self.root / "var-tmp"), "/var/tmp", "--tmpfs", "/run",
             "--ro-bind", str(self.root / "passwd"), "/etc/passwd",
-            "--ro-bind", str(mask), "/usr/bin/chromium",
+            *chromium_mask,
             "--setenv", "HOME", "/mnt/home", "--setenv", "TMPDIR", "/mnt/home/.cache/tmp",
             "--setenv", "PI_CODING_AGENT_DIR", "/mnt/home/agent",
         ]
