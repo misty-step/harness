@@ -627,6 +627,11 @@ def namespace(command):
     if Path("/proc/sys/dev/tty/legacy_tiocsti").read_text().strip() != "0":
         raise DisplayError("Legacy TIOCSTI must be disabled before sharing an engineer terminal")
     if isolated():
+        isolation = os.environ.get("OMP_ENGINEER_BROWSER_ISOLATION")
+        if isolation is not None:
+            helper = Path(__file__).resolve().with_name("omp-browser-helper")
+            if isolation != "chromium-v1" or os.environ.get("PUPPETEER_EXECUTABLE_PATH") != str(helper):
+                raise DisplayError("Nested helper isolation requires the existing Chromium controller hook")
         os.execvpe(command[0], command, clean_environment(os.environ))
     for binary in (BWRAP, SLIRP):
         if not os.access(binary, os.X_OK):
@@ -634,11 +639,16 @@ def namespace(command):
     home = Path(pwd.getpwuid(os.getuid()).pw_dir)
     scratch = home / ".cache/tmp"
     scratch.mkdir(mode=0o700, parents=True, exist_ok=True)
-    disk_scratch(scratch)
+    pool = scratch.lstat()
+    if not stat.S_ISDIR(pool.st_mode) or pool.st_uid != os.getuid() or pool.st_mode & 0o022:
+        raise DisplayError("Display scratch pool must be owned and not writable by others")
     child = network = bridge = gpg_bridge = browser_bridge = None
     fds = []
     with tempfile.TemporaryDirectory(prefix="omp-display-", dir=scratch) as directory:
         base = Path(directory)
+        # Privacy belongs to the per-launch directory, not the shared scratch pool.
+        # mkdtemp creates it with 0700 even when an owned pool is traversable.
+        disk_scratch(base)
         # Keep scratch on the existing disk filesystem.
         private_tmp = base / "engineer-tmp"
         private_tmp.mkdir(mode=0o700)

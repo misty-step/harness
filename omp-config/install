@@ -291,9 +291,10 @@ validate_browser_helper() {
 }
 
 install_browser_helper() {
-  # Optional two-file staging only. No launcher, alias, native ELF, owner/shared
-  # limits, scheduler, account or settings mutation belongs to this component.
+  # Stage only the existing launch/display path and shim, without CLI retirement.
+  # No alias, native ELF, limits, scheduler, account or settings mutation.
   install -d -m 700 "$HOME/.local/bin"
+  install -m 700 "$repo_dir/bin/omp-engineer.py" "$HOME/.local/bin/omp-engineer"
   install -m 700 "$repo_dir/bin/omp-display.py" "$HOME/.local/bin/omp-display"
   install -m 700 "$browser_build" "$HOME/.local/bin/omp-browser-helper"
 }

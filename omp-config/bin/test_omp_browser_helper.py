@@ -32,6 +32,9 @@ class BrowserBoundaryTests(unittest.TestCase):
             with patch.object(display, "capture", return_value="tmpfs\n"):
                 with self.assertRaises(display.DisplayError):
                     display.disk_scratch(home)
+            home.chmod(0o755)
+            with self.assertRaises(display.DisplayError):
+                display.disk_scratch(home)  # Per-launch storage remains strictly private.
 
     def test_helper_checks_reject_every_weakened_control(self):
         props = {"MemoryMax": str(4 * 1024 ** 3), "MemoryHigh": "infinity",
@@ -111,6 +114,38 @@ class CompiledHandoffTests(unittest.TestCase):
             self.assertLess(time.monotonic(), deadline, "component helper scope did not drain")
             time.sleep(0.05)
         self.assertEqual(display.unit_state(owner.rsplit("/", 1)[-1]), before)
+
+    def test_nested_opt_in_without_controller_refuses_before_native_execution(self):
+        native = Path.home() / ".local/lib/omp-engineer/omp"
+        native.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+        self.assertFalse(native.exists(), "disposable native target must be unused")
+        shutil.copyfile("/usr/bin/touch", native)
+        native.chmod(0o700)
+        launcher = self.root / "omp-engineer.py"
+        shutil.copyfile(DIRECTORY / "omp-engineer.py", launcher)
+        code = r'''
+import json, os, subprocess, sys, tempfile
+from pathlib import Path
+marker = Path(tempfile.gettempdir()) / "nested-target-ran"
+env = {**os.environ, "OMP_ENGINEER_BROWSER_ISOLATION": "chromium-v1",
+       "PUPPETEER_EXECUTABLE_PATH": "/usr/bin/chromium"}
+p = subprocess.run(["/usr/bin/python3", sys.argv[1], "--", str(marker)],
+                   env=env, capture_output=True, text=True, timeout=10)
+print(json.dumps({"exit": p.returncode, "executed": marker.exists(), "error": p.stderr}))
+'''
+        env = {k: v for k, v in os.environ.items()
+               if not k.startswith(("HERDR_", "OMP_ENGINEER_DISPLAY", "OMP_ENGINEER_BROWSER_ISOLATION"))}
+        try:
+            child = subprocess.run(["/usr/bin/python3", str(self.boundary), "--", "/usr/bin/python3",
+                                    "-c", code, str(launcher)], env=env,
+                                   capture_output=True, text=True, timeout=25)
+            self.assertEqual(child.returncode, 0, child.stderr)
+            receipt = json.loads(child.stdout)
+            self.assertEqual(receipt["exit"], 1, receipt)
+            self.assertFalse(receipt["executed"], receipt)
+            self.assertIn("existing Chromium controller", receipt["error"])
+        finally:
+            native.unlink()
 
     def test_same_namespace_nonshim_peer_is_refused_without_moving_it(self):
         code = "import json,os,socket; s=socket.socket(socket.AF_UNIX); s.connect('/run/user/'+str(os.getuid())+'/omp-browser-helper.sock'); s.sendall(b'CHROMIUM\\n'); print(json.dumps({'reply':s.recv(256).decode(),'group':open('/proc/self/cgroup').read().strip()}))"

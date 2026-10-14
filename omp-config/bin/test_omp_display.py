@@ -404,6 +404,24 @@ sys.exit(73)
             })
             self.assertEqual(set(scratch.glob("omp-display-*")), existing)
 
+    def test_traversable_pool_keeps_private_namespace_storage_and_cleanup(self):
+        scratch = Path.home() / ".cache/tmp"
+        scratch.mkdir(parents=True, exist_ok=True)
+        mode = stat.S_IMODE(scratch.stat().st_mode)
+        before = set(scratch.glob("omp-display-*"))
+        code = "import json,stat; from pathlib import Path; print(json.dumps([stat.S_IMODE(p.stat().st_mode) for p in (Path.home()/'.cache/tmp',Path.home()/'.omp/run')]))"
+        env = {k: v for k, v in os.environ.items() if not k.startswith("HERDR_")}
+        try:
+            scratch.chmod(0o755)  # Match a normal CI/user-owned shared scratch pool.
+            child = subprocess.run([sys.executable, str(DIRECTORY / "omp-display.py"), "--",
+                                    "/usr/bin/python3", "-c", code], env=env,
+                                   capture_output=True, text=True, timeout=20)
+            self.assertEqual(child.returncode, 0, child.stderr)
+            self.assertEqual(json.loads(child.stdout), [0o700, 0o700])
+            self.assertEqual(set(scratch.glob("omp-display-*")), before)
+        finally:
+            scratch.chmod(mode)
+
     def test_hidden_caller_interpreter_bootstraps_without_exposing_hermes(self):
         hidden = Path.home() / ".hermes"
         hidden.mkdir(exist_ok=True)

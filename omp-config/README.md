@@ -170,8 +170,9 @@ browser/debug endpoints. Headless browser QA uses the native browser tool.
 
 ### Optional Chromium helper boundary
 
-`OMP_INSTALL_COMPONENTS=browser-helper ./install` stages only `omp-display` and
-the standalone Rust `omp-browser-helper`; it does not run the CLI retirement
+`OMP_INSTALL_COMPONENTS=browser-helper ./install` stages only the existing
+`omp-engineer`/`omp-display` path and standalone Rust `omp-browser-helper`;
+it does not run the CLI retirement
 step, change accounts/settings, register an owner, or alter any shared limit.
 It requires Rust/libsystemd, Chromium, bubblewrap, slirp and disk-backed private
 scratch. Active CLI updates also preflight the browser/display prerequisites.
@@ -180,6 +181,8 @@ The default component selection remains unchanged.
 Opt in with `OMP_ENGINEER_BROWSER_ISOLATION=chromium-v1` only inside an already
 registered, uncapped `omp-engineer-<24 lowercase hex>.scope` under `omp.slice`.
 The current launcher stays uncapped; this component is not an owner scheduler.
+Its one optional routing condition makes nested opt-ins re-enter the display
+contract check; a namespace without its existing shim hook refuses before exec.
 Unregistered/capped owners fail closed, never launching Chromium in the owner.
 The display controller pins its root pidfd and real unit InvocationID plus the
 private namespace root. The supported native `PUPPETEER_EXECUTABLE_PATH` hook

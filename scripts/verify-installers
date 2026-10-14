@@ -181,7 +181,7 @@ for consumer in pi omp; do
     check "omp engineer launcher bytes" cmp -s "$work/source/omp-config/bin/omp-engineer.py" "$home/.local/bin/omp-engineer"
     check "omp engineer launcher executable" test -x "$home/.local/bin/omp-engineer"
     check "omp engineer launcher installed load" "$home/.local/bin/omp-engineer" --help
-    # The optional browser component changes only display/shim bytes; preserve
+    # The optional browser component stages only launch/display/shim; preserve
     # all original default-install assertions and foreign-state sentinels.
     compiler=${RUSTC:-$(rustc --print sysroot)/bin/rustc}
     if [ -x /usr/bin/chromium ]; then
