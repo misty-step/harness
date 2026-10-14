@@ -83,6 +83,17 @@ HOME and staging destinations reject `..` spellings and symlink ancestors before
 containment checks or removal; they are never silently resolved through links.
 Cleanup adds owner permissions only to opened, owned staging/proof directories,
 does not follow links or chmod source files, and supports preserved 0555 trees.
+Existing `backup.lock` and `last-success.json` leaves must be regular files owned
+by the invoking UID with exactly one hardlink; unsafe leaves are refused before
+lock creation, stale-stage removal or transport. Lock acquisition uses
+`O_NOFOLLOW`, checks the opened inode and never truncates existing bytes, even
+when another run holds the flock. Success receipts are written to an exclusive
+0600 temporary file, flushed and atomically replaced; the old inode is never
+written. An existing read-only receipt still refuses publication. Failed writes
+or replacement leave the previous receipt intact and emit no success JSON.
+Both manifest layouts create `manifest.json` exclusively rather than overwrite
+an existing leaf. These checks retain the stable-topology assumption above;
+they do not claim protection against adversarial concurrent ancestor swaps.
 If cleanup itself fails, the primary failure is retained with a cleanup note.
 No secret file is needed for fixture inputs: use synthetic `private-config.json`,
 not a copied `.env`, auth store, vault or password-store entry.

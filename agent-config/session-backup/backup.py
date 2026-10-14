@@ -94,6 +94,65 @@ def safe_destination(path):
     return path
 
 
+def validate_control_file(path, info=None):
+    """Reject existing control leaves that could mutate foreign/shared bytes."""
+    if info is None:
+        try:
+            info = path.lstat()
+        except FileNotFoundError:
+            return
+    if not stat.S_ISREG(info.st_mode):
+        raise ValueError(f"Control file must be regular: {path}")
+    if info.st_uid != os.getuid():
+        raise PermissionError(f"Refusing a foreign-owned control file: {path}")
+    if info.st_nlink != 1:
+        raise ValueError(f"Refusing a hardlinked control file: {path}")
+
+
+@contextmanager
+def backup_lock(path):
+    # Neither open nor flock truncates. Validate the opened inode before use.
+    path = safe_destination(path)
+    validate_control_file(path)
+    fd = os.open(path, os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW | os.O_NONBLOCK, 0o600)
+    try:
+        validate_control_file(path, os.fstat(fd))
+        fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        yield
+    finally:
+        os.close(fd)
+
+
+def publish_success(path, result):
+    path = safe_destination(path)
+    validate_control_file(path)
+    # Keep the existing writable-leaf permission boundary without writing it.
+    try:
+        previous = os.open(path, os.O_WRONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+    except FileNotFoundError:
+        pass
+    else:
+        try:
+            validate_control_file(path, os.fstat(previous))
+        finally:
+            os.close(previous)
+    fd, name = tempfile.mkstemp(prefix=".last-success-", suffix=".tmp", dir=path.parent)
+    temporary = Path(name)
+    try:
+        with os.fdopen(fd, "w") as output:
+            output.write(json.dumps(result, indent=2) + "\n")
+            output.flush()
+            os.fsync(output.fileno())
+        validate_control_file(path)
+        os.replace(temporary, path)
+    except BaseException as error:
+        try:
+            temporary.unlink(missing_ok=True)
+        except OSError as cleanup_error:
+            error.add_note(f"Private receipt cleanup failed at {temporary}: {cleanup_error}")
+        raise
+
+
 def path_present(path):
     # exists()/is_file() suppress denied I/O on supported Python versions.
     # Only ENOENT is absence; malformed parents, EACCES and other I/O fail.
@@ -347,7 +406,8 @@ def stage_configured(config, target):
             record["cut_started"] for record in manifest["sources"].values() if record["required"])
         # Written once, before upload. Verification receipts live outside this
         # immutable snapshot; neither upload nor restore mutates its manifest.
-        (target / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
+        with (target / "manifest.json").open("x") as output:
+            output.write(json.dumps(manifest, indent=2) + "\n")
         return manifest
     except BaseException as error:
         cleanup_after_error(target, error)
@@ -484,10 +544,12 @@ def backup(home, binary, config=None):
                               source_entries(profile / name, follow_links=True))
     if any(paths_overlap(selected, reserved) for selected in selections for reserved in (state, scratch)):
         raise ValueError("Source overlaps backup state/scratch")
+    # Refuse unsafe existing leaves before lock creation or stale-stage cleanup.
+    for path in (state / "backup.lock", state / "last-success.json"):
+        validate_control_file(path)
     state.mkdir(parents=True, exist_ok=True, mode=0o700)
     scratch.mkdir(parents=True, exist_ok=True, mode=0o700)
-    with (state / "backup.lock").open("w") as lock:
-        fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    with backup_lock(state / "backup.lock"):
         if path_present(stage):
             remove_owned_tree(stage)
         stage_owned = False
@@ -502,7 +564,8 @@ def backup(home, binary, config=None):
                     "glass_build": subprocess.check_output([str(home / ".local/bin/glass"), "version"], text=True).strip(),
                     "databases": {str(path.relative_to(stage)): digest(path) for path in databases},
                 }
-                (stage / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
+                with (stage / "manifest.json").open("x") as output:
+                    output.write(json.dumps(manifest, indent=2) + "\n")
                 inputs = (sessions, stage)
             else:
                 manifest = stage_configured(config, stage)
@@ -542,7 +605,7 @@ def backup(home, binary, config=None):
                 result.update(scope_restore="matched", oldest_required_cut=manifest["oldest_required_cut"],
                               source_host=manifest["source_host"], verified_at=utc_now(),
                               manifest_sha256=manifest_sha256, stage=str(stage))
-            (state / "last-success.json").write_text(json.dumps(result, indent=2) + "\n")
+            publish_success(state / "last-success.json", result)
             print(json.dumps(result), flush=True)
         except BaseException as error:
             if stage_owned:
