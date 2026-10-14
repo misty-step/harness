@@ -104,6 +104,35 @@ not. `remote-execution` uses native SSH/exe.dev without a `ws` controller or lea
 ledger. Task-specific video or requested speech helpers remain optional shared
 source, not default session management.
 
+### Default visual taste loading
+
+`global/AGENTS.md` routes every UI/visual task, including app/dashboard repairs
+and visual reviews, to the installed `design-taste-frontend` body and applicable
+specialists before work. This is an always-loaded pointer, not an inline skill
+library. Design remains on Claude; model routing and native skill discovery are
+unchanged.
+
+The pinned taste library is maintained and installed by hermes-config into
+`~/.agents/skills/<frontmatter-name>/SKILL.md`, including supporting files.
+Deploy that shared library first; this component's `guidance` selection does not
+install it. The main skill's public-page workflow is not an app/dashboard
+workflow: those fixes use `redesign-existing-projects` or `minimalist-ui` while
+preserving the existing design, semantics, accessibility and requested scope.
+Specialists load by applicability, not all at once; their instructions do not
+authorize paid tools or credential access.
+
+From the harness repository root, install only the guidance:
+
+```sh
+OMP_INSTALL_COMPONENTS=guidance ./omp-config/install
+```
+
+This replaces the owned OMP `AGENTS.md` and removes retired `RULES.md`,
+`OPERATIONS.md`, `WATCHDOG.md` and `WATCHDOG.yml`. It leaves credentials,
+configuration, models, extensions, skills, launchers and sessions untouched.
+Use a fresh native OMP session after installation to verify automatic loading;
+isolated installer checks prove deployment, not model instruction-following.
+
 ## Authenticated commands
 
 Keep native tool logins. `pass-env` injects named encrypted entries into commands
