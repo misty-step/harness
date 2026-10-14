@@ -12,7 +12,7 @@ export const SLOTS: Readonly<Record<string, string>> = {
 	"openrouter-2": "openrouter",
 };
 
-/** Pool id → built-in provider whose accounts it balances. */
+/** Pool id → built-in catalog; OpenAI execution is OMP-owned, others are Pi-local. */
 export const POOLS: Readonly<Record<string, string>> = {
 	"openai-pool": "openai-codex",
 	"xai-pool": "xai",
@@ -41,15 +41,14 @@ export function subscriptionTier(base: Provider, isUsingOAuth: (model: Model<Api
 	};
 	return {
 		...base,
-		stream: (model, context, options) => base.stream(model, context, tierOptions(model, options)),
+		stream: (model, context, options) => base.stream(model, context, tierOptions(model, options) as typeof options),
 		streamSimple: (model, context, options) => base.streamSimple(model, context, tierOptions(model, options)),
 	};
 }
 
 /** The base provider then its slots: every account of a pool, in order. */
 export function poolMembers(baseId: string): string[] {
-	const bases = baseId === "openai-codex" ? ["openai", baseId] : [baseId];
-	return bases.flatMap((base) => [base, ...Object.keys(SLOTS).filter((slot) => SLOTS[slot] === base)]);
+	return [baseId, ...Object.keys(SLOTS).filter((slot) => SLOTS[slot] === baseId)];
 }
 
 /**
@@ -87,8 +86,8 @@ export function cloneProvider(base: Provider, id: string): Provider {
 }
 
 /**
- * A provider whose every request goes to one of `members` (see rotate in
- * pool.ts). It carries no credential of its own: each member keeps its login.
+ * A credential-free provider over the selected transport: native OMP for Codex,
+ * or Pi-local member rotation for other providers. The marker is never a bearer.
  */
 export function poolProvider(base: Provider, id: string, stream: Provider["stream"], streamSimple: Provider["streamSimple"]): Provider {
 	return {

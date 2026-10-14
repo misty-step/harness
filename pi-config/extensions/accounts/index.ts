@@ -8,22 +8,23 @@
  * the built-in login, refresh and streaming, so every slot gets its own
  * `/login` entry, its own `auth.json` key and pi's own locked refresh.
  *
- * Each pool in `POOLS` (`openai-pool`, …) is a provider over the base plus its
- * slots. A request goes to one account; when that account hits a usage limit
- * before producing output it is blocked until its reset and the request moves
- * to the next. Blocks and last use are shared by all Pi sessions in
- * `account-pool.json`. `/pool` lists the accounts and their state.
+ * `openai-pool` delegates raw inference to `omp auth-gateway stdio`: OMP owns
+ * its existing Codex grants, selection and recovery; Pi executes its tools.
+ * Native STDIO buffers all events until completion. Other pools retain Pi-local
+ * account rotation and `account-pool.json`. `/pool` distinguishes these owners.
  *
  * Removing the extension removes the slots and pools and leaves the base
  * providers and their stored logins untouched (stock behavior).
  */
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
-import { createAssistantMessageEventStream, type Api, type Model } from "@earendil-works/pi-ai";
+import { createAssistantMessageEventStream, getCurrentSystemPrompt, getCurrentTools, type Api, type Model, type Provider } from "@earendil-works/pi-ai";
 import { builtinProviders } from "@earendil-works/pi-ai/providers/all";
 import { join } from "node:path";
 import { homedir } from "node:os";
 import { fileStore, rotate } from "./pool.ts";
 import { POOLS, SLOTS, cloneProvider, poolMembers, poolProvider, subscriptionTier } from "./slots.ts";
+import { nativeInventory, nativeStream } from "./native.ts";
+type ProviderStream = Provider["stream"];
 
 export default function accounts(pi: ExtensionAPI) {
 	const builtins = builtinProviders();
@@ -55,6 +56,21 @@ export default function accounts(pi: ExtensionAPI) {
 	for (const [poolId, baseId] of Object.entries(POOLS)) {
 		const base = find(baseId);
 		if (!base) continue;
+		if (poolId === "openai-pool") {
+			const through: ProviderStream = (model, context, options) => nativeStream({
+				model,
+				context: {
+					systemPrompt: [getCurrentSystemPrompt(context.messages)],
+					tools: getCurrentTools(context.messages),
+					messages: context.messages.filter((message) => message.role !== "system"),
+				},
+				options,
+				out: createAssistantMessageEventStream(),
+				onServe: (message) => session?.ui.setStatus("pool", `OMP ${message.provider}/${message.model}; credential ${message.credentialId ?? "unreported"}; buffered`),
+			});
+			pi.registerProvider(poolProvider(base, poolId, through, through));
+			continue;
+		}
 		const members = poolMembers(baseId);
 		const sticky: { member?: string } = {};
 		const through = (kind: "stream" | "streamSimple"): NonNullable<typeof base.stream> => (model, context, options) => rotate({
@@ -72,18 +88,21 @@ export default function accounts(pi: ExtensionAPI) {
 	}
 
 	pi.registerCommand("pool", {
-		description: "Show each pooled account, its login and any block",
+		description: "Show native OMP Codex inventory and Pi-local other pools",
 		handler: async (_args, ctx) => {
 			const state = store.read();
-			const lines = Object.entries(POOLS).flatMap(([poolId, baseId]) => [
-				poolId,
+			let lines: string[];
+			try { lines = await nativeInventory(); }
+			catch (error) { lines = [`openai-pool: OMP native owner unavailable: ${error instanceof Error ? error.message : String(error)}`]; }
+			lines.push(...Object.entries(POOLS).filter(([id]) => id !== "openai-pool").flatMap(([poolId, baseId]) => [
+				`${poolId} (Pi-local)`,
 				...poolMembers(baseId).map((member) => {
 					const until = state[member]?.blockedUntil ?? 0;
 					const model = ctx.modelRegistry.getAll().find((m) => m.provider === member);
 					const login = model && ctx.modelRegistry.hasConfiguredAuth(model) ? "signed in" : "no login";
 					return `  ${member}: ${login}${until > Date.now() ? `, blocked until ${new Date(until).toLocaleString()}` : ""}`;
 				}),
-			]);
+			]));
 			ctx.ui.notify(lines.join("\n"), "info");
 		},
 	});

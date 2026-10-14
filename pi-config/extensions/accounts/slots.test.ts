@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import type { Api, Model, Provider, StreamOptions } from "@earendil-works/pi-ai";
-import { cloneProvider, poolMembers, subscriptionTier } from "./slots.ts";
+import { cloneProvider, subscriptionTier } from "./slots.ts";
 
 test("a slot's models resolve to the slot's own login while requests are built as the base provider", () => {
 	const built: string[] = [];
@@ -32,9 +32,6 @@ test("US-045 an API-key slot (even of a provider that also offers OAuth) resolve
 	expect((await resolve({ credential: { type: "api_key", key: "own" } } as never))?.auth.apiKey).toBe("own");
 });
 
- test("OpenAI pool includes native ChatGPT logins and preserves legacy Codex slots", () => {
- expect(poolMembers("openai-codex")).toEqual(["openai", "openai-2", "openai-3", "openai-4", "openai-codex", "openai-codex-2", "openai-codex-3", "openai-codex-4"]);
- });
 
 for (const kind of ["stream", "streamSimple"] as const) {
 	test(`${kind}: subscription members default to fast without changing caller payloads, overrides or paid routes`, async () => {

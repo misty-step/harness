@@ -237,7 +237,7 @@ install_failover() {
 }
 
 validate_accounts() {
-  for file in index.ts pool.ts pool.test.ts slots.ts slots.test.ts; do
+  for file in index.ts native.ts native.test.ts pool.ts pool.test.ts slots.ts slots.test.ts README.md; do
     require_nonempty "$repo_dir/extensions/accounts/$file"
   done
 }
@@ -247,7 +247,7 @@ install_accounts() {
   # Slot logins live in auth.json under the slot ids and are never touched here.
   rm -rf "$agent_dir/extensions/accounts"
   install -d -m 700 "$agent_dir/extensions/accounts"
-  for file in index.ts pool.ts pool.test.ts slots.ts slots.test.ts; do
+  for file in index.ts native.ts native.test.ts pool.ts pool.test.ts slots.ts slots.test.ts README.md; do
     install -m 600 "$repo_dir/extensions/accounts/$file" "$agent_dir/extensions/accounts/$file"
   done
 }
