@@ -4,6 +4,8 @@ modelRoles:
   task: openai-codex/gpt-6.1-sol:xhigh
   vision: anthropic/claude-opus-5-5:high
 defaultThinkingLevel: xhigh
+# Keep steering in the current turn without interrupting an active tool.
+interruptMode: wait
 tier:
   openai: priority
 theme:
