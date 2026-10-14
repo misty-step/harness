@@ -88,8 +88,11 @@ actual unavailable native subscription plus a successful included sibling
 response and native account attribution; a healthy response alone does not
 prove it.
 
-Set `PI_NATIVE_SDK_ENTRY` to the installed Pi 1.2 `dist/index.js` when running
-the focused suite to also exercise its real SDK bridge with the unchanged
-model guard, tool continuation and an **offline** gateway. Synthetic provider
-keys test child-environment isolation; no stored grants or live model requests
-are used. Run-scoped TMPDIR keeps fixtures private.
+With `PI_NATIVE_SDK_ENTRY` unset, Bun's `test.skipIf` skips only the installed-SDK
+integration; portable protocol and local request-hook cases still execute.
+Set it to the installed Pi 1.2 `dist/index.js` to execute (not skip) the real SDK
+bridge, unchanged model guard and tool continuation against an **offline**
+gateway. Policy-fix review requires this SDK-configured run; a portable skip
+is not integration proof. Synthetic keys test child-environment isolation;
+no stored grants or live model requests are used. Run-scoped TMPDIR keeps
+fixtures private.

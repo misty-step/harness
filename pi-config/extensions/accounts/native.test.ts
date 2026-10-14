@@ -220,9 +220,7 @@ test("abort settles a pending local request hook; late completion cannot dispatc
 	expect(received.events.map(event => event.type)).toEqual(["error"]);
 });
 
-test("actual Pi SDK bridge enforces unchanged guard and retains tool continuation (OFFLINE gateway)", {
-	skip: !process.env.PI_NATIVE_SDK_ENTRY, timeout: 20000,
-}, async () => {
+test.skipIf(!process.env.PI_NATIVE_SDK_ENTRY)("actual Pi SDK bridge enforces unchanged guard and retains tool continuation (OFFLINE gateway)", async () => {
 	const f = fixture("sdk");
 	// SDK location is runtime-selected and optional on portable test hosts.
 	const sdk: typeof PiSDK = await import(process.env.PI_NATIVE_SDK_ENTRY!);
@@ -293,4 +291,4 @@ test("actual Pi SDK bridge enforces unchanged guard and retains tool continuatio
 		if (priorOffline === undefined) delete process.env.PI_OFFLINE; else process.env.PI_OFFLINE = priorOffline;
 		f.close();
 	}
-});
+}, 20000);
