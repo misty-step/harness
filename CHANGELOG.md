@@ -1,3 +1,9 @@
+# [0.2.2](https://github.com/misty-step/harness/compare/v0.2.1...v0.2.2) (2026-10-15)
+<!-- landmark:protected-release previous=v0.2.1 source=468a92a5fac1303289ab4cd3b10c6dcf640f121a7b752ecefccacccfdd55b28d -->
+
+### Bug Fixes
+
+* **release:** merge verified generated release notes promptly (#300) ([dd60cff](https://github.com/misty-step/harness/commit/dd60cff18880da6d7ea636eb457e2993a267d768))
 # [0.2.1](https://github.com/misty-step/harness/compare/v0.2.0...v0.2.1) (2026-10-15)
 <!-- landmark:protected-release previous=v0.2.0 source=b693083bf594a74ce770d3ff77cb2c951fe2e4f6ffa6b39f043410a911bb66d9 -->
 
