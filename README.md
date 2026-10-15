@@ -77,10 +77,9 @@ CI, hooks, and releases; component directories retain their focused tests.
 
 ## Foundations
 
-[FOUNDATIONS.md](FOUNDATIONS.md) is the operating rubric. Foundation adoption,
-story-deletion judgments, prose-density checks, and semantic review gates are
-retired. Check the real affected user path; shipped code gets one independent
-review, with another round only for real bugs.
+[Foundations](https://foundations.mistystep.io/) is the sole operating reference,
+including verification and review policy. `FOUNDATIONS.md` is a pointer, not a
+second rubric.
 
 
 ## Token-cost evidence (US-018, US-019)

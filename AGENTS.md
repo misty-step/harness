@@ -32,6 +32,5 @@ launcher writes; use `./scripts/verify`.
 
 `./scripts/bootstrap` wires secret-scanning hooks. `./scripts/check` runs native
 tests and isolated installer checks; installers test committed HEAD.
-Check the affected real user path. Shipped code gets one independent review;
-documents and measurements do not. Preserve credentials, private context and
-foreign runtime state. Root Landmark automation owns releases.
+Follow the [canonical foundations reference](https://foundations.mistystep.io/)
+for verification and review policy. Root Landmark automation owns releases.
