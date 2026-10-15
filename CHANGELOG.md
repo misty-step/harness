@@ -1,3 +1,33 @@
+# [0.2.1](https://github.com/misty-step/harness/compare/v0.2.0...v0.2.1) (2026-10-15)
+<!-- landmark:protected-release previous=v0.2.0 source=b693083bf594a74ce770d3ff77cb2c951fe2e4f6ffa6b39f043410a911bb66d9 -->
+
+### Features
+
+* **video:** screen, fit and listen before film music ships (#254) ([aea379b](https://github.com/misty-step/harness/commit/aea379b35d56dfcef899e8ac8cb714bf76720ccd))
+* **video:** brief the job, prompt each model its way, fit music to the cuts (#255) ([4f0b168](https://github.com/misty-step/harness/commit/4f0b168c34f0ce694890cc002bd3096d957cb655))
+* **harness:** sync portable preferences and native OpenAI logins (#261) ([17f36d3](https://github.com/misty-step/harness/commit/17f36d399ab79fc419b8cc46725d7dc830325095))
+* default native agents to Sol xhigh fast (#264) ([501b47a](https://github.com/misty-step/harness/commit/501b47aa691fc2a73bf83a2a2f4c96b9562047d3))
+* **omp:** request exact merged repository installs (#265) ([f98968e](https://github.com/misty-step/harness/commit/f98968e371c29dc69e7224af7de4f63ad234ebf1))
+* **omp:** address Powder evidence notes explicitly (#266) ([ca7064b](https://github.com/misty-step/harness/commit/ca7064b2d2c2630753e4e1b9fd5c259c4fc3efc7))
+* **omp:** admit fixed Iron Forest repository installs ([a0747d8](https://github.com/misty-step/harness/commit/a0747d88dbbd553b87f6a82f9c354deb90247c55))
+* **scripts:** show module code-line change from Glass ledger ([e16e6c8](https://github.com/misty-step/harness/commit/e16e6c8cc74380fde48353c2f6f5ce33a681fee7))
+* **foundation:** decision 0012 — docs/decisions + primitives.yaml in Foundation Standard 1.9.0 (#281) ([86580d1](https://github.com/misty-step/harness/commit/86580d135e29ce668c74fcfab0707c6029ba242f))
+* **shippr:** scaffold risk-gated PR ship loop CLI (#280) ([afbaf33](https://github.com/misty-step/harness/commit/afbaf33b3f940108ccaf06c74841c9fbfa812bd0))
+* **shippr:** System recap blocks in PR bodies (KAF-05) (#286) ([f3cd603](https://github.com/misty-step/harness/commit/f3cd603565c389480424e33ed195b649aefeaf11))
+* **omp:** load applicable taste skills for visual tasks ([3b43342](https://github.com/misty-step/harness/commit/3b4334225874b7c007e95a42b3689564ae417833))
+* **pi:** share the existing native OMP Codex pool ([498797a](https://github.com/misty-step/harness/commit/498797aad7897dc51f93e9c59051ad0e9a877571))
+* **session-backup:** bounded recoverable source snapshots (#293) ([692a985](https://github.com/misty-step/harness/commit/692a985dbec446bbf93798580f4cfd435494790f))
+
+### Bug Fixes
+
+* **skills:** name Phaedrus's GitHub token for what it is (#256) ([bb3af18](https://github.com/misty-step/harness/commit/bb3af186e90772bacd20536a0bfd48501b3923e4))
+* **omp:** no engineer launch requires one account; drop the r90.dev pin (#257) ([b00a655](https://github.com/misty-step/harness/commit/b00a65531b23bcf8968336bf3d80baf7ef96b75a))
+* **omp:** route cage evidence notes through canonical Glass writer (#260) ([911c950](https://github.com/misty-step/harness/commit/911c950d76717026475a2dfd1df5117f4645208a))
+* **omp:** preserve usage-aware specialist roles and gated fallback (#270) ([48f3c45](https://github.com/misty-step/harness/commit/48f3c45458a9755dbf0052394208e99731a93218))
+* **scripts:** refuse LOC change across different scopes ([fdb2435](https://github.com/misty-step/harness/commit/fdb2435bd094f1ccf9fd3c8b570e9b0c366dcedf))
+* **scripts:** require comparable scc and scope for LOC change ([175a163](https://github.com/misty-step/harness/commit/175a163e7049f4badd0e4383e850bb970fbf7c9d))
+* **scripts:** treat a receipt without a commit as unknown ([ade3c08](https://github.com/misty-step/harness/commit/ade3c08f5c12a8382896f1a5fa33d06e78a01332))
+* **omp:** wait for active tools before steering (#290) ([99987b3](https://github.com/misty-step/harness/commit/99987b375528fd7790e9a525fb0254a52c93f9c0))
 # [0.2.0](https://github.com/misty-step/harness/compare/v0.1.79...v0.2.0) (2026-10-06)
 <!-- landmark:protected-release previous=v0.1.79 source=337965cb6979ab0a438b9b1b6c056be7de762b29a905f86a409290dbc0c6ab9c -->
 
