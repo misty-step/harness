@@ -62,14 +62,18 @@ generator; never build a release service.
    wrong notes at their source (release-please: a `BEGIN_COMMIT_OVERRIDE` block
    in the merged PR's body), not by editing the release PR.
 6. **Exact-head checks.** A release PR merges only after the repository's real
-   CI passed on its current head commit. Apart from `workflow_dispatch` and
-   `repository_dispatch`, events caused by a workflow's `GITHUB_TOKEN` start no
-   workflow runs, so a release PR opened with it gets no automatic CI. Either
-   open it with a GitHub App token the repository already uses for releases, or
-   run the real CI with `workflow_dispatch` on the release branch, passing the
-   expected head SHA, and have CI refuse when the checked-out head differs.
-   Never create a personal access token or copy credentials between
-   repositories for this.
+   CI passed on its current head commit. `GITHUB_TOKEN`-created or updated PRs
+   create native `pull_request` runs that require workflow approval. Either
+   open the PR with a release App token the repository already uses, or approve
+   those native runs through GitHub's workflow-approval API. The existing
+   `GITHUB_TOKEN` with `actions: write` can do this; no human shipping gate is
+   needed. Scope approval to the generator's same-repository PR, its current
+   head SHA and the configured CI workflows; refuse missing, foreign or moved
+   runs, and do not restart already-started runs. `workflow_dispatch` and
+   `repository_dispatch` jobs can execute real CI but their checks do not
+   satisfy required PR checks. Never post a passing stand-in, create a PAT or
+   copy credentials for this. See GitHub's [trigger rules](https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/trigger-a-workflow)
+   and [required-check eligibility](https://docs.github.com/en/pull-requests/how-tos/merge-and-close-pull-requests/troubleshooting-required-status-checks).
 7. **Merge promptly.** A release PR lists changes that were reviewed when they
    merged, so it needs no second review. The merging agent checks that the
    version matches the included commits and that the notes hold nothing
