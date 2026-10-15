@@ -201,6 +201,9 @@ started at `v0.1.0`; old component tags remain under
 `legacy/<component>/<tag>` so their versions cannot collide. Historical
 component changelogs remain in place; new release notes belong at the root.
 Optional LLM synthesis is disabled, so publishing requires no model credential.
+Native GitHub auto-merge closes generated release PRs after required checks;
+the [release ADR](docs/decisions/0012-native-release-promotion.md) records the
+existing version policy and host-install boundary.
 
 ## Migration and related tools
 

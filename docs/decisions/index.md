@@ -4,6 +4,9 @@ Historical decisions and optional design references. Current operating guidance
 is [Foundations](../../FOUNDATIONS.md); records are not permission gates.
 The [primitives map](../architecture/primitives.yaml) describes ownership.
 
+## Current
+
+- [012](0012-native-release-promotion.md): retain Landmark and native GitHub release promotion.
 
 ## Principles
 
