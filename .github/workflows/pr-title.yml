@@ -1,0 +1,19 @@
+name: PR title
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened]
+permissions:
+  contents: read
+jobs:
+  conventional-title:
+    runs-on: ubuntu-latest
+    timeout-minutes: 1
+    steps:
+      - name: Check the release-note input
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          if ! [[ "$PR_TITLE" =~ ^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\([^\)]+\))?\!?:\ .+ ]]; then
+            printf '%s\n' 'Use a Conventional Commit title: type(scope): summary' >&2
+            exit 1
+          fi
