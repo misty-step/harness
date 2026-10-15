@@ -33,17 +33,19 @@ generator; never build a release service.
 2. **Commits are the input.** The generator reads the commits merged to the
    protected default branch since the previous release tag. Release units allow
    squash merges only, with the pull request title as the commit title
-   (repository setting `squash_merge_commit_title: PR_TITLE`), so the reviewed
-   title is exactly what the generator reads. A title check rejects
+   (`squash_merge_commit_title: PR_TITLE`) and an empty commit body
+   (`squash_merge_commit_message: BLANK`), so the reviewed title is the
+   generator's entire input. A title check rejects
    non-conventional titles before merge. It reads only the title, passed
    through an environment variable rather than interpolated into a script, and
    builds nothing.
 3. **Titles are the notes.** Write `type(scope): summary` for the person using
    the program: what changed, and what they gain or must do. Titles are
    published, so they carry no ticket IDs, internal paths or hosts,
-   credentials or client details. `fix` is a patch, `feat` a minor, and `!` or
-   a `BREAKING CHANGE:` footer a major; that footer says how to migrate or
-   roll back. `chore`, `docs`, `test`, `build`, `ci`, `refactor` and `style`
+   credentials or client details. `fix` is a patch, `feat` a minor, and `!` in
+   the title marks a major. Put migration and rollback steps in the PR
+   description; the generated notes link to the PR.
+   `chore`, `docs`, `test`, `build`, `ci`, `refactor` and `style`
    changes never cut a release on their own.
 4. **Baseline once.** The previous immutable release tag is the baseline. When
    adopting a generator, record the starting version and baseline commit in
@@ -124,7 +126,8 @@ adding a second generator:
 
 Adopt per release unit in one small pull request: generator configuration,
 release workflow, title check, `/changelog` where there is a site, and the
-ADR, with the squash-merge setting and default-branch protection applied.
+ADR, with `squash_merge_commit_title: PR_TITLE`,
+`squash_merge_commit_message: BLANK` and default-branch protection applied.
 Before merging it, run the actual generator, not an imitation, on patch,
 minor, breaking and no-release inputs, and show that a repeated run changes
 nothing and that a missing baseline, a moved head and failed or skipped CI
