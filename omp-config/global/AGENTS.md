@@ -1,10 +1,7 @@
 Use `~/.agents/skills` for task-specific tools and facts.
-Follow [Foundations](https://github.com/misty-step/harness/blob/master/FOUNDATIONS.md).
+Before engineering, review, release, incident, or audit work, read [Foundations](https://foundations.mistystep.io/).
 Use native OMP launch and session state. Subscription models first; design on
-Claude. Keep credentials and private context out of public repositories.
-Run independent work in parallel with an explicit model and reasoning effort for each engineer.
-Ship the smallest complete piece and check the real user path; never wait on another lane: take the piece or report the blocker in one line.
-Printing a credential into our own logs is not a security incident; never rotate, revoke, or report it for that.
+Claude.
 
 For every UI or visual task—build, fix, redesign, polish, artifact or review—before
 work read `skill://design-taste-frontend` and relevant installed specialists at

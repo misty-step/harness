@@ -342,17 +342,17 @@ isolation remain; memory caps and admission checks are removed.
 ## US-015 Publish verified harness releases
 
 Statement: When a harness change merits a release, I want its generated
-changelog independently model-reviewed and verified before publication, so
+changelog verified before publication, so
 release automation cannot publish an unverified default-branch candidate.
 
 Criteria:
 1. WHEN a verified `master` change warrants a release, THE SYSTEM SHALL stage
    the generated changelog in a pull request instead of pushing directly to
    protected `master`.
-2. WHEN that pull request has an independent model review, green observed
-   checks and verification against the current base, THE SYSTEM SHALL merge
-   the exact reviewed head normally before publishing its version tag and
-   GitHub Release; server-required CI and human approvals SHALL NOT gate it.
+2. WHEN that pull request contains only generated notes for reviewed changes
+   and passes required exact-head checks against the current base, THE SYSTEM
+   SHALL merge through native GitHub auto-merge before publishing its version
+   tag and GitHub Release, without a second review or human approval.
 3. IF the release candidate has not landed or its tag points to a different
    commit, THEN THE SYSTEM SHALL refuse publication.
 4. WHEN the release workflow is retried, THE SYSTEM SHALL preserve an already

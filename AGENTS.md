@@ -1,5 +1,7 @@
 # Harness
 
+Shared standard: [Constitution](https://foundations.mistystep.io/) and [Way of working](https://foundations.mistystep.io/way-of-working).
+
 Edit maintained source and use the affected component's native tools.
 
 ## Route the change
@@ -32,6 +34,4 @@ launcher writes; use `./scripts/verify`.
 
 `./scripts/bootstrap` wires secret-scanning hooks. `./scripts/check` runs native
 tests and isolated installer checks; installers test committed HEAD.
-Check the affected real user path. Shipped code gets one independent review;
-documents and measurements do not. Preserve credentials, private context and
-foreign runtime state. Root Landmark automation owns releases.
+Root Landmark automation owns releases.
