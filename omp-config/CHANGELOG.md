@@ -38,6 +38,9 @@
 
 ### Features
 
+* **host-install:** admit explicit Cantrip repository install/readback through the existing fixed protocol, with a bounded 2100-second installation deadline and separate installed-code versus live-activation evidence.
+* **host-install:** feature-detect the owned managed Workbench broker's exact native `refresh-service` command at CLI-install completion, allowing host-side Harness installs to load an already staged broker without desktop authority or unrelated consumer restarts.
+
 * **harness:** make pokayoke a standing primitive: named in guidance, an explicit `/skill:pokayoke`, capture/ergonomics/foundation references, and a postmortem template that requires closing the error class.
 * **workstation:** add a user-scope bounded execution workflow and tracked disk/inode, RAM, swap-growth, and slice-pressure notifier; document the 1 GiB containment and visible alert proof.
 

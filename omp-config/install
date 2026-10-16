@@ -308,6 +308,48 @@ install_cli() {
     rm -f -- "$unit"
     systemctl --user daemon-reload
   fi
+  # Refresh only Workbench's native broker, never OMP or application consumers.
+  # Host-side repository installs use this to load an already installed broker.
+  python3 - <<'PY'
+import os
+from pathlib import Path
+import stat
+import subprocess
+import sys
+
+broker = Path.home().resolve() / ".local/lib/workbench-host-install/workbench-host-install"
+try:
+    link = broker.lstat()
+    if not stat.S_ISLNK(link.st_mode) or link.st_uid != os.getuid():
+        sys.exit(0)
+    target = broker.resolve(strict=True)
+    relative = target.relative_to(broker.parent / "releases")
+    info = target.stat()
+except (OSError, RuntimeError, ValueError):
+    sys.exit(0)
+if (relative.parts[1:] != ("bin", "workbench-host-install")
+        or not stat.S_ISREG(info.st_mode) or info.st_uid != os.getuid()
+        or info.st_mode & 0o222 or not os.access(broker, os.X_OK)):
+    sys.exit(0)
+try:
+    help_result = subprocess.run([str(broker), "--help"], stdin=subprocess.DEVNULL,
+                                 stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+                                 text=True, timeout=5)
+except (OSError, UnicodeError, subprocess.TimeoutExpired):
+    sys.exit(0)
+if help_result.returncode != 0:
+    sys.exit(0)
+supported = any(line.split() == ["workbench-host-install", "refresh-service"]
+                for line in help_result.stdout.splitlines())
+if not supported:
+    sys.exit(0)
+try:
+    subprocess.run([str(broker), "refresh-service"], stdin=subprocess.DEVNULL,
+                   check=True, timeout=30)
+except (OSError, subprocess.SubprocessError) as exc:
+    print(f"Workbench broker refresh failed: {exc}", file=sys.stderr)
+    sys.exit(1)
+PY
 }
 
 

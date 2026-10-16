@@ -105,36 +105,51 @@ No-gos: no unowned file deletion or live credential tampering.
 
 Evidence: `./scripts/verify-installers`
 
-## US-052 Finish approved host installations from the engineer cage
+## US-052 Manage authorized applications without controlling the desktop
 
-Statement: While an engineer is caged, I want it to finish installing merged,
-independently reviewed, green source with host readback and reversible rollback,
-so routine approved installations stop waiting on the desk.
+Statement: While an engineer is isolated from my desktop, I want it to finish
+authorized application installation, configuration and activation through native
+owner paths, with host readback and explicit live-state evidence, without taking
+over my screen or cursor.
 
 Criteria:
 1. THE SYSTEM SHALL expose only typed capabilities, named installation,
-   receipt readback and receipt rollback through Workbench's owned socket,
-   rejecting arbitrary command, destination, environment and repository fields.
-2. THE SYSTEM SHALL preserve host display isolation, hidden live Hermes state
-   and read-only installed code; a host-added socket under the existing library
-   mount SHALL be usable without restarting an active engineer.
+   selected-asset receipt readback/rollback, and fixed repository install/readback
+   through Workbench's owned socket. Arbitrary commands, destinations,
+   environments, caller-authored source proof and unknown repositories SHALL fail.
+2. THE SYSTEM SHALL preserve operator screen, cursor and capture isolation,
+   hidden live Hermes state and namespace boundaries. Writable installed code
+   and authorized application management SHALL NOT require desktop authority.
 3. WHEN `cli` is selected, THE SYSTEM SHALL stage the client without activating
-   the cage, altering the retained native OMP binary or restarting consumers.
-4. THE SYSTEM SHALL delegate source eligibility, selected existing-installer
-   execution, host byte/mode/link checks and drift-safe rollback to Workbench,
-   with durable receipts appended to the existing Glass commission.
-5. THE SYSTEM SHALL distinguish installed code from requested activation and
-   SHALL permit Kaylee skill installation without whole-profile, identity,
-   credential, other-profile, cron-runtime or live-state replacement.
+   the cage, altering the retained native OMP binary or restarting active engineers.
+4. THE SYSTEM SHALL delegate source eligibility, fixed native installer execution,
+   host byte/mode/link checks and recipe-specific recovery to Workbench.
+   Selected-asset receipts SHALL remain on the existing Glass commission.
+5. THE SYSTEM SHALL distinguish installed code from live activation and SHALL
+   permit Kaylee skill installation without whole-profile, identity, credential,
+   other-profile, cron-runtime or live-state replacement.
+6. WHEN an explicitly requested application recipe owns activation, THE SYSTEM
+   SHALL use that application's existing startup owner, preserve unrelated
+   configuration and runtime data, and prove the running process loaded the
+   installed executable. Cantrip SHALL use the fixed `cantrip` repository route,
+   not an arbitrary command or automatic Harness-install side effect.
+7. WHEN CLI installation finds a UID-owned managed Workbench broker advertising
+   the exact `refresh-service` command, THE SYSTEM SHALL invoke only that command.
+   It SHALL no-op when the running broker is current; otherwise its fixed native
+   worker SHALL wait behind the current host installer request and restart only
+   `workbench-host-install.service` to load the changed broker executable.
 
-No-gos: No arbitrary host shell, caller-authored source proof, new live-profile
-mount, desk/gateway restart or second deployment engine. Initial reviewed,
-merged broker bootstrap remains an explicitly authorized desk operation.
+No-gos: No arbitrary host shell, new live-profile mount, display/input/session-bus
+exposure, unrelated consumer restart or second deployment engine. Initial broker
+provisioning uses its authorized native owner installer; existing broker updates
+use the managed release plus host-side Harness installer refresh.
 
-Evidence: `omp-config/bin/omp-host-install.py`,
+Evidence: `omp-config/bin/omp-host-install.py`, `omp-config/install`,
 `omp-config/bin/test_omp_host_install.py`,
-`omp-config/bin/test_omp_display.py`; installed `omp-host-install` requests with
-Workbench host readback and audited rollback on the existing Glass commission.
+`omp-config/bin/test_omp_display.py`; Workbench owns host readback and audited
+selected-asset rollback. The [application-management runbook](omp-config/README.md#authorized-application-management)
+and [decision 0013](docs/decisions/0013-application-management-not-desktop-control.md)
+describe the Cantrip and existing-broker paths.
 
 ## Capability: Execution offload
 
