@@ -1,3 +1,9 @@
+# [0.2.3](https://github.com/misty-step/harness/compare/v0.2.2...v0.2.3) (2026-10-16)
+<!-- landmark:protected-release previous=v0.2.2 source=5283e0a9306c830631315966b620d59cbc37dac716da4885cc88ac1225ff24b8 -->
+
+### Bug Fixes
+
+* **omp:** allow Cantrip management without desktop access ([ddd51d9](https://github.com/misty-step/harness/commit/ddd51d96fc17cd524aa1dc8d123771e5e6de9c14))
 # [0.2.2](https://github.com/misty-step/harness/compare/v0.2.1...v0.2.2) (2026-10-15)
 <!-- landmark:protected-release previous=v0.2.1 source=468a92a5fac1303289ab4cd3b10c6dcf640f121a7b752ecefccacccfdd55b28d -->
 
