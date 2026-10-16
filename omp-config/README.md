@@ -220,6 +220,10 @@ The broker's managed executable and its running service are distinct. From the
 merged Workbench checkout, use its native owner installer to plan and stage the
 broker release (these commands do not restart the service):
 
+For a legacy broker without `service_refresh: quiescent`, coordinate an exclusive
+host-install maintenance window before staging. Submit no other bridge
+installations until the new capabilities reply. Ordinary desktop work continues.
+
 ```sh
 ./install.sh --profile mirrodin --only host-install
 ./install.sh --profile mirrodin --only host-install --apply
@@ -242,11 +246,14 @@ the exact native `workbench-host-install refresh-service` usage line, the
 installer invokes that fixed executable with only `refresh-service`.
 Missing, old or unmanaged brokers do not change ordinary installation.
 
-The native command no-ops when no update is pending. Otherwise it schedules a
-fixed worker outside the current broker cgroup; the worker waits behind the
-current host installer request before restarting only
-`workbench-host-install.service` and proving the new executable identity. The
-Harness installer runs in the host context supplied by the existing broker,
+The native command no-ops when no update is pending. Otherwise a fixed
+outside-cgroup worker uses the broker's quiescent handoff: earlier requests
+complete and later connections wait on systemd's listener for the selected ELF.
+The one-time legacy bootstrap lacks this protocol and restarts only
+`workbench-host-install.service` within the coordinated maintenance window.
+It must not treat a capabilities response as an idle reservation.
+The worker proves the new running identity. The Harness installer runs in the
+host context supplied by the existing broker,
 not by breaking out of the engineer namespace. No OMP/Pi/Hermes restart,
 Cantrip installation or new execution bridge is involved. Confirm capabilities
 actually advertise Cantrip after the request and refresh complete, then run the

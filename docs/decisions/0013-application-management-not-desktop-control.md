@@ -29,9 +29,12 @@ release and changes its managed executable link without restarting the service.
 The merged Harness CLI installer, executed on the host by the already supported
 `install-repository --repository harness` recipe, feature-detects the owned
 managed broker's exact `refresh-service` help entry and invokes only that fixed
-command. It no-ops when current; otherwise a fixed outside-cgroup worker waits
-behind the current installer request and restarts only the broker unit. The
-[runbook](../../omp-config/README.md#authorized-application-management) records the
+command. A fixed outside-cgroup worker uses a serial quiescent handoff, preserving
+queued connections for the new executable. The initial legacy upgrade has no
+such protocol and requires a coordinated exclusive host-install maintenance
+window before staging; a capabilities reply is not an admission lock. Its
+fallback restarts only the broker unit.
+The [runbook](../../omp-config/README.md#authorized-application-management) records the
 concrete bootstrap and explicit Cantrip install/readback commands.
 
 ## Consequences
