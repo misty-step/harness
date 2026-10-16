@@ -111,10 +111,26 @@ omp-config/install
   `install --check` is rejected rather than accidentally deploying. The base
   `agent-config/install --check` is an inert preflight with explicit arguments.
 
-Restart the relevant harness to load changed extensions, guidance and OpenRouter
-credentials. Only Pi's `auth.json.openrouter` mapping is source-owned; other
-credentials, sessions, foreign packages, and generated desktop themes are not.
-See [US-028](USER_STORIES.md) for project-aware billing and failure behavior.
+Installation does not prove an active runtime loaded changed code or guidance.
+Use a fresh native harness session to load changed extensions, guidance and
+OpenRouter credentials; do not restart unrelated consumers. Only Pi's
+`auth.json.openrouter` mapping is source-owned; other credentials, sessions,
+foreign packages, and generated desktop themes are not. See
+[US-028](USER_STORIES.md) for project-aware billing and failure behavior.
+
+### Application management is not desktop control
+
+Desktop isolation protects the operator's live screen, cursor and capture
+surfaces; it is not a ban on authorized application installation, configuration
+or service activation. Use the application's native owner paths. When host
+context is required, Workbench's fixed host-install recipes provide it without
+exposing a host shell, display/input socket or session bus. Installation and
+live activation require separate readback.
+
+The [OMP application-management runbook](omp-config/README.md#authorized-application-management)
+documents the explicit Cantrip install/readback commands and the existing-broker
+refresh bootstrap. See [decision 0013](docs/decisions/0013-application-management-not-desktop-control.md)
+for the boundary and rejected alternatives.
 
 
 
