@@ -44,7 +44,7 @@ change. `all` selects owned configuration, guidance, MCP, engineering skills,
 agents, themes, extensions, audio isolation and the four workstation safety
 helpers. It updates future launches without restarting running sessions.
 Available targeted components are `config`, `guidance`, `mcp`, `agents`,
-`extensions`, `secrets`, `audio-sandbox`, `cli`, and `skill:NAME`.
+`extensions`, `secrets`, `audio-sandbox`, `cli`, `browser-helper`, and `skill:NAME`.
 
 OMP uses `$PI_CODING_AGENT_DIR` when set, otherwise `$(omp config path)`.
 Shared helpers and safety entrypoints deploy to `$HOME/.local/bin`. Foreign
@@ -156,7 +156,8 @@ systemd readiness handshake runs before OMP.
 
 The CLI install lifts owned slice and active engineer scope memory limits without
 stopping or relocating PIDs. Existing namespaces retain old read-only mounts
-until exit; fresh sessions get writable config/executable paths.
+until exit. The display boundary protects host config/executable paths; project
+files and ordinary runtime state remain writable.
 
 ## Engineer display isolation
 
@@ -166,6 +167,40 @@ display connections. Use `omp-gui -- sh` to run native applications and their
 screenshot/input commands together on a private Xvfb display. Inspect saved
 images before choosing coordinates. Never reconnect host display sockets or
 browser/debug endpoints. Headless browser QA uses the native browser tool.
+
+### Optional Chromium helper boundary
+
+`OMP_INSTALL_COMPONENTS=browser-helper ./install` stages only the existing
+`omp-engineer`/`omp-display` path and standalone Rust `omp-browser-helper`;
+it does not run the CLI retirement
+step, change accounts/settings, register an owner, or alter any shared limit.
+It requires Rust/libsystemd, Chromium, bubblewrap, slirp and disk-backed private
+scratch. Only the explicit `browser-helper` component preflights these browser
+prerequisites; ordinary CLI and default updates do not require Chromium.
+The default component selection remains unchanged.
+
+Opt in with `OMP_ENGINEER_BROWSER_ISOLATION=chromium-v1` only inside an already
+registered, uncapped `omp-engineer-<24 lowercase hex>.scope` under `omp.slice`.
+The current launcher stays uncapped; this component is not an owner scheduler.
+Its one optional routing condition makes nested opt-ins re-enter the display
+contract check; a namespace without its existing shim hook refuses before exec.
+Unregistered/capped owners fail closed, never launching Chromium in the owner.
+The display controller pins its root pidfd and real unit InvocationID plus the
+private namespace root. The supported native `PUPPETEER_EXECUTABLE_PATH` hook
+starts the immutable-pidfd shim. Only an authenticated same-namespace shim can
+move to a separate sibling scope. Manager/cgroup membership, 4-GiB helper-only
+bounds, zero swap, group OOM and actual ancestor/oomd exclusion are read back
+before EXEC; the shim independently verifies actual placement and controls.
+No owner cap, whole-fleet inventory or aggregate capacity admission is restored.
+Each additional helper is another finite leaf, not a combined per-owner bound.
+
+Private `.omp/run`, `/tmp`, `/var/tmp` and default scratch use per-namespace disk
+storage, removed after namespace teardown. Host profiles/brokers stay hidden;
+PID, process group, stdio and native cancellation are not wrapped/replaced.
+Native browser use, abort/reopen and helper-only kernel OOM with the same native
+root surviving still need independent host acceptance; component tests are not
+that evidence. Browser operations use the JS eval prelude, not a standalone
+model browser tool. Never reconnect a personal browser or host display endpoint.
 
 ### Native work records and installation
 

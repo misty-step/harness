@@ -255,6 +255,50 @@ install_audio_sandbox() {
   run_shared --audio-sandbox
 }
 
+validate_browser_tools() {
+  for tool in bwrap slirp4netns findmnt; do
+    command -v "$tool" >/dev/null 2>&1 || { echo "$tool is required" >&2; exit 1; }
+  done
+  [ -x /usr/bin/chromium ] || {
+    echo 'Isolated native browser launches require /usr/bin/chromium' >&2; exit 1;
+  }
+  [ "$(cat /proc/sys/dev/tty/legacy_tiocsti 2>/dev/null)" = 0 ] || {
+    echo 'Engineer display isolation requires dev.tty.legacy_tiocsti=0' >&2; exit 1;
+  }
+}
+
+validate_browser_helper() {
+  validate_cli
+  validate_browser_tools
+  require_nonempty "$repo_dir/bin/omp-browser-helper.rs"
+  compiler=${RUSTC:-rustc}
+  command -v "$compiler" >/dev/null 2>&1 || { echo 'rustc is required' >&2; exit 1; }
+  helper="$HOME/.local/bin/omp-browser-helper"
+  if [ -e "$helper" ] || [ -L "$helper" ]; then
+    [ ! -L "$helper" ] && [ -f "$helper" ] && [ -x "$helper" ] &&
+      [ "$(timeout 5 "$helper" --identity)" = 'omp-browser-helper chromium-v1' ] || {
+      echo 'Refusing foreign omp-browser-helper entrypoint' >&2; exit 1;
+    }
+  fi
+  mkdir -p "$HOME/.cache/tmp"
+  browser_build=$(mktemp "$HOME/.cache/tmp/omp-browser-build.XXXXXX")
+  trap 'rm -f -- "${browser_build-}"' 0
+  "$compiler" --edition=2024 -C opt-level=2 -C codegen-units=1 \
+    "$repo_dir/bin/omp-browser-helper.rs" -o "$browser_build"
+  [ "$(timeout 5 "$browser_build" --identity)" = 'omp-browser-helper chromium-v1' ] || {
+    echo 'Invalid compiled Chromium helper' >&2; exit 1;
+  }
+}
+
+install_browser_helper() {
+  # Stage only the existing launch/display path and shim, without CLI retirement.
+  # No alias, native ELF, limits, scheduler, account or settings mutation.
+  install -d -m 700 "$HOME/.local/bin"
+  install -m 700 "$repo_dir/bin/omp-engineer.py" "$HOME/.local/bin/omp-engineer"
+  install -m 700 "$repo_dir/bin/omp-display.py" "$HOME/.local/bin/omp-display"
+  install -m 700 "$browser_build" "$HOME/.local/bin/omp-browser-helper"
+}
+
 validate_cli() {
   command -v python3 >/dev/null 2>&1 || { echo "python3 is required" >&2; exit 1; }
   for name in omp-engineer omp-display omp-gui omp-host-install; do
@@ -386,6 +430,7 @@ for component do
     secrets) validate_secrets ;;
     audio-sandbox) validate_audio_sandbox ;;
     cli) validate_cli ;;
+    browser-helper) validate_browser_helper ;;
     skill:*) validate_skill "${component#skill:}" ;;
     *)
       printf 'Unknown install component: %s\n' "$component" >&2
@@ -405,6 +450,7 @@ if [ "$1" != all ]; then
       secrets) install_secrets ;;
       audio-sandbox) install_audio_sandbox ;;
       cli) install_cli ;;
+      browser-helper) install_browser_helper ;;
       skill:*) install_skill "${component#skill:}" ;;
     esac
   done

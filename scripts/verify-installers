@@ -181,6 +181,28 @@ for consumer in pi omp; do
     check "omp engineer launcher bytes" cmp -s "$work/source/omp-config/bin/omp-engineer.py" "$home/.local/bin/omp-engineer"
     check "omp engineer launcher executable" test -x "$home/.local/bin/omp-engineer"
     check "omp engineer launcher installed load" "$home/.local/bin/omp-engineer" --help
+    # The optional browser component stages only launch/display/shim; preserve
+    # all original default-install assertions and foreign-state sentinels.
+    compiler=${RUSTC:-$(rustc --print sysroot)/bin/rustc}
+    if [ -x /usr/bin/chromium ]; then
+      check "omp optional Chromium helper staging" \
+        env -i PATH="$PATH" RUSTC="$compiler" HOME="$home" TMPDIR="$work" \
+        PI_CODING_AGENT_DIR="$agent" OMP_INSTALL_COMPONENTS=browser-helper \
+        "$work/source/omp-config/install"
+      check "omp Chromium helper installed identity" "$home/.local/bin/omp-browser-helper" --identity
+      check "omp helper staging preserves native entrypoint" cmp -s "$work/expected-native" "$home/.local/bin/omp"
+      check "omp helper staging does not activate memory units" test ! -e "$home/.config/systemd/user/omp.slice"
+    else
+      if env -i PATH="$PATH" RUSTC="$compiler" HOME="$home" TMPDIR="$work" \
+        PI_CODING_AGENT_DIR="$agent" OMP_INSTALL_COMPONENTS=browser-helper \
+        "$work/source/omp-config/install" >"$work/omp-browser.log" 2>&1; then
+        printf 'FAIL omp helper accepted missing Chromium\n' >&2
+        failures=$((failures + 1))
+      else
+        check "omp missing Chromium refuses before helper writes" test ! -e "$home/.local/bin/omp-browser-helper"
+        check "omp refused helper staging preserves display" cmp -s "$work/source/omp-config/bin/omp-display.py" "$home/.local/bin/omp-display"
+      fi
+    fi
     check "omp CLI preserves the sole runtime experiment ledger" cmp -s "$work/expected-experiments" "$home/.hermes/profiles/kaylee/journal/experiments.md"
     check "omp OpenRouter personal billing entry" \
       env -i PATH="$home/.local/bin:$PATH" HOME="$home" AGENT="$agent" bun -e '
