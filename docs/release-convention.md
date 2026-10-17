@@ -100,10 +100,12 @@ generator; never build a release service.
     alias. Private sites keep their access boundary. A program that reports
     its revision (health endpoint, `--version`) reports its version beside the
     full commit SHA.
-11. **Custody wins.** Existing release custody, holds and tenant boundaries
-    override this convention. Under a hold, release automation is proposed to
-    the custodian as source only, and nothing merges, retries, dispatches or
-    deploys. Release tooling never touches client data.
+11. **Verification, not permission.** Green default-branch commits deploy without
+    human approval, a release-hold flag or a custodian handoff. Keep checks that
+    verify the exact candidate, tenant isolation, migration compatibility and
+    recovery, plus rollback. Missing or failed verification stops a release;
+    ownership labels and historical holds do not. Release tooling never touches
+    client data or credentials.
 
 ## Generators
 
