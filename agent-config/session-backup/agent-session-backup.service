@@ -1,8 +1,6 @@
 # owned by misty-step/harness agent-session-backup
 [Unit]
-Description=Encrypted OMP and Kaylee session backup with SQLite restore proof
-OnFailure=kaylee-host-alert@%n.service
-OnSuccess=kaylee-host-ok@%n.service
+Description=Encrypted OMP session backup
 
 [Service]
 Type=oneshot

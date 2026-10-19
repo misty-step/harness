@@ -320,17 +320,11 @@ print(json.dumps(checks))
                 implementation.stage_configured(self.config, self.stage)
         self.assert_source()
         self.assertFalse(self.stage.exists())
-        profile = self.home / ".hermes/profiles/kaylee"
-        fixtures.database(profile / "state.db")
-        for name in ("sessions", "cron", "plugin-data/kaylee"):
-            (profile / name).mkdir(parents=True)
         (self.home / ".omp/agent/sessions").mkdir(parents=True)
-        real_stage = implementation.stage_hermes
-        def add_legacy_alias(profile, target):
-            databases = real_stage(profile, target)
+        def add_legacy_alias(home):
             os.link(self.selected, self.stage / "manifest.json")
-            return databases
-        with patch("backup.stage_hermes", add_legacy_alias), patch("backup.subprocess.check_output", return_value="fixture-glass"), patch("backup.restic") as transport:
+            return "fixture-glass"
+        with patch("backup.glass_build", add_legacy_alias), patch("backup.restic") as transport:
             with self.assertRaises(FileExistsError):
                 implementation.backup(self.home, "fixture-double")
             transport.assert_not_called()

@@ -1,12 +1,11 @@
 """Correction regressions: synthetic sources and isolated local restic only."""
-from contextlib import closing, redirect_stdout
+from contextlib import redirect_stdout
 import errno
 import io
 import json
 import os
 from pathlib import Path
 import shutil
-import sqlite3
 import subprocess
 import sys
 import tempfile
@@ -14,10 +13,9 @@ import unittest
 from unittest.mock import patch
 
 import backup as implementation
-from test_configured import database, source
+from test_configured import source
 
 ROOT = Path(__file__).resolve().parent
-BASE = "77b85ab8e0526fe9599a303fa41b4aa29cb7d277"
 
 
 class BackupCorrectionTests(unittest.TestCase):
@@ -238,68 +236,18 @@ class BackupCorrectionTests(unittest.TestCase):
         self.assertFalse(list((self.home / ".cache/tmp").iterdir()))
         self.assert_readonly_source_intact(selected)
 
-    def legacy_profile(self):
-        database(self.profile / "state.db")
-        for name in ("sessions", "cron", "plugin-data/kaylee"):
-            (self.profile / name).mkdir(parents=True)
-
-    def test_legacy_supported_link_into_reserved_state_is_rejected_before_source_deletion(self):
-        self.legacy_profile()
-        profile = self.home / ".hermes/profiles/kaylee"
-        shutil.copytree(self.profile, profile)
-        (self.home / ".omp/agent/sessions").mkdir(parents=True)
+    def test_legacy_sessions_link_into_reserved_state_is_rejected_before_source_deletion(self):
         marker = self.state / "snapshot/selected.jsonl"
         marker.parent.mkdir(parents=True)
         marker.write_text("Legacy linked source must remain.\n")
-        (profile / "sessions/current.jsonl").symlink_to(marker)
+        sessions = self.home / ".omp/agent/sessions"
+        sessions.parent.mkdir(parents=True)
+        sessions.symlink_to(marker.parent, target_is_directory=True)
         with patch("backup.restic") as transport, self.assertRaisesRegex(ValueError, "overlaps"):
             implementation.backup(self.home, "fixture-double")
         transport.assert_not_called()
         self.assertEqual(marker.read_text(), "Legacy linked source must remain.\n")
         self.assertFalse((self.state / "backup.lock").exists())
-
-    def test_legacy_base_candidate_dereference_file_directory_and_selected_root_links(self):
-        self.legacy_profile()
-        (self.profile / "transcript-source.jsonl").write_text("Synthetic legacy transcript.\n")
-        (self.profile / "sessions/current.jsonl").symlink_to("../transcript-source.jsonl")
-        outside = self.base / "legacy-link-target"
-        outside.mkdir()
-        (outside / "external.jsonl").write_text("Synthetic external legacy transcript.\n")
-        (self.profile / "sessions/archive").symlink_to(outside, target_is_directory=True)
-        (self.profile / "cron").rmdir()
-        (self.profile / "cron").symlink_to(outside, target_is_directory=True)
-        old_source = subprocess.check_output(["git", "show", BASE + ":agent-config/session-backup/backup.py"], cwd=ROOT, text=True)
-        old = {}
-        old["__name__"] = "fixture_base_backup"
-        exec(compile(old_source, "git-base-backup.py", "exec"), old)
-        old_stage = self.base / "base-stage"
-        old["stage_hermes"](self.profile, old_stage)
-        implementation.stage_hermes(self.profile, self.stage)
-        for relative in ("sessions/current.jsonl", "sessions/archive/external.jsonl", "cron/external.jsonl"):
-            self.assertEqual((self.stage / relative).read_bytes(), (old_stage / relative).read_bytes())
-            self.assertFalse((self.stage / relative).is_symlink())
-
-    def test_legacy_linked_sqlite_uses_consistent_wal_snapshot_and_cycle_fails(self):
-        self.legacy_profile()
-        live = sqlite3.connect(self.base / "linked.sqlite3")
-        self.addCleanup(live.close)
-        live.execute("PRAGMA journal_mode=WAL")
-        live.execute("PRAGMA wal_autocheckpoint=0")
-        live.execute("CREATE TABLE fixture (value TEXT)")
-        live.execute("INSERT INTO fixture VALUES ('committed WAL')")
-        live.commit()
-        live.execute("INSERT INTO fixture VALUES ('uncommitted')")
-        (self.profile / "cron/linked.sqlite3").symlink_to(self.base / "linked.sqlite3")
-        databases = implementation.stage_hermes(self.profile, self.stage)
-        self.assertIn(self.stage / "cron/linked.sqlite3", databases)
-        with closing(sqlite3.connect(self.stage / "cron/linked.sqlite3")) as saved:
-            self.assertEqual(saved.execute("SELECT value FROM fixture").fetchall(), [("committed WAL",)])
-            self.assertEqual(saved.execute("PRAGMA quick_check").fetchall(), [("ok",)])
-        self.assertEqual(live.execute("SELECT value FROM fixture").fetchall(), [("committed WAL",), ("uncommitted",)])
-        self.assertFalse(list(self.stage.rglob("*-wal")))
-        (self.profile / "sessions/cycle").symlink_to(self.profile / "sessions", target_is_directory=True)
-        with self.assertRaisesRegex(ValueError, "cycle"):
-            implementation.stage_hermes(self.profile, self.base / "cycle-stage")
 
 
 if __name__ == "__main__":
