@@ -13,7 +13,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-from backup import backup, digest, load_config, restic, stage_configured, stage_hermes, validate_config, verify_configured
+from backup import backup, digest, glass_build, load_config, restic, stage_configured, stage_hermes, validate_config, verify_configured
 
 ROOT = Path(__file__).resolve().parent
 
@@ -374,6 +374,8 @@ class ConfiguredBackupTests(unittest.TestCase):
             (profile / name).mkdir(parents=True)
         sessions = self.home / ".omp/agent/sessions"
         sessions.mkdir(parents=True)
+        (self.home / ".local/bin").mkdir(parents=True, exist_ok=True)
+        (self.home / ".local/bin/glass").touch()
         calls, captured = [], []
         transport = self.fixture_transport(calls)
         def legacy_transport(binary, *args):
@@ -388,6 +390,9 @@ class ConfiguredBackupTests(unittest.TestCase):
         self.assertEqual(captured[0]["glass_build"], "fixture-glass")
         self.assertEqual(calls[0][-2], sessions)
         self.assertEqual(set(captured[0]["databases"]), {"hermes/state.db"})
+
+    def test_legacy_scope_records_no_glass_build_once_glass_is_retired(self):
+        self.assertIsNone(glass_build(self.home))
 
     @unittest.skipUnless(shutil.which("restic"), "restic unavailable; local repository integration not run")
     def test_real_restic_local_fixture_repository_restore_without_originals(self):

@@ -59,6 +59,14 @@ def stage_hermes(profile, target):
     return databases
 
 
+
+def glass_build(home):
+    # Glass is retired; record its build when present instead of failing the backup.
+    glass = home / ".local/bin/glass"
+    if not glass.exists():
+        return None
+    return subprocess.check_output([str(glass), "version"], text=True).strip()
+
 def utc_now():
     return datetime.now(timezone.utc).isoformat()
 
@@ -561,7 +569,7 @@ def backup(home, binary, config=None):
                 manifest = {
                     "schema": 1, "home": str(home), "sessions": str(sessions),
                     "profile": str(profile), "stage": str(stage),
-                    "glass_build": subprocess.check_output([str(home / ".local/bin/glass"), "version"], text=True).strip(),
+                    "glass_build": glass_build(home),
                     "databases": {str(path.relative_to(stage)): digest(path) for path in databases},
                 }
                 with (stage / "manifest.json").open("x") as output:
