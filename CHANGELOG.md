@@ -1,3 +1,9 @@
+# [0.2.4](https://github.com/misty-step/harness/compare/v0.2.3...v0.2.4) (2026-10-19)
+<!-- landmark:protected-release previous=v0.2.3 source=49f96a72d7acd99d200fdda8a90a0c82d7e99c1d93d3b701f491acaf35f27101 -->
+
+### Bug Fixes
+
+* **session-backup:** don't fail when retired glass is absent (#306) ([3a9e254](https://github.com/misty-step/harness/commit/3a9e254ce3b2d0e0f101574c66a5859508b7ecd6))
 # [0.2.3](https://github.com/misty-step/harness/compare/v0.2.2...v0.2.3) (2026-10-16)
 <!-- landmark:protected-release previous=v0.2.2 source=5283e0a9306c830631315966b620d59cbc37dac716da4885cc88ac1225ff24b8 -->
 
