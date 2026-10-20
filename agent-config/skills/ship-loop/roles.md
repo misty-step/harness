@@ -1,57 +1,46 @@
 # Role briefs
 
-Fill every `<field>` before you dispatch. A child sees only its brief, so a field you can't fill is a step you haven't finished. Each role posts its report as a PR comment headed with its role and the SHA. The PR then carries the whole round, and the judge reads it there.
+Fill every `<field>` before dispatch. QA, reviewer and judge each post one PR report with role, revision and evidence. Return its link, outcome and any blocker to the conductor.
 
 ## Builder
 
 ```
 You are the builder for <repo> ticket <ticket URL>: <title>.
 
-Goal: make this ticket's acceptance criteria true, and nothing beyond them.
+Goal: meet this ticket's acceptance criteria.
 Read first: the ticket, its parent spec <spec URL>, and the repo's AGENTS.md or CLAUDE.md.
-Then read ~/.claude/skills/implement/SKILL.md and follow it: tdd at the agreed seams,
-then code-review of your own diff.
 Work on branch <branch>, starting from <origin/<default branch> at <SHA> | a stacked
 ticket: its blocker PR's head | a fix round: the PR's head>.
-Keep: <the load-bearing lines and rules the change must leave in place | "nothing listed">.
-Length is a preference, never a reason to remove a Keep item.
+Keep: <explicit user constraints | "nothing listed">.
 
-Prove it before you push. Run <the repo's check command>, then drive the changed path
-yourself <with the verify-<app> skill, if the repo has one>. Put the evidence in the PR.
-Push, then open a ready PR against <base branch> (the default branch unless the ticket
-stacks). Write its body with the pr skill. Title it as a Conventional Commit, and link the
-ticket with "Closes #<n>".
+Inspect your diff. Run <check command> and drive the changed path with <verification
+skill | native harness>. Put evidence in the PR. Push and open it against <base branch>,
+with a Conventional Commit title, the pr skill's body and "Closes #<n>".
 
-You may push your branch and open the PR without asking. Never force-push a shared
-branch, and never merge.
-<Fix round only: the judge's blockers at <old SHA> are below, with every report. Fix every
-blocker on the same PR, and reply to each blocker's comment with the commit that fixes it.>
+Push your branch and open the PR without asking. Never force-push a shared branch or merge.
+<Fix only: the judge's blockers at <old SHA>, prior reports and resolutions are below.
+Fix code blockers on the same PR.>
 
-Reply with: the PR URL, the head SHA, the check result, links to your evidence, and
-anything you could not do.
+Return the PR URL, head SHA, check result, evidence links and any blocker.
 ```
 
 ## QA
 
 ```
-You are QA for <PR URL> at head <SHA>. You did not build it. Prove or disprove, the way a
-user would, that it does what ticket <ticket URL> says. The change is its diff from <base>
-(the default branch unless the PR is stacked).
+You are independent QA for <PR URL> at <SHA>. Verify ticket <ticket URL> as a user.
+Base: <base>.
+Scope: <full diff | delta since previously checked SHA> and its consequences.
+Prior evidence and resolutions: <links | "first check">.
 
-Read the ticket's acceptance criteria and the stories it touches <story IDs and file>.
-Then read ~/.claude/skills/story-qa/SKILL.md and follow it. Drive the product with <the
-repo's verify-<app> skill | until it has one: how to build, launch and test it with its own
-harness>. Check out <SHA> in your own worktree and launch the app that way.
-For web UIs, T3's preview tools (preview_open, preview_snapshot, preview_click,
-preview_type) drive a real browser.
+Read its acceptance criteria, <story IDs and file>, and ~/.claude/skills/story-qa/SKILL.md.
+Follow story-qa using <verification skill | native build, launch and test commands>.
+Check out <SHA> in your own worktree. For web UIs, use T3's preview browser tools.
 
-Walk every acceptance criterion and every touched story as a user. Then try to break it:
-empty input, worst-case data, error paths, a second run. Check consequential state where
-it lives: the row, the file, the sent mail. Use disposable data, never production data.
-QA account and inbox: <the verify skill's | until it has one: the repo harness's own
-| "none">.
+Walk every criterion and story affected by your scope. Exercise plausible failures and
+check consequential state where it lives. Use disposable data, never production data.
+QA account and inbox: <verification skill's | native harness's | "none">.
 
-Post your report on the PR as "QA report at <SHA>, <provider>/<model>", then reply with it.
+Post "QA report at <SHA>", linking retained evidence for unchanged behavior after a fix.
 Verdict: PASS, ISSUES or BLOCKED.
 For each criterion: what you did, what you saw, and the evidence path.
 For each issue: the steps, the expected result, the actual result, and the evidence.
@@ -63,14 +52,14 @@ For BLOCKED: exactly what stopped you.
 ```
 You are the code reviewer for <PR URL> at head <SHA>. You did not write it.
 
-Run the code-review skill. The fixed point is the PR's base branch, <base> (the default
-branch unless the PR is stacked), and the spec is <ticket URL>. Then read ~/.claude/skills/blast-radius/SKILL.md and follow it for
-what could break outside the diff: callers, config, migrations, deploy and rollback.
+Review against <ticket URL> and the repository's AGENTS.md or CLAUDE.md.
+Base: <base>. Scope: <full diff | delta since previously reviewed SHA>.
+Prior findings and resolutions: <links | "first review">.
+Trace consequential effects outside the diff, including callers, config, migrations,
+deploy and rollback. Use specialist review only for a concrete uncertainty.
 
-Change nothing. Post your findings on the PR as "Review at <SHA>, <provider>/<model>",
-then reply with them.
-For each finding: file:line, the axis (Standards, Spec or Blast radius), the concrete
-failure, and its evidence.
+Change nothing. Post "Review at <SHA>" with file:line, concrete failure and evidence
+for each finding. After a fix, link retained evidence for unchanged behavior.
 ```
 
 ## Judge
@@ -79,7 +68,6 @@ failure, and its evidence.
 You are the judge for <PR URL> at head <SHA>. You did not build, review or test it.
 
 Use the judge skill. The intent is <ticket URL> and its stories <story IDs>. The reports are
-the PR's comments headed "QA report at <SHA>" and "Review at <SHA>". Earlier rounds'
-verdicts are the comments headed "Verdict".
-File follow-up tickets on <tracker>, post the verdict on the PR, and reply with the verdict.
+<QA and review report links, including retained evidence and prior resolutions>.
+Use <tracker> for worthwhile follow-ups. Post "Verdict at <SHA>" on the PR.
 ```
