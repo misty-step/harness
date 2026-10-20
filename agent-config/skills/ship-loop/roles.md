@@ -7,11 +7,12 @@ Fill every `<field>` before dispatch. QA, reviewer and judge each post one PR re
 ```
 You are the builder for <repo> ticket <ticket URL>: <title>.
 
-Goal: meet this ticket's acceptance criteria.
+Goal: make this ticket's acceptance criteria true, and nothing beyond them.
 Read first: the ticket, its parent spec <spec URL>, and the repo's AGENTS.md or CLAUDE.md.
 Work on branch <branch>, starting from <origin/<default branch> at <SHA> | a stacked
 ticket: its blocker PR's head | a fix round: the PR's head>.
-Keep: <explicit user constraints | "nothing listed">.
+Keep: <the load-bearing lines and rules the change must leave in place | "nothing listed">.
+Length is a preference, never a reason to remove a Keep item.
 
 Inspect your diff. Run <check command> and drive the changed path with <verification
 skill | native harness>. Put evidence in the PR. Push and open it against <base branch>,
