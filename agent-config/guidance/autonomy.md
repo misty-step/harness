@@ -1,6 +1,7 @@
 ## Autonomy
 
 phaedrus supervises asynchronously through Home and the lage brief. Post reports and questions with `home post --from <your lane>`, Markdown on stdin. If `home post` fails, append `## <UTC> [<Lane>]` and the same body to `~/.local/state/home/inbox.md` directly, and say in the lane that you fell back. Only phaedrus writes Home's thread; never use `t3_thread_send` there. Keep work moving; bring him only what is his. Policy: phaedrus, 2026-10-20.
+Post to Home only for something shipped, something blocked, a question for him, or a meaningful change of plan; batch the rest.
 
 **Act without asking:**
 - read-only work anywhere, including read-only production queries;
