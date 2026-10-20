@@ -5,15 +5,13 @@ description: Executive brief on every open lane, in-flight initiative and runnin
 
 # Lage
 
-A **lage** is the situation report a principal reads before deciding. It covers every lane: what the lane is for, where it truly stands, and every decision only the principal can make. Each decision carries enough context to be made from the brief alone.
-
-The whole run is read-only, and read-only work needs nobody's permission. Never message a lane, merge, re-run or start anything to make the brief better. The **requesting thread** asked for the brief, and the **previous lage** is the last brief it received, or 24 hours ago if there is none. A coordinator who must stay responsive (Home) hands this skill to one runner and relays its brief whole. A `delegate_task` child runs in your checkout and loads its `CLAUDE.md` and hooks, so when yours has either, launch the runner with `t3_thread_launch` and `scratch: true`. It has no parent link, so its launch message names the lage skill, your `threadId` as the requesting thread, and the previous lage's time, and says "send the brief there with `t3_thread_send`".
+Read-only: never message a lane, merge, re-run or start work to improve the brief. The **requesting thread** asked for the brief, and the **previous lage** is the last brief it received, or 24 hours ago if there is none. A responsive coordinator (Home) delegates to one runner and relays its brief whole. When its checkout has `CLAUDE.md` or hooks, use `t3_thread_launch` with `scratch: true`. Name the lage skill, the requesting `threadId` and previous lage's time in the launch message; direct delivery there with `t3_thread_send`.
 
 ## 1. Roster
 
-List every project (`t3_project_list`). For each project, pass its `projectId` and page each call to the end:
+List every project (`t3_project_list`). For each project, pass its `projectId`:
 
-- `t3_thread_list` with `settled: false` and `includeSubagents: true`: open threads and their children.
+- `t3_thread_list` with `settled: false` and `includeSubagents: true`: open threads and their children, to the last page.
 - `t3_thread_list` with `settled: true`: newest-updated first, so stop at the first thread updated before the previous lage. Those whose `settledAt` is later become **Closed**.
 - `list_scheduled_tasks`: each task's `boundThreadId`, `nextRunAt` and last run status.
 
@@ -21,14 +19,14 @@ A **lane** is a top-level thread doing initiative work. Not lanes:
 
 - your own thread and the requesting thread;
 - **standing threads** that coordinate rather than build: Home, and any thread a scheduled task is bound to, such as Heartbeat;
-- **children** (`parentThreadId` set): hand each lane's children to its reader, and ignore those whose parent is settled. A child is **running** when its status is `queued`, `starting` or `running`, or it is a native subagent (`latestRunId: null`, which always reports `idle`) updated in the last 15 minutes;
-- **scratch threads**, the other top-level threads in the scratch project (titled `No project`, `workspaceRoot` `~/.t3/scratch`): one-off tasks a coordinator launched, such as a lage runner. One that is `failed`, `interrupted` or `waiting` goes to **Stuck**, owned by the thread that launched it, or Heartbeat.
+- **children** (`parentThreadId` set): hand lane children to their reader and standing-thread children to the coordinator. Ignore children of settled parents. A child is **running** when its status is `queued`, `starting` or `running`, or it is a native subagent (`latestRunId: null`, always `idle`) updated in the last 15 minutes whose delegated parent has not completed;
+- **scratch threads**, the other top-level threads in the scratch project (titled `No project`, `workspaceRoot` `~/.t3/scratch`): one-off tasks a coordinator launched, such as a lage runner. One that is `failed`, `interrupted` or `waiting` goes to **Stuck**, owned by the thread that launched it, or Heartbeat. `cancelled` means the principal stopped it; omit it from **Stuck**.
 
-Done when every project was listed to its last page and every thread is placed as a lane, a closed lane, a child, or a standing or scratch thread.
+Done when every project meets the open last-page and settled previous-lage cutoff bounds and every thread is placed as a lane, a closed lane, a child, or a standing or scratch thread.
 
 ## 2. Read each lane
 
-For each lane, fill this record. Write `unknown: <why>` for any field you could not get.
+For each open lane, fill this record; read closed lanes for unresolved asks too. Write `unknown: <why>` for any field you could not get.
 
 - **Goal:** the lane's brief (its first message, `limit: 1`), in one line, plus its definition of done.
 - **Last word:** the lane's latest assistant message, and the latest message to it: the newest `user_message` in the `messages` view, which includes sends from other threads. The tail rarely holds one, so page back until you find it.
@@ -39,16 +37,14 @@ For each lane, fill this record. Write `unknown: <why>` for any field you could 
 
 Read tails, not whole threads: `afterPosition` near `itemCount - 12`, `maxCharsPerItem` around 3000. When an ask or report is cut off, page the rest with `itemId` and `textOffset`. Page further back only when the tail doesn't say what the lane is waiting on.
 
-Fan the reads out: one `delegate_task` child per four lanes or so, each briefed like this, returning only the records. While they run, read the coordinator's open-loops file yourself (Home's is `~/home/NOW.md`): an ask it already answers is a **dropped relay**, not a decision. Record it that way.
+Fan the reads out: one `delegate_task` child per four lanes or so, returning only records. While they run, read the coordinator's open-loops file yourself (Home's is `~/home/NOW.md`): an ask it already answers is a **dropped relay**, not a decision. Record it that way.
 
 ```
-Read-only. Message no thread and start nothing. For each T3 lane below, read
-~/.claude/skills/lage/SKILL.md step 2 and return one record with every field it
-lists, or `unknown: <why>` for a field you could not get. Return only the records.
+Read-only: follow ~/.claude/skills/lage/SKILL.md step 2; return its records.
 Lanes: <title, threadId, projectId, running children and scheduled tasks, one per line>
 ```
 
-Done when every lane has a full record and every PR state came from the forge.
+Done when every open lane has a full record, closed-lane asks are captured, and every PR state came from the forge.
 
 ## 3. Classify
 
@@ -58,13 +54,15 @@ Give each lane the first row below that fits:
 | --- | --- |
 | `waiting on you` | It holds an ask only the principal can answer: product intent, a destructive or irreversible act, a production write, or money. |
 | `stuck` | It failed or was interrupted, or claims to be running with no side effect in 6 hours, or waits on something an agent could do. |
-| `in review` | A PR is open and review, QA or the judge is running. |
-| `shipped` | It merged or deployed since the previous lage, with nothing open. |
+| `in review` | A PR is open and review, QA, the judge or requested human team review is pending. |
 | `parked` | Deliberately on hold. |
-| `building` | It had a side effect in the last 6 hours. |
+| `shipped` | It merged or deployed since the previous lage, with no PR open and no builder running. |
+| `building` | It has code or a PR open, a builder running, or a side effect in the last 6 hours. |
 | `scoping` | It is interviewing, specifying or ticketing, and has no code yet. |
 
 Test asks a reader found like the lane's own. An ask about process or permission that standing policy already answers is not the principal's: move it to `stuck` and note "agent-answerable". Deploying merged code through the repository's own pipeline is shipping, not a production write. Use the exact progress claim the evidence supports: started, PR open, merged, artifact verified, or live behavior proven ([Foundations](https://foundations.mistystep.io/way-of-working)).
+
+Done when every lane has exactly one state; use `scoping` for any unmatched lane.
 
 ## 4. Write the brief
 
@@ -75,14 +73,14 @@ Test asks a reader found like the lane's own. An ask about process or permission
 1. **<Lane>: <the decision, worded so "yes" accepts your recommendation>** ([thread](t3-thread://v1/<id>))
    <Why it matters now.> Options: <A, and what it costs>; <B, and what it costs>.
    Recommend <X>, because <reason>. If unanswered: <what happens, and when>. Detail: <link>.
-   <Bundles only: Q4 A, Q5 yes, …>
+   <Bundles only: Q4 hosting: A; Q5 delete backup: no; …>
 
 **Lanes**
 | Lane | State | Last real progress | Next |
 | --- | --- | --- | --- |
 | [<title>](t3-thread://v1/<id>) | <state> | <side effect, how long ago> | <next step, and whose> |
 
-**Also waiting on you** (blocks no lane, has no date)
+**Also waiting on you**
 - <ask, one line, with its link>
 
 **Shipped and closed since last lage**
@@ -96,10 +94,10 @@ Test asks a reader found like the lane's own. An ask about process or permission
 **Not checked:** <every source you could not read, and why>.
 ```
 
-- **Decisions** holds at most five asks: those whose delay costs the most, because they block the most work or lapse first, in that order. Number them, so one reply like "1 yes, 2 B" answers the batch. Every other ask goes on one line under **Also waiting on you**, with its recommendation and link.
-- A decision that bundles sub-questions spends its fifth line on each one's recommended answer, so "yes" approves only answers the brief shows. Move what overflows that line to **Also waiting on you** on the same terms: a line shows every answer its "yes" approves, or links the thread and recommends nothing.
+- **Decisions** holds at most five open-lane asks: those whose delay costs the most, because they block the most work or lapse first, in that order. Number them, so one reply like "1 yes, 2 B" answers the batch. Every other ask, including closed-lane asks, goes under **Also waiting on you**, one line with recommendation and link.
+- Bundles use the fifth line: each sub-answer names its question in a few words and recommends an answer. Move overflow to **Also waiting on you** under the same line limits. A line shows every question and answer its "yes" approves, or links the thread without a recommendation.
 - Every recommendation follows the standing autonomy policy and [Foundations](https://foundations.mistystep.io/way-of-working). When an option breaks either, say so inside that option, and recommend a compliant one.
 - Where a decision rests on a story, spec or diff, give the one line that matters and link the rest. Link threads as `[title](t3-thread://v1/<id>)` and PRs by full URL. Call lanes, PRs and agents by names the principal knows. Label anything you did not verify: "(lane says)".
-- The brief fits two phone screens: at most 60 lines and 3,500 visible characters, no line over 100 (link text counts, link targets don't). Keep each table row and **Stuck** item to one line and each cell under six words. When it runs over, shorten **Shipped**, then **Stuck**, then table cells, then each decision's why. Every lane keeps its row and every ask keeps its line. Drop empty sections, but keep **Not checked**.
+- The brief has at most 60 lines and 3,500 visible characters, no line over 100 (link text counts, link targets don't). Keep each table row and **Stuck** item to one line and each cell under six words. When it runs over, shorten **Shipped**, then **Stuck**, then table cells, then each decision's why. Every lane keeps its row and every ask keeps its line. Drop empty sections, but keep **Not checked**.
 
-Done when every lane appears in exactly one table row, every unanswered ask is a numbered decision, an **Also waiting on you** line, or a reclassification note, every decision has a compliant recommendation and an "if unanswered", and the brief fits two phone screens by the counts above.
+Done when every lane appears in exactly one table row, every unanswered ask is a numbered decision, an **Also waiting on you** line, or a reclassification note, every decision has a compliant recommendation and an "if unanswered", and the brief meets the counts above.
