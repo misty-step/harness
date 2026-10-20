@@ -44,7 +44,7 @@ Dispatch each role with `delegate_task`, using the briefs in [roles.md](roles.md
 
 **Stacks.** Review and QA each stacked PR against its own base branch. Fix a blocker on the PR that owns it. Land the stack bottom-first, as step 3 says; that carries every fix upward without touching the heads above until their turn.
 
-Scale the round to the change. Documents, briefs, measurements and generator-only release PRs ship without one ([Foundations](https://foundations.mistystep.io/way-of-working)): merge them once checks pass. A change with no user surface needs proof that it composes instead of a QA walk, posted as `QA report at <SHA>`; the judge rules on that and the review.
+Scale the round to the change. Documents, briefs and measurements ([Foundations](https://foundations.mistystep.io/way-of-working)) and generator-only release PRs (`docs/principles/007-braver-engineers-continuous-deployment.md`) ship without one: merge them once checks pass. A change with no user surface needs proof that it composes instead of a QA walk, posted as `QA report at <SHA>`; the judge rules on that and the review.
 
 Three rounds without SHIP means the slice or the spec is wrong. Re-slice it, and list it in your next report.
 
