@@ -21,7 +21,7 @@ There is no server. Each drive is a short-lived process.
 - `session`, `live`, `home` and `pool` need that install, and say so if it is missing.
 - Teardown is `verify-harness cleanup`.
 
-Run state lives in one directory, so two concurrent runs need different `VH_DIR` values, such as `VH_DIR=~/.cache/tmp/verify-harness-$RUN_ID`.
+Run state lives in `$VH_DIR/run`. `VH_DIR` must be an absolute path that belongs to this run, and two concurrent runs need different values, such as `VH_DIR=$HOME/.cache/tmp/verify-harness-$RUN_ID`. The helper removes `run` only when it carries the `.verify-harness-run` marker that `install` writes, and it refuses `/` and `$HOME`.
 
 Never run an installer against the live HOME to verify. Deployment is a live mutation, not verification.
 
@@ -50,8 +50,8 @@ Doctor never prints a token or the Codex account email. Run it first, and again 
 | `doctor` | [sign-in](features/sign-in.md) | nothing |
 | `check [all\|shared\|pi\|omp\|workspace]` | [gate](features/gate.md) | scratch only |
 | `install [rev]` | [isolated-deploy](features/isolated-deploy.md) | run dir |
-| `session [claude\|codex\|both]` | [fresh-session](features/fresh-session.md) | run dir and `/tmp/verify-harness-*` |
-| `live` | [live-drift](features/live-drift.md) | one Claude Code session transcript under `~/.claude/projects/` |
+| `session [claude\|codex\|both]` | [fresh-session](features/fresh-session.md) | run dir and `/tmp/verify-harness-*`; `both` also checks that this skill registers |
+| `live` | [live-drift](features/live-drift.md) | a normal live Claude Code session's runtime state (transcript under `~/.claude/projects/`, `~/.claude.json`), Codex lock files under `~/.codex/tmp` |
 | `home` | [home-post](features/home-post.md) | a private inbox in the run dir |
 | `pool` | [t3-pool](features/t3-pool.md) | nothing |
 | `cleanup` | | removes run dir and scratch cwds |
@@ -69,7 +69,7 @@ Artifacts go to `$VH_EVIDENCE`, default `~/.cache/tmp/verify-harness/evidence/<U
 - `install-tree.txt` lists the files the installers wrote outside `skills/`;
 - `claude-*-init.json`, `claude-*-instructions.jsonl` and `claude-*-result.json` are the session's own init event, its `InstructionsLoaded` hook events, and the model's answer;
 - `codex-*-summary.txt` holds the composed AGENTS.md heading and the skill entries from the rendered prompt;
-- `registration-*` shows this skill listed by sessions started at the repository root;
+- `registration-*` shows this skill listed by fresh sessions in a `/tmp` copy of the revision's `.claude` and `.agents`;
 - `home-readback.md` is the private inbox read back through `home inbox`;
 - `pool-live-dry-run.json` is the live t3-pool plan.
 
@@ -89,8 +89,9 @@ Removes `~/.cache/tmp/verify-harness/run` and the `/tmp/verify-harness-*` cwds a
 
 ## Gotchas
 
-- Claude Code loads `CLAUDE.md` and `.claude/skills` from every ancestor of its cwd. A cwd under `/home/phaedrus` silently loads the live `~/.claude/CLAUDE.md` and skills into an "isolated" session. The helper starts sessions in a fresh `/tmp/verify-harness-cwd.*` directory for this reason; keep that if you edit it.
+- Sessions start in a fresh `/tmp/verify-harness-cwd.*` directory because Claude Code loads `CLAUDE.md` and skills from every ancestor of its cwd. See [Fresh session](features/fresh-session.md) before changing that.
 - A Claude Code session on the isolated install has no credentials and ends with `Not logged in`. That is expected: its init event and `InstructionsLoaded` hooks fire before the model call. The model-visible proof comes from `live`, which uses the real login.
 - Under heavy machine load, `agent-config/bin/install.test.ts` tests that bundle launchers can exceed Bun's 5-second default timeout and fail the gate while passing in isolation. Check `/proc/loadavg` and rerun that file alone before calling it a regression.
 - `home` routes every command over SSH to the cloud primary named in `~/.local/state/home/primary.json`. The `home` drive sets `HOME_FLEET_LOCAL=1` with a private `HOME_INBOX` so the probe never reaches phaedrus. Only a real report uses the routed `home post`.
+- The skill and guidance lists come from the installed revision's `claude-config/install` and `codex-config/install`, so a newly selected skill is checked without editing the helper.
 - `live` compares against the installed `rev`. A branch whose guidance or skills differ from what is deployed reports DRIFT by design. Install `origin/master` to ask whether master is deployed.

@@ -5,9 +5,9 @@ Merged source is only useful once deployed. This feature compares the live `~/.c
 ## Sub-features
 
 - `live-guidance`: live `~/.claude/CLAUDE.md` and `~/.codex/AGENTS.md` are byte-identical to the composition.
-- `live-skills`: the nine live skill directories in both harnesses match source, ignoring `.harness-owned` markers.
+- `live-skills`: the live skill directories each installer selects in both harnesses match source, ignoring `.harness-owned` markers.
 - `live-claude-model`: the model quotes `# Claude Code global guidance` from its user-level instructions.
-- `live-codex-prompt`: the live Codex prompt carries the composed AGENTS.md and the nine skills from `~/.codex/skills`.
+- `live-codex-prompt`: the live Codex prompt carries the composed AGENTS.md and the selected skills from `~/.codex/skills`.
 
 ## How to get to it (user POV)
 
@@ -28,5 +28,5 @@ Preconditions:
 ## Gotchas
 
 - A DRIFT line against `origin/master` means merged guidance or skills were never deployed. Deploy through the component installer, then rerun `live`. A DRIFT line against a feature branch is expected while that branch changes guidance or skills.
-- The live Claude Code session runs `--model haiku`, uses the owner's subscription, and leaves a transcript under `~/.claude/projects/-tmp-verify-harness-cwd-*`. It also loads the live user settings and their hooks.
-- The live Codex prompt also lists the operator's other skills under other roots. Only the nine under `r0` are asserted.
+- The live Claude Code session runs `--model haiku` with `HOME` set and `CLAUDE_CONFIG_DIR` unset, which is how a lane starts. It uses the owner's subscription, loads the live user settings and their hooks, and updates the runtime state any session does: a transcript under `~/.claude/projects/-tmp-verify-harness-cwd-*` and `~/.claude.json`. The live Codex render leaves lock files under `~/.codex/tmp`.
+- The live Codex prompt also lists the operator's other skills under other roots. Only the selected skills under `r0` are asserted.

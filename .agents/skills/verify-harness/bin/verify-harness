@@ -8,50 +8,64 @@ umask 077
 skill_dir=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 root=$(git -C "$skill_dir" rev-parse --show-toplevel)
 base=${VH_DIR:-$HOME/.cache/tmp/verify-harness}
+case "$base" in
+  /|"$HOME"|"$HOME"/) echo "VH_DIR=$base is too broad; name a directory of its own" >&2; exit 1 ;;
+  /*) ;;
+  *) echo "VH_DIR must be an absolute path" >&2; exit 1 ;;
+esac
 run="$base/run"
+# Only a directory carrying this marker is ever removed.
+marker="$run/.verify-harness-run"
 evidence=${VH_EVIDENCE:-$base/evidence/$(date -u +%Y-%m-%dT%H%MZ)}
 
 # The owner's real identities. Doctor fails when a login is someone else.
 owner_gh=moomooskycow
 owner_claude=phaedrus@mistystep.io
 owner_codex_mode=chatgpt
-skills='lage ship-loop judge release-watch heartbeat story-qa pokayoke user-stories authenticated-commands'
-sections='engineering workstation autonomy'
 
 fails=0
 mkdir -p "$evidence"
+evidence=$(CDPATH= cd -- "$evidence" && pwd)
 log="$evidence/transcript.txt"
 say() { printf '%s\n' "$*" | tee -a "$log"; }
 pass() { say "PASS $*"; }
 fail() { say "FAIL $*"; fails=$((fails + 1)); }
 step() { say ""; say "== $* ($(date -u +%H:%M:%SZ))"; }
 need_run() {
-  [ -f "$run/claude-home/.claude/CLAUDE.md" ] || {
-    say "No isolated install at $run; run: verify-harness install"
-    exit 2
+  [ -f "$marker" ] && [ -f "$run/claude-home/.claude/CLAUDE.md" ] || {
+    fail "no isolated install at $run; run: verify-harness install"
+    return 1
   }
 }
+remove_run() {
+  [ -e "$run" ] || return 0
+  [ -f "$marker" ] || { fail "$run has no verify-harness marker; not removing it"; return 1; }
+  rm -rf -- "$run"
+}
+# The installers' own selections, so a newly added skill or section is checked.
+list_of() { sed -n "s/^$2='\\(.*\\)'\$/\\1/p" "$run/source/$1-config/install"; }
 # A fresh cwd outside /home: Claude Code walks every ancestor of the cwd for
 # CLAUDE.md and .claude/skills, so a cwd under the live HOME leaks live files.
 fresh_cwd() { mktemp -d /tmp/verify-harness-cwd.XXXXXX; }
 
-compose() { # compose <source-tree> <harness-file> > expected
+compose() { # compose <component> > expected
   while IFS= read -r line || [ -n "$line" ]; do
     if [ "$line" = '<!-- shared guidance: agent-config -->' ]; then
-      for section in $sections; do
-        cat "$1/agent-config/guidance/$section.md"
+      for section in $(list_of "$1" guidance); do
+        cat "$run/source/agent-config/guidance/$section.md"
         printf '\n'
       done
     else
       printf '%s\n' "$line"
     fi
-  done < "$2"
+  done < "$run/source/$1-config/global/$2"
 }
 
 cmd_doctor() {
   step "doctor: is this checkout and workstation worth driving?"
   say "repo $root at $(git -C "$root" rev-parse --short HEAD) on $(git -C "$root" branch --show-current)"
-  [ -z "$(git -C "$root" status --porcelain)" ] && pass "clean tree" ||
+  case "$evidence" in "$root"/*) set -- ":(exclude)${evidence#"$root"/}" ;; *) set -- ;; esac
+  [ -z "$(git -C "$root" status --porcelain -- . "$@")" ] && pass "clean tree (evidence excluded)" ||
     say "NOTE dirty tree: unit tests read working files, installers read committed HEAD"
   for tool in git bun jq python3 gitleaks trufflehog claude codex gh tmux; do
     command -v "$tool" >/dev/null 2>&1 && pass "tool $tool" || fail "tool $tool missing"
@@ -89,7 +103,7 @@ EOF
   # Home and T3 endpoints the guidance relies on.
   command -v home >/dev/null 2>&1 && pass "home on PATH" || fail "home missing from PATH"
   route="$HOME/.local/state/home/primary.json"
-  [ -f "$route" ] && say "home routes to $(jq -r .ssh "$route"); the local ~/.local/state/home/inbox.md is not forwarded" ||
+  [ -f "$route" ] && say "home routes over SSH to its cloud primary; the local ~/.local/state/home/inbox.md is not forwarded (#418)" ||
     say "home is local (no primary route)"
   runtime="${T3CODE_HOME:-$HOME/.t3}/userdata/server-runtime.json"
   origin=$(jq -r '.origin // empty' "$runtime" 2>/dev/null)
@@ -123,25 +137,29 @@ install_into() { # install_into <home> <component>
 cmd_install() {
   rev=${1:-HEAD}
   step "install: claude-config and codex-config from $rev into private HOMEs"
-  [ ! -e "$run" ] || { say "Removing previous run state $run"; rm -rf -- "$run"; }
-  mkdir -p "$run"
+  remove_run || return
+  sha=$(git -C "$root" rev-parse --verify --quiet "$rev^{commit}") || { fail "unknown revision $rev"; return; }
+  mkdir -p "$run" && : > "$marker"
+  # A clone copies branches only; fetch the commit itself so remote-tracking revs work.
   git clone --quiet --no-hardlinks --no-local "$root" "$run/source" &&
-    git -C "$run/source" checkout --quiet --detach "$(git -C "$root" rev-parse "$rev")" || { fail "clone $rev"; return; }
+    git -C "$run/source" fetch --quiet origin "$sha" &&
+    git -C "$run/source" checkout --quiet --detach "$sha" || { fail "clone $rev"; return; }
   say "source $(git -C "$run/source" rev-parse --short HEAD) ($rev)"
   h="$run/claude-home"
   install_into "$h" claude >> "$log" 2>&1 && pass "claude-config/install exit 0" || fail "claude-config/install"
   install_into "$h" codex >> "$log" 2>&1 && pass "codex-config/install exit 0" || fail "codex-config/install"
-  compose "$run/source" "$run/source/claude-config/global/CLAUDE.md" > "$run/expected-CLAUDE.md"
-  compose "$run/source" "$run/source/codex-config/global/AGENTS.md" > "$run/expected-AGENTS.md"
+  compose claude CLAUDE.md > "$run/expected-CLAUDE.md"
+  compose codex AGENTS.md > "$run/expected-AGENTS.md"
   cmp -s "$run/expected-CLAUDE.md" "$h/.claude/CLAUDE.md" && pass "~/.claude/CLAUDE.md is the composed guidance" || fail "CLAUDE.md composition"
   cmp -s "$run/expected-AGENTS.md" "$h/.codex/AGENTS.md" && pass "~/.codex/AGENTS.md is the composed guidance" || fail "AGENTS.md composition"
   before=$fails
-  for skill in $skills; do
-    diff -rq --exclude=.harness-owned "$run/source/agent-config/skills/$skill" "$h/.claude/skills/$skill" >/dev/null &&
-      diff -rq --exclude=.harness-owned "$run/source/agent-config/skills/$skill" "$h/.codex/skills/$skill" >/dev/null ||
-      fail "skill $skill bytes differ"
+  for d in claude codex; do
+    for skill in $(list_of "$d" skills); do
+      diff -rq --exclude=.harness-owned "$run/source/agent-config/skills/$skill" "$h/.$d/skills/$skill" >/dev/null ||
+        fail "$d skill $skill bytes differ"
+    done
   done
-  [ "$fails" = "$before" ] && pass "9 shared skills byte-identical in both harnesses"
+  [ "$fails" = "$before" ] && pass "claude skills ($(list_of claude skills)) and codex skills ($(list_of codex skills)) byte-identical to source"
   [ -x "$h/.local/bin/t3-pool" ] && [ -x "$h/.local/bin/t3-runtime-mode" ] && pass "t3-pool and t3-runtime-mode launchers" || fail "launchers"
   [ "$(cat "$h/systemctl-calls" 2>/dev/null)" = '--user daemon-reload' ] && pass "pool timer left opt-in (only daemon-reload)" || fail "systemctl calls: $(cat "$h/systemctl-calls" 2>/dev/null)"
   (cd "$h" && find . -path ./.fixture-bin -prune -o -type f -print | grep -v '/skills/' | sort) > "$evidence/install-tree.txt"
@@ -159,7 +177,15 @@ cmd_install() {
     pass "codex install refuses a foreign AGENTS.md, nothing written" || fail "foreign AGENTS.md not preserved"; fi
 }
 
-claude_session() { # claude_session <config-dir> <home> <label> [prompt]
+claude_env() { # claude_env <config-dir or empty> <home> command...
+  if [ -n "$1" ]; then cfg=$1 home_dir=$2; shift 2
+    env -i PATH="$PATH" HOME="$home_dir" CLAUDE_CONFIG_DIR="$cfg" TMPDIR="$run" "$@"
+  else home_dir=$2; shift 2
+    env -i PATH="$PATH" HOME="$home_dir" TMPDIR="$run" "$@"
+  fi
+}
+
+claude_session() { # claude_session <config-dir, empty for the live default> <home> <label> [prompt]
   cwd=$(fresh_cwd)
   printf '%s\n' "$cwd" >> "$base/cwds"
   hooks=$(mktemp -d /tmp/verify-harness-hooks.XXXXXX)
@@ -167,22 +193,22 @@ claude_session() { # claude_session <config-dir> <home> <label> [prompt]
   printf '#!/bin/sh\ncat >> "%s/events.jsonl"\nprintf "\\n" >> "%s/events.jsonl"\n' "$hooks" "$hooks" > "$hooks/hook"
   chmod 700 "$hooks/hook"
   printf '{"hooks":{"InstructionsLoaded":[{"hooks":[{"type":"command","command":"%s/hook"}]}]}}\n' "$hooks" > "$hooks/settings.json"
-  (cd "$cwd" && env -i PATH="$PATH" HOME="$2" CLAUDE_CONFIG_DIR="$1" TMPDIR="$run" \
+  (cd "$cwd" && claude_env "$1" "$2" \
     timeout 180 claude -p "${4:-Reply with OK}" --model haiku --settings "$hooks/settings.json" \
       --output-format stream-json --verbose < /dev/null) > "$run/$3.jsonl" 2> "$run/$3.err"
   jq -c 'select(.subtype == "init") | {cwd, model, skills}' "$run/$3.jsonl" > "$evidence/$3-init.json"
   jq -c 'select(.type == "result") | {is_error, result}' "$run/$3.jsonl" > "$evidence/$3-result.json"
   jq -c 'select(.file_path) | {hook_event_name, file_path, memory_type, load_reason}' "$hooks/events.jsonl" > "$evidence/$3-instructions.jsonl" 2>/dev/null
   loaded=$(jq -r 'select(.memory_type == "User") | .file_path' "$evidence/$3-instructions.jsonl")
-  [ "$loaded" = "$1/CLAUDE.md" ] && pass "fresh Claude Code session loaded user guidance $loaded" ||
+  [ "$loaded" = "${1:-$2/.claude}/CLAUDE.md" ] && pass "fresh Claude Code session loaded user guidance $loaded" ||
     fail "fresh Claude Code session user guidance: '$loaded'"
   others=$(jq -r 'select(.memory_type != "User") | .file_path' "$evidence/$3-instructions.jsonl")
   [ -z "$others" ] && pass "no other instruction file leaked into the session" || fail "extra instruction files: $others"
   before=$fails
-  for skill in $skills; do
+  for skill in $(list_of claude skills); do
     jq -e --arg s "$skill" '.skills | index($s)' "$evidence/$3-init.json" >/dev/null || fail "Claude Code session lacks skill $skill"
   done
-  [ "$fails" = "$before" ] && pass "Claude Code session lists the 9 shared skills"
+  [ "$fails" = "$before" ] && pass "Claude Code session lists every claude-config skill"
 }
 
 codex_session() { # codex_session <codex-home> <home> <label>
@@ -198,17 +224,17 @@ codex_session() { # codex_session <codex-home> <home> <label>
   heading=$(awk '/<!-- owned by misty-step\/harness codex-config -->/ { on = 1 } on && /^# / { print; exit }' "$run/$3.txt")
   grep -Fq -- "- \`r0\` = \`$1/skills\`" "$run/$3.txt" && pass "Codex skill root is $1/skills" || fail "Codex skill root is not $1/skills"
   before=$fails
-  for skill in $skills; do
+  for skill in $(list_of codex skills); do
     grep -Fq -- "(file: r0/$skill/SKILL.md)" "$run/$3.txt" || fail "Codex session lacks skill $skill"
   done
-  [ "$fails" = "$before" ] && pass "Codex session lists the 9 shared skills"
+  [ "$fails" = "$before" ] && pass "Codex session lists every codex-config skill"
   { printf 'AGENTS.md heading: %s\n' "$heading"
     grep -o '(file: r[0-9]*/[^)]*)' "$run/$3.txt"; } > "$evidence/$3-summary.txt"
   if [ "$1" != "$HOME/.codex" ] && grep -Fq "$HOME/.codex" "$run/$3.txt"; then fail "live ~/.codex leaked into the isolated prompt"; fi
 }
 
 cmd_session() {
-  need_run
+  need_run || return
   h="$run/claude-home"
   case "${1:-both}" in
     claude|both)
@@ -225,35 +251,42 @@ cmd_session() {
 }
 
 cmd_registration() {
-  need_run
-  step "registration: this repository's verify-harness skill in fresh sessions started at the repo root"
+  need_run || return
+  step "registration: the revision's verify-harness skill in fresh sessions at a copy of its .claude and .agents"
   h="$run/claude-home"
-  (cd "$root" && env -i PATH="$PATH" HOME="$h" CLAUDE_CONFIG_DIR="$h/.claude" TMPDIR="$run" \
+  # A copy outside /home, so neither harness can find the skill anywhere else.
+  reg=$(fresh_cwd)
+  printf '%s\n' "$reg" >> "$base/cwds"
+  git -C "$run/source" archive HEAD .claude .agents | tar -x -C "$reg"
+  (cd "$reg" && claude_env "$h/.claude" "$h" \
     timeout 180 claude -p "Reply with OK" --output-format stream-json --verbose < /dev/null) 2>/dev/null |
-    jq -c 'select(.subtype == "init") | {cwd, skills: (.skills | map(select(. == "verify-harness")))}' > "$evidence/registration-claude.json"
-  jq -e '.skills == ["verify-harness"]' "$evidence/registration-claude.json" >/dev/null &&
-    pass "Claude Code lists verify-harness from .claude/skills" || fail "Claude Code does not list verify-harness"
-  (cd "$root" && env -i PATH="$PATH" HOME="$h" CODEX_HOME="$h/.codex" TMPDIR="$run" \
-    timeout 120 codex debug prompt-input "verify-harness") 2>/dev/null | jq -r '.. | strings' |
-    grep -o -- '- verify-harness: .*(file: [^)]*)' > "$evidence/registration-codex.txt"
-  [ -s "$evidence/registration-codex.txt" ] && pass "Codex lists verify-harness from .agents/skills" || fail "Codex does not list verify-harness"
+    jq -c 'select(.subtype == "init") | {skills: (.skills | map(select(. == "verify-harness")))}' > "$evidence/registration-claude.json"
+  [ ! -e "$h/.claude/skills/verify-harness" ] && jq -e '.skills == ["verify-harness"]' "$evidence/registration-claude.json" >/dev/null &&
+    pass "Claude Code lists verify-harness from the project .claude/skills symlink" || fail "Claude Code does not list the project verify-harness"
+  (cd "$reg" && env -i PATH="$PATH" HOME="$h" CODEX_HOME="$h/.codex" TMPDIR="$run" \
+    timeout 120 codex debug prompt-input "verify-harness") 2>/dev/null | jq -r '.. | strings' > "$run/registration-codex.txt"
+  slot=$(sed -n 's/.*(file: \(r[0-9]*\)\/verify-harness\/SKILL.md).*/\1/p' "$run/registration-codex.txt" | head -n 1)
+  { grep -F -- "- \`$slot\` = " "$run/registration-codex.txt"; grep -F -- "- verify-harness: " "$run/registration-codex.txt"; } |
+    sed "s#$reg#<copy>#; s/: Verify.*(file/ (file/" > "$evidence/registration-codex.txt"
+  [ -n "$slot" ] && grep -Fxq -- "- \`$slot\` = \`$reg/.agents/skills\`" "$run/registration-codex.txt" &&
+    pass "Codex lists verify-harness from the project .agents/skills" || fail "Codex does not list the project verify-harness"
 }
 
 cmd_live() {
-  need_run
+  need_run || return
   step "live: deployed ~/.claude and ~/.codex against $(git -C "$run/source" rev-parse --short HEAD) (read-only)"
   h="$run/claude-home"
   cmp -s "$h/.claude/CLAUDE.md" "$HOME/.claude/CLAUDE.md" && pass "live ~/.claude/CLAUDE.md matches source" || fail "DRIFT live ~/.claude/CLAUDE.md"
   cmp -s "$h/.codex/AGENTS.md" "$HOME/.codex/AGENTS.md" && pass "live ~/.codex/AGENTS.md matches source" || fail "DRIFT live ~/.codex/AGENTS.md"
   before=$fails
-  for skill in $skills; do
-    for d in .claude .codex; do
-      diff -rq --exclude=.harness-owned "$h/$d/skills/$skill" "$HOME/$d/skills/$skill" >/dev/null 2>&1 || fail "DRIFT live ~/$d/skills/$skill"
+  for d in claude codex; do
+    for skill in $(list_of "$d" skills); do
+      diff -rq --exclude=.harness-owned "$h/.$d/skills/$skill" "$HOME/.$d/skills/$skill" >/dev/null 2>&1 || fail "DRIFT live ~/.$d/skills/$skill"
     done
   done
   [ "$fails" = "$before" ] && pass "live ~/.claude and ~/.codex shared skills match source"
   say "Fresh live Claude Code session (real login, one haiku call)"
-  claude_session "$HOME/.claude" "$HOME" claude-live \
+  claude_session "" "$HOME" claude-live \
     'Quote, verbatim, the first Markdown heading line of your user-level (global) CLAUDE.md instructions, and nothing else.'
   answer=$(jq -r '.result' "$evidence/claude-live-result.json")
   say "  model answered: $answer"
@@ -264,7 +297,7 @@ cmd_live() {
 }
 
 cmd_home() {
-  need_run
+  need_run || return
   step "home: post to a private inbox, read it back, reject bad posts, probe the route"
   inbox="$run/home-inbox.md"
   export HOME_FLEET_LOCAL=1 HOME_INBOX="$inbox" HOME_MEMORY_DIR="$run/home-memory"
@@ -286,14 +319,14 @@ cmd_home() {
   route="$HOME/.local/state/home/primary.json"
   if [ -f "$route" ]; then
     usage=$(timeout 30 home --help 2>&1 | head -n 1)
-    case "$usage" in usage:*) pass "routed home answers over SSH ($(jq -r .ssh "$route")): $usage" ;;
+    case "$usage" in usage:*) pass "routed home answers over SSH from its cloud primary: $usage" ;;
       *) fail "routed home --help: $usage" ;; esac
-    say "NOTE every home command runs on the cloud primary; nothing in home forwards ~/.local/state/home/inbox.md"
+    say "NOTE every home command runs on the cloud primary; nothing forwards ~/.local/state/home/inbox.md (#418)"
   fi
 }
 
 cmd_pool() {
-  need_run
+  need_run || return
   step "pool: t3-pool dry runs and opt-in state (read-only)"
   state="${XDG_STATE_HOME:-$HOME/.local/state}/t3-pool"
   snap() { find "$state" -type f -exec stat -c '%n %s %Y' {} + 2>/dev/null | sort; }
@@ -319,7 +352,7 @@ cmd_cleanup() {
     done < "$base/cwds"
     rm -f -- "$base/cwds"
   fi
-  rm -rf -- "$run"
+  remove_run
   [ ! -e "$run" ] && pass "run state removed" || fail "run state remains at $run"
   [ -s "$log" ] && say "evidence kept at $evidence" || fail "evidence missing at $evidence"
 }
@@ -336,7 +369,8 @@ Usage: verify-harness <command>
   pool              t3-pool dry runs and opt-in state
   cleanup           remove run state; keep evidence
   all               doctor, check, install, session, live, home, pool, cleanup
-Env: VH_EVIDENCE=<dir> (default ~/.cache/tmp/verify-harness/evidence/<UTC stamp>), VH_DIR=<scratch root>
+Env: VH_EVIDENCE=<dir> (default $VH_DIR/evidence/<UTC stamp>)
+     VH_DIR=<absolute dir owned by this run> (default ~/.cache/tmp/verify-harness)
 EOF
 }
 

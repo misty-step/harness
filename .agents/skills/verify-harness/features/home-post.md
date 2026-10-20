@@ -24,11 +24,11 @@ Preconditions:
 - **Post privately.** Run `verify-harness home`. With `HOME_FLEET_LOCAL=1` and `HOME_INBOX=<run>/home-inbox.md`, expect `PASS home post answered ## <stamp> [Verify harness] post:<id>`.
 - **Read back.** Expect `PASS home inbox reads the post back under its own header, body intact`.
 - **Refuse bad posts.** Expect `PASS empty body refused`, `PASS name with ] refused` and `PASS refused posts wrote nothing`.
-- **Probe the route.** Expect `PASS routed home answers over SSH (<host>): usage: home [-h] ...`. This runs only `home --help` on the primary.
+- **Probe the route.** Expect `PASS routed home answers over SSH from its cloud primary: usage: home [-h] ...`. This runs only `home --help` on the primary.
 - **Proof.** Keep `home-readback.md` and the home section of `transcript.txt`.
 
 ## Gotchas
 
 - Never prove posting with a real `home post`. It lands in phaedrus's inbox. The drive's own post goes to a private file.
-- The autonomy guidance's fallback appends to `~/.local/state/home/inbox.md` when `home post` fails. With a cloud primary, `home` only reads the primary's inbox and forwards nothing from that local file. The fallback is only as good as the reader of that file. Doctor and this drive print a `NOTE` while the route exists.
+- The autonomy guidance's fallback appends to `~/.local/state/home/inbox.md` when `home post` fails. With a cloud primary, `home` only reads the primary's inbox and forwards nothing from that local file. Fallback reports are lost: [#418](https://github.com/misty-step/harness/issues/418). Doctor and this drive print a `NOTE` while the route exists.
 - The routed probe needs non-interactive SSH (`BatchMode=yes`) to the primary. A failure there means real posts fail too.
