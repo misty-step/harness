@@ -1,3 +1,10 @@
+# [0.2.9](https://github.com/misty-step/harness/compare/v0.2.8...v0.2.9) (2026-10-20)
+<!-- landmark:protected-release previous=v0.2.8 source=4b13b872ca1feb4f253974a90d6bdb209ec9174372ea0275fd0a52f2a2da2dc2 -->
+
+### Bug Fixes
+
+* apply autonomy gate everywhere and route reports to Home inbox (#377) ([350161d](https://github.com/misty-step/harness/commit/350161d8e9ac8f873a7399c5c4b8e21281f35df8))
+* **ship-loop:** close the routing, stack, report and watch gaps from #350 (#376) ([d668200](https://github.com/misty-step/harness/commit/d6682008f03501fc5e736f0c2bccda2a80860630))
 # [0.2.8](https://github.com/misty-step/harness/compare/v0.2.7...v0.2.8) (2026-10-20)
 <!-- landmark:protected-release previous=v0.2.7 source=22e6032ee27d4952a3891912951074959286c20deda4ae4317335863abc44254 -->
 
