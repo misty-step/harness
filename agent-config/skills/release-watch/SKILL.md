@@ -15,7 +15,7 @@ Read the repository's AGENTS.md, README and release ADR. A library or tool with 
 
 For automated deploys, find this SHA's run or deployment (`gh run list --commit <SHA>`, `gh api repos/<owner>/<repo>/deployments?sha=<SHA>`).
 
-An installer is a release path. Resolve the repository's default branch, then run `git fetch origin && git worktree add --detach <tmp under ~/.cache/tmp> origin/<default>`. In that worktree, run `git merge-base --is-ancestor <merge-SHA> HEAD`, then the documented installer. Record that `HEAD`'s SHA as the source head and the destination. Remove the worktree afterwards. If any step fails, stop and report. Later merges must stay installed. A previous good ref is reserved for explicit recovery.
+An installer is a release path. Resolve the repository's default branch, then run `git fetch origin && git worktree add --detach <tmp under ~/.cache/tmp> origin/<default>`. In that worktree, run `git merge-base --is-ancestor <merge-SHA> HEAD`, then the documented installer. Record that `HEAD`'s SHA as the source head and the destination. Remove the worktree after §2's identity readback. If any step fails, stop and report. Later merges must stay installed. A previous good ref is reserved for explicit recovery.
 
 For misty-step/harness, use README's Deploy destinations and selections:
 
