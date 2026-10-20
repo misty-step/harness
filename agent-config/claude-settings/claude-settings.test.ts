@@ -10,7 +10,7 @@ afterAll(() => rmSync(scratch, { recursive: true, force: true }));
 
 const foreign = {
 	env: { OTEL_LOGS_EXPORTER: "otlp" },
-	permissions: { allow: ["Bash(git status)"], deny: ["Bash(rm -rf *)", ENV_READ_DENY[3]], defaultMode: "default" },
+	permissions: { allow: ["Bash(git status)"], deny: ["Bash(rm -rf *)", "Read(.env.*)"], defaultMode: "default" },
 	model: "x",
 };
 
