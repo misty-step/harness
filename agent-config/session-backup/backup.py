@@ -42,24 +42,6 @@ def snapshot_database(source, target):
                 raise ValueError(f"SQLite snapshot failed quick_check: {source}")
 
 
-def stage_hermes(profile, target):
-    # Legacy copytree dereferenced links. Keep that selection/layout policy,
-    # including linked SQLite stores, without imposing configured-mode rejection.
-    databases, directories = [], []
-    for name in ("state.db", "sessions", "cron", "plugin-data/kaylee"):
-        for path, kind in source_entries(profile / name, follow_links=True):
-            saved = target / path.relative_to(profile)
-            save_entry(path.resolve(strict=True), kind, saved)
-            if kind == "directory":
-                directories.append((path, saved))
-            elif kind == "sqlite":
-                databases.append(saved)
-    for path, saved in reversed(directories):
-        shutil.copystat(path, saved)
-    return databases
-
-
-
 def glass_build(home):
     # Glass is retired; record its build when present instead of failing the backup.
     glass = home / ".local/bin/glass"
@@ -532,9 +514,8 @@ def restic(binary, *args):
 def backup(home, binary, config=None):
     home = safe_destination(home)
     sessions = home / ".omp/agent/sessions"
-    profile = home / ".hermes/profiles/kaylee"
-    if config is None and (not sessions.is_dir() or not (profile / "state.db").is_file()):
-        raise ValueError("OMP sessions and Kaylee state.db must both exist")
+    if config is None and not sessions.is_dir():
+        raise ValueError("OMP sessions must exist")
     state = home / ".local/state/agent-session-backup"
     scratch = home / ".cache/tmp"
     stage = state / "snapshot"
@@ -544,12 +525,9 @@ def backup(home, binary, config=None):
         validate_config(config)
         selections = [Path(source["root"]) / value for source in config["sources"] for value in source["include"]]
     else:
-        # Legacy links remain supported, but cannot point into bytes this run
-        # writes/removes. Inspect real targets before even creating the lock.
+        # A linked sessions root remains supported, but cannot point into bytes
+        # this run writes/removes. Inspect the real target before the lock.
         selections = [sessions.resolve(strict=True)]
-        for name in ("state.db", "sessions", "cron", "plugin-data/kaylee"):
-            selections.extend(path.resolve(strict=True) for path, kind in
-                              source_entries(profile / name, follow_links=True))
     if any(paths_overlap(selected, reserved) for selected in selections for reserved in (state, scratch)):
         raise ValueError("Source overlaps backup state/scratch")
     # Refuse unsafe existing leaves before lock creation or stale-stage cleanup.
@@ -565,12 +543,10 @@ def backup(home, binary, config=None):
             if config is None:
                 stage.mkdir(mode=0o700)
                 stage_owned = True
-                databases = stage_hermes(profile, stage / "hermes")
+                # Kaylee is retired; her Hermes stores live in pinned snapshots.
                 manifest = {
                     "schema": 1, "home": str(home), "sessions": str(sessions),
-                    "profile": str(profile), "stage": str(stage),
-                    "glass_build": glass_build(home),
-                    "databases": {str(path.relative_to(stage)): digest(path) for path in databases},
+                    "stage": str(stage), "glass_build": glass_build(home), "databases": {},
                 }
                 with (stage / "manifest.json").open("x") as output:
                     output.write(json.dumps(manifest, indent=2) + "\n")
@@ -598,15 +574,13 @@ def backup(home, binary, config=None):
                 else:
                     if json.loads((target / "manifest.json").read_text()) != manifest:
                         raise ValueError("Restored snapshot manifest differs")
-                    for relative, expected in manifest["databases"].items():
-                        if digest(target / relative) != expected:
-                            raise ValueError(f"Restored SQLite snapshot differs: {relative}")
             # Settle owned-stage cleanup before retention or any success receipt.
             remove_owned_tree(stage)
             stage_owned = False
             # Match Pile retention, scoped exclusively to this backup's tag/host.
+            # Snapshots tagged "pinned" (e.g. final retired-agent state) never expire.
             restic(binary, "forget", "--tag", TAG, "--host", os.uname().nodename,
-                   "--keep-daily", "30", "--keep-monthly", "24")
+                   "--keep-daily", "30", "--keep-monthly", "24", "--keep-tag", "pinned")
             result = {"snapshot": snapshot, "sqlite_restore": "matched", "databases": len(manifest["databases"]),
                       "files": summary["total_files_processed"], "bytes": summary["total_bytes_processed"]}
             if config is not None:

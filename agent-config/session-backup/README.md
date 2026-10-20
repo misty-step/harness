@@ -4,15 +4,15 @@
 backup CLI, names-only pass references and **inactive** user units; `--check` is
 inert. It reuses Pile's encrypted workstation R2 restic repository (tag
 `agent-session-stores`; 30 daily and 24 monthly snapshots per tag and host;
-pack pruning stays with the repository owner).
+pack pruning stays with the repository owner). Retention never forgets a snapshot
+also tagged `pinned`, such as Kaylee's final state.
 
-The default legacy run saves `~/.omp/agent/sessions` directly and Kaylee's
-`~/.hermes/profiles/kaylee/` `state.db`, `sessions/`, `cron/` and
-`plugin-data/kaylee/`. SQLite databases go through the online backup API, never as
-live files; snapshots are not one transaction across databases. The run restores
-its uploaded Hermes staging tree and compares every SQLite hash before reporting
-success or applying retention. Unreadable source files (restic exit 3) fail the
-run. `~/.local/state/agent-session-backup/last-success.json` records the snapshot.
+The default legacy run saves `~/.omp/agent/sessions` directly with a small
+staged manifest. Kaylee is retired, so it no longer reads
+`~/.hermes/profiles/kaylee/`. The run restores its uploaded manifest and compares
+its bytes before reporting success or applying retention. Unreadable source files
+(restic exit 3) fail the run. `~/.local/state/agent-session-backup/last-success.json`
+records the snapshot.
 
 Opt-in `--config` selects bounded named hot/cold sources, including memories,
 private overlays, executive/default Kanban/projects and `.sqlite3` state, with no
@@ -34,8 +34,9 @@ pass-env run -f "$HOME/.config/agent-session-backup.env.pass" -- \
   restic snapshots --tag agent-session-stores
 ```
 
-Recovery drill, against an exact snapshot and a finished Glass item with a ledger
-(needs Go, Git, Bubblewrap and a Glass checkout holding the recorded revision):
+Recovery drill, against an exact snapshot that still holds Kaylee's Hermes stage
+and a finished Glass item with a ledger (needs live Glass, Go, Git, Bubblewrap and
+a Glass checkout holding the recorded revision):
 
 ```sh
 target=$(mktemp -d "$HOME/.cache/tmp/agent-session-drill.XXXXXX")

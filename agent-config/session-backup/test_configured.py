@@ -13,7 +13,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-from backup import backup, digest, glass_build, load_config, restic, stage_configured, stage_hermes, validate_config, verify_configured
+from backup import backup, digest, glass_build, load_config, restic, stage_configured, validate_config, verify_configured
 
 ROOT = Path(__file__).resolve().parent
 
@@ -255,29 +255,6 @@ class ConfiguredBackupTests(unittest.TestCase):
         with self.assertRaises(sqlite3.Error):
             verify_configured(self.target)
 
-    def test_legacy_selected_sqlite3_uses_backup_api_and_dereferences_links(self):
-        for name in ("sessions", "cron", "plugin-data/kaylee"):
-            (self.profile / name).mkdir(parents=True)
-        live = sqlite3.connect(self.profile / "cron/fixture.sqlite3")
-        try:
-            live.execute("PRAGMA journal_mode=WAL")
-            live.execute("CREATE TABLE fixture (id INTEGER)")
-            live.execute("INSERT INTO fixture VALUES (8)")
-            live.commit()
-            saved = self.base / "legacy"
-            databases = stage_hermes(self.profile, saved)
-            self.assertIn(saved / "cron/fixture.sqlite3", databases)
-            with closing(sqlite3.connect(saved / "cron/fixture.sqlite3")) as restored:
-                self.assertEqual(restored.execute("SELECT id FROM fixture").fetchall(), [(8,)])
-            self.assertFalse(list(saved.rglob("*-wal")))
-            (self.profile / "sessions/link").symlink_to(self.profile / "omitted")
-            linked = self.base / "legacy-with-link"
-            stage_hermes(self.profile, linked)
-            self.assertEqual((linked / "sessions/link/not-selected.txt").read_text(), "Do not copy this fixture.\n")
-            self.assertFalse((linked / "sessions/link").is_symlink())
-        finally:
-            live.close()
-
     def test_restored_inventory_hash_modes_sidecars_and_manifest_cuts_fail_closed(self):
         stage_configured(self.config, self.target)
         original = self.base / "original"
@@ -359,19 +336,17 @@ class ConfiguredBackupTests(unittest.TestCase):
         self.assertEqual(calls[0][:-1], ("backup", "--json", "--tag", "agent-session-stores", "--read-concurrency", "2"))
         self.assertEqual(calls[1][1], "fixture-snapshot:" + calls[0][-1].as_posix())
         self.assertEqual(calls[2], ("forget", "--tag", "agent-session-stores", "--host", os.uname().nodename,
-                                   "--keep-daily", "30", "--keep-monthly", "24"))
+                                   "--keep-daily", "30", "--keep-monthly", "24", "--keep-tag", "pinned"))
         receipt = json.loads((self.home / ".local/state/agent-session-backup/last-success.json").read_text())
         self.assertEqual(receipt["scope_restore"], "matched")
         self.assertIn("oldest_required_cut", receipt)
         self.assertFalse((self.home / ".omp").exists())
 
-    def test_legacy_scope_requires_omp_and_keeps_schema1_and_direct_sessions(self):
-        with self.assertRaisesRegex(ValueError, "must both exist"):
+    def test_legacy_scope_requires_omp_only_and_keeps_schema1_and_direct_sessions(self):
+        with self.assertRaisesRegex(ValueError, "OMP sessions must exist"):
             backup(self.home, "unused-fixture")
-        profile = self.home / ".hermes/profiles/kaylee"
-        shutil.copytree(self.profile, profile)
-        for name in ("sessions", "cron", "plugin-data/kaylee"):
-            (profile / name).mkdir(parents=True)
+        # Kaylee is retired: her profile is absent and must not be required or read.
+        self.assertFalse((self.home / ".hermes").exists())
         sessions = self.home / ".omp/agent/sessions"
         sessions.mkdir(parents=True)
         (self.home / ".local/bin").mkdir(parents=True, exist_ok=True)
@@ -383,13 +358,15 @@ class ConfiguredBackupTests(unittest.TestCase):
                 captured.append(json.loads((Path(args[-1]) / "manifest.json").read_text()))
                 self.assertFalse((Path(args[-1]) / "hermes/memories").exists())
             return transport(binary, *args)
-        with patch("backup.restic", legacy_transport), patch("backup.subprocess.check_output", return_value="fixture-glass\n"), redirect_stdout(io.StringIO()):
+        with patch("backup.restic", legacy_transport), patch("backup.subprocess.check_output", return_value="fixture-glass\n"), redirect_stdout(io.StringIO()) as output:
             backup(self.home, "fixture-restic-double")
         self.assertEqual(captured[0]["schema"], 1)
-        self.assertEqual(captured[0]["profile"], str(profile))
+        self.assertNotIn("profile", captured[0])
         self.assertEqual(captured[0]["glass_build"], "fixture-glass")
         self.assertEqual(calls[0][-2], sessions)
-        self.assertEqual(set(captured[0]["databases"]), {"hermes/state.db"})
+        self.assertEqual(captured[0]["databases"], {})
+        self.assertEqual([call[0] for call in calls], ["backup", "restore", "forget"])
+        self.assertEqual(json.loads(output.getvalue())["databases"], 0)
 
     def test_legacy_scope_records_no_glass_build_once_glass_is_retired(self):
         self.assertIsNone(glass_build(self.home))

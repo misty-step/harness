@@ -2,14 +2,13 @@
 
 This is a snapshot/verification primitive, not a complete fleet rebuild. No
 installer, service, timer, credentials or retention policy is changed by opting
-into a config. Without `--config`, the existing legacy source selection,
-OMP prerequisite, schema-1 manifest and Glass drill layout remain. Both Hermes
-staging paths reject special files and snapshot `.sqlite3` as well as `.db` and
-SQLite-header files. Legacy Hermes staging retains its previous file/directory
-link dereferencing (including external targets); linked SQLite uses the online
-backup API, and directory cycles fail clearly. Configured sources still reject
-every link. Legacy real link targets cannot overlap backup state/scratch. The
-legacy OMP input remains direct to restic; configured OMP is staged/inventoried.
+into a config. Without `--config`, the legacy OMP prerequisite and schema-1
+manifest remain, but Kaylee's Hermes profile is no longer staged; the Glass
+drill applies only to older snapshots that hold that stage. Configured Hermes
+staging rejects special files and every link, and snapshots `.sqlite3` as well
+as `.db` and SQLite-header files. A legacy linked sessions root cannot overlap
+backup state/scratch. The legacy OMP input remains direct to restic; configured
+OMP is staged/inventoried.
 
 ## Source config schema 1
 
