@@ -1,3 +1,9 @@
+# [0.2.8](https://github.com/misty-step/harness/compare/v0.2.7...v0.2.8) (2026-10-20)
+<!-- landmark:protected-release previous=v0.2.7 source=22e6032ee27d4952a3891912951074959286c20deda4ae4317335863abc44254 -->
+
+### Bug Fixes
+
+* **heartbeat:** cover live lane states and preserve principal asks (#349) ([b8decd8](https://github.com/misty-step/harness/commit/b8decd8d6c899a3ef66a092a657aed1e376d6612))
 # [0.2.7](https://github.com/misty-step/harness/compare/v0.2.6...v0.2.7) (2026-10-20)
 <!-- landmark:protected-release previous=v0.2.6 source=d26dbe884fa7a58e5c8550cf47d603719b7bc7fd01d41d50695d55c8c039579e -->
 
