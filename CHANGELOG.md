@@ -1,3 +1,13 @@
+# [0.2.14](https://github.com/misty-step/harness/compare/v0.2.13...v0.2.14) (2026-10-20)
+<!-- landmark:protected-release previous=v0.2.13 source=dcff4130a706200555ed215a5a0e569cf47966c281226b11565c00f5abb313e4 -->
+
+### Features
+
+* **ship-loop:** scale rigor by risk and link PRs to stories (#397) ([ef4f261](https://github.com/misty-step/harness/commit/ef4f261671f954e049d766d609c1da672a43023c))
+
+### Bug Fixes
+
+* **heartbeat:** preserve native agent liveness before restart (#404) ([26c306f](https://github.com/misty-step/harness/commit/26c306f163cb0e02afff3d86db136e76dcd75fbc))
 # [0.2.13](https://github.com/misty-step/harness/compare/v0.2.12...v0.2.13) (2026-10-20)
 <!-- landmark:protected-release previous=v0.2.12 source=ae94e6e510f09c75265da846bc0b6b074c266eaaa6088599170e2d0481a91e56 -->
 
