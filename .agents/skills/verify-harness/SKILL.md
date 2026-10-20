@@ -21,7 +21,7 @@ There is no server. Each drive is a short-lived process.
 - `session`, `live`, `home` and `pool` need that install, and say so if it is missing.
 - Teardown is `verify-harness cleanup`.
 
-Run state lives in `$VH_DIR/run`. `VH_DIR` must be an absolute path that belongs to this run, and two concurrent runs need different values, such as `VH_DIR=$HOME/.cache/tmp/verify-harness-$RUN_ID`. The helper removes `run` only when it carries the `.verify-harness-run` marker that `install` writes, and it refuses `/` and `$HOME`.
+Run state lives in `$VH_DIR/run`. `VH_DIR` must be an absolute path that belongs to this run, and two concurrent runs need different values, such as `VH_DIR=$HOME/.cache/tmp/verify-harness-$RUN_ID`. The helper removes `run` only when it carries the `.verify-harness-run` marker that `install` writes, and it refuses `$HOME` and any directory above it.
 
 Never run an installer against the live HOME to verify. Deployment is a live mutation, not verification.
 
@@ -85,7 +85,7 @@ Proof standards:
 .agents/skills/verify-harness/bin/verify-harness cleanup
 ```
 
-Removes `~/.cache/tmp/verify-harness/run` and the `/tmp/verify-harness-*` cwds and hook directories this run recorded. It never touches `$VH_EVIDENCE`, the live HOME, or processes it did not start. Run it after every failed iteration too.
+Removes `$VH_DIR/run` (default `~/.cache/tmp/verify-harness/run`) and the `/tmp/verify-harness-*` cwds and hook directories this run recorded. It never touches `$VH_EVIDENCE`, the live HOME, or processes it did not start. Run it after every failed iteration too.
 
 ## Gotchas
 

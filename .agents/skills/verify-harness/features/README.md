@@ -12,7 +12,7 @@ This directory is the maintained source for verifying harness as its operator us
 
 - Every command is `.agents/skills/verify-harness/bin/verify-harness <command>`.
 - Deploy only into the run's private HOME. Never run an installer against the live HOME to verify.
-- Read the live HOME, never write it. The one exception is the session transcript that `live`'s Claude Code session records.
+- Read the live HOME, never write it. The exception is `live`, whose sessions update ordinary runtime state: a Claude Code transcript and `~/.claude.json`, and Codex lock files under `~/.codex/tmp`.
 - Run `cleanup` after the last drive and after every failed iteration.
 
 ## Proof and skip reporting

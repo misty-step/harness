@@ -7,12 +7,10 @@ umask 077
 
 skill_dir=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 root=$(git -C "$skill_dir" rev-parse --show-toplevel)
-base=${VH_DIR:-$HOME/.cache/tmp/verify-harness}
-case "$base" in
-  /|"$HOME"|"$HOME"/) echo "VH_DIR=$base is too broad; name a directory of its own" >&2; exit 1 ;;
-  /*) ;;
-  *) echo "VH_DIR must be an absolute path" >&2; exit 1 ;;
-esac
+base=$(printf '%s' "${VH_DIR:-$HOME/.cache/tmp/verify-harness}" | tr -s /)
+base=${base%/}
+case "$base" in /*|"") ;; *) echo "VH_DIR must be an absolute path" >&2; exit 1 ;; esac
+case "$HOME/" in "$base"/*) echo "VH_DIR=${base:-/} is too broad; name a directory of its own" >&2; exit 1 ;; esac
 run="$base/run"
 # Only a directory carrying this marker is ever removed.
 marker="$run/.verify-harness-run"
@@ -36,6 +34,15 @@ need_run() {
     fail "no isolated install at $run; run: verify-harness install"
     return 1
   }
+  need_lists
+}
+# An empty selection would make every skill loop pass vacuously.
+need_lists() {
+  for c in claude codex; do
+    for kind in skills guidance; do
+      [ -n "$(list_of "$c" "$kind")" ] || { fail "no $kind='...' line in $c-config/install"; return 1; }
+    done
+  done
 }
 remove_run() {
   [ -e "$run" ] || return 0
@@ -144,6 +151,7 @@ cmd_install() {
   git clone --quiet --no-hardlinks --no-local "$root" "$run/source" &&
     git -C "$run/source" fetch --quiet origin "$sha" &&
     git -C "$run/source" checkout --quiet --detach "$sha" || { fail "clone $rev"; return; }
+  need_lists || return
   say "source $(git -C "$run/source" rev-parse --short HEAD) ($rev)"
   h="$run/claude-home"
   install_into "$h" claude >> "$log" 2>&1 && pass "claude-config/install exit 0" || fail "claude-config/install"
