@@ -654,3 +654,26 @@ and native GitHub evidence remain application capabilities, not harness-managed
 lifecycle. `story-qa` still guides actual affected-path verification; no replacement
 preview service, scheduler or upload credential is introduced.
 
+## US-050 Continue T3 threads across pooled accounts
+
+Statement: When a T3 account reaches its usage limit, I want the thread to
+continue on another account of the same provider without switching it myself.
+
+Criteria:
+1. WHEN a non-archived thread's latest executed run fails at a usage limit,
+   THE SYSTEM SHALL move it to the next available instance in its configured
+   Claude or Codex pool and continue with the same model, options, and runtime mode.
+2. WHEN an instance has an unexpired usage-limit failure or an unknown reset,
+   THE SYSTEM SHALL exclude it from selection across passes.
+3. WHEN every instance is limited, THE SYSTEM SHALL leave the thread for T3's
+   native recovery at reset. Other failure classes SHALL remain untouched.
+4. WHEN a pass retries or overlaps another pass, THE SYSTEM SHALL select at
+   most one target per failed run and avoid duplicate continuations.
+5. WHEN the operator requests a dry run, THE SYSTEM SHALL list proposed moves
+   without dispatching commands or writing pool state.
+6. WHEN commands finish or fail, THE SYSTEM SHALL revoke its short-lived RPC
+   session, keep credentials out of output, and log each account move once.
+
+Evidence: `agent-config/bin/t3-pool.test.ts`, `agent-config/bin/install.test.ts`,
+`agent-config/bin/t3-runtime-mode.test.ts`, and `scripts/verify-installers`.
+

@@ -12,6 +12,7 @@ runs Claude Code, so the skills and guidance lanes and Home use deploy here.
 | `heartbeat` | The sweep that keeps lanes moving |
 | `story-qa`, `user-stories`, `pokayoke`, `authenticated-commands` | Existing shared skills the loop calls |
 | Guidance `engineering`, `workstation`, `autonomy` | Foundations pointer, workstation facts, the standing autonomy policy |
+| `t3-pool` | Continue usage-limited T3 threads on another account every 90 seconds ([contract](../agent-config/t3-pool/README.md)) |
 
 ```sh
 ./install          # deploys to $CLAUDE_CONFIG_DIR, default ~/.claude
@@ -23,3 +24,7 @@ clean-replaces only the skill directories it selects. Guidance lands in
 `~/.claude/CLAUDE.md`, which Claude Code loads in every project. The file is
 owned (first line is the ownership marker); a foreign one stops the install
 before any write.
+
+The installer also deploys the shared pool CLI, its owned config and user units,
+then enables `t3-pool.timer`. Pool state and logs survive reinstalls. A foreign
+pool launcher, config or unit stops preflight before any selected file changes.
