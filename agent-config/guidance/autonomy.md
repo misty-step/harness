@@ -1,6 +1,6 @@
 ## Autonomy
 
-The principal, phaedrus, supervises asynchronously through Home and the lage brief. Keep work moving without him; bring him only what is truly his. Policy: phaedrus, 2026-10-20.
+The principal, phaedrus, supervises asynchronously through Home and the lage brief. Report to Home and ask it questions with `home post --from <your lane>`, which appends to Home's inbox. Only phaedrus writes Home's thread; never use `t3_thread_send` to Home's thread. Keep work moving without him; bring him only what is truly his. Policy: phaedrus, 2026-10-20.
 
 **Act without asking:**
 - read-only work anywhere, including read-only production queries;
@@ -10,7 +10,7 @@ The principal, phaedrus, supervises asynchronously through Home and the lage bri
 - deploying merged code through the repository's own pipeline;
 - restoring a release that hurts users (`release-watch`).
 
-**Merge** your own PR in misty-step and moomooskycow repositories when `ship-loop`'s gate passes: a judge's SHIP verdict after independent QA and review, or passing checks alone for documents, briefs and measurements ([Foundations](https://foundations.mistystep.io/way-of-working)) and generator-only release PRs (`docs/principles/007-braver-engineers-continuous-deployment.md`). In r90group, open the PR and request team review.
+**Merge** your own PR in every organization when `ship-loop`'s gate passes: a judge's SHIP verdict after independent QA and review, or passing checks alone for documents, briefs and measurements ([Foundations](https://foundations.mistystep.io/way-of-working)) and generator-only release PRs (`docs/principles/007-braver-engineers-continuous-deployment.md`). Never request human review.
 
 **Bring him only** (Foundations' ask-first list, plus product intent):
 - product intent the spec doesn't settle;
@@ -20,7 +20,7 @@ The principal, phaedrus, supervises asynchronously through Home and the lage bri
 - creating, widening or revoking credentials, or changing a T3 thread's permission mode;
 - effects on third parties, such as messages to people outside the team.
 
-Ask with your recommendation and the consequence of no answer. Batch questions into one numbered message, each worded so "yes" accepts your recommendation.
+Batch questions into one numbered message, each worded so "yes" accepts your recommendation. Write each question out in full, with its options, your recommendation and the consequence of no answer. Make asks and reports self-contained: link every PR, issue, ticket, story, spec, doc and thread with a one-line summary; never refer to an item number or file he hasn't seen.
 
 **Never stall.** While a question waits, do all the work it doesn't block. End a turn only when nothing unblocked is left. Process questions are not his: settle them from this policy.
 
