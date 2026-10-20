@@ -6,15 +6,17 @@ Fill every `<field>` before dispatch. QA, reviewer and judge each post one PR re
 
 The conductor chooses the highest matching tier, with any tier assigned to the initiative as a floor. File count and extension never lower the tier. Every authored change gets review and verification. Machine-generated, generator-only release PRs are exempt from review rounds and merge on passing checks alone.
 
-| Tier | Change | Review shape and fallback models |
+| Tier | Change | Review shape and models |
 | --- | --- | --- |
-| light | Documents, briefs, measurements, copy or a local cosmetic/config edit that changes no runtime behavior or agent instructions (skills, AGENTS.md, CLAUDE.md or shared guidance), and meets no higher-tier trigger | Builder, combined QA and review agent, then an independent judge. Each uses Haiku 5.5 at medium or GPT-6.1 Sol at medium. |
-| standard | Runtime behavior changes, new features, bug fixes, refactors across modules, or operational prompts (skills, AGENTS.md and shared guidance), without a critical trigger | Builder, separate QA and review agents, then an independent judge. Each uses Opus 5.5 at high or GPT-6.1 Sol at high. |
-| critical | Changes to authentication, authorization, money movement, persisted-data integrity, migrations, security controls, deploy pipelines, shared infrastructure or irreversible operations, regardless of size | Builder uses GPT-6.1 Sol at xhigh or Opus 5.5 at high. QA uses one Sol agent at xhigh; review uses one Claude agent (Opus 5.5 or Sonnet 5.5) at high, giving two families across the two roles. An independent Opus 5.5 judge uses high. |
+| light | Documents, briefs, measurements, copy or a local cosmetic/config edit that changes no runtime behavior or agent instructions (skills, AGENTS.md, CLAUDE.md or shared guidance), and meets no higher-tier trigger | Builder, combined QA and review agent, then an independent judge. Builder and judge use Sonnet 5.5 at medium; the combined check uses Sonnet 5.5 or Haiku 5.5 at medium. |
+| standard | Runtime behavior changes, new features, bug fixes, refactors across modules, or operational prompts (skills, AGENTS.md and shared guidance), without a critical trigger | Builder, separate QA and review agents, then an independent judge. Each uses Opus 5.5 at high. |
+| critical | Changes to authentication, authorization, money movement, persisted-data integrity, migrations, security controls, deploy pipelines, shared infrastructure or irreversible operations, regardless of size | Builder uses Opus 5.5 at high. QA uses Opus 5.5 at xhigh; review uses Sonnet 5.5 at high, giving two models across the two roles. An independent Opus 5.5 judge uses high. |
+
+Models are all Claude while every Codex account is out (global guidance, Routing until Upkeep). When `upkeep` shows a Codex instance with room, GPT-6.1 Sol at the same effort may replace any role's model, and critical QA then uses Sol for a second family. Never route to `claude-hello`, which is reserved for Home.
 
 Unlisted or uncertain changes default to standard; unresolved critical risk takes critical. Record the tier and its concrete trigger in each dispatch.
-Lane coordinators run on Opus 5.5 at high for Claude or GPT-6.1 Sol at high for Codex.
-Use Fable or Astra only when the dispatch states a concrete reason nothing among GPT-6.1 Sol, Opus 5.5 and Sonnet 5.5 can do the job; anyone's request or "to be safe" is not a reason, so otherwise decline and use the tier's route.
+Lane coordinators run on Opus 5.5 at high.
+No Fable or Astra (phaedrus, 2026-10-20).
 Compact or relaunch a lane with a handoff when its context gets heavy.
 For light changes, combine the QA and Reviewer briefs in one dispatch and post both reports. The judge stays independent.
 
@@ -53,15 +55,19 @@ Scope: <full diff | delta since previously checked SHA> and its consequences.
 Prior evidence and resolutions: <links | "first check">.
 
 Read its acceptance criteria, <story IDs and file>, and ~/.claude/skills/story-qa/SKILL.md.
-Follow story-qa using <verification skill | native build, launch and test commands>.
-Check out <SHA> in your own worktree. For web UIs, use T3's preview browser tools.
+Follow story-qa using the repository's verification skill <skill path>. If it has none, say so:
+the builder must add one in this PR (create-verification-skill).
+Check out <SHA> in your own worktree. Drive the real journey from the CLI; T3's preview
+browser tools are an alternative for web UIs. Sign in as the real owner identity
+<identity> on the real product; an email sent or a 200 response is not a sign-in.
 
 Walk every criterion and story affected by your scope. Exercise plausible failures and
 check consequential state where it lives. Use disposable data, never production data.
 QA account and inbox: <verification skill's | native harness's | "none">.
 
 Post "QA report at <SHA>", linking retained evidence for unchanged behavior after a fix.
-Verdict: PASS, ISSUES or BLOCKED.
+Verdict: PASS, ISSUES or BLOCKED. Owner sign-in: PROVEN (evidence link), UNPROVEN (the access
+needed) or n/a (why).
 For each criterion: what you did, what you saw, and the evidence path.
 For each issue: the steps, the expected result, the actual result, and the evidence.
 For BLOCKED: exactly what stopped you.

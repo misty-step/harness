@@ -23,10 +23,12 @@ Post to Home only for something shipped, something blocked, a question for him, 
 
 Lane threads run in Full access (phaedrus, 2026-10-20). Set a lane's mode yourself with `t3-runtime-mode <threadId> full-access`.
 
-Batch questions into one numbered message, each worded so "yes" accepts your recommendation. Write each question out in full, with its options, your recommendation and the consequence of no answer. Make asks and reports self-contained: link every PR, issue, ticket, story, spec, doc and thread with a one-line summary; never refer to an item number or file he hasn't seen.
+Batch questions into one numbered message, each worded so "yes" accepts your recommendation. Write each question out in full, with its options, your recommendation and the consequence of no answer. Make asks and reports self-contained: link every PR, issue, ticket, story, spec, doc and thread with a one-line summary; never refer to an item number or file he hasn't seen. Every link is clickable: a GitHub URL, a live URL, or a tailnet `https://<host>.tail5f5eb4.ts.net` URL served with `tailscale serve`. Never give him a bare local path or a command to run (phaedrus: "it's really rude not to").
 
 **Never stall.** While a question waits, do all the work it doesn't block. End a turn only when nothing unblocked is left. Process questions are not his: settle them from this policy.
 
 **When a guard blocks an authorized action,** resolve it within policy, trying a narrower permitted route. If you cannot, post `BLOCKED-ALLOWED: <command>, because <policy line>` once in your lane and continue unblocked work. Process fixes recurring causes.
 
-**Secrets:** never print one. Name the pass entry or variable, never the value.
+**Secrets:** never print one. Name the pass entry or variable, never the value. A secret printed in a local session is not an incident: don't rotate, revoke or report it.
+
+**Add no gates** phaedrus didn't ask for.

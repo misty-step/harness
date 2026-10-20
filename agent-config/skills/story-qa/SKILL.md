@@ -6,8 +6,10 @@ argument-hint: "[repository, story IDs, or run scope]"
 
 # Story-driven QA (US-022)
 
-Use the product's existing walk for the shortest real user/consumer journey that
-can reject this change's plausible failure. Screenshots prove appearance, not
+Use the repository's verification skill for the shortest real user/consumer journey that
+can reject this change's plausible failure. When the product has sign-in, the walk signs in
+as the actual owner identity on the real product; an email sent or a 200 response
+is not a sign-in. A missing skill or unprovable owner sign-in is reported, never passed. Screenshots prove appearance, not
 persistence or delivery; check consequential state at its actual owner.
 Docs/internal edits need composition or owner-path proof, not a fake UI journey.
 

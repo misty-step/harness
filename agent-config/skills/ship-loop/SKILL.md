@@ -17,7 +17,9 @@ Many skills named here are user-invoked, so the Skill tool refuses them. For tho
 
 ## 0. Use the repository's tools
 
-Use its existing tracker and conventions. Add tracker guidance only when ambiguity blocks work. Prove the change with its verification skill or native harness; extract a reusable verification skill when it saves repeated work, including it in this change when that is the smallest coherent repair.
+Use its existing tracker and conventions. Add tracker guidance only when ambiguity blocks work.
+
+Prove every change with the repository's verification skill. **Nothing is verified until that skill has driven the real user journey end to end on the real product, including signing in as the actual owner identity, with the evidence linked.** Proving only the sender side (an email sent, a 200 response) or a test-only path is not proof. A repository without a verification skill gets one in this change, made with `create-verification-skill` (`~/.agents/skills/create-verification-skill/SKILL.md`). When owner sign-in cannot run because an agent lacks access, the report says `owner sign-in UNPROVEN: needs <access>`; it never says verified.
 
 ## 1. Settle intent
 
@@ -46,7 +48,7 @@ Dispatch roles with `delegate_task` and completed [role briefs](roles.md). Confi
 
 1. **Build.** One builder, `isolation: "worktree"`, which starts from your local commit: first detach your checkout at the builder's start (`git switch --detach origin/<default branch>`, or the PR head it starts from). It returns a PR and its head SHA.
 2. **Verify.** QA and review at that SHA, combined in one agent for light changes, separate otherwise.
-3. **Judge.** An independent judge gets the ticket, PR and both revision-linked reports. Resolve missing proof before SHIP.
+3. **Judge.** An independent judge gets the ticket, PR and both revision-linked reports. Resolve missing proof before SHIP. A user-facing change without linked verification-skill evidence of the real journey, owner sign-in included, is missing proof.
 4. **Act on the verdict.**
    - **FIX:** the builder fixes code blockers; you clear lane blockers such as QA that could not run. Independently test and review the changed delta and its consequences, retaining evidence for unchanged behavior. The independent judge rules on the resulting SHA. Recheck the whole scope only when impact is broad or uncertain.
    - **RE-SLICE:** split with `to-tickets` when diagnosis shows the outcome is too large, then continue on the new frontier.
@@ -80,6 +82,6 @@ When a ticket ships or the frontier needs a principal decision, post one short r
 
 The report says what shipped, what is in flight (with the step each item is on), and every question for the principal, numbered. He reads it without opening anything:
 
-- Give every PR, issue, ticket, story, spec, doc and thread a link and a one-line summary.
+- Give every PR, issue, ticket, story, spec, doc and thread a clickable link (GitHub, live, or tailnet `https://<host>.tail5f5eb4.ts.net`) and a one-line summary. Never give a bare local path or a command for him to run.
 - Write each question out in full: its options, your recommendation, and what happens if he doesn't answer. Word it so "yes" accepts your recommendation.
 - Never cite item numbers he hasn't seen, such as "Q3 yes" or "1-5", and never point at a file instead of writing out what it says.
