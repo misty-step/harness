@@ -54,14 +54,14 @@ Done for a ticket when the judge ruled SHIP at the PR's current head SHA, or, fo
 
 - Confirm the repository's fast affected checks passed at the judged SHA, on our own machines: its CI where that runs, otherwise its documented check, run by you at that SHA. Paid GitHub Actions minutes are not a gate.
 - If the head moved after the verdict, the verdict is void unless only a rebase moved it and `git patch-id` is unchanged. A conflict resolution changes the patch, so it gets a new round.
-- **misty-step and moomooskycow:** squash-merge, with the PR title as a Conventional Commit (`docs/release-convention.md` in misty-step/harness). Land a stack bottom-first. After each squash, move the next PR onto the default branch with `git rebase --onto <default branch> <its old base>`, push it, retarget it, and run the fast affected checks at its new head before it merges.
+- **misty-step and moomooskycow:** squash-merge, with the PR title as a Conventional Commit (`docs/release-convention.md` in misty-step/harness). Land a stack bottom-first. Record each PR's head SHA before you squash or rebase it. After a PR lands, move the one above it with `git rebase --onto <default branch> <the recorded SHA of the PR below> <its branch>`, push with `--force-with-lease` (it's the lane's own branch), retarget it to the default branch if GitHub hasn't, and run the fast affected checks at its new head before it merges.
 - **r90group:** request team review, report the PR as merge-ready, and move on. A human merges.
 
 ## 4. Watch the release
 
 Dispatch `release-watch` with the merge SHA and the ticket's stories. The merge closed the ticket (`Closes #<n>`); reopen it if the watch restores the release. Report `live behavior proven` only when the watch does. Its restore and incident paths run without you.
 
-A repository with no automatic deploy gets one watch per deploy, not one per merge. Tickets close on merge as usual. When its deploy runs, by whoever the repository's deploy doc names, dispatch one `release-watch` at the deployed SHA, covering every story merged since the last deploy, and post its result on the deploy ticket.
+In a repository with no automatic deploy, the first watch reports `unwatched` and names the ticket for the missing mechanism. Skip the watch after later merges until that ticket closes, and report those merges as merged, not live.
 
 ## Report
 
