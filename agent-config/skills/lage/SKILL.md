@@ -11,8 +11,9 @@ The previous lage is the time the launcher passes; otherwise use the newest
 is empty. If unreadable, report the gap rather than guessing.
 
 Home delegates to one asynchronous runner. When its checkout has `CLAUDE.md` or hooks, use
-`t3_thread_launch` with `scratch: true`. Name the requester, lage skill and previous lage's time
-in the launch message. The runner completes delivery and delegates further only when useful.
+`t3_thread_launch` with `scratch: true`. Name the requesting thread's `threadId`, lage skill and
+previous lage's time in the launch message. The runner completes delivery and delegates further
+only when useful.
 
 ## 1. Roster
 
@@ -55,6 +56,8 @@ Read every in-scope open lane and unresolved asks on closed lanes. Capture:
 - Every named PR's forge state (`gh pr view <url> --json state,mergedAt,statusCheckRollup,reviewDecision`).
 - Running children and scheduled tasks from the roster.
 
+A side effect is a pushed commit, opened or merged PR, deploy, published ticket or host change.
+
 Read tails with `afterPosition` near `itemCount - 12` and `maxCharsPerItem` around 3000.
 Recover truncated asks or reports with `itemId` and `textOffset`; read older history only to
 resolve missing context. Mark unavailable facts `unknown: <why>`.
@@ -68,8 +71,8 @@ Assign each lane the first matching state:
 
 | State | Meaning |
 | --- | --- |
-| `waiting on you` | Only the principal can decide intent, destruction, production writes or money. |
-| `stuck` | Failed, interrupted, no verifiable progress in 6 hours, or waiting on an agent-answerable ask. |
+| `waiting on you` | Unresolved principal decision on intent, destruction, production writes or money, even if other work can proceed. |
+| `stuck` | Failed, interrupted, claims to be running with no side effect in 6 hours, or waiting on an agent-answerable ask. |
 | `in review` | A PR is open and agent review, QA or the judge is pending. |
 | `parked` | Deliberately on hold. |
 | `shipped` | Merged or deployed since the previous lage, with no PR open and no builder running. |
@@ -87,8 +90,8 @@ Lead with what needs him. Start `**Lage, <date> <local time>.** <N> decisions fo
 List all unresolved principal questions in priority order, urgent first, including closed-lane asks.
 Write each question in full with its requester, context, options and their costs, recommendation
 and reason, and what happens if unanswered and when. Give each question its own numbered entry
-in one sequence, 1…N. Never bundle approvals or substitute source labels, item numbers or ranges
-he has not seen. Only this brief's entries may serve as numbered references.
+in one sequence, 1…N. Never bundle approvals or substitute unseen source labels or item numbers.
+Numbered references use only individual entries from this brief, never ranges.
 
 Recommendations follow standing autonomy and Foundations. Flag noncompliant options and recommend
 a compliant one. Reclassify agent-answerable asks explicitly instead of silently dropping them.
@@ -99,11 +102,11 @@ threads' last and next runs. Include capacity from `upkeep status` if available.
 item only what changes a decision. Drop empty sections except **Not checked**, which lists read
 gaps. Do not cap the brief's length.
 
-Link every mention of every PR, issue, ticket, story, spec, doc, ADR and thread. Put the whole
+Link every mention of every PR, issue, ticket, story, spec, doc, file, ADR and thread. Put the whole
 reference inside its Markdown link and expand ranges into individual links. At first mention,
 give each linked item a one-line summary sufficient to understand it without opening it.
-An opaque title alone is insufficient. For unreadable sources, give their known purpose and read
-gap; if purpose is unknown, report missing context against the linked lane. Link threads as
+Expand unfamiliar jargon; an opaque title is insufficient. For unreadable sources, give their
+known purpose and read gap; if purpose is unknown, report missing context against the linked lane. Link threads as
 `[title](t3-thread://v1/<id>)` and PRs by full URL. Use familiar names for lanes and agents.
 Mark unverified claims "lane says".
 
@@ -113,13 +116,13 @@ The brief is ready when he can decide from it alone and every lane and unresolve
 
 ## 5. Deliver
 
-Home's T3 thread is written only by phaedrus. Never send the brief or pointer there or to the
-requesting thread by message.
+Home's thread is phaedrus-only; never `t3_thread_send` there.
 
 Save the full brief to `~/.local/state/home/lage/<YYYY-MM-DDTHHMMZ>.md` using current UTC time;
-create the directory if needed. Pipe one pointer to `home post --from lage` via stdin, containing
+create the directory if needed. Pipe one pointer to `home post --from Lage` via stdin, containing
 the saved path and `<N> waiting; <S> stuck`. N counts all principal questions; agent-answerable
-reclassifications count only as stuck. `home post` appends to `~/.local/state/home/inbox.md`.
+reclassifications count only as stuck. If `home post` fails, append `## <UTC> [Lage]` and the same
+pointer directly to `~/.local/state/home/inbox.md`; report the fallback in the runner.
 
-Done when the saved brief exists and the inbox contains its single pointer. On failure, report
-the failed step without claiming delivery or substituting a thread message.
+Done when the saved brief exists and the inbox contains its single pointer. If saving or both
+inbox paths fail, report the failed step without claiming delivery.

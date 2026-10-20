@@ -5,8 +5,11 @@ unanswered consequence, every source mention's link and its first-mention summar
 of unresolved asks. With `brief` and `pointer` naming the draft files, both greps must print nothing:
 
 ```sh
-sed -E 's/\[[^]]*\]\([^)]*\)//g' "$brief" | grep -En '#[0-9]|\bPR [0-9]'
-grep -Ein '\bQ[0-9]|items? [0-9]|asks? [0-9]|open item' "$brief"
+for draft in "$brief" "$pointer"; do
+  sed -E 's/\[[^]]*\]\([^)]*\)//g' "$draft" |
+    grep -Ein '#[0-9]|\b(PR|issue|ticket|story|ADR|spec|doc|thread|GH)s?[ -]?[0-9]'
+  grep -Ein '\bQ[0-9]|(items?|asks?|decisions?) [0-9]|open item|[0-9]+ ?[-–,] ?[0-9]+ (yes|no)\b|[0-9]+ to [0-9]+' "$draft"
+done
 ```
 
 Verify one numbering sequence and equal header and pointer counts:
