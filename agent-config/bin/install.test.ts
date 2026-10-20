@@ -27,6 +27,9 @@ function fixture(): Fixture {
 	copyFileSync(join(repo, "install"), join(source, "install"));
 	copyFileSync(join(repo, "bin/pass-env.ts"), join(source, "bin/pass-env.ts"));
 	copyFileSync(join(repo, "bin/launcher-build.ts"), join(source, "bin/launcher-build.ts"));
+	copyFileSync(join(repo, "bin/t3-pool.ts"), join(source, "bin/t3-pool.ts"));
+	cpSync(join(repo, "lib"), join(source, "lib"), { recursive: true });
+	cpSync(join(repo, "t3-pool"), join(source, "t3-pool"), { recursive: true });
 	copyFileSync(join(repo, "guidance/engineering.md"), join(source, "guidance/engineering.md"));
 	copyFileSync(
 		join(repo, "skills/authenticated-commands/SKILL.md"),
@@ -43,6 +46,8 @@ function fixture(): Fixture {
 	}
 	put(files.home, ".local/bin/foreign-tool", "foreign executable\n");
 	put(files.home, ".cache/tmp/foreign-cache", "foreign cache sentinel\n");
+	put(files.home, ".fixture-bin/systemctl", '#!/bin/sh\nprintf "%s\\n" "$*" >> "$HOME/systemctl-calls"\n');
+	chmodSync(join(files.home, ".fixture-bin/systemctl"), 0o700);
 	return files;
 }
 
@@ -55,7 +60,7 @@ function invoke(files: Fixture, extra: string[] = []) {
 			"--guidance", "engineering", "--guidance-source", join(files.source, "AGENTS.md"),
 			...extra,
 		],
-		env: { PATH: `${dirname(process.execPath)}:${process.env.PATH ?? "/usr/bin:/bin"}`, HOME: files.home },
+		env: { PATH: `${files.home}/.fixture-bin:${dirname(process.execPath)}:${process.env.PATH ?? "/usr/bin:/bin"}`, HOME: files.home },
 		stdout: "pipe",
 		stderr: "pipe",
 	});
@@ -87,6 +92,40 @@ afterEach(() => {
 });
 
 describe("install", () => {
+	test("pool preflight is inert; deployment bundles its CLI, copies owned config and units, and enables only its timer", () => {
+		const files = fixture();
+		const before = snapshot(files.home);
+		expect(invoke(files, ["--t3-pool", "--check"]).exitCode).toBe(0);
+		expect(snapshot(files.home)).toEqual(before);
+		const deployed = invoke(files, ["--t3-pool"]);
+		expect(deployed.stderr.toString()).toBe("");
+		expect(deployed.exitCode).toBe(0);
+		expect(readFileSync(join(files.home, "systemctl-calls"), "utf8")).toBe("--user daemon-reload\n--user enable --now t3-pool.timer\n");
+		expect(readFileSync(join(files.home, ".config/t3-pool.json"), "utf8")).toBe(readFileSync(join(repo, "t3-pool/pools.json"), "utf8"));
+		expect(readFileSync(join(files.home, ".config/systemd/user/t3-pool.timer"), "utf8")).toContain("OnUnitInactiveSec=90s");
+		expect(readFileSync(join(files.target, "AGENTS.md"), "utf8")).toContain(readFileSync(join(repo, "guidance/engineering.md"), "utf8"));
+		rmSync(files.source, { recursive: true });
+		const smoke = Bun.spawnSync(["bun", join(files.home, ".local/bin/t3-pool"), "--help"]);
+		expect(smoke.exitCode).toBe(0);
+		expect(smoke.stdout.toString()).toContain("Usage: t3-pool");
+	});
+
+	test.each([".local/bin/t3-pool", ".config/t3-pool.json", ".config/systemd/user/t3-pool.service", ".config/systemd/user/t3-pool.timer"])("pool refuses foreign %s before any write", (path) => {
+		const files = fixture();
+		put(files.home, path, "foreign owner\n");
+		const before = snapshot(files.home);
+		expect(invoke(files, ["--t3-pool"]).exitCode).not.toBe(0);
+		expect(snapshot(files.home)).toEqual(before);
+	});
+
+	test("pool refuses symlinked owned config before any write", () => {
+		const files = fixture();
+		mkdirSync(join(files.home, ".config"));
+		symlinkSync(join(files.source, "t3-pool/pools.json"), join(files.home, ".config/t3-pool.json"));
+		const before = snapshot(files.home);
+		expect(invoke(files, ["--t3-pool"]).exitCode).not.toBe(0);
+		expect(snapshot(files.home)).toEqual(before);
+	});
 	test("deploys the launcher, owned skill, and guidance without needing credentials", () => {
 		const files = fixture();
 		const beforeAgent = snapshot(files.target);
