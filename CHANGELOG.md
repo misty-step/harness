@@ -1,3 +1,9 @@
+# [0.2.12](https://github.com/misty-step/harness/compare/v0.2.11...v0.2.12) (2026-10-20)
+<!-- landmark:protected-release previous=v0.2.11 source=91052456d4a60c96f0e32a6395bf821aa2f14eb44c656cdfd1197ab0ae032798 -->
+
+### Features
+
+* **agent-config:** set T3 thread runtime modes over local RPC (#393) ([c9ad1b7](https://github.com/misty-step/harness/commit/c9ad1b76b2b0334da572b83f50484000a49b9831))
 # [0.2.11](https://github.com/misty-step/harness/compare/v0.2.10...v0.2.11) (2026-10-20)
 <!-- landmark:protected-release previous=v0.2.10 source=83b0a4f6900d47ca885e92a33f7ee8daf442d4924f3fa0a3c6ad8596d4d6c087 -->
 
