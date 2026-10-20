@@ -81,8 +81,8 @@ disposable Pi and OMP installer smoke.
 
 Run affected native checks and walk the real user path. Nothing is verified
 until the repository's verification skill has driven the real user journey end
-to end on the real product, including sign-in as the actual owner identity, with
-evidence linked; a repository without one gets one. Every authored change
+to end on the real product, with evidence linked, signing in as the actual owner
+identity when the product has sign-in; a repository without one gets one. Every authored change
 gets review and verification scaled to risk. Documents, briefs and measurements
 get one light combined QA/review check plus an independent judge. Riskier
 behavior changes get separate independent QA, review and judge agents. Repeat

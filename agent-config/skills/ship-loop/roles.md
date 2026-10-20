@@ -8,11 +8,11 @@ The conductor chooses the highest matching tier, with any tier assigned to the i
 
 | Tier | Change | Review shape and models |
 | --- | --- | --- |
-| light | Documents, briefs, measurements, copy or a local cosmetic/config edit that changes no runtime behavior or agent instructions (skills, AGENTS.md, CLAUDE.md or shared guidance), and meets no higher-tier trigger | Builder, combined QA and review agent, then an independent judge. Builder and judge use Sonnet 5.5 at medium; the combined check uses Sonnet 5.5 or Haiku 5.5 at medium. |
+| light | Documents, briefs, measurements, copy or a local cosmetic/config edit that changes no runtime behavior or agent instructions (skills, AGENTS.md, CLAUDE.md or shared guidance), and meets no higher-tier trigger | Builder, combined QA and review agent, then an independent judge. Builder and judge use Opus 5.5 at medium; the combined check uses Sonnet 5.5 at medium. Trivial edits may use Haiku 5.5. |
 | standard | Runtime behavior changes, new features, bug fixes, refactors across modules, or operational prompts (skills, AGENTS.md and shared guidance), without a critical trigger | Builder, separate QA and review agents, then an independent judge. Each uses Opus 5.5 at high. |
-| critical | Changes to authentication, authorization, money movement, persisted-data integrity, migrations, security controls, deploy pipelines, shared infrastructure or irreversible operations, regardless of size | Builder uses Opus 5.5 at high. QA uses Opus 5.5 at xhigh; review uses Sonnet 5.5 at high, giving two models across the two roles. An independent Opus 5.5 judge uses high. |
+| critical | Changes to authentication, authorization, money movement, persisted-data integrity, migrations, security controls, deploy pipelines, shared infrastructure or irreversible operations, regardless of size | Builder uses Opus 5.5 at high. QA uses Opus 5.5 at xhigh; review uses Opus 5.5 at high. An independent Opus 5.5 judge uses high. |
 
-Models are all Claude while every Codex account is out (global guidance, Routing until Upkeep). When `upkeep` shows a Codex instance with room, GPT-6.1 Sol at the same effort may replace any role's model, and critical QA then uses Sol for a second family. Never route to `claude-hello`, which is reserved for Home.
+Models are all Claude while every Codex account is out (global guidance, Routing until Upkeep). When `upkeep` shows a Codex instance with room, GPT-6.1 Sol at the same effort may replace any role's model, and critical QA then uses Sol at xhigh for a second model family. Never route to `claude-hello`, which is reserved for Home.
 
 Unlisted or uncertain changes default to standard; unresolved critical risk takes critical. Record the tier and its concrete trigger in each dispatch.
 Lane coordinators run on Opus 5.5 at high.
@@ -32,8 +32,9 @@ ticket: its blocker PR's head | a fix round: the PR's head>.
 Keep: <the load-bearing lines and rules the change must leave in place | "nothing listed">.
 Length is a preference, never a reason to remove a Keep item.
 
-Inspect your diff. Run <check command> and drive the changed path with <verification
-skill | native harness>. Put evidence in the PR. Push and open it against <base branch>,
+Inspect your diff. Run <check command> and drive the changed path with the repository's
+verification skill <path>. If it has none, add one with create-verification-skill
+(`.agents/skills/verify-<app>/`, `.claude/skills/` symlink), or say which open PR adds it. Put evidence in the PR. Push and open it against <base branch>,
 with a Conventional Commit title, the pr skill's body and "Closes #<n>".
 Every authored PR body carries `Story: <ID>[, <ID>]` using story IDs from SPEC.md or USER_STORIES.md
 (for example, `Story: US-012` or `Story: US-012, US-015`). Use `Story: none` when no story applies.
@@ -56,10 +57,11 @@ Prior evidence and resolutions: <links | "first check">.
 
 Read its acceptance criteria, <story IDs and file>, and ~/.claude/skills/story-qa/SKILL.md.
 Follow story-qa using the repository's verification skill <skill path>. If it has none, say so:
-the builder must add one in this PR (create-verification-skill).
+the builder adds one in this PR or the PR stacks on the PR adding it.
 Check out <SHA> in your own worktree. Drive the real journey from the CLI; T3's preview
-browser tools are an alternative for web UIs. Sign in as the real owner identity
-<identity> on the real product; an email sent or a 200 response is not a sign-in.
+browser tools are an alternative for web UIs. When the product has sign-in, sign in as
+the real owner identity <identity> on the real product; an email sent or a 200 response
+is not a sign-in.
 
 Walk every criterion and story affected by your scope. Exercise plausible failures and
 check consequential state where it lives. Use disposable data, never production data.

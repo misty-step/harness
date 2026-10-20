@@ -16,5 +16,6 @@ Docs/internal edits need composition or owner-path proof, not a fake UI journey.
 Disposable data must use the authorized account/integration. Worktrees, browser
 tabs and contexts do not themselves isolate server-side state. Clean up only what
 you create. Report revision, observed result and unverified scope in the PR.
-Missing QA infrastructure is separate work unless it prevents proving this fix.
+A missing verification skill is added in the change, or the change stacks on the PR adding it.
+Other missing QA infrastructure is separate work unless it prevents proving this fix.
 [check-cadence.md](check-cadence.md) owns deleting/rescheduling checks.
