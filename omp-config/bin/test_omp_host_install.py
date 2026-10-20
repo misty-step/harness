@@ -145,7 +145,7 @@ class ClientTransportTests(unittest.TestCase):
                  [*install[:-1], "../story-qa"],
                  [*install, "--revision", "A" * 40],
                  [*install, "--revision", "abc"],
-                 [*install, "--recipe", "shared-bin", "--profile", "kaylee"],
+                 [*install, "--profile", "kaylee"],
                  [*install, "--recipe", "harness-cli"],
                  [*install, "--recipe", "workbench-item"],
                  ["install", "--item", "K-test", "--recipe", "shared-skill", "--rev", "a" * 40,

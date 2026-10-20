@@ -217,6 +217,7 @@ install_extensions() {
   rm -f -- "$agent_dir/bin/omp-model-policy.ts"
   rm -rf -- "$agent_dir/references/review"
   rm -rf -- "$agent_dir/extensions/loc"
+  rm -rf -- "$agent_dir/extensions/kaylee-pane-guard"
   for ext_dir in "$repo_dir"/extensions/*; do
     [ -d "$ext_dir" ] || continue
     ext_name=${ext_dir##*/}

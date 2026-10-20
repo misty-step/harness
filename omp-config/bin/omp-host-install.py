@@ -57,7 +57,6 @@ def arguments(argv):
                          choices=("harness-cli", "shared-skill", "shared-bin"))
     install.add_argument("--revision", required=True, type=revision)
     install.add_argument("--selection", required=True, type=safe_name)
-    install.add_argument("--profile", choices=("omp", "kaylee"), default="omp")
     for operation in ("readback", "rollback"):
         action = actions.add_parser(operation, allow_abbrev=False)
         action.add_argument("receipt_id", type=safe_name)
@@ -68,8 +67,6 @@ def arguments(argv):
             action.add_argument("--revision", required=True, type=revision)
     args = parser.parse_args(argv)
     if args.operation == "install":
-        if args.profile != "omp" and args.recipe != "shared-skill":
-            parser.error("only shared-skill may target the kaylee profile")
         if args.recipe == "harness-cli" and args.selection != "cli":
             parser.error("harness-cli requires --selection cli")
     return args
@@ -79,7 +76,7 @@ def request_for(args):
     request = {"schema_version": 1, "operation": args.operation}
     if args.operation == "install":
         request.update({key: getattr(args, key)
-                        for key in ("item", "recipe", "revision", "selection", "profile")})
+                        for key in ("item", "recipe", "revision", "selection")}, profile="omp")
     elif args.operation in ("readback", "rollback"):
         request["receipt_id"] = args.receipt_id
     elif args.operation in ("install-repository", "readback-repository"):
