@@ -654,3 +654,35 @@ and native GitHub evidence remain application capabilities, not harness-managed
 lifecycle. `story-qa` still guides actual affected-path verification; no replacement
 preview service, scheduler or upload credential is introduced.
 
+## US-050 Continue T3 threads across pooled accounts
+
+Statement: When a T3 account reaches its usage limit, I want the thread to
+continue on another account of the same provider without switching it myself.
+
+Criteria:
+1. WHEN an active top-level lane's latest executed run fails at a usage limit
+   within the last 30 minutes, THE SYSTEM SHALL continue it on the least-loaded
+   eligible instance in its Claude or Codex pool, preserving model, options and
+   runtime mode. Delegated children and superseded work SHALL remain untouched.
+2. WHEN an instance's newest current usage-limit failure is newer than its
+   completed or running activity, THE SYSTEM SHALL exclude it until the known
+   reset or, for an unknown reset, at most one hour after the failure.
+3. WHEN no eligible account has room, THE SYSTEM SHALL leave the thread for
+   T3's native recovery. Reserved accounts SHALL never be targets.
+4. WHEN a pass retries or overlaps another pass, THE SYSTEM SHALL select at
+   most one target per failed run and avoid duplicate continuations. Each pass
+   SHALL move at most two threads (one during ramp), and each target SHALL
+   receive at most three moves per rolling hour, across process restarts.
+5. WHEN the operator requests a dry run, THE SYSTEM SHALL list proposed moves
+   and each candidate's reason without dispatching commands or writing pool state.
+6. WHEN commands finish or fail, THE SYSTEM SHALL revoke its short-lived RPC
+   session, keep credentials out of output, and log each account move once.
+   Rejected moves SHALL be recorded and skipped without blocking other moves,
+   and abandoned after three rejected attempts.
+7. WHEN a harness installs pooling, THE SYSTEM SHALL preserve foreign units
+   and existing activation state, leave initial activation opt-in, and skip
+   pooling gracefully on hosts without a systemd user manager.
+
+Evidence: `agent-config/bin/t3-pool.test.ts`, `agent-config/bin/install.test.ts`,
+`agent-config/bin/t3-runtime-mode.test.ts`, and `scripts/verify-installers`.
+
