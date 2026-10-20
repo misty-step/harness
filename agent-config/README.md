@@ -11,6 +11,7 @@ harness installer declares which primitives it selects.
 | `guidance/*.md` | Global-guidance sections spliced at the harness marker |
 | `bin/pass-env.ts` | pass-backed environment launcher |
 | `bin/t3-runtime-mode.ts` | Set a local T3 thread's runtime mode through authenticated RPC |
+| `bin/t3-pool.ts` | Continue usage-limited T3 threads across account pools ([contract](t3-pool/README.md), US-050) |
 | `bin/openrouter-key.ts` | OpenRouter key resolver: R90 checkouts get the R90 entry, others `--personal` (US-028) |
 | `audio-sandbox/` | Silent agent sink contract and host deploy ([README](audio-sandbox/README.md), US-026) |
 | `session-backup/` | Opt-in nightly session-store backup ([README](session-backup/README.md)) |
