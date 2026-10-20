@@ -24,7 +24,7 @@ owned='<!-- owned by misty-step/harness claude-config -->'
 # AGENTS.md there loads only as a fallback in projects without a CLAUDE.md).
 # Replace it only when it is ours.
 target="$agent_dir/CLAUDE.md"
-if [ -e "$target" ] && ! grep -Fqx "$owned" "$target"; then
+if [ -e "$target" ] && [ "$(head -n 1 "$target")" != "$owned" ]; then
   printf '%s is not ours; move its content into a repository CLAUDE.md or remove it, then rerun\n' "$target" >&2
   exit 1
 fi

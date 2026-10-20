@@ -176,7 +176,7 @@ install_shared() {
   run_shared
   rm -rf -- "$agent_dir/extensions/diff-review" "$agent_dir/extensions/continuation-nudge"
   if has skills; then
-    for skill in session-close pr-preview sachstand video; do
+    for skill in session-close pr-preview sachstand video dev-exec foundation; do
       rm -rf -- "$agent_dir/skills/$skill"
     done
   fi
