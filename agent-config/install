@@ -273,12 +273,6 @@ if [ "$check" = 1 ]; then
   exit 0
 fi
 
-if [ -n "$agent_dir" ]; then
-  rm -rf -- "$agent_dir/skills/dev-exec"
-fi
-if [ -n "$agent_dir" ]; then
-  rm -rf -- "$agent_dir/skills/foundation"
-fi
 for name in design-check review-check foundation-check story-deletion-check semantic-check; do
   destination="$home_dir/.local/bin/$name"
   if [ -f "$destination" ] && grep -Fq ": owned standalone launcher (misty-step/harness)." "$destination"; then

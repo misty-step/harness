@@ -151,7 +151,7 @@ install_shared() {
   set -- --bin pass-env.ts --bin openrouter-key.ts
   for skill in $engineering_skills; do set -- "$@" --skill "$skill"; done
   run_shared "$@"
-  for skill in pr-preview sachstand session-close decide parlor ast-grep now-next; do
+  for skill in pr-preview sachstand session-close decide parlor ast-grep now-next dev-exec foundation; do
     rm -rf -- "$agent_dir/skills/$skill"
   done
   todoist_owner=${OMP_TODOIST_OWNER:-${OMP_DEVELOPMENT_ROOT:-$HOME/development}/moomooskycow/daybook/.agents/skills/todoist-cli}

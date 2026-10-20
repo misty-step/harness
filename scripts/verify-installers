@@ -36,6 +36,8 @@ for consumer in pi omp; do
   cp "$work/expected-auth" "$agent/auth.json"
   mkdir -p "$agent/skills/foundation" "$home/.local/bin"
   printf 'retired foundation package\n' > "$agent/skills/foundation/SKILL.md"
+  mkdir -p "$agent/skills/dev-exec"
+  printf 'retired dev-exec package\n' > "$agent/skills/dev-exec/SKILL.md"
   printf '#!/usr/bin/env bun\n// review-check: owned standalone launcher (misty-step/harness).\n' > "$home/.local/bin/review-check"
   mkdir -p "$agent/extensions/diff-review" "$agent/extensions/continuation-nudge"
   printf 'retired review\n' > "$agent/extensions/diff-review/index.ts"
@@ -129,6 +131,7 @@ for consumer in pi omp; do
   check "$consumer launcher executable" test -x "$home/.local/bin/pass-env"
   check "$consumer OpenRouter launcher executable" test -x "$home/.local/bin/openrouter-key"
   check "$consumer removes installed foundation package" test ! -e "$agent/skills/foundation"
+  check "$consumer removes installed dev-exec package" test ! -e "$agent/skills/dev-exec"
   check "$consumer removes installed review-check" test ! -e "$home/.local/bin/review-check"
   check "$consumer removes automatic review" test ! -e "$agent/extensions/diff-review"
   check "$consumer removes automatic nudge" test ! -e "$agent/extensions/continuation-nudge"
@@ -262,6 +265,9 @@ claude="$claude_home/.claude"
 mkdir -p "$claude/skills/foreign" "$claude/skills/lage"
 printf 'foreign skill sentinel\n' > "$claude/skills/foreign/SKILL.md"
 printf 'stale owned lage\n' > "$claude/skills/lage/obsolete.md"
+mkdir -p "$claude/skills/foundation" "$claude/skills/dev-exec"
+printf 'foreign foundation skill\n' > "$claude/skills/foundation/SKILL.md"
+printf 'foreign dev-exec skill\n' > "$claude/skills/dev-exec/SKILL.md"
 ln -s ../../.agents/skills/code-review "$claude/skills/code-review"
 printf '{"foreign":"keep"}\n' > "$claude/settings.json"
 cp "$claude/settings.json" "$work/expected-claude-settings"
@@ -279,6 +285,8 @@ done
 check "claude ship-loop role briefs" cmp -s "$work/source/agent-config/skills/ship-loop/roles.md" "$claude/skills/ship-loop/roles.md"
 check "claude clean-replaces owned skill" test ! -e "$claude/skills/lage/obsolete.md"
 check "claude foreign skill" cmp -s "$work/expected-skill" "$claude/skills/foreign/SKILL.md"
+check "claude keeps a foreign foundation skill" grep -Fxq 'foreign foundation skill' "$claude/skills/foundation/SKILL.md"
+check "claude keeps a foreign dev-exec skill" grep -Fxq 'foreign dev-exec skill' "$claude/skills/dev-exec/SKILL.md"
 check "claude CLI-linked skill" test "$(readlink "$claude/skills/code-review")" = ../../.agents/skills/code-review
 check "claude settings untouched" cmp -s "$work/expected-claude-settings" "$claude/settings.json"
 expected="$work/claude-guidance"
@@ -314,6 +322,21 @@ else
   check "claude refuses a foreign CLAUDE.md before any write" \
     test "$(ls -A "$foreign_home/.claude")" = CLAUDE.md
   check "claude keeps the foreign CLAUDE.md" grep -Fxq '# my own notes' "$foreign_home/.claude/CLAUDE.md"
+fi
+# The ownership marker counts only as the file's first line.
+marker_home="$work/claude-marker-home"
+mkdir -p "$marker_home/.claude"
+printf '# my own notes\n\n<!-- owned by misty-step/harness claude-config -->\n' > "$marker_home/.claude/CLAUDE.md"
+cp "$marker_home/.claude/CLAUDE.md" "$work/expected-marker-claude"
+if env -i PATH="$PATH" HOME="$marker_home" TMPDIR="$work" \
+  "$work/source/claude-config/install" >"$work/claude-marker.log" 2>&1; then
+  printf 'FAIL claude refuses a CLAUDE.md with the marker on a later line (install succeeded)\n' >&2
+  failures=$((failures + 1))
+else
+  check "claude refuses a CLAUDE.md with the marker on a later line before any write" \
+    test "$(ls -A "$marker_home/.claude")" = CLAUDE.md
+  check "claude keeps a CLAUDE.md with the marker on a later line" \
+    cmp -s "$work/expected-marker-claude" "$marker_home/.claude/CLAUDE.md"
 fi
 if [ "$failures" -ne 0 ]; then
   printf 'FAIL: %s invariant(s); disposable clone removed on exit\n' "$failures" >&2
