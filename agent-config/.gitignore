@@ -16,6 +16,8 @@
 !/system-one/**
 !/audio-sandbox/
 !/audio-sandbox/**
+!/claude-settings/
+!/claude-settings/**
 !/desktop-guard/
 !/desktop-guard/**
 /desktop-guard/**/__pycache__/

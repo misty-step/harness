@@ -70,6 +70,12 @@ primitives:
     name: Credential launchers
     summary: Inject pass-backed credentials into a launch; repositories commit names, never values.
     code: [agent-config/bin/pass-env.ts, agent-config/bin/openrouter-key.ts]
+  - id: claude-settings
+    group: trust
+    name: Claude Code settings merges
+    summary: Owned-key merges into Claude Code settings, including the deny rules that keep sessions from reading .env values.
+    code: [agent-config/claude-settings/]
+    docs: [claude-config/README.md]
   - id: secret-scan
     group: trust
     name: Secret scanning hooks
