@@ -1,0 +1,25 @@
+#!/bin/sh
+# Deploy the shared primitives Claude Code sessions (T3 lanes) select.
+set -eu
+umask 077
+
+repo_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+agent_dir=${CLAUDE_CONFIG_DIR:-$HOME/.claude}
+base_dir=${AGENT_CONFIG_DIR:-$repo_dir/../agent-config}
+
+[ "$#" -eq 0 ] || {
+  echo 'install takes no arguments' >&2
+  exit 1
+}
+[ -f "$base_dir/install" ] || {
+  printf 'agent-config installer not found at %s; set AGENT_CONFIG_DIR\n' "$base_dir" >&2
+  exit 1
+}
+
+skills='lage'
+
+set --
+for skill in $skills; do set -- "$@" --skill "$skill"; done
+"$base_dir/install" --check --agent-dir "$agent_dir" "$@"
+"$base_dir/install" --agent-dir "$agent_dir" "$@"
+printf 'claude: installed %s into %s/skills\n' "$skills" "$agent_dir"

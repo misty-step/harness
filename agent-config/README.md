@@ -1,6 +1,6 @@
 # agent-config
 
-Shared, harness-neutral primitives under `pi-config` and `omp-config`: portable
+Shared, harness-neutral primitives under `pi-config`, `omp-config` and `claude-config`: portable
 skills, global guidance sections, launchers and the agent audio sandbox. Each
 harness installer declares which primitives it selects.
 

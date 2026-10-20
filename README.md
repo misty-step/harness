@@ -1,13 +1,14 @@
 # Harness
 
-Misty Step's agent configuration: one shared base, two thin harness adapters,
+Misty Step's agent configuration: one shared base, three thin harness adapters,
 and native Codex model defaults. One clone records a compatible combination;
 one PR can change the contract and consumers. Runtime state and credentials
 are not source.
 
 ```text
-agent-config/ ── shared install contract ──┬── pi-config/  → pi runtime
-                                         └── omp-config/ → OMP runtime
+agent-config/ ── shared install contract ──┬── pi-config/     → pi runtime
+                                         ├── omp-config/    → OMP runtime
+                                         └── claude-config/ → Claude Code (T3 lanes)
 ```
 
 | Component | Owns | Guide |
@@ -15,6 +16,7 @@ agent-config/ ── shared install contract ──┬── pi-config/  → pi 
 | `agent-config/` | Portable skills, shared global guidance, `pass-env`, shared deployment | [README](agent-config/README.md) |
 | `pi-config/` | pi settings, extensions, chrome, guidance intro | [README](pi-config/README.md) |
 | `omp-config/` | OMP routing, config/MCP, extensions, themes, guidance | [README](omp-config/README.md) |
+| `claude-config/` | Shared skills Claude Code sessions select, such as `lage` | [README](claude-config/README.md) |
 | `codex-config/` | Native Codex model, effort and service-tier defaults only | [Deployment](#codex-defaults-native-installation) |
 
 Foundations: [FOUNDATIONS.md](FOUNDATIONS.md). Intent: [USER_STORIES.md](USER_STORIES.md). Vocabulary, boundaries and
@@ -93,17 +95,19 @@ settings: Sol xhigh with native fast processing; Claude design and Grok scouting
 
 ## Deploy (explicit live writes)
 
-Install both harnesses, or invoke only the intended component:
+Install every harness, or invoke only the intended component:
 
 ```sh
 ./install
 pi-config/install
 omp-config/install
+claude-config/install
 ```
 
 - pi: `$PI_CODING_AGENT_DIR`, default `~/.pi/agent`.
 - OMP: `$PI_CODING_AGENT_DIR` when set, otherwise `$(omp config path)`.
   OMP also stages declared workstation safety helpers; see its component guide.
+- Claude Code: `$CLAUDE_CONFIG_DIR`, default `~/.claude`.
 - Shared launchers: `$HOME/.local/bin`. Foreign destinations fail closed.
 - Selections: `PI_CONFIG_COMPONENTS` and `OMP_INSTALL_COMPONENTS`, documented in
   the component guides. Harness installers accept no positional arguments:
