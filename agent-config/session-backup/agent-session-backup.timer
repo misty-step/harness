@@ -1,6 +1,6 @@
 # owned by misty-step/harness agent-session-backup
 [Unit]
-Description=Back up OMP and Kaylee session history nightly
+Description=Back up OMP session history nightly
 
 [Timer]
 Unit=agent-session-backup.service
