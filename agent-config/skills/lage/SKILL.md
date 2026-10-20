@@ -40,8 +40,10 @@ Fan the reads out: one `delegate_task` child per four lanes or so, each briefed 
 Read-only. Message no thread and start nothing. For each T3 lane below, read
 ~/.claude/skills/lage/SKILL.md step 2 and return one record with every field it
 lists, or `unknown: <why>` for a field you could not get. Return only the records.
-Lanes: <title and threadId, one per line>
-``` An ask the file already answers is a **dropped relay**, not a decision. Record it that way.
+Lanes: <title, threadId and projectId, one per line>
+```
+
+An ask the coordinator's file already answers is a **dropped relay**, not a decision. Record it that way.
 
 Done when every lane has a full record and every PR state came from the forge.
 
