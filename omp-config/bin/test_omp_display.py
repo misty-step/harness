@@ -413,7 +413,8 @@ sys.exit(73)
 import signal, sys
 count = 0
 signals = {signal.SIGINT, signal.SIGQUIT, signal.SIGTERM}
-signal.pthread_sigmask(signal.SIG_BLOCK, signals)
+if signal.pthread_sigmask(signal.SIG_BLOCK, signals) & signals:
+    sys.exit("command inherited blocked control signals")
 print("READY", flush=True)
 while True:
     received = signal.sigtimedwait(signals, 30)

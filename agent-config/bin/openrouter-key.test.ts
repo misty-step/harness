@@ -15,8 +15,11 @@ function git(...args: string[]): void {
 }
 
 function fixture() {
-  const home = mkdtempSync(join(tmpdir(), "openrouter-key-test-"));
-  roots.push(home);
+  const root = mkdtempSync(join(tmpdir(), "openrouter-key-test-"));
+  roots.push(root);
+  // A stray empty .git above HOME (seen in /tmp on workstations) must not change the answer.
+  mkdirSync(join(root, ".git"));
+  const home = join(root, "home");
   const r90 = join(home, "development", "r90group", "habitat");
   const personal = join(home, "development", "misty-step");
   const linked = join(home, "linked-habitat");
