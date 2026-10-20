@@ -1,3 +1,9 @@
+# [0.2.5](https://github.com/misty-step/harness/compare/v0.2.4...v0.2.5) (2026-10-20)
+<!-- landmark:protected-release previous=v0.2.4 source=e9e2bb48ec7ae9d0a68e2ef95bc80d4cc3a843bc25de89440b730e0d26558898 -->
+
+### Bug Fixes
+
+* **ship-loop:** route, stack and file follow-ups as the pilot and judges found ([178c07f](https://github.com/misty-step/harness/commit/178c07ffa20368d4c48400679602ffe0484f3525))
 # [0.2.4](https://github.com/misty-step/harness/compare/v0.2.3...v0.2.4) (2026-10-20)
 <!-- landmark:protected-release previous=v0.2.3 source=a7bb90a2665511e3cd6fed0dd223de6a575612be31c9fba9056006926b8d4035 -->
 
