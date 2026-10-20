@@ -1,3 +1,10 @@
+# [0.2.13](https://github.com/misty-step/harness/compare/v0.2.12...v0.2.13) (2026-10-20)
+<!-- landmark:protected-release previous=v0.2.12 source=ae94e6e510f09c75265da846bc0b6b074c266eaaa6088599170e2d0481a91e56 -->
+
+### Features
+
+* **claude-config:** install t3-runtime-mode on PATH (#400) ([57217a0](https://github.com/misty-step/harness/commit/57217a0efc18c5a83c4d92fe8cf522aca257bd58))
+* **codex-config:** compose ~/.codex/AGENTS.md and deploy shared skills (#396) ([c3dd6bd](https://github.com/misty-step/harness/commit/c3dd6bd0a7488e521567564fd799c601185b484b))
 # [0.2.12](https://github.com/misty-step/harness/compare/v0.2.11...v0.2.12) (2026-10-20)
 <!-- landmark:protected-release previous=v0.2.11 source=91052456d4a60c96f0e32a6395bf821aa2f14eb44c656cdfd1197ab0ae032798 -->
 
