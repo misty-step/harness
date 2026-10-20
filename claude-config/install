@@ -32,7 +32,8 @@ fi
 set --
 for skill in $skills; do set -- "$@" --skill "$skill"; done
 for section in $guidance; do set -- "$@" --guidance "$section"; done
+set -- "$@" --bin t3-runtime-mode.ts
 set -- "$@" --guidance-source "$repo_dir/global/CLAUDE.md" --guidance-file CLAUDE.md
 "$base_dir/install" --check --agent-dir "$agent_dir" "$@"
 "$base_dir/install" --agent-dir "$agent_dir" "$@"
-printf 'claude: installed %s and guidance (%s) into %s\n' "$skills" "$guidance" "$agent_dir"
+printf 'claude: installed %s, t3-runtime-mode and guidance (%s) into %s\n' "$skills" "$guidance" "$agent_dir"
