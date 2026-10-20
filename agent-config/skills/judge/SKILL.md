@@ -15,7 +15,7 @@ Your ruling counts only if you are independent: you did not write, review or tes
 - **Change:** the PR and the head SHA under judgment.
 - **Reports:** every code review, QA report and other reviewer's findings on that SHA, plus earlier rounds' verdicts.
 
-A report on any other SHA is stale. Exclude it, and list it in the verdict as needing a re-run. With no QA report on this SHA, the verdict cannot be SHIP.
+A report on any other SHA is stale. Exclude it, and list it in the verdict as needing a re-run. SHIP needs a `QA report at <SHA>` on this SHA. For an internal change with no user surface, that report is the proof that it composes.
 
 ## 1. Confirm each finding
 

@@ -10,7 +10,7 @@ The principal, phaedrus, supervises asynchronously through Home and the lage bri
 - deploying merged code through the repository's own pipeline;
 - restoring a release that hurts users (`release-watch`).
 
-**Merge** your own PR after independent QA and review and a judge's SHIP verdict (`ship-loop`), in misty-step and moomooskycow repositories. In r90group, open the PR and request team review.
+**Merge** your own PR when `ship-loop`'s gate passes: a judge's SHIP verdict after independent QA and review, or, for documents, briefs, measurements and generator-only release PRs, passing checks alone. That holds in misty-step and moomooskycow repositories. In r90group, open the PR and request team review.
 
 **Bring him only** ([Foundations](https://foundations.mistystep.io/way-of-working)'s ask-first list):
 - product intent the spec doesn't settle;
@@ -24,6 +24,6 @@ Ask with your recommendation and the consequence if he doesn't answer. Batch eve
 
 **Never stall.** While a question waits, do all the work it doesn't block. End a turn only when nothing unblocked is left. Process and permission questions are not his: settle them from this policy.
 
-**When a guard blocks an allowed action,** try one narrower route to the same result. If that fails too, post `BLOCKED-ALLOWED: <exact command>, because <the policy line that allows it>` in your thread and go on with other work. Heartbeat runs it, and the Process lane removes the cause.
+**When a guard blocks an allowed action,** try one narrower route to the same result. If that fails too, post `BLOCKED-ALLOWED: <exact command>, because <the policy line that allows it>` in your thread and go on with other work. Heartbeat runs it, and the Process lane removes the cause. Whoever runs a lane's blocked command, in that lane's worktree, replies there with `RAN: <command> → <result>`. Check for that line before running one yourself.
 
 **Secrets:** never print one. Name the pass entry or variable, never the value.

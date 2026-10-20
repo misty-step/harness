@@ -20,4 +20,6 @@ runs Claude Code, so the skills and guidance lanes and Home use deploy here.
 `~/.claude/skills` also holds symlinks the `skills` CLI manages for upstream
 packs (`mattpocock/skills`, `cursor/plugins` pstack). The installer
 clean-replaces only the skill directories it selects. Guidance lands in
-`~/.claude/AGENTS.md`, which Claude Code loads natively; `CLAUDE.md` stays yours.
+`~/.claude/CLAUDE.md`, which Claude Code loads in every project. The file is
+owned (first line is the ownership marker); a foreign one stops the install
+before any write.

@@ -256,7 +256,7 @@ for consumer in pi omp; do
   fi
 done
 # Claude Code: selected skills land beside foreign and CLI-linked skills, and
-# composed guidance lands in AGENTS.md, which Claude Code reads natively.
+# composed guidance lands in the user-scope CLAUDE.md every session loads.
 claude_home="$work/claude-home"
 claude="$claude_home/.claude"
 mkdir -p "$claude/skills/foreign" "$claude/skills/lage"
@@ -273,7 +273,7 @@ else
   cat "$work/claude.log" >&2
   failures=$((failures + 1))
 fi
-for skill in lage ship-loop judge release-watch heartbeat; do
+for skill in lage ship-loop judge release-watch heartbeat story-qa pokayoke user-stories authenticated-commands; do
   check "claude $skill skill bytes" cmp -s "$work/source/agent-config/skills/$skill/SKILL.md" "$claude/skills/$skill/SKILL.md"
 done
 check "claude ship-loop role briefs" cmp -s "$work/source/agent-config/skills/ship-loop/roles.md" "$claude/skills/ship-loop/roles.md"
@@ -292,9 +292,29 @@ while IFS= read -r line || [ -n "$line" ]; do
   else
     printf '%s\n' "$line" >> "$expected"
   fi
-done < "$work/source/claude-config/global/AGENTS.md"
-check "claude composition" cmp -s "$expected" "$claude/AGENTS.md"
-check "claude writes no CLAUDE.md" test ! -e "$claude/CLAUDE.md"
+done < "$work/source/claude-config/global/CLAUDE.md"
+check "claude composition" cmp -s "$expected" "$claude/CLAUDE.md"
+check "claude writes no AGENTS.md" test ! -e "$claude/AGENTS.md"
+# A rerun replaces its own CLAUDE.md; a foreign one stops the install before any write.
+if env -i PATH="$PATH" HOME="$claude_home" TMPDIR="$work" \
+  "$work/source/claude-config/install" >"$work/claude-rerun.log" 2>&1 && cmp -s "$expected" "$claude/CLAUDE.md"; then
+  printf 'PASS claude rerun replaces its own CLAUDE.md\n'
+else
+  printf 'FAIL claude rerun replaces its own CLAUDE.md\n' >&2
+  failures=$((failures + 1))
+fi
+foreign_home="$work/claude-foreign-home"
+mkdir -p "$foreign_home/.claude"
+printf '# my own notes\n' > "$foreign_home/.claude/CLAUDE.md"
+if env -i PATH="$PATH" HOME="$foreign_home" TMPDIR="$work" \
+  "$work/source/claude-config/install" >"$work/claude-foreign.log" 2>&1; then
+  printf 'FAIL claude refuses a foreign CLAUDE.md (install succeeded)\n' >&2
+  failures=$((failures + 1))
+else
+  check "claude refuses a foreign CLAUDE.md before any write" \
+    test "$(ls -A "$foreign_home/.claude")" = CLAUDE.md
+  check "claude keeps the foreign CLAUDE.md" grep -Fxq '# my own notes' "$foreign_home/.claude/CLAUDE.md"
+fi
 if [ "$failures" -ne 0 ]; then
   printf 'FAIL: %s invariant(s); disposable clone removed on exit\n' "$failures" >&2
   exit 1
