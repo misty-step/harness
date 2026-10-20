@@ -255,7 +255,8 @@ for consumer in pi omp; do
     check "omp foreign routing sibling preserved" cmp -s "$work/expected-routing-sibling" "$agent/extensions/subagent-inheritance/foreign.ts"
   fi
 done
-# Claude Code: selected skills land beside foreign and CLI-linked skills.
+# Claude Code: selected skills land beside foreign and CLI-linked skills, and
+# composed guidance lands in AGENTS.md, which Claude Code reads natively.
 claude_home="$work/claude-home"
 claude="$claude_home/.claude"
 mkdir -p "$claude/skills/foreign" "$claude/skills/lage"
@@ -272,12 +273,28 @@ else
   cat "$work/claude.log" >&2
   failures=$((failures + 1))
 fi
-check "claude lage skill bytes" cmp -s "$work/source/agent-config/skills/lage/SKILL.md" "$claude/skills/lage/SKILL.md"
+for skill in lage ship-loop judge release-watch heartbeat; do
+  check "claude $skill skill bytes" cmp -s "$work/source/agent-config/skills/$skill/SKILL.md" "$claude/skills/$skill/SKILL.md"
+done
+check "claude ship-loop role briefs" cmp -s "$work/source/agent-config/skills/ship-loop/roles.md" "$claude/skills/ship-loop/roles.md"
 check "claude clean-replaces owned skill" test ! -e "$claude/skills/lage/obsolete.md"
 check "claude foreign skill" cmp -s "$work/expected-skill" "$claude/skills/foreign/SKILL.md"
 check "claude CLI-linked skill" test "$(readlink "$claude/skills/code-review")" = ../../.agents/skills/code-review
 check "claude settings untouched" cmp -s "$work/expected-claude-settings" "$claude/settings.json"
-check "claude writes no guidance" test ! -e "$claude/AGENTS.md"
+expected="$work/claude-guidance"
+: > "$expected"
+while IFS= read -r line || [ -n "$line" ]; do
+  if [ "$line" = '<!-- shared guidance: agent-config -->' ]; then
+    for section in engineering workstation autonomy; do
+      cat "$work/source/agent-config/guidance/$section.md" >> "$expected"
+      printf '\n' >> "$expected"
+    done
+  else
+    printf '%s\n' "$line" >> "$expected"
+  fi
+done < "$work/source/claude-config/global/AGENTS.md"
+check "claude composition" cmp -s "$expected" "$claude/AGENTS.md"
+check "claude writes no CLAUDE.md" test ! -e "$claude/CLAUDE.md"
 if [ "$failures" -ne 0 ]; then
   printf 'FAIL: %s invariant(s); disposable clone removed on exit\n' "$failures" >&2
   exit 1

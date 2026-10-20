@@ -16,10 +16,13 @@ base_dir=${AGENT_CONFIG_DIR:-$repo_dir/../agent-config}
   exit 1
 }
 
-skills='lage'
+skills='lage ship-loop judge release-watch heartbeat story-qa pokayoke user-stories authenticated-commands'
+guidance='engineering workstation autonomy'
 
 set --
 for skill in $skills; do set -- "$@" --skill "$skill"; done
+for section in $guidance; do set -- "$@" --guidance "$section"; done
+set -- "$@" --guidance-source "$repo_dir/global/AGENTS.md"
 "$base_dir/install" --check --agent-dir "$agent_dir" "$@"
 "$base_dir/install" --agent-dir "$agent_dir" "$@"
-printf 'claude: installed %s into %s/skills\n' "$skills" "$agent_dir"
+printf 'claude: installed %s and guidance (%s) into %s\n' "$skills" "$guidance" "$agent_dir"
