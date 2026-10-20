@@ -1,3 +1,9 @@
+# [0.2.7](https://github.com/misty-step/harness/compare/v0.2.6...v0.2.7) (2026-10-20)
+<!-- landmark:protected-release previous=v0.2.6 source=d26dbe884fa7a58e5c8550cf47d603719b7bc7fd01d41d50695d55c8c039579e -->
+
+### Bug Fixes
+
+* **release-watch:** watch installer-from-source releases, honor r90group review, trigger after the window (#346) ([0d1a510](https://github.com/misty-step/harness/commit/0d1a510dcfc2e3ede542fed5ade740ba12a6fd95))
 # [0.2.6](https://github.com/misty-step/harness/compare/v0.2.5...v0.2.6) (2026-10-20)
 <!-- landmark:protected-release previous=v0.2.5 source=65d79f0d3b5d4708987f620230655f873672a846809b0a5457421ccbbce75437 -->
 
