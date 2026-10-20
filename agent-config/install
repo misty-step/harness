@@ -8,11 +8,12 @@ umask 077
 
 repo_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 marker='<!-- shared guidance: agent-config -->'
+skill_marker='owned by misty-step/harness agent-config'
 
 usage() {
   cat <<'EOF'
 Usage: install [--agent-dir DIR] [--check] [--home DIR]
-               [--skill NAME|all]...
+               [--skill NAME|all]... [--preserve-foreign-skills]
                [--bin NAME]...
                [--guidance NAME]... --guidance-source FILE [--guidance-file NAME]
                [--audio-sandbox] [--session-backup]
@@ -20,6 +21,7 @@ Usage: install [--agent-dir DIR] [--check] [--home DIR]
   --agent-dir DIR        Harness agent directory (required for agent primitives).
   --home DIR             Home for ~/.local/bin tools (default $HOME).
   --skill NAME|all       Skill package to clean-replace; repeatable.
+  --preserve-foreign-skills Refuse unmarked skill collisions; retire only marked skills.
   --bin NAME             Standalone launcher to install; repeatable.
   --guidance NAME        Shared guidance section to inject; repeatable.
   --guidance-source FILE Harness AGENTS.md holding the insertion marker.
@@ -37,6 +39,7 @@ guidance_source=
 guidance_file=AGENTS.md
 check=0
 skills=
+preserve_foreign_skills=0
 bins=
 guidance=
 audio_sandbox=0
@@ -47,6 +50,7 @@ while [ $# -gt 0 ]; do
     --agent-dir) agent_dir=${2-}; shift 2 ;;
     --home) home_dir=${2-}; shift 2 ;;
     --skill) skills="$skills ${2-}"; shift 2 ;;
+    --preserve-foreign-skills) preserve_foreign_skills=1; shift ;;
     --bin) bins="$bins ${2-}"; shift 2 ;;
     --guidance) guidance="$guidance ${2-}"; shift 2 ;;
     --guidance-source) guidance_source=${2-}; shift 2 ;;
@@ -89,12 +93,25 @@ for name in $skills; do
   fi
 done
 
+owns_skill() {
+  [ -d "$1" ] && [ ! -L "$1" ] &&
+    [ -f "$1/.harness-owned" ] && [ ! -L "$1/.harness-owned" ] &&
+    [ "$(cat "$1/.harness-owned")" = "$skill_marker" ]
+}
+
 validate_skills() {
   for name in $skill_list; do
     case "$name" in
       ''|*/*|.|..) printf 'Invalid skill name: %s\n' "$name" >&2; exit 1 ;;
     esac
     require_nonempty "$repo_dir/skills/$name/SKILL.md"
+    destination="$agent_dir/skills/$name"
+    if [ "$preserve_foreign_skills" = 1 ] && { [ -e "$destination" ] || [ -L "$destination" ]; }; then
+      if ! owns_skill "$destination"; then
+        printf 'warning: refusing unowned skill destination: %s\n' "$destination" >&2
+        exit 1
+      fi
+    fi
   done
 }
 
@@ -209,6 +226,9 @@ install_skill() {
   temp=$(mktemp -d "$agent_dir/skills/.$name.XXXXXX")
   trap 'rm -rf "$temp"' 0 1 2 15
   cp -R "$repo_dir/skills/$name"/. "$temp"/
+  if [ "$preserve_foreign_skills" = 1 ]; then
+    printf '%s\n' "$skill_marker" > "$temp/.harness-owned"
+  fi
   chmod -R u=rwX,go= "$temp"
   rm -rf -- "$agent_dir/skills/$name"
   mv "$temp" "$agent_dir/skills/$name"
@@ -295,20 +315,27 @@ for name in dev.slice dev-fleet.slice dev-exec.slice; do
 done
 for name in $skill_list; do
   install_skill "$name"
+  retired=
   case "$name" in
     engineering-operations)
-      rm -rf -- "$agent_dir/skills/agent-ergonomics" "$agent_dir/skills/capture" ;;
+      retired='agent-ergonomics capture' ;;
     cloudflare-workers)
-      rm -rf -- "$agent_dir/skills/wrangler" ;;
+      retired=wrangler ;;
     remote-execution)
-      rm -rf -- "$agent_dir/skills/using-exe-dev" ;;
+      retired=using-exe-dev ;;
     design-studio)
-      rm -rf -- "$agent_dir/skills/frontend-design" "$agent_dir/skills/show-me" "$agent_dir/skills/herdr" ;;
+      retired='frontend-design show-me herdr' ;;
     sachstand)
-      rm -rf -- "$agent_dir/skills/decide" ;;
+      retired=decide ;;
     story-qa)
-      rm -rf -- "$agent_dir/skills/check-cadence" "$agent_dir/skills/verification-infrastructure" ;;
+      retired='check-cadence verification-infrastructure' ;;
   esac
+  for old in $retired; do
+    destination="$agent_dir/skills/$old"
+    if [ "$preserve_foreign_skills" = 0 ] || owns_skill "$destination"; then
+      rm -rf -- "$destination"
+    fi
+  done
 done
 for name in $bins; do install_bin "$name"; done
 if [ -n "$guidance" ]; then install_guidance; fi
