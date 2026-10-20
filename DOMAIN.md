@@ -6,14 +6,15 @@ and agent rules in [AGENTS.md](AGENTS.md).
 
 ## Terms
 
-- **Harness:** an agent runtime this repository configures: pi or OMP.
-- **Component:** one of the three top-level source trees: `agent-config/`,
-  `pi-config/` or `omp-config/`.
+- **Harness:** an agent runtime this repository configures: pi, OMP or Claude Code.
+- **Component:** a top-level source tree: `agent-config/`, `pi-config/`,
+  `omp-config/`, `claude-config/` or `codex-config/`.
 - **Shared primitive:** a harness-neutral skill, guidance section, launcher or
   deploy mechanism owned once in `agent-config/` and selected by each harness.
 - **Guidance section:** a Markdown file in `agent-config/guidance/` that an
-  installer splices into a harness's global `AGENTS.md` at the marker line.
-- **Composed guidance:** the deployed global `AGENTS.md`: a harness intro plus
+  installer splices into a harness's global guidance file (`AGENTS.md`; `CLAUDE.md`
+  for Claude Code) at the marker line.
+- **Composed guidance:** the deployed global guidance file: a harness intro plus
   its selected sections. It is generated; never edit the deployed copy.
 - **Launcher:** an executable deployed to `~/.local/bin` from
   `agent-config/bin/` (`pass-env`, `openrouter-key`).
@@ -36,7 +37,7 @@ and agent rules in [AGENTS.md](AGENTS.md).
 
 ## Owns and delegates
 
-This repository owns agent configuration source for both harnesses. It does not own:
+This repository owns agent configuration source for every harness. It does not own:
 
 - runtime state, sessions, logs, or authentication files in agent directories,
   which installers preserve;
@@ -74,6 +75,8 @@ This repository owns agent configuration source for both harnesses. It does not 
 
 - `agent-config/`: shared primitives (skills, guidance sections, launchers),
   the shared installer, the audio sandbox, and System One (`system-one/`).
+- `claude-config/`: Claude Code's skill and guidance selection, its guidance
+  intro and installer.
 - `docs/`: cross-component decisions (`docs/decisions/`), principles, the
   primitives map (`docs/architecture/primitives.yaml`), verification and
   migration records, and token-efficiency measurements.

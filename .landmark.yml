@@ -1,6 +1,6 @@
 product:
   name: harness
-  description: Misty Step agent configuration. Shared primitives and thin pi and OMP adapters in one versioned workspace.
+  description: Misty Step agent configuration. Shared primitives and thin pi, OMP and Claude Code adapters in one versioned workspace.
 audience: general
 voice: clear, specific, user-facing
 changelog:

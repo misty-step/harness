@@ -11,15 +11,15 @@ Edit maintained source and use the affected component's native tools.
 | `agent-config/` | Harness-neutral skills, guidance sections, `pass-env`, the agent audio sandbox, and their shared deployment contract |
 | `pi-config/` | pi settings, extensions, composer chrome, guidance intro, and shared-primitive selection |
 | `omp-config/` | OMP routing, config/models/MCP, extensions, themes, guidance, and shared-primitive selection |
-| `claude-config/` | Shared-primitive selection for Claude Code, which runs every T3 lane |
+| `claude-config/` | Shared-primitive selection and guidance intro for Claude Code, which runs every T3 lane |
 | Root | Workspace setup, verification, Git hooks, CI/releases, and cross-component architecture decisions |
 
 
 ## Source and deployment
 
 Edit source here, never generated live copies. Root/component `AGENTS.md` files
-instruct maintainers; harness `global/AGENTS.md` plus `agent-config/guidance/*.md`
-are the source of deployed global guidance. Do not conflate them.
+instruct maintainers; harness `global/AGENTS.md` (`global/CLAUDE.md` for Claude
+Code) plus `agent-config/guidance/*.md` are the source of deployed global guidance. Do not conflate them.
 
 Harness installers declare their selection and call `agent-config/install`
 (resolved as `../agent-config` unless `AGENT_CONFIG_DIR` overrides it); do not

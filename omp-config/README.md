@@ -49,7 +49,7 @@ Available targeted components are `config`, `guidance`, `mcp`, `agents`,
 OMP uses `$PI_CODING_AGENT_DIR` when set, otherwise `$(omp config path)`.
 Shared helpers and safety entrypoints deploy to `$HOME/.local/bin`. Foreign
 entrypoints fail closed. Redirecting the agent directory alone does not isolate
-HOME or host writes. The root `../install` installs both native harnesses;
+HOME or host writes. The root `../install` installs every harness, Claude Code included;
 component installers are preferable for targeted changes.
 
 Configuration overlays source-owned keys while preserving foreign keys. MCP
