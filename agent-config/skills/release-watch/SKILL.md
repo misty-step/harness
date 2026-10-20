@@ -1,62 +1,51 @@
 ---
 name: release-watch
-description: Watch a merged change through deploy and early production life. Restore, open an incident and start a postmortem when it hurts users. Use after a merge to a deploying branch, for "watch the release", or when a deploy or health check fails.
+description: Watch a merged change through deploy and early production life, and restore first when it hurts users. Use after a merge to a deploying branch, for "watch the release", or when a deploy or health check fails.
 ---
 
 # Release watch
 
-Watch one merge SHA through release verification. On harm, **restore first, diagnose second**, through the repository's own pipeline in every organization. No restore waits for a human reviewer.
-
-Inputs: repository, merge SHA, PR and touched stories. The dispatched watcher owns verification. If the originating lane is gone, work in the current lane and keep evidence and handoffs on the incident issue.
+Watch one merge SHA through release verification. On harm, **restore first, diagnose second**, through the repository's own pipeline in every organization. No restore waits for a human.
 
 ## 1. Find the release path
 
-Read the repository's AGENTS.md, README and release ADR. A library or tool with no deploy goes straight to its conventional release PR or tag check. A failed check is a trigger. After it passes, report `released`, then go to Report.
+Read the repository's AGENTS.md, README and release ADR, then take the matching path:
 
-For automated deploys, find this SHA's run or deployment (`gh run list --commit <SHA>`, `gh api repos/<owner>/<repo>/deployments?sha=<SHA>`).
+- **Library or tool:** check its release PR or tag. A failed check is a trigger; a pass is `released`. Go to Report.
+- **Automated deploy:** find this SHA's run or deployment (`gh run list --commit <SHA>`, `gh api repos/<owner>/<repo>/deployments?sha=<SHA>`).
+- **Installer:** resolve the default branch and run `git fetch origin && git worktree add --detach <tmp under ~/.cache/tmp> origin/<default>`. In that worktree, run `git merge-base --is-ancestor <merge-SHA> HEAD`, then the documented installer. Record `HEAD` as the source head, plus the destination. Remove the worktree after §2's identity readback. If any step fails, stop and report. Installing the default-branch head keeps later merges live.
+- **No release path or readable health signal:** report `unwatched`. Search `gh issue list -R <owner>/<repo> --state open --label release-mechanism`; comment once on a match, otherwise create the label if missing and file one. Stop.
 
-An installer is a release path. Resolve the repository's default branch, then run `git fetch origin && git worktree add --detach <tmp under ~/.cache/tmp> origin/<default>`. In that worktree, run `git merge-base --is-ancestor <merge-SHA> HEAD`, then the documented installer. Record that `HEAD`'s SHA as the source head and the destination. Remove the worktree after §2's identity readback. If any step fails, stop and report. Later merges must stay installed. A previous good ref is reserved for explicit recovery.
+For misty-step/harness, README's Deploy destinations and selections map paths to installers:
 
-For misty-step/harness, use README's Deploy destinations and selections:
+- `pi-config/`, `omp-config/`, `claude-config/` → that component's `install`.
+- `agent-config/` → each consumer selecting the changed primitive, per the component installer declarations; `./install` when all three are affected. The base installer alone deploys no consumer selection.
+- Root changes → trace deployed consumers; documentation or verification changes may install nothing.
 
-- `pi-config/` → `pi-config/install`; `omp-config/` → `omp-config/install`; `claude-config/` → `claude-config/install`.
-- `agent-config/` → each consumer selecting the changed primitive; read component installer declarations. Use `./install` when all three are affected. The base installer alone does not deploy consumer selections.
-- Root changes → trace deployed consumers; documentation or verification changes may change no installed artifact.
-
-Run against the intended live destination. For isolated verification, use `./scripts/verify`; an agent-directory variable alone does not isolate HOME or launcher writes.
-
-For a service with no deploy path or readable health signal, report `unwatched`. Find open mechanism tickets with `gh issue list -R <owner>/<repo> --state open --label release-mechanism`; comment once on a match or create the label if missing and file with it, then stop. Installer releases are exempt: use readback and smoke below.
-
-Done when the release check passes, or the deploy destination, verification surface and recovery path are known, or `unwatched` is reported with its ticket.
+Install to the live destination; `./scripts/verify` is the isolated check.
 
 ## 2. Watch
 
-1. **Deploy.** Follow the run to completion (`gh run watch <id>`). For installers, record command, source head, destination and exit status instead of a run URL. Failure is a trigger.
-2. **Identity.** Read the live version, SHA or deployed tag: this merge or a later release containing it. For installers, compare copied artifacts with the recorded source head (`cmp` for files, `diff -r` for skill directories). For composed guidance, read the changed section in the installed file, checking surrounding context and retired wording too; no single source file matches the whole composition. If no deployed bytes changed, report `no-op: no deployed artifact changed`; matching readback proves contents, not a newly loaded SHA.
-3. **Smoke.** Walk touched stories on the deployed surface with the repo's verification skill, read-only or with disposable QA data. For installers, start a fresh native harness session at the recorded destination, confirm it loads the changed skill, guidance or extension, and exercise that behavior. Record session and observed result. If activation cannot be exercised, report `artifact verified` with the missing smoke; live behavior remains unverified. An observed smoke failure is a trigger.
-4. **Signals.** For services, watch every available health endpoint, error tracker, log and alert for 30 minutes after deploy; compare with the preceding hour. For installers, readback and fresh-session smoke are the window; report timestamps and activation status.
+1. **Deploy.** Follow the run to completion (`gh run watch <id>`). For installers, record command, source head, destination and exit status. Failure is a trigger.
+2. **Identity.** Read the live version, SHA or tag: this merge or a later release containing it. For installers, compare copied artifacts with the source head (`cmp` for files, `diff -r` for skill directories); for composed guidance, read the changed section in the installed file. If no deployed bytes changed, report `no-op: no deployed artifact changed`.
+3. **Smoke.** Walk the touched stories on the deployed surface, read-only or with disposable QA data. For installers, start a fresh native harness session at the destination and exercise the changed skill, guidance or extension. When you cannot, report `artifact verified` and name the missing smoke. An observed smoke failure is a trigger.
+4. **Signals.** Watch the health checks, errors and alerts this change could move, for as long as its risk warrants. A low-risk change needs no waiting period; installers end at smoke.
 
-Done when deploy and readback pass and either smoke plus signals prove live behavior, or installer artifacts are verified with the activation gap stated; otherwise act on the trigger.
+Done when deploy, identity and smoke pass, or installer artifacts are verified with the smoke gap named.
 
 ## 3. Act on a trigger
 
-A **trigger** is a failed deploy, touched-story smoke, newly failing health check or new error. Restore immediately when user harm is clear; attribution must not delay recovery.
-
-For every trigger, restore, incident, unsafe recovery or after-window discovery, read and follow [recovery.md](recovery.md) for attribution, compatible recovery, incident ownership and postmortem closure.
+A **trigger** is a failed deploy, failed smoke, newly failing health check or new error. When users are hurt, restore now; attribution comes after. Follow [recovery.md](recovery.md) for every trigger and for any failure found after the window.
 
 ## Report
 
-Post every status or handoff in the current lane **and** through `home post --from <Lane>`, with the same Markdown body on stdin. Only phaedrus writes Home's thread. Link reports from any incident. Restore warnings and incident/escalation updates use this route too.
+Post in the current lane and through `home post --from <Lane>`, the same Markdown on stdin. Every report stands alone: link every PR, issue, incident and thread with a one-line summary, and write any question in full.
 
-If `home post` fails, append `## <UTC> [<Lane>]` and the same body to `~/.local/state/home/inbox.md` directly, and say in the lane that you fell back.
+Start with the outcome:
 
-Every report stands alone: link every referenced PR, issue, incident and thread with a one-line summary. Write each question in full, including its options, recommendation and what happens if phaedrus does not answer.
-
-Start with the applicable outcome:
-
-- `released`: library/tool release PR or tag, identity containing the merge and passed release-check evidence.
-- `live behavior proven`: deploy run, live identity, smoke evidence and observed window. For installers substitute command, source head, destination, exit status, readback and fresh-session evidence with timestamps.
-- `artifact verified`: installer command, source head, destination, exit status, readback, applicable no-op status, missing activation/smoke evidence and follow-up owner.
-- `restored`: trigger evidence, recovery action and verification, incident link and postmortem status; state any remaining activation gap.
-- `escalated`: restore is unsafe; explain risk, current live state, incident, recovery owner and recommended path. Continue incident/postmortem work.
-- `unwatched`: missing deploy path or service health signal and mechanism ticket.
+- `released`: the release PR or tag containing the merge, and the passed release check.
+- `live behavior proven`: deploy run, live identity, smoke and observed signals. For installers: command, source head, destination, exit status, readback and fresh-session smoke.
+- `artifact verified`: the installer evidence, any no-op status, and the missing smoke with its owner.
+- `restored`: trigger, recovery action and its verification, and the incident link if one exists.
+- `escalated`: restore is unsafe; risk, live state, incident, recovery owner and recommended path.
+- `unwatched`: what is missing, and the mechanism ticket.
