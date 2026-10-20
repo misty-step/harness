@@ -20,6 +20,11 @@ Preflight validates the whole selection before any write; unknown names, empty
 sources, an invalid launcher, a foreign launcher destination and a missing
 guidance marker all fail closed.
 
+`--preserve-foreign-skills` requires an installed package's `.harness-owned`
+marker before replacement or retirement. New packages receive that marker.
+Unmarked collisions and symlinks fail preflight with a warning. Codex selects
+this mode; existing unmarked packages are left for the operator to resolve.
+
 ```sh
 ./install --check --agent-dir DIR \
   --skill all \
