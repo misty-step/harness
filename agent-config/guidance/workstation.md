@@ -6,7 +6,8 @@ Audio plays into silent `agent-sandbox`; record its monitor and hand over files 
 
 ## Routing until Upkeep
 
-Run heavy lifting on GPT-6.1 Sol at xhigh. Reserve fast mode for bottlenecks and top priorities.
-GPT-6.1 Sol defaults to low reasoning effort, so pass `target.options: [{"id":"reasoningEffort","value":"xhigh"}]` to `delegate_task`.
+For every dispatch, use the authoritative [ship-loop routing and rigor table](skill://ship-loop/roles.md#rigor), including its coordinator, effort and Fable/Astra rules.
+Reserve fast mode for bottlenecks and top priorities.
+Pass the role's effort explicitly to `delegate_task`: Sol uses `target.options: [{"id":"reasoningEffort","value":"<low|medium|high|xhigh>"}]`; Claude uses `target.options: [{"id":"effort","value":"<low|medium|high|xhigh>"}]`.
 For fast mode, add `{"id":"serviceTier","value":"priority"}` to `target.options`.
 The Codex instances with credits are `codex-mistystep` and `codex`. Check `orchestrator_capabilities` before trusting any provider or model list.
