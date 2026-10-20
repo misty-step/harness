@@ -464,7 +464,7 @@ presence.
 ../scripts/verify pi
 ```
 
-Runs the extension suites and both fresh-clone installer checks, including
+Runs the extension suites and the fresh-clone installer checks, including
 settings validation during isolated installation. Scratch is run-scoped under
 `~/.cache/tmp`. Installer checks exercise committed HEAD. Restart pi and
 confirm the chrome, `/loc`, and `web_search` load. Extension

@@ -11,7 +11,7 @@ gets one independent review; documents, briefs and measurements do not need one.
 ```
 
 `check` delegates to `verify`. Bun tests read working files. The isolated installer
-check clones committed HEAD and runs both installers in disposable homes. It
+check clones committed HEAD and runs every installer in disposable homes. It
 preserves foreign settings, authentication, sessions and project MCP state.
 Git, Bun, jq and Python 3 are required. Display tests also use bubblewrap and
 slirp4netns; host-boundary tests need a host namespace with `/dev/net/tun`, not

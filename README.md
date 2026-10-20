@@ -16,14 +16,14 @@ agent-config/ ── shared install contract ──┬── pi-config/     → 
 | `agent-config/` | Portable skills, shared global guidance, `pass-env`, shared deployment | [README](agent-config/README.md) |
 | `pi-config/` | pi settings, extensions, chrome, guidance intro | [README](pi-config/README.md) |
 | `omp-config/` | OMP routing, config/MCP, extensions, themes, guidance | [README](omp-config/README.md) |
-| `claude-config/` | Shared skills Claude Code sessions select, such as `lage` | [README](claude-config/README.md) |
+| `claude-config/` | Shared skills and guidance Claude Code sessions select, such as `lage`; composes `~/.claude/CLAUDE.md` | [README](claude-config/README.md) |
 | `codex-config/` | Native Codex model, effort and service-tier defaults only | [Deployment](#codex-defaults-native-installation) |
 
 Foundations: [FOUNDATIONS.md](FOUNDATIONS.md). Intent: [USER_STORIES.md](USER_STORIES.md). Vocabulary, boundaries and
 invariants: [DOMAIN.md](DOMAIN.md). Decisions: [docs/decisions/](docs/decisions/index.md). Agent
 rules: [AGENTS.md](AGENTS.md).
 
-Runtime scope is native Pi/OMP configuration, native Codex model defaults,
+Runtime scope is native Pi, OMP and Claude Code configuration, native Codex model defaults,
 installation, engineering skills, and necessary credential/audio/workstation isolation. Custom ticket dispatch,
 fleet rosters, experiment scheduling, automated audits and session-close control
 are retired. Native Herdr and OMP/Pi launch own coordination. Installers remove
@@ -68,8 +68,8 @@ automation owns `CHANGELOG.md`, so do not manually edit it.
 ./scripts/verify             # all checks, sequential
 ./scripts/verify pi          # pi logic and isolated pi install
 ./scripts/verify omp         # OMP logic and isolated OMP install
-./scripts/verify shared      # shared unit tests and both isolated installs
-./scripts/verify workspace   # shell syntax and both isolated installs
+./scripts/verify shared      # shared unit tests and the isolated installs
+./scripts/verify workspace   # shell syntax and the isolated installs
 ```
 
 `./scripts/check` is the fixed gate entry point (ADR-004); it runs
@@ -110,7 +110,8 @@ claude-config/install
 - Claude Code: `$CLAUDE_CONFIG_DIR`, default `~/.claude`.
 - Shared launchers: `$HOME/.local/bin`. Foreign destinations fail closed.
 - Selections: `PI_CONFIG_COMPONENTS` and `OMP_INSTALL_COMPONENTS`, documented in
-  the component guides. Harness installers accept no positional arguments:
+  the component guides; claude-config declares its skills and guidance in its
+  installer and takes no selection variable. Harness installers accept no positional arguments:
   `install --check` is rejected rather than accidentally deploying. The base
   `agent-config/install --check` is an inert preflight with explicit arguments.
 
@@ -149,7 +150,7 @@ so no redundant feature override is stored. See the
 [speed guide](https://developers.openai.com/codex/speed), and
 [Plan preset source](https://github.com/openai/codex/blob/main/codex-rs/models-manager/src/collaboration_mode_presets.rs).
 
-There is no Codex installer adapter: `./install` still installs only Pi and OMP.
+There is no Codex installer adapter: `./install` installs only Pi, OMP and Claude Code.
 Do not replace or symlink `~/.codex/config.toml` with this four-key source;
 preserve unrelated settings, credentials, plugins, approvals and runtime state.
 After merge/review, an authorized host operator applies only these keys through
@@ -209,7 +210,7 @@ an issue; link a relevant existing issue when one exists, but never create one
 merely to satisfy naming. Cite user stories for behavioral changes. Labels
 `area:shared`, `area:pi`, `area:omp`, and `area:workspace` identify ownership,
 not separate release units. CI runs all components sequentially in one check
-job, including both consumers. Pull requests use the same commands as local
+job, including every consumer. Pull requests use the same commands as local
 verification.
 
 Landmark prepares one release stream from `master`: a generated root
