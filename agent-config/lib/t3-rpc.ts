@@ -52,23 +52,22 @@ async function auth(baseDir: string, args: string[]): Promise<string> {
 }
 
 // T3 0.1.1-nightly: /ws uses Effect RPC's JSON codec, not JSON-RPC 2.0.
-async function dispatch(options: {
-	url: URL; token: string; command: Record<string, unknown>; signal: AbortSignal;
-}): Promise<number> {
-	const { url, token, command, signal } = options;
+async function request(options: {
+	url: URL; token: string; tag: string; payload: Record<string, unknown>; signal: AbortSignal;
+}): Promise<unknown> {
+	const { url, token, tag, payload, signal } = options;
 	signal.throwIfAborted();
 	const socket = new WebSocket(url.href, { headers: { Authorization: `Bearer ${token}` } });
 	let cleanup = () => {};
 	try {
-		return await new Promise<number>((accept, reject) => {
+		return await new Promise<unknown>((accept, reject) => {
 			const fail = (message: string) => reject(new CliError(message));
 			const timer = setTimeout(() => fail("Timed out waiting for T3 acknowledgement; command outcome is unknown"), 15_000);
 			const abort = () => fail("Interrupted; command outcome may be unknown");
 			signal.addEventListener("abort", abort, { once: true });
 			socket.addEventListener("open", () => {
 				socket.send(JSON.stringify({
-					_tag: "Request", id: 1, tag: "orchestration.dispatchCommand", headers: [],
-					payload: command,
+					_tag: "Request", id: 1, tag, headers: [], payload,
 				}));
 			});
 			socket.addEventListener("message", (event) => {
@@ -83,9 +82,7 @@ async function dispatch(options: {
 						const exit = object(frame.exit);
 						if (exit._tag === "Failure") { reject(new CommandRejected("T3 rejected the command")); return; }
 						if (exit._tag !== "Success") throw new Error();
-						const { sequence } = object(exit.value);
-						if (typeof sequence !== "number" || !Number.isSafeInteger(sequence) || sequence < 0) throw new Error();
-						accept(sequence);
+						accept(exit.value);
 					}
 				} catch { fail("Invalid T3 RPC acknowledgement"); }
 			});
@@ -100,7 +97,10 @@ async function dispatch(options: {
 	}
 }
 
-export async function withT3Session<T>(baseDir: string, labelPrefix: string, run: (send: (command: Record<string, unknown>) => Promise<number>) => Promise<T>): Promise<{ value: T; sessionId: string | undefined }> {
+type Send = (command: Record<string, unknown>) => Promise<number>;
+type Call = (tag: string, payload: Record<string, unknown>) => Promise<unknown>;
+
+export async function withT3Session<T>(baseDir: string, labelPrefix: string, run: (send: Send, call: Call) => Promise<T>): Promise<{ value: T; sessionId: string | undefined }> {
 	const url = serverUrl(baseDir);
 	const label = `${labelPrefix}:${crypto.randomUUID()}`;
 	const controller = new AbortController();
@@ -113,7 +113,13 @@ export async function withT3Session<T>(baseDir: string, labelPrefix: string, run
 		const issued = object(JSON.parse(await auth(baseDir, ["issue", "--scope", "orchestration:operate", "--ttl", "10m", "--label", label, "--json"])));
 		if (typeof issued.sessionId === "string" && issued.sessionId.length > 0) sessionId = issued.sessionId;
 		if (!sessionId || typeof issued.token !== "string" || !issued.token || /\s/.test(issued.token)) throw new CliError("Invalid T3 session response");
-		value = await run((command) => dispatch({ url, token: issued.token, command, signal: controller.signal }));
+		const token = issued.token;
+		const call: Call = (tag, payload) => request({ url, token, tag, payload, signal: controller.signal });
+		value = await run(async (command) => {
+			const { sequence } = object(await call("orchestration.dispatchCommand", command));
+			if (typeof sequence !== "number" || !Number.isSafeInteger(sequence) || sequence < 0) throw new CliError("Invalid T3 RPC acknowledgement");
+			return sequence;
+		}, call);
 	} finally {
 		try {
 			// Recover by this invocation's unique label if issuance failed after minting.

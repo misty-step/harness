@@ -31,6 +31,12 @@ if (args[2] === "issue") console.log(JSON.stringify({ sessionId: "pool-session",
 else if (args[2] === "revoke") writeFileSync(root + "/revoked", args[3]);
 else process.exit(1);
 `, { mode: 0o700 });
+	writeFileSync(join(root, "bin/home"), `#!${process.execPath}
+import { appendFileSync, existsSync } from "node:fs";
+const root = process.env.T3CODE_HOME;
+if (existsSync(root + "/home-fails")) process.exit(1);
+appendFileSync(root + "/home-posts", JSON.stringify({ args: process.argv.slice(2), body: await new Response(Bun.stdin).text() }) + "\\n");
+`, { mode: 0o700 });
 	const db = new Database(join(root, "userdata/statev2.sqlite"));
 	databases.push(db);
 	db.exec(`
@@ -43,27 +49,49 @@ CREATE TABLE orchestration_v2_projection_runtime_requests (thread_id TEXT, statu
 CREATE TABLE orchestration_v2_projection_provider_session_bindings (thread_id TEXT, provider_session_id TEXT);
 CREATE TABLE orchestration_v2_projection_provider_sessions (provider_session_id TEXT, provider_instance_id TEXT, updated_at TEXT, payload_json TEXT);
 CREATE TABLE orchestration_command_receipts (command_id TEXT PRIMARY KEY, status TEXT);
-CREATE TABLE orchestration_v2_projection_subagents (child_thread_id TEXT, status TEXT);
+CREATE TABLE orchestration_v2_projection_subagents (subagent_id TEXT, thread_id TEXT, child_thread_id TEXT, origin TEXT, status TEXT, payload_json TEXT);
+CREATE TABLE orchestration_v2_projection_provider_threads (provider_thread_id TEXT, thread_id TEXT, owner_node_id TEXT, provider_instance_id TEXT, updated_at TEXT, payload_json TEXT);
 `);
 	const env = { ...process.env, T3CODE_HOME: root, XDG_STATE_HOME: join(root, "state"), XDG_CONFIG_HOME: join(root, "config"), PATH: `${root}/bin:${process.env.PATH}` };
 	return { root, db, env };
 }
 type Fixture = ReturnType<typeof fixture>;
 
+const handoffRefusal = "Insufficient context allowance for the provider handoff. Compact the target conversation or use a larger-context model; the current request has not been truncated.";
+
 function thread(files: Fixture, id = "limited", instance = "claudeAgent", options: {
-	resetAt?: string | null; failureClass?: string; status?: string; archivedAt?: string | null;
+	resetAt?: string | null; failureClass?: string; status?: string; archivedAt?: string | null; message?: string;
 	deletedAt?: string | null; settledOverride?: string | null; parentThreadId?: string | null; failedAt?: string;
+	model?: string; options?: { id: string; value: string | boolean }[]; worktreePath?: string | null; creationSource?: string;
 } = {}) {
-	const selection = { instanceId: instance, model: "model-original", options: [
+	const selection = { instanceId: instance, model: options.model ?? "model-original", options: options.options ?? [
 		{ id: "reasoningEffort", value: "max" }, { id: "fastMode", value: true },
 	] };
+	const parent = options.parentThreadId ?? null;
 	files.db.run("INSERT INTO orchestration_v2_projection_threads VALUES (?, ?, ?, ?)", [id, instance, options.deletedAt ?? null, JSON.stringify({
-		id, providerInstanceId: instance, modelSelection: selection, runtimeMode: "full-access", lineage: { parentThreadId: options.parentThreadId ?? null },
+		id, title: `Lane ${id}`, projectId: "project", interactionMode: "default", worktreePath: options.worktreePath ?? null, branch: options.worktreePath ? "lane-branch" : null,
+		creationSource: options.creationSource ?? "web", forkedFrom: parent === null ? null : { type: "node", nodeId: `task:${id}` },
+		providerInstanceId: instance, modelSelection: selection, runtimeMode: "full-access", lineage: { parentThreadId: parent, relationshipToParent: parent === null ? null : "subagent" },
 		archivedAt: options.archivedAt ?? null, deletedAt: options.deletedAt ?? null, settledOverride: options.settledOverride ?? null,
 	})]);
 	run(files, id, `${id}:run`, { status: options.status ?? "failed", instance });
-	error(files, id, `${id}:run`, { failureClass: options.failureClass ?? "usage_limit", resetAt: options.resetAt === undefined ? future : options.resetAt, updatedAt: options.failedAt });
+	error(files, id, `${id}:run`, { failureClass: options.failureClass ?? (options.message ? "provider_error" : "usage_limit"), message: options.message,
+		resetAt: options.resetAt === undefined ? future : options.resetAt, updatedAt: options.failedAt });
 	return selection;
+}
+
+// A delegated child of `parent`, whose original app-owned task holds a result.
+function child(files: Fixture, id: string, parent = "parent", options: { result?: string | null; origin?: string; creationSource?: string; parentArchived?: boolean } = {}) {
+	if (!files.db.query("SELECT 1 FROM orchestration_v2_projection_threads WHERE thread_id = ?").get(parent)) {
+		files.db.run("INSERT INTO orchestration_v2_projection_threads VALUES (?, 'claudeAgent', NULL, ?)", [parent, JSON.stringify({ id: parent, archivedAt: options.parentArchived ? past : null })]);
+	}
+	thread(files, id, "claudeAgent", { parentThreadId: parent, creationSource: options.creationSource });
+	files.db.run("INSERT INTO orchestration_v2_projection_subagents VALUES (?, ?, ?, ?, 'failed', ?)", [`task:${id}`, parent, id, options.origin ?? "app_owned",
+		JSON.stringify({ result: options.result === undefined ? "Claude API rate limit reached." : options.result })]);
+}
+
+function nativeThread(files: Fixture, id: string, instance: string, usedTokens: number, maxTokens = 1_000_000) {
+	files.db.run("INSERT INTO orchestration_v2_projection_provider_threads VALUES (?, ?, NULL, ?, ?, ?)", [`${id}:${instance}`, id, instance, past, JSON.stringify({ contextUsage: { usedTokens, maxTokens } })]);
 }
 
 function run(files: Fixture, threadId: string, runId: string, options: { status?: string; instance?: string; ordinal?: number; completedAt?: string | null; startedAt?: string | null } = {}) {
@@ -74,15 +102,15 @@ function run(files: Fixture, threadId: string, runId: string, options: { status?
 	]);
 }
 
-function error(files: Fixture, threadId: string, runId: string, options: { node?: string; failureClass?: string; resetAt?: string | null; ordinal?: number; updatedAt?: string } = {}) {
+function error(files: Fixture, threadId: string, runId: string, options: { node?: string; failureClass?: string; resetAt?: string | null; ordinal?: number; updatedAt?: string; message?: string } = {}) {
 	const ordinal = options.ordinal ?? 1;
 	files.db.run("INSERT INTO orchestration_v2_projection_turn_items VALUES (?, ?, ?, ?, ?, 'error', 'failed', ?, ?)", [
 		`${runId}:error:${ordinal}`, threadId, runId, options.node ?? `${runId}:root`, ordinal,
-		options.updatedAt ?? recent, JSON.stringify({ failure: { class: options.failureClass ?? "usage_limit", resetAt: options.resetAt === undefined ? future : options.resetAt, message: "synthetic limit" } }),
+		options.updatedAt ?? recent, JSON.stringify({ failure: { class: options.failureClass ?? "usage_limit", resetAt: options.resetAt === undefined ? future : options.resetAt, message: options.message ?? "synthetic limit" } }),
 	]);
 }
 
-function server(files: Fixture, hook: (command: Record<string, unknown>, index: number) => "success" | "failure" | "close" | "wait" = () => "success") {
+function server(files: Fixture, hook: (command: Record<string, unknown>, index: number) => "success" | "failure" | "unreceipted" | "close" | "wait" = () => "success") {
 	const commands: Record<string, unknown>[] = [];
 	const applied = new Set<string>();
 	let notify = () => {};
@@ -99,14 +127,14 @@ function server(files: Fixture, hook: (command: Record<string, unknown>, index: 
 			message(socket, data) {
 				const frame = object(JSON.parse(String(data)));
 				if (frame._tag !== "Request") return;
-				expect(frame.tag).toBe("orchestration.dispatchCommand");
-				const command = object(frame.payload);
+				expect(["orchestration.dispatchCommand", "orchestration.launchThread"]).toContain(String(frame.tag));
+				const command = { ...object(frame.payload), ...(frame.tag === "orchestration.launchThread" ? { type: "launch" } : {}) };
 				commands.push(command);
 				const receipt = files.db.query("SELECT status FROM orchestration_command_receipts WHERE command_id = ?").get(String(command.commandId));
 				const response = receipt !== null && object(receipt).status === "rejected" ? "failure" : hook(command, commands.length);
 				if (response === "wait") { notify(); return; }
-				files.db.run("INSERT OR IGNORE INTO orchestration_command_receipts VALUES (?, ?)", [String(command.commandId), response === "failure" ? "rejected" : "accepted"]);
-				if (response !== "failure" && !applied.has(String(command.commandId))) {
+				if (response !== "unreceipted") files.db.run("INSERT OR IGNORE INTO orchestration_command_receipts VALUES (?, ?)", [String(command.commandId), response === "failure" ? "rejected" : "accepted"]);
+				if (response !== "failure" && response !== "unreceipted" && !applied.has(String(command.commandId))) {
 					if (command.type === "provider.switch") {
 						const selection = object(command.modelSelection);
 						files.db.run(`UPDATE orchestration_v2_projection_threads SET provider_instance_id = ?,
@@ -118,12 +146,24 @@ function server(files: Fixture, hook: (command: Record<string, unknown>, index: 
 						expect(command.usageLimitContinuationOfRunId).toBeUndefined();
 						expect(command.manualContinuationOfRunId).toBe(`${command.threadId}:run`);
 						expect(command).toMatchObject({ text: "Continue where you left off.", attachments: [], dispatchMode: { type: "start_immediately" }, createdBy: "user", creationSource: "server" });
+						// recordSubagentFollowup: a user continuation of a child whose
+						// app-owned task has a result gets a fresh parent-owned task.
+						if (files.db.query("SELECT 1 FROM orchestration_v2_projection_subagents WHERE child_thread_id = ? AND origin = 'app_owned' AND json_extract(payload_json, '$.result') IS NOT NULL").get(String(command.threadId))) {
+							files.db.run("INSERT INTO orchestration_v2_projection_runs VALUES (?, ?, 9, NULL, 'running', NULL, ?)", [`${command.threadId}:followup`, String(command.threadId),
+								JSON.stringify({ userMessageId: command.messageId, delegatedTaskId: `followup:${command.threadId}`, startedAt: later })]);
+						}
+					} else if (command.type === "thread.settle") {
+						files.db.run("UPDATE orchestration_v2_projection_threads SET payload_json = json_set(payload_json, '$.settledOverride', 'settled') WHERE thread_id = ?", [String(command.threadId)]);
+					} else if (command.type === "launch") {
+						files.db.run("INSERT INTO orchestration_v2_projection_threads VALUES (?, ?, NULL, ?)", [String(command.threadId), String(object(command.modelSelection).instanceId),
+							JSON.stringify({ id: command.threadId, projectId: command.projectId, title: command.title, createdAt: new Date().toISOString() })]);
 					}
 					applied.add(String(command.commandId));
 				}
 				if (response === "close") { socket.close(); return; }
-				socket.send(JSON.stringify({ _tag: "Exit", requestId: frame.id, exit: response === "failure"
-					? { _tag: "Failure", cause: { message: token } } : { _tag: "Success", value: { sequence: commands.length } } }));
+				const value = command.type === "launch" ? { threadId: command.threadId, projection: {}, resumed: false } : { sequence: commands.length };
+				socket.send(JSON.stringify({ _tag: "Exit", requestId: frame.id, exit: response === "failure" || response === "unreceipted"
+					? { _tag: "Failure", cause: { message: token } } : { _tag: "Success", value } }));
 			},
 		},
 	});
@@ -174,7 +214,7 @@ test("switches then continues once, preserving model options and runtime mode, a
 	expect(JSON.parse(String(row.payload_json)).runtimeMode).toBe("full-access");
 	expect(readFileSync(join(files.root, "revoked"), "utf8")).toBe("pool-session");
 	expect(state(files).moves[0].phase).toBe("done");
-	expect(logs(files)).toEqual([{ at: expect.any(String), thread: "limited", from: "claudeAgent", to: "claude-hello", run: "limited:run" }]);
+	expect(logs(files)).toEqual([{ at: expect.any(String), thread: "limited", from: "claudeAgent", to: "claude-hello", run: "limited:run", kind: "account" }]);
 	expect(statSync(join(files.root, "state/t3-pool/state.json")).mode & 0o777).toBe(0o600);
 	expect((await result(start(files))).status).toBe(0);
 	expect(fake.commands).toHaveLength(2);
@@ -191,8 +231,8 @@ test("uses only the same pool, wraps the order, and treats unknown or malformed 
 	expect(output.status).toBe(0);
 	const plans = output.stdout.trim().split("\n").map((line) => JSON.parse(line));
 	expect(plans.filter((row) => row.to).map(({ reason, ...row }) => row)).toEqual([
-		{ dryRun: true, thread: "claude", from: "claude-mistystep", to: "claude-hello", run: "claude:run" },
-		{ dryRun: true, thread: "codex", from: "codex-r90", to: "codex-mistystep", run: "codex:run" },
+		{ dryRun: true, thread: "claude", from: "claude-mistystep", to: "claude-hello", run: "claude:run", kind: "account" },
+		{ dryRun: true, thread: "codex", from: "codex-r90", to: "codex-mistystep", run: "codex:run", kind: "account" },
 	]);
 });
 
@@ -341,20 +381,38 @@ function config(files: Fixture, patch: Record<string, unknown>) {
 	writeFileSync(path, JSON.stringify({ ...JSON.parse(readFileSync(path, "utf8")), ...patch }));
 }
 
-test("eligibility excludes delegated children and stale lanes, but admits fresh top-level failures", async () => {
+test("eligibility admits followable children after top-level lanes, and excludes stale lanes and unfollowable children", async () => {
 	const files = fixture();
-	for (const status of ["failed", "completed", "cancelled", "running", "waiting"]) {
-		thread(files, `${status}-child`, "claudeAgent", { parentThreadId: "parent" });
-		files.db.run("INSERT INTO orchestration_v2_projection_subagents VALUES (?, ?)", [`${status}-child`, status]);
-	}
+	config(files, { maxMovesPerPass: 2 });
+	child(files, "a-child");
+	child(files, "no-result", "parent", { result: null });
+	child(files, "provider-owned", "parent", { origin: "provider_owned" });
+	child(files, "native", "parent", { creationSource: "provider" });
+	child(files, "orphan", "archived-parent", { parentArchived: true });
 	thread(files, "stale-lane", "claudeAgent", { failedAt: new Date(Date.now() - 31 * 60_000).toISOString() });
 	thread(files, "fresh-lane");
-	const output = await result(start(files, ["--dry-run"]));
-	expect(output.status).toBe(0);
-	expect(plans(output).filter((row) => row.to).map((row) => row.thread)).toEqual(["fresh-lane"]);
+	const output = plans(await result(start(files, ["--dry-run"])));
+	expect(output.filter((row) => row.to).map((row) => [row.thread, row.child])).toEqual([["fresh-lane", undefined], ["a-child", true]]);
+	expect(output.at(-1).excluded).toEqual({
+		"delegated child: no app-owned task result to follow up": 3,
+		"delegated child: parent archived or deleted": 1,
+		"failure is not within the last 30 minutes": 1,
+	});
 });
 
-test("later completed and running runs clear stale child null-reset limits", async () => {
+test("continues a delegated child so T3 records a fresh task that notifies its parent", async () => {
+	const files = fixture();
+	child(files, "worker");
+	const fake = server(files);
+	const output = await result(start(files));
+	expect(output.status).toBe(0);
+	expect(fake.commands.map((command) => command.type)).toEqual(["provider.switch", "message.dispatch"]);
+	expect(fake.commands[1]).toMatchObject({ threadId: "worker", createdBy: "user", manualContinuationOfRunId: "worker:run" });
+	expect(plans(output)[0]).toEqual({ moved: "worker", kind: "account", to: "claude-hello", task: "followup:worker" });
+	expect(state(files).moves[0]).toMatchObject({ phase: "done", child: true });
+});
+
+test("later completed runs clear stale null-reset limits; later running runs do not", async () => {
 	const files = fixture();
 	thread(files, "source", "codex-r90");
 	thread(files, "stale-child", "codex", { parentThreadId: "parent", resetAt: null, failedAt: past });
@@ -362,7 +420,7 @@ test("later completed and running runs clear stale child null-reset limits", asy
 	run(files, "unrelated-healthy", "completed", { instance: "codex", status: "completed", completedAt: later });
 	run(files, "another", "running", { instance: "codex-mistystep", status: "running", completedAt: null, startedAt: later });
 	const output = await result(start(files, ["--dry-run"]));
-	expect(plans(output).at(-1).limited).toEqual(["codex-r90"]);
+	expect(plans(output).at(-1).limited).toEqual(["codex-mistystep", "codex-r90"]);
 	expect(plans(output).find((row) => row.to)?.to).toBe("codex");
 });
 
@@ -451,8 +509,9 @@ test("rejected moves do not block others and are abandoned after three rejection
 	expect(rejections.at(-1).phase).toBe("abandoned");
 });
 
-test.each(["running", "completed"])("newer %s activity clears an account limit; older activity does not", async (status) => {
-	for (const [at, limited] of [[later, false], [past, true]] as const) {
+// A limited account accepts runs that then fail at the same limit: only completions prove room.
+test.each([["running", true], ["completed", false]] as const)("newer %s activity leaves an account limited: %p", async (status, newer) => {
+	for (const [at, limited] of [[later, newer], [past, true]] as const) {
 		const files = fixture();
 		thread(files, "source", "codex-r90");
 		thread(files, "failed-child", "codex", { parentThreadId: "parent", resetAt: null });
@@ -512,4 +571,142 @@ test("archived, settled and deleted failures never poison target accounts", asyn
 		expect(output.at(-1).limited).toEqual(["codex-r90"]);
 		expect(output.find((row) => row.to)?.to).toBe("codex");
 	}
+});
+
+const sol = (effort: string) => ({ model: "gpt-6.1-sol", options: [{ id: "reasoningEffort", value: effort }, { id: "serviceTier", value: "priority" }] });
+
+test("moves across providers with the mapped model and effort only when its whole pool is limited or reserved", async () => {
+	const files = fixture();
+	config(files, { reserved: ["claude-hello", "claude-r90", "codex-r90"] });
+	thread(files, "lane", "codex", sol("xhigh"));
+	thread(files, "other-limited", "codex-mistystep", { parentThreadId: "parent" });
+	run(files, "busy", "busy:run", { instance: "claudeAgent", status: "running", completedAt: null, startedAt: later });
+	const fake = server(files);
+	const dry = plans(await result(start(files, ["--dry-run"])));
+	expect(dry[0]).toMatchObject({ thread: "lane", from: "codex", to: "claude-mistystep", kind: "provider", model: "claude-opus-5-5" });
+	expect((await result(start(files))).status).toBe(0);
+	expect(fake.commands.map((command) => command.type)).toEqual(["provider.switch", "message.dispatch"]);
+	expect(fake.commands[0].modelSelection).toEqual({ instanceId: "claude-mistystep", model: "claude-opus-5-5", options: [{ id: "effort", value: "xhigh" }] });
+	const row = object(files.db.query("SELECT payload_json FROM orchestration_v2_projection_threads WHERE thread_id = 'lane'").get());
+	expect(JSON.parse(String(row.payload_json)).runtimeMode).toBe("full-access");
+	expect(logs(files)).toEqual([{ at: expect.any(String), thread: "lane", from: "codex", to: "claude-mistystep", run: "lane:run", kind: "provider", model: "claude-opus-5-5" }]);
+	expect(state(files).moves[0].phase).toBe("done");
+});
+
+test("cross-provider moves need a mapped model and effort, and never cross while a same-pool account is only capped", async () => {
+	const files = fixture();
+	config(files, { reserved: ["codex-r90"], pools: [["claude-mistystep", "claudeAgent"], ["codex", "codex-r90"]] });
+	thread(files, "max-effort", "codex", sol("max"));
+	thread(files, "unmapped", "codex", { model: "gpt-6-astra", options: [] });
+	expect(plans(await result(start(files, ["--dry-run"]))).filter((row) => row.thread).map((row) => row.reason))
+		.toEqual(Array(2).fill("no target: its pool is limited or reserved, and its model or effort has no cross-provider mapping"));
+	const capped = fixture();
+	config(capped, { pools: [["codex", "codex-mistystep"], ["claudeAgent", "claude-mistystep"]], reserved: [] });
+	thread(capped, "lane", "codex", sol("high"));
+	mkdirSync(join(capped.root, "state/t3-pool"), { recursive: true });
+	writeFileSync(join(capped.root, "state/t3-pool/state.json"), JSON.stringify({ version: 1, limits: {}, moves: [],
+		admissions: ["a", "b", "c"].map((runId) => ({ runId, to: "codex-mistystep", at: new Date().toISOString() })) }));
+	expect(plans(await result(start(capped, ["--dry-run"])))[0].reason).toBe("no target: other accounts are limited, reserved or at the hourly cap");
+});
+
+function launches(fake: ReturnType<typeof server>) { return fake.commands.filter((command) => command.type === "launch"); }
+function posts(files: Fixture) { return readFileSync(join(files.root, "home-posts"), "utf8").trim().split("\n").map((line) => JSON.parse(line)); }
+
+test("starts one successor on the same workspace and settings when T3 refuses the handoff, settles the old lane and tells Home", async () => {
+	const files = fixture();
+	const selection = thread(files, "big", "claude-mistystep", { message: handoffRefusal, worktreePath: "/work/tree" });
+	const fake = server(files);
+	const dry = plans(await result(start(files, ["--dry-run"])));
+	expect(dry[0]).toMatchObject({ thread: "big", from: "claude-mistystep", to: "claude-mistystep", kind: "successor" });
+	const output = await result(start(files));
+	expect(output.status).toBe(0);
+	expect(fake.commands.map((command) => command.type)).toEqual(["launch", "thread.settle"]);
+	const [launch] = launches(fake);
+	const successor = String(launch.threadId);
+	expect(launch).toMatchObject({
+		commandId: "t3-pool:big:run:launch:0", projectId: "project", title: "Lane big", creationSource: "server",
+		modelSelection: selection, runtimeMode: "full-access", interactionMode: "default",
+		workspaceStrategy: { type: "existing_worktree", worktreePath: "/work/tree", branch: "lane-branch" },
+		initialMessage: { attachments: [], text: "Lane succession: you succeed T3 thread big. Use the lane-succession skill's successor steps: read that thread with t3_thread_read, write its handoff under ~/.local/state/t3-handoffs/ unless one is attached below, then continue the lane's work." },
+	});
+	expect(fake.commands[1]).toMatchObject({ threadId: "big" });
+	expect(plans(output)[0]).toEqual({ moved: "big", kind: "successor", to: "claude-mistystep", successor });
+	const [post] = posts(files);
+	expect(post.args).toEqual(["post", "--from", "t3-pool"]);
+	expect(post.body).toContain(`t3-thread://v1/${successor}`);
+	expect(post.body).toContain("t3-thread://v1/big), settled");
+	expect(logs(files)).toEqual([{ at: expect.any(String), thread: "big", from: "claude-mistystep", to: "claude-mistystep", run: "big:run", kind: "successor", successor }]);
+	expect(readFileSync(join(files.root, "revoked"), "utf8")).toBe("pool-session");
+	expect((await result(start(files))).status).toBe(0);
+	expect(fake.commands).toHaveLength(2);
+	expect(posts(files)).toHaveLength(1);
+});
+
+test("predicts a too-full target from its transcript: prefers a target that fits, else starts a successor", async () => {
+	const files = fixture();
+	config(files, { reserved: ["claude-r90"] });
+	thread(files, "lane", "claudeAgent");
+	nativeThread(files, "lane", "claude-hello", 934_205);
+	nativeThread(files, "lane", "claude-mistystep", 400_000);
+	expect(plans(await result(start(files, ["--dry-run"])))[0]).toMatchObject({ to: "claude-mistystep", kind: "account" });
+	nativeThread(files, "lane", "claude-mistystep", 758_224);
+	const output = plans(await result(start(files, ["--dry-run"])));
+	expect(output[0]).toMatchObject({ to: "claude-hello", kind: "successor" });
+	expect(output[0].reason).toContain("too large");
+});
+
+test("a lost launch acknowledgement resumes the same successor, then settles and announces once", async () => {
+	const files = fixture();
+	thread(files, "big", "claude-mistystep", { message: handoffRefusal });
+	let lost = false;
+	const fake = server(files, (command) => command.type === "launch" && !lost ? (lost = true, "close") : "success");
+	expect((await result(start(files))).status).toBe(1);
+	expect((await result(start(files))).status).toBe(0);
+	const [first, second] = launches(fake);
+	expect(second).toMatchObject({ commandId: first.commandId, threadId: first.threadId });
+	expect(files.db.query("SELECT count(*) AS n FROM orchestration_v2_projection_threads WHERE thread_id = ?").get(String(first.threadId))).toEqual({ n: 1 });
+	expect(fake.commands.map((command) => command.type)).toEqual(["launch", "launch", "thread.settle"]);
+	expect(posts(files)).toHaveLength(1);
+});
+
+test("skips lanes another starter already succeeded", async () => {
+	const files = fixture();
+	thread(files, "claimed", "claude-mistystep", { message: handoffRefusal });
+	files.db.run("UPDATE orchestration_v2_projection_threads SET payload_json = json_set(payload_json, '$.title', 'Lane claimed (succeeded by other)') WHERE thread_id = 'claimed'");
+	thread(files, "raced", "claude-mistystep", { message: handoffRefusal });
+	files.db.run("INSERT INTO orchestration_v2_projection_threads VALUES ('heartbeat-successor', 'claude-mistystep', NULL, ?)", [JSON.stringify({ projectId: "project", title: "Lane raced", createdAt: new Date().toISOString() })]);
+	const output = plans(await result(start(files, ["--dry-run"])));
+	expect(output.find((row) => row.thread === "raced").reason).toBe("a same-title thread created after the failure: another starter's successor");
+	expect(output.at(-1).excluded).toEqual({ "already succeeded": 1 });
+	expect(output.at(-1).planned).toBe(0);
+});
+
+test("falls back to Home's inbox when home post fails", async () => {
+	const files = fixture();
+	thread(files, "big", "claude-mistystep", { message: handoffRefusal });
+	writeFileSync(join(files.root, "home-fails"), "");
+	server(files);
+	expect((await result(start(files))).status).toBe(0);
+	const inbox = readFileSync(join(files.root, "state/home/inbox.md"), "utf8");
+	expect(inbox).toMatch(/^\n## \d{4}-\d{2}-\d{2}T[\d:.]+Z \[t3-pool\]\n\nt3-pool started a successor for lane "Lane big"/);
+	expect(state(files).moves[0].phase).toBe("done");
+});
+
+test("launch failures without a receipt still count toward abandonment, and delegated children never get successors", async () => {
+	const files = fixture();
+	thread(files, "big", "claude-mistystep", { message: handoffRefusal });
+	const fake = server(files, (command) => command.type === "launch" ? "unreceipted" : "success");
+	for (let pass = 0; pass < 4; pass++) expect((await result(start(files))).status).toBe(0);
+	expect(launches(fake)).toHaveLength(3);
+	expect(state(files).moves[0].phase).toBe("abandoned");
+	expect(existsSync(join(files.root, "home-posts"))).toBe(false);
+	const children = fixture();
+	child(children, "big-child");
+	children.db.run("UPDATE orchestration_v2_projection_turn_items SET payload_json = json_set(payload_json, '$.failure.class', 'provider_error', '$.failure.message', ?)", [handoffRefusal]);
+	child(children, "full-child", "parent");
+	nativeThread(children, "full-child", "claude-hello", 990_000);
+	config(children, { pools: [["claudeAgent", "claude-hello"]] });
+	const output = plans(await result(start(children, ["--dry-run"])));
+	expect(output.find((row) => row.thread === "full-child").reason).toBe("delegated child: too large for every target, and a successor cannot report to its parent");
+	expect(output.at(-1).excluded).toEqual({ "delegated child: too large to continue, and a successor cannot report to its parent": 1 });
 });

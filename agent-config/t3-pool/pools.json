@@ -5,5 +5,7 @@
     ["codex", "codex-mistystep", "codex-r90"]
   ],
   "reserved": ["claude-hello", "claude-r90", "codex-r90"],
-  "maxMovesPerPass": 1
+  "maxMovesPerPass": 1,
+  "crossProvider": [{ "claude-opus-5-5": "effort", "gpt-6.1-sol": "reasoningEffort" }],
+  "efforts": ["low", "medium", "high", "xhigh"]
 }
