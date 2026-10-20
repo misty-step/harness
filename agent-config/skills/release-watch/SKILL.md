@@ -13,7 +13,7 @@ Inputs: the repository, the merge SHA, the PR, and the stories the change touche
 
 Read the repository's AGENTS.md or README, and its ADR if it has one, for how a merge reaches users. Then find this SHA's run or deployment (`gh run list --commit <SHA>`, `gh api repos/<owner>/<repo>/deployments?sha=<SHA>`).
 
-A repository that deploys by running an installer from source, as misty-step/harness does with `claude-config/install`, has a release path: its documented installer, run from a checkout of the merge SHA. Run it; that is the deploy. Its watch is step 2 with the installed files as the live surface.
+A repository that deploys by running an installer from source, as misty-step/harness does with `claude-config/install`, has a release path: its documented installer, run from the head of the default branch, which contains the merge SHA. Never run it from a checkout of the merge SHA itself: once a later merge lands, that reinstalls older files and rolls the later merge back. Run it; that is the deploy. Its watch is step 2 with the installed files as the live surface.
 
 With no automatic deploy and no installer, or no health signal to read, say so in the report. File a ticket for the missing mechanism (continuous deployment with automatic rollback is the foundation; see `docs/principles/007-braver-engineers-continuous-deployment.md` in misty-step/harness), or comment once on the one already open, then stop. A library or tool with no deploy needs only a release check: the release PR or tag the convention produces.
 
@@ -22,7 +22,7 @@ Done when you know where this SHA runs, how to tell whether it's healthy, and ho
 ## 2. Watch
 
 1. **Deploy.** Follow the run to completion (`gh run watch <id>`). A failed deploy is a trigger.
-2. **Identity.** Read back what the live surface reports it runs: a version or SHA endpoint, a release header, the deployed tag. It must be this SHA or a later release that contains it. For an installer, `cmp` the installed bytes against the source at the SHA.
+2. **Identity.** Read back what the live surface reports it runs: a version or SHA endpoint, a release header, the deployed tag. It must be this SHA or a later release that contains it. For an installer, `cmp` the installed bytes against the source at the head you installed from.
 3. **Smoke.** Walk the touched stories on the deployed surface with the repo's `verify-<app>` skill, read-only or with the QA account and disposable data. Never write real production data. For an installer, exercise the installed result the way a user would.
 4. **Signals.** For 30 minutes after the deploy finishes, read every health signal the repo has: health endpoints, error tracking, logs, alerts. Compare each one with the hour before the deploy. An installer has no signals to watch, so the readback and smoke are the whole window.
 
