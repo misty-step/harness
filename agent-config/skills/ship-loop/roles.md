@@ -43,8 +43,9 @@ preview_type) drive a real browser.
 
 Walk every acceptance criterion and every touched story as a user. Then try to break it:
 empty input, worst-case data, error paths, a second run. Check consequential state where
-it lives: the row, the file, the sent mail in <the QA mail inbox the verify skill names>.
-Never write production data. Use disposable data and <the QA account the verify skill names>.
+it lives: the row, the file, the sent mail. Use disposable data, never production data.
+QA account and inbox: <the verify skill's | until it has one: the repo harness's own
+| "none">.
 
 Post your report on the PR as "QA report at <SHA>, <provider>/<model>", then reply with it.
 Verdict: PASS, ISSUES or BLOCKED.

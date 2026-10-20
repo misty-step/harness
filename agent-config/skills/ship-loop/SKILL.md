@@ -30,7 +30,7 @@ Done when the grilling frontier is empty, the stories are written, the principal
 
 ## 2. Run rounds on the frontier
 
-The **frontier** is every open ticket whose blockers are closed or have an open PR. A ticket with an open blocker PR **stacks**: its branch starts from that PR's head, and its PR targets that PR's branch. Start a round for each frontier ticket that touches different files from the others, in parallel. One writer per branch.
+The **frontier** is every open ticket whose blockers are closed or have an open PR. A ticket with an open blocker PR **stacks**: its branch starts from that PR's head, and its PR targets that PR's branch. Start a round for each frontier ticket that touches different files from the others, in parallel; a stacked ticket skips that test against the PR it stacks on. One writer per branch.
 
 Dispatch each role with `delegate_task`, using the briefs in [roles.md](roles.md) filled in completely. Every agent is fresh. Take providers from `orchestrator_capabilities` (large: filter it with `jq`) and headroom from `upkeep status`. Route QA and review to the first of these with headroom: a different model family on a different account from the builder; a different family on the same account; the same family, on a different model where one exists. A dispatch that fails at once on quota goes to the next route. Once every route has failed, wait for the earliest reset `upkeep status` shows, and put that time in your report.
 
@@ -42,7 +42,7 @@ Dispatch each role with `delegate_task`, using the briefs in [roles.md](roles.md
    - **RE-SLICE:** split the ticket with `to-tickets` and start over on the new frontier.
    - **SHIP:** merge (step 3).
 
-**Stacks.** Review and QA each stacked PR against its own base branch. Fix a blocker on the PR that owns it. Land the stack bottom-first, as step 3 says; that carries every fix upward without touching the heads above until their turn.
+**Stacks.** Review and QA each stacked PR against its own base branch. Fix a blocker on the PR that owns it; landing bottom-first (step 3) carries it upward.
 
 Scale the round to the change. Documents, briefs, measurements and generator-only release PRs ship without one ([Foundations](https://foundations.mistystep.io/way-of-working)): merge them once checks pass. A change with no user surface needs proof that it composes instead of a QA walk, posted as `QA report at <SHA>`.
 
@@ -54,7 +54,7 @@ Done for a ticket when the PR's current head SHA has a SHIP, ruled there or carr
 
 - Confirm the repository's fast affected checks passed at the judged SHA, on our own machines: its CI where that runs, otherwise its documented check, run by you at that SHA. Paid GitHub Actions minutes are not a gate.
 - If the head moved after the verdict, the verdict carries to the new head only when a rebase alone moved it and the patch-id is unchanged: `git diff <old base>...<judged SHA> | git patch-id --stable` must equal `git diff origin/<default branch>...<new head> | git patch-id --stable`. `<old base>` is the SHA recorded for the PR below in a stack, otherwise `origin/<default branch>`. Any other move, a conflict resolution included, gets a new round.
-- **misty-step and moomooskycow:** squash-merge, with the PR title as a Conventional Commit (`docs/release-convention.md` in misty-step/harness). Land a stack bottom-first. Before the bottom PR lands, record every PR's head SHA once, in a comment on the bottom PR. After each PR lands, run `git fetch --prune`, then `git switch -C <the next PR's branch> origin/<the next PR's branch>`, and move it with `git rebase --onto origin/<default branch> <the SHA recorded for the PR below>`. If the switch says another worktree already uses the branch, that is the PR's builder worktree: once the builder's task has ended, run `git worktree remove <the path it names>` and switch again. If that refuses over leftover changes, keep them first with `git -C <path> stash push -u -m <branch>-leftovers`. Push with `--force-with-lease` (it's the lane's own branch), retarget it to the default branch if GitHub hasn't, and run the fast affected checks at its new head before it merges.
+- **misty-step and moomooskycow:** squash-merge, with the PR title as a Conventional Commit (`docs/release-convention.md` in misty-step/harness). Land a stack bottom-first. Before the bottom PR lands, record every PR's head SHA once, in a comment on the bottom PR. After each PR lands, run `git fetch --prune`, then move the next one from a detached HEAD, which works whichever worktree holds its branch: `git switch --detach <its recorded head>`, `git rebase --onto origin/<default branch> <the SHA recorded for the PR below>`, `git push --force-with-lease=<branch>:<its recorded head> origin HEAD:refs/heads/<branch>`. It's the lane's own branch. A refused push means the branch moved after the record, which takes a new round. Retarget the PR to the default branch if GitHub hasn't, and run the fast affected checks at its new head before it merges.
 - **r90group:** request team review, report the PR as merge-ready, and move on. A human merges.
 
 ## 4. Watch the release
