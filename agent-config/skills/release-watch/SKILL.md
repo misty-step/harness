@@ -13,7 +13,7 @@ Inputs: the repository, the merge SHA, the PR, and the stories the change touche
 
 Read the repository's AGENTS.md or README, and its ADR if it has one, for how a merge reaches users. Then find this SHA's run or deployment (`gh run list --commit <SHA>`, `gh api repos/<owner>/<repo>/deployments?sha=<SHA>`).
 
-With no automatic deploy, or no health signal to read, say so in the report. File a ticket for the missing mechanism (continuous deployment with automatic rollback is the foundation; see ADR-007 in misty-step/harness), then stop. A library or tool with no deploy needs only a release check: the release PR or tag the convention produces.
+With no automatic deploy, or no health signal to read, say so in the report. File a ticket for the missing mechanism (continuous deployment with automatic rollback is the foundation; see ADR-007 in misty-step/harness), or comment once on the one already open, then stop. A library or tool with no deploy needs only a release check: the release PR or tag the convention produces.
 
 Done when you know where this SHA runs, how to tell whether it's healthy, and how to roll it back.
 
@@ -41,4 +41,4 @@ One message to the lane, starting with one word:
 - `live behavior proven`: the deploy run, the live identity, the smoke evidence and the window you watched.
 - `restored`: the trigger and its evidence, how you restored and its link, the incident link, and whether a postmortem is due.
 - `escalated`: why restoring was unsafe, what is live now, and your recommendation.
-- `unwatched`: what's missing (deploy path, health signal) and the ticket you filed.
+- `unwatched`: what's missing (deploy path, health signal) and the ticket you filed or commented on.
