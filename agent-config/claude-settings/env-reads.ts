@@ -6,10 +6,11 @@
  *
  * Secrets reach a session only through `pass-env` and native logins, so a
  * session never needs a dotenv file's values. Claude Code 2.1.303 applies Read
- * deny rules to its file tools (Read, Grep, Glob), to Bash commands that name
- * the file (`cat`, `head`, `sed`, `< file`), and in every permission mode.
- * They miss commands that read without naming the file (`grep -r KEY .`) and
- * scripts that open files themselves; only the OS sandbox covers those.
+ * deny rules to its file tools (Read, Edit, Write), to simple Bash commands
+ * that name the file (`cat`, `head`, `sed`, `< file`), and in every permission
+ * mode. They miss recursive searches (`grep -r`, `rg --hidden`), wrappers
+ * (`bash -c 'cat .env'`, `. ./.env`, `xargs cat`) and scripts that open files
+ * themselves; only the OS sandbox covers those (#363).
  *
  * `//**` reaches `.env` and local overrides anywhere, including other projects.
  * `!` carve-outs reach only cwd-relative rules, so other variants are denied at

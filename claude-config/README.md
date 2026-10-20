@@ -35,10 +35,11 @@ Secrets reach sessions through `pass-env` and native logins instead.
 | `Read(.env.*)` | `.env.production` and every other variant, at or under the session directory |
 | `Read(!.env.example)`, `Read(!.env.pass)`, `Read(!.env.pass.example)` | Stay readable: they hold references, not values |
 
-Claude Code 2.1.303 applies these to its file tools and to Bash commands that
-name the file (`cat .env`, `grep KEY .env`, `head`, `< .env`), even with
-permissions bypassed. They don't reach `grep -r KEY .`, which reads without
-naming the file, a script that opens the file itself (`python3 -c ...`), or a
+Claude Code 2.1.303 applies these to its file tools and to simple Bash commands
+that name the file (`cat .env`, `grep KEY .env`, `head`, `< .env`), even with
+permissions bypassed. They don't reach recursive searches (`grep -r KEY .`,
+`rg --hidden`), wrappers that hide the read (`bash -c 'cat .env'`, `. ./.env`,
+`xargs cat`), a script that opens the file itself (`python3 -c ...`), or a
 variant such as `.env.production` outside the session directory (a `!`
 carve-out can't apply to an absolute rule). Only Claude Code's OS sandbox
-closes those.
+closes those; #363 tracks it.
