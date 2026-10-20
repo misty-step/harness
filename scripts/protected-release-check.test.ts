@@ -1,14 +1,17 @@
 import { afterEach, expect, test } from "bun:test";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { createServer, type Socket } from "node:net";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { checkProtectedRelease } from "./protected-release-check";
 
 const roots: string[] = [];
 const servers: { stop(force?: boolean): void }[] = [];
+const sockets: Socket[] = [];
 const landmark = process.env.LANDMARK_BIN;
 
 afterEach(() => {
+	for (const socket of sockets.splice(0)) socket.destroy();
 	for (const server of servers.splice(0)) server.stop(true);
 	for (const path of roots.splice(0)) rmSync(path, { recursive: true, force: true });
 });
@@ -80,14 +83,47 @@ test("US-015 master publication does not wait on the live PR check", () => {
 	const release = readFileSync(join(workflows, "landmark-release.yml"), "utf8");
 	expect(release).toMatch(/verify:\n\s+uses: \.\/\.github\/workflows\/ci\.yml/);
 	const step = ci.split("\n      - ").find((block) => block.includes("protected-release-check.ts"));
-	expect(step).toContain("if: github.event_name == 'pull_request'");
+	expect(step?.match(/^\s+if: (.*)$/m)?.[1]).toBe("github.event_name == 'pull_request'");
 	const replays = ci.split("\n      - ").filter((block) => /Install the pinned Landmark|scripts\/check all/.test(block));
 	expect(replays.length).toBe(2);
 	for (const block of replays) expect(block).not.toContain("if:");
 });
 
-const check = (repoRoot: string, upstream: string, base?: string) =>
-	checkProtectedRelease({ landmark: landmark!, repoRoot, repository: "owner/repo", upstream, base });
+const check = (repoRoot: string, upstream: string, base?: string, upstreamTimeoutMs?: number, bin = landmark!) =>
+	checkProtectedRelease({ landmark: bin, repoRoot, repository: "owner/repo", upstream, base, upstreamTimeoutMs });
+
+// A GitHub that accepts each connection and then misbehaves at the socket.
+function brokenGitHub(answer: (socket: Socket) => void) {
+	const server = createServer((socket) => {
+		sockets.push(socket);
+		socket.once("data", () => answer(socket));
+	});
+	server.listen(0, "127.0.0.1");
+	servers.push({ stop: () => server.close() });
+	return new Promise<string>((resolve) => server.once("listening", () => {
+		resolve(`http://127.0.0.1:${(server.address() as { port: number }).port}`);
+	}));
+}
+
+// A release PR: landmark/release carries a fresh, untagged candidate on top of a master
+// tagged v0.1.0. A healthy GitHub passes it as fresh.
+function freshCandidate() {
+	const repo = fixture();
+	repo.git("switch", "--quiet", "-c", "landmark/release");
+	repo.prepare();
+	repo.commit("chore(release): 0.1.1");
+	return repo;
+}
+
+// A stand-in for Landmark, for failures the real one cannot be steered into.
+function fakeLandmark(script: string) {
+	const scratch = mkdtempSync(join(process.env.TMPDIR ?? join(homedir(), ".cache/tmp"), "fake-landmark-"));
+	roots.push(scratch);
+	const bin = join(scratch, "landmark");
+	writeFileSync(bin, `#!/bin/sh\n${script}\n`);
+	chmodSync(bin, 0o755);
+	return bin;
+}
 
 // A protected release that master published, followed by an ordinary change.
 function publishedRelease() {
@@ -130,6 +166,89 @@ for (const [name, upstream] of [
 		expect(result.upstreamFailures.length).toBeGreaterThan(0);
 		expect(result.advice).toContain("re-run this check once GitHub recovers");
 		expect(result.advice).not.toContain("Withdraw");
+	});
+}
+
+test.skipIf(!landmark)("US-015 the fresh release PR passes against a healthy GitHub", async () => {
+	const { repo, baseline } = freshCandidate();
+	const result = await check(repo, github({ "v0.1.0": baseline }).upstream, "master");
+	expect(result.ok).toBe(true);
+	expect(result.verdict).toBe("candidate is fresh; master would publish v0.1.1");
+});
+
+for (const [name, upstream, failure] of [
+	["a reset mid-body after HTTP 200", () => brokenGitHub((socket) => {
+		socket.write("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: 4096\r\n\r\n{\"object\":");
+		socket.resetAndDestroy();
+	}), /GET \/repos\/owner\/repo\/\S+: /],
+	["a malformed body with HTTP 200", async () => {
+		const server = Bun.serve({ hostname: "127.0.0.1", port: 0, fetch: () => new Response("{1", { headers: { "Content-Type": "application/json" } }) });
+		servers.push(server);
+		return `http://127.0.0.1:${server.port}`;
+	}, /HTTP 200 with a malformed body/],
+	["an upstream that accepts and never answers", () => brokenGitHub(() => {}), /timed out/i],
+] as const) {
+	test.skipIf(!landmark)(`US-015 ${name} on a fresh candidate advises a retry, not a withdrawal`, async () => {
+		const { repo } = freshCandidate();
+		const result = await check(repo, await upstream(), "master", 1000);
+		expect(result.ok).toBe(false);
+		expect(result.cause).toBe("infrastructure");
+		expect(result.upstreamFailures.join("\n")).toMatch(failure);
+		expect(result.advice).toContain("Do not change CHANGELOG.md");
+		expect(result.advice).not.toContain("Withdraw");
+	}, 30_000);
+}
+
+test("US-015 Landmark exiting while a GitHub read is pending advises a retry, not a withdrawal", async () => {
+	const { repo } = freshCandidate();
+	const bin = fakeLandmark(`for arg; do case "$prev" in --api-base-url) api="$arg";; esac; prev="$arg"; done
+curl -s --max-time 1 "$api/repos/owner/repo/git/ref/tags/v0.1.0"
+echo "curl: (28) Operation timed out after 1000 milliseconds with 0 bytes received" >&2
+exit 1`);
+	const result = await check(repo, await brokenGitHub(() => {}), "master", 10_000, bin);
+	expect(result.ok).toBe(false);
+	expect(result.cause).toBe("infrastructure");
+	expect(result.upstreamFailures).toEqual(["Landmark exited while 1 GitHub read(s) were still pending"]);
+	expect(result.advice).not.toContain("Withdraw");
+});
+
+test("US-015 an unrecognized Landmark failure on a fresh candidate says not to change CHANGELOG.md", async () => {
+	const { repo, baseline } = freshCandidate();
+	const bin = fakeLandmark(`echo "unexpected Landmark failure" >&2\nexit 1`);
+	const result = await check(repo, github({ "v0.1.0": baseline }).upstream, "master", undefined, bin);
+	expect(result.ok).toBe(false);
+	expect(result.cause).toBe("unrecognized");
+	expect(result.advice).toContain("Do not change CHANGELOG.md");
+	expect(result.advice).not.toContain("Withdraw");
+});
+
+for (const [name, history] of [
+	["a stranded candidate followed by a CHANGELOG-only edit", (repo: ReturnType<typeof fixture>) => {
+		repo.prepare();
+		repo.commit("chore(release): 0.1.1");
+		repo.commit("fix: land after the untagged release");
+		writeFileSync(join(repo.repo, "CHANGELOG.md"), `${readFileSync(join(repo.repo, "CHANGELOG.md"), "utf8")}\n<!-- annotated -->\n`);
+		repo.commit("docs: annotate the changelog");
+	}],
+	["a release commit already stale when it landed", (repo: ReturnType<typeof fixture>) => {
+		repo.prepare();
+		const changelog = readFileSync(join(repo.repo, "CHANGELOG.md"), "utf8");
+		repo.git("checkout", "--quiet", "CHANGELOG.md");
+		repo.commit("fix: land before the generated release");
+		writeFileSync(join(repo.repo, "CHANGELOG.md"), changelog);
+		repo.commit("chore(release): 0.1.1");
+	}],
+] as const) {
+	test.skipIf(!landmark)(`US-015 a PR on ${name} on master blames master's candidate, not awaiting publication`, async () => {
+		const repo = fixture();
+		history(repo);
+		repo.git("switch", "--quiet", "-c", "feature");
+		repo.commit("fix: a change opened on the stale base");
+		const result = await check(repo.repo, github({ "v0.1.0": repo.baseline }).upstream, "master");
+		expect(result.ok).toBe(false);
+		expect(result.cause).toBe("stale-candidate");
+		expect(result.advice).toContain("Withdraw that unpublished CHANGELOG.md entry on master");
+		expect(repo.git("worktree", "list")).not.toContain("protected-release-base-");
 	});
 }
 
