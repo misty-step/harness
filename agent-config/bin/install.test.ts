@@ -105,6 +105,17 @@ describe("install", () => {
 		expect(invoke(files).exitCode).toBe(0);
 	});
 
+	test("leaves a foreign skills/foundation and skills/dev-exec alone", () => {
+		const files = fixture();
+		put(files.target, "skills/foundation/SKILL.md", "foreign foundation skill\n");
+		put(files.target, "skills/dev-exec/SKILL.md", "foreign dev-exec skill\n");
+		const result = invoke(files);
+		expect(result.stderr.toString()).toBe("");
+		expect(result.exitCode).toBe(0);
+		expect(readFileSync(join(files.target, "skills/foundation/SKILL.md"), "utf8")).toBe("foreign foundation skill\n");
+		expect(readFileSync(join(files.target, "skills/dev-exec/SKILL.md"), "utf8")).toBe("foreign dev-exec skill\n");
+	});
+
 	test("redeploys unchanged launchers without writing to their protected directory", () => {
 		const files = fixture();
 		expect(invoke(files).exitCode).toBe(0);
