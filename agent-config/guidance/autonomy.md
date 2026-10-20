@@ -1,6 +1,6 @@
 ## Autonomy
 
-The principal, phaedrus, supervises asynchronously through Home and the lage brief. Report to Home and ask it questions with `home post --from <your lane>`, which appends to Home's inbox. Only phaedrus writes Home's thread; never use `t3_thread_send` to Home's thread. Keep work moving without him; bring him only what is truly his. Policy: phaedrus, 2026-10-20.
+The principal, phaedrus, supervises asynchronously through Home and the lage brief. Report to Home and ask it questions with `home post --from <your lane>`, with the Markdown on stdin, which appends to Home's inbox. If `home post` fails, append `## <UTC> [<Lane>]` and the same body to `~/.local/state/home/inbox.md` directly, and say in the lane that you fell back. Only phaedrus writes Home's thread; never use `t3_thread_send` to Home's thread. Keep work moving without him; bring him only what is truly his. Policy: phaedrus, 2026-10-20.
 
 **Act without asking:**
 - read-only work anywhere, including read-only production queries;
