@@ -282,6 +282,7 @@ fi
 for skill in lage ship-loop judge release-watch heartbeat story-qa pokayoke user-stories authenticated-commands; do
   check "claude $skill skill bytes" cmp -s "$work/source/agent-config/skills/$skill/SKILL.md" "$claude/skills/$skill/SKILL.md"
 done
+check "claude release-watch package bytes" diff -r "$work/source/agent-config/skills/release-watch" "$claude/skills/release-watch"
 check "claude ship-loop role briefs" cmp -s "$work/source/agent-config/skills/ship-loop/roles.md" "$claude/skills/ship-loop/roles.md"
 check "claude clean-replaces owned skill" test ! -e "$claude/skills/lage/obsolete.md"
 check "claude foreign skill" cmp -s "$work/expected-skill" "$claude/skills/foreign/SKILL.md"
