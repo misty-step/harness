@@ -1,3 +1,9 @@
+# [0.2.10](https://github.com/misty-step/harness/compare/v0.2.9...v0.2.10) (2026-10-20)
+<!-- landmark:protected-release previous=v0.2.9 source=24c371134f795f333435797b6489117b74bbecc45682e421b2be64b1d8aa1596 -->
+
+### Bug Fixes
+
+* **release-watch:** complete installer and recovery paths (#372) ([d08adc0](https://github.com/misty-step/harness/commit/d08adc0920894b32eb209407342b1b8e595f1bc3))
 # [0.2.9](https://github.com/misty-step/harness/compare/v0.2.8...v0.2.9) (2026-10-20)
 <!-- landmark:protected-release previous=v0.2.8 source=4b13b872ca1feb4f253974a90d6bdb209ec9174372ea0275fd0a52f2a2da2dc2 -->
 
