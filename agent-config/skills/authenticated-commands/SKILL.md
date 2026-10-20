@@ -6,9 +6,13 @@ description: Discover credentials and run authenticated commands through native 
 # Authenticated commands
 
 Keep working native logins. Before declaring credentials missing, check native
-auth, `pass-env list TERM`, then the project's `.env.pass` references. Don't look
-in `.env` files: their values reach commands only through `pass-env`. An
-unreadable remote secret is not a lost key.
+auth, `pass-env list PREFIX`, then the project's `.env.pass` references.
+`PREFIX` is a literal start of the entry name: `workstation/OPENAI` finds
+`workstation/OPENAI_API_KEY` and `OPENAI` finds nothing. With no prefix,
+`pass-env list` prints every entry name, never a value, so filter that with
+`grep -i`. Don't open `.env` files. An app may load its own `.env`, but your
+commands get secrets from `pass-env`, which decrypts the pass entries a
+`.env.pass` names. An unreadable remote secret is not a lost key.
 
 ```sh
 pass-env run -e NAME=workstation/ENTRY -- command
