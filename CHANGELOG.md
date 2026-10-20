@@ -1,3 +1,9 @@
+# [0.2.11](https://github.com/misty-step/harness/compare/v0.2.10...v0.2.11) (2026-10-20)
+<!-- landmark:protected-release previous=v0.2.10 source=83b0a4f6900d47ca885e92a33f7ee8daf442d4924f3fa0a3c6ad8596d4d6c087 -->
+
+### Bug Fixes
+
+* **omp-display:** make signal routing and setup race-free so its test cannot hang (#367) ([ce37e2a](https://github.com/misty-step/harness/commit/ce37e2a5829e8484e23bdce4f19411bfe9e01445))
 # [0.2.10](https://github.com/misty-step/harness/compare/v0.2.9...v0.2.10) (2026-10-20)
 <!-- landmark:protected-release previous=v0.2.9 source=24c371134f795f333435797b6489117b74bbecc45682e421b2be64b1d8aa1596 -->
 
