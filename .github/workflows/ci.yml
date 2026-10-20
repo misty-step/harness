@@ -38,6 +38,9 @@ jobs:
           chmod +x "$bin"
           echo "LANDMARK_BIN=$bin" >> "$GITHUB_ENV"
       - name: Check CHANGELOG.md against protected publication
+        # PRs only: master's publish job already runs this check, and a GitHub outage
+        # here would skip publication of a landed release (#348).
+        if: github.event_name == 'pull_request'
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: bun scripts/protected-release-check.ts
