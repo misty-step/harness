@@ -43,7 +43,7 @@ Run these in your own lane after your first auto-compaction, at the next natural
 
 1. Write the handoff to the contract path.
 2. Launch the successor with the contract's settings and the first message, with your handoff attached. Keep the returned `threadId`. After an error or a lost response, check `t3_thread_list` before you retry.
-3. Run `t3_thread_wait` on the successor, then read its messages. It has continued when it names the handoff's next step and starts on it. If it has not, send one correction with `t3_thread_send`. Then end your turn and take no further work.
+3. Run `t3_thread_wait` on the successor, then read its messages. It has continued when it names the handoff's next step and starts on it. If it has not, send one correction with `t3_thread_send`. Then settle yourself with `t3_thread_organize`, which takes effect when your turn ends, and take no further work.
 
 ## Starter steps for a stuck lane
 
@@ -58,5 +58,5 @@ Heartbeat runs these when a lane's latest failed run carries the error above.
 1. **Claim.** Rename the predecessor to `<title> (succeeded by <your threadId>)` with `t3_thread_update`. Your threadId is `currentThreadId` in `t3_thread_list`.
 2. **Handoff.** If your first message includes one, use it. Otherwise build it. Read the predecessor's metadata with `t3_thread_read` and its charter from its first user message. Read its recent activity with `view: "activity"`, starting `afterPosition` about 60 items before `itemCount`, and page back further until `State` is certain. Write the handoff to the contract path.
 3. **Adopt the live work.** Call `update_scheduled_task` with `bindToCurrentThread: true` for each scheduled task listed. Call `link_pull_request` and `watch_pull_request` for each PR. Read each running child's `childThreadId` with `t3_thread_read`.
-4. **Move the pointers.** Pin yourself and unpin the predecessor with `t3_thread_organize`, then settle the predecessor. Post via `home post --from <lane>` that the lane moved: link both threads, name the handoff path, and ask Home to update `~/home/NOW.md`.
+4. **Move the pointers.** Pin yourself and unpin the predecessor with `t3_thread_organize`. Settle the predecessor unless it is still running; a live predecessor settles itself. Post via `home post --from <lane>` that the lane moved: link both threads, name the handoff path, and ask Home to update `~/home/NOW.md`.
 5. **Continue.** State the next step from `State`, then do it.
