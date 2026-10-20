@@ -38,7 +38,10 @@ function selectEntry(cwd: string, personal: string): string | undefined {
       // Git errors (unsafe ownership, damaged worktree, timeout) are not proof
       // of a personal directory. Only a non-repository with no .git ancestor
       // and no explicit Git directory can safely select the personal entry.
+      // R90 work lives under HOME, so the walk stops there: a stray .git
+      // above HOME (an empty /tmp/.git, say) says nothing about billing.
       if (git.exitCode !== 128 || process.env.GIT_DIR || process.env.GIT_WORK_TREE || process.env.GIT_COMMON_DIR) return undefined;
+      const home = real(homedir());
       for (let ancestor = dir; ; ancestor = dirname(ancestor)) {
         try {
           lstatSync(join(ancestor, ".git"));
@@ -46,7 +49,7 @@ function selectEntry(cwd: string, personal: string): string | undefined {
         } catch (error) {
           if ((error as NodeJS.ErrnoException).code !== "ENOENT") return undefined;
         }
-        if (dirname(ancestor) === ancestor) return personal;
+        if (ancestor === home || dirname(ancestor) === ancestor) return personal;
       }
     }
     const common = real(git.stdout.toString().trim());
