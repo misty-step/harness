@@ -1,3 +1,9 @@
+# [0.2.15](https://github.com/misty-step/harness/compare/v0.2.14...v0.2.15) (2026-10-20)
+<!-- landmark:protected-release previous=v0.2.14 source=e01b292698a950955adbd94394ffe77c2ea109976527b9fa99543bb6abb076ca -->
+
+### Features
+
+* **t3:** pool accounts after usage limits (#402) ([fcb87f2](https://github.com/misty-step/harness/commit/fcb87f2a69170e2a9ff50441facd33d75e940a2f))
 # [0.2.14](https://github.com/misty-step/harness/compare/v0.2.13...v0.2.14) (2026-10-20)
 <!-- landmark:protected-release previous=v0.2.13 source=dcff4130a706200555ed215a5a0e569cf47966c281226b11565c00f5abb313e4 -->
 
