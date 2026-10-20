@@ -32,7 +32,7 @@ guidance marker all fail closed.
 Drop `--check` to deploy. `--home` overrides `$HOME` for `~/.local/bin`.
 Launchers are bundled into self-contained executables in private scratch and
 replaced atomically; unchanged owned launchers stay, foreign files are rejected,
-and preflight never executes candidate source. Both harness installs select
+and preflight never executes candidate source. Pi and OMP select
 `--audio-sandbox`; claude-config selects `--deny-env-reads`; `--session-backup`
 is opt-in.
 
