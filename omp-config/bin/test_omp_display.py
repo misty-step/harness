@@ -187,6 +187,7 @@ class HostInstallExposureTests(unittest.TestCase):
         (home / ".local/lib/workbench-host-install").mkdir(parents=True)
         private = root / "private"
         private.mkdir()
+        (private / "omp-run").mkdir(mode=0o700)
         dns = root / "resolv.conf"
         dns.write_text("nameserver 10.0.2.3\n")
         runtime = root / "runtime"
@@ -200,11 +201,36 @@ class HostInstallExposureTests(unittest.TestCase):
         def fixture_path(value):
             return runtime if str(value) == f"/run/user/{os.getuid()}" else original(value)
         with patch.object(display, "Path", side_effect=fixture_path):
-            args = display.mounts(home, dns, private)
+            args = display.mounts(home, dns, private, private_run=private / "omp-run")
         # Match /run masking for the relocated synthetic runtime too.
         index = args.index("/run") + 1
         args[index:index] = ["--tmpfs", str(runtime)]
         return args
+
+    @unittest.skipUnless(shutil.which("bwrap"), "private namespace dependency")
+    def test_browser_profile_is_private_and_disk_backed(self):
+        with tempfile.TemporaryDirectory(dir=Path.home() / ".cache/tmp") as directory:
+            root = Path(directory)
+            home, private, dns, runtime = self.fixture_mounts(root)
+            (home / ".omp/run/host-profile").write_text("host-owned")
+            code = r'''
+import json, sys
+from pathlib import Path
+runtime, device = Path(sys.argv[1]), int(sys.argv[2])
+(runtime / "browser-profile").write_text("scratch-browser-state")
+print(json.dumps({"disk_backed": runtime.stat().st_dev == device,
+                  "host_runtime_visible": (runtime / "host-profile").exists()}))
+'''
+            child = subprocess.run(
+                ["bwrap", "--unshare-user", "--unshare-pid", "--unshare-ipc", "--unshare-net",
+                 "--die-with-parent", "--cap-drop", "ALL", *self.mounts(home, dns, private, runtime),
+                 "--", "/usr/bin/python3", "-c", code, str(home / ".omp/run"),
+                 str((private / "omp-run").stat().st_dev)],
+                capture_output=True, text=True, timeout=10)
+            self.assertEqual(child.returncode, 0, child.stderr)
+            self.assertEqual(json.loads(child.stdout), {"disk_backed": True, "host_runtime_visible": False})
+            self.assertEqual((private / "omp-run/browser-profile").read_text(), "scratch-browser-state")
+            self.assertEqual((home / ".omp/run/host-profile").read_text(), "host-owned")
 
     @unittest.skipUnless(shutil.which("bwrap"), "bubblewrap namespace dependency")
     def test_missing_or_invalid_optional_endpoint_does_not_block_unrelated_cage_launch(self):
@@ -311,6 +337,7 @@ class NamespaceAuthorityTests(unittest.TestCase):
         scratch = Path.home() / ".cache/tmp"
         scratch.mkdir(parents=True, exist_ok=True)
         scratch_device = scratch.stat().st_dev
+        existing = set(scratch.glob("omp-display-*"))
         with tempfile.TemporaryDirectory(dir=scratch) as directory, socket.socket(socket.AF_UNIX) as filesystem, \
                 socket.socket(socket.AF_UNIX) as abstract, socket.socket() as tcp:
             path = str(Path(directory) / "display.sock")
@@ -350,6 +377,10 @@ result["no_input_devices"] = not Path("/dev/input").exists() and not Path("/dev/
 result["native_media_hidden"] = not Path("/run/user/" + str(os.getuid()) + "/pipewire-0").exists()
 result["scratch_backing_preserved"] = (Path.home() / ".cache/tmp").stat().st_dev == int(scratch_device)
 result["default_scratch_private"] = tempfile.gettempdir() == str(Path.home() / ".cache/tmp")
+private_run = Path.home() / ".omp/run"
+(private_run / "browser-profile").write_text("private disk state")
+result["runtime_disk_backed"] = all(path.stat().st_dev == int(scratch_device)
+                                    for path in (private_run, Path("/tmp"), Path("/var/tmp")))
 print(json.dumps(result))
 sys.exit(73)
 '''
@@ -369,7 +400,27 @@ sys.exit(73)
                 "native_media_hidden": True,
                 "scratch_backing_preserved": True,
                 "default_scratch_private": True,
+                "runtime_disk_backed": True,
             })
+            self.assertEqual(set(scratch.glob("omp-display-*")), existing)
+
+    def test_traversable_pool_keeps_private_namespace_storage_and_cleanup(self):
+        scratch = Path.home() / ".cache/tmp"
+        scratch.mkdir(parents=True, exist_ok=True)
+        mode = stat.S_IMODE(scratch.stat().st_mode)
+        before = set(scratch.glob("omp-display-*"))
+        code = "import json,stat; from pathlib import Path; print(json.dumps([stat.S_IMODE(p.stat().st_mode) for p in (Path.home()/'.cache/tmp',Path.home()/'.omp/run')]))"
+        env = {k: v for k, v in os.environ.items() if not k.startswith("HERDR_")}
+        try:
+            scratch.chmod(0o755)  # Match a normal CI/user-owned shared scratch pool.
+            child = subprocess.run([sys.executable, str(DIRECTORY / "omp-display.py"), "--",
+                                    "/usr/bin/python3", "-c", code], env=env,
+                                   capture_output=True, text=True, timeout=20)
+            self.assertEqual(child.returncode, 0, child.stderr)
+            self.assertEqual(json.loads(child.stdout), [0o700, 0o700])
+            self.assertEqual(set(scratch.glob("omp-display-*")), before)
+        finally:
+            scratch.chmod(mode)
 
     def test_hidden_caller_interpreter_bootstraps_without_exposing_hermes(self):
         hidden = Path.home() / ".hermes"

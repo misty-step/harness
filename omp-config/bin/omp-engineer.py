@@ -87,7 +87,7 @@ def launch(argv):
         spec = importlib.util.spec_from_loader(loader.name, loader)
         module = importlib.util.module_from_spec(spec)
         loader.exec_module(module)
-        if not module.isolated():
+        if not module.isolated() or environment.get("OMP_ENGINEER_BROWSER_ISOLATION") is not None:
             command = ["/usr/bin/python3", str(boundary), "--", *command]
     os.execve(command[0], command, environment)
 
