@@ -6,9 +6,8 @@
  *   install.ts dotenv --file FILE [--check] Merge the contract into a dotenv file
  *
  * `host` writes a PipeWire drop-in that creates the silent sink whenever
- * PipeWire starts, and merges the contract into Claude Code's settings `env`.
- * claude-config does not write Claude Code's settings, so only these keys are
- * owned there. When the live daemon is reachable, it also creates the sink now
+ * PipeWire starts, and merges the contract into Claude Code's settings `env`;
+ * only these keys are owned there (see ../claude-settings/settings.ts). When the live daemon is reachable, it also creates the sink now
  * (no daemon restart, default device untouched) and proves routing: sandboxed
  * native and Pulse streams link only to the sink, and a stream aimed at a
  * missing sink links nowhere. The proof plays silence, so a failure is inaudible.
@@ -20,9 +19,10 @@
  * --check validates every destination without writing or touching PipeWire.
  */
 import { randomUUID } from "node:crypto";
-import { chmodSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
-import { basename, dirname, join } from "node:path";
+import { join } from "node:path";
+import { claudeSettingsPath, mergeClaudeSettings, readRegular, writeIfChanged } from "../claude-settings/settings.ts";
 import { AGENT_AUDIO_ENV, AGENT_AUDIO_SINK } from "./env.ts";
 
 const OWNER = "# owned by misty-step/harness agent-config audio-sandbox (US-026)";
@@ -41,8 +41,6 @@ const SINK_ARGS = [
 ];
 
 type Json = Record<string, unknown>;
-const isObject = (value: unknown): value is Json =>
-	typeof value === "object" && value !== null && !Array.isArray(value);
 
 export function renderDropIn(): string {
 	return [
@@ -57,15 +55,6 @@ export function renderDropIn(): string {
 		"]",
 		"",
 	].join("\n");
-}
-
-/** Claude Code settings with the contract in `env`; every other key survives. */
-export function mergeClaudeSettings(text: string | undefined): string {
-	const settings: unknown = text === undefined ? {} : JSON.parse(text);
-	if (!isObject(settings)) throw new Error("Claude Code settings must be a JSON object");
-	const env = settings.env ?? {};
-	if (!isObject(env)) throw new Error("Claude Code settings `env` must be an object");
-	return `${JSON.stringify({ ...settings, env: { ...env, ...AGENT_AUDIO_ENV } }, null, 2)}\n`;
 }
 
 /** A dotenv file with exactly one owned block carrying the contract. */
@@ -89,27 +78,6 @@ export function mergeDotenv(text: string | undefined): string {
 		BLOCK_END,
 	];
 	return `${[...kept, ...(kept.length > 0 ? [""] : []), ...block].join("\n")}\n`;
-}
-
-function readRegular(path: string): string | undefined {
-	try {
-		if (!lstatSync(path).isFile()) throw new Error(`Refusing non-regular destination: ${path}`);
-	} catch (error) {
-		if ((error as NodeJS.ErrnoException).code === "ENOENT") return undefined;
-		throw error;
-	}
-	return readFileSync(path, "utf8");
-}
-
-function writeIfChanged(path: string, text: string, current: string | undefined): string {
-	if (current === text) return "unchanged";
-	const mode = current === undefined ? 0o600 : lstatSync(path).mode & 0o777;
-	mkdirSync(dirname(path), { recursive: true, mode: 0o700 });
-	const temp = join(dirname(path), `.${basename(path)}.${randomUUID()}`);
-	writeFileSync(temp, text, { flag: "wx", mode });
-	chmodSync(temp, mode);
-	renameSync(temp, path);
-	return current === undefined ? "created" : "updated";
 }
 
 // ---- Live PipeWire -------------------------------------------------------
@@ -305,13 +273,13 @@ async function main(args: string[]): Promise<void> {
 	}
 	const home = option(rest, "--home");
 	const dropIn = join(process.env.XDG_CONFIG_HOME || join(home, ".config"), "pipewire", "pipewire.conf.d", "60-agent-sandbox.conf");
-	const claude = join(process.env.CLAUDE_CONFIG_DIR || join(home, ".claude"), "settings.json");
+	const claude = claudeSettingsPath(process.env.CLAUDE_CONFIG_DIR || join(home, ".claude"));
 	const currentDropIn = readRegular(dropIn);
 	if (currentDropIn !== undefined && !currentDropIn.startsWith(OWNER)) {
 		throw new Error(`Refusing unowned PipeWire drop-in: ${dropIn}`);
 	}
 	const currentClaude = readRegular(claude);
-	const nextClaude = mergeClaudeSettings(currentClaude);
+	const nextClaude = mergeClaudeSettings(currentClaude, { env: AGENT_AUDIO_ENV });
 	if (check) return;
 	console.log(`audio-sandbox: PipeWire drop-in ${dropIn} ${writeIfChanged(dropIn, renderDropIn(), currentDropIn)}`);
 	console.log(`audio-sandbox: Claude Code env ${claude} ${writeIfChanged(claude, nextClaude, currentClaude)}`);

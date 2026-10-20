@@ -2,7 +2,8 @@
 # Deploy shared agent primitives into a harness agent directory.
 #
 # This repo owns harness-neutral primitives: skill packages, shared guidance
-# sections, standalone launchers, audio sandbox and session backup.
+# sections, standalone launchers, audio sandbox, Claude Code env-read denial
+# and session backup.
 set -eu
 umask 077
 
@@ -15,7 +16,7 @@ Usage: install [--agent-dir DIR] [--check] [--home DIR]
                [--skill NAME|all]...
                [--bin NAME]...
                [--guidance NAME]... --guidance-source FILE [--guidance-file NAME]
-               [--audio-sandbox] [--session-backup]
+               [--audio-sandbox] [--deny-env-reads] [--session-backup]
 
   --agent-dir DIR        Harness agent directory (required for agent primitives).
   --home DIR             Home for ~/.local/bin tools (default $HOME).
@@ -26,6 +27,7 @@ Usage: install [--agent-dir DIR] [--check] [--home DIR]
   --guidance-file NAME   Composed file in the agent directory: AGENTS.md
                          (default) or CLAUDE.md.
   --audio-sandbox        Silent agent sink, Claude Code env, and live proof.
+  --deny-env-reads       Claude Code deny rules for reading .env values.
   --session-backup       Install session backup CLI, credential references and inactive user timer.
   --check                Validate the selection; write nothing.
 EOF
@@ -40,6 +42,7 @@ skills=
 bins=
 guidance=
 audio_sandbox=0
+deny_env_reads=0
 session_backup=0
 
 while [ $# -gt 0 ]; do
@@ -52,6 +55,7 @@ while [ $# -gt 0 ]; do
     --guidance-source) guidance_source=${2-}; shift 2 ;;
     --guidance-file) guidance_file=${2-}; shift 2 ;;
     --audio-sandbox) audio_sandbox=1; shift ;;
+    --deny-env-reads) deny_env_reads=1; shift ;;
     --session-backup) session_backup=1; shift ;;
     --check) check=1; shift ;;
     -h|--help) usage; exit 0 ;;
@@ -71,7 +75,7 @@ require_bun() {
 }
 
 agent_selection=0
-if [ -n "$skills$bins$guidance$guidance_source" ] || [ "$audio_sandbox" = 1 ]; then agent_selection=1; fi
+if [ -n "$skills$bins$guidance$guidance_source" ] || [ "$audio_sandbox" = 1 ] || [ "$deny_env_reads" = 1 ]; then agent_selection=1; fi
 if [ -z "$agent_dir" ] && { [ "$session_backup" = 0 ] || [ "$agent_selection" = 1 ]; }; then
   echo "--agent-dir is required for agent primitives" >&2; usage >&2; exit 1
 fi
@@ -165,6 +169,15 @@ validate_audio_sandbox() {
   require_nonempty "$repo_dir/audio-sandbox/env.ts"
   require_nonempty "$repo_dir/audio-sandbox/install.ts"
   bun "$repo_dir/audio-sandbox/install.ts" host --home "$home_dir" --check
+}
+
+# Malformed Claude Code settings fail closed before any write.
+validate_deny_env_reads() {
+  [ "$deny_env_reads" = 1 ] || return 0
+  require_bun
+  require_nonempty "$repo_dir/claude-settings/settings.ts"
+  require_nonempty "$repo_dir/claude-settings/env-reads.ts"
+  bun "$repo_dir/claude-settings/env-reads.ts" --settings "$agent_dir/settings.json" --check
 }
 
 
@@ -267,6 +280,7 @@ validate_skills
 validate_guidance
 validate_bins
 validate_audio_sandbox
+validate_deny_env_reads
 validate_session_backup
 
 if [ "$check" = 1 ]; then
@@ -313,4 +327,5 @@ done
 for name in $bins; do install_bin "$name"; done
 if [ -n "$guidance" ]; then install_guidance; fi
 if [ "$audio_sandbox" = 1 ]; then bun "$repo_dir/audio-sandbox/install.ts" host --home "$home_dir"; fi
+if [ "$deny_env_reads" = 1 ]; then bun "$repo_dir/claude-settings/env-reads.ts" --settings "$agent_dir/settings.json"; fi
 if [ "$session_backup" = 1 ]; then install_session_backup; fi
