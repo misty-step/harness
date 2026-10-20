@@ -2,6 +2,7 @@
 # owned by misty-step/harness omp-config engineer-display
 """Private engineer display/process/network namespace; no host desktop broker."""
 
+import contextlib
 import fcntl
 import json
 import os
@@ -324,6 +325,44 @@ def setup_status(fd, child):
     raise DisplayError("Bubblewrap namespace setup timed out")
 
 
+def loopback_ready(pid, child, seconds=15):
+    """bwrap reports child-pid before it configures loopback; it writes the
+    uid map only after. slirp4netns raises lo itself, so starting it earlier
+    races bwrap's RTM_NEWADDR and the sandbox dies at setup."""
+    deadline = time.monotonic() + seconds
+    while time.monotonic() < deadline:
+        if child.poll() is not None:
+            raise DisplayError(f"Bubblewrap exited before loopback setup ({child.returncode})")
+        if Path(f"/proc/{pid}/uid_map").read_text().strip():
+            return
+        time.sleep(0.005)
+    raise DisplayError("Bubblewrap loopback setup timed out")
+
+
+def wait(child):
+    """Wait so Python signal handlers always run. A signal that lands on a
+    bridge thread, or just before a blocking waitpid, never interrupts the
+    main thread's waitpid; the wakeup fd does wake this select."""
+    wake_read, wake_write = os.pipe2(os.O_NONBLOCK | os.O_CLOEXEC)
+    process = os.pidfd_open(child.pid)
+    previous = signal.set_wakeup_fd(wake_write, warn_on_full_buffer=False)
+    try:
+        with selectors.DefaultSelector() as selector:
+            selector.register(process, selectors.EVENT_READ)
+            selector.register(wake_read, selectors.EVENT_READ)
+            while child.poll() is None:
+                for key, _ in selector.select():
+                    if key.fd == wake_read:
+                        with contextlib.suppress(BlockingIOError):
+                            while os.read(wake_read, 512):
+                                pass
+        return child.returncode
+    finally:
+        signal.set_wakeup_fd(previous)
+        for fd in (process, wake_read, wake_write):
+            os.close(fd)
+
+
 def namespace(command):
     if not command:
         raise DisplayError("A command is required")
@@ -388,6 +427,7 @@ def namespace(command):
             if type(pid) is not int or pid <= 0:
                 raise DisplayError("Invalid bubblewrap namespace identity")
             private_pid_namespace = os.readlink(f"/proc/{pid}/ns/pid")
+            loopback_ready(pid, child)
             # --dev can make bwrap enter a second user namespace for devpts.
             # The network still belongs to the first: joining the command's
             # final user namespace would lose permission to configure it.
@@ -407,9 +447,6 @@ def namespace(command):
             os.close(ready_write)
             fds.remove(ready_write)
             ready_byte(ready_read, (child, network))
-            os.write(gate_write, b"1")
-            os.close(gate_write)
-            fds.remove(gate_write)
             previous = {}
             cancelled_before_exec = None
             def forward(number, _frame):
@@ -438,7 +475,12 @@ def namespace(command):
                     # group. Re-sending turns a graceful abort into force-quit.
                     handler = (lambda *_: None) if number in (signal.SIGINT, signal.SIGQUIT) else forward
                     previous[number] = signal.signal(number, handler)
-                result = child.wait()
+                # Release the command only once its signals are routed; a
+                # default handler here would orphan the running sandbox.
+                os.write(gate_write, b"1")
+                os.close(gate_write)
+                fds.remove(gate_write)
+                result = wait(child)
             finally:
                 for number, handler in previous.items():
                     signal.signal(number, handler)
