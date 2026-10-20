@@ -1,3 +1,19 @@
+# [0.2.4](https://github.com/misty-step/harness/compare/v0.2.3...v0.2.4) (2026-10-20)
+<!-- landmark:protected-release previous=v0.2.3 source=a7bb90a2665511e3cd6fed0dd223de6a575612be31c9fba9056006926b8d4035 -->
+
+### Features
+
+* **claude:** add lage, an executive brief across every lane ([f0b6257](https://github.com/misty-step/harness/commit/f0b6257ffa54db6997d8cc81fcc71764a40b2f30))
+* **claude:** add the ship loop, judge, release watch, heartbeat and autonomy policy ([ce354e7](https://github.com/misty-step/harness/commit/ce354e78fb3f25bf6cf1eb9e36e8f644e13f9419))
+
+### Bug Fixes
+
+* **session-backup:** don't fail when retired glass is absent (#306) ([3a9e254](https://github.com/misty-step/harness/commit/3a9e254ce3b2d0e0f101574c66a5859508b7ecd6))
+* **session-backup:** retire Kaylee from the nightly backup (#308) ([b152bd9](https://github.com/misty-step/harness/commit/b152bd91f3e9839e450882025e3135cf1f903d5e))
+* **lage:** hand off through a scratch launch when the coordinator's checkout has its own CLAUDE.md ([54908fc](https://github.com/misty-step/harness/commit/54908fc35b783fb655b2b0b2a3769e06ba7cad09))
+* **ship-loop:** fold in the Team Rocket pilot: stacks, routing, deploy-gated watches ([b6c9779](https://github.com/misty-step/harness/commit/b6c9779eeaf7439075a3a17f1d8922543e3a8904))
+* **installers:** never delete or overwrite what the installer doesn't own ([7b64584](https://github.com/misty-step/harness/commit/7b6458458c7d0e851f0462c0f83cc5df69dc4f5c))
+* **release:** withdraw the stranded 0.2.4 changelog entry so releases resume ([ae016ff](https://github.com/misty-step/harness/commit/ae016ff5c28770e105b5d6d61f067f97d6ded700))
 # [0.2.3](https://github.com/misty-step/harness/compare/v0.2.2...v0.2.3) (2026-10-16)
 <!-- landmark:protected-release previous=v0.2.2 source=5283e0a9306c830631315966b620d59cbc37dac716da4885cc88ac1225ff24b8 -->
 
