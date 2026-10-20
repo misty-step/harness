@@ -7,7 +7,7 @@ description: Executive brief on every open lane, in-flight initiative and runnin
 
 A **lage** is the situation report a principal reads before deciding. It covers every lane: what the lane is for, where it truly stands, and every decision only the principal can make. Each decision carries enough context to be made from the brief alone.
 
-The whole run is read-only, and read-only work needs nobody's permission. Never message a lane, merge, re-run or start anything to make the brief better. If you are a coordinator who must stay responsive (Home), hand this skill to one `delegate_task` child and relay its brief whole when it lands. The agent that runs the skill does the reading.
+The whole run is read-only, and read-only work needs nobody's permission. Never message a lane, merge, re-run or start anything to make the brief better. If you are a coordinator who must stay responsive (Home), hand this skill to one agent and relay its brief whole when it lands. A `delegate_task` child runs in your checkout and loads its `CLAUDE.md` and hooks, so when yours has either, launch the agent with `t3_thread_launch` and `scratch: true`, and have it send the brief back to your thread. The agent that runs the skill does the reading.
 
 ## 1. Roster
 
@@ -15,7 +15,8 @@ List every project (`t3_project_list`), then every thread in each (`t3_thread_li
 
 - your own thread;
 - **standing threads** that coordinate rather than build, such as Home and Heartbeat: report each one's last run and next scheduled run on the **Running** line;
-- subagent threads (`parentThreadId` set): count them under their parent, and ignore those whose parent is settled.
+- subagent threads (`parentThreadId` set): count them under their parent, and ignore those whose parent is settled;
+- threads with no project (T3's scratch project): one-off tasks a coordinator launched, such as this brief's own runner, or standing threads. Report them on the **Running** line.
 
 Also list threads settled since the previous lage. That is the last lage in the requesting thread, or 24 hours if there is none. These become **Closed**.
 
