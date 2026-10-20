@@ -1,3 +1,9 @@
+# [0.2.6](https://github.com/misty-step/harness/compare/v0.2.5...v0.2.6) (2026-10-20)
+<!-- landmark:protected-release previous=v0.2.5 source=65d79f0d3b5d4708987f620230655f873672a846809b0a5457421ccbbce75437 -->
+
+### Bug Fixes
+
+* **lage:** fit the brief to a phone, bound roster reads, and rank lane states truthfully ([fb2d78a](https://github.com/misty-step/harness/commit/fb2d78ab690a8780b5a3eb8ac7ab69b89c209d2b))
 # [0.2.5](https://github.com/misty-step/harness/compare/v0.2.4...v0.2.5) (2026-10-20)
 <!-- landmark:protected-release previous=v0.2.4 source=e9e2bb48ec7ae9d0a68e2ef95bc80d4cc3a843bc25de89440b730e0d26558898 -->
 
