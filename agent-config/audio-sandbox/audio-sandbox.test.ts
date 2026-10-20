@@ -5,7 +5,8 @@ import { join } from "node:path";
 import { parseEnv } from "node:util";
 import { operatorPlaybackEnv } from "../skills/sachstand/scripts/operator-audio.ts";
 import { AGENT_AUDIO_ENV, AGENT_AUDIO_SINK, sandboxAgentAudio, shellExports } from "./env.ts";
-import { linkedSinks, mergeClaudeSettings, mergeDotenv, type PwObject, routingFailure } from "./install.ts";
+import { mergeClaudeSettings } from "../claude-settings/settings.ts";
+import { linkedSinks, mergeDotenv, type PwObject, routingFailure } from "./install.ts";
 
 const scratch = mkdtempSync(join(process.env.TMPDIR || join(homedir(), ".cache", "tmp"), "audio-sandbox-test-"));
 afterAll(() => rmSync(scratch, { recursive: true, force: true }));
@@ -14,14 +15,15 @@ test("US-026 Claude Code settings keep foreign keys and gain the whole contract"
 	const merged = JSON.parse(
 		mergeClaudeSettings(
 			JSON.stringify({ env: { OTEL_LOGS_EXPORTER: "otlp", PULSE_SINK: "stale" }, hooks: { SessionStart: [] }, model: "x" }),
+			{ env: AGENT_AUDIO_ENV },
 		),
 	);
 	expect(merged.hooks).toEqual({ SessionStart: [] });
 	expect(merged.model).toBe("x");
 	expect(merged.env).toEqual({ OTEL_LOGS_EXPORTER: "otlp", ...AGENT_AUDIO_ENV });
-	expect(JSON.parse(mergeClaudeSettings(undefined))).toEqual({ env: { ...AGENT_AUDIO_ENV } });
-	expect(() => mergeClaudeSettings("[]")).toThrow("JSON object");
-	expect(() => mergeClaudeSettings('{"env": ["PULSE_SINK"]}')).toThrow("`env` must be an object");
+	expect(JSON.parse(mergeClaudeSettings(undefined, { env: AGENT_AUDIO_ENV }))).toEqual({ env: { ...AGENT_AUDIO_ENV } });
+	expect(() => mergeClaudeSettings("[]", { env: AGENT_AUDIO_ENV })).toThrow("JSON object");
+	expect(() => mergeClaudeSettings('{"env": ["PULSE_SINK"]}', { env: AGENT_AUDIO_ENV })).toThrow("`env` must be an object");
 });
 
 test("US-026 the dotenv block parses to the exact contract, stays single, and refuses foreign keys", () => {
