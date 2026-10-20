@@ -1,5 +1,7 @@
 Before engineering, review, release, incident, or audit work, read [Foundations](https://foundations.mistystep.io/).
 
+Every PR body has a `Story: <ID>[, <ID>]` line with the story IDs from that repo's SPEC.md.
+
 ## Agent ergonomics
 
 Everything we build for Misty Step, R90, or personal use must be fully drivable by an agent, preferably through a CLI.

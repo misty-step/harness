@@ -5,9 +5,9 @@ description: Drive a lane's confirmed work from ticket to verified production th
 
 # Ship loop
 
-You are the lane's **conductor**. Dispatch distinct builder, QA, reviewer and product-owner judge agents to turn confirmed intent into verified production changes.
+You are the lane's **conductor**. Dispatch builder, independent QA and review, and product-owner judge agents to turn confirmed intent into verified production changes.
 
-Start with build, then independent QA and review in parallel, then the judge. Fix until SHIP using the delta checks below. The tracker holds tickets, PRs and reports; keep no separate ledger.
+Start with build, then independent QA and review (combined for light changes, parallel otherwise), then the judge. Fix until SHIP using the delta checks below. The tracker holds tickets, PRs and reports; keep no separate ledger.
 
 No human reviews or merges, in any organization: the independent judge's SHIP plus passing checks is the whole gate.
 
@@ -29,21 +29,23 @@ The **frontier** is every open ticket whose blockers are closed or have an open 
 
 A ticket with one open blocker PR **stacks** on it: its branch starts from that PR's head, its PR targets that branch, its QA and review take that branch as `<base>`, and it skips the file test against that PR. Fix a blocker on the PR that owns it; landing bottom-first (step 3) carries the fix up. A ticket with two open blocker PRs waits for one to land.
 
-Dispatch roles with `delegate_task` and completed [role briefs](roles.md). Select available providers/models from `orchestrator_capabilities`. Prefer model diversity, but use an available independent agent rather than wait for an ideal family. Carry the original goal, findings and resolutions into fix briefs; reuse working context where supported. When replacing a delegated child with a retry, `task_cancel` the old task first: usage-limited threads auto-resume and could act on superseded instructions.
+Classify each change as light, standard or critical by blast radius and the initiative, then dispatch by the [rigor table](roles.md#rigor). Every change still gets some review and verification. Upkeep owns routing by kind of work and difficulty long term. Ask Upkeep for the route when it offers one, otherwise use this table. Use Upkeep's route command once it exists.
+
+Dispatch roles with `delegate_task` and completed [role briefs](roles.md). Select available providers/models from `orchestrator_capabilities`. Within the tier's family requirements, prefer model diversity, but use an available independent agent rather than wait for an ideal family. Carry the original goal, findings and resolutions into fix briefs; reuse working context where supported. When replacing a delegated child with a retry, `task_cancel` the old task first: usage-limited threads auto-resume and could act on superseded instructions.
 
 1. **Build.** One builder, `isolation: "worktree"`, which starts from your local commit: first detach your checkout at the builder's start (`git switch --detach origin/<default branch>`, or the PR head it starts from). It returns a PR and its head SHA.
-2. **Verify.** QA and review together, both pinned to that SHA.
+2. **Verify.** QA and review at that SHA, combined in one agent for light changes, separate otherwise.
 3. **Judge.** An independent judge gets the ticket, PR and both revision-linked reports. Resolve missing proof before SHIP.
 4. **Act on the verdict.**
    - **FIX:** the builder fixes code blockers; you clear lane blockers such as QA that could not run. Independently test and review the changed delta and its consequences, retaining evidence for unchanged behavior. The independent judge rules on the resulting SHA. Recheck the whole scope only when impact is broad or uncertain.
    - **RE-SLICE:** split with `to-tickets` when diagnosis shows the outcome is too large, then continue on the new frontier.
    - **SHIP:** merge (step 3).
 
-Documents, briefs and measurements ([Foundations](https://foundations.mistystep.io/way-of-working)) and generator-only release PRs (`docs/principles/007-braver-engineers-continuous-deployment.md`) merge on passing checks alone. Operational prompts change behavior and use the loop. An internal change needs proof that it composes instead of a QA walk.
+An internal change needs proof that it composes instead of a QA walk.
 
 If the same blocker survives a fix, revisit its cause or the proposed solution.
 
-Done for a ticket when the PR's current head SHA has a SHIP, ruled there or carried there by an unchanged patch-id (step 3), or, for a change that ships without a round, when its checks passed.
+Done for a ticket when the PR's current head SHA has a SHIP, ruled there or carried there by an unchanged patch-id (step 3).
 
 ## 3. Merge
 
