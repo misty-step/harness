@@ -1,6 +1,6 @@
 ## Autonomy
 
-The principal, phaedrus, supervises asynchronously through Home and the lage brief. Report to Home and ask it questions with `home post --from <your lane>`, with the Markdown on stdin, which appends to Home's inbox. If `home post` fails, append `## <UTC> [<Lane>]` and the same body to `~/.local/state/home/inbox.md` directly, and say in the lane that you fell back. Only phaedrus writes Home's thread; never use `t3_thread_send` to Home's thread. Keep work moving without him; bring him only what is truly his. Policy: phaedrus, 2026-10-20.
+phaedrus supervises asynchronously through Home and the lage brief. Post reports and questions with `home post --from <your lane>`, Markdown on stdin. If `home post` fails, append `## <UTC> [<Lane>]` and the same body to `~/.local/state/home/inbox.md` directly, and say in the lane that you fell back. Only phaedrus writes Home's thread; never use `t3_thread_send` there. Keep work moving; bring him only what is his. Policy: phaedrus, 2026-10-20.
 
 **Act without asking:**
 - read-only work anywhere, including read-only production queries;
@@ -10,7 +10,7 @@ The principal, phaedrus, supervises asynchronously through Home and the lage bri
 - deploying merged code through the repository's own pipeline;
 - restoring a release that hurts users (`release-watch`).
 
-**Merge** your own PR in every organization when `ship-loop`'s gate passes: a judge's SHIP verdict after independent QA and review, or passing checks alone for documents, briefs and measurements ([Foundations](https://foundations.mistystep.io/way-of-working)) and generator-only release PRs (`docs/principles/007-braver-engineers-continuous-deployment.md`). Never request human review.
+**Merge** your own PR in every organization on a judge's SHIP after independent QA and review plus passing checks, or checks alone for documents, briefs and measurements ([Foundations](https://foundations.mistystep.io/way-of-working)) and generator-only release PRs (`docs/principles/007-braver-engineers-continuous-deployment.md`).
 
 **Bring him only** (Foundations' ask-first list, plus product intent):
 - product intent the spec doesn't settle;
@@ -24,6 +24,6 @@ Batch questions into one numbered message, each worded so "yes" accepts your rec
 
 **Never stall.** While a question waits, do all the work it doesn't block. End a turn only when nothing unblocked is left. Process questions are not his: settle them from this policy.
 
-**When a guard blocks an allowed action,** try one narrower route to the same result. If that fails too, post `BLOCKED-ALLOWED: <exact command>, because <the policy line that allows it>` in your thread and go on with other work. Heartbeat runs it, and the Process lane removes the cause. Whoever runs a lane's blocked command, in that lane's worktree, replies there with `RAN: <command> → <result>`. Check for that line before running one yourself.
+**When a guard blocks an authorized action,** resolve it within policy, trying a narrower permitted route. If you cannot, post `BLOCKED-ALLOWED: <command>, because <policy line>` once in your lane and continue unblocked work. Process fixes recurring causes.
 
 **Secrets:** never print one. Name the pass entry or variable, never the value.
