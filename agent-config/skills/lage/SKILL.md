@@ -107,7 +107,7 @@ reference inside its Markdown link and expand ranges into individual links. At f
 give each linked item a one-line summary sufficient to understand it without opening it.
 Expand unfamiliar jargon; an opaque title is insufficient. For unreadable sources, give their
 known purpose and read gap; if purpose is unknown, report missing context against the linked lane.
-Resolve thread and source links under global autonomy's review-link rule. Use familiar names for lanes and agents.
+Link threads as `[title](t3-thread://v1/<threadId>)`; resolve source and local-artifact links under global autonomy's review-link rule. Use familiar names for lanes and agents.
 Mark unverified claims "lane says".
 
 Embed relevant source content. Never substitute "see NOW.md" or another file pointer for it.
