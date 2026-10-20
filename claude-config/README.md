@@ -26,5 +26,8 @@ owned (first line is the ownership marker); a foreign one stops the install
 before any write.
 
 The installer also deploys the shared pool CLI, its owned config and user units,
-then enables `t3-pool.timer`. Pool state and logs survive reinstalls. A foreign
-pool launcher, config or unit stops preflight before any selected file changes.
+leaving timer activation opt-in. Reinstall preserves enabled, disabled and masked
+states. Hosts without a systemd user manager skip pooling with a notice. Pool
+state and logs survive reinstalls. A foreign pool launcher, config or unit stops
+preflight before any selected file changes. See the [pool contract](../agent-config/t3-pool/README.md)
+for activation and the durable off switch.
