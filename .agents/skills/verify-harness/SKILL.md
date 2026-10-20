@@ -62,7 +62,7 @@ Doctor never prints a token or the Codex account email. Run it first, and again 
 
 ## Evidence
 
-Artifacts go to `$VH_EVIDENCE`, default `~/.cache/tmp/verify-harness/evidence/<UTC stamp>/`. For a PR proof, set `VH_EVIDENCE=docs/evidence/verify-harness/<YYYY-MM-DD>` and commit that directory:
+Artifacts go to `$VH_EVIDENCE`, default `$VH_DIR/evidence/<UTC date>/`, so separate commands in one day share a directory and `transcript.txt` accumulates. Set `VH_EVIDENCE` once for a clean multi-command proof. For a PR proof, set `VH_EVIDENCE=docs/evidence/verify-harness/<YYYY-MM-DD>` and commit that directory:
 
 - `transcript.txt` holds every step's PASS, FAIL and NOTE lines with timestamps;
 - `check.log` is the full gate output;

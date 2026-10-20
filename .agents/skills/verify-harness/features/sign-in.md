@@ -27,6 +27,7 @@ Preconditions:
 
 ## Gotchas
 
+- Doctor retries `gh api user` once and prints the first stderr line when it still fails. A lone transient failure is the API, not the login.
 - `gh auth status` prints a masked token line. Doctor uses `gh api user` instead and prints no token.
 - Doctor reads the Codex identity from the `id_token` claim in `~/.codex/auth.json`, or `$CODEX_HOME/auth.json`, and reports only whether an account email is present. That email is personal, and the repository is public.
 - The Codex login can be valid while every Codex account is usage-limited. As of 2026-10-20, `codex` and `codex-mistystep` are out until 2026-10-27 and `codex-r90` has no credits. `verify-harness pool` lists limited accounts. A Codex model call is not part of this proof. Codex loading is proved without one; see [Fresh session](./fresh-session.md).

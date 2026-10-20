@@ -33,4 +33,5 @@ Preconditions:
 - Never run `t3-pool` without `--dry-run` to verify. A real pass switches a live lane's account and continues it.
 - Cross-account continuation on a live limited thread stays unverified. The supported RPC cannot inject a synthetic usage-limit failure, so the fixture tests in `agent-config/bin/t3-pool.test.ts` (run by [Gate](./gate.md)) carry that proof.
 - `limited` lists accounts whose newest root usage-limit failure is newer than their newest success. On 2026-10-20 that was every Codex account.
+- When `t3-pool.timer` is enabled, a real pass can run inside the dry run's window and write state. The drive then prints `NOTE a live t3-pool.service pass ran during the dry run; inert check inconclusive` instead of failing. Rerun `pool`.
 - `t3-runtime-mode` mutates a live thread's mode, so this map drives it only through its fixture tests in the gate.

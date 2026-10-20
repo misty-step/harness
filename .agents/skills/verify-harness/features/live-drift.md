@@ -29,4 +29,5 @@ Preconditions:
 
 - A DRIFT line against `origin/master` means merged guidance or skills were never deployed. Deploy through the component installer, then rerun `live`. A DRIFT line against a feature branch is expected while that branch changes guidance or skills.
 - The live Claude Code session runs `--model haiku` with `HOME` set and `CLAUDE_CONFIG_DIR` unset, which is how a lane starts. It uses the owner's subscription, loads the live user settings and their hooks, and updates the runtime state any session does: a transcript under `~/.claude/projects/-tmp-verify-harness-cwd-*` and `~/.claude.json`. The live Codex render leaves lock files under `~/.codex/tmp`.
+- The model line proves only that the live user CLAUDE.md reaches the model. Its heading is the same at every revision, so the `cmp` and `diff` lines carry the drift claim.
 - The live Codex prompt also lists the operator's other skills under other roots. Only the selected skills under `r0` are asserted.
