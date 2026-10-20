@@ -47,7 +47,7 @@ Done for a ticket when the PR's current head SHA has a SHIP, ruled there or carr
 
 ## 3. Merge
 
-- Confirm the repository's fast affected checks passed at the judged SHA, on our own machines: its CI where that runs, otherwise its documented check, run by you at that SHA. Paid GitHub Actions minutes are not a gate.
+- Confirm the repository's fast affected checks passed at the judged SHA, in its CI or by running its documented check command.
 - A verdict carries across a rebase alone only when the patch-id is unchanged: `git diff <old base>...<judged SHA> | git patch-id --stable` must equal `git diff origin/<default branch>...<new head> | git patch-id --stable`. `<old base>` is the SHA recorded for the PR below in a stack, otherwise `origin/<default branch>`. For any other head change, including conflict resolution, use the delta checks and independent judgment in step 2.
 - Squash-merge, with the PR title as a Conventional Commit (`docs/release-convention.md` in misty-step/harness). Land a stack bottom-first:
   1. Before the bottom PR lands, record every PR's head SHA once, in a comment on the bottom PR.
