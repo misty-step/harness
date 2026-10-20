@@ -11,7 +11,7 @@ Post to Home only for something shipped, something blocked, a question for him, 
 - deploying merged code through the repository's own pipeline;
 - restoring a release that hurts users (`release-watch`).
 
-**Merge** your own PR in every organization on a judge's SHIP after independent QA and review plus passing checks, or checks alone for documents, briefs and measurements ([Foundations](https://foundations.mistystep.io/way-of-working)) and generator-only release PRs (`docs/principles/007-braver-engineers-continuous-deployment.md`). Never request human review.
+**Merge** your own PR in every organization on a judge's SHIP after independent QA and review plus passing checks, using [ship-loop's rigor tiers](skill://ship-loop/roles.md#rigor). Documents, briefs and measurements use the light tier: one combined QA and review agent on a cheap model, then an independent judge, unless a higher-tier trigger applies. Only machine-generated, generator-only release PRs merge on passing checks alone (`docs/principles/007-braver-engineers-continuous-deployment.md`). Never request human review.
 
 **Bring him only** (Foundations' ask-first list, plus product intent):
 - product intent the spec doesn't settle;

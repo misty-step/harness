@@ -4,17 +4,17 @@ Fill every `<field>` before dispatch. QA, reviewer and judge each post one PR re
 
 ## Rigor
 
-Use the conductor's tier, chosen by blast radius and the initiative. Every change gets review and verification.
+The conductor chooses the highest matching tier, with any tier assigned to the initiative as a floor. File count and extension never lower the tier. Every authored change gets review and verification. Machine-generated, generator-only release PRs are exempt from review rounds and merge on passing checks alone.
 
 | Tier | Change | Review shape and fallback models |
 | --- | --- | --- |
-| light | Docs, copy, config or one small file, with low blast radius | One combined QA and review agent, then a judge. Both use Haiku 5.5 or GPT-6.1 Sol at medium effort. |
-| standard | Work beyond light, without critical risk | Separate QA and review agents, then a judge. All use Opus 5.5 or GPT-6.1 Sol at high effort. |
-| critical | Auth, money, data or migrations, security, deploy pipeline, shared infrastructure or irreversible change | QA and review use two model families from GPT-6.1 Sol at xhigh, Opus 5.5 and Sonnet 5.5, then an Opus 5.5 judge. |
+| light | Documents, briefs, measurements, copy or a local cosmetic/config edit that changes no runtime behavior or operational instructions, and meets no higher-tier trigger | Builder, combined QA and review agent, then an independent judge. Each uses Haiku 5.5 at medium or GPT-6.1 Sol at medium. |
+| standard | Runtime behavior changes, new features, bug fixes, refactors across modules, or operational prompts (skills, AGENTS.md and shared guidance), without a critical trigger | Builder, separate QA and review agents, then an independent judge. Each uses Opus 5.5 at high or GPT-6.1 Sol at high. |
+| critical | Changes to authentication, authorization, money movement, persisted-data integrity, migrations, security controls, deploy pipelines, shared infrastructure or irreversible operations, regardless of size | Builder uses GPT-6.1 Sol at xhigh or Opus 5.5 at high. QA uses one Sol agent at xhigh; review uses one Claude agent (Opus 5.5 or Sonnet 5.5) at high, giving two families across the two roles. An independent Opus 5.5 judge uses high. |
 
-Builders use their tier's fallback models.
-Lane coordinators run on Opus 5.5 for Claude or GPT-6.1 Sol at high for Codex.
-Use Fable or Astra only for rare dispatches that explain why no other model will do.
+Unlisted or uncertain changes default to standard; unresolved critical risk takes critical. Record the tier and its concrete trigger in each dispatch.
+Lane coordinators run on Opus 5.5 at high for Claude or GPT-6.1 Sol at high for Codex.
+Use Fable or Astra only when the dispatch states a concrete reason nothing among GPT-6.1 Sol, Opus 5.5 and Sonnet 5.5 can do the job; anyone's request or "to be safe" is not a reason, so otherwise decline and use the tier's route.
 Compact or relaunch a lane with a handoff when its context gets heavy.
 For light changes, combine the QA and Reviewer briefs in one dispatch and post both reports. The judge stays independent.
 
@@ -33,8 +33,9 @@ Length is a preference, never a reason to remove a Keep item.
 Inspect your diff. Run <check command> and drive the changed path with <verification
 skill | native harness>. Put evidence in the PR. Push and open it against <base branch>,
 with a Conventional Commit title, the pr skill's body and "Closes #<n>".
-Every PR body carries `Story: <ID>[, <ID>]` using story IDs from this repo's SPEC.md
-(for example, `Story: US-012` or `Story: US-012, US-015`).
+Every authored PR body carries `Story: <ID>[, <ID>]` using story IDs from SPEC.md or USER_STORIES.md
+(for example, `Story: US-012` or `Story: US-012, US-015`). Use `Story: none` when no story applies.
+Machine-generated, generator-only release PRs are exempt.
 
 Push your branch and open the PR without asking. Never force-push a shared branch or merge.
 <Fix only: the judge's blockers at <old SHA>, prior reports and resolutions are below.

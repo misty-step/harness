@@ -11,6 +11,8 @@ Start with build, then independent QA and review (combined for light changes, pa
 
 No human reviews or merges, in any organization: the independent judge's SHIP plus passing checks is the whole gate.
 
+Machine-generated, generator-only release PRs are the sole exception: merge on passing checks alone, without a review round or `Story:` line.
+
 Many skills named here are user-invoked, so the Skill tool refuses them. For those, you and every agent you brief read `~/.claude/skills/<name>/SKILL.md` and follow it.
 
 ## 0. Use the repository's tools
@@ -29,15 +31,15 @@ The **frontier** is every open ticket whose blockers are closed or have an open 
 
 A ticket with one open blocker PR **stacks** on it: its branch starts from that PR's head, its PR targets that branch, its QA and review take that branch as `<base>`, and it skips the file test against that PR. Fix a blocker on the PR that owns it; landing bottom-first (step 3) carries the fix up. A ticket with two open blocker PRs waits for one to land.
 
-Classify each change as light, standard or critical by blast radius and the initiative using the [rigor table](roles.md#rigor).
-Every change still gets some review and verification.
+Classify each authored change using the concrete triggers in the [rigor table](roles.md#rigor), taking the highest matching tier and any tier assigned to its initiative as a floor.
+Every authored change gets review and verification, including documents, briefs and measurements.
 Use the tier's fallback models for builders, QA, review and judges until Upkeep routing ships.
 Upkeep owns model choice; ship-loop owns review shape and rigor.
 Upkeep's route command does not exist yet ([Upkeep #75](https://github.com/misty-step/upkeep/issues/75)); when it ships, ask Upkeep:
 
 - `upkeep route --kind <review|build|…> --difficulty <routine|hard|critical> --json`, optionally `--task "..."`, `--exclude-vendor <vendor>` and `--urgent`. Map light to routine, standard to hard, critical to critical. QA, review and judge all use `--kind review`; builders use `--kind build`.
 - Try `choices` in order: pick first, then fallbacks. Empty `choices` means no room: wait until `no_room.next_room_at`, or use the fallback table if it is null.
-- Map `choice.instance` to `target.providerInstanceId`, `choice.model` to `target.model`, and `choice.reasoning` to `target.options.reasoningEffort` for Codex or `target.options.effort` for Claude. Always pass effort explicitly, including table routes; never inherit Sol's low default.
+- Map `choice.instance` to `target.providerInstanceId` and `choice.model` to `target.model`. Pass `choice.reasoning` in `target.options` as `{"id":"reasoningEffort","value":"<low|medium|high|xhigh>"}` for Sol or `{"id":"effort","value":"<low|medium|high|xhigh>"}` for Claude. Always pass effort explicitly, including table routes.
 - Standard speed sets Codex `target.options.serviceTier: "default"` or Claude `target.options.fastMode: false`. Fast speed requires `--urgent`.
 
 Dispatch roles with `delegate_task` and completed [role briefs](roles.md). Confirm routed providers/models against `orchestrator_capabilities`. Within the tier's family requirements, prefer model diversity, but use an available independent agent rather than wait for an ideal family. Carry the original goal, findings and resolutions into fix briefs; reuse working context where supported. When replacing a delegated child with a retry, `task_cancel` the old task first: usage-limited threads auto-resume and could act on superseded instructions.
@@ -54,7 +56,7 @@ An internal change needs proof that it composes instead of a QA walk.
 
 If the same blocker survives a fix, revisit its cause or the proposed solution.
 
-Done for a ticket when the PR's current head SHA has a SHIP, ruled there or carried there by an unchanged patch-id (step 3).
+Done for a ticket when the PR's current head SHA has a SHIP, ruled there or carried there by an unchanged patch-id (step 3), or when a generator-only release PR's checks pass at its current head.
 
 ## 3. Merge
 
