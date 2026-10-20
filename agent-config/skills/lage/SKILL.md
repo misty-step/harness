@@ -5,9 +5,11 @@ description: Executive brief on every open lane, in-flight initiative and runnin
 
 # Lage
 
-Read-only: never message a lane, merge, re-run or start work to improve the brief. The **requesting thread** asked for the brief, and the **previous lage** is the last brief it received, or 24 hours ago if there is none. A responsive coordinator (Home) delegates to one runner and relays its brief whole. When its checkout has `CLAUDE.md` or hooks, use `t3_thread_launch` with `scratch: true`. Name the lage skill, the requesting `threadId` and previous lage's time in the launch message; direct delivery there with `t3_thread_send`.
+Read-only investigation: never message a lane, merge, re-run or start work to improve the brief. Delivery is step 5. The **requesting thread** asked for the brief, and the **previous lage** is the last brief prepared for it, or 24 hours ago if there is none. A responsive coordinator (Home) delegates to one runner. When its checkout has `CLAUDE.md` or hooks, use `t3_thread_launch` with `scratch: true`. Name the lage skill, the requesting `threadId` and previous lage's time in the launch message; have the runner complete delivery itself.
 
 ## 1. Roster
+
+Read the coordinator's instruction file first (Home's is `~/home/CLAUDE.md`). Exclude from the brief any work it puts out of scope; keep the exclusion's contents out of this shared skill. Apply that scope to lane-reader assignments and all brief sections.
 
 List every project (`t3_project_list`). For each project, pass its `projectId`:
 
@@ -26,11 +28,11 @@ Done when every project meets the open last-page and settled previous-lage cutof
 
 ## 2. Read each lane
 
-For each open lane, fill this record; read closed lanes for unresolved asks too. Write `unknown: <why>` for any field you could not get.
+For each in-scope open lane, fill this record; read in-scope closed lanes for unresolved asks too. Write `unknown: <why>` for any field you could not get.
 
 - **Goal:** the lane's brief (its first message, `limit: 1`), in one line, plus its definition of done.
 - **Last word:** the lane's latest assistant message, and the latest message to it: the newest `user_message` in the `messages` view, which includes sends from other threads. The tail rarely holds one, so page back until you find it.
-- **Asks:** every question to the principal that nobody has answered yet, however old, each with its options, the lane's recommendation, what waiting costs, and any date. Keep each numbered sub-question with its recommended answer. Include `t3_pending_request_list`, any unresolved `BLOCKED-ALLOWED:` line, and any blocker you found that the lane never raised, marked "(found by lage)".
+- **Asks:** every question to the principal that nobody has answered yet, however old, each with its options, the lane's recommendation, what waiting costs, and any date. Capture every sub-question in full, with its options, recommendation and what happens if unanswered; source item numbers alone are insufficient. Include `t3_pending_request_list`, any unresolved `BLOCKED-ALLOWED:` line, and any blocker you found that the lane never raised, marked "(found by lage)".
 - **Progress:** the newest **side effect**, with its time. A side effect is a pushed commit, an opened or merged PR, a deploy, a published ticket, or a change applied on a host, such as a service or runner restarted. Prose about intent and uncommitted drafts are not progress.
 - **PRs:** the state of every PR the lane names, read from the forge (`gh pr view <url> --json state,mergedAt,statusCheckRollup,reviewDecision`).
 - **Agents:** the lane's running children and its project's scheduled tasks, as step 1 handed them over.
@@ -44,7 +46,7 @@ Read-only: follow ~/.claude/skills/lage/SKILL.md step 2; return its records.
 Lanes: <title, threadId, projectId, running children and scheduled tasks, one per line>
 ```
 
-Done when every open lane has a full record, closed-lane asks are captured, and every PR state came from the forge.
+Done when every in-scope open lane has a full record, closed-lane asks are captured, and every PR state came from the forge.
 
 ## 3. Classify
 
@@ -54,7 +56,7 @@ Give each lane the first row below that fits:
 | --- | --- |
 | `waiting on you` | It holds an ask only the principal can answer: product intent, a destructive or irreversible act, a production write, or money. |
 | `stuck` | It failed or was interrupted, or claims to be running with no side effect in 6 hours, or waits on something an agent could do. |
-| `in review` | A PR is open and review, QA, the judge or requested human team review is pending. |
+| `in review` | A PR is open and agent review, QA or the judge is pending. Human reviewers are not part of this workflow in any organization. |
 | `parked` | Deliberately on hold. |
 | `shipped` | It merged or deployed since the previous lage, with no PR open and no builder running. |
 | `building` | It has code or a PR open, a builder running, or a side effect in the last 6 hours. |
@@ -73,7 +75,6 @@ Done when every lane has exactly one state; use `scoping` for any unmatched lane
 1. **<Lane>: <the decision, worded so "yes" accepts your recommendation>** ([thread](t3-thread://v1/<id>))
    <Why it matters now.> Options: <A, and what it costs>; <B, and what it costs>.
    Recommend <X>, because <reason>. If unanswered: <what happens, and when>. Detail: <link>.
-   <Bundles only: Q4 hosting: A; Q5 delete backup: no; …>
 
 **Lanes**
 | Lane | State | Last real progress | Next |
@@ -81,7 +82,7 @@ Done when every lane has exactly one state; use `scoping` for any unmatched lane
 | [<title>](t3-thread://v1/<id>) | <state> | <side effect, how long ago> | <next step, and whose> |
 
 **Also waiting on you**
-- <ask, one line, with its link>
+<Use the full Decisions entry format for every remaining ask, including closed-lane asks.>
 
 **Shipped and closed since last lage**
 - <what changed for a user, with the PR or deploy link>
@@ -94,10 +95,19 @@ Done when every lane has exactly one state; use `scoping` for any unmatched lane
 **Not checked:** <every source you could not read, and why>.
 ```
 
-- **Decisions** holds at most five open-lane asks: those whose delay costs the most, because they block the most work or lapse first, in that order. Number them, so one reply like "1 yes, 2 B" answers the batch. Every other ask, including closed-lane asks, goes under **Also waiting on you**, one line with recommendation and link.
-- Bundles use the fifth line: each sub-answer names its question in a few words and recommends an answer. Move overflow to **Also waiting on you** under the same line limits. A line shows every question and answer its "yes" approves, or links the thread without a recommendation.
+- Lead with what needs the principal. **Decisions** holds at most five open-lane asks: those whose delay costs the most, because they block the most work or lapse first, in that order. Every other ask, including closed-lane asks, goes under **Also waiting on you** with the same detail.
+- Write every question out in full, including each sub-question's options, recommendation, and what happens if unanswered and when. Give each question its own entry; never bundle approvals or use question labels, ranges or source item numbers as shorthand. Number only entries shown in this brief, so a reply refers to content the principal has seen.
 - Every recommendation follows the standing autonomy policy and [Foundations](https://foundations.mistystep.io/way-of-working). When an option breaks either, say so inside that option, and recommend a compliant one.
-- Where a decision rests on a story, spec or diff, give the one line that matters and link the rest. Link threads as `[title](t3-thread://v1/<id>)` and PRs by full URL. Call lanes, PRs and agents by names the principal knows. Label anything you did not verify: "(lane says)".
-- The brief has at most 60 lines and 3,500 visible characters, no line over 100 (link text counts, link targets don't). Keep each table row and **Stuck** item to one line and each cell under six words. When it runs over, shorten **Shipped**, then **Stuck**, then table cells, then each decision's why. Every lane keeps its row and every ask keeps its line. Drop empty sections, but keep **Not checked**.
+- Every PR, issue, ticket, story, spec, doc and thread mentioned gets a link and a one-line summary sufficient to understand it without opening it. Link threads as `[title](t3-thread://v1/<id>)` and PRs by full URL. Call lanes, PRs and agents by names the principal knows. Label anything you did not verify: "(lane says)".
+- Include the relevant content from open-loops files and other sources in the brief itself. Never point at `NOW.md` or any file in place of its content. Links supplement the content; they do not replace it.
+- Self-containment takes priority over length: no total line or character cap. No line over 100 characters (link text counts, link targets don't). Keep one line per status item, including table rows and **Stuck** items; questions can span lines to include their full detail. Cut anything that does not change a decision. Drop empty sections, but keep **Not checked**.
 
-Done when every lane appears in exactly one table row, every unanswered ask is a numbered decision, an **Also waiting on you** line, or a reclassification note, every decision has a compliant recommendation and an "if unanswered", and the brief meets the counts above.
+Done when every in-scope lane appears in exactly one table row, every unanswered in-scope ask is a full decision entry in **Decisions** or **Also waiting on you**, or a reclassification note, and every question has options, a compliant recommendation and an "if unanswered". Check every reference has its link and summary and every line meets the width limit.
+
+## 5. Deliver
+
+Home's T3 thread is written only by phaedrus. Never use `t3_thread_send` to it or send the brief to the requesting thread by message.
+
+The runner writes the full brief to `~/.local/state/home/lage/<YYYY-MM-DDTHHMMZ>.md`, the coordinator's brief directory; use the current UTC time and create the directory if needed. Then pipe one pointer entry to `home post --from lage` via stdin: the saved file's path and a one-line count of what is waiting on phaedrus and what is stuck. Count every question needing him across both ask sections and every stuck item. `home post` appends `## <UTC> [lage]` plus the body to `~/.local/state/home/inbox.md`.
+
+Done when the full brief exists at the named path and the inbox contains its single pointer entry. If delivery fails, report the failed step without claiming delivery or substituting a thread message.
