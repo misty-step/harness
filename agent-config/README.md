@@ -10,6 +10,7 @@ harness installer declares which primitives it selects.
 | `skills/` | Portable skill packages, clean-replaced when selected |
 | `guidance/*.md` | Global-guidance sections spliced at the harness marker |
 | `bin/pass-env.ts` | pass-backed environment launcher |
+| `bin/t3-runtime-mode.ts` | Set a local T3 thread's runtime mode through authenticated RPC |
 | `bin/openrouter-key.ts` | OpenRouter key resolver: R90 checkouts get the R90 entry, others `--personal` (US-028) |
 | `audio-sandbox/` | Silent agent sink contract and host deploy ([README](audio-sandbox/README.md), US-026) |
 | `session-backup/` | Opt-in nightly session-store backup ([README](session-backup/README.md)) |
@@ -37,6 +38,34 @@ and preflight never executes candidate source. Both harness installs select
 Each guidance file is one complete `##` section. The installer replaces the
 harness file's `<!-- shared guidance: agent-config -->` line with the selected
 sections in order; a missing marker aborts the deploy.
+
+## Set a T3 thread's runtime mode
+
+With Bun and the authenticated local `t3` CLI on `PATH`, run:
+
+```sh
+bun agent-config/bin/t3-runtime-mode.ts <threadId> full-access
+```
+
+From this directory, use `bun bin/t3-runtime-mode.ts`. Select
+`--bin t3-runtime-mode.ts` in the shared installer to install `t3-runtime-mode`.
+Modes are `approval-required`, `auto-accept-edits`, `auto`, and `full-access`.
+The command reads `$T3CODE_HOME/userdata/server-runtime.json`, defaulting to
+`~/.t3/userdata/server-runtime.json`, and accepts only a loopback HTTP server.
+
+Each call mints a ten-minute session scoped to `orchestration:operate` with an
+`agent-runtime-mode:<unique-id>` label. The token passes through a private pipe
+and WebSocket authorization header, never arguments, URLs, or command output.
+The CLI dispatches `thread.runtime-mode.set` over T3's protocol-2 Effect RPC,
+waits for the matching acknowledgement, and revokes its session before printing
+JSON with the thread, mode, sequence, session ID, and `revoked: true`.
+
+Failures and handled termination signals also revoke the session. If cleanup
+fails, the error names the unique label for recovery with `t3 auth session list`
+and `t3 auth session revoke <session-id>`. An uncatchable kill or machine loss
+leaves the ten-minute expiry as the fallback. A lost acknowledgement leaves the
+command outcome unknown; read it with MCP `t3_thread_configuration` before retrying.
+This transport targets T3 0.1.1-nightly and fails closed on an incompatible reply.
 
 ## Retired checks
 
