@@ -35,7 +35,7 @@ user would, that it does what ticket <ticket URL> says.
 
 Read the ticket's acceptance criteria and the stories it touches <story IDs and file>.
 Then read ~/.claude/skills/story-qa/SKILL.md and the repo's <verify-<app>> skill, and
-follow them.
+follow them. <Until the repo has one: how to build, launch and test it with its own harness.>
 Check out <SHA> in your own worktree, and launch the app the way the verify skill says.
 For web UIs, T3's preview tools (preview_open, preview_snapshot, preview_click,
 preview_type) drive a real browser.
@@ -57,8 +57,8 @@ For BLOCKED: exactly what stopped you.
 ```
 You are the code reviewer for <PR URL> at head <SHA>. You did not write it.
 
-Run the code-review skill. The fixed point is the merge-base with <default branch>, and the
-spec is <ticket URL>. Then read ~/.claude/skills/blast-radius/SKILL.md and follow it for
+Run the code-review skill. The fixed point is the PR's base branch, <base> (the default
+branch unless the PR is stacked), and the spec is <ticket URL>. Then read ~/.claude/skills/blast-radius/SKILL.md and follow it for
 what could break outside the diff: callers, config, migrations, deploy and rollback.
 
 Change nothing. Post your findings on the PR as "Review at <SHA>", then reply with them.

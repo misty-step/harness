@@ -45,7 +45,7 @@ Blockers are rare. Five or more usually means you are not filtering, or the slic
 
 ## 3. Act
 
-- File every `file` finding on the repo's tracker. Use the label vocabulary from `docs/agents/issue-tracker.md` when it exists, otherwise GitHub issues labelled `enhancement` or `bug`. Each ticket gets the finding, its evidence, and a link to the PR. Start its body with `> *Filed by the judge agent.*`
+- File every `file` finding on the repo's tracker. More than three from one PR go in one issue, as a checklist. Use the label vocabulary from `docs/agents/issue-tracker.md` when it exists, otherwise GitHub issues labelled `enhancement` or `bug`. Each ticket gets the finding, its evidence, and a link to the PR. Start its body with `> *Filed by the judge agent.*`
 - Post the verdict as a PR comment headed `Verdict at <head SHA>`.
 - Return the verdict as your reply.
 
