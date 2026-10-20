@@ -25,5 +25,24 @@ jobs:
           if [ -e /proc/sys/kernel/apparmor_restrict_unprivileged_userns ]; then
             sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
           fi
+      - name: Install the pinned Landmark
+        env:
+          # Keep in step with the Landmark action pinned in landmark-release.yml.
+          LANDMARK_VERSION: '0.28.9'
+          LANDMARK_SHA256: 7a22cba7d99aa6d05ef113a8ff95ca5ca6098c6bf4a8af213f85370fa30e65d2
+        run: |
+          bin="$RUNNER_TEMP/landmark"
+          curl --proto '=https' --tlsv1.2 --retry 5 --retry-connrefused --location --silent --show-error --fail \
+            "https://github.com/misty-step/landmark/releases/download/v${LANDMARK_VERSION}/landmark-x86_64-unknown-linux-musl" -o "$bin"
+          printf '%s  %s\n' "$LANDMARK_SHA256" "$bin" | sha256sum --check --strict
+          chmod +x "$bin"
+          echo "LANDMARK_BIN=$bin" >> "$GITHUB_ENV"
+      - name: Check CHANGELOG.md against protected publication
+        # PRs only: master's publish job already runs this check, and a GitHub outage
+        # here would skip publication of a landed release (#348).
+        if: github.event_name == 'pull_request'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: bun scripts/protected-release-check.ts
       - name: Check workspace and all components sequentially
         run: ./scripts/check all
