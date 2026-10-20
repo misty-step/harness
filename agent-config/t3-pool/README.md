@@ -14,8 +14,10 @@ unique instance IDs of the same driver with compatible models and options.
 An instance can belong to only one pool. The CLI uses bundled defaults when
 no installed config exists.
 
-The shipped reservations are `claude-hello` and `claude-r90`. Reserved accounts
-can be sources but never targets. Targets are chosen by fewest running runs,
+The shipped reservations are `claude-hello`, `claude-r90` and `codex-r90`.
+`codex-r90` has no credits; remove its reservation only after a future observed
+refill. Reserved accounts can be sources but never targets.
+Targets are chosen by fewest running runs,
 including reservations made earlier in the pass; ties follow pool order after
 the source. The shipped ramp admits one move per pass. `maxMovesPerPass` accepts
 only 1 or 2. Each target admits at most three moves per rolling hour.

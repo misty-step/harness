@@ -378,16 +378,22 @@ test("unknown resets expire in one hour, including legacy persisted null limits"
 	expect(plans(output).find((row) => row.to)?.to).toBe("codex");
 });
 
-test("reserved instances remain sources but never targets", async () => {
+test("shipped reserved instances remain sources but never targets", async () => {
 	const files = fixture();
-	config(files, { reserved: ["claude-hello", "claude-r90"] });
+	rmSync(join(files.root, "config/t3-pool.json"));
 	thread(files, "source", "claudeAgent");
 	thread(files, "other-limited", "claude-mistystep", { parentThreadId: "parent" });
 	expect(plans(await result(start(files, ["--dry-run"]))).filter((row) => row.to)).toEqual([]);
 	const second = fixture();
-	config(second, { reserved: ["claude-hello", "claude-r90"] });
+	rmSync(join(second.root, "config/t3-pool.json"));
 	thread(second, "reserved-source", "claude-hello");
 	expect(plans(await result(start(second, ["--dry-run"]))).find((row) => row.to)?.to).toBe("claude-mistystep");
+	const codex = fixture();
+	rmSync(join(codex.root, "config/t3-pool.json"));
+	thread(codex, "source", "codex");
+	thread(codex, "out-of-credits", "codex-r90", { resetAt: null, failedAt: past });
+	run(codex, "busy", "busy:run", { instance: "codex-mistystep", status: "running", completedAt: null, startedAt: later });
+	expect(plans(await result(start(codex, ["--dry-run"]))).find((row) => row.to)?.to).toBe("codex-mistystep");
 });
 
 test("least loaded targets spread reservations within a pass", async () => {
