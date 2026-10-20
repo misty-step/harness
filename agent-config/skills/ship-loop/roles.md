@@ -6,7 +6,7 @@ Fill every `<field>` before dispatch. QA, reviewer and judge each post one PR re
 
 Use the conductor's tier, chosen by blast radius and the initiative. Every change gets review and verification.
 
-| Tier | Change | Dispatch |
+| Tier | Change | Review shape and fallback models |
 | --- | --- | --- |
 | light | Docs, copy, config or one small file, with low blast radius | One combined QA and review agent, then a judge. Both use Sonnet 5.5 or GPT-6.1 Sol at medium effort. |
 | standard | Work beyond light, without critical risk | Separate QA and review agents, then a strong judge at high effort. |
