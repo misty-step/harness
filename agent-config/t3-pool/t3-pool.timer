@@ -1,0 +1,12 @@
+# owned by misty-step/harness t3-pool
+[Unit]
+Description=Check the T3 account pools every 90 seconds
+
+[Timer]
+OnStartupSec=90s
+OnUnitInactiveSec=90s
+AccuracySec=5s
+Unit=t3-pool.service
+
+[Install]
+WantedBy=timers.target

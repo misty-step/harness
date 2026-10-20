@@ -1,0 +1,7 @@
+{
+  "ownedBy": "misty-step/harness t3-pool",
+  "pools": [
+    ["claudeAgent", "claude-hello", "claude-r90", "claude-mistystep"],
+    ["codex", "codex-mistystep", "codex-r90"]
+  ]
+}
