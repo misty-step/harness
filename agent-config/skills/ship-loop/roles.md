@@ -8,7 +8,7 @@ The conductor chooses the highest matching tier, with any tier assigned to the i
 
 | Tier | Change | Review shape and fallback models |
 | --- | --- | --- |
-| light | Documents, briefs, measurements, copy or a local cosmetic/config edit that changes no runtime behavior or operational instructions, and meets no higher-tier trigger | Builder, combined QA and review agent, then an independent judge. Each uses Haiku 5.5 at medium or GPT-6.1 Sol at medium. |
+| light | Documents, briefs, measurements, copy or a local cosmetic/config edit that changes no runtime behavior or agent instructions (skills, AGENTS.md, CLAUDE.md or shared guidance), and meets no higher-tier trigger | Builder, combined QA and review agent, then an independent judge. Each uses Haiku 5.5 at medium or GPT-6.1 Sol at medium. |
 | standard | Runtime behavior changes, new features, bug fixes, refactors across modules, or operational prompts (skills, AGENTS.md and shared guidance), without a critical trigger | Builder, separate QA and review agents, then an independent judge. Each uses Opus 5.5 at high or GPT-6.1 Sol at high. |
 | critical | Changes to authentication, authorization, money movement, persisted-data integrity, migrations, security controls, deploy pipelines, shared infrastructure or irreversible operations, regardless of size | Builder uses GPT-6.1 Sol at xhigh or Opus 5.5 at high. QA uses one Sol agent at xhigh; review uses one Claude agent (Opus 5.5 or Sonnet 5.5) at high, giving two families across the two roles. An independent Opus 5.5 judge uses high. |
 
