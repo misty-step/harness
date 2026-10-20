@@ -21,7 +21,7 @@ A **lane** is a top-level thread doing initiative work. Not lanes:
 
 - your own thread and the requesting thread;
 - **standing threads** that coordinate rather than build: Home, and any thread a scheduled task is bound to, such as Heartbeat;
-- **children** (`parentThreadId` set): hand each lane's children to its reader, and ignore those whose parent is settled. A child is **running** when its status is `queued`, `starting` or `running`, or it updated in the last 15 minutes: native subagents report `idle` while working;
+- **children** (`parentThreadId` set): hand each lane's children to its reader, and ignore those whose parent is settled. A child is **running** when its status is `queued`, `starting` or `running`, or it is a native subagent (`latestRunId: null`, which always reports `idle`) updated in the last 15 minutes;
 - **scratch threads**, the other top-level threads in the scratch project (titled `No project`, `workspaceRoot` `~/.t3/scratch`): one-off tasks a coordinator launched, such as a lage runner. One that is `failed`, `interrupted` or `waiting` goes to **Stuck**, owned by the thread that launched it, or Heartbeat.
 
 Done when every project was listed to its last page and every thread is placed as a lane, a closed lane, a child, or a standing or scratch thread.
@@ -97,7 +97,7 @@ Test asks a reader found like the lane's own. An ask about process or permission
 ```
 
 - **Decisions** holds at most five asks: those whose delay costs the most, because they block the most work or lapse first, in that order. Number them, so one reply like "1 yes, 2 B" answers the batch. Every other ask goes on one line under **Also waiting on you**, with its recommendation and link.
-- A decision that bundles sub-questions spends its fifth line on each one's recommended answer, so "yes" approves only answers the brief shows. When they overflow that line, split the bundle and move the rest to **Also waiting on you**.
+- A decision that bundles sub-questions spends its fifth line on each one's recommended answer, so "yes" approves only answers the brief shows. Move what overflows that line to **Also waiting on you** on the same terms: a line shows every answer its "yes" approves, or links the thread and recommends nothing.
 - Every recommendation follows the standing autonomy policy and [Foundations](https://foundations.mistystep.io/way-of-working). When an option breaks either, say so inside that option, and recommend a compliant one.
 - Where a decision rests on a story, spec or diff, give the one line that matters and link the rest. Link threads as `[title](t3-thread://v1/<id>)` and PRs by full URL. Call lanes, PRs and agents by names the principal knows. Label anything you did not verify: "(lane says)".
 - The brief fits two phone screens: at most 60 lines and 3,500 visible characters, no line over 100 (link text counts, link targets don't). Keep each table row and **Stuck** item to one line and each cell under six words. When it runs over, shorten **Shipped**, then **Stuck**, then table cells, then each decision's why. Every lane keeps its row and every ask keeps its line. Drop empty sections, but keep **Not checked**.
