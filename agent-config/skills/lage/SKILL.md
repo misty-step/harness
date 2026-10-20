@@ -52,17 +52,17 @@ Done when every lane has a full record and every PR state came from the forge.
 
 ## 3. Classify
 
-Give each lane exactly one state, the first row below that fits:
+Give each lane the first row below that fits:
 
 | State | Meaning |
 | --- | --- |
 | `waiting on you` | It holds an ask only the principal can answer: product intent, a destructive or irreversible act, a production write, or money. |
 | `stuck` | It failed or was interrupted, or claims to be running with no side effect in 6 hours, or waits on something an agent could do. |
 | `in review` | A PR is open and review, QA or the judge is running. |
+| `shipped` | It merged or deployed since the previous lage, with nothing open. |
+| `parked` | Deliberately on hold. |
 | `building` | It had a side effect in the last 6 hours. |
 | `scoping` | It is interviewing, specifying or ticketing, and has no code yet. |
-| `shipped` | It merged or deployed since the previous lage. |
-| `parked` | Deliberately on hold. |
 
 Test asks a reader found like the lane's own. An ask about process or permission that standing policy already answers is not the principal's: move it to `stuck` and note "agent-answerable". Deploying merged code through the repository's own pipeline is shipping, not a production write. Use the exact progress claim the evidence supports: started, PR open, merged, artifact verified, or live behavior proven ([Foundations](https://foundations.mistystep.io/way-of-working)).
 
