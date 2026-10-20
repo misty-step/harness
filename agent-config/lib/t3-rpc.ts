@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
 export class CliError extends Error {}
+export class CommandRejected extends CliError {}
 
 export function object(value: unknown): Record<string, unknown> {
 	if (typeof value !== "object" || value === null || Array.isArray(value)) throw new CliError("Invalid T3 response");
@@ -80,7 +81,7 @@ async function dispatch(options: {
 						if (frame._tag === "Defect") { fail("T3 RPC defect"); return; }
 						if (frame._tag !== "Exit" || frame.requestId !== 1) continue;
 						const exit = object(frame.exit);
-						if (exit._tag === "Failure") { fail("T3 rejected the command"); return; }
+						if (exit._tag === "Failure") { reject(new CommandRejected("T3 rejected the command")); return; }
 						if (exit._tag !== "Success") throw new Error();
 						const { sequence } = object(exit.value);
 						if (typeof sequence !== "number" || !Number.isSafeInteger(sequence) || sequence < 0) throw new Error();

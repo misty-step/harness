@@ -264,7 +264,7 @@ claude_home="$work/claude-home"
 claude="$claude_home/.claude"
 mkdir -p "$claude/skills/foreign" "$claude/skills/lage" "$claude_home/.fixture-bin"
 # A private HOME has no systemd user manager. Record only this timer's control.
-printf '#!/bin/sh\nprintf "%%s\\n" "$*" >> "$HOME/systemctl-calls"\n' > "$claude_home/.fixture-bin/systemctl"
+printf '#!/bin/sh\n[ "$*" != "--user show-environment" ] || exit 0\nprintf "%%s\\n" "$*" >> "$HOME/systemctl-calls"\n' > "$claude_home/.fixture-bin/systemctl"
 chmod 700 "$claude_home/.fixture-bin/systemctl"
 printf 'foreign skill sentinel\n' > "$claude/skills/foreign/SKILL.md"
 printf 'stale owned lage\n' > "$claude/skills/lage/obsolete.md"
@@ -312,7 +312,7 @@ for pair in pools.json:.config/t3-pool.json t3-pool.service:.config/systemd/user
   check "claude pool ${pair%%:*} bytes" cmp -s "$work/source/agent-config/t3-pool/${pair%%:*}" "$claude_home/${pair#*:}"
 done
 check "claude reloads user units" grep -Fxq -- '--user daemon-reload' "$claude_home/systemctl-calls"
-check "claude enables pool timer" grep -Fxq -- '--user enable --now t3-pool.timer' "$claude_home/systemctl-calls"
+check "claude leaves pool activation opt-in" test "$(cat "$claude_home/systemctl-calls")" = '--user daemon-reload'
 if env -i PATH="$PATH" HOME="$claude_home" "$claude_home/.local/bin/t3-pool" --dry-run > "$work/claude-pool-dry-run"; then
   check "claude bundled pool needs no source or live database" grep -Fq '"planned":0' "$work/claude-pool-dry-run"
 else
