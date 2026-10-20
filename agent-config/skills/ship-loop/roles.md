@@ -2,6 +2,19 @@
 
 Fill every `<field>` before dispatch. QA, reviewer and judge each post one PR report with role, revision and evidence. Return its link, outcome and any blocker to the conductor.
 
+## Rigor
+
+Use the conductor's tier, chosen by blast radius and the initiative. Every change gets review and verification.
+
+| Tier | Change | Dispatch |
+| --- | --- | --- |
+| light | Docs, copy, config or one small file, with low blast radius | One combined QA and review agent, then a judge. Both use Sonnet 5.5 or GPT-6.1 Sol at medium effort. |
+| standard | Work beyond light, without critical risk | Separate QA and review agents, then a strong judge at high effort. |
+| critical | Auth, money, data or migrations, security, deploy pipeline, shared infrastructure or irreversible change | QA and review on different model families at xhigh, then a strong judge. Use Astra only here, with justification in the dispatch. |
+
+Builders use GPT-6.1 Sol at xhigh for heavy work, or Sol at high or Sonnet for small work.
+For light changes, combine the QA and Reviewer briefs in one dispatch and post both reports. The judge stays independent.
+
 ## Builder
 
 ```
@@ -17,6 +30,8 @@ Length is a preference, never a reason to remove a Keep item.
 Inspect your diff. Run <check command> and drive the changed path with <verification
 skill | native harness>. Put evidence in the PR. Push and open it against <base branch>,
 with a Conventional Commit title, the pr skill's body and "Closes #<n>".
+Every PR body carries `Story: <ID>[, <ID>]` using story IDs from this repo's SPEC.md
+(for example, `Story: US-012` or `Story: US-012, US-015`).
 
 Push your branch and open the PR without asking. Never force-push a shared branch or merge.
 <Fix only: the judge's blockers at <old SHA>, prior reports and resolutions are below.
