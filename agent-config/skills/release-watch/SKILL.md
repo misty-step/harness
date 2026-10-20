@@ -41,4 +41,4 @@ One message to the lane, starting with one word:
 - `live behavior proven`: the deploy run, the live identity, the smoke evidence and the window you watched.
 - `restored`: the trigger and its evidence, how you restored and its link, the incident link, and whether a postmortem is due.
 - `escalated`: why restoring was unsafe, what is live now, and your recommendation.
-- `unwatched`: what's missing (deploy path, health signal) and the ticket you filed.
+- `unwatched`: what's missing (deploy path, health signal) and the ticket you filed or commented on.

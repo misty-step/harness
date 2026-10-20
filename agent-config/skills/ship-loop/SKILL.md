@@ -42,7 +42,7 @@ Dispatch each role with `delegate_task`, using the briefs in [roles.md](roles.md
    - **RE-SLICE:** split the ticket with `to-tickets` and start over on the new frontier.
    - **SHIP:** merge (step 3).
 
-**Stacks.** Review and QA each stacked PR against its own base branch. Fix a blocker on the PR that owns it, and land that PR before carrying the fix upward, so the heads above it and their verdicts stay put.
+**Stacks.** Review and QA each stacked PR against its own base branch. Fix a blocker on the PR that owns it. Land the stack bottom-first, as step 3 says; that carries every fix upward without touching the heads above until their turn.
 
 Scale the round to the change. Documents, briefs, measurements and generator-only release PRs ship without one ([Foundations](https://foundations.mistystep.io/way-of-working)): merge them once checks pass. A change with no user surface needs proof that it composes instead of a QA walk, posted as `QA report at <SHA>`; the judge rules on that and the review.
 
@@ -53,15 +53,15 @@ Done for a ticket when the judge ruled SHIP at the PR's current head SHA, or, fo
 ## 3. Merge
 
 - Confirm the repository's fast affected checks passed at the judged SHA, on our own machines: its CI where that runs, otherwise its documented check, run by you at that SHA. Paid GitHub Actions minutes are not a gate.
-- If the head moved after the verdict, the verdict is void, with two exceptions. A rebase that leaves `git patch-id` unchanged keeps it. A merge that only resolves conflicts by keeping both sides keeps it once the full checks pass at the new head and a judge re-rules on the resolution diff alone.
-- **misty-step and moomooskycow:** squash-merge a single PR, with its title as a Conventional Commit (`docs/release-convention.md` in misty-step/harness). Merge a stack bottom-first with merge commits, retargeting each PR to the default branch as the one below it lands: squashing a lower PR strands the commits above it.
+- If the head moved after the verdict, the verdict is void unless only a rebase moved it and `git patch-id` is unchanged. A conflict resolution changes the patch, so it gets a new round.
+- **misty-step and moomooskycow:** squash-merge, with the PR title as a Conventional Commit (`docs/release-convention.md` in misty-step/harness). Land a stack bottom-first. After each squash, move the next PR onto the default branch with `git rebase --onto <default branch> <its old base>`, push it, retarget it, and run the fast affected checks at its new head before it merges.
 - **r90group:** request team review, report the PR as merge-ready, and move on. A human merges.
 
 ## 4. Watch the release
 
-Dispatch `release-watch` with the merge SHA and the ticket's stories. Close the ticket when it reports `live behavior proven`. Its restore and incident paths run without you.
+Dispatch `release-watch` with the merge SHA and the ticket's stories. The merge closed the ticket (`Closes #<n>`); reopen it if the watch restores the release. Report `live behavior proven` only when the watch does. Its restore and incident paths run without you.
 
-A repository with no automatic deploy gets one watch per deploy, not one per merge. The first `unwatched` report names its deploy ticket. Until that ticket closes, skip the watch after each merge and leave shipped tickets open against it.
+A repository with no automatic deploy gets one watch per deploy, not one per merge. Tickets close on merge as usual. When its deploy runs, by whoever the repository's deploy doc names, dispatch one `release-watch` at the deployed SHA, covering every story merged since the last deploy, and post its result on the deploy ticket.
 
 ## Report
 
