@@ -641,7 +641,11 @@ Criteria:
 6. WHEN an agent reports or posts to Home, THE PRINCIPAL SHALL receive
    self-contained summaries and clickable, accessible links to everything needed
    for review, including previews and evidence, without opening local paths or
-   running commands; private evidence SHALL remain private.
+   running commands; links SHALL remain accessible until the item is decided,
+   and private evidence SHALL remain private.
+7. WHEN an agent designs or changes an interface, THE PRINCIPAL SHALL receive
+   neutral, professional, standard product design with plain words, without
+   clever wording, themes or metaphors by default.
 
 No-gos: no code/config permission changes or new message templates; Kaylee's
 existing Hermes operating skill remains outside this operator-approved
