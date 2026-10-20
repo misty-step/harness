@@ -1,5 +1,6 @@
 """Display authority tests; synthetic host sockets, never the real desktop."""
 
+import contextlib
 import importlib.util
 import json
 import os
@@ -405,21 +406,24 @@ sys.exit(73)
             })
 
     def test_group_interrupt_is_single_and_term_reaches_command_for_graceful_flush(self):
+        # sigtimedwait, not handlers around a sleep: CPython defers a handler
+        # for a signal that lands just before the sleep syscall until the
+        # sleep ends, which made INTERRUPTED wait for the later SIGTERM.
         code = r'''
-import signal, sys, time
+import signal, sys
 count = 0
-def interrupt(*_):
-    global count
+signals = {signal.SIGINT, signal.SIGQUIT, signal.SIGTERM}
+signal.pthread_sigmask(signal.SIG_BLOCK, signals)
+print("READY", flush=True)
+while True:
+    received = signal.sigtimedwait(signals, 30)
+    if received is None:
+        sys.exit("no signal reached the command")
+    if received.si_signo == signal.SIGTERM:
+        print("FLUSHED interrupts=" + str(count), flush=True)
+        sys.exit(42)
     count += 1
     print("INTERRUPTED", flush=True)
-def terminate(*_):
-    print("FLUSHED interrupts=" + str(count), flush=True)
-    sys.exit(42)
-signal.signal(signal.SIGINT, interrupt)
-signal.signal(signal.SIGQUIT, interrupt)
-signal.signal(signal.SIGTERM, terminate)
-print("READY", flush=True)
-time.sleep(30)
 '''
         for interrupted in (signal.SIGINT, signal.SIGQUIT):
             with self.subTest(signal=interrupted):
@@ -428,12 +432,22 @@ time.sleep(30)
                                        sys.executable, "-u", "-c", code],
                                       env=environment, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
                                       stderr=subprocess.PIPE, text=True, start_new_session=True) as child:
+                    def expect(line, seconds):
+                        if select.select([child.stdout], [], [], seconds)[0]:
+                            got = child.stdout.readline().strip()
+                            if got == line:
+                                return
+                        else:
+                            got = f"nothing within {seconds}s"
+                        with contextlib.suppress(ProcessLookupError):
+                            os.killpg(child.pid, signal.SIGKILL)
+                        _, errors = child.communicate(timeout=5)
+                        self.fail(f"expected {line!r}, got {got!r}; omp-display stderr: {errors.strip()!r}")
+
                     try:
-                        self.assertTrue(select.select([child.stdout], [], [], 10)[0])
-                        self.assertEqual(child.stdout.readline().strip(), "READY")
+                        expect("READY", 10)
                         os.killpg(child.pid, interrupted)
-                        self.assertTrue(select.select([child.stdout], [], [], 5)[0])
-                        self.assertEqual(child.stdout.readline().strip(), "INTERRUPTED")
+                        expect("INTERRUPTED", 5)
                         child.send_signal(signal.SIGTERM)
                         # Network termination and bridge joins each have three-second cleanup bounds.
                         # This wait covers teardown, not a five-second graceful-command contract.
@@ -441,8 +455,10 @@ time.sleep(30)
                         self.assertEqual(child.returncode, 42, errors)
                         self.assertEqual(output.strip(), "FLUSHED interrupts=1")
                     finally:
+                        # The whole group: a stranded sandbox would hold the pipes open.
                         if child.poll() is None:
-                            child.kill()
+                            with contextlib.suppress(ProcessLookupError):
+                                os.killpg(child.pid, signal.SIGKILL)
                             child.communicate(timeout=5)
 
     def test_internal_exec_and_gui_reject_forged_host_markers(self):
