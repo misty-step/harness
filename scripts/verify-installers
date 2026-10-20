@@ -282,7 +282,7 @@ else
   cat "$work/claude.log" >&2
   failures=$((failures + 1))
 fi
-for skill in lage ship-loop judge release-watch heartbeat story-qa pokayoke user-stories authenticated-commands; do
+for skill in lage ship-loop judge release-watch heartbeat lane-succession story-qa pokayoke user-stories authenticated-commands; do
   check "claude $skill skill bytes" cmp -s "$work/source/agent-config/skills/$skill/SKILL.md" "$claude/skills/$skill/SKILL.md"
 done
 check "claude release-watch package bytes" diff -r "$work/source/agent-config/skills/release-watch" "$claude/skills/release-watch"
@@ -380,7 +380,7 @@ else
   cat "$work/codex.log" >&2
   failures=$((failures + 1))
 fi
-for skill in lage ship-loop judge release-watch heartbeat story-qa pokayoke user-stories authenticated-commands; do
+for skill in lage ship-loop judge release-watch heartbeat lane-succession story-qa pokayoke user-stories authenticated-commands; do
   check "codex $skill skill package" diff -r --exclude=.harness-owned "$work/source/agent-config/skills/$skill" "$codex/skills/$skill"
   check "codex $skill ownership marker" grep -Fxq 'owned by misty-step/harness agent-config' "$codex/skills/$skill/.harness-owned"
 done

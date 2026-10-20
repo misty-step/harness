@@ -17,11 +17,12 @@ Build the roster using `lage` step 1. Pin lane threads with `t3_thread_organize`
 
 - Relay policy or recorded answers with citations. Leave technical choices with the lane.
 - For the latest failed run, read `t3_thread_read`, `view: "activity"`: an `error` titled "Usage limit reached" identifies a usage limit; reset text is in that run's notices. Leave recovery to T3. If no reset is advertised, or still failed next sweep after the advertised reset, report once to Process; suggest a provider with headroom.
+- An `error` reading "Insufficient context allowance for the provider handoff" means the lane can take no more turns; restarting fails the same way. Run `lane-succession`'s starter steps for it.
 - For `BLOCKED-ALLOWED`, send Process the blocker and guard. Nudge the lane once to continue unblocked work, unless usage-limited. Route recurring blocks and tooling causes to Process.
 - Leave usage-limited, progressing, held, finished and live-agent waits alone. Nudge an idle lane once for its named unblocked step. If liveness is uncertain, ask once for status. For other failed or demonstrably lost runs, confirm no live agents remain from lane reports and `t3_thread_list` with `includeSubagents: true`; T3 may omit native agents, so absence proves nothing. Restart once with `t3_thread_send`, `mode: "restart"`, naming the error or step.
 - If a nudge, status request or restart leaves the stall unresolved next sweep, report it once to Process, then stop.
 
-Send Process reports via `t3_thread_send` to `mcp:5fe1e302-5151-46ca-9c8a-e902e0ca1791`.
+Send Process reports via `t3_thread_send` to the Process thread named in `~/home/NOW.md`.
 
 ## Digest
 
