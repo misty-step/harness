@@ -28,3 +28,7 @@ PY
 
 Repair failures and rerun. Greps cannot prove meaningful summaries or complete questions;
 inspect the whole brief, including status items and **Not checked**.
+
+Open the pointer's HTTPS link and confirm it serves the full brief. Check every review link
+against global autonomy's review-link rule. Delivery is complete only when that brief is reachable
+and the inbox contains its linked pointer; a saved local file alone does not pass.
