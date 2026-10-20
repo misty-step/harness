@@ -19,7 +19,7 @@ A report on any other SHA is stale. Exclude it, and list it in the verdict as ne
 
 ## 1. Confirm each finding
 
-Read the code or the evidence behind every finding before you rule on it. Merge duplicates and note every source that raised each one. Two independent sources raising the same finding is strong signal.
+Read the code or the evidence behind every finding before you rule on it. Merge duplicates and note every source that raised each one. Two sources on different model families raising the same finding is strong signal; two on one family, weaker.
 
 - **Actual, not hypothetical.** "This could be null" counts only if a caller can pass null. Trace the call site.
 - **Preference is not a defect.** "I'd do it differently" with no concrete failure is a skip.
@@ -45,19 +45,20 @@ Blockers are rare. Five or more usually means you are not filtering, or the slic
 
 ## 3. Act
 
-- File every `file` finding on the repo's tracker. More than three from one PR go in one issue, as a checklist. Use the label vocabulary from `docs/agents/issue-tracker.md` when it exists, otherwise GitHub issues labelled `enhancement` or `bug`. Each ticket gets the finding, its evidence, and a link to the PR. Start its body with `> *Filed by the judge agent.*`
+- File this verdict's `file` findings on the repo's tracker: one issue each, or, for more than three, one issue with a checklist item each. Use the label vocabulary from `docs/agents/issue-tracker.md` when it exists, otherwise GitHub issues labelled `enhancement` or `bug`. Each issue or checklist item gets the finding, its evidence, and a link to the PR. Start each issue's body with `> *Filed by the judge agent.*`
 - Post the verdict as a PR comment headed `Verdict at <head SHA>`.
 - Return the verdict as your reply.
 
 ```
 **Verdict: SHIP | FIX | RE-SLICE** at <head SHA>
 <One sentence: why.>
+Sources: <each report's model>; <different families | one family>.
 
 Blockers
 1. <finding> (<sources>). Owner: builder | lane. Done when: <observable fix>. Evidence: <link>.
 
 Filed
-- <ticket link>: <title>
+- <issue link>: <title> (<n> checklist items, if a checklist)
 
 Skipped
 - <finding> (<sources>): <reason>
@@ -69,6 +70,6 @@ Stale or missing reports
 - <report>: <why it needs a re-run>
 ```
 
-**SHIP** means no blockers, and a QA PASS on this SHA for the path the change exists to serve. A docs-only or internal change needs proof that it composes, not a UI walk. **FIX** means at least one blocker. **RE-SLICE** means the change should be split before another round.
+**SHIP** means no blockers, and a QA PASS on this SHA for the path the change exists to serve. An internal change needs proof that it composes, not a UI walk. **FIX** means at least one blocker. **RE-SLICE** means the change should be split before another round.
 
-Done when every finding from every report has exactly one ruling and a reason, every `file` ruling links its ticket, and the verdict names the SHA.
+Done when every finding from every report has exactly one ruling and a reason, every `file` ruling links the issue that holds it, and the verdict names the SHA.
