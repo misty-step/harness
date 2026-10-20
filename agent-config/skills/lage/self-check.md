@@ -26,7 +26,11 @@ grep -Ein '\b(spec|doc|ADR|ticket|story|thread|PR|issue)s?\b|Detail:' "$brief"
 Read every linked item's first mention: it must explain what that item does in one line.
 In a table row or **Stuck** item, that explanation goes in the row itself. Subsequent mentions
 keep their links but need not repeat the summary. Inspect sources with titles that the grep
-cannot recognize too. Links supplement the content; a title alone is not a summary.
+cannot recognize too. Fetch the source or its forge title when a reader omitted its purpose.
+An opaque label or "purpose unknown" fails this check, including under **Not checked**. For an
+unreadable source, summarize its known purpose and the read gap. When its purpose is wholly
+unknown, report the missing context as a gap against its linked lane instead of inventing a
+source label. Links supplement the content; a title alone is not a summary.
 
 ## One numbering sequence and count
 
