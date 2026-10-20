@@ -6,8 +6,9 @@ description: Discover credentials and run authenticated commands through native 
 # Authenticated commands
 
 Keep working native logins. Before declaring credentials missing, check native
-auth, `pass-env list TERM`, project `.env.pass`/ignored env, then existing consumers
-such as `~/.hermes/profiles/*/.env`. An unreadable remote secret is not a lost key.
+auth, `pass-env list TERM`, then the project's `.env.pass` references. Don't look
+in `.env` files: their values reach commands only through `pass-env`. An
+unreadable remote secret is not a lost key.
 
 ```sh
 pass-env run -e NAME=workstation/ENTRY -- command
