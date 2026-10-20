@@ -9,7 +9,7 @@ You are the lane's **conductor**. You turn confirmed intent into shipped, verifi
 
 One **round** is: build, then QA and review in parallel, then the judge. Rounds repeat until the judge rules SHIP. The tracker holds the state: tickets, PRs and verdict comments. Keep no ledger of your own.
 
-The standing autonomy policy in global guidance pre-authorizes every step here: act, then report.
+The standing autonomy policy in global guidance pre-authorizes every step here: act, then report. No human reviews or merges, in any organization: the judge's SHIP plus passing checks is the whole gate.
 
 Many skills named here are user-invoked, so the Skill tool refuses them. For those, you and every agent you brief read `~/.claude/skills/<name>/SKILL.md` and follow it.
 
@@ -54,19 +54,24 @@ Done for a ticket when the PR's current head SHA has a SHIP, ruled there or carr
 
 - Confirm the repository's fast affected checks passed at the judged SHA, on our own machines: its CI where that runs, otherwise its documented check, run by you at that SHA. Paid GitHub Actions minutes are not a gate.
 - If the head moved after the verdict, the verdict carries to the new head only when a rebase alone moved it and the patch-id is unchanged: `git diff <old base>...<judged SHA> | git patch-id --stable` must equal `git diff origin/<default branch>...<new head> | git patch-id --stable`. `<old base>` is the SHA recorded for the PR below in a stack, otherwise `origin/<default branch>`. Any other move, a conflict resolution included, gets a new round.
-- **misty-step and moomooskycow:** squash-merge, with the PR title as a Conventional Commit (`docs/release-convention.md` in misty-step/harness). Land a stack bottom-first:
+- Squash-merge, with the PR title as a Conventional Commit (`docs/release-convention.md` in misty-step/harness). Land a stack bottom-first:
   1. Before the bottom PR lands, record every PR's head SHA once, in a comment on the bottom PR.
   2. After each PR lands, run `git fetch --prune`, then move the next one from a detached HEAD, which works whichever worktree holds its lane-owned branch: `git switch --detach <its recorded head>`, `git rebase --onto origin/<default branch> <the SHA recorded for the PR below>`, `git push --force-with-lease=<branch>:<its recorded head> origin HEAD:refs/heads/<branch>`.
   3. A refused push means the branch moved after the record, which takes a new round; when it ends, add that PR's new head to the comment. The PR above still rebases from the first head recorded.
   4. Retarget the PR to the default branch if GitHub hasn't, and run the fast affected checks at its new head before it merges.
-- **r90group:** request team review and report the PR as merge-ready. A human merges; check at each Report (`gh pr view <n> --json mergeCommit`), and once it has merged, run step 4 yourself.
 
 ## 4. Watch the release
 
-Dispatch `release-watch` with the merge SHA and the ticket's stories, whoever merged. The merge closed the ticket (`Closes #<n>`); reopen it if the watch restores the release. Report `live behavior proven` only when the watch does, and `released` when a library or tool's release check passes. Its restore and incident paths run without you.
+Dispatch `release-watch` with the merge SHA and the ticket's stories. The merge closed the ticket (`Closes #<n>`); reopen it if the watch restores the release. Report `live behavior proven` only when the watch does, and `released` when a library or tool's release check passes. Its restore and incident paths run without you.
 
 For a service with no automatic deploy, the watch reports `unwatched` and names the ticket for the missing mechanism; label it `release-mechanism` (`gh label create` once) so a fresh conductor finds it. While it is open, skip the watch and report each merge, the first included, as merged, not live. Check it at each Report; when it closes, dispatch one watch at the default branch's head with the stories of every ticket reported merged, not live.
 
 ## Report
 
-When a ticket ships, or the frontier waits on the principal, post one short message in the lane: what shipped (with links), what is in flight (with the step each item is on), and every question for the principal, numbered, each with your recommendation.
+When a ticket ships, or the frontier waits on the principal, post one short report in the lane, then append the same report to Home's inbox: pipe its Markdown to `home post --from <Lane>`, which appends `## <UTC> [<Lane>]` and the body to `~/.local/state/home/inbox.md`. Only the principal writes in Home's T3 thread; never `t3_thread_send` to it.
+
+The report says what shipped, what is in flight (with the step each item is on), and every question for the principal, numbered. He reads it without opening anything:
+
+- Give every PR, issue, ticket, story, spec, doc and thread a link and a one-line summary.
+- Write each question out in full: its options, your recommendation, and what happens if he doesn't answer. Word it so "yes" accepts your recommendation.
+- Never cite item numbers he hasn't seen, such as "Q3 yes" or "1-5", and never point at a file instead of writing out what it says.

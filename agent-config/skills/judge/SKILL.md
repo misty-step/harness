@@ -70,6 +70,6 @@ Stale or missing reports
 - <report>: <why it needs a re-run>
 ```
 
-**SHIP** means no blockers, and a QA PASS on this SHA for the path the change exists to serve. An internal change needs proof that it composes, not a UI walk. **FIX** means at least one blocker. **RE-SLICE** means the change should be split before another round.
+**SHIP** means no blockers, and a QA PASS on this SHA for the path the change exists to serve. An internal change needs proof that it composes, not a UI walk. **FIX** means at least one blocker. **RE-SLICE** means the change should be split before another round. SHIP is the merge gate in every organization; no human review follows it.
 
 Done when every finding from every report has exactly one ruling and a reason, every `file` ruling links the issue that holds it, and the verdict names the SHA.
