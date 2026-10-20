@@ -53,6 +53,8 @@ for consumer in pi omp; do
     mkdir -p "$agent/extensions/cwd"
     printf 'retired extension\n' > "$agent/extensions/cwd/index.ts"
     printf 'retired extension\n' > "$agent/extensions/loc/index.ts"
+    mkdir -p "$agent/extensions/kaylee-pane-guard"
+    printf 'retired extension\n' > "$agent/extensions/kaylee-pane-guard/index.ts"
     mkdir -p "$agent/extensions/subagent-inheritance" "$agent/bin"
     printf 'retired routing hook\n' > "$agent/extensions/subagent-inheritance/index.ts"
     printf 'retired routing tests\n' > "$agent/extensions/subagent-inheritance/index.test.ts"
@@ -78,9 +80,6 @@ for consumer in pi omp; do
     done
     printf 'foreign presentation owner\n' > "$home/.config/systemd/user/forest-view.service"
     printf 'retired watchdog\n' > "$agent/WATCHDOG.md"
-    mkdir -p "$home/.hermes/profiles/kaylee/journal"
-    printf '# Experiments\n\n## E-018 Preserved runtime journal sentinel\n' > "$work/expected-experiments"
-    cp "$work/expected-experiments" "$home/.hermes/profiles/kaylee/journal/experiments.md"
     printf '{"runtime":{"sentinel":true},"mcpServers":{"mobbin":{"type":"http","url":"https://example.invalid/old-mobbin","auth":{"synthetic":"mobbin-auth"},"oauth":{"synthetic":"mobbin-oauth"}},"foreign":{"type":"http","url":"https://example.invalid/foreign","auth":{"synthetic":"foreign-auth"}}},"disabledServers":["foreign"]}\n' > "$agent/mcp.json"
     printf '{"mcpServers":{"fastmail":{"type":"http","url":"https://example.invalid/fastmail"}}}\n' > "$work/expected-scope"
     printf '{"mcpServers":{"project-native":{"type":"http","url":"https://example.invalid/project"}}}\n' > "$work/expected-project-mcp"
@@ -181,7 +180,6 @@ for consumer in pi omp; do
     check "omp engineer launcher bytes" cmp -s "$work/source/omp-config/bin/omp-engineer.py" "$home/.local/bin/omp-engineer"
     check "omp engineer launcher executable" test -x "$home/.local/bin/omp-engineer"
     check "omp engineer launcher installed load" "$home/.local/bin/omp-engineer" --help
-    check "omp CLI preserves the sole runtime experiment ledger" cmp -s "$work/expected-experiments" "$home/.hermes/profiles/kaylee/journal/experiments.md"
     check "omp OpenRouter personal billing entry" \
       env -i PATH="$home/.local/bin:$PATH" HOME="$home" AGENT="$agent" bun -e '
         const doc = Bun.YAML.parse(await Bun.file(`${process.env.AGENT}/models.yml`).text());
@@ -250,6 +248,7 @@ for consumer in pi omp; do
     check "omp diff-review retired" test ! -e "$agent/extensions/diff-review"
     check "omp cwd retired" test ! -e "$agent/extensions/cwd"
     check "omp loc retired" test ! -e "$agent/extensions/loc"
+    check "omp kaylee-pane-guard retired" test ! -e "$agent/extensions/kaylee-pane-guard"
     check "omp inheritance hook retired" test ! -e "$agent/extensions/subagent-inheritance/index.ts"
     check "omp inheritance tests retired" test ! -e "$agent/extensions/subagent-inheritance/index.test.ts"
     check "omp model validator retired" test ! -e "$agent/bin/omp-model-policy.ts"

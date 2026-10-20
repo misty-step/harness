@@ -2,10 +2,10 @@
 """Image-generation adapter for design-studio (xAI Imagine path).
 
 This is ONE adapter among several possible ones — not a quality default. Provider
-selection is provider-neutral: see references/media-policy.md. It requires a Python
-that can import the Hermes credential resolver for an AUTHORIZED profile:
+selection is provider-neutral: see references/media-policy.md. It reads an xAI API
+key from XAI_API_KEY:
 
-    HERMES_HOME=<profile> <hermes-agent>/venv/bin/python imagine.py ...
+    pass-env run -e XAI_API_KEY=workstation/XAI_API_KEY -- python3 imagine.py ...
 
 Never prints credentials. Writes <id>.<ext> + <id>.provenance.json per job
 (ext = png | jpg | gif | webp, as detected from the payload).
@@ -128,37 +128,14 @@ def estimate_batch_usd(jobs, price_per_image=None):
 
 
 def resolve_env():
-    """Locate the Hermes install and resolve authorized xAI credentials (never printed)."""
-    here = os.path.dirname(os.path.abspath(__file__))
-    candidates = [
-        os.environ.get("HERMES_AGENT_DIR", ""),
-        os.path.expanduser("~/.hermes/hermes-agent"),
-    ]
-    # Walk up from this script's location in case it lives inside a checkout.
-    probe = here
-    for _ in range(6):
-        probe = os.path.dirname(probe)
-        if os.path.isdir(os.path.join(probe, "tools")):
-            candidates.append(probe)
-    for base in candidates:
-        if base and os.path.isfile(os.path.join(base, "tools", "xai_http.py")):
-            sys.path.insert(0, base)
-            break
-    try:
-        from tools.xai_http import resolve_xai_http_credentials, hermes_xai_user_agent
-    except Exception as exc:  # noqa: BLE001
-        print(json.dumps({
-            "error": "no_hermes_resolver",
-            "detail": str(exc)[:200],
-            "hint": "Run with the Hermes venv python and HERMES_HOME set to an authorized "
-                    "profile, e.g. HERMES_HOME=~/.hermes/profiles/<name> <hermes>/venv/bin/python",
-        }))
+    """Read the xAI API key from the environment (never printed)."""
+    api_key = os.environ.get("XAI_API_KEY", "").strip()
+    if not api_key:
+        print(json.dumps({"error": "no_credentials",
+                          "hint": "Set XAI_API_KEY, e.g. pass-env run -e "
+                                  "XAI_API_KEY=workstation/XAI_API_KEY -- python3 imagine.py ..."}))
         raise SystemExit(2)
-    creds = resolve_xai_http_credentials()
-    if not creds.get("api_key"):
-        print(json.dumps({"error": "no_credentials", "hint": "Profile has no authorized xAI credential."}))
-        raise SystemExit(2)
-    return creds, hermes_xai_user_agent
+    return {"api_key": api_key, "base_url": os.environ.get("XAI_BASE_URL")}, lambda: "design-studio-imagine"
 
 
 def generate_one(session, creds, agent, job, out_dir, price=None):
