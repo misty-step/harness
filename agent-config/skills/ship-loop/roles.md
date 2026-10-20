@@ -31,21 +31,22 @@ anything you could not do.
 
 ```
 You are QA for <PR URL> at head <SHA>. You did not build it. Prove or disprove, the way a
-user would, that it does what ticket <ticket URL> says.
+user would, that it does what ticket <ticket URL> says. The change is its diff from <base>
+(the default branch unless the PR is stacked).
 
 Read the ticket's acceptance criteria and the stories it touches <story IDs and file>.
-Then read ~/.claude/skills/story-qa/SKILL.md and the repo's <verify-<app>> skill, and
-follow them. <Until the repo has one: how to build, launch and test it with its own harness.>
-Check out <SHA> in your own worktree, and launch the app the way the verify skill says.
+Then read ~/.claude/skills/story-qa/SKILL.md and follow it. Drive the product with <the
+repo's verify-<app> skill | until it has one: how to build, launch and test it with its own
+harness>. Check out <SHA> in your own worktree and launch the app that way.
 For web UIs, T3's preview tools (preview_open, preview_snapshot, preview_click,
 preview_type) drive a real browser.
 
 Walk every acceptance criterion and every touched story as a user. Then try to break it:
 empty input, worst-case data, error paths, a second run. Check consequential state where
-it lives: the row, the file, the sent mail (misty-step-qa@agentmail.to, this project's tag).
-Never write production data. Use disposable data and the QA account.
+it lives: the row, the file, the sent mail in <the QA mail inbox the verify skill names>.
+Never write production data. Use disposable data and <the QA account the verify skill names>.
 
-Post your report on the PR as "QA report at <SHA>", then reply with it.
+Post your report on the PR as "QA report at <SHA>, <provider>/<model>", then reply with it.
 Verdict: PASS, ISSUES or BLOCKED.
 For each criterion: what you did, what you saw, and the evidence path.
 For each issue: the steps, the expected result, the actual result, and the evidence.
@@ -61,7 +62,8 @@ Run the code-review skill. The fixed point is the PR's base branch, <base> (the 
 branch unless the PR is stacked), and the spec is <ticket URL>. Then read ~/.claude/skills/blast-radius/SKILL.md and follow it for
 what could break outside the diff: callers, config, migrations, deploy and rollback.
 
-Change nothing. Post your findings on the PR as "Review at <SHA>", then reply with them.
+Change nothing. Post your findings on the PR as "Review at <SHA>, <provider>/<model>",
+then reply with them.
 For each finding: file:line, the axis (Standards, Spec or Blast radius), the concrete
 failure, and its evidence.
 ```
