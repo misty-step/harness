@@ -1,45 +1,44 @@
 ---
 name: heartbeat
-description: One sweep over every lane that restarts the stalled, answers what standing policy already answers, runs allowed actions a guard blocked, and digests only genuinely new decisions for the coordinator. Use for /heartbeat or "Heartbeat sweep".
+description: Sweep lanes, resume stalls, relay decisions, run allowed blocked commands, and digest new principal questions. Use for /heartbeat or "Heartbeat sweep".
 ---
 
 # Heartbeat
 
-Lanes stall: a turn ends with work left, a run fails, a guard blocks an allowed command, or a question sits that policy already answers. Each sweep moves every stalled lane that an agent can move, so the principal and the coordinator only ever see real decisions.
+Follow global guidance's **Autonomy** section. Leave technical choices with the lane; run only its checked blocked command.
 
-You act only within the standing autonomy policy in global guidance. You never do a lane's work for it, rewrite its plan, or answer product intent. The one exception is running a lane's blocked command, under the rule below.
+## Setup
 
-## Setup, once
-
-`schedule_task` bound to this thread, with schedule `{"type":"interval","everyMs":3600000}` and prompt `Heartbeat sweep: use the heartbeat skill.` Report its next run.
+Record the coordinator's thread ID in this thread; resolve it from the coordinator thread if missing. Read `list_scheduled_tasks`: reconcile this thread's heartbeat to `{"type":"interval","everyMs":3600000}` and prompt `Heartbeat sweep: use the heartbeat skill.` Update the existing task, or `schedule_task` if absent. Report next run.
 
 ## 1. Read every lane
 
-Build the roster exactly as the `lage` skill's step 1 does. For each lane, read the thread's status, `t3_pending_request_list`, the last three messages, and the time of its newest side effect (lage's step 2 definitions). Skip PR and child detail unless a rule below needs it.
+Build the roster exactly as the `lage` skill's step 1 does. Read `~/home/NOW.md` (Home's open loops) and your previous sweep. Read each lane's status, `t3_pending_request_list`/`t3_pending_request_read`, and `t3_thread_read` tail: `afterPosition` near `itemCount - 12`, `maxCharsPerItem: 3000`. Expand truncation with `itemId`/`textOffset`; page back until outstanding asks, blocked requests and heartbeat replies are accounted for.
 
-Done when every roster lane has a status, its asks and a last-side-effect time.
+Find the newest side effect (lage step 2's definition) in dated activity; verify linked evidence as needed. Record time or `unknown: <why>`. Resolve agent waits from `t3_thread_list` with `includeSubagents: true` and lane reports: T3 may omit native agents, so absence proves nothing.
 
-## 2. Apply the first rule that matches
+Classify every ask: policy/dated NOW answers are relays; technical choices belong to the lane; unresolved Autonomy **Bring him only** asks enter the draft digest with recommendation and waiting cost, regardless of other asks or lane status.
 
-| The lane is | Do |
+Done when every lane has status, asks, wait evidence and progress time (or explicit unknowns), and every principal ask enters the draft.
+
+## 2. Select exactly one rule
+
+Each row excludes all preceding matches. Batch lane sends; use `clientRequestId: heartbeat-<UTC hour YYYY-MM-DDTHH>-<threadId>`, reused on retries.
+
+| Condition | Action |
 | --- | --- |
-| running, with a side effect in the last 6 hours | Nothing. |
-| running, with no side effect in 6 hours and no running child | Ask once: "Heartbeat: no side effect since <time>. What's the next verifiable step?" If the next sweep finds the same, `t3_thread_send` with `mode: "restart"`: "Continue from your last verifiable step." |
-| failed or interrupted | Send "Continue. The last run ended with: <error, one line>." On the same failure twice in a row, put it in the digest as stuck. |
-| idle, having named a next step it can take | Send "Continue: <the step it named>." |
-| holding `BLOCKED-ALLOWED: <command>` with no `RAN:` reply after it | Check the command against the policy, part by part. Refuse a chain you can't check that way. If the policy allows every part and nothing is destroyed, run it in the lane's `worktreePath` (from `t3_thread_read`), then reply in the lane: `RAN: <command> → <exit code and one-line result>`. If the policy withholds it, as with a merge that has no judge SHIP, reply with the policy line that withholds it and put it in the digest. If a guard blocks you too, tell the Process lane the exact command and guard, and put it in the digest. |
-| asking a question the policy or the coordinator's file already answers | Answer it, citing the policy line or the decision and its date. |
-| asking a product-intent, destructive, production-write or money question | Leave it for the principal. It goes in the digest. |
-| waiting only on the principal | Nothing. |
+| Outstanding `BLOCKED-ALLOWED` request without subsequent `RAN:` result/refusal | Check every command part against Autonomy. For non-idempotent actions, agree one runner with the coordinator. Immediately reread for another runner/result and defer if present. Run wholly allowed, non-destructive commands in the lane's `worktreePath`. Reply `RAN: <command> → <exit/result>` or `RAN: <command> → refused (<reason/policy line>)` for uncheckable chains, policy refusals or another guard block. Digest refusals; notify Process of guard blocks. Reconsider only on a fresh request or changed authorization. |
+| Agent-answerable asks remain | Relay all answers with citations/dates; tell the lane to make technical calls and continue unblocked work. |
+| Explicitly waiting on agents, or a live child blocks the next step | Wait. If native-agent liveness is unknown and progress is older than 6 hours/unknown, ask once for status; digest as stuck if still unknown next sweep. |
+| `failed`, `interrupted`, `rolled_back`; no explicit stop/hold | Send `Continue: <last error>`. Same failure after that retry: digest as stuck; retry only after changed evidence. |
+| `idle`, `completed`, `cancelled`, `waiting`; named unblocked step; no stop/hold | Send `Continue: <named step>`. |
+| `preparing`, `queued`, `starting`, `running`; progress older than 6 hours/unknown | Ask once for next verifiable step and child status. Next unchanged sweep: `t3_thread_send`, `mode: "restart"`, with `Continue from your last verifiable step` only with confirmed absence of live agents; otherwise digest as stuck. |
+| All remaining lanes | Leave waiting, progressing, held or finished work alone; digest unknown status/missing evidence. |
 
-Give every send a `clientRequestId` of `heartbeat-<sweep start, to the hour>-<threadId>`, so a re-run sweep never double-sends.
+Record each lane's selected rule and results here for next sweep.
 
 ## 3. Digest
 
-Read your own previous digest in this thread. Then send the coordinator (Home, `mcp:dc0e963c-accc-4bdd-a7d1-fc52a7523347`) one `t3_thread_send`, and only if something is new since it:
+Dedupe against both your previous digest and `~/home/NOW.md`. Unchanged asks already held are accounted for; recorded answers become relays; changed stakes/recommendations/deadlines are new. Record every principal ask as sent, already held (cite where), or answered/relayed.
 
-- what you unstuck, one line per lane;
-- each new principal decision: the lane link, a one-line question, and the lane's recommendation;
-- anything stuck that you could not move.
-
-When nothing is new, send nothing. Your own reply in this thread is at most two lines: what you did, and the next run time.
+Send the configured coordinator one `t3_thread_send` only for new items: unstuck lanes; principal asks (lane link, question, recommendation, waiting cost); stuck work. With no news, send nothing. Reply here in two lines at most: actions and next run.
