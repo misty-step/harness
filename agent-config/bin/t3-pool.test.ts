@@ -14,11 +14,14 @@ const token = "synthetic-pool-bearer-never-print";
 const cli = join(import.meta.dir, "t3-pool.ts");
 const future = "2099-01-01T00:00:00.000Z";
 const past = "2000-01-01T00:00:00.000Z";
+const recent = new Date(Date.now() - 60_000).toISOString();
+const later = new Date(Date.now() - 30_000).toISOString();
 
 function fixture() {
 	const root = mkdtempSync(join(tmpdir(), "t3-pool-"));
 	roots.push(root);
 	for (const dir of ["bin", "userdata", "config"]) mkdirSync(join(root, dir));
+	writeFileSync(join(root, "config/t3-pool.json"), JSON.stringify({ pools: [["claudeAgent", "claude-hello", "claude-r90", "claude-mistystep"], ["codex", "codex-mistystep", "codex-r90"]], reserved: [], maxMovesPerPass: 2 }));
 	writeFileSync(join(root, "bin/t3"), `#!${process.execPath}
 import { appendFileSync, writeFileSync } from "node:fs";
 const root = process.env.T3CODE_HOME;
@@ -40,6 +43,7 @@ CREATE TABLE orchestration_v2_projection_runtime_requests (thread_id TEXT, statu
 CREATE TABLE orchestration_v2_projection_provider_session_bindings (thread_id TEXT, provider_session_id TEXT);
 CREATE TABLE orchestration_v2_projection_provider_sessions (provider_session_id TEXT, provider_instance_id TEXT, updated_at TEXT, payload_json TEXT);
 CREATE TABLE orchestration_command_receipts (command_id TEXT PRIMARY KEY, status TEXT);
+CREATE TABLE orchestration_v2_projection_subagents (child_thread_id TEXT, status TEXT);
 `);
 	const env = { ...process.env, T3CODE_HOME: root, XDG_STATE_HOME: join(root, "state"), XDG_CONFIG_HOME: join(root, "config"), PATH: `${root}/bin:${process.env.PATH}` };
 	return { root, db, env };
@@ -48,25 +52,25 @@ type Fixture = ReturnType<typeof fixture>;
 
 function thread(files: Fixture, id = "limited", instance = "claudeAgent", options: {
 	resetAt?: string | null; failureClass?: string; status?: string; archivedAt?: string | null;
-	deletedAt?: string | null; settledOverride?: string | null;
+	deletedAt?: string | null; settledOverride?: string | null; parentThreadId?: string | null; failedAt?: string;
 } = {}) {
 	const selection = { instanceId: instance, model: "model-original", options: [
 		{ id: "reasoningEffort", value: "max" }, { id: "fastMode", value: true },
 	] };
 	files.db.run("INSERT INTO orchestration_v2_projection_threads VALUES (?, ?, ?, ?)", [id, instance, options.deletedAt ?? null, JSON.stringify({
-		id, providerInstanceId: instance, modelSelection: selection, runtimeMode: "full-access",
+		id, providerInstanceId: instance, modelSelection: selection, runtimeMode: "full-access", lineage: { parentThreadId: options.parentThreadId ?? null },
 		archivedAt: options.archivedAt ?? null, deletedAt: options.deletedAt ?? null, settledOverride: options.settledOverride ?? null,
 	})]);
 	run(files, id, `${id}:run`, { status: options.status ?? "failed", instance });
-	error(files, id, `${id}:run`, { failureClass: options.failureClass ?? "usage_limit", resetAt: options.resetAt === undefined ? future : options.resetAt });
+	error(files, id, `${id}:run`, { failureClass: options.failureClass ?? "usage_limit", resetAt: options.resetAt === undefined ? future : options.resetAt, updatedAt: options.failedAt });
 	return selection;
 }
 
 function run(files: Fixture, threadId: string, runId: string, options: { status?: string; instance?: string; ordinal?: number; completedAt?: string | null; startedAt?: string | null } = {}) {
 	files.db.run("INSERT INTO orchestration_v2_projection_runs VALUES (?, ?, ?, ?, ?, ?, ?)", [
 		runId, threadId, options.ordinal ?? 1, options.instance ?? "claudeAgent", options.status ?? "failed",
-		options.completedAt === undefined ? "2026-10-19T12:00:00.000Z" : options.completedAt,
-		JSON.stringify({ rootNodeId: `${runId}:root`, startedAt: options.startedAt === undefined ? "2026-10-19T11:00:00.000Z" : options.startedAt }),
+		options.completedAt === undefined ? recent : options.completedAt,
+		JSON.stringify({ rootNodeId: `${runId}:root`, startedAt: options.startedAt === undefined ? recent : options.startedAt }),
 	]);
 }
 
@@ -74,7 +78,7 @@ function error(files: Fixture, threadId: string, runId: string, options: { node?
 	const ordinal = options.ordinal ?? 1;
 	files.db.run("INSERT INTO orchestration_v2_projection_turn_items VALUES (?, ?, ?, ?, ?, 'error', 'failed', ?, ?)", [
 		`${runId}:error:${ordinal}`, threadId, runId, options.node ?? `${runId}:root`, ordinal,
-		options.updatedAt ?? "2026-10-19T12:00:00.000Z", JSON.stringify({ failure: { class: options.failureClass ?? "usage_limit", resetAt: options.resetAt === undefined ? future : options.resetAt, message: "synthetic limit" } }),
+		options.updatedAt ?? recent, JSON.stringify({ failure: { class: options.failureClass ?? "usage_limit", resetAt: options.resetAt === undefined ? future : options.resetAt, message: "synthetic limit" } }),
 	]);
 }
 
@@ -153,7 +157,7 @@ test("dry run reads a fixture database without auth, state, log or database writ
 	const before = readFileSync(join(files.root, "userdata/statev2.sqlite"));
 	const output = await result(start(files, ["--dry-run"]));
 	expect(output.status).toBe(0);
-	expect(JSON.parse(output.stdout.split("\n")[0])).toEqual({ dryRun: true, thread: "limited", from: "claudeAgent", to: "claude-hello", run: "limited:run" });
+	expect(JSON.parse(output.stdout.split("\n")[0])).toMatchObject({ dryRun: true, thread: "limited", from: "claudeAgent", to: "claude-hello", run: "limited:run", reason: expect.any(String) });
 	expect(existsSync(join(files.root, "auth-calls"))).toBe(false);
 	expect(existsSync(join(files.root, "state"))).toBe(false);
 	expect(readFileSync(join(files.root, "userdata/statev2.sqlite"))).toEqual(before);
@@ -180,13 +184,13 @@ test("switches then continues once, preserving model options and runtime mode, a
 test("uses only the same pool, wraps the order, and treats unknown or malformed resets as limited", async () => {
 	const files = fixture();
 	thread(files, "claude", "claude-mistystep");
-	thread(files, "blocked-claude", "claudeAgent", { resetAt: null, archivedAt: past });
+	thread(files, "blocked-claude", "claudeAgent", { resetAt: null, parentThreadId: "parent" });
 	thread(files, "codex", "codex-r90");
-	thread(files, "blocked-codex", "codex", { resetAt: "bad timestamp", archivedAt: past });
+	thread(files, "blocked-codex", "codex", { resetAt: "bad timestamp", parentThreadId: "parent" });
 	const output = await result(start(files, ["--dry-run"]));
 	expect(output.status).toBe(0);
 	const plans = output.stdout.trim().split("\n").map((line) => JSON.parse(line));
-	expect(plans.slice(0, -1)).toEqual([
+	expect(plans.filter((row) => row.to).map(({ reason, ...row }) => row)).toEqual([
 		{ dryRun: true, thread: "claude", from: "claude-mistystep", to: "claude-hello", run: "claude:run" },
 		{ dryRun: true, thread: "codex", from: "codex-r90", to: "codex-mistystep", run: "codex:run" },
 	]);
@@ -207,13 +211,13 @@ test("only latest executed root usage failures qualify; skips archives, deletion
 	thread(files, "deleted", "claudeAgent", { deletedAt: past });
 	thread(files, "settled", "claudeAgent", { settledOverride: "settled" });
 	thread(files, "other-error", "claudeAgent", { failureClass: "authentication" });
-	thread(files, "running", "claudeAgent", { status: "running" });
+	thread(files, "running", "claude-r90", { status: "running" });
 	thread(files, "pending");
 	files.db.run("INSERT INTO orchestration_v2_projection_runtime_requests VALUES ('pending','pending')");
 	thread(files, "queued");
 	run(files, "queued", "queued:held", { ordinal: 2, status: "queued", completedAt: null });
-	thread(files, "newer-success");
-	run(files, "newer-success", "success", { ordinal: 0, status: "completed", completedAt: "2026-10-20T00:00:00.000Z" });
+	thread(files, "newer-success", "claude-r90");
+	run(files, "newer-success", "success", { ordinal: 0, instance: "claude-r90", status: "completed", completedAt: later });
 	thread(files, "child-error", "claudeAgent", { failureClass: "internal" });
 	error(files, "child-error", "child-error:run", { node: "child", ordinal: 2 });
 	thread(files, "superseded-error");
@@ -222,11 +226,10 @@ test("only latest executed root usage failures qualify; skips archives, deletion
 	files.db.run("INSERT INTO orchestration_v2_projection_provider_session_bindings VALUES ('session-error','session')");
 	files.db.run("INSERT INTO orchestration_v2_projection_provider_sessions VALUES ('session','claudeAgent',?,?)", [past, JSON.stringify({ lastError: "different failure" })]);
 	thread(files, "valid");
-	run(files, "valid", "cancelled-before-start", { ordinal: 2, status: "cancelled", startedAt: null, completedAt: "2026-10-20T00:00:00.000Z" });
+	run(files, "valid", "cancelled-before-start", { ordinal: 2, status: "cancelled", startedAt: null, completedAt: later });
 	const output = await result(start(files, ["--dry-run"]));
 	expect(output.status).toBe(0);
-	expect(output.stdout.trim().split("\n")).toHaveLength(2);
-	expect(JSON.parse(output.stdout.split("\n")[0]).thread).toBe("valid");
+	expect(plans(output).filter((row) => row.to).map((row) => row.thread)).toEqual(["valid"]);
 });
 
 for (const scenario of ["switch-rejected", "continue-rejected", "switch-ack-lost", "continue-ack-lost"] as const) {
@@ -239,7 +242,7 @@ for (const scenario of ["switch-rejected", "continue-rejected", "switch-ack-lost
 			if (!failed && command.type === selectedType) { failed = true; return scenario.endsWith("lost") ? "close" : "failure"; }
 			return "success";
 		});
-		expect((await result(start(files))).status).toBe(1);
+		expect((await result(start(files))).status).toBe(scenario.endsWith("lost") ? 1 : 0);
 		expect(readFileSync(join(files.root, "revoked"), "utf8")).toBe("pool-session");
 		expect((await result(start(files))).status).toBe(0);
 		expect(new Set(fake.commands.filter((c) => c.type === "provider.switch").map((c) => c.commandId)).size).toBe(scenario === "switch-rejected" ? 2 : 1);
@@ -250,7 +253,7 @@ for (const scenario of ["switch-rejected", "continue-rejected", "switch-ack-lost
 	});
 }
 
-test("retains a limited account after the moved thread succeeds and prunes obsolete handled runs", async () => {
+test("clears recovered accounts and prunes obsolete handled runs", async () => {
 	const files = fixture();
 	thread(files);
 	server(files);
@@ -258,10 +261,10 @@ test("retains a limited account after the moved thread succeeds and prunes obsol
 	files.db.run("UPDATE orchestration_v2_projection_runs SET status='completed'");
 	thread(files, "another", "claude-mistystep");
 	const output = await result(start(files, ["--dry-run"]));
-	expect(JSON.parse(output.stdout.split("\n")[0]).to).toBe("claude-hello");
+	expect(JSON.parse(output.stdout.split("\n")[0]).to).toBe("claudeAgent");
 	expect((await result(start(files))).status).toBe(0);
 	expect(state(files).moves.map((move: { threadId: string }) => move.threadId)).toEqual(["another"]);
-	expect(state(files).limits.claudeAgent).toBe(future);
+	expect(state(files).limits.claudeAgent).toBeUndefined();
 });
 
 test("a human provider, model or runtime change cancels a pending continuation", async () => {
@@ -269,7 +272,7 @@ test("a human provider, model or runtime change cancels a pending continuation",
 		const files = fixture();
 		thread(files);
 		const fake = server(files, (command) => command.type === "message.dispatch" ? "failure" : "success");
-		expect((await result(start(files))).status).toBe(1);
+		expect((await result(start(files))).status).toBe(0);
 		if (patch.providerInstanceId) files.db.run("UPDATE orchestration_v2_projection_threads SET payload_json=json_set(payload_json,'$.modelSelection.instanceId',?,'$.providerInstanceId',?)", [patch.providerInstanceId, patch.providerInstanceId]);
 		if (patch.model) files.db.run("UPDATE orchestration_v2_projection_threads SET payload_json=json_set(payload_json,'$.modelSelection.model',?)", [patch.model]);
 		if (patch.runtimeMode) files.db.run("UPDATE orchestration_v2_projection_threads SET payload_json=json_set(payload_json,'$.runtimeMode',?)", [patch.runtimeMode]);
@@ -329,4 +332,178 @@ test("bad config or corrupt state fails closed without minting credentials", asy
 	writeFileSync(join(files.root, "state/t3-pool/state.json"), "broken");
 	expect((await result(start(files))).status).toBe(1);
 	expect(existsSync(join(files.root, "auth-calls"))).toBe(false);
+});
+
+function plans(output: { stdout: string }) { return output.stdout.trim().split("\n").map((line) => JSON.parse(line)); }
+
+function config(files: Fixture, patch: Record<string, unknown>) {
+	const path = join(files.root, "config/t3-pool.json");
+	writeFileSync(path, JSON.stringify({ ...JSON.parse(readFileSync(path, "utf8")), ...patch }));
+}
+
+test("eligibility excludes delegated children and stale lanes, but admits fresh top-level failures", async () => {
+	const files = fixture();
+	for (const status of ["failed", "completed", "cancelled", "running", "waiting"]) {
+		thread(files, `${status}-child`, "claudeAgent", { parentThreadId: "parent" });
+		files.db.run("INSERT INTO orchestration_v2_projection_subagents VALUES (?, ?)", [`${status}-child`, status]);
+	}
+	thread(files, "stale-lane", "claudeAgent", { failedAt: new Date(Date.now() - 31 * 60_000).toISOString() });
+	thread(files, "fresh-lane");
+	const output = await result(start(files, ["--dry-run"]));
+	expect(output.status).toBe(0);
+	expect(plans(output).filter((row) => row.to).map((row) => row.thread)).toEqual(["fresh-lane"]);
+});
+
+test("later completed and running runs clear stale child null-reset limits", async () => {
+	const files = fixture();
+	thread(files, "source", "codex-r90");
+	thread(files, "stale-child", "codex", { parentThreadId: "parent", resetAt: null, failedAt: past });
+	thread(files, "recent-child", "codex-mistystep", { parentThreadId: "parent", resetAt: null });
+	run(files, "unrelated-healthy", "completed", { instance: "codex", status: "completed", completedAt: later });
+	run(files, "another", "running", { instance: "codex-mistystep", status: "running", completedAt: null, startedAt: later });
+	const output = await result(start(files, ["--dry-run"]));
+	expect(plans(output).at(-1).limited).toEqual(["codex-r90"]);
+	expect(plans(output).find((row) => row.to)?.to).toBe("codex");
+});
+
+test("unknown resets expire in one hour, including legacy persisted null limits", async () => {
+	const files = fixture();
+	thread(files, "source", "codex-r90");
+	thread(files, "old-null", "codex", { resetAt: null, failedAt: new Date(Date.now() - 61 * 60_000).toISOString() });
+	thread(files, "fresh-null", "codex-mistystep", { resetAt: "invalid" });
+	mkdirSync(join(files.root, "state/t3-pool"), { recursive: true });
+	writeFileSync(join(files.root, "state/t3-pool/state.json"), JSON.stringify({ version: 1, limits: { codex: null }, moves: [] }));
+	const output = await result(start(files, ["--dry-run"]));
+	expect(plans(output).at(-1).limited).toEqual(["codex-mistystep", "codex-r90"]);
+	expect(plans(output).find((row) => row.to)?.to).toBe("codex");
+});
+
+test("reserved instances remain sources but never targets", async () => {
+	const files = fixture();
+	config(files, { reserved: ["claude-hello", "claude-r90"] });
+	thread(files, "source", "claudeAgent");
+	thread(files, "other-limited", "claude-mistystep", { parentThreadId: "parent" });
+	expect(plans(await result(start(files, ["--dry-run"]))).filter((row) => row.to)).toEqual([]);
+	const second = fixture();
+	config(second, { reserved: ["claude-hello", "claude-r90"] });
+	thread(second, "reserved-source", "claude-hello");
+	expect(plans(await result(start(second, ["--dry-run"]))).find((row) => row.to)?.to).toBe("claude-mistystep");
+});
+
+test("least loaded targets spread reservations within a pass", async () => {
+	const files = fixture();
+	thread(files, "a", "codex-r90");
+	thread(files, "b", "codex-r90");
+	run(files, "unrelated", "busy", { instance: "codex", status: "running", completedAt: null, startedAt: later });
+	expect(plans(await result(start(files, ["--dry-run"]))).filter((row) => row.to).map((row) => row.to)).toEqual(["codex-mistystep", "codex"]);
+});
+
+test("default ramp admits one move and configuration never permits more than two", async () => {
+	const files = fixture();
+	rmSync(join(files.root, "config/t3-pool.json"));
+	for (const id of ["a", "b", "c"]) thread(files, id, "codex-r90");
+	expect(plans(await result(start(files, ["--dry-run"]))).at(-1).planned).toBe(1);
+	configFromDefaults(files, 3);
+	expect((await result(start(files))).status).toBe(1);
+	expect(existsSync(join(files.root, "auth-calls"))).toBe(false);
+});
+
+function configFromDefaults(files: Fixture, cap: number) {
+	writeFileSync(join(files.root, "config/t3-pool.json"), JSON.stringify({ pools: [["codex-r90", "codex", "codex-mistystep"]], reserved: [], maxMovesPerPass: cap }));
+}
+
+test("target hourly cap survives pruning completed moves and a process restart", async () => {
+	const files = fixture();
+	config(files, { pools: [["codex-r90", "codex"]] });
+	server(files);
+	for (const id of ["a", "b", "c", "d"]) thread(files, id, "codex-r90");
+	expect((await result(start(files))).status).toBe(0);
+	expect((await result(start(files))).status).toBe(0);
+	expect(state(files).moves.filter((move: { phase: string }) => move.phase === "done")).toHaveLength(3);
+	files.db.run("DELETE FROM orchestration_v2_projection_runs WHERE thread_id IN ('a','b','c')");
+	const capped = plans(await result(start(files, ["--dry-run"])));
+	expect(capped.at(-1).planned).toBe(0);
+	const saved = state(files);
+	for (const admission of saved.admissions) admission.at = past;
+	writeFileSync(join(files.root, "state/t3-pool/state.json"), JSON.stringify(saved));
+	expect(plans(await result(start(files, ["--dry-run"]))).at(-1).planned).toBe(1);
+});
+
+test("rejected moves do not block others and are abandoned after three rejections", async () => {
+	const files = fixture();
+	thread(files, "a-rejected"); thread(files, "b-good");
+	const fake = server(files, (command) => command.threadId === "a-rejected" ? "failure" : "success");
+	expect((await result(start(files))).status).toBe(0);
+	expect(fake.commands.map((row) => row.threadId)).toEqual(["a-rejected", "b-good", "b-good"]);
+	expect((await result(start(files))).status).toBe(0);
+	expect((await result(start(files))).status).toBe(0);
+	expect(state(files).moves.find((move: { threadId: string }) => move.threadId === "a-rejected").phase).toBe("abandoned");
+	expect((await result(start(files))).status).toBe(0);
+	expect(fake.commands.filter((row) => row.threadId === "a-rejected")).toHaveLength(3);
+	const rejections = readFileSync(join(files.root, "state/t3-pool/rejections.jsonl"), "utf8").trim().split("\n").map((line) => JSON.parse(line));
+	expect(rejections.map((row) => row.rejections)).toEqual([1, 2, 3]);
+	expect(rejections.at(-1).phase).toBe("abandoned");
+});
+
+test.each(["running", "completed"])("newer %s activity clears an account limit; older activity does not", async (status) => {
+	for (const [at, limited] of [[later, false], [past, true]] as const) {
+		const files = fixture();
+		thread(files, "source", "codex-r90");
+		thread(files, "failed-child", "codex", { parentThreadId: "parent", resetAt: null });
+		run(files, "healthy", "room", { instance: "codex", status, completedAt: status === "completed" ? at : null, startedAt: at });
+		const summary = plans(await result(start(files, ["--dry-run"]))).at(-1);
+		expect(summary.limited.includes("codex")).toBe(limited);
+	}
+});
+
+test("newest failure replaces older unknown reset and recovery evidence", async () => {
+	const files = fixture();
+	thread(files, "old", "codex", { parentThreadId: "parent", resetAt: null, failedAt: past });
+	run(files, "healthy", "completed", { instance: "codex", status: "completed", completedAt: past });
+	thread(files, "new", "codex", { parentThreadId: "parent", resetAt: future });
+	expect(plans(await result(start(files, ["--dry-run"]))).at(-1).limited).toEqual(["codex"]);
+	files.db.run("UPDATE orchestration_v2_projection_turn_items SET payload_json=json_set(payload_json,'$.failure.resetAt',?) WHERE thread_id='new'", [past]);
+	expect(plans(await result(start(files, ["--dry-run"]))).at(-1).limited).toEqual([]);
+});
+
+test("ownership is rechecked between switch and continuation", async () => {
+	const files = fixture();
+	thread(files);
+	const fake = server(files, (command) => {
+		if (command.type === "provider.switch") files.db.run("UPDATE orchestration_v2_projection_threads SET payload_json=json_set(payload_json,'$.lineage.parentThreadId','parent')");
+		return "success";
+	});
+	expect((await result(start(files))).status).toBe(0);
+	expect(fake.commands.map((row) => row.type)).toEqual(["provider.switch"]);
+});
+
+test("three continuation rejections abandon without switching again", async () => {
+	const files = fixture(); thread(files);
+	const fake = server(files, (command) => command.type === "message.dispatch" ? "failure" : "success");
+	for (let pass = 0; pass < 4; pass++) expect((await result(start(files))).status).toBe(0);
+	expect(fake.commands.filter((row) => row.type === "provider.switch")).toHaveLength(1);
+	expect(fake.commands.filter((row) => row.type === "message.dispatch")).toHaveLength(3);
+	expect(state(files).moves[0].phase).toBe("abandoned");
+});
+
+test("completion on a different account does not clear the source account's limit", async () => {
+	const files = fixture();
+	thread(files);
+	server(files);
+	expect((await result(start(files))).status).toBe(0);
+	run(files, "limited", "target-success", { instance: "claude-hello", status: "completed", completedAt: later });
+	const summary = plans(await result(start(files, ["--dry-run"]))).at(-1);
+	expect(summary.limited).toContain("claudeAgent");
+	expect(summary.planned).toBe(0);
+});
+
+test("archived, settled and deleted failures never poison target accounts", async () => {
+	for (const options of [{ archivedAt: past }, { settledOverride: "settled" }, { deletedAt: past }]) {
+		const files = fixture();
+		thread(files, "source", "codex-r90");
+		thread(files, "inactive", "codex", options);
+		const output = plans(await result(start(files, ["--dry-run"])));
+		expect(output.at(-1).limited).toEqual(["codex-r90"]);
+		expect(output.find((row) => row.to)?.to).toBe("codex");
+	}
 });
