@@ -23,11 +23,11 @@ Done when every lane has status, asks, wait evidence and progress time (or expli
 
 ## 2. Select exactly one rule
 
-Each row excludes all preceding matches. Batch sends; use `clientRequestId: heartbeat-<UTC hour YYYY-MM-DDTHH>-<purpose>-<threadId>` (`digest`, `nudge`, `answer`, `ran`, `process`), reused on retries.
+Each row excludes all preceding matches. Batch sends; use `clientRequestId: heartbeat-<sweep start, UTC hour YYYY-MM-DDTHH>-<purpose>-<threadId>` (`digest`, `nudge`, `answer`, `ran`, `process`), reused on retries.
 
 | Condition | Action |
 | --- | --- |
-| `BLOCKED-ALLOWED` with no later `RAN:` | Reread the lane immediately before running; defer to any `RAN:`. Run commands whose every part Autonomy allows and none destroys, in the lane's `worktreePath`; reply `RAN: <command> → <exit/result>`. Refuse uncheckable or disallowed ones with a final, digested `RAN: <command> → refused (<reason/policy line>)`. Leave a guard block on your run without `RAN:` for later sweeps to retry; send Process and the digest its exact command and guard unless that thread already holds them. |
+| `BLOCKED-ALLOWED: <command>` with no later `RAN: <command>` | Reread the lane immediately before running; defer to a `RAN:` for that command. Run commands whose every part Autonomy allows and none destroys, in the lane's `worktreePath`; reply `RAN: <command> → <exit/result>`. Refuse uncheckable or disallowed ones with a final, digested `RAN: <command> → refused (<reason/policy line>)`. Leave a guard block on your run without `RAN:` for later sweeps to retry; send Process and the digest its exact command and guard unless Process's thread and your previous digest already hold them. |
 | Agent-answerable asks remain | Relay all answers with citations/dates; tell the lane to make technical calls and continue unblocked work. |
 | Explicitly waiting on agents, or a live child blocks the next step | Wait. If native-agent liveness is unknown and progress is older than 6 hours/unknown, ask once for status; digest as stuck if still unknown next sweep. |
 | `failed`, `interrupted`, `rolled_back`; no explicit stop/hold | Send `Continue: <last error>`. Same failure after that retry: digest as stuck; retry only after changed evidence. |
