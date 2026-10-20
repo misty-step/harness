@@ -339,6 +339,194 @@ else
   check "claude keeps a CLAUDE.md with the marker on a later line" \
     cmp -s "$work/expected-marker-claude" "$marker_home/.claude/CLAUDE.md"
 fi
+# Codex: selected skills land beside its bundled .system skills and foreign
+# links, composed guidance lands in $CODEX_HOME/AGENTS.md, and config.toml,
+# credentials and runtime state stay untouched.
+codex_home="$work/codex-home"
+codex="$codex_home/.codex"
+mkdir -p "$codex/skills/foreign" "$codex/skills/.system/imagegen"
+printf 'foreign skill sentinel\n' > "$codex/skills/foreign/SKILL.md"
+for skill in check-cadence verification-infrastructure; do
+  mkdir -p "$codex/skills/$skill"
+  printf 'foreign retired skill\n' > "$codex/skills/$skill/SKILL.md"
+  printf 'foreign extra file\n' > "$codex/skills/$skill/foreign-only.txt"
+done
+printf 'bundled system skill\n' > "$codex/skills/.system/imagegen/SKILL.md"
+ln -s /usr/share/omarchy/default/agents/skills/omarchy "$codex/skills/omarchy"
+printf 'model = "synthetic"\n[projects."/synthetic"]\ntrust_level = "trusted"\n' > "$codex/config.toml"
+printf '{"synthetic":"codex auth sentinel"}\n' > "$codex/auth.json"
+cp "$codex/config.toml" "$work/expected-codex-config"
+cp "$codex/auth.json" "$work/expected-codex-auth"
+if env -i PATH="$PATH" HOME="$codex_home" TMPDIR="$work" \
+  "$work/source/codex-config/install" >"$work/codex.log" 2>&1; then
+  printf 'PASS codex installer exit\n'
+else
+  printf 'FAIL codex installer exit\n' >&2
+  cat "$work/codex.log" >&2
+  failures=$((failures + 1))
+fi
+for skill in lage ship-loop judge release-watch heartbeat story-qa pokayoke user-stories authenticated-commands; do
+  check "codex $skill skill package" diff -r --exclude=.harness-owned "$work/source/agent-config/skills/$skill" "$codex/skills/$skill"
+  check "codex $skill ownership marker" grep -Fxq 'owned by misty-step/harness agent-config' "$codex/skills/$skill/.harness-owned"
+done
+for skill in check-cadence verification-infrastructure; do
+  check "codex preserves unowned retired $skill package" grep -Fxq 'foreign retired skill' "$codex/skills/$skill/SKILL.md"
+  check "codex preserves unowned retired $skill extra files" grep -Fxq 'foreign extra file' "$codex/skills/$skill/foreign-only.txt"
+done
+check "codex foreign skill" cmp -s "$work/expected-skill" "$codex/skills/foreign/SKILL.md"
+check "codex keeps bundled system skills" grep -Fxq 'bundled system skill' "$codex/skills/.system/imagegen/SKILL.md"
+check "codex keeps linked skill" test "$(readlink "$codex/skills/omarchy")" = /usr/share/omarchy/default/agents/skills/omarchy
+check "codex config.toml untouched" cmp -s "$work/expected-codex-config" "$codex/config.toml"
+check "codex auth untouched" cmp -s "$work/expected-codex-auth" "$codex/auth.json"
+expected="$work/codex-guidance"
+: > "$expected"
+while IFS= read -r line || [ -n "$line" ]; do
+  if [ "$line" = '<!-- shared guidance: agent-config -->' ]; then
+    for section in engineering workstation autonomy; do
+      cat "$work/source/agent-config/guidance/$section.md" >> "$expected"
+      printf '\n' >> "$expected"
+    done
+  else
+    printf '%s\n' "$line" >> "$expected"
+  fi
+done < "$work/source/codex-config/global/AGENTS.md"
+check "codex composition" cmp -s "$expected" "$codex/AGENTS.md"
+check "codex AGENTS.md permissions" test "$(stat -c %a "$codex/AGENTS.md")" = 600
+check "codex writes no CLAUDE.md" test ! -e "$codex/CLAUDE.md"
+# CODEX_HOME relocates the whole deployment, as it does for Codex itself.
+relocated="$work/codex-relocated"
+if env -i PATH="$PATH" HOME="$work/codex-unused-home" CODEX_HOME="$relocated" TMPDIR="$work" \
+  "$work/source/codex-config/install" >"$work/codex-relocated.log" 2>&1 \
+  && cmp -s "$expected" "$relocated/AGENTS.md" && test -f "$relocated/skills/lage/SKILL.md" \
+  && test ! -e "$work/codex-unused-home/.codex"; then
+  printf 'PASS codex honors CODEX_HOME\n'
+else
+  printf 'FAIL codex honors CODEX_HOME\n' >&2
+  failures=$((failures + 1))
+fi
+# A rerun replaces its own AGENTS.md; a foreign one stops the install before any write.
+printf 'stale owned lage\n' > "$codex/skills/lage/obsolete.md"
+if env -i PATH="$PATH" HOME="$codex_home" TMPDIR="$work" \
+  "$work/source/codex-config/install" >"$work/codex-rerun.log" 2>&1 && cmp -s "$expected" "$codex/AGENTS.md"; then
+  printf 'PASS codex rerun replaces its own AGENTS.md\n'
+else
+  printf 'FAIL codex rerun replaces its own AGENTS.md\n' >&2
+  failures=$((failures + 1))
+fi
+check "codex clean-replaces owned skill" test ! -e "$codex/skills/lage/obsolete.md"
+
+# Compare the entire fixture, including extra files, link targets and modes.
+snapshot_home() {
+  python3 - "$1" <<'PY'
+import hashlib
+import json
+import os
+from pathlib import Path
+import stat
+import sys
+
+root = Path(sys.argv[1])
+entries = {}
+for directory, dirs, files in os.walk(root, followlinks=False):
+    for name in sorted(dirs + files):
+        path = Path(directory) / name
+        mode = path.lstat().st_mode
+        value = os.readlink(path) if stat.S_ISLNK(mode) else (
+            hashlib.sha256(path.read_bytes()).hexdigest() if stat.S_ISREG(mode) else None
+        )
+        entries[str(path.relative_to(root))] = [mode, value]
+print(json.dumps(entries, sort_keys=True))
+PY
+}
+
+for variant in directory symlink dangling-symlink; do
+  collision_home="$work/codex-skill-$variant-home"
+  mkdir -p "$collision_home/.codex/skills" "$collision_home/foreign-skill"
+  printf 'foreign skill\n' > "$collision_home/foreign-skill/SKILL.md"
+  printf 'foreign extra file\n' > "$collision_home/foreign-skill/foreign-only.txt"
+  case "$variant" in
+    directory) cp -R "$collision_home/foreign-skill" "$collision_home/.codex/skills/lage" ;;
+    symlink) ln -s ../../foreign-skill "$collision_home/.codex/skills/lage" ;;
+    dangling-symlink) ln -s ../../missing-skill "$collision_home/.codex/skills/lage" ;;
+  esac
+  snapshot_home "$collision_home" > "$work/before-skill-$variant"
+  if env -i PATH="$PATH" HOME="$collision_home" TMPDIR="$work" \
+    "$work/source/codex-config/install" >"$work/codex-skill-$variant.log" 2>&1; then
+    printf 'FAIL codex refuses foreign skill %s (install succeeded)\n' "$variant" >&2
+    failures=$((failures + 1))
+  else
+    check "codex warns on foreign skill $variant" grep -Fq 'warning: refusing unowned skill destination:' "$work/codex-skill-$variant.log"
+  fi
+  snapshot_home "$collision_home" > "$work/after-skill-$variant"
+  check "codex preserves foreign skill $variant before any write" cmp -s "$work/before-skill-$variant" "$work/after-skill-$variant"
+done
+
+for variant in symlink dangling-symlink owned; do
+  retirement_home="$work/codex-retirement-$variant-home"
+  mkdir -p "$retirement_home/.codex/skills" "$retirement_home/foreign-skill"
+  printf 'foreign retired skill\n' > "$retirement_home/foreign-skill/SKILL.md"
+  for skill in check-cadence verification-infrastructure; do
+    case "$variant" in
+      symlink) ln -s ../../foreign-skill "$retirement_home/.codex/skills/$skill" ;;
+      dangling-symlink) ln -s ../../missing-skill "$retirement_home/.codex/skills/$skill" ;;
+      owned)
+        mkdir -p "$retirement_home/.codex/skills/$skill"
+        printf 'owned by misty-step/harness agent-config\n' > "$retirement_home/.codex/skills/$skill/.harness-owned"
+        ;;
+    esac
+  done
+  retirement_exit=0
+  env -i PATH="$PATH" HOME="$retirement_home" TMPDIR="$work" \
+    "$work/source/codex-config/install" >"$work/codex-retirement-$variant.log" 2>&1 || retirement_exit=$?
+  check "codex $variant retirement installer exit" test "$retirement_exit" -eq 0
+  for skill in check-cadence verification-infrastructure; do
+    if [ "$variant" = owned ]; then
+      check "codex retires owned $skill" test ! -e "$retirement_home/.codex/skills/$skill"
+    else
+      check "codex preserves unowned retired $skill $variant" test -L "$retirement_home/.codex/skills/$skill"
+    fi
+  done
+  check "codex preserves $variant retirement external target" grep -Fxq 'foreign retired skill' "$retirement_home/foreign-skill/SKILL.md"
+done
+
+for variant in dangling-symlink marked-symlink; do
+  link_home="$work/codex-guidance-$variant-home"
+  mkdir -p "$link_home/.codex"
+  if [ "$variant" = marked-symlink ]; then
+    printf '<!-- owned by misty-step/harness codex-config -->\n# external guidance\n' > "$link_home/personal-guidance.md"
+  fi
+  ln -s ../personal-guidance.md "$link_home/.codex/AGENTS.md"
+  snapshot_home "$link_home" > "$work/before-guidance-$variant"
+  if env -i PATH="$PATH" HOME="$link_home" TMPDIR="$work" \
+    "$work/source/codex-config/install" >"$work/codex-guidance-$variant.log" 2>&1; then
+    printf 'FAIL codex refuses %s AGENTS.md (install succeeded)\n' "$variant" >&2
+    failures=$((failures + 1))
+  else
+    check "codex refuses $variant AGENTS.md" grep -Fq 'is not ours' "$work/codex-guidance-$variant.log"
+  fi
+  snapshot_home "$link_home" > "$work/after-guidance-$variant"
+  check "codex preserves $variant AGENTS.md before any write" cmp -s "$work/before-guidance-$variant" "$work/after-guidance-$variant"
+done
+for variant in foreign marker; do
+  variant_home="$work/codex-$variant-home"
+  mkdir -p "$variant_home/.codex"
+  if [ "$variant" = foreign ]; then
+    printf '# my own notes\n' > "$variant_home/.codex/AGENTS.md"
+  else
+    # The ownership marker counts only as the file's first line.
+    printf '# my own notes\n\n<!-- owned by misty-step/harness codex-config -->\n' > "$variant_home/.codex/AGENTS.md"
+  fi
+  cp "$variant_home/.codex/AGENTS.md" "$work/expected-codex-$variant"
+  if env -i PATH="$PATH" HOME="$variant_home" TMPDIR="$work" \
+    "$work/source/codex-config/install" >"$work/codex-$variant.log" 2>&1; then
+    printf 'FAIL codex refuses a %s AGENTS.md (install succeeded)\n' "$variant" >&2
+    failures=$((failures + 1))
+  else
+    check "codex refuses a $variant AGENTS.md before any write" \
+      test "$(ls -A "$variant_home/.codex")" = AGENTS.md
+    check "codex keeps the $variant AGENTS.md" cmp -s "$work/expected-codex-$variant" "$variant_home/.codex/AGENTS.md"
+  fi
+done
 if [ "$failures" -ne 0 ]; then
   printf 'FAIL: %s invariant(s); disposable clone removed on exit\n' "$failures" >&2
   exit 1

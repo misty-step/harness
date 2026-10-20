@@ -6,7 +6,7 @@ and agent rules in [AGENTS.md](AGENTS.md).
 
 ## Terms
 
-- **Harness:** an agent runtime this repository configures: pi, OMP or Claude Code.
+- **Harness:** an agent runtime this repository configures: pi, OMP, Claude Code or Codex.
 - **Component:** a top-level source tree: `agent-config/`, `pi-config/`,
   `omp-config/`, `claude-config/` or `codex-config/`.
 - **Shared primitive:** a harness-neutral skill, guidance section, launcher or
@@ -77,6 +77,8 @@ This repository owns agent configuration source for every harness. It does not o
   the shared installer, the audio sandbox, and System One (`system-one/`).
 - `claude-config/`: Claude Code's skill and guidance selection, its guidance
   intro and installer.
+- `codex-config/`: Codex's native defaults (`config.toml`), its skill and
+  guidance selection, guidance intro and installer.
 - `docs/`: cross-component decisions (`docs/decisions/`), principles, the
   primitives map (`docs/architecture/primitives.yaml`), verification and
   migration records, and token-efficiency measurements.
