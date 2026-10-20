@@ -255,8 +255,31 @@ for consumer in pi omp; do
     check "omp foreign routing sibling preserved" cmp -s "$work/expected-routing-sibling" "$agent/extensions/subagent-inheritance/foreign.ts"
   fi
 done
+# Claude Code: selected skills land beside foreign and CLI-linked skills.
+claude_home="$work/claude-home"
+claude="$claude_home/.claude"
+mkdir -p "$claude/skills/foreign" "$claude/skills/lage"
+printf 'foreign skill sentinel\n' > "$claude/skills/foreign/SKILL.md"
+printf 'stale owned lage\n' > "$claude/skills/lage/obsolete.md"
+ln -s ../../.agents/skills/code-review "$claude/skills/code-review"
+printf '{"foreign":"keep"}\n' > "$claude/settings.json"
+cp "$claude/settings.json" "$work/expected-claude-settings"
+if env -i PATH="$PATH" HOME="$claude_home" TMPDIR="$work" \
+  "$work/source/claude-config/install" >"$work/claude.log" 2>&1; then
+  printf 'PASS claude installer exit\n'
+else
+  printf 'FAIL claude installer exit\n' >&2
+  cat "$work/claude.log" >&2
+  failures=$((failures + 1))
+fi
+check "claude lage skill bytes" cmp -s "$work/source/agent-config/skills/lage/SKILL.md" "$claude/skills/lage/SKILL.md"
+check "claude clean-replaces owned skill" test ! -e "$claude/skills/lage/obsolete.md"
+check "claude foreign skill" cmp -s "$work/expected-skill" "$claude/skills/foreign/SKILL.md"
+check "claude CLI-linked skill" test "$(readlink "$claude/skills/code-review")" = ../../.agents/skills/code-review
+check "claude settings untouched" cmp -s "$work/expected-claude-settings" "$claude/settings.json"
+check "claude writes no guidance" test ! -e "$claude/AGENTS.md"
 if [ "$failures" -ne 0 ]; then
   printf 'FAIL: %s invariant(s); disposable clone removed on exit\n' "$failures" >&2
   exit 1
 fi
-printf 'PASS: both installers; disposable clone removed on exit\n'
+printf 'PASS: all installers; disposable clone removed on exit\n'
