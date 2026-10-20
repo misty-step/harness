@@ -1,11 +1,5 @@
 # Recovery
 
-## Attribute without delaying restoration
-
-Reproduce the trigger against the previous healthy release under the same configuration and data conditions in isolation. A failure there too is an incident, without attributing it to this merge or reverting it on that evidence. When harm is clear, restore first and diagnose second.
-
-After the window, whoever discovers the failure becomes the watcher; the original lane need not survive. Find the last healthy and first failing deployed identities from release history and incident timestamps. Diff that range, reproduce both ends with a repeatable check in isolation, and bisect candidate commits when attribution remains ambiguous. Record the check and first failing SHA; if unknown, record the range and uncertainty.
-
 ## Restore
 
 Immediately report impact and proposed recovery using SKILL.md's Report contract: current lane and Home inbox. Inventory intervening releases, migrations and accepted data before choosing a compatible path:
@@ -17,6 +11,12 @@ Immediately report impact and proposed recovery using SKILL.md's Report contract
 In every organization, carry safe recovery through to verification without a team-review gate. If recovery risks accepted data or is otherwise unsafe, stop that mutation and report `escalated` with facts, recovery owner and recommended path. A reviewer wait is never an `escalated` state.
 
 After any restore, repeat SKILL.md §2 against the chosen recovery release/ref: its identity replaces the original merge. Verify recovery before reporting `restored`; record any remaining activation gap.
+
+## Attribute without delaying restoration
+
+Reproduce the trigger against the previous healthy release under the same configuration and data conditions in isolation. A failure there too is an incident, without attributing it to this merge or reverting it on that evidence. When harm is clear, restore first and diagnose second.
+
+After the window, whoever discovers the failure becomes the watcher; the original lane need not survive. Find the last healthy and first failing deployed identities from release history and incident timestamps. Diff that range, reproduce both ends with a repeatable check in isolation, and bisect candidate commits when attribution remains ambiguous. Record the check and first failing SHA; if unknown, record the range and uncertainty.
 
 ## Incident and postmortem
 

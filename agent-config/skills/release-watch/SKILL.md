@@ -1,21 +1,21 @@
 ---
 name: release-watch
-description: Watch a merged change through deploy and early production life. Restore, open an incident and start a postmortem when it hurts users. Use after a merge to a deploying branch, when dispatched after a human merges, for "watch the release", or when a deploy or health check fails.
+description: Watch a merged change through deploy and early production life. Restore, open an incident and start a postmortem when it hurts users. Use after a merge to a deploying branch, for "watch the release", or when a deploy or health check fails.
 ---
 
 # Release watch
 
 Watch one merge SHA through release verification. On harm, **restore first, diagnose second**, through the repository's own pipeline in every organization. No restore waits for a human reviewer.
 
-Inputs: repository, merge SHA, PR and touched stories. The dispatched watcher owns verification, including after a human merges. If the originating lane is gone, work in the current lane and keep evidence and handoffs on the incident issue.
+Inputs: repository, merge SHA, PR and touched stories. The dispatched watcher owns verification. If the originating lane is gone, work in the current lane and keep evidence and handoffs on the incident issue.
 
 ## 1. Find the release path
 
-Read the repository's AGENTS.md, README and release ADR. A library or tool with no deploy goes straight to its conventional release PR or tag check; report `released` only after that check passes. A failed check is a trigger.
+Read the repository's AGENTS.md, README and release ADR. A library or tool with no deploy goes straight to its conventional release PR or tag check. A failed check is a trigger. After it passes, report `released`, then go to Report.
 
 For automated deploys, find this SHA's run or deployment (`gh run list --commit <SHA>`, `gh api repos/<owner>/<repo>/deployments?sha=<SHA>`).
 
-An installer is a release path. Fetch the default branch and run its documented installer from that branch's head, after `git merge-base --is-ancestor <merge-SHA> HEAD` succeeds. Record that head and destination. Deploy the default-branch head, never the merge SHA: later merges must stay installed. A previous good ref is reserved for explicit recovery.
+An installer is a release path. Run `git fetch origin && git switch --detach origin/<default>`, then `git merge-base --is-ancestor <merge-SHA> HEAD`; after success, run the documented installer. Record `HEAD`'s SHA as the source head and record the destination. Later merges must stay installed. A previous good ref is reserved for explicit recovery.
 
 For misty-step/harness, use README's Deploy destinations and selections:
 
@@ -25,7 +25,7 @@ For misty-step/harness, use README's Deploy destinations and selections:
 
 Run against the intended live destination. For isolated verification, use `./scripts/verify`; an agent-directory variable alone does not isolate HOME or launcher writes.
 
-For a service with no deploy path or readable health signal, report `unwatched`. Find open mechanism tickets with `gh issue list -R <owner>/<repo> --state open --label release-mechanism`; comment once on the matching ticket or file one with that label, then stop. Installer releases are exempt: use readback and smoke below.
+For a service with no deploy path or readable health signal, report `unwatched`. Find open mechanism tickets with `gh issue list -R <owner>/<repo> --state open --label release-mechanism`; comment once on a match or create the label if missing and file with it, then stop. Installer releases are exempt: use readback and smoke below.
 
 Done when the release check passes, or the deploy destination, verification surface and recovery path are known, or `unwatched` is reported with its ticket.
 
@@ -46,7 +46,9 @@ For every trigger, restore, incident, unsafe recovery or after-window discovery,
 
 ## Report
 
-Post every status or handoff in the current lane **and** through `home post --from <Lane>`, passing the same Markdown body on stdin. This appends `## <UTC> [<Lane>]` and the body to `~/.local/state/home/inbox.md`. Home's thread is written only by phaedrus; never use `t3_thread_send` to it. Link the report from the incident when one exists. Immediate restore warnings and incident/escalation updates use this route too.
+Post every status or handoff in the current lane **and** through `home post --from <Lane>`, with the same Markdown body on stdin. Only phaedrus writes Home's thread. Link reports from any incident. Restore warnings and incident/escalation updates use this route too.
+
+If `home post` fails, append `## <UTC> [<Lane>]` and the same body to `~/.local/state/home/inbox.md` directly, and say in the lane that you fell back.
 
 Every report stands alone: link every referenced PR, issue, incident and thread with a one-line summary. Write each question in full, including its options, recommendation and what happens if phaedrus does not answer.
 
