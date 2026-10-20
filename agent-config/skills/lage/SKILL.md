@@ -27,14 +27,21 @@ For each lane, fill this record. Write `unknown: <why>` for any field you could 
 
 - **Goal:** the lane's brief (its first message, `limit: 1`), in one line, plus its definition of done.
 - **Last word:** the lane's latest assistant message, and the latest message to it.
-- **Asks:** every question to the principal that nobody has answered yet, however old. Include `t3_pending_request_list` and any unresolved `BLOCKED-ALLOWED:` line.
+- **Asks:** every question to the principal that nobody has answered yet, however old, each with its options, the lane's recommendation, what waiting costs, and any date. Include `t3_pending_request_list` and any unresolved `BLOCKED-ALLOWED:` line.
 - **Progress:** the newest **side effect**, with its time. A side effect is a pushed commit, an opened or merged PR, a deploy, a published ticket, or a change applied on a host, such as a service or runner restarted. Prose about intent and uncommitted drafts are not progress.
 - **PRs:** the state of every PR the lane names, read from the forge (`gh pr view <url> --json state,mergedAt,statusCheckRollup,reviewDecision`). The lane's claim is a claim; the forge is the fact.
 - **Agents:** running children (`t3_thread_list` with `includeSubagents: true`, where `parentThreadId` is this lane) and the scheduled tasks in the lane's project (`list_scheduled_tasks` with its `projectId`).
 
 Read tails, not whole threads: `afterPosition` near `itemCount - 12`, `maxCharsPerItem` around 3000. When an ask or report is cut off, page the rest with `itemId` and `textOffset`. Page further back only when the tail doesn't say what the lane is waiting on.
 
-Fan the reads out. Give each `delegate_task` child about four lanes and this step's record list, and have it return only the records. While they run, read the coordinator's open-loops file yourself (Home's is `~/home/NOW.md`). An ask the file already answers is a **dropped relay**, not a decision. Record it that way.
+Fan the reads out: one `delegate_task` child per four lanes or so, each briefed like this, returning only the records. While they run, read the coordinator's open-loops file yourself (Home's is `~/home/NOW.md`).
+
+```
+Read-only. Message no thread and start nothing. For each T3 lane below, read
+~/.claude/skills/lage/SKILL.md step 2 and return one record with every field it
+lists, or `unknown: <why>` for a field you could not get. Return only the records.
+Lanes: <title and threadId, one per line>
+``` An ask the file already answers is a **dropped relay**, not a decision. Record it that way.
 
 Done when every lane has a full record and every PR state came from the forge.
 
@@ -72,8 +79,9 @@ An ask about process or permission that standing policy already answers is not t
 **Also waiting on you** (blocks no lane, has no date)
 - <ask, one line, with its link>
 
-**Shipped since last lage**
+**Shipped and closed since last lage**
 - <what changed for a user, with the PR or deploy link>
+- Closed: <lane, and why it closed>
 
 **Stuck** (agents fix these; no action for you)
 - <lane>: <cause>. <Who unsticks it: the lane, Heartbeat, or the coordinator.>
@@ -82,10 +90,11 @@ An ask about process or permission that standing policy already answers is not t
 **Not checked:** <every source you could not read, and why>.
 ```
 
-- **Decisions** holds only asks that block a lane or carry a date. Every other ask goes on one line under **Also waiting on you**.
-- Order decisions by the cost of delay: what blocks the most work, or lapses first, goes first. Number them, so one reply like "1 yes, 2 B" answers the batch.
+- **Decisions** holds at most five asks: those whose delay costs the most, because they block the most work or lapse first, in that order. Number them, so one reply like "1 yes, 2 B" answers the batch. Every other ask goes on one line under **Also waiting on you**, with its recommendation and link.
+- Every recommendation follows the standing autonomy policy and [Foundations](https://foundations.mistystep.io/way-of-working). When an option breaks either, say so inside that option, and recommend a compliant one.
 - Make each decision self-contained. Where it rests on a story, spec or diff, give the one line that matters and link the rest.
 - Link threads as `[title](t3-thread://v1/<id>)` and PRs by full URL. Call lanes, PRs and agents by names the principal knows.
-- Label anything you did not verify: "(lane says)". Write plain, short sentences that read on a phone. Keep each decision to four lines and the whole brief to two phone screens. Cut detail before you cut lanes. Drop empty sections, but keep **Not checked**.
+- Label anything you did not verify: "(lane says)". Write plain, short sentences that read on a phone.
+- The whole brief fits two phone screens, about 60 lines. Keep each decision to four lines, each table row and **Stuck** item to one line, and each cell under eight words. When it still runs over, shorten in this order: **Shipped**, then **Stuck**, then table cells. Every lane keeps its row and every ask keeps its line. Drop empty sections, but keep **Not checked**.
 
-Done when every lane appears in exactly one table row, every unanswered ask is a numbered decision, an **Also waiting on you** line, or a reclassification note, and every decision has a recommendation and an "if unanswered".
+Done when every lane appears in exactly one table row, every unanswered ask is a numbered decision, an **Also waiting on you** line, or a reclassification note, every decision has a compliant recommendation and an "if unanswered", and the brief fits about 60 lines.
