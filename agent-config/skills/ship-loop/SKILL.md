@@ -9,7 +9,7 @@ You are the lane's **conductor**. Dispatch distinct builder, QA, reviewer and pr
 
 Start with build, then independent QA and review in parallel, then the judge. Fix until SHIP using the delta checks below. The tracker holds tickets, PRs and reports; keep no separate ledger.
 
-Global autonomy pre-authorizes this loop in every organization: the independent judge's SHIP plus passing checks authorizes merge.
+No human reviews or merges, in any organization: the independent judge's SHIP plus passing checks is the whole gate.
 
 Many skills named here are user-invoked, so the Skill tool refuses them. For those, you and every agent you brief read `~/.claude/skills/<name>/SKILL.md` and follow it.
 
@@ -52,7 +52,7 @@ Done for a ticket when the PR's current head SHA has a SHIP, ruled there or carr
 - Squash-merge, with the PR title as a Conventional Commit (`docs/release-convention.md` in misty-step/harness). Land a stack bottom-first:
   1. Before the bottom PR lands, record every PR's head SHA once, in a comment on the bottom PR.
   2. After each PR lands, run `git fetch --prune`, then move the next one from a detached HEAD, which works whichever worktree holds its lane-owned branch: `git switch --detach <its recorded head>`, `git rebase --onto origin/<default branch> <the SHA recorded for the PR below>`, `git push --force-with-lease=<branch>:<its recorded head> origin HEAD:refs/heads/<branch>`.
-  3. If the push is refused, fetch and inspect the branch's delta. Apply the patch-id rule or step 2's delta checks, record the new judged head, and retry with a lease pinned to the fetched head. The PR above still rebases from the first head recorded.
+  3. If the push is refused, fetch and inspect the branch's delta. Keep those commits. Carry the verdict by unchanged patch-id, or run step 2's delta checks and get the independent judge's ruling. Record the resulting judged head and repeat step 2 from it, including the detached checkout and rebase, with the lease pinned to that same head. Never force over the commits that moved the branch. The PR above still rebases from the first head recorded.
   4. Retarget the PR to the default branch if GitHub hasn't, and run the fast affected checks at its new head before it merges.
 
 ## 4. Watch the release
