@@ -15,8 +15,11 @@ function git(...args: string[]): void {
 }
 
 function fixture() {
-  const home = mkdtempSync(join(tmpdir(), "openrouter-key-test-"));
-  roots.push(home);
+  const root = mkdtempSync(join(tmpdir(), "openrouter-key-test-"));
+  roots.push(root);
+  // A stray empty .git above HOME (seen in /tmp on workstations) must not change the answer.
+  mkdirSync(join(root, ".git"));
+  const home = join(root, "home");
   const r90 = join(home, "development", "r90group", "habitat");
   const personal = join(home, "development", "misty-step");
   const linked = join(home, "linked-habitat");
@@ -39,7 +42,8 @@ import { join } from "node:path";
 writeFileSync(process.env.TEST_PASS_USED, "yes");
 if (process.argv[2] !== "show" || process.argv[3] !== "--" || process.env.PASSWORD_STORE_GPG_OPTS !== "--batch --pinentry-mode error") process.exit(2);
 // Integration: OS subprocess deadlines cannot be advanced with fake JS timers.
-if (process.env.TEST_PASS_DELAY_MS) await Bun.sleep(Number(process.env.TEST_PASS_DELAY_MS));
+// Hang until killed: a finite delay would race the launcher's own deadline under load.
+if (process.env.TEST_PASS_HANG) await new Promise(() => setInterval(() => {}, 60_000));
 try { process.stdout.write(readFileSync(join(process.env.TEST_PASS_STORE, process.argv[4]))); }
 catch { process.exit(1); }
 `, { mode: 0o700 });
@@ -97,12 +101,15 @@ test("damaged linked-worktree Git metadata cannot redirect billing to personal",
 
 test("slow R90 pass lookup returns invalid auth before Pi's command timeout", () => {
   const f = fixture();
-  f.env.TEST_PASS_DELAY_MS = "6000";
+  f.env.TEST_PASS_HANG = "1";
+  // Time the launcher alone; Git fixture setup is not part of Pi's budget.
+  const started = performance.now();
   const result = f.invoke(f.linked);
+  expect(performance.now() - started).toBeLessThan(9_000);
   expect(result.status).toBe(0);
   expect(result.stdout).toBe("sk-or-v1-invalid-openrouter-key");
   expect(result.stdout).not.toContain("personal-synthetic");
-}, 9_000);
+}, 15_000);
 
 test("--which reveals only the chosen entry name and never invokes pass", () => {
   const f = fixture();
