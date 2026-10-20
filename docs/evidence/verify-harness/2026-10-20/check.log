@@ -1,4 +1,4 @@
-Source: 24024c0c89d0aeec4daaf4af5c67ab65c183f3de (all)
+Source: 7a839f12dcc8560303284944e22680f5a2324378 (all)
 Note: unit tests read working files; isolated installer checks read committed HEAD.
 bun test v1.4.2 (744846f84)
 
@@ -6,16 +6,16 @@ bun test v1.4.2 (744846f84)
  20 skip
  0 fail
  63 expect() calls
-Ran 32 tests across 4 files. [1.58s]
+Ran 32 tests across 4 files. [923.00ms]
 bun test v1.4.2 (744846f84)
 
  101 pass
  0 fail
  698 expect() calls
-Ran 101 tests across 10 files. [195.08s]
+Ran 101 tests across 10 files. [96.40s]
 ...........................................
 ----------------------------------------------------------------------
-Ran 43 tests in 179.403s
+Ran 43 tests in 166.459s
 
 OK
 bun test v1.4.2 (744846f84)
@@ -24,19 +24,19 @@ bun test v1.4.2 (744846f84)
  3 skip
  0 fail
  321 expect() calls
-Ran 79 tests across 14 files. [885.00ms]
+Ran 79 tests across 14 files. [984.00ms]
 bun test v1.4.2 (744846f84)
 
  28 pass
  0 fail
  161 expect() calls
-Ran 28 tests across 5 files. [1254.00ms]
+Ran 28 tests across 5 files. [714.00ms]
 ..........................
 ----------------------------------------------------------------------
-Ran 26 tests in 30.027s
+Ran 26 tests in 48.838s
 
 OK
-Testing committed revision: 24024c0c89d0aeec4daaf4af5c67ab65c183f3de
+Testing committed revision: 7a839f12dcc8560303284944e22680f5a2324378
 PASS pi installer exit
 PASS pi composition
 PASS pi launcher executable

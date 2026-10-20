@@ -1,7 +1,7 @@
 
-== doctor: is this checkout and workstation worth driving? (21:48:00Z)
-repo /home/phaedrus/.t3/worktrees/harness/verify-verification-skill at 24024c0 on verify/verification-skill
-NOTE dirty tree: unit tests read working files, installers read committed HEAD
+== doctor: is this checkout and workstation worth driving? (22:09:44Z)
+repo /home/phaedrus/.t3/worktrees/harness/verify-verification-skill at 7a839f1 on verify/verification-skill
+PASS clean tree (evidence excluded)
 PASS tool git
 PASS tool bun
 PASS tool jq
@@ -21,19 +21,19 @@ PASS claude signed in as phaedrus@mistystep.io
 codex: Logged in using ChatGPT (chatgpt account-email-present)
 PASS codex signed in with ChatGPT
 PASS home on PATH
-home routes to exedev@cloud-home-agents.exe.xyz; the local ~/.local/state/home/inbox.md is not forwarded
+home routes over SSH to its cloud primary; the local ~/.local/state/home/inbox.md is not forwarded (#418)
 PASS t3 server is loopback (http://127.0.0.1:3773)
-t3-pool.timer disabled/inactive
+t3-pool.timer enabled/active
 
-== check: ./scripts/check all (isolated installers, committed HEAD) (21:48:02Z)
-PASS scripts/check all in 418s
+== check: ./scripts/check all (isolated installers, committed HEAD) (22:09:46Z)
+PASS scripts/check all in 322s
 PASS codex keeps the marker AGENTS.md
 PASS: all installers; disposable clone removed on exit
 Verification complete: all
 installer assertions: 171 PASS, 0 FAIL
 
-== install: claude-config and codex-config from HEAD into private HOMEs (21:55:00Z)
-source 24024c0 (HEAD)
+== install: claude-config and codex-config from HEAD into private HOMEs (22:15:08Z)
+source 7a839f1 (HEAD)
 T3 pool units installed; opt in with systemctl --user enable --now t3-pool.timer
 claude: installed lage ship-loop judge release-watch heartbeat story-qa pokayoke user-stories authenticated-commands, t3-runtime-mode and guidance (engineering workstation autonomy) into /home/phaedrus/.cache/tmp/verify-harness/run/claude-home/.claude
 PASS claude-config/install exit 0
@@ -41,7 +41,7 @@ codex: installed lage ship-loop judge release-watch heartbeat story-qa pokayoke 
 PASS codex-config/install exit 0
 PASS ~/.claude/CLAUDE.md is the composed guidance
 PASS ~/.codex/AGENTS.md is the composed guidance
-PASS 9 shared skills byte-identical in both harnesses
+PASS claude skills (lage ship-loop judge release-watch heartbeat story-qa pokayoke user-stories authenticated-commands) and codex skills (lage ship-loop judge release-watch heartbeat story-qa pokayoke user-stories authenticated-commands) byte-identical to source
 PASS t3-pool and t3-runtime-mode launchers
 PASS pool timer left opt-in (only daemon-reload)
 /home/phaedrus/.cache/tmp/verify-harness/run/foreign-home/.claude/CLAUDE.md is not ours; move its content into a repository CLAUDE.md or remove it, then rerun
@@ -49,55 +49,55 @@ PASS claude install refuses a foreign CLAUDE.md, nothing written
 /home/phaedrus/.cache/tmp/verify-harness/run/foreign-home/.codex/AGENTS.md is not ours; move its content into a repository AGENTS.md or remove it, then rerun
 PASS codex install refuses a foreign AGENTS.md, nothing written
 
-== session claude: fresh Claude Code session on the isolated install (no credentials there) (21:55:02Z)
+== session claude: fresh Claude Code session on the isolated install (no credentials there) (22:15:10Z)
 PASS fresh Claude Code session loaded user guidance /home/phaedrus/.cache/tmp/verify-harness/run/claude-home/.claude/CLAUDE.md
 PASS no other instruction file leaked into the session
-PASS Claude Code session lists the 9 shared skills
+PASS Claude Code session lists every claude-config skill
   model call: Not logged in · Please run /login
 
-== session codex: fresh Codex session on the isolated install (21:55:05Z)
+== session codex: fresh Codex session on the isolated install (22:15:15Z)
 PASS fresh Codex session prompt carries the composed AGENTS.md
 PASS Codex skill root is /home/phaedrus/.cache/tmp/verify-harness/run/claude-home/.codex/skills
-PASS Codex session lists the 9 shared skills
+PASS Codex session lists every codex-config skill
 
-== registration: this repository's verify-harness skill in fresh sessions started at the repo root (21:55:05Z)
-PASS Claude Code lists verify-harness from .claude/skills
-PASS Codex lists verify-harness from .agents/skills
+== registration: the revision's verify-harness skill in fresh sessions at a copy of its .claude and .agents (22:15:15Z)
+PASS Claude Code lists verify-harness from the project .claude/skills symlink
+PASS Codex lists verify-harness from the project .agents/skills
 
-== live: deployed ~/.claude and ~/.codex against 24024c0 (read-only) (21:55:06Z)
+== live: deployed ~/.claude and ~/.codex against 7a839f1 (read-only) (22:15:16Z)
 PASS live ~/.claude/CLAUDE.md matches source
 PASS live ~/.codex/AGENTS.md matches source
 PASS live ~/.claude and ~/.codex shared skills match source
 Fresh live Claude Code session (real login, one haiku call)
 PASS fresh Claude Code session loaded user guidance /home/phaedrus/.claude/CLAUDE.md
 PASS no other instruction file leaked into the session
-PASS Claude Code session lists the 9 shared skills
+PASS Claude Code session lists every claude-config skill
   model answered: # Claude Code global guidance
 PASS the model sees the live global guidance
 Fresh live Codex session (real CODEX_HOME, no model call)
 PASS fresh Codex session prompt carries the composed AGENTS.md
 PASS Codex skill root is /home/phaedrus/.codex/skills
-PASS Codex session lists the 9 shared skills
+PASS Codex session lists every codex-config skill
 
-== home: post to a private inbox, read it back, reject bad posts, probe the route (21:55:12Z)
-PASS home post answered ## 2026-10-20T21:55Z [Verify harness] post:aeca6b71e0eeea40
+== home: post to a private inbox, read it back, reject bad posts, probe the route (22:15:21Z)
+PASS home post answered ## 2026-10-20T22:15Z [Verify harness] post:83c5895d96447c58
 PASS home inbox reads the post back under its own header, body intact
 home post: empty body: nothing posted
 PASS empty body refused
 home post: --from needs a name without ']' or newlines
 PASS name with ] refused
 PASS refused posts wrote nothing
-PASS routed home answers over SSH (exedev@cloud-home-agents.exe.xyz): usage: home [-h]
-NOTE every home command runs on the cloud primary; nothing in home forwards ~/.local/state/home/inbox.md
+PASS routed home answers over SSH from its cloud primary: usage: home [-h]
+NOTE every home command runs on the cloud primary; nothing forwards ~/.local/state/home/inbox.md (#418)
 
-== pool: t3-pool dry runs and opt-in state (read-only) (21:55:13Z)
-PASS live dry run: {"planned":0,"limited":["codex","codex-mistystep","codex-r90"]}
+== pool: t3-pool dry runs and opt-in state (read-only) (22:15:22Z)
+PASS live dry run: {"planned":0,"limited":["claudeAgent","codex","codex-mistystep","codex-r90"]}
 PASS dry run wrote no pool state
 PASS installed bundle runs with no source or T3 database
 PASS live ~/.config/t3-pool.json matches source
-t3-pool.timer is disabled (activation is an explicit operator choice)
+t3-pool.timer is enabled (activation is an explicit operator choice)
 
-== cleanup: remove run state and scratch cwds; keep evidence (21:55:16Z)
+== cleanup: remove run state and scratch cwds; keep evidence (22:15:23Z)
 PASS run state removed
 evidence kept at /home/phaedrus/.t3/worktrees/harness/verify-verification-skill/docs/evidence/verify-harness/2026-10-20
 
