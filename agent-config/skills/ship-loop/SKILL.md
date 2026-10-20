@@ -29,7 +29,11 @@ The **frontier** is every open ticket whose blockers are closed or have an open 
 
 A ticket with one open blocker PR **stacks** on it: its branch starts from that PR's head, its PR targets that branch, its QA and review take that branch as `<base>`, and it skips the file test against that PR. Fix a blocker on the PR that owns it; landing bottom-first (step 3) carries the fix up. A ticket with two open blocker PRs waits for one to land.
 
-Classify each change as light, standard or critical by blast radius and the initiative using the [rigor table](roles.md#rigor). Every change still gets some review and verification. Upkeep owns model choice; ship-loop owns review shape and rigor. Upkeep's route command does not exist yet ([Upkeep #75](https://github.com/misty-step/upkeep/issues/75)); use the fallback table until it ships, then ask Upkeep:
+Classify each change as light, standard or critical by blast radius and the initiative using the [rigor table](roles.md#rigor).
+Every change still gets some review and verification.
+Use the tier's fallback models for builders, QA, review and judges until Upkeep routing ships.
+Upkeep owns model choice; ship-loop owns review shape and rigor.
+Upkeep's route command does not exist yet ([Upkeep #75](https://github.com/misty-step/upkeep/issues/75)); when it ships, ask Upkeep:
 
 - `upkeep route --kind <review|build|…> --difficulty <routine|hard|critical> --json`, optionally `--task "..."`, `--exclude-vendor <vendor>` and `--urgent`. Map light to routine, standard to hard, critical to critical. QA, review and judge all use `--kind review`; builders use `--kind build`.
 - Try `choices` in order: pick first, then fallbacks. Empty `choices` means no room: wait until `no_room.next_room_at`, or use the fallback table if it is null.

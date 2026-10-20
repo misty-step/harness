@@ -8,13 +8,12 @@ Use the conductor's tier, chosen by blast radius and the initiative. Every chang
 
 | Tier | Change | Review shape and fallback models |
 | --- | --- | --- |
-| light | Docs, copy, config or one small file, with low blast radius | One combined QA and review agent, then a judge. Both use Sonnet 5.5 or GPT-6.1 Sol at medium effort. |
-| standard | Work beyond light, without critical risk | Separate QA and review agents, then an Opus 5.5 judge at high effort. |
+| light | Docs, copy, config or one small file, with low blast radius | One combined QA and review agent, then a judge. Both use Haiku 5.5 or GPT-6.1 Sol at medium effort. |
+| standard | Work beyond light, without critical risk | Separate QA and review agents, then a judge. All use Opus 5.5 or GPT-6.1 Sol at high effort. |
 | critical | Auth, money, data or migrations, security, deploy pipeline, shared infrastructure or irreversible change | QA and review use two model families from GPT-6.1 Sol at xhigh, Opus 5.5 and Sonnet 5.5, then an Opus 5.5 judge. |
 
-Builders use GPT-6.1 Sol at xhigh for heavy work, or Sol at high or Sonnet for small work.
-Lane coordinators default to Sonnet 5.5 or GPT-6.1 Sol at high.
-Use Opus 5.5 for judgment-heavy roles, design passes and standard or critical judges.
+Builders use their tier's fallback models.
+Lane coordinators run on Opus 5.5 for Claude or GPT-6.1 Sol at high for Codex.
 Use Fable or Astra only for rare dispatches that explain why no other model will do.
 Compact or relaunch a lane with a handoff when its context gets heavy.
 For light changes, combine the QA and Reviewer briefs in one dispatch and post both reports. The judge stays independent.
