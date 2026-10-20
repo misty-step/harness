@@ -1,6 +1,6 @@
 # Harness
 
-Misty Step's agent configuration: one shared base, three thin harness adapters,
+Misty Step's agent configuration: one shared base, four thin harness adapters,
 and native Codex model defaults. One clone records a compatible combination;
 one PR can change the contract and consumers. Runtime state and credentials
 are not source.
@@ -8,7 +8,8 @@ are not source.
 ```text
 agent-config/ ── shared install contract ──┬── pi-config/     → pi runtime
                                          ├── omp-config/    → OMP runtime
-                                         └── claude-config/ → Claude Code (T3 lanes)
+                                         ├── claude-config/ → Claude Code (T3 lanes)
+                                         └── codex-config/  → Codex
 ```
 
 | Component | Owns | Guide |
@@ -17,13 +18,13 @@ agent-config/ ── shared install contract ──┬── pi-config/     → 
 | `pi-config/` | pi settings, extensions, chrome, guidance intro | [README](pi-config/README.md) |
 | `omp-config/` | OMP routing, config/MCP, extensions, themes, guidance | [README](omp-config/README.md) |
 | `claude-config/` | Shared skills and guidance Claude Code sessions select, such as `lage`; composes `~/.claude/CLAUDE.md` | [README](claude-config/README.md) |
-| `codex-config/` | Native Codex model, effort and service-tier defaults only | [Deployment](#codex-defaults-native-installation) |
+| `codex-config/` | Shared skills and guidance Codex sessions select; composes `~/.codex/AGENTS.md`; native model, effort and service-tier defaults | [README](codex-config/README.md) |
 
 Foundations: [FOUNDATIONS.md](FOUNDATIONS.md). Intent: [USER_STORIES.md](USER_STORIES.md). Vocabulary, boundaries and
 invariants: [DOMAIN.md](DOMAIN.md). Decisions: [docs/decisions/](docs/decisions/index.md). Agent
 rules: [AGENTS.md](AGENTS.md).
 
-Runtime scope is native Pi, OMP and Claude Code configuration, native Codex model defaults,
+Runtime scope is native Pi, OMP, Claude Code and Codex configuration, native Codex model defaults,
 installation, engineering skills, and necessary credential/audio/workstation isolation. Custom ticket dispatch,
 fleet rosters, experiment scheduling, automated audits and session-close control
 are retired. Native Herdr and OMP/Pi launch own coordination. Installers remove
@@ -102,16 +103,18 @@ Install every harness, or invoke only the intended component:
 pi-config/install
 omp-config/install
 claude-config/install
+codex-config/install
 ```
 
 - pi: `$PI_CODING_AGENT_DIR`, default `~/.pi/agent`.
 - OMP: `$PI_CODING_AGENT_DIR` when set, otherwise `$(omp config path)`.
   OMP also stages declared workstation safety helpers; see its component guide.
 - Claude Code: `$CLAUDE_CONFIG_DIR`, default `~/.claude`.
+- Codex: `$CODEX_HOME`, default `~/.codex` (skills and `AGENTS.md`; never `config.toml`).
 - Shared launchers: `$HOME/.local/bin`. Foreign destinations fail closed.
 - Selections: `PI_CONFIG_COMPONENTS` and `OMP_INSTALL_COMPONENTS`, documented in
-  the component guides; claude-config declares its skills and guidance in its
-  installer and takes no selection variable. Harness installers accept no positional arguments:
+  the component guides; claude-config and codex-config declare its skills and guidance in their
+  installers and take no selection variable. Harness installers accept no positional arguments:
   `install --check` is rejected rather than accidentally deploying. The base
   `agent-config/install --check` is an inert preflight with explicit arguments.
 
@@ -150,7 +153,7 @@ so no redundant feature override is stored. See the
 [speed guide](https://developers.openai.com/codex/speed), and
 [Plan preset source](https://github.com/openai/codex/blob/main/codex-rs/models-manager/src/collaboration_mode_presets.rs).
 
-There is no Codex installer adapter: `./install` installs only Pi, OMP and Claude Code.
+`codex-config/install` deploys skills and guidance only; it never writes `config.toml`.
 Do not replace or symlink `~/.codex/config.toml` with this four-key source;
 preserve unrelated settings, credentials, plugins, approvals and runtime state.
 After merge/review, an authorized host operator applies only these keys through

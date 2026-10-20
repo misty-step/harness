@@ -14,3 +14,4 @@ repo_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 "$repo_dir/pi-config/install"
 "$repo_dir/omp-config/install"
 "$repo_dir/claude-config/install"
+"$repo_dir/codex-config/install"
