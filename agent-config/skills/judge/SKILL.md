@@ -52,7 +52,7 @@ Blockers are rare. Five or more usually means you are not filtering, or the slic
 ```
 **Verdict: SHIP | FIX | RE-SLICE** at <head SHA>
 <One sentence: why.>
-Sources: <each report's model>; <different families | one family>.
+Sources: <each report's <provider>/<model>>; <different families | one family>.
 
 Blockers
 1. <finding> (<sources>). Owner: builder | lane. Done when: <observable fix>. Evidence: <link>.

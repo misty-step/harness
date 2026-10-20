@@ -11,12 +11,16 @@ Goal: make this ticket's acceptance criteria true, and nothing beyond them.
 Read first: the ticket, its parent spec <spec URL>, and the repo's AGENTS.md or CLAUDE.md.
 Then read ~/.claude/skills/implement/SKILL.md and follow it: tdd at the agreed seams,
 then code-review of your own diff.
-Work on branch <branch>, starting from <base SHA>.
+Work on branch <branch>, starting from <origin/<default branch> at <SHA> | a stacked
+ticket: its blocker PR's head | a fix round: the PR's head>.
+Keep: <the load-bearing lines and rules the change must leave in place | "nothing listed">.
+Length is a preference, never a reason to remove a Keep item.
 
 Prove it before you push. Run <the repo's check command>, then drive the changed path
 yourself <with the verify-<app> skill, if the repo has one>. Put the evidence in the PR.
-Push, then open a ready PR. Write its body with the pr skill. Title it as a Conventional
-Commit, and link the ticket with "Closes #<n>".
+Push, then open a ready PR against <base branch> (the default branch unless the ticket
+stacks). Write its body with the pr skill. Title it as a Conventional Commit, and link the
+ticket with "Closes #<n>".
 
 You may push your branch and open the PR without asking. Never force-push a shared
 branch, and never merge.
