@@ -17,8 +17,10 @@ phaedrus supervises asynchronously through Home and the lage brief. Post reports
 - destructive or irreversible acts, such as deleting data, repositories, machines or accounts, force-pushing a shared branch, or a migration a revert can't undo;
 - writes to production data;
 - spending money;
-- creating, widening or revoking credentials, or changing a T3 thread's permission mode;
+- creating, widening or revoking credentials;
 - effects on third parties, such as messages to people outside the team.
+
+Lane threads run in Full access (phaedrus, 2026-10-20). Set a lane's mode yourself with `t3-runtime-mode <threadId> full-access`.
 
 Batch questions into one numbered message, each worded so "yes" accepts your recommendation. Write each question out in full, with its options, your recommendation and the consequence of no answer. Make asks and reports self-contained: link every PR, issue, ticket, story, spec, doc and thread with a one-line summary; never refer to an item number or file he hasn't seen.
 
