@@ -199,7 +199,7 @@ for (const [name, upstream, failure] of [
 	}, 30_000);
 }
 
-test("US-015 Landmark exiting while a GitHub read is pending advises a retry, not a withdrawal", async () => {
+test.skipIf(!landmark)("US-015 Landmark exiting while a GitHub read is pending advises a retry, not a withdrawal", async () => {
 	const { repo } = freshCandidate();
 	const bin = fakeLandmark(`for arg; do case "$prev" in --api-base-url) api="$arg";; esac; prev="$arg"; done
 curl -s --max-time 1 "$api/repos/owner/repo/git/ref/tags/v0.1.0"
@@ -212,7 +212,7 @@ exit 1`);
 	expect(result.advice).not.toContain("Withdraw");
 });
 
-test("US-015 an unrecognized Landmark failure on a fresh candidate says not to change CHANGELOG.md", async () => {
+test.skipIf(!landmark)("US-015 an unrecognized Landmark failure on a fresh candidate says not to change CHANGELOG.md", async () => {
 	const { repo, baseline } = freshCandidate();
 	const bin = fakeLandmark(`echo "unexpected Landmark failure" >&2\nexit 1`);
 	const result = await check(repo, github({ "v0.1.0": baseline }).upstream, "master", undefined, bin);
