@@ -645,7 +645,7 @@ Criteria:
    and private evidence SHALL remain private.
 7. WHEN an agent designs or changes an interface, THE PRINCIPAL SHALL receive
    neutral, professional, standard product design with plain words, without
-   clever wording, themes or metaphors by default.
+   clever wording, decorative themes or metaphors by default.
 
 No-gos: no code/config permission changes or new message templates; Kaylee's
 existing Hermes operating skill remains outside this operator-approved
