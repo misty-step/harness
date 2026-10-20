@@ -12,6 +12,7 @@ harness installer declares which primitives it selects.
 | `bin/pass-env.ts` | pass-backed environment launcher |
 | `bin/openrouter-key.ts` | OpenRouter key resolver: R90 checkouts get the R90 entry, others `--personal` (US-028) |
 | `audio-sandbox/` | Silent agent sink contract and host deploy ([README](audio-sandbox/README.md), US-026) |
+| `claude-settings/` | Owned-key merges into Claude Code `settings.json`; `.env` read denial (#351) |
 | `session-backup/` | Opt-in nightly session-store backup ([README](session-backup/README.md)) |
 
 ## Install contract
@@ -32,7 +33,8 @@ Drop `--check` to deploy. `--home` overrides `$HOME` for `~/.local/bin`.
 Launchers are bundled into self-contained executables in private scratch and
 replaced atomically; unchanged owned launchers stay, foreign files are rejected,
 and preflight never executes candidate source. Both harness installs select
-`--audio-sandbox`; `--session-backup` is opt-in.
+`--audio-sandbox`; claude-config selects `--deny-env-reads`; `--session-backup`
+is opt-in.
 
 Each guidance file is one complete `##` section. The installer replaces the
 harness file's `<!-- shared guidance: agent-config -->` line with the selected
