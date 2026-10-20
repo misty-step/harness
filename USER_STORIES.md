@@ -79,11 +79,13 @@ disposable Pi and OMP installer smoke.
 
 ## US-023 Keep verification useful
 
-Run affected native checks and walk the real user path. Code that ships gets
-one independent review, repeated only for real bugs. Documents, briefs and
-measurements need no review.
+Run affected native checks and walk the real user path. Every authored change
+gets review and verification scaled to risk. Documents, briefs and measurements
+get one light combined QA/review check plus an independent judge. Riskier
+behavior changes get separate independent QA, review and judge agents. Repeat
+review only for real bugs.
 
-Evidence: `agent-config/skills/story-qa/check-cadence.md`.
+Evidence: `agent-config/skills/ship-loop/roles.md`.
 
 ## Capability: Deployment
 
