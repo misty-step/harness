@@ -1,3 +1,9 @@
+# [0.2.23](https://github.com/misty-step/harness/compare/v0.2.22...v0.2.23) (2026-10-21)
+<!-- landmark:protected-release previous=v0.2.22 source=939212e181770bca37de0d61b42aff6089eae871f3a6e6b3c1c3b08362363d0b -->
+
+### Bug Fixes
+
+* **verify:** request raw native guidance heading (#438) ([3a8b528](https://github.com/misty-step/harness/commit/3a8b528d67bd7a145c8f9917407701ddaab5237e))
 # [0.2.22](https://github.com/misty-step/harness/compare/v0.2.21...v0.2.22) (2026-10-21)
 <!-- landmark:protected-release previous=v0.2.21 source=edcee4e0598a8f0354cdf02d7f77c8cb7028af2f7b2d3d57b5694037fbf9e955 -->
 
