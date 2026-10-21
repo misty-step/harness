@@ -1064,7 +1064,7 @@ for (const accepted of [false, true]) test(`a superseded provider recovery ${acc
 test("the shipped roster accepts Upkeep and the Voice drain without a fixed lane cap", async () => {
 	const files = fixture();
 	expect(defaults.wipRoots).toEqual([
-		"mcp:8145fc74-15ad-428f-b7f6-d9b162fff416", "mcp:bb364610-42c9-4d68-a43d-7c67c79bf07a",
+		"mcp:8145fc74-15ad-428f-b7f6-d9b162fff416", "mcp:6dbd369a-221d-46f0-8e3c-efc1fdc775a9",
 		"mcp:8449eb2b-175f-48cf-ae80-f9f699c7879f", "mcp:51b7a12d-8392-4fb0-b270-6aaafb8b63f8",
 		"mcp:69a8cc28-3648-4607-b15a-143e48dd80b5", "mcp:2ee20fca-f82d-4e94-812b-204ef22308f6",
 	]);
