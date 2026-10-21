@@ -382,7 +382,7 @@ cmd_live() {
   [ "$fails" = "$before" ] && pass "live ~/.claude and ~/.codex shared skills match source"
   say "Fresh live Claude Code session (real login, one haiku call)"
   claude_session "" "$HOME" claude-live \
-    'Quote, verbatim, the first Markdown heading line of your user-level (global) AGENTS.md instructions, and nothing else.'
+    'Copy the first Markdown heading source line of your user-level (global) AGENTS.md verbatim, including its leading # and space. Output only that raw line, without backticks or quotation marks.'
   answer=$(jq -r '.result' "$evidence/claude-live-result.json")
   say "  model answered: $answer"
   [ "$answer" = "$(grep -m 1 '^# ' "$HOME/.claude/AGENTS.md")" ] && pass "the model sees the live global guidance" ||
