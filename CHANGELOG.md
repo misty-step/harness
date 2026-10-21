@@ -1,3 +1,15 @@
+# [0.2.18](https://github.com/misty-step/harness/compare/v0.2.17...v0.2.18) (2026-10-21)
+<!-- landmark:protected-release previous=v0.2.17 source=c8600aac5112d0912d6f0f16b2a1bba1ac99fb4f015e93c271277973f46fb57b -->
+
+### Bug Fixes
+
+* require clickable review links and neutral professional design (#410) ([ec4229b](https://github.com/misty-step/harness/commit/ec4229babb201bb5180844ae1bb3a45c9d89fb2a))
+# [0.2.17](https://github.com/misty-step/harness/compare/v0.2.16...v0.2.17) (2026-10-21)
+<!-- landmark:protected-release previous=v0.2.16 source=cecf0d254cad18ffa6e215dc078a69980b8ab399d92af756d128c98dc8462f72 -->
+
+### Features
+
+* **guidance:** require real journeys and budget-sized WIP (#413) ([848f51a](https://github.com/misty-step/harness/commit/848f51aa74ca9da920827e923403e1edd105db76))
 # [0.2.16](https://github.com/misty-step/harness/compare/v0.2.15...v0.2.16) (2026-10-21)
 <!-- landmark:protected-release previous=v0.2.15 source=f3ac304b422f10cdc20a2593a60eb44d162a2b14eb0f1bf44a2c0902d60dfe7f -->
 
