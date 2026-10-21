@@ -38,7 +38,14 @@ there to the private installed skills; read through that link so native file-rea
 discovery does not pick up live ancestor instructions. With only file-read tools available, request decisions for:
 a valid named root, a listed child, a parked/unnamed lane, concurrent Home dispatch,
 a lost launch response, missing installed readback, pre-adoption abandonment and
-post-adoption failure. Require automatic serialized dispatch only for the named
+post-adoption failure. Include interruption after initial lock acquisition but before
+the attempt record, and after recovery acquisition but before its replacement record;
+require reacquisition, preserved receipts, prior-run liveness checks and reconciliation.
+In disposable scratch, drive the documented native lock: kill each holder at those
+points, reacquire the unchanged inode, reject a concurrent writer and retain exclusion
+while an inherited foreground command survives its shell. Require in-shell T3 transport
+for effects; a separate holder with direct MCP mutations is unsafe. Unknown liveness
+still blocks recovery effects. Require automatic serialized dispatch only for the named
 root, recovery of the same tracked successor, full restoration receipts before
 reopening, no adoption before readback and one blocker/completion report to Home.
 Also distinguish an exact-ID roster-only PR from authored policy or config changes.
