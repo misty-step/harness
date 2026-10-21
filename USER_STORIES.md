@@ -86,12 +86,13 @@ the agent's own AgentMail QA account and proving the required owner/admin role
 when the product has sign-in; a repository without one gets one. Every authored change
 gets review and verification scaled to risk. Documents, briefs and measurements
 get one light combined QA/review check plus an independent judge. Riskier
-behavior changes get separate independent QA, review and judge agents. Only a
-judge's FIX naming exact blockers authorizes the single permitted fix round.
-Only its blocking reporter rechecks those fixes; retain unchanged evidence.
-New findings become tickets unless the fix introduced them. Already on main is
-never a blocker. After that fix round the judge rules SHIP with tickets or
-REVERT / SPLIT; no third round. Ship heuristic features labeled approximate,
+behavior changes get separate independent QA, review and judge agents. A PR's
+review round count is stored on the PR: a new thread, succession, retry or new
+head reads the same count and cannot start another fix round. Only a judge's
+FIX naming eligible blockers can start the single permitted fix round. Its
+blocking reporter rechecks only those fixes. After that round the next ruling
+is SHIP with tickets or REVERT / SPLIT. New findings become tickets unless the
+fix introduced them. Already on main is never a blocker. Ship heuristic features labeled approximate,
 with accuracy as follow-up. Record tier, concrete reason and diff size; use light for docs,
 config JSON, constants, bounded cosmetic changes and verification tooling without
 a runtime path. One QA owner per SHA; extra cross-family QA requires a concrete
