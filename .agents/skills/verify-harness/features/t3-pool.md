@@ -33,7 +33,9 @@ Preconditions:
 For a change to `heartbeat` or `lane-succession`, first run `install`, `session both`
 and `session-auth` with unique `VH_DIR` and `VH_EVIDENCE`. In a fresh authenticated
 native session on that private HOME, read the installed global guidance and both
-installed skills. With only file-read tools available, request decisions for:
+installed skills. Use the helper's fresh cwd outside the live HOME and a symlink
+there to the private installed skills; read through that link so native file-read
+discovery does not pick up live ancestor instructions. With only file-read tools available, request decisions for:
 a valid named root, a listed child, a parked/unnamed lane, concurrent Home dispatch,
 a lost launch response, missing installed readback, pre-adoption abandonment and
 post-adoption failure. Require automatic serialized dispatch only for the named
