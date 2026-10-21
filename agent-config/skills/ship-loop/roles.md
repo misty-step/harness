@@ -12,12 +12,12 @@ The conductor chooses the highest matching tier, with any tier assigned to the i
 | standard | Runtime behavior changes, new features, bug fixes, refactors across modules, or operational prompts (skills, AGENTS.md and shared guidance), without a critical trigger | Builder, separate QA and review agents, then an independent judge. Each uses Opus 5.5 at high. |
 | critical | Changes to authentication, authorization, money movement, persisted-data integrity, migrations, security controls, deploy pipelines, shared infrastructure or irreversible operations, regardless of size | Builder uses Opus 5.5 at high. QA uses Opus 5.5 at xhigh; review uses Opus 5.5 at high. An independent Opus 5.5 judge uses high. |
 
-Models are all Claude while every Codex account is out (global guidance, Routing until Upkeep). When `upkeep` shows a Codex instance with room, GPT-6.1 Sol at the same effort may replace any role's model, and critical QA then uses Sol at xhigh for a second model family. Never route to `claude-hello`, which is reserved for Home.
+Use the live account headroom in global guidance, Routing until Upkeep. GPT-6.1 Sol at the same effort may replace any role's model on a usable Codex account; critical QA uses Sol at xhigh for a second model family. Never route to `claude-hello`, which is reserved for Home.
 
 Unlisted or uncertain changes default to standard; unresolved critical risk takes critical. Record the tier and its concrete trigger in each dispatch.
 Lane coordinators run on Opus 5.5 at high.
 No Fable or Astra (phaedrus, 2026-10-20).
-Compact or relaunch a lane with a handoff when its context gets heavy.
+When context gets heavy, prepare a handoff for Home to dispatch a replacement within the global WIP cap.
 For light changes, combine the QA and Reviewer briefs in one dispatch and post both reports. The judge stays independent.
 
 ## Builder

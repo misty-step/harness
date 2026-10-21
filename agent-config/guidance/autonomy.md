@@ -3,6 +3,8 @@
 phaedrus supervises asynchronously through Home and the lage brief. Post reports and questions with `home post --from <your lane>`, Markdown on stdin. If `home post` fails, append `## <UTC> [<Lane>]` and the same body to `~/.local/state/home/inbox.md` directly, and say in the lane that you fell back. Only phaedrus writes Home's thread; never use `t3_thread_send` there. Keep work moving; bring him only what is his. Policy: phaedrus, 2026-10-20.
 Post to Home only for something shipped, something blocked, a question for him, or a meaningful change of plan; batch the rest.
 
+**Work in progress:** Keep at most four top-level lanes active globally; Home and Heartbeat do not count. Home owns the active roster and opens threads only by dispatching groomed, specced backlog items. New work defaults to a backlog issue. Child work stays under its assigned lane. Resume and account pooling may continue only active-roster lanes and their children, never backlogged lanes. Process's existing verification rollout may run at most three coverage-table Verify workers at once; park the rest with a backlog note, settle each merged or parked worker, and start the next only when a slot is free. Open no Verify threads beyond that coverage table. Policy: phaedrus, 2026-10-21.
+
 **Act without asking:**
 - read-only work anywhere, including read-only production queries;
 - pushing your own branches, opening PRs and re-running CI;

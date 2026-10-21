@@ -642,6 +642,14 @@ Criteria:
    contracts.
 5. WHEN verifying changed guidance, THE ENGINEER SHALL inspect the composed
    instructions and exercise the affected actual consumer.
+6. WHEN new work appears, THE SYSTEM SHALL record a backlog issue. Only Home
+   SHALL open a thread by dispatching a groomed, specced backlog item, with at
+   most four active top-level lanes globally, excluding Home and Heartbeat.
+   Resume and account pooling SHALL continue only active-roster lanes and
+   their children. Process's existing coverage-table verification rollout
+   SHALL run at most three workers concurrently and settle merged or parked
+   workers before starting the next; it SHALL add no repositories or threads
+   beyond that table.
 
 No-gos: no code/config permission changes or new message templates; Kaylee's
 existing Hermes operating skill remains outside this operator-approved
