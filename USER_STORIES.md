@@ -96,8 +96,10 @@ critical uncertainty. Take an available model-class route, reserve fast/xhigh
 for named bottlenecks, and skip release checks when the judge records no deploy.
 
 Verification evidence SHALL live outside Git and be linked from the PR with the
-checked revision, commands and observed result. Repositories retain maintained
-code, build inputs, small deterministic fixtures and documentation. Generated
+checked revision, commands and observed result. Routing SHALL prefer native
+GitHub PR/issue media attachments and appropriate release bundles, preserving
+independent private access where repository visibility may change. Repositories
+retain maintained code, build inputs, small deterministic fixtures and documentation. Generated
 verification skills SHALL write run output outside the checkout. Existing bulky
 evidence and fixtures are cleaned up gradually through Foundation audits.
 
