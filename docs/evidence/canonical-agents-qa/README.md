@@ -1,5 +1,9 @@
 # Canonical instructions and QA setup evidence
 
+Historical checkpoint: the automatic-discovery failure below is retained as
+observed. The subsequent [native SessionStart proof](../canonical-native-hook/README.md)
+resolves global loading through the maintained adapter, without a legacy alias.
+
 Implementation revision: `a86cb0299eed19aa755e2afea5f921b1e6c63e81`, based on
 `f947793`. Evidence added afterward changes no implementation files.
 
