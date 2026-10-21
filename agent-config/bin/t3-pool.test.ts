@@ -652,6 +652,9 @@ test("a WIP handoff refusal requests Home succession once without auth, launch o
 	expect(post.args).toEqual(["post", "--from", "t3-pool"]);
 	expect(post.body.split("\n")[0]).toBe("Lane succession requested: big");
 	expect(post.body.split("\n")).toContain("Handoff: none; the successor builds it from t3_thread_read history.");
+	expect(post.body).toContain("Only the established hourly task's bound native Heartbeat thread dispatches");
+	expect(post.body).toContain('Home queues requests to that same writer with t3_thread_send, mode: "queue"');
+	expect(post.body).not.toMatch(/\b(?:Heartbeat or Home|Home or Heartbeat|Home dispatches)\b/);
 	expect(post.poolState.moves[0]).toMatchObject({ phase: "done", notificationPending: true });
 	for (const text of ["t3-thread://v1/big", "big:run", "/work/tree", "lane-branch", "full-access", JSON.stringify(selection), "Home owns thread creation", "wipRoots"]) expect(post.body).toContain(text);
 	expect(state(files).moves[0]).toMatchObject({ phase: "done", kind: "successor" });
