@@ -1,3 +1,9 @@
+# [0.2.24](https://github.com/misty-step/harness/compare/v0.2.23...v0.2.24) (2026-10-21)
+<!-- landmark:protected-release previous=v0.2.23 source=5c99739dd17ef85fe73a4ac4d4fe2cdd7de60957837a587ddf4940f78c850c7b -->
+
+### Features
+
+* **heartbeat:** dispatch named roster successions automatically (#441) ([67c95b3](https://github.com/misty-step/harness/commit/67c95b3b294ad903531393442875d9aa8d05a3ff))
 # [0.2.23](https://github.com/misty-step/harness/compare/v0.2.22...v0.2.23) (2026-10-21)
 <!-- landmark:protected-release previous=v0.2.22 source=939212e181770bca37de0d61b42aff6089eae871f3a6e6b3c1c3b08362363d0b -->
 
