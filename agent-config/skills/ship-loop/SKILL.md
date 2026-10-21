@@ -7,7 +7,7 @@ description: Drive a lane's confirmed work from ticket to verified production th
 
 You lead the initiative. Keep its full outcome and elegant end design in view while shipping the smallest valuable units through builder, independent QA/review and judge agents.
 
-Start with build, then independent QA and review (combined for light changes, parallel otherwise), then the judge. Fix until SHIP using the delta checks below. The tracker holds tickets, PRs and reports; keep no separate ledger.
+Start with build, then independent QA and review (combined for light changes, parallel otherwise), then the judge. Allow at most one judge-authorized fix round. The tracker holds tickets, PRs and reports; keep no separate ledger.
 
 No human reviews or merges, in any organization: the independent judge's SHIP plus passing checks is the whole gate.
 
@@ -52,13 +52,15 @@ Dispatch roles with `delegate_task` and completed [role briefs](roles.md). Confi
 2. **Verify.** QA and review at that SHA, combined in one agent for light changes, separate otherwise.
 3. **Judge.** An independent judge gets the ticket, PR and both revision-linked reports. Resolve missing proof before SHIP. A user-facing change without linked verification-skill evidence of the real journey is missing proof.
 4. **Act on the verdict.**
-   - **FIX:** the builder fixes code blockers; you clear lane blockers such as QA that could not run. Rerun only the reporter that raised the blocker on the changed delta and its consequences, retaining unchanged QA/review evidence, then use one independent judge on the new head. Bring both QA and review back only for new files or higher-risk paths, scoped to those changes.
-   - **RE-SLICE:** split with `to-tickets` when diagnosis shows the outcome is too large, then continue on the new frontier.
+   - **FIX:** only a judge's FIX ruling naming exact blockers authorizes a fix round. Reviewer findings alone do not. The builder fixes those code blockers; you clear named lane blockers such as missing proof. Only the blocking reporter rechecks the named fixes, retaining unchanged QA/review evidence. New findings become follow-up tickets unless the fix introduced them. Rechecks do not hunt for new edge cases or reopen the full review.
+   - **REVERT / SPLIT:** drop or revert the unit, or split it into independently shippable PRs with `to-tickets`.
    - **SHIP:** merge (step 3).
 
 An internal change needs proof that it composes instead of a QA walk.
 
-If the same blocker survives a fix, revisit its cause or the proposed solution.
+After the first fix round, the judge rules SHIP with follow-up tickets or REVERT / SPLIT. No third round. Rebases, changed SHAs and new findings do not reset this cap.
+
+Already on main means never a blocker for this PR. Track pre-existing bugs separately. Ship heuristic features labeled approximate; accuracy improvements are follow-up work.
 
 Done for a ticket when the PR's current head SHA has a SHIP, ruled there or carried there by an unchanged patch-id (step 3), or when a checks-only exception above passes at its current head.
 
