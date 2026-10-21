@@ -115,7 +115,7 @@ test("an unreadable or malformed ledger is unknown, never a fresh round", async 
   expect(init.code).toBe(2);
   expect(comments(h).length).toBe(1);
 
-  const broken = harness([{ id: 5, body: "<!-- ship-loop:event v1 -->\n```json\n{not json\n```\n" }]);
+  const broken = harness([{ id: 5, author: "conductor", body: "<!-- ship-loop:event v1 -->\n```json\n{not json\n```\n" }]);
   expect((await cli(broken, ["status", "--pr", PR, "--json"])).code).toBe(2);
   const write = await cli(broken, ["init", "--pr", PR, "--ticket", TICKET, "--rigor", "light", "--rigor-reason", "x", "--base", BASE, "--sha", H1, "--builder-thread", "b"]);
   expect(write.code).toBe(2);
@@ -185,12 +185,12 @@ test("exactly one FIX; recheck narrows to the named blocker; the final prompt of
   expect(fixed.code).toBe(0);
   expect((await status(h)).doc.phase).toBe("recheck");
 
-  const wrongThread = await cli(h, ["record", "--pr", PR, "--kind", "recheck"], { thread_id: "review-1", sha: H2, report_url: "https://example.test/r", results: [{ blocker: "qa:F1", status: "fixed" }] });
+  const wrongThread = await cli(h, ["record", "--pr", PR, "--kind", "recheck"], { thread_id: "qa-recheck-1", reporter_thread_id: "review-1", sha: H2, report_url: "https://example.test/r", regressions: [], results: [{ blocker: "qa:F1", status: "fixed", evidence: "https://example.test/fixed" }] });
   expect(wrongThread.code).toBe(1);
-  const extra = await cli(h, ["record", "--pr", PR, "--kind", "recheck"], { thread_id: "qa-1", sha: H2, report_url: "https://example.test/r", results: [{ blocker: "qa:F1", status: "fixed" }, { blocker: "qa:F2", status: "fixed" }] });
+  const extra = await cli(h, ["record", "--pr", PR, "--kind", "recheck"], { thread_id: "qa-recheck-1", reporter_thread_id: "qa-1", sha: H2, report_url: "https://example.test/r", regressions: [], results: [{ blocker: "qa:F1", status: "fixed", evidence: "https://example.test/fixed" }, { blocker: "qa:F2", status: "fixed", evidence: "https://example.test/fixed" }] });
   expect(extra.code).toBe(1);
 
-  const recheck = await cli(h, ["record", "--pr", PR, "--kind", "recheck"], { thread_id: "qa-1", sha: H2, report_url: "https://example.test/r", results: [{ blocker: "qa:F1", status: "fixed" }] });
+  const recheck = await cli(h, ["record", "--pr", PR, "--kind", "recheck"], { thread_id: "qa-recheck-1", reporter_thread_id: "qa-1", sha: H2, report_url: "https://example.test/r", regressions: [], results: [{ blocker: "qa:F1", status: "fixed", evidence: "https://example.test/fixed" }] });
   expect(recheck.code).toBe(0);
   const finalPrompt = await cli(h, ["prompt", "--pr", PR, "--role", "final-judge"]);
   expect(finalPrompt.code).toBe(0);
@@ -205,8 +205,8 @@ test("exactly one FIX; recheck narrows to the named blocker; the final prompt of
   const done = await status(h);
   expect(done.doc.phase).toBe("shipped");
   expect(done.doc.fix_round).toBe(1);
-  expect(done.doc.review_thread_ids).toEqual(["qa-1", "review-1"]);
-  expect(done.doc.review_thread_count).toBe(2);
+  expect(done.doc.review_thread_ids).toEqual(["qa-1", "qa-recheck-1", "review-1"]);
+  expect(done.doc.review_thread_count).toBe(3);
   expect(done.doc.source_head).toBe(H2);
 });
 
@@ -235,6 +235,61 @@ test("a write whose response is lost is confirmed on read-back, not repeated", a
   expect(comments(h).length).toBe(before + 1);
 });
 
+test("native comment authors keep outsiders from forging or locking the ledger", async () => {
+  const h = harness();
+  await initPr(h);
+  const store = JSON.parse(readFileSync(h.store, "utf8"));
+  store.comments.push(
+    { id: 201, author: "outsider", body: renderWithKey({ v: 1, kind: "report", seq: 2, role: "qa", sha: H1, thread_id: "fake-qa", report_url: "forged", outcome: "PASS", findings: [] }) },
+    { id: 202, author: "outsider", body: "<!-- ship-loop:event v1 -->\ninvalid" },
+    { id: 203, author: null, body: "<!-- ship-loop:event v1 -->\ninvalid" },
+  );
+  writeFileSync(h.store, JSON.stringify(store));
+  expect((await status(h)).doc.phase).toBe("verify");
+  expect((await reportQa(h, [finding("F1")])).code).toBe(0);
+  expect((await reportReview(h)).code).toBe(0);
+  const result = await cli(h, ["record", "--pr", PR, "--kind", "verdict"], { thread_id: "judge-1", sha: H1, verdict: "FIX", blockers: ["qa:F1"], report_url: "https://example.test/v" });
+  expect(result.code).toBe(0);
+  expect((await status(h)).doc.fix_blockers).toEqual(["qa:F1"]);
+});
+
+test("the judge can ship ISSUES with tickets, while BLOCKED still refuses SHIP", async () => {
+  for (const outcome of ["PASS", "ISSUES", "BLOCKED"]) {
+    const h = harness();
+    await initPr(h);
+    await reportQa(h, [finding("N1", { blocker_class: "none" })], outcome);
+    await reportReview(h);
+    const result = await cli(h, ["record", "--pr", PR, "--kind", "verdict"], { thread_id: "judge-1", sha: H1, verdict: "SHIP", blockers: [], tickets: ["https://example.test/follow-up"], report_url: "https://example.test/v" });
+    expect(result.code).toBe(outcome === "BLOCKED" ? 1 : 0);
+    expect((await status(h)).doc.phase).toBe(outcome === "BLOCKED" ? "judge" : "shipped");
+  }
+});
+
+test("a fresh independent recheck links its reporter and exposes fix regressions to the final judge", async () => {
+  const h = harness();
+  await initPr(h);
+  await reportQa(h, [finding("F1")]);
+  await reportReview(h);
+  await cli(h, ["record", "--pr", PR, "--kind", "verdict"], { thread_id: "judge-1", sha: H1, verdict: "FIX", blockers: ["qa:F1"], report_url: "https://example.test/v" });
+  await cli(h, ["record", "--pr", PR, "--kind", "head"], { reason: "fix", sha: H2, thread_id: "builder-2" });
+  const payload = { thread_id: "qa-recheck-1", reporter_thread_id: "qa-1", sha: H2, report_url: "https://example.test/recheck", results: [{ blocker: "qa:F1", status: "fixed", evidence: "https://example.test/fixed" }], regressions: [finding("R1", { evidence: "fix broke the build", blocker_class: "broken_build" })] };
+  for (const thread_id of ["qa-1", "review-1", "judge-1", "builder-1", "builder-2"]) {
+    expect((await cli(h, ["record", "--pr", PR, "--kind", "recheck"], { ...payload, thread_id })).code).toBe(1);
+  }
+  expect((await cli(h, ["record", "--pr", PR, "--kind", "recheck"], { ...payload, regressions: [finding("R1", { already_on_main: true })] })).code).toBe(1);
+  expect((await cli(h, ["record", "--pr", PR, "--kind", "recheck"], payload)).code).toBe(0);
+  const final = await cli(h, ["prompt", "--pr", PR, "--role", "final-judge"]);
+  expect(final.code).toBe(0);
+  expect(final.out).toContain("fix broke the build");
+  expect(final.out).toContain("https://example.test/recheck");
+  expect(final.out).toContain("REVERT or SPLIT");
+  expect(final.out).not.toMatch(/\bFIX\b/);
+  const result = await cli(h, ["record", "--pr", PR, "--kind", "verdict"], { thread_id: "judge-2", sha: H2, verdict: "SPLIT", blockers: [], report_url: "https://example.test/final" });
+  expect(result.code).toBe(0);
+  expect((await status(h)).doc.recheck.regressions[0].id).toBe("R1");
+  expect((await status(h)).doc.phase).toBe("revert-split");
+});
+
 test("a light rigor PR takes one combined review and a standard PR refuses it", async () => {
   const light = harness();
   await cli(light, ["init", "--pr", PR, "--ticket", TICKET, "--rigor", "light", "--rigor-reason", "docs", "--base", BASE, "--sha", H1, "--builder-thread", "b"]);
@@ -245,21 +300,21 @@ test("a light rigor PR takes one combined review and a standard PR refuses it", 
 test("replay keeps the lowest-id write for a sequence number and rejects a gap", () => {
   const init = (seq: number) => ({ v: 1, kind: "init", seq, key: "", ticket: TICKET, pr_url: PR, rigor: "light", rigor_reason: "docs", base: BASE, sha: H1, builder_thread_id: "b" });
   const first = JSON.parse(JSON.stringify(init(1)));
-  const ledger = replay([{ id: 1, body: renderWithKey(first) }]);
+  const ledger = replay([{ id: 1, author: "conductor", body: renderWithKey(first) }], "conductor");
   expect(ledger.state?.phase).toBe("verify");
   const lostSeq2 = renderWithKey({ v: 1, kind: "report", seq: 2, role: "qa-review", sha: H1, thread_id: "x", report_url: "u", outcome: "PASS", findings: [] });
   const wonSeq2 = renderWithKey({ v: 1, kind: "report", seq: 2, role: "qa-review", sha: H1, thread_id: "qa-1", report_url: "u", outcome: "PASS", findings: [] });
-  const dup = replay([{ id: 1, body: renderWithKey(first) }, { id: 5, body: wonSeq2 }, { id: 6, body: lostSeq2 }]);
+  const dup = replay([{ id: 1, author: "conductor", body: renderWithKey(first) }, { id: 5, author: "conductor", body: wonSeq2 }, { id: 6, author: "conductor", body: lostSeq2 }], "conductor");
   expect(dup.last_seq).toBe(2);
   expect(dup.rejected).toEqual([6]);
   expect(dup.state?.phase).toBe("judge");
-  expect(() => replay([{ id: 1, body: renderWithKey(first) }, { id: 9, body: renderWithKey({ v: 1, kind: "report", seq: 3, role: "qa-review", sha: H1, thread_id: "q", report_url: "u", outcome: "PASS", findings: [] }) }])).toThrow(/gap/);
+  expect(() => replay([{ id: 1, author: "conductor", body: renderWithKey(first) }, { id: 9, author: "conductor", body: renderWithKey({ v: 1, kind: "report", seq: 3, role: "qa-review", sha: H1, thread_id: "q", report_url: "u", outcome: "PASS", findings: [] }) }], "conductor")).toThrow(/gap/);
 });
 
 test("a carry needs an unchanged patch-id, and only moves head before the ruling", () => {
   const judged: State = {
     ticket: TICKET, pr_url: PR, rigor: "light", rigor_reason: "docs", base: BASE, head: H1, carried: [], phase: "judge",
-    builder_threads: ["b"], judge_threads: [], reports: {}, fix_round: 0, fix: null, verdict: null,
+    builder_threads: ["b"], judge_threads: [], reports: {}, recheck: null, fix_round: 0, fix: null, verdict: null,
   };
   const carry = (patchFrom: string, patchTo: string): Event => ({ v: 1, kind: "head", seq: 3, key: "", reason: "carry", from: H1, sha: H2, patch_id_from: patchFrom, patch_id_to: patchTo });
   expect(() => apply(judged, carry("p1", "p2"))).toThrow(/unchanged patch-id/);
@@ -280,7 +335,7 @@ test("statusOf reports a missing ledger as absent, not as a round", () => {
 test("prompts name only the current phase's role and carry the head", () => {
   const s: State = {
     ticket: TICKET, pr_url: PR, rigor: "standard", rigor_reason: "runtime", base: BASE, head: H1, carried: [], phase: "verify",
-    builder_threads: ["b"], judge_threads: [], reports: {}, fix_round: 0, fix: null, verdict: null,
+    builder_threads: ["b"], judge_threads: [], reports: {}, recheck: null, fix_round: 0, fix: null, verdict: null,
   };
   expect(prompt(s, PR, "qa")).toContain(H1);
   expect(() => prompt(s, PR, "judge")).toThrow(/runs in phase judge/);

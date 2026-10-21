@@ -26,6 +26,14 @@ export type Finding = {
   blocker_class: string;
 };
 export type Report = { role: string; sha: string; thread_id: string; report_url: string; outcome: string; findings: Finding[] };
+export type Recheck = {
+  thread_id: string;
+  reporter_thread_id: string;
+  sha: string;
+  report_url: string;
+  results: { blocker: string; status: "fixed" | "not-fixed"; evidence: string }[];
+  regressions: Finding[];
+};
 export type State = {
   ticket: string;
   pr_url: string;
@@ -38,12 +46,13 @@ export type State = {
   builder_threads: string[];
   judge_threads: string[];
   reports: Record<string, Report>;
+  recheck: Recheck | null;
   fix_round: number;
   fix: null | { blockers: string[]; reporter_thread: string; judge_thread: string; sha: string };
   verdict: null | { verdict: string; sha: string; thread_id: string };
 };
 export type Event = Record<string, any> & { v: number; kind: string; seq: number; key: string };
-export type Comment = { id: number; body: string };
+export type Comment = { id: number; body: string; author: string | null };
 export type Ledger = { state: State | null; last_seq: number; accepted: { id: number; event: Event }[]; rejected: number[] };
 
 // Refused: the workflow forbids this write. LedgerError: the ledger cannot be trusted.
@@ -108,7 +117,7 @@ function checkThread(s: State, thread: string, excluded: string[], role: string)
 }
 
 function reviewThreads(s: State): string[] {
-  return [...new Set(Object.values(s.reports).map((r) => r.thread_id))].sort();
+  return [...new Set([...Object.values(s.reports).map((r) => r.thread_id), ...(s.recheck ? [s.recheck.thread_id] : [])])].sort();
 }
 
 // The single transition function. Returns the next state or throws Refused.
@@ -125,7 +134,7 @@ export function apply(s: State | null, e: Event): State {
     return {
       ticket: text(e, "ticket"), pr_url: text(e, "pr_url"), rigor: e.rigor, rigor_reason: e.rigor_reason,
       base: e.base, head: e.sha, carried: [], phase: "verify", builder_threads: [builder], judge_threads: [],
-      reports: {}, fix_round: 0, fix: null, verdict: null,
+      reports: {}, recheck: null, fix_round: 0, fix: null, verdict: null,
     };
   }
   need(s !== null, `${e.kind} before init`);
@@ -180,11 +189,10 @@ export function apply(s: State | null, e: Event): State {
       need(blockers.length === 0, "SHIP cannot name blockers");
       if (next.fix) {
         // After a fix, the named-blocker recheck is the QA evidence for this head.
-        const rechecked = next.reports.recheck;
-        need(rechecked && rechecked.results.every((r: { status: string }) => r.status === "fixed"), "SHIP after a fix round needs every named blocker rechecked as fixed");
+        need(next.recheck && next.recheck.results.every((r) => r.status === "fixed"), "SHIP after a fix round needs every named blocker rechecked as fixed");
       } else {
         const qa = next.reports.qa ?? next.reports["qa-review"];
-        need(qa && qa.outcome === "PASS", "SHIP needs an independent QA PASS at this head");
+        need(qa && ["PASS", "ISSUES"].includes(qa.outcome) && requiredRoles(next.rigor).every((role) => next.reports[role]?.outcome !== "BLOCKED"), "SHIP needs completed independent QA and review; BLOCKED reports cannot ship");
       }
       next.phase = "shipped";
     } else {
@@ -196,16 +204,23 @@ export function apply(s: State | null, e: Event): State {
   }
 
   if (e.kind === "recheck") {
-    fieldsOnly(e, ["v", "kind", "seq", "key", "thread_id", "sha", "report_url", "results"], "recheck");
+    fieldsOnly(e, ["v", "kind", "seq", "key", "thread_id", "reporter_thread_id", "sha", "report_url", "results", "regressions"], "recheck");
     need(next.phase === "recheck" && next.fix, `rechecks run only after a fix; this PR is in ${next.phase}`);
     need(e.sha === next.head, `recheck is for ${e.sha}, but head is ${next.head}`);
-    need(e.thread_id === next.fix.reporter_thread, "only the blocking reporter rechecks the named fixes");
+    need(e.reporter_thread_id === next.fix.reporter_thread, "recheck must reference the blocking reporter's original thread");
+    checkThread(next, text(e, "thread_id"), [...reviewThreads(next), ...next.judge_threads], "recheck");
     text(e, "report_url");
     need(Array.isArray(e.results), "results must be an array");
     const seen = e.results.map((r: { blocker: string }) => r.blocker);
     need(seen.length === next.fix.blockers.length && next.fix.blockers.every((b) => seen.includes(b)), "results must cover exactly the named blockers");
-    for (const r of e.results as { status: string }[]) need(r.status === "fixed" || r.status === "not-fixed", "result status must be fixed or not-fixed");
-    next.reports.recheck = { role: "recheck", sha: e.sha, thread_id: e.thread_id, report_url: e.report_url, outcome: "PASS", findings: [], results: e.results } as Report & { results: unknown };
+    for (const r of e.results as Record<string, unknown>[]) {
+      fieldsOnly(r, ["blocker", "status", "evidence"], "recheck result");
+      need(r.status === "fixed" || r.status === "not-fixed", "result status must be fixed or not-fixed");
+      text(r, "evidence");
+    }
+    const regressions = validateFindings(e.regressions);
+    need(regressions.every((f) => f.introduced_by_diff && !f.already_on_main), "recheck regressions must be introduced by the fix; unrelated findings belong in follow-ups");
+    next.recheck = { thread_id: e.thread_id, reporter_thread_id: e.reporter_thread_id, sha: e.sha, report_url: e.report_url, results: e.results, regressions };
     next.phase = "final-judge";
     return next;
   }
@@ -238,9 +253,10 @@ export function apply(s: State | null, e: Event): State {
 
 // Parse and reduce the ledger. Malformed or gapped chains are LedgerError: unknown, never empty.
 // A duplicate sequence number means a lost concurrent write: the lowest comment id wins, the rest are rejected.
-export function replay(comments: Comment[]): Ledger {
+export function replay(comments: Comment[], writer: string): Ledger {
+  if (!writer.trim()) throw new LedgerError("PR author is unknown");
   const parsed = comments
-    .filter((c) => c.body.startsWith(MARKER))
+    .filter((c) => c.author?.toLowerCase() === writer.toLowerCase() && c.body.startsWith(MARKER))
     .sort((a, b) => a.id - b.id)
     .map((c) => ({ id: c.id, event: parseEvent(c) }));
   let state: State | null = null;
@@ -286,7 +302,7 @@ export function renderEvent(event: Event): string {
 // The status document the Heartbeat and conductors read. Field names are stable within v1.
 export function statusOf(ledger: Ledger, pr: string) {
   const s = ledger.state;
-  const ids = s ? [...new Set(Object.values(s.reports).map((r) => r.thread_id))].sort() : [];
+  const ids = s ? reviewThreads(s) : [];
   return {
     schema: STATUS_SCHEMA,
     ledger: s ? "present" : "absent",
@@ -303,6 +319,7 @@ export function statusOf(ledger: Ledger, pr: string) {
     review_thread_ids: ids,
     review_thread_count: ids.length,
     builder_thread_ids: s?.builder_threads ?? [],
+    recheck: s?.recheck ?? null,
     verdict: s?.verdict ?? null,
     last_seq: ledger.last_seq,
     rejected_writes: ledger.rejected.length,
@@ -360,7 +377,7 @@ export function prompt(s: State, prUrl: string, role: PromptRole): string {
       `You are the independent judge for ${header}`,
       "You did not build, review or test this change. Your thread must not be any of: builder " + s.builder_threads.join(", ") + "; reviewers " + reviewThreads(s).join(", ") + ".",
       "Findings and eligibility:\n" + blockerLines(s),
-      "Rule once. SHIP only with no blockers and QA PASS at this head; name follow-up tickets for worthwhile new findings. FIX names the exact eligible blockers above from one reporter thread and is the only fix round this PR gets. REVERT or SPLIT drops or divides the unit.",
+      "Rule once. SHIP with no blockers after completed QA (PASS or ISSUES) and review at this head; BLOCKED cannot ship. Rule on the findings and name follow-up tickets for worthwhile work. FIX names the exact eligible blockers above from one reporter thread and is the only fix round this PR gets. REVERT or SPLIT drops or divides the unit.",
       `Post your verdict on the PR, then return this JSON:\n\`\`\`json\n{"thread_id": "<your native thread id>", "sha": "${head}", "verdict": "SHIP|FIX|REVERT|SPLIT", "blockers": ["qa:F1"], "tickets": ["<follow-up links>"], "report_url": "<link to your verdict>"}\n\`\`\``,
       submit("verdict"),
     ].join("\n\n");
@@ -381,9 +398,10 @@ export function prompt(s: State, prUrl: string, role: PromptRole): string {
     need(s.fix, "no fix is authorized");
     const named = s.fix.blockers.map((b) => `- \`${b}\``).join("\n");
     return [
-      `You are the blocking reporter rechecking the named fixes on ${header}`,
+      `You are a new independent recheck thread continuing the blocking reporter's role on ${header}. Original reporter thread: ${s.fix.reporter_thread}.`,
       `Verify that each blocker below is fixed and that nothing regressed. Do not hunt for new edge cases or reopen the full review. New unrelated findings are not yours to report here.\n${named}`,
-      `Return one result per blocker:\n\`\`\`json\n{"thread_id": "<your native thread id>", "sha": "${head}", "report_url": "<link>", "results": [{"blocker": "${s.fix.blockers[0]}", "status": "fixed|not-fixed", "evidence": "<link>"}]}\n\`\`\``,
+      "Record only regressions introduced by the fix, using the same finding fields as the initial report. Use an empty regressions array if none. The final judge rules on them; this does not authorize another fix round.",
+      `Return one result per blocker:\n\`\`\`json\n{"thread_id": "<your new native thread id>", "reporter_thread_id": "${s.fix.reporter_thread}", "sha": "${head}", "report_url": "<link>", "results": [{"blocker": "${s.fix.blockers[0]}", "status": "fixed|not-fixed", "evidence": "<link>"}], "regressions": []}\n\`\`\``,
       submit("recheck"),
     ].join("\n\n");
   }
@@ -392,8 +410,9 @@ export function prompt(s: State, prUrl: string, role: PromptRole): string {
   return [
     `You are the final judge for ${header}`,
     `The fix round is spent. Your thread must not be any of: builder ${s.builder_threads.join(", ")}; reviewers ${reviewThreads(s).join(", ")}.`,
-    `Recheck results: ${JSON.stringify(s.reports.recheck?.results ?? [])}`,
-    "Rule once. SHIP only if every named blocker is fixed; record worthwhile new findings as follow-up tickets. REVERT or SPLIT otherwise.",
+    `Recheck report: ${s.recheck?.report_url ?? "missing"}. Recheck results: ${JSON.stringify(s.recheck?.results ?? [])}`,
+    `Regressions introduced by the fix: ${JSON.stringify(s.recheck?.regressions ?? [])}`,
+    "Rule once on the named fixes and reported regressions. SHIP only if every named blocker is fixed and no demonstrated blocking regression remains; record worthwhile nonblocking findings as follow-up tickets. REVERT or SPLIT otherwise.",
     `Return:\n\`\`\`json\n{"thread_id": "<your native thread id>", "sha": "${head}", "verdict": "SHIP|REVERT|SPLIT", "blockers": [], "tickets": ["<follow-up links>"], "report_url": "<link to your verdict>"}\n\`\`\``,
     submit("verdict"),
   ].join("\n\n");
@@ -402,6 +421,7 @@ export function prompt(s: State, prUrl: string, role: PromptRole): string {
 // ---- native boundary: gh for reads and writes, git for patch-ids ----
 
 export type Gh = {
+  prAuthor(repo: string, n: number): Promise<string>;
   listComments(repo: string, n: number): Promise<Comment[]>;
   postComment(repo: string, n: number, body: string): Promise<number>;
 };
@@ -415,11 +435,16 @@ async function runCmd(cmd: string[], stdin?: string): Promise<string> {
 
 export function ghBoundary(bin: string): Gh {
   return {
+    async prAuthor(repo, n) {
+      const author = (await runCmd([bin, "api", `repos/${repo}/pulls/${n}`, "--jq", ".user.login // empty"])).trim();
+      if (!/^[a-z0-9][a-z0-9-]*$/i.test(author)) throw new LedgerError("PR author is unknown");
+      return author;
+    },
     async listComments(repo, n) {
-      const out = await runCmd([bin, "api", "--paginate", `repos/${repo}/issues/${n}/comments`, "--jq", ".[] | [.id, .body] | @json"]);
+      const out = await runCmd([bin, "api", "--paginate", `repos/${repo}/issues/${n}/comments`, "--jq", ".[] | [.id, .body, .user.login] | @json"]);
       return out.split("\n").filter((l) => l.trim() !== "").map((l) => {
-        const [id, body] = JSON.parse(l);
-        return { id, body };
+        const [id, body, author] = JSON.parse(l);
+        return { id, body, author };
       });
     },
     async postComment(repo, n, body) {
@@ -440,7 +465,7 @@ export async function patchId(base: string, sha: string): Promise<string> {
 
 // ---- command line ----
 
-const HELP = `ship-loop: the one entry point for a PR's review-round state. State lives in the PR's comments.
+const HELP = `ship-loop: the one entry point for a PR's review-round state. Only the PR author's comments can write the ledger; other commenters' markers are ignored.
 
   init    --pr <url> --ticket <url> --rigor light|standard|critical --rigor-reason <text> --base <ref> --sha <head> --builder-thread <id>
           Creates the ledger once. On an existing ledger it resumes and never resets.
@@ -498,8 +523,9 @@ function target(pr: unknown): { url: string; repo: string; n: number } {
 async function dispatch(cmd: string, f: Record<string, string | true>, d: Deps): Promise<number> {
   const { url, repo, n } = target(f.pr);
   // Any read failure throws before a write can be attempted.
+  const writer = await d.gh.prAuthor(repo, n);
   const comments = await d.gh.listComments(repo, n);
-  const ledger = replay(comments);
+  const ledger = replay(comments, writer);
 
   if (cmd === "status") {
     const doc = statusOf(ledger, url);
@@ -524,7 +550,7 @@ async function dispatch(cmd: string, f: Record<string, string | true>, d: Deps):
       d.out(`resumed: ledger exists at seq ${ledger.last_seq}; phase ${ledger.state.phase}; no reset\n`);
       return 0;
     }
-    return await write(ledger, repo, n, body, d);
+    return await write(ledger, repo, n, writer, body, d);
   }
 
   // record
@@ -542,11 +568,11 @@ async function dispatch(cmd: string, f: Record<string, string | true>, d: Deps):
     body.patch_id_from = await d.patchId(ledger.state.base, String(payload.from));
     body.patch_id_to = await d.patchId(ledger.state.base, String(payload.sha));
   }
-  return await write(ledger, repo, n, body, d);
+  return await write(ledger, repo, n, writer, body, d);
 }
 
 // Idempotent append: an identical accepted event is a no-op; otherwise validate, post, then read back.
-async function write(ledger: Ledger, repo: string, n: number, body: Record<string, unknown>, d: Deps): Promise<number> {
+async function write(ledger: Ledger, repo: string, n: number, writer: string, body: Record<string, unknown>, d: Deps): Promise<number> {
   const key = keyOf(body);
   const seen = ledger.accepted.find((a) => a.event.key === key);
   if (seen) { d.out(`already recorded at seq ${seen.event.seq}\n`); return 0; }
@@ -558,11 +584,11 @@ async function write(ledger: Ledger, repo: string, n: number, body: Record<strin
     id = await d.gh.postComment(repo, n, renderEvent(event));
   } catch (err) {
     // The write may have landed. Read back before deciding: rerunning is safe because identical events are no-ops.
-    const after = replay(await d.gh.listComments(repo, n));
+    const after = replay(await d.gh.listComments(repo, n), writer);
     if (after.accepted.some((a) => a.event.key === key)) { d.out(`recorded at seq ${seq} (confirmed after a failed response)\n`); return 0; }
     throw new Error(`write outcome unknown: ${(err as Error).message}`);
   }
-  const after = replay(await d.gh.listComments(repo, n));
+  const after = replay(await d.gh.listComments(repo, n), writer);
   if (after.accepted.some((a) => a.id === id)) { d.out(`recorded at seq ${seq}\n`); return 0; }
   if (after.rejected.includes(id)) {
     d.err(`lost a concurrent write at seq ${seq}; nothing recorded. Run status and retry.\n`);

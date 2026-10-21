@@ -50,6 +50,8 @@ Dispatch roles with `delegate_task` and completed [role briefs](roles.md). Confi
 
 **The round helper is the path for every step below.** `scripts/ship-loop.ts` in this skill (`bun ~/.claude/skills/ship-loop/scripts/ship-loop.ts --help`) keeps each PR's round state in the PR's own comments. A new conductor, thread, succession, retry or new head reads the same state, so no round is tracked anywhere else:
 
+The PR author is the ledger's sole writer, identified through GitHub's native PR and comment metadata. Use that native GitHub identity when recording events; markers from other commenters are ignored, including malformed ones. Unknown author or unreadable trusted events stop the command without resetting the round.
+
 - `init --pr <url> ...`: once the builder has opened the PR. On an existing ledger it resumes and never resets.
 - `status --pr <url> --json`: `phase`, `fix_round`, `review_thread_ids`, `review_thread_count`, `source_head`.
 - `prompt --pr <url> --role <qa|review|qa-review|judge|recheck|fix-builder|final-judge>`: the only brief a role gets. It refuses a role out of phase.
@@ -59,13 +61,13 @@ Dispatch roles with `delegate_task` and completed [role briefs](roles.md). Confi
 2. **Verify.** `prompt --role qa-review` for light changes, or `qa` and `review` otherwise. Record each report with `record --kind report`.
 3. **Judge.** `prompt --role judge` gives the independent judge the eligible findings. Resolve missing proof before SHIP. A user-facing change without linked verification-skill evidence of the real journey is missing proof. Record the ruling with `record --kind verdict`.
 4. **Act on the verdict.**
-   - **FIX:** only a judge's FIX ruling naming exact eligible blockers authorizes a fix round. Reviewer findings alone do not. The helper persists the authorization before the builder runs; `prompt --role fix-builder` then fixes those code blockers, and the new head is recorded with `record --kind head`. You clear named lane blockers such as missing proof. The blocking reporter rechecks with `prompt --role recheck` and `record --kind recheck`, retaining unchanged QA/review evidence. New findings become follow-up tickets unless the fix introduced them. Rechecks do not hunt for new edge cases or reopen the full review.
+   - **FIX:** only a judge's FIX ruling naming exact eligible blockers authorizes a fix round. Reviewer findings alone do not. The helper persists the authorization before the builder runs; `prompt --role fix-builder` then fixes those code blockers, and the new head is recorded with `record --kind head`. You clear named lane blockers such as missing proof. Dispatch a new independent thread for the blocking reporter's recheck role with `prompt --role recheck`; `record --kind recheck` keeps its actual new `thread_id`, the original `reporter_thread_id`, exact blocker results and fix-introduced `regressions` (empty if none). Retain unchanged QA/review evidence. New unrelated findings become follow-up tickets. Rechecks do not hunt for new edge cases or reopen the full review.
    - **REVERT / SPLIT:** drop or revert the unit, or split it into independently shippable PRs with `to-tickets`.
    - **SHIP:** merge (step 3).
 
 An internal change needs proof that it composes instead of a QA walk.
 
-After the first fix round, `prompt --role final-judge` gives the judge a brief with no FIX option: SHIP with follow-up tickets or REVERT / SPLIT. The helper refuses a second FIX. No third round. Rebases, changed SHAs and new findings do not reset this cap.
+After the first fix round, `prompt --role final-judge` includes the recheck report, named results and recorded regressions, with no FIX option: SHIP with follow-up tickets or REVERT / SPLIT. The helper refuses a second FIX. No third round. Rebases, changed SHAs and new findings do not reset this cap.
 
 Already on main means never a blocker for this PR. Track pre-existing bugs separately. Ship heuristic features labeled approximate; accuracy improvements are follow-up work.
 

@@ -6,13 +6,19 @@ import { readFileSync, writeFileSync } from "node:fs";
 const store = process.env.SHIP_LOOP_FAKE_STORE;
 if (!store) throw new Error("SHIP_LOOP_FAKE_STORE is required");
 const args = process.argv.slice(2);
-const state = JSON.parse(readFileSync(store, "utf8")) as { comments: { id: number; body: string }[]; next: number };
+const state = JSON.parse(readFileSync(store, "utf8")) as { comments: { id: number; body: string; author: string | null }[]; next: number };
 const fail = process.env.SHIP_LOOP_FAKE_FAIL;
 
-if (args.includes("-X") && args.includes("POST")) {
+if (fail === "read" && !args.includes("POST")) {
+  process.stderr.write("HTTP 503: unavailable\n");
+  process.exit(1);
+}
+if (args.some((a) => /\/pulls\/\d+$/.test(a))) {
+  process.stdout.write("conductor\n");
+} else if (args.includes("-X") && args.includes("POST")) {
   const body = JSON.parse(readFileSync(0, "utf8")).body as string;
   const id = state.next++;
-  state.comments.push({ id, body });
+  state.comments.push({ id, body, author: "conductor" });
   writeFileSync(store, JSON.stringify(state));
   if (fail === "post-after") {
     process.stderr.write("HTTP 502: response lost\n");
@@ -20,9 +26,5 @@ if (args.includes("-X") && args.includes("POST")) {
   }
   process.stdout.write(JSON.stringify({ id }) + "\n");
 } else {
-  if (fail === "read") {
-    process.stderr.write("HTTP 503: unavailable\n");
-    process.exit(1);
-  }
-  for (const c of state.comments) process.stdout.write(JSON.stringify([c.id, c.body]) + "\n");
+  for (const c of state.comments) process.stdout.write(JSON.stringify([c.id, c.body, c.author]) + "\n");
 }
