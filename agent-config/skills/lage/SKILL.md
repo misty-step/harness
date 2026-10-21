@@ -106,8 +106,8 @@ Link every mention of every PR, issue, ticket, story, spec, doc, file, ADR and t
 reference inside its Markdown link and expand ranges into individual links. At first mention,
 give each linked item a one-line summary sufficient to understand it without opening it.
 Expand unfamiliar jargon; an opaque title is insufficient. For unreadable sources, give their
-known purpose and read gap; if purpose is unknown, report missing context against the linked lane. Link threads as
-`[title](t3-thread://v1/<id>)` and PRs by full URL. Use familiar names for lanes and agents.
+known purpose and read gap; if purpose is unknown, report missing context against the linked lane.
+Link threads as `[title](t3-thread://v1/<threadId>)`; resolve source and local-artifact links under global autonomy's review-link rule. Use familiar names for lanes and agents.
 Mark unverified claims "lane says".
 
 Embed relevant source content. Never substitute "see NOW.md" or another file pointer for it.
@@ -119,10 +119,11 @@ The brief is ready when he can decide from it alone and every lane and unresolve
 Home's thread is phaedrus-only; never `t3_thread_send` there.
 
 Save the full brief to `~/.local/state/home/lage/<YYYY-MM-DDTHHMMZ>.md` using current UTC time;
-create the directory if needed. Pipe one pointer to `home post --from Lage` via stdin, containing
-the saved path and `<N> waiting; <S> stuck`. N counts all principal questions; agent-answerable
+create the directory if needed. Publish the full brief under global autonomy's review-link rule.
+Pipe one pointer to `home post --from Lage` via stdin, containing a clickable HTTPS link to the
+full brief and `<N> waiting; <S> stuck`. N counts all principal questions; agent-answerable
 reclassifications count only as stuck. If `home post` fails, append `## <UTC> [Lage]` and the same
 pointer directly to `~/.local/state/home/inbox.md`; report the fallback in the runner.
 
-Done when the saved brief exists and the inbox contains its single pointer. If saving or both
-inbox paths fail, report the failed step without claiming delivery.
+Done when the linked full brief is reachable and the inbox contains its single linked pointer.
+If saving, publishing or both inbox paths fail, report the failed step without claiming delivery.

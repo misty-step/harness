@@ -6,6 +6,10 @@ Every authored PR body has a `Story: <ID>[, <ID>]` line with story IDs from SPEC
 
 Nothing is verified until the repository's verification skill has driven the real user journey end to end on the real product, with the evidence linked. When the product has sign-in, that journey signs in as the actual owner identity; proving only the sender side, such as an email sent or a 200 response, is not proof. For a CLI, library, configuration or documents, the journey is what its user does (install, run, read the result), and owner sign-in is n/a. A change is user-facing when anything its user sees, runs or reads changes, including docs and installed guidance. An internal change, with nothing a user can observe, needs proof that it composes instead. A repository without a verification skill gets one, made with `create-verification-skill` at `.agents/skills/verify-<app>/` with a `.claude/skills/verify-<app>` symlink: add it in the change, or stack the change on the open PR that adds it.
 
+## Design
+
+For design work, follow [Foundations' way of working](https://foundations.mistystep.io/way-of-working): default to neutral, professional interfaces with plain words and standard product design at Linear, Vercel and GitHub quality; no clever wording, decorative themes or metaphors; light and dark follow the system setting. Use [Emil Kowalski's design-engineering skill pack](skill://emil-design-eng); do not use Mobbin.
+
 ## Agent ergonomics
 
 What we build is maximally agent-ergonomic, per [Foundations](https://foundations.mistystep.io/) article 12. Leave the operator no manual steps; use computer use when direct automation falls short.
