@@ -21,8 +21,8 @@ An instance can belong to only one pool. The installed config file and its
 `wipRoots` key are required; absent or invalid rosters fail closed.
 
 Home names the active set according to available budget; there is no fixed
-global lane cap. The current named roots are Tach, Process 2, Overmind and
-Marmalade, plus draining Voice and Habitat, confirmed through T3 on 2026-10-21.
+global lane cap. The current named roots are Tach, Process 2, Overmind,
+Marmalade and Upkeep, plus draining Voice and Habitat, confirmed through T3 on 2026-10-21.
 Home and Heartbeat are exempt from the WIP count but are not pool targets. Verify roots and other backlog lanes are excluded.
 
 Pool and Heartbeat read the same runtime authority:
