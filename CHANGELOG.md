@@ -1,3 +1,9 @@
+# [0.2.22](https://github.com/misty-step/harness/compare/v0.2.21...v0.2.22) (2026-10-21)
+<!-- landmark:protected-release previous=v0.2.21 source=edcee4e0598a8f0354cdf02d7f77c8cb7028af2f7b2d3d57b5694037fbf9e955 -->
+
+### Features
+
+* **t3:** hand oversized lanes to a successor thread (#419) ([50f26c3](https://github.com/misty-step/harness/commit/50f26c3b0ad5fb29c943137e3714d1a8e12b9752))
 # [0.2.21](https://github.com/misty-step/harness/compare/v0.2.20...v0.2.21) (2026-10-21)
 <!-- landmark:protected-release previous=v0.2.20 source=994e88247f8b05ff611f487ab3cacc67b10861c4a5aa53ae2a43a2301b7230cc -->
 
