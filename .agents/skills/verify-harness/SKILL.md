@@ -27,7 +27,7 @@ in `agent-config/guidance/engineering.md`; sweep generated repos with
 There is no server. Each drive is a short-lived process.
 
 - `verify-harness install [rev]` clones committed `rev` (default `HEAD`; use `origin/master` to check what is deployed) into `~/.cache/tmp/verify-harness/run/source` and runs `claude-config/install` and `codex-config/install` with `env -i` and `HOME=run/claude-home`. A fixture `systemctl` records unit calls, because a private HOME has no user manager. Ready means both installers exited 0 and the composition checks passed.
-- `session`, `live`, `home` and `pool` need that install, and say so if it is missing.
+- `session`, `session-auth`, `live`, `home` and `pool` need that install, and say so if it is missing.
 - Teardown is `verify-harness cleanup`.
 
 Run state lives in `$VH_DIR/run`. `VH_DIR` must be an absolute path that belongs to this run, and two concurrent runs need different values, such as `VH_DIR=$HOME/.cache/tmp/verify-harness-$RUN_ID`. The helper removes `run` only when it carries the `.verify-harness-run` marker that `install` writes, and it refuses `$HOME` and any directory above it.

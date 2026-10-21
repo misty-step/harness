@@ -369,7 +369,7 @@ for destination in elsewhere.md /missing/AGENTS.md; do
   else
     check "claude preserves foreign broken compatibility link" test "$(readlink "$broken_home/.claude/CLAUDE.md")" = "$destination"
     check "claude brokenlink refusal writes no canonical content" test ! -e "$broken_home/.claude/AGENTS.md"
-    check "claude brokenlink refusal writes no launchers" test ! -e "$broken_home/.local"
+    check "claude brokenlink refusal writes no launchers" test ! -e "$broken_home/.local/bin"
   fi
 done
 repair_home="$work/claude-repair-home"

@@ -21,8 +21,8 @@ runs Claude Code, so the skills and guidance lanes and Home use deploy here.
 `~/.claude/skills` also holds symlinks the `skills` CLI manages for upstream
 packs (`mattpocock/skills`, `cursor/plugins` pstack). The installer
 clean-replaces only the skill directories it selects. Guidance lands in
-`~/.claude/AGENTS.md`, loaded in every project through the `CLAUDE.md -> AGENTS.md` compatibility symlink. The content file is
-owned (first line is the ownership marker); a foreign one stops the install
+`~/.claude/AGENTS.md`, loaded in every project through the
+`CLAUDE.md -> AGENTS.md` compatibility symlink. The content file is owned (first line is the ownership marker); a foreign one stops the install
 before any write.
 
 The installer also deploys the shared pool CLI, its owned config and user units,
