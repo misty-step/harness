@@ -21,8 +21,8 @@ runs Claude Code, so the skills and guidance lanes and Home use deploy here.
 `~/.claude/skills` also holds symlinks the `skills` CLI manages for upstream
 packs (`mattpocock/skills`, `cursor/plugins` pstack). The installer
 clean-replaces only the skill directories it selects. Guidance lands in
-`~/.claude/AGENTS.md`, loaded natively by Claude Code 2.1.305 without any
-`CLAUDE.md` file or symlink. The content file is owned (first line is the ownership marker); a foreign one stops the install
+`~/.claude/AGENTS.md`, with no `CLAUDE.md` file or symlink. Native loading
+is a separate verification step on the installed Claude Code version. The content file is owned (first line is the ownership marker); a foreign one stops the install
 before any write.
 
 The installer also deploys the shared pool CLI, its owned config and user units,
@@ -39,3 +39,7 @@ because ownership cannot be proved.
 Owned standalone legacy content is retained, byte for byte, at
 `~/.claude/.harness-instruction-migration/AGENTS.md` before its legacy entry is removed. Repeated
 installs preserve that backup; a conflicting backup stops the upgrade.
+
+An existing `AGENTS.md` link to an owned standalone legacy file is supported.
+Migration snapshots all legacy bytes before removing that link or the legacy entry.
+Foreign reverse links and conflicting backups stop the install without writes.

@@ -3,7 +3,8 @@
 Own what Claude Code sessions select from `../agent-config`; T3 lanes run on
 Claude Code. `./install` deploys to `$CLAUDE_CONFIG_DIR` (default `~/.claude`):
 selected skills, plus `global/AGENTS.md` composed with shared guidance into
-`~/.claude/AGENTS.md`, loaded natively by Claude Code 2.1.305. No `CLAUDE.md`
+`~/.claude/AGENTS.md`. Native loading must be proved on the installed version
+with `verify-harness`; successful installation alone is not proof. No `CLAUDE.md`
 file or symlink is created. Foreign instructions or unrelated links stop the
 install before writes. Owned standalone legacy content is preserved at
 `.harness-instruction-migration/AGENTS.md` before its old entry is removed.

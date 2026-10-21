@@ -18,8 +18,13 @@ def owned(path):
             and path.read_bytes().split(b"\n", 1)[0] == OWNED)
 
 
+def reverse_alias(canonical, legacy):
+    return (canonical.is_symlink() and owned(legacy)
+            and os.path.normpath(canonical.parent / os.readlink(canonical)) == os.path.normpath(legacy))
+
+
 def validate(canonical, legacy, backup):
-    if present(canonical) and not owned(canonical):
+    if present(canonical) and not owned(canonical) and not reverse_alias(canonical, legacy):
         raise ValueError(f"Refusing foreign canonical instructions: {canonical}")
     if present(legacy):
         if legacy.is_symlink():
@@ -56,6 +61,10 @@ def migrate(canonical, legacy, backup):
         backup.parent.mkdir(mode=0o700, exist_ok=True)
         if not present(backup):
             preserve(backup, legacy.read_bytes())
+        if reverse_alias(canonical, legacy):
+            # Snapshot is durable before removing the reverse alias. A retry can
+            # restore canonical content from the still-present owned legacy file.
+            canonical.unlink()
         if not present(canonical):
             preserve(canonical, backup.read_bytes())
     if present(legacy):

@@ -70,7 +70,10 @@ is not a sign-in.
 Walk every criterion and story affected by your scope. Exercise plausible failures and
 check consequential state where it lives. Use disposable data, never production data.
 QA account and inbox: <agent's own AgentMail QA account and pass references | "n/a: no product sign-in">.
-Provision authorized QA allowlist/Cloudflare Access additions in scope. Missing QA access
+Create the agent-owned AgentMail QA account, store generated credentials in pass,
+and grant its required QA owner/admin role and allowlist/Cloudflare Access additions
+within the assigned app scope. Global Verification authorizes this narrow QA setup
+exception to the credentials and production-data ask-first rules. Missing QA access
 or role is UNPROVEN; never ask for phaedrus's passwords or a throwaway browser profile.
 Native CLI subscriptions authenticate execution; they are not product QA accounts.
 

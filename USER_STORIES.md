@@ -91,8 +91,9 @@ review only for real bugs.
 
 Credentials are pass references under `workstation/<PROJECT>_QA_*`. Verification
 skills generated or refreshed during rollout SHALL encode that QA account,
-production role proof, authorized QA allowlist/Cloudflare Access setup, evidence
-and cleanup, without asking for phaedrus's passwords or throwaway profiles.
+production role proof, creation of the agent-owned account, pass storage of generated
+credentials, required QA owner/admin grants, scoped QA allowlist/Cloudflare Access
+changes, evidence and cleanup, without asking for phaedrus's passwords or throwaway profiles.
 Native CLI subscriptions remain execution authentication, not product QA accounts.
 
 Evidence: `agent-config/skills/ship-loop/SKILL.md`, `agent-config/skills/ship-loop/roles.md`,

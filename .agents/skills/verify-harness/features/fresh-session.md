@@ -19,7 +19,7 @@ The deploy only matters if a fresh session loads it. A new Claude Code session m
 
 Preconditions:
 
-- Claude Code 2.1.305 is on PATH. The proof uses AGENTS.md alone and creates no legacy aliases.
+- Record the actual installed Claude Code version. The proof uses AGENTS.md alone and creates no legacy aliases. A private newer-version comparison is separate evidence.
 
 - `verify-harness install` passed in this `VH_DIR`.
 
@@ -35,3 +35,5 @@ Preconditions:
 - The isolated Claude Code session has no credentials, so the model never answers. The init event and hooks fire first, which is enough for the loading claim. The model-visible proof is in [Live drift](./live-drift.md).
 - `codex debug prompt-input` needs no login and makes no model call. It warns that it cannot create PATH aliases under a temp dir; ignore that warning.
 - Built-in Claude Code skills, such as `simplify` and `loop`, appear alongside the selected ones. Only the selected skills are asserted.
+
+- Native 2.1.303 and a private native 2.1.305 comparison did not load user-scope AGENTS.md from the isolated cwd outside HOME. The model returned MISSING_POLICY. This is a loading blocker, not an installer pass. An ancestor-based project load does not establish global user-scope loading.

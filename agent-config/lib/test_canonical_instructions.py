@@ -39,6 +39,34 @@ class CanonicalInstructionsTest(unittest.TestCase):
         self.assertEqual(before, self.snapshot())
         self.assertEqual(self.backup.stat().st_mode & 0o777, 0o600)
 
+    def test_owned_reverse_alias_is_snapshotted_before_removal(self):
+        self.legacy.write_bytes(self.content)
+        self.canonical.symlink_to('../AGENTS.md')
+        validate(*self.args)
+        migrate(*self.args)
+        self.assertFalse(self.canonical.is_symlink())
+        self.assertEqual(self.canonical.read_bytes(), self.content)
+        self.assertEqual(self.backup.read_bytes(), self.content)
+        self.assertFalse(os.path.lexists(self.legacy))
+        before = self.snapshot()
+        migrate(*self.args)
+        self.assertEqual(before, self.snapshot())
+
+    def test_foreign_reverse_alias_and_conflicting_backup_do_not_change(self):
+        self.legacy.write_bytes(b'# Foreign legacy content\n')
+        self.canonical.symlink_to('../AGENTS.md')
+        before = self.snapshot()
+        with self.assertRaises(ValueError):
+            migrate(*self.args)
+        self.assertEqual(before, self.snapshot())
+        self.legacy.write_bytes(self.content)
+        self.backup.parent.mkdir()
+        self.backup.write_bytes(OWNED + b'\nConflicting backup\n')
+        before = self.snapshot()
+        with self.assertRaises(ValueError):
+            migrate(*self.args)
+        self.assertEqual(before, self.snapshot())
+
     def test_two_owned_files_preserve_legacy_without_overwriting_canonical(self):
         self.legacy.write_bytes(self.content)
         self.canonical.write_bytes(OWNED + b'\nNew content\n')
