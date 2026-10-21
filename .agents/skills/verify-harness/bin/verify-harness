@@ -188,7 +188,7 @@ cmd_install() {
   done
   [ "$fails" = "$before" ] && pass "claude skills ($(list_of claude skills)) and codex skills ($(list_of codex skills)) byte-identical to source"
   [ -x "$h/.local/bin/t3-pool" ] && [ -x "$h/.local/bin/t3-runtime-mode" ] && pass "t3-pool and t3-runtime-mode launchers" || fail "launchers"
-  [ "$(cat "$h/systemctl-calls" 2>/dev/null)" = '--user daemon-reload' ] && pass "pool timer left opt-in (only daemon-reload)" || fail "systemctl calls: $(cat "$h/systemctl-calls" 2>/dev/null)"
+  [ "$(cat "$h/systemctl-calls" 2>/dev/null)" = "$(printf '%s\n' '--user daemon-reload' '--user daemon-reload')" ] && pass "pool timer left opt-in (only daemon-reload across both installs)" || fail "systemctl calls: $(cat "$h/systemctl-calls" 2>/dev/null)"
   (cd "$h" && find . -path ./.fixture-bin -prune -o -type f -print | grep -v '/skills/' | sort) > "$evidence/install-tree.txt"
 
   # Broken state: a foreign global file must stop the install before any write.
