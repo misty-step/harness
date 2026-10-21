@@ -17,7 +17,7 @@ Use the live account headroom in global guidance, Routing until Upkeep. GPT-6.1 
 Unlisted or uncertain changes default to standard; unresolved critical risk takes critical. Record the tier and its concrete trigger in each dispatch.
 Lane coordinators run on Opus 5.5 at high.
 No Fable or Astra (phaedrus, 2026-10-20).
-When context gets heavy, prepare a handoff for Home to dispatch a replacement within the global WIP cap.
+When context gets heavy, prepare a handoff for Home to dispatch a replacement within its named set.
 For light changes, combine the QA and Reviewer briefs in one dispatch and post both reports. The judge stays independent.
 
 ## Builder

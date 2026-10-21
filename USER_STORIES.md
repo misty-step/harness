@@ -643,7 +643,8 @@ Criteria:
 5. WHEN verifying changed guidance, THE ENGINEER SHALL inspect the composed
    instructions and exercise the affected actual consumer.
 6. WHEN new work appears, THE SYSTEM SHALL record a backlog issue. Only Home
-   SHALL open a thread by dispatching a groomed, specced backlog item. Home
+   SHALL open top-level threads: backlog lanes from groomed, specced items,
+   replacements for named lanes, and its own scratch runners. Home
    SHALL explicitly name the active lanes and size that set to model cost,
    reasoning, speed, remaining allowance and time until reset, with no fixed
    lane cap. Resume and account pooling SHALL continue only lanes Home names
