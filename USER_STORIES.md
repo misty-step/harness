@@ -95,6 +95,12 @@ a runtime path. One QA owner per SHA; extra cross-family QA requires a concrete
 critical uncertainty. Take an available model-class route, reserve fast/xhigh
 for named bottlenecks, and skip release checks when the judge records no deploy.
 
+Verification evidence SHALL live outside Git and be linked from the PR with the
+checked revision, commands and observed result. Repositories retain maintained
+code, build inputs, small deterministic fixtures and documentation. Generated
+verification skills SHALL write run output outside the checkout. Existing bulky
+evidence and fixtures are cleaned up gradually through Foundation audits.
+
 Credentials are pass references under `workstation/<PROJECT>_QA_*`. Verification
 skills generated or refreshed during rollout SHALL encode that QA account,
 production role proof, creation of the agent-owned account, pass storage of generated

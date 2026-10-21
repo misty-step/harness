@@ -78,7 +78,7 @@ Doctor never prints a token or the Codex account email. Run it first, and again 
 
 ## Evidence
 
-Artifacts go to `$VH_EVIDENCE`, default `$VH_DIR/evidence/<UTC date>/`, so separate commands in one day share a directory and `transcript.txt` accumulates. Set `VH_EVIDENCE` once for a clean multi-command proof. For a PR proof, set `VH_EVIDENCE=docs/evidence/verify-harness/<YYYY-MM-DD>` and commit that directory:
+Artifacts go to `$VH_EVIDENCE`, default `$VH_DIR/evidence/<UTC date>/`, so separate commands in one day share a directory and `transcript.txt` accumulates. Keep both paths outside the checkout. Set `VH_EVIDENCE` once for a clean multi-command proof, then publish the reviewed files externally and link them from the PR:
 
 - `transcript.txt` holds every step's PASS, FAIL and NOTE lines with timestamps;
 - `check.log` is the full gate output;
@@ -93,7 +93,7 @@ Proof standards:
 
 - Observe the native SessionStart hook responses and check that their complete text equals canonical AGENTS.md. Hook context does not emit an InstructionsLoaded event; model readback proves consumption. Matching file bytes alone does not prove loading.
 - A dry run proves nothing until the state it claims to skip is unchanged. `pool` compares the state directory before and after.
-- Before committing evidence, run `gitleaks dir <evidence dir>`. Evidence holds no tokens and no personal email; the repository is public.
+- Before publishing evidence, run `gitleaks dir <evidence dir>`. Evidence holds no tokens or personal email. Use the global review-links procedure for private tailnet publication; retain the checked revision, commands and observed results with the PR links.
 
 ## Cleanup
 
