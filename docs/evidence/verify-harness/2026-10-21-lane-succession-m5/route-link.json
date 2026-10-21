@@ -1,0 +1,10 @@
+{
+  "command": "gh api repos/misty-step/harness/contents/docs/evidence/verify-harness/2026-10-21-lane-succession-review/route.md?ref=d54e5df7ac6934d90fe7278f23ebdd965ec66769 --jq \"{path,sha,html_url}\"",
+  "exit": 0,
+  "result": {
+    "html_url": "https://github.com/misty-step/harness/blob/d54e5df7ac6934d90fe7278f23ebdd965ec66769/docs/evidence/verify-harness/2026-10-21-lane-succession-review/route.md",
+    "path": "docs/evidence/verify-harness/2026-10-21-lane-succession-review/route.md",
+    "sha": "cc6efd45e8beb9374df7ec5e44234d311a1233e8"
+  },
+  "limits": "Existing authenticated GitHub contents lookup proves the pinned private-repository target exists. No browser login or Home filesystem route claimed."
+}

@@ -1,0 +1,30 @@
+{
+  "cases": 69,
+  "exactLabels": 65,
+  "differences": [
+    {
+      "id": "parallel-dispatch",
+      "expected": "DENY",
+      "actual": "WAIT",
+      "reason": "Dispatch is serial, with no concurrent launch before roster readback. The second request attaches to the in-flight dispatch."
+    },
+    {
+      "id": "other-id-dropped",
+      "expected": "WAIT",
+      "actual": "NOT_CONTINUED",
+      "reason": "Check 4 requires every other ID to be preserved. Dropping other fails it, so adoption is not permitted."
+    },
+    {
+      "id": "read-failed-claim",
+      "expected": "WAIT",
+      "actual": "DENY",
+      "reason": "Re-reading the claim is required before any adoption. A failed read is unknown and blocks adoption and watch transfers."
+    },
+    {
+      "id": "failed-after-continued",
+      "expected": "HOME_RECOVERY",
+      "actual": "DENY",
+      "reason": "Failed, stalled or unlisted successors are reported once to Home, the sole dispatcher. Process receives a copy only for recurring diagnostics."
+    }
+  ]
+}
