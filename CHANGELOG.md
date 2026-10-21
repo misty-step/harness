@@ -1,3 +1,9 @@
+# [0.2.25](https://github.com/misty-step/harness/compare/v0.2.24...v0.2.25) (2026-10-21)
+<!-- landmark:protected-release previous=v0.2.24 source=50d5cbf2fbc9fe2a2c46ca62fdb890fcd464570b52566cd8779ec27e1ac43732 -->
+
+### Bug Fixes
+
+* **review:** bound fix rounds behind judge rulings (#450) ([ae3d68d](https://github.com/misty-step/harness/commit/ae3d68dbb0a9866dae6c2ee517107dd1691bb776))
 # [0.2.24](https://github.com/misty-step/harness/compare/v0.2.23...v0.2.24) (2026-10-21)
 <!-- landmark:protected-release previous=v0.2.23 source=5c99739dd17ef85fe73a4ac4d4fe2cdd7de60957837a587ddf4940f78c850c7b -->
 
