@@ -180,6 +180,18 @@ validate_bin() {
         fi
       fi
       ;;
+    *)
+      dest="$home_dir/.local/bin/$name"
+      header="# owned by misty-step/harness agent-config $name"
+      [ "$(sed -n 2p "$repo_dir/bin/$name")" = "$header" ] || {
+        printf 'Standalone launcher lacks its ownership header: %s\n' "$name" >&2; exit 1
+      }
+      if [ -e "$dest" ] || [ -L "$dest" ]; then
+        if [ ! -f "$dest" ] || [ -L "$dest" ] || [ "$(sed -n 2p "$dest")" != "$header" ]; then
+          printf 'Refusing unowned launcher destination: %s\n' "$dest" >&2; exit 1
+        fi
+      fi
+      ;;
   esac
 }
 
@@ -316,7 +328,11 @@ install_bin() {
       ;;
     *)
       install -d -m 700 "$home_dir/.local/bin"
-      install -m 700 "$repo_dir/bin/$name" "$home_dir/.local/bin/$name"
+      staged=$(mktemp "$home_dir/.local/bin/.$name.XXXXXX")
+      trap 'rm -f "$staged"' 0 1 2 15
+      install -m 700 "$repo_dir/bin/$name" "$staged"
+      mv "$staged" "$home_dir/.local/bin/$name"
+      trap - 0 1 2 15
       ;;
   esac
 }

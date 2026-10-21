@@ -29,6 +29,7 @@ This directory is the maintained source for verifying harness as its operator us
 - [Fresh session](./fresh-session.md) covers a fresh Claude Code and Codex session loading the deployed guidance and shared skills; session-auth also proves the candidate policy reaches an authenticated model.
 - [Live drift](./live-drift.md) covers whether the live `~/.claude` and `~/.codex` match source, with a real model call.
 - [Home post](./home-post.md) covers reporting to Home with `home post`, refused posts and the SSH route.
+- [Private note sync](./daybook-sync.md) covers the installed CLI with local Git remotes, concurrent writers, dirty human root preservation, journal and secret rejection, retry and cleanup.
 - [T3 pool](./t3-pool.md) covers t3-pool dry runs against the live T3 database and the installed bundle.
 
 The gate runs `scripts/probe-agent-policy`; run it with `--verification <repo>...`

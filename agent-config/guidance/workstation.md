@@ -12,3 +12,6 @@ Reserve fast mode for bottlenecks and top priorities.
 Pass the role's effort explicitly to `delegate_task`: Claude uses `target.options: [{"id":"effort","value":"<low|medium|high|xhigh>"}]`; Sol uses `target.options: [{"id":"reasoningEffort","value":"<low|medium|high|xhigh>"}]`.
 For fast mode, add `{"id":"fastMode","value":true}` to Claude's `target.options` on models that offer it (Opus 5.5), or `{"id":"serviceTier","value":"priority"}` to Sol's.
 Check `upkeep anthropic` and `orchestrator_capabilities` before trusting any provider or model list.
+
+For authorized Daybook note work, read `~/.agents/skills/daybook-sync/SKILL.md`.
+Use its isolated workspace and immediate publication protocol across T3 providers.
