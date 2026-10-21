@@ -24,7 +24,7 @@ Preconditions:
 - **Check composition.** In the same output, expect `PASS ~/.claude/AGENTS.md is the composed guidance`, `PASS ~/.codex/AGENTS.md is the composed guidance` and `PASS claude skills (...) and codex skills (...) byte-identical to source`.
 - **Canonical adapter.** Expect `PASS Claude uses AGENTS.md alone with no legacy alias`. Content is a regular AGENTS.md, with no legacy file or symlink. Shared checks exercise owned legacy upgrades, preserved backups, reruns and foreign/broken-link refusals. All fixtures author content as AGENTS.md.
 - **Native settings.** Expect `PASS repeated native adapter install leaves settings byte-identical` and `PASS foreign native settings and startup hook preserved`. Fresh-session drives prove the preserved hook also runs.
-- **Check the pool stays opt-in.** Expect `PASS t3-pool and t3-runtime-mode launchers` and `PASS pool timer left opt-in (only daemon-reload)`.
+- **Check the pool stays opt-in.** Expect `PASS t3-pool and t3-runtime-mode launchers` and `PASS pool timer left opt-in (only daemon-reload across both installs)`.
 - **Refuse foreign files.** Expect `PASS claude install refuses a foreign AGENTS.md, nothing written` and `PASS codex install refuses a foreign AGENTS.md, nothing written`.
 - **Proof.** Keep the install section of `transcript.txt` and `install-tree.txt`.
 

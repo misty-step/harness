@@ -12,6 +12,7 @@ const events = [];
 for await (const event of query({ prompt: messages(), options: {
   pathToClaudeCodeExecutable: executable,
   cwd,
+  additionalDirectories: [cwd],
   model: 'haiku',
   tools: [],
   includePartialMessages: true,

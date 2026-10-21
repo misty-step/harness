@@ -320,7 +320,7 @@ cmd_session_sdk() {
   executable=$(command -v claude)
   env -i PATH="$PATH" HOME="$h" TMPDIR="$run" \
     timeout 180 bun "$skill_dir/bin/claude-sdk-session.mjs" "$VH_CLAUDE_SDK" "$executable" "$cwd" "$run/claude-sdk.jsonl" \
-    'From the loaded harness global AGENTS.md, return JSON with keys heading, lastLine and sharedAuthWriter. Use the first Markdown heading and the final nonempty line exactly, and name the sole writer of shared HOUSEHOLD_MEMBERS. No tools.'
+    'From the loaded harness global AGENTS.md, return JSON with keys heading, lastLine and sharedAuthWriter. Copy the first Markdown heading source line verbatim, including its leading # and space. Copy the final nonempty line verbatim, and name the sole writer of shared HOUSEHOLD_MEMBERS. No tools.'
   rm -f -- "$target"
   trap - 0 2 15
   jq -c 'select(.subtype == "init") | {cwd, model, skills}' "$run/claude-sdk.jsonl" > "$evidence/claude-sdk-init.json"
