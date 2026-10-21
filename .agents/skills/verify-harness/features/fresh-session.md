@@ -5,7 +5,7 @@ The deploy only matters if a fresh session loads it. A new Claude Code session m
 ## Sub-features
 
 - `session-claude-guidance`: Claude Code emits native SessionStart responses whose complete text equals deployed AGENTS.md. No other instruction file leaks in.
-- `session-claude-skills`: the Claude Code init event lists every skill `claude-config/install` selects (on 2026-10-20: `lage`, `ship-loop`, `judge`, `release-watch`, `heartbeat`, `story-qa`, `pokayoke`, `user-stories` and `authenticated-commands`).
+- `session-claude-skills`: the Claude Code init event lists every skill `claude-config/install` selects (on 2026-10-21: `lage`, `ship-loop`, `judge`, `release-watch`, `heartbeat`, `lane-succession`, `story-qa`, `pokayoke`, `user-stories` and `authenticated-commands`).
 - `session-codex-guidance`: Codex's rendered prompt contains `<!-- owned by misty-step/harness codex-config -->` and the composed sections.
 - `session-codex-skills`: the prompt's skill root `r0` is the deployed `skills` directory, and it lists every skill `codex-config/install` selects.
 - `session-repo-skill`: sessions started in a `/tmp` copy of the revision's `.claude` and `.agents` list this `verify-harness` skill: Claude Code from the `.claude/skills` symlink, and Codex from the copy's `.agents/skills` root.

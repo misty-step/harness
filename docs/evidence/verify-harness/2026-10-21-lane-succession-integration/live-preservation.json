@@ -1,0 +1,15 @@
+{
+  "live_files_unchanged": {
+    ".claude/.credentials.json": true,
+    ".claude/settings.json": true,
+    ".claude/AGENTS.md": true,
+    ".codex/auth.json": true,
+    ".codex/config.toml": true,
+    ".codex/AGENTS.md": true,
+    ".config/t3-pool.json": true,
+    ".config/systemd/user/t3-pool.timer": true,
+    ".t3/userdata/settings.json": true
+  },
+  "private_credential_removed": true,
+  "scope": "Read-only native authentication; private HOME sessions; no live deployment"
+}

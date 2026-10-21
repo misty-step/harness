@@ -1,0 +1,170 @@
+[
+  {
+    "id": "n1-before-authorization",
+    "expected": true,
+    "actual": true,
+    "matches": true
+  },
+  {
+    "id": "n1-authorized-no-transfers",
+    "expected": false,
+    "actual": false,
+    "matches": true
+  },
+  {
+    "id": "n1-authorized-transfers",
+    "expected": false,
+    "actual": false,
+    "matches": true
+  },
+  {
+    "id": "n1-unknown-authorization",
+    "expected": false,
+    "actual": false,
+    "matches": true
+  },
+  {
+    "id": "n1-recover-authorized-a",
+    "expected": true,
+    "actual": true,
+    "matches": true
+  },
+  {
+    "id": "n2-restore-before-membership",
+    "expected": true,
+    "actual": true,
+    "matches": true
+  },
+  {
+    "id": "n2-no-fresh-authority",
+    "expected": false,
+    "actual": false,
+    "matches": true
+  },
+  {
+    "id": "n2-changed-authority",
+    "expected": false,
+    "actual": false,
+    "matches": true
+  },
+  {
+    "id": "n2-parked-root",
+    "expected": false,
+    "actual": false,
+    "matches": true
+  },
+  {
+    "id": "n2-unrelated-root",
+    "expected": false,
+    "actual": false,
+    "matches": true
+  },
+  {
+    "id": "n2-other-claim",
+    "expected": false,
+    "actual": false,
+    "matches": true
+  },
+  {
+    "id": "n3-complete-home-reopen",
+    "expected": true,
+    "actual": true,
+    "matches": true
+  },
+  {
+    "id": "n3-complete-b-claim",
+    "expected": true,
+    "actual": true,
+    "matches": true
+  },
+  {
+    "id": "n3-summary-only",
+    "expected": false,
+    "actual": false,
+    "matches": true
+  },
+  {
+    "id": "n3-unreadable-link",
+    "expected": false,
+    "actual": false,
+    "matches": true
+  },
+  {
+    "id": "n3-attached-not-read",
+    "expected": false,
+    "actual": false,
+    "matches": true
+  },
+  {
+    "id": "n3-no-fresh-state",
+    "expected": false,
+    "actual": false,
+    "matches": true
+  },
+  {
+    "id": "n3-missing-installed-receipt",
+    "expected": false,
+    "actual": false,
+    "matches": true
+  },
+  {
+    "id": "n3-dropped-other",
+    "expected": false,
+    "actual": false,
+    "matches": true
+  },
+  {
+    "id": "n3-a-unsettled",
+    "expected": false,
+    "actual": false,
+    "matches": true
+  },
+  {
+    "id": "guard-child-predecessor",
+    "expected": false,
+    "actual": false,
+    "matches": true
+  },
+  {
+    "id": "guard-child-successor",
+    "expected": false,
+    "actual": false,
+    "matches": true
+  },
+  {
+    "id": "guard-unknown-pagination",
+    "expected": false,
+    "actual": false,
+    "matches": true
+  },
+  {
+    "id": "guard-other-live-marker",
+    "expected": false,
+    "actual": false,
+    "matches": true
+  },
+  {
+    "id": "guard-claim-collision",
+    "expected": false,
+    "actual": false,
+    "matches": true
+  },
+  {
+    "id": "guard-serialization",
+    "expected": false,
+    "actual": false,
+    "matches": true
+  },
+  {
+    "id": "guard-no-installed-swap",
+    "expected": false,
+    "actual": false,
+    "matches": true
+  },
+  {
+    "id": "guard-verified-b-adoption",
+    "expected": true,
+    "actual": true,
+    "matches": true
+  }
+]

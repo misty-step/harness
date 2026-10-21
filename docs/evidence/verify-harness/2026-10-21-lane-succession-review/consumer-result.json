@@ -1,0 +1,257 @@
+{
+  "model": "claude-haiku-5-5",
+  "toolUses": [
+    {
+      "type": "tool_use",
+      "id": "toolu_01WRutVeJGzopfoqaji4mZVq",
+      "name": "Read",
+      "input": {
+        "file_path": "/home/phaedrus/.cache/tmp/vh-419-review/run/claude-home/.claude/skills/lane-succession/SKILL.md"
+      },
+      "caller": {
+        "type": "direct"
+      }
+    }
+  ],
+  "result": [
+    {
+      "id": "valid-root",
+      "action": "LAUNCH",
+      "reason": "Roster is valid and names root; root has parentThreadId null and Home names it active. Routes are validated, both inbox stores read, pagination is complete with no claim or candidate, and no dispatch is in flight.",
+      "options": []
+    },
+    {
+      "id": "child-marker",
+      "action": "DENY",
+      "reason": "Child has parentThreadId root, so it is not top-level. Children are rejected even when listed, and a request marker grants no authority.",
+      "options": []
+    },
+    {
+      "id": "listed-child",
+      "action": "DENY",
+      "reason": "Child has parentThreadId root, so it is not top-level and cannot be replaced by a top-level successor even though it is listed.",
+      "options": []
+    },
+    {
+      "id": "unnamed",
+      "action": "DENY",
+      "reason": "Root is not in the roster, which names only other, so Home has not named it. Unnamed predecessors are rejected.",
+      "options": []
+    },
+    {
+      "id": "parked",
+      "action": "DENY",
+      "reason": "Home has parked root. Parked lanes are rejected even if still listed, and a parked lane is never revived.",
+      "options": []
+    },
+    {
+      "id": "claimed",
+      "action": "DENY",
+      "reason": "Title shows root is already succeeded by A. Reconcile A and launch nothing; never launch B over an existing claim.",
+      "options": []
+    },
+    {
+      "id": "marker-only",
+      "action": "DENY",
+      "reason": "Settled thread A has a first-message marker naming root, which is an existing successor even without a title claim. Reconcile A and launch nothing.",
+      "options": []
+    },
+    {
+      "id": "lost-response",
+      "action": "DENY",
+      "reason": "Pagination failed partway, so absence cannot be established. Partial reads are unknown; stop and keep the dispatch blocked rather than retry the launch.",
+      "options": []
+    },
+    {
+      "id": "parallel-dispatch",
+      "action": "WAIT",
+      "reason": "Dispatch is serial: no concurrent launch while an in-flight succession has not reached installed roster readback. Wait, then reconcile the in-flight dispatch before any further request.",
+      "options": []
+    },
+    {
+      "id": "remote-t3-only",
+      "action": "DENY",
+      "reason": "Required filesystem routes to the handoff, installed roster and maintained source are missing. Mark dispatch BLOCKED and launch nothing; a reachable cloud inbox or T3 metadata alone is insufficient.",
+      "options": []
+    },
+    {
+      "id": "other-claim",
+      "action": "DENY",
+      "reason": "Predecessor title shows another successor A already claimed it. B must abort and report to Home before any adoption, watch transfer or pointer move, and must never overwrite another claim.",
+      "options": []
+    },
+    {
+      "id": "own-claim",
+      "action": "ADOPT",
+      "reason": "All successor prerequisites hold: Home authorization, parentThreadId null, matching marker, fresh claim for A, and observed source and installed roster replacement. Resuming adoption is an idempotent retry of A's own claim.",
+      "options": []
+    },
+    {
+      "id": "pending-roster",
+      "action": "WAIT",
+      "reason": "Installed roster still lists root, so Continued check 4 has not been observed. Successor must not adopt tasks or transfer watches until installed readback shows A. Report readiness and wait.",
+      "options": []
+    },
+    {
+      "id": "failed-preparation",
+      "action": "DENY",
+      "reason": "Failed preparation before claim or roster swap must not be forgotten or blindly replaced. Keep the pending dispatch for recovery, reconcile or correct the same successor, and never launch an untracked replacement B.",
+      "options": []
+    },
+    {
+      "id": "fallback-request",
+      "action": "NO_REQUEST",
+      "reason": "Both stores read successfully and the exact request marker already exists in the fallback. The fallback entry is dedupe evidence, so the reporter must not post another request.",
+      "options": []
+    },
+    {
+      "id": "primary-down",
+      "action": "NO_REQUEST",
+      "reason": "Primary read exited 255, so the primary inbox state is unknown and absence cannot be established. An unknown read means post no request and stop until a readable route exists.",
+      "options": []
+    },
+    {
+      "id": "fallback-unreadable",
+      "action": "NO_REQUEST",
+      "reason": "Fallback permission was denied, so the fallback state is unknown rather than absent. Post no request and report the blocked read.",
+      "options": []
+    },
+    {
+      "id": "fallback-undelivered",
+      "action": "NOT_CONTINUED",
+      "reason": "Check 3 fails. The successor movement post exists only in the local fallback, and Home has no validated read or acknowledgment of that entry, so delivery is not established.",
+      "options": []
+    },
+    {
+      "id": "fallback-observed",
+      "action": "CONTINUED",
+      "reason": "Home read the exact fallback entry through a validated host route, which counts as delivery. With all other checks holding, including source and installed roster readback and next-step activity, all five checks are satisfied.",
+      "options": []
+    },
+    {
+      "id": "unswapped-continued",
+      "action": "NOT_CONTINUED",
+      "reason": "Check 4 fails. The installed roster still lists root, and a successor that has started its next step with root still listed fails the roster replacement check.",
+      "options": []
+    },
+    {
+      "id": "unsupported-ultra",
+      "action": "RETAIN_PROVIDER",
+      "reason": "Effort ultra is not one of low, medium, high or xhigh. Refuse the cross-provider move, retain Sol, and never silently downgrade.",
+      "options": []
+    },
+    {
+      "id": "unsupported-ultracode",
+      "action": "RETAIN_PROVIDER",
+      "reason": "Effort ultracode is not a mappable value. Refuse the cross-provider move and retain Opus.",
+      "options": []
+    },
+    {
+      "id": "unsupported-ultrathink",
+      "action": "RETAIN_PROVIDER",
+      "reason": "Effort ultrathink is not a mappable value. Refuse the cross-provider move and retain Opus.",
+      "options": []
+    },
+    {
+      "id": "unsupported-max",
+      "action": "RETAIN_PROVIDER",
+      "reason": "Effort max is not one of low, medium, high or xhigh. Refuse the cross-provider move and retain Sol.",
+      "options": []
+    },
+    {
+      "id": "missing-effort",
+      "action": "RETAIN_PROVIDER",
+      "reason": "No effort option is present, so there is no value to map. Refuse the cross-provider move and retain Sol.",
+      "options": []
+    },
+    {
+      "id": "sol-low",
+      "action": "MAP",
+      "reason": "Sol reasoningEffort low maps to Opus effort low, preserving the exact value. The live target accepts it. serviceTier priority is provider-only and is stripped.",
+      "options": [
+        {
+          "id": "effort",
+          "value": "low"
+        }
+      ]
+    },
+    {
+      "id": "opus-low",
+      "action": "MAP",
+      "reason": "Opus effort low maps to Sol reasoningEffort low, preserving the exact value. The live target accepts it. fastMode is provider-only and is stripped.",
+      "options": [
+        {
+          "id": "reasoningEffort",
+          "value": "low"
+        }
+      ]
+    },
+    {
+      "id": "sol-medium",
+      "action": "MAP",
+      "reason": "Sol reasoningEffort medium maps to Opus effort medium, preserving the exact value. The live target accepts it. serviceTier priority is stripped.",
+      "options": [
+        {
+          "id": "effort",
+          "value": "medium"
+        }
+      ]
+    },
+    {
+      "id": "opus-medium",
+      "action": "MAP",
+      "reason": "Opus effort medium maps to Sol reasoningEffort medium, preserving the exact value. The live target accepts it. fastMode is stripped.",
+      "options": [
+        {
+          "id": "reasoningEffort",
+          "value": "medium"
+        }
+      ]
+    },
+    {
+      "id": "sol-high",
+      "action": "MAP",
+      "reason": "Sol reasoningEffort high maps to Opus effort high, preserving the exact value. The live target accepts it. serviceTier priority is stripped.",
+      "options": [
+        {
+          "id": "effort",
+          "value": "high"
+        }
+      ]
+    },
+    {
+      "id": "opus-high",
+      "action": "MAP",
+      "reason": "Opus effort high maps to Sol reasoningEffort high, preserving the exact value. The live target accepts it. fastMode is stripped.",
+      "options": [
+        {
+          "id": "reasoningEffort",
+          "value": "high"
+        }
+      ]
+    },
+    {
+      "id": "sol-xhigh",
+      "action": "MAP",
+      "reason": "Sol reasoningEffort xhigh maps to Opus effort xhigh, preserving the exact value. The live target accepts it. serviceTier priority is stripped.",
+      "options": [
+        {
+          "id": "effort",
+          "value": "xhigh"
+        }
+      ]
+    },
+    {
+      "id": "opus-xhigh",
+      "action": "MAP",
+      "reason": "Opus effort xhigh maps to Sol reasoningEffort xhigh, preserving the exact value. The live target accepts it. fastMode is stripped.",
+      "options": [
+        {
+          "id": "reasoningEffort",
+          "value": "xhigh"
+        }
+      ]
+    }
+  ],
+  "assessment": "All 33 scenarios preserve the required effect. 32 action labels match exactly; parallel-dispatch returned WAIT rather than expected DENY, explicitly prohibiting a concurrent launch. Mapping options are exact for all eight allowed direction/effort cases. This is installed-guidance application, not a live Home succession."
+}

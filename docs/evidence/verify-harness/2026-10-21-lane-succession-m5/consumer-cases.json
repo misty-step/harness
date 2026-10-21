@@ -1,0 +1,347 @@
+[
+  {
+    "id": "valid-root",
+    "case": "Home dispatcher: installed roster [root], root parentThreadId null, Home currently names root active. Full validated T3/filesystem routes; both inbox stores read successfully; no claim or candidate after complete pagination. First launch; no dispatch in flight. May launch?",
+    "expected": "LAUNCH"
+  },
+  {
+    "id": "child-marker",
+    "case": "Home dispatcher: request marker names child; child parentThreadId root, roster [root]. May launch top-level replacement?",
+    "expected": "DENY"
+  },
+  {
+    "id": "listed-child",
+    "case": "Home dispatcher: roster [child,root] valid, but child parentThreadId root. May launch replacement for child?",
+    "expected": "DENY"
+  },
+  {
+    "id": "unnamed",
+    "case": "Home dispatcher: predecessor root parentThreadId null, roster [other]. May launch for root?",
+    "expected": "DENY"
+  },
+  {
+    "id": "parked",
+    "case": "Home dispatcher: root is still listed by mistake but Home parked it. May launch?",
+    "expected": "DENY"
+  },
+  {
+    "id": "claimed",
+    "case": "Home dispatcher: valid named root, title ends (succeeded by A). Request repeats. May launch B?",
+    "expected": "DENY"
+  },
+  {
+    "id": "marker-only",
+    "case": "Home dispatcher: valid named root, no title claim. Complete list includes settled A whose first message opens Lane succession: you succeed T3 thread root. May launch B?",
+    "expected": "DENY"
+  },
+  {
+    "id": "lost-response",
+    "case": "Home dispatcher lost launch response. Project pagination failed half way. May retry launch?",
+    "expected": "DENY"
+  },
+  {
+    "id": "parallel-dispatch",
+    "case": "Home has a succession launch in flight not yet at installed roster readback. A script gets a second request. May start a concurrent dispatch?",
+    "expected": "DENY"
+  },
+  {
+    "id": "remote-t3-only",
+    "case": "Cloud Home can read mirrodin T3 metadata but has no validated filesystem route to handoff, fallback and source/installed roster. May launch?",
+    "expected": "DENY"
+  },
+  {
+    "id": "other-claim",
+    "case": "Successor B reads predecessor title (succeeded by A). Home launch marker exists. May overwrite claim or adopt tasks/watch PRs?",
+    "expected": "DENY"
+  },
+  {
+    "id": "own-claim",
+    "case": "Successor A has Home authorization, its own parentThreadId null, matching first-message marker, fresh predecessor claim for A, and observed valid source/installed roster replacement; all other checks satisfied. May resume adoption idempotently?",
+    "expected": "ADOPT"
+  },
+  {
+    "id": "pending-roster",
+    "case": "Successor A has its own valid claim but installed roster still [root]; source changed to [A]. May adopt tasks or transfer watches?",
+    "expected": "WAIT"
+  },
+  {
+    "id": "failed-preparation",
+    "case": "Launched A failed before claim or roster swap. May Home forget A and blindly launch B?",
+    "expected": "DENY"
+  },
+  {
+    "id": "fallback-request",
+    "case": "Reporter reads both stores successfully. Primary lacks request; local fallback has exact Lane succession requested: root marker. Post another request?",
+    "expected": "NO_REQUEST"
+  },
+  {
+    "id": "primary-down",
+    "case": "Reporter home inbox --all exits 255; readable local fallback empty. Post new request?",
+    "expected": "NO_REQUEST"
+  },
+  {
+    "id": "fallback-unreadable",
+    "case": "Reporter primary readable empty; fallback permission denied. Post new request?",
+    "expected": "NO_REQUEST"
+  },
+  {
+    "id": "fallback-undelivered",
+    "case": "Successor movement post is in local fallback only. Both reads succeed, but Home has no validated read or acknowledgment of fallback. Claim/roster/other checks good. Is Continued satisfied?",
+    "expected": "NOT_CONTINUED"
+  },
+  {
+    "id": "fallback-observed",
+    "case": "Successor movement post is in local fallback only. Both reads succeed and Home read that exact fallback entry through a validated host route. All other Continued checks including source/installed readback and next-step activity hold. Continued?",
+    "expected": "CONTINUED"
+  },
+  {
+    "id": "unswapped-continued",
+    "case": "Successor claimed and started next step and primary names it, but installed roster still [root]. Continued?",
+    "expected": "NOT_CONTINUED"
+  },
+  {
+    "id": "unsupported-ultra",
+    "case": "Cross provider Sol reasoningEffort ultra -> Opus. Map or retain provider?",
+    "expected": "RETAIN_PROVIDER"
+  },
+  {
+    "id": "unsupported-ultracode",
+    "case": "Cross provider Opus effort ultracode -> Sol. Map or retain provider?",
+    "expected": "RETAIN_PROVIDER"
+  },
+  {
+    "id": "unsupported-ultrathink",
+    "case": "Cross provider Opus effort ultrathink -> Sol. Map or retain provider?",
+    "expected": "RETAIN_PROVIDER"
+  },
+  {
+    "id": "unsupported-max",
+    "case": "Cross provider Sol reasoningEffort max -> Opus. Map or retain provider?",
+    "expected": "RETAIN_PROVIDER"
+  },
+  {
+    "id": "missing-effort",
+    "case": "Cross provider Sol with no effort option -> Opus. Map or retain provider?",
+    "expected": "RETAIN_PROVIDER"
+  },
+  {
+    "id": "sol-low",
+    "case": "Cross provider Sol reasoningEffort low and serviceTier priority -> Opus; live target accepts it. Map or retain provider?",
+    "expected": "MAP"
+  },
+  {
+    "id": "opus-low",
+    "case": "Cross provider Opus effort low and fastMode true -> Sol; live target accepts it. Map or retain provider?",
+    "expected": "MAP"
+  },
+  {
+    "id": "sol-medium",
+    "case": "Cross provider Sol reasoningEffort medium and serviceTier priority -> Opus; live target accepts it. Map or retain provider?",
+    "expected": "MAP"
+  },
+  {
+    "id": "opus-medium",
+    "case": "Cross provider Opus effort medium and fastMode true -> Sol; live target accepts it. Map or retain provider?",
+    "expected": "MAP"
+  },
+  {
+    "id": "sol-high",
+    "case": "Cross provider Sol reasoningEffort high and serviceTier priority -> Opus; live target accepts it. Map or retain provider?",
+    "expected": "MAP"
+  },
+  {
+    "id": "opus-high",
+    "case": "Cross provider Opus effort high and fastMode true -> Sol; live target accepts it. Map or retain provider?",
+    "expected": "MAP"
+  },
+  {
+    "id": "sol-xhigh",
+    "case": "Cross provider Sol reasoningEffort xhigh and serviceTier priority -> Opus; live target accepts it. Map or retain provider?",
+    "expected": "MAP"
+  },
+  {
+    "id": "opus-xhigh",
+    "case": "Cross provider Opus effort xhigh and fastMode true -> Sol; live target accepts it. Map or retain provider?",
+    "expected": "MAP"
+  },
+  {
+    "id": "no-home-authorization",
+    "case": "Successor B has matching launch marker but no readable Home dispatch authorization. Predecessor unclaimed and roster lists it. May B claim, adopt children or transfer watches?",
+    "expected": "DENY"
+  },
+  {
+    "id": "successor-child",
+    "case": "Successor B is a delegated child with parentThreadId root. Predecessor and all other authorization look valid. May B claim and adopt a top-level lane?",
+    "expected": "DENY"
+  },
+  {
+    "id": "source-not-read",
+    "case": "Successor A has installed readback [A,other], but maintained source was not read. Home merely said swap done. May A adopt tasks or transfer watches?",
+    "expected": "WAIT"
+  },
+  {
+    "id": "other-id-dropped",
+    "case": "Source and installed roster changed [root,other] to [A], losing other. May A adopt work and is Continued check 4 satisfied?",
+    "expected": "WAIT"
+  },
+  {
+    "id": "same-title-unresolved",
+    "case": "Home sees no marker, but a later same-title candidate remains unresolved. May Home launch another successor?",
+    "expected": "DENY"
+  },
+  {
+    "id": "settled-predecessor",
+    "case": "Root exact ID listed, top-level, but predecessor settled. May Home launch a successor?",
+    "expected": "DENY"
+  },
+  {
+    "id": "read-failed-claim",
+    "case": "Successor A has full prior authorization and roster readback, but re-reading predecessor claim fails. May it adopt tasks/watch PRs?",
+    "expected": "WAIT"
+  },
+  {
+    "id": "missing-fallback",
+    "case": "Reporter successfully reads primary inbox with no request; fallback file confirmed absent on lane host. No successor and valid scope. May it post one request?",
+    "expected": "REQUEST"
+  },
+  {
+    "id": "primary-delivered",
+    "case": "Both inbox stores freshly read; primary contains the actual movement post naming A, claim/source/installed swap/pins/next-step activity all observed. Has succession Continued?",
+    "expected": "CONTINUED"
+  },
+  {
+    "id": "primary-unread-continued",
+    "case": "All other Continued checks good and cached primary previously named A, but current primary read fails. Is Continued satisfied?",
+    "expected": "NOT_CONTINUED"
+  },
+  {
+    "id": "preparation-failure-owner",
+    "case": "A fails before roster swap. Home still tracks its ID. Who must receive failure and what must happen before a replacement launch?",
+    "expected": "HOME_RECOVERY"
+  },
+  {
+    "id": "failed-after-continued",
+    "case": "A was working but latest run is failed; source and installed roster include A. May Heartbeat report only to Process?",
+    "expected": "HOME_RECOVERY"
+  },
+  {
+    "id": "target-rejects",
+    "case": "Sol reasoningEffort xhigh to Opus, but live target catalog does not accept xhigh. May map or retain provider?",
+    "expected": "RETAIN_PROVIDER"
+  },
+  {
+    "id": "stale-roster-cache",
+    "case": "Before launch Home rereads roster: [other], previously cached [root,other]. Root has fresh request marker. May launch?",
+    "expected": "DENY"
+  },
+  {
+    "id": "draining-root",
+    "case": "Root exact ID listed and top-level; Home explicitly currently names it draining. All dispatcher fresh guards, routes, stores and pagination pass; no concurrent dispatch. May launch?",
+    "expected": "LAUNCH"
+  },
+  {
+    "id": "no-post-body",
+    "case": "Claim and source/installed roster good; a message says Home post succeeded but no actual movement entry was read from either inbox. Has succession Continued?",
+    "expected": "NOT_CONTINUED"
+  },
+  {
+    "id": "abandoned-reopen",
+    "case": "Home stopped A, settled and retitled it Lane (abandoned succession of root), restored root title without claim suffix and unsettled root, restored source and installed rosters to [root,other] with every unrelated ID unchanged, freshly read each state before mutation and each result after it, then re-read all results together and explicitly reopened the request with receipts. Fresh reads confirm A is still settled and explicitly abandoned; its permanent first-message marker still names root. Root remains Home-named active and top-level. Home dispatcher: all other fresh launch checks pass. May launch B?",
+    "expected": "LAUNCH"
+  },
+  {
+    "id": "abandoned-b-claim",
+    "case": "Home stopped A, settled and retitled it Lane (abandoned succession of root), restored root title without claim suffix and unsettled root, restored source and installed rosters to [root,other] with every unrelated ID unchanged, freshly read each state before mutation and each result after it, then re-read all results together and explicitly reopened the request with receipts. Fresh reads confirm A is still settled and explicitly abandoned; its permanent first-message marker still names root. Root remains Home-named active and top-level. Home launched top-level B once with matching marker and fresh authorization. B freshly reads the restored unclaimed root and complete project history. Roster still [root,other]. May B claim root and prepare handoff (then wait for its own roster swap), rather than abort on A?",
+    "expected": "CLAIM"
+  },
+  {
+    "id": "abandoned-b-adopt",
+    "case": "Home stopped A, settled and retitled it Lane (abandoned succession of root), restored root title without claim suffix and unsettled root, restored source and installed rosters to [root,other] with every unrelated ID unchanged, freshly read each state before mutation and each result after it, then re-read all results together and explicitly reopened the request with receipts. Fresh reads confirm A is still settled and explicitly abandoned; its permanent first-message marker still names root. Root remains Home-named active and top-level. B then claimed root; Home observed new source and installed [B,other], and B freshly re-read its own claim and complete candidates. May B adopt work?",
+    "expected": "ADOPT"
+  },
+  {
+    "id": "settled-unmarked-a",
+    "case": "Home dispatcher: A settled, permanent matching marker, but no explicit abandoned title. All other recovery and launch checks pass. May launch B?",
+    "expected": "DENY"
+  },
+  {
+    "id": "unsettled-abandoned-a",
+    "case": "Home dispatcher: A has abandoned succession of root title and matching marker, but A is NOT settled. All other recovery checks pass. May launch B?",
+    "expected": "DENY"
+  },
+  {
+    "id": "rollback-no-installed-readback",
+    "case": "Home stopped A, settled and retitled it Lane (abandoned succession of root), restored root title without claim suffix and unsettled root, restored source and installed rosters to [root,other] with every unrelated ID unchanged, freshly read each state before mutation and each result after it, then re-read all results together and explicitly reopened the request with receipts. Fresh reads confirm A is still settled and explicitly abandoned; its permanent first-message marker still names root. Root remains Home-named active and top-level. Correction: installed roster readback failed; only source restoration was observed. Home announced reopen anyway. May launch B?",
+    "expected": "DENY"
+  },
+  {
+    "id": "rollback-partial",
+    "case": "Home stopped A, settled and retitled it Lane (abandoned succession of root), restored root title without claim suffix and unsettled root, restored source and installed rosters to [root,other] with every unrelated ID unchanged, freshly read each state before mutation and each result after it, then re-read all results together and explicitly reopened the request with receipts. Fresh reads confirm A is still settled and explicitly abandoned; its permanent first-message marker still names root. Root remains Home-named active and top-level. Correction: installed roster is still [A,other]. May launch B?",
+    "expected": "DENY"
+  },
+  {
+    "id": "rollback-old-title",
+    "case": "Home stopped A, settled and retitled it Lane (abandoned succession of root), restored root title without claim suffix and unsettled root, restored source and installed rosters to [root,other] with every unrelated ID unchanged, freshly read each state before mutation and each result after it, then re-read all results together and explicitly reopened the request with receipts. Fresh reads confirm A is still settled and explicitly abandoned; its permanent first-message marker still names root. Root remains Home-named active and top-level. Correction: root title is still Lane (succeeded by A). May launch B?",
+    "expected": "DENY"
+  },
+  {
+    "id": "rollback-predecessor-settled",
+    "case": "Home stopped A, settled and retitled it Lane (abandoned succession of root), restored root title without claim suffix and unsettled root, restored source and installed rosters to [root,other] with every unrelated ID unchanged, freshly read each state before mutation and each result after it, then re-read all results together and explicitly reopened the request with receipts. Fresh reads confirm A is still settled and explicitly abandoned; its permanent first-message marker still names root. Root remains Home-named active and top-level. Correction: root is still settled. May launch B?",
+    "expected": "DENY"
+  },
+  {
+    "id": "abandoned-other-live-claim",
+    "case": "Home stopped A, settled and retitled it Lane (abandoned succession of root), restored root title without claim suffix and unsettled root, restored source and installed rosters to [root,other] with every unrelated ID unchanged, freshly read each state before mutation and each result after it, then re-read all results together and explicitly reopened the request with receipts. Fresh reads confirm A is still settled and explicitly abandoned; its permanent first-message marker still names root. Root remains Home-named active and top-level. Complete listing also reveals live C with matching first-message marker and no abandonment. May Home launch B?",
+    "expected": "DENY"
+  },
+  {
+    "id": "b-other-live-claim",
+    "case": "Home stopped A, settled and retitled it Lane (abandoned succession of root), restored root title without claim suffix and unsettled root, restored source and installed rosters to [root,other] with every unrelated ID unchanged, freshly read each state before mutation and each result after it, then re-read all results together and explicitly reopened the request with receipts. Fresh reads confirm A is still settled and explicitly abandoned; its permanent first-message marker still names root. Root remains Home-named active and top-level. Home launched B but B discovers unresolved live C marker for root on fresh complete pagination. May B claim or adopt?",
+    "expected": "DENY"
+  },
+  {
+    "id": "reporter-resolved-marker",
+    "case": "Home stopped A, settled and retitled it Lane (abandoned succession of root), restored root title without claim suffix and unsettled root, restored source and installed rosters to [root,other] with every unrelated ID unchanged, freshly read each state before mutation and each result after it, then re-read all results together and explicitly reopened the request with receipts. Fresh reads confirm A is still settled and explicitly abandoned; its permanent first-message marker still names root. Root remains Home-named active and top-level. Reporter finds no existing inbox request in either store after successful reads. All reporter scope/error conditions pass. Does A marker alone prevent one request?",
+    "expected": "REQUEST"
+  },
+  {
+    "id": "reporter-unsettled-marker",
+    "case": "Home stopped A, settled and retitled it Lane (abandoned succession of root), restored root title without claim suffix and unsettled root, restored source and installed rosters to [root,other] with every unrelated ID unchanged, freshly read each state before mutation and each result after it, then re-read all results together and explicitly reopened the request with receipts. Fresh reads confirm A is still settled and explicitly abandoned; its permanent first-message marker still names root. Root remains Home-named active and top-level. Correction: A is unsettled. Both inboxes empty. May reporter request?",
+    "expected": "NO_REQUEST"
+  },
+  {
+    "id": "predecessor-before-swap",
+    "case": "Predecessor sees title claim for A, but installed roster still lists root. May predecessor settle itself immediately, or must it remain inactive awaiting successor step 4?",
+    "expected": "WAIT"
+  },
+  {
+    "id": "successor-settle-before-swap",
+    "case": "Successor A sees own claim but Continued check 4 lacks installed readback. May A settle predecessor in step 4 now?",
+    "expected": "WAIT"
+  },
+  {
+    "id": "successor-settle-after-swap",
+    "case": "Successor A freshly verifies Continued check 4 and its claim; predecessor still running but takes no new work. Who settles predecessor now in step 4?",
+    "expected": "SETTLE_PREDECESSOR"
+  },
+  {
+    "id": "rollback-dropped-other",
+    "case": "Home stopped A, settled and retitled it Lane (abandoned succession of root), restored root title without claim suffix and unsettled root, restored source and installed rosters to [root,other] with every unrelated ID unchanged, freshly read each state before mutation and each result after it, then re-read all results together and explicitly reopened the request with receipts. Fresh reads confirm A is still settled and explicitly abandoned; its permanent first-message marker still names root. Root remains Home-named active and top-level. Correction: restoration source and installed [root] dropped other. May Home reopen and launch B?",
+    "expected": "DENY"
+  },
+  {
+    "id": "abandoned-remains-inactive",
+    "case": "Home stopped A, settled and retitled it Lane (abandoned succession of root), restored root title without claim suffix and unsettled root, restored source and installed rosters to [root,other] with every unrelated ID unchanged, freshly read each state before mutation and each result after it, then re-read all results together and explicitly reopened the request with receipts. Fresh reads confirm A is still settled and explicitly abandoned; its permanent first-message marker still names root. Root remains Home-named active and top-level. May Home resume abandoned A as the active successor instead of dispatching B?",
+    "expected": "DENY"
+  },
+  {
+    "id": "abandonment-parked-root",
+    "case": "Home stopped A, settled and retitled it Lane (abandoned succession of root), restored root title without claim suffix and unsettled root, restored source and installed rosters to [root,other] with every unrelated ID unchanged, freshly read each state before mutation and each result after it, then re-read all results together and explicitly reopened the request with receipts. Fresh reads confirm A is still settled and explicitly abandoned; its permanent first-message marker still names root. Root remains Home-named active and top-level. Correction: Home parked root during recovery. May Home unsettle/reopen root and launch B?",
+    "expected": "DENY"
+  },
+  {
+    "id": "abandonment-unknown-title",
+    "case": "Home stopped A, settled and retitled it Lane (abandoned succession of root), restored root title without claim suffix and unsettled root, restored source and installed rosters to [root,other] with every unrelated ID unchanged, freshly read each state before mutation and each result after it, then re-read all results together and explicitly reopened the request with receipts. Fresh reads confirm A is still settled and explicitly abandoned; its permanent first-message marker still names root. Root remains Home-named active and top-level. Correction: fresh read of A title fails, only cached abandonment exists. May Home launch B?",
+    "expected": "DENY"
+  }
+]

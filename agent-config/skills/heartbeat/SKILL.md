@@ -13,19 +13,22 @@ Read `~/home/AGENTS.md`. Exclude its out-of-scope work from the roster and every
 
 Use `list_scheduled_tasks` to reconcile this thread's hourly task: `{"type":"interval","everyMs":3600000}`, prompt `Heartbeat sweep: use the heartbeat skill.` Update the existing task or create it with `schedule_task`.
 
-Build the roster using `lage` step 1. Pin lane threads with `t3_thread_organize`, `action: "pin"`. Read `~/home/NOW.md`, Home's inbox and your previous sweep. Check lane status, pending requests and activity tails. Expand truncated questions; read older history to resolve asks, blockers or uncertain liveness.
+Build the discovery list using `lage` step 1. Act only on lanes in the installed roster (`lane-succession` **Scope**: `wipRoots`, draining lanes included) and their descendants, which reach a listed root by following `parentThreadId`. Discovery grants no authorization. If the roster check fails, report that once to Home and do no recovery: no nudges, restarts or succession requests. Pin roster lanes with `t3_thread_organize`, `action: "pin"`. Read `~/home/NOW.md`, both inbox stores under `lane-succession` **Inbox evidence**, and your previous sweep. Check lane status, pending requests and activity tails. Expand truncated questions; read older history to resolve asks, blockers or uncertain liveness.
 
 - Relay policy or recorded answers with citations. Leave technical choices with the lane.
 - For the latest failed run, read `t3_thread_read`, `view: "activity"`: an `error` titled "Usage limit reached" identifies a usage limit; reset text is in that run's notices. Leave recovery to T3. If no reset is advertised, or still failed next sweep after the advertised reset, report once to Process; suggest a provider with headroom.
+- An `error` reading "Insufficient context allowance for the provider handoff" means the lane can take no more turns; restarting fails the same way. For a roster lane, draining or not, run `lane-succession`'s reporter steps: write the handoff and request a successor from Home once, in a post of its own. Never launch a thread.
+- Read each successor Home dispatched for a roster lane since your previous sweep (first message `Lane succession:`) against `lane-succession`'s **Continued** checks, including pending successors Home still tracks before the roster swap. If it failed, stalled, or its source/installed roster replacement lacks readback (even if it started work), report once to Home, the sole dispatcher. Copy Process only for recurring diagnostics.
+- Nudge a roster lane once to run `lane-succession` at its next boundary when the skill's **When** query shows any of its provider threads at 60% or more. First apply the skill's scope, successor and inbox duplicate checks; an existing request or unknown read means no repeated nudge or request. Child context failures stay with their parent, never a top-level replacement.
 - For `BLOCKED-ALLOWED`, send Process the blocker and guard. Nudge the lane once to continue unblocked work, unless usage-limited. Route recurring blocks and tooling causes to Process.
 - Leave usage-limited, progressing, held, finished and live-agent waits alone. Nudge an idle lane once for its named unblocked step. If liveness is uncertain, ask once for status. For other failed or demonstrably lost runs, confirm no live agents remain from lane reports and `t3_thread_list` with `includeSubagents: true`; T3 may omit native agents, so absence proves nothing. Restart once with `t3_thread_send`, `mode: "restart"`, naming the error or step.
 - If a nudge, status request or restart leaves the stall unresolved next sweep, report it once to Process, then stop.
 
-Send Process reports via `t3_thread_send` to `mcp:5fe1e302-5151-46ca-9c8a-e902e0ca1791`.
+Send Process reports via `t3_thread_send` to the Process lane: the roster entry whose title starts with `Process`. To deliver to it, follow its title chain: while a title ends `(succeeded by <id>)`, send to `<id>` instead. Delivering a report grants no roster membership. With no Process entry, or an invalid roster, report to Home instead.
 
 ## Digest
 
-Use lane and Process history, `~/.local/state/home/inbox.md` and `~/home/NOW.md` to dedupe nudges and unchanged reports. Bring Home only genuine principal decisions. Changed stakes, recommendations or deadlines are news.
+Use lane and Process history, both inbox stores under `lane-succession` **Inbox evidence**, and `~/home/NOW.md` to dedupe nudges and unchanged reports. A failed primary or fallback read is unknown, not permission to repost. Bring Home dispatcher failures and genuine principal decisions. Changed stakes, recommendations or deadlines are news.
 
 Write every question in full with options, recommendation and consequence of waiting. Link every referenced PR, issue and thread with a one-line summary.
 

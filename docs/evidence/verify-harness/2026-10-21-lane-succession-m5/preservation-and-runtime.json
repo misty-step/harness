@@ -1,0 +1,112 @@
+[
+  {
+    "command": [
+      "git",
+      "diff",
+      "--name-only",
+      "d54e5df7ac6934d90fe7278f23ebdd965ec66769",
+      "HEAD"
+    ],
+    "exit": 0,
+    "stdout": "agent-config/skills/lane-succession/SKILL.md\n",
+    "stderr": ""
+  },
+  {
+    "command": [
+      "git",
+      "ls-remote",
+      "origin",
+      "refs/heads/master"
+    ],
+    "exit": 0,
+    "stdout": "f947793fdcd7ceadaa5faa2c6d1485e2009f8a76\trefs/heads/master\n",
+    "stderr": ""
+  },
+  {
+    "command": [
+      "git",
+      "merge-base",
+      "--is-ancestor",
+      "f947793fdcd7ceadaa5faa2c6d1485e2009f8a76",
+      "HEAD"
+    ],
+    "exit": 0,
+    "stdout": "",
+    "stderr": ""
+  },
+  {
+    "command": [
+      "git",
+      "merge-base",
+      "--is-ancestor",
+      "ec4229b",
+      "HEAD"
+    ],
+    "exit": 0,
+    "stdout": "",
+    "stderr": ""
+  },
+  {
+    "command": [
+      "git",
+      "diff",
+      "--exit-code",
+      "d54e5df7ac6934d90fe7278f23ebdd965ec66769",
+      "HEAD",
+      "--",
+      "USER_STORIES.md",
+      "agent-config/guidance",
+      "agent-config/skills/heartbeat",
+      "agent-config/t3-pool",
+      "claude-config",
+      "codex-config",
+      "scripts/verify-installers"
+    ],
+    "exit": 0,
+    "stdout": "",
+    "stderr": ""
+  },
+  {
+    "command": [
+      "jq",
+      "-e",
+      "has(\"wipRoots\")",
+      "/home/phaedrus/.config/t3-pool.json"
+    ],
+    "exit": 1,
+    "stdout": "false\n",
+    "stderr": ""
+  },
+  {
+    "command": [
+      "systemctl",
+      "--user",
+      "is-enabled",
+      "t3-pool.timer"
+    ],
+    "exit": 1,
+    "stdout": "disabled\n",
+    "stderr": ""
+  },
+  {
+    "command": [
+      "systemctl",
+      "--user",
+      "is-active",
+      "t3-pool.timer"
+    ],
+    "exit": 3,
+    "stdout": "inactive\n",
+    "stderr": ""
+  },
+  {
+    "command": [
+      "jq",
+      "{autoResumeLimitedThreads}",
+      "/home/phaedrus/.t3/userdata/settings.json"
+    ],
+    "exit": 0,
+    "stdout": "{\n  \"autoResumeLimitedThreads\": false\n}\n",
+    "stderr": ""
+  }
+]

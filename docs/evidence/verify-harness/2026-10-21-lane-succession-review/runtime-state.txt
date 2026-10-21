@@ -1,0 +1,5 @@
+Read-only final state, 2026-10-21
+t3-pool.timer: disabled/inactive
+settings.json autoResumeLimitedThreads: false
+No live configuration changes, launches, watches or real Home posts were made.
+verify-harness home used only its private inbox.
