@@ -79,13 +79,17 @@ disposable Pi and OMP installer smoke.
 
 ## US-023 Keep verification useful
 
-Run affected native checks and walk the real user path. Every authored change
+Run affected native checks and walk the real user path. Nothing is verified
+until the repository's verification skill has driven the real user journey end
+to end on the real product, with evidence linked, signing in as the actual owner
+identity when the product has sign-in; a repository without one gets one. Every authored change
 gets review and verification scaled to risk. Documents, briefs and measurements
 get one light combined QA/review check plus an independent judge. Riskier
 behavior changes get separate independent QA, review and judge agents. Repeat
 review only for real bugs.
 
-Evidence: `agent-config/skills/ship-loop/roles.md`.
+Evidence: `agent-config/skills/ship-loop/SKILL.md`, `agent-config/skills/ship-loop/roles.md`,
+`agent-config/guidance/engineering.md`.
 
 ## Capability: Deployment
 
@@ -638,6 +642,17 @@ Criteria:
    contracts.
 5. WHEN verifying changed guidance, THE ENGINEER SHALL inspect the composed
    instructions and exercise the affected actual consumer.
+6. WHEN new work appears, THE SYSTEM SHALL record a backlog issue. Only Home
+   SHALL open top-level threads: backlog lanes from groomed, specced items,
+   replacements for named lanes, and its own scratch runners. Home
+   SHALL explicitly name the active lanes and size that set to model cost,
+   reasoning, speed, remaining allowance and time until reset, with no fixed
+   lane cap. Resume and account pooling SHALL continue only lanes Home names
+   and their children, including named draining lanes; unnamed and backlogged
+   lanes SHALL remain untouched. Process's existing coverage-table verification rollout
+   SHALL run at most three workers concurrently and settle merged or parked
+   workers before starting the next; it SHALL add no repositories or threads
+   beyond that table.
 
 No-gos: no code/config permission changes or new message templates; Kaylee's
 existing Hermes operating skill remains outside this operator-approved

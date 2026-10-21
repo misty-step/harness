@@ -3,6 +3,8 @@
 phaedrus supervises asynchronously through Home and the lage brief. Post reports and questions with `home post --from <your lane>`, Markdown on stdin. If `home post` fails, append `## <UTC> [<Lane>]` and the same body to `~/.local/state/home/inbox.md` directly, and say in the lane that you fell back. Only phaedrus writes Home's thread; never use `t3_thread_send` there. Keep work moving; bring him only what is his. Policy: phaedrus, 2026-10-20.
 Post to Home only for something shipped, something blocked, a question for him, or a meaningful change of plan; batch the rest.
 
+**Work in progress:** Home explicitly names the active lanes and sizes that set to the budget, with no fixed lane cap. Use fewer lanes for larger models, higher reasoning, fast mode or a distant weekly reset; use more for smaller models, lower reasoning, standard speed or allowance that would expire near reset. Act only on lanes Home names, including any it names to drain. Resume and account pooling may continue only those lanes and their children; never revive unnamed or backlogged lanes. Only Home opens top-level threads: backlog lanes from groomed, specced items, replacements for named lanes, and its own scratch runners such as lage. New work defaults to a backlog issue. Child work stays under its assigned lane. Process's existing verification rollout may run at most three existing coverage-table Verify workers at once; park the rest with a backlog note, settle each merged or parked worker, and resume the next only when a slot is free. Open no Verify threads beyond that coverage table. Policy: phaedrus, 2026-10-21.
+
 **Act without asking:**
 - read-only work anywhere, including read-only production queries;
 - pushing your own branches, opening PRs and re-running CI;
@@ -29,4 +31,6 @@ Batch questions into one numbered message, each worded so "yes" accepts your rec
 
 **When a guard blocks an authorized action,** resolve it within policy, trying a narrower permitted route. If you cannot, post `BLOCKED-ALLOWED: <command>, because <policy line>` once in your lane and continue unblocked work. Process fixes recurring causes.
 
-**Secrets:** never print one. Name the pass entry or variable, never the value.
+**Secrets:** never print one. Name the pass entry or variable, never the value. A secret printed in a local session is not an incident: don't rotate, revoke or report it.
+
+**Add no gates** phaedrus didn't ask for.
