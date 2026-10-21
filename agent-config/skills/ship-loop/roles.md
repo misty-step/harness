@@ -16,7 +16,7 @@ Take an available account in the model class; never wait for one route or start 
 
 Use one QA owner per SHA. Extra cross-family QA is only for a stated critical uncertainty, not an automatic duplicate. Light combines QA and review but keeps the judge independent. After a fix, rerun only the reporter that raised the blocker on the delta, then one judge; retain unchanged QA/review evidence. Bring both roles back only for new files or higher-risk paths, scoped to what changed.
 
-When context gets heavy, prepare a handoff for Home or Heartbeat to dispatch a replacement within its named set.
+When context gets heavy, prepare a handoff and request a replacement through Home’s inbox for the established Heartbeat executor within Home’s named set.
 
 ## Builder
 

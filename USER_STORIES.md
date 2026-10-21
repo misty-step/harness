@@ -682,9 +682,10 @@ Criteria:
    instructions and exercise the affected actual consumer.
 6. WHEN new work appears, THE SYSTEM SHALL record a backlog issue. Home
    SHALL open top-level threads: backlog lanes from groomed, specced items,
-   replacements for named lanes, and its own scratch runners. Heartbeat SHALL
-   also dispatch exact roster-lane successors under the shared serialized
-   `lane-succession` contract without fresh Home approval, recovering tracked
+   and its own scratch runners. Home SHALL route roster-succession requests to
+   the existing hourly task’s bound Heartbeat thread. That single native executor
+   SHALL dispatch exact roster-lane successors under `lane-succession` without
+   fresh Home approval, recovering tracked
    partial dispatches and reporting completion or a blocker once to Home. It
    SHALL preserve claim, dedupe, route, adoption, abandonment and source/installed
    readback guards, consume the newest handoff and leave children, parked and
