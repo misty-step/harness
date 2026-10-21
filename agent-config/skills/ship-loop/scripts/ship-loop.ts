@@ -1,0 +1,584 @@
+#!/usr/bin/env bun
+// ship-loop: the one entry point for a PR's review-round state.
+//
+// The PR's own comments are the only authority. Each accepted write is an
+// append-only comment carrying one event; `replay` reduces them to state and
+// `apply` refuses any event the workflow does not allow. The file keeps no
+// round count, lock or local cache of its own, so a new thread, a succession
+// or a retry reads the same state.
+
+import { createHash } from "node:crypto";
+
+export const STATUS_SCHEMA = "ship-loop.status.v1";
+const MARKER = "<!-- ship-loop:event v1 -->";
+const RIGORS = ["light", "standard", "critical"];
+const BLOCKER_CLASSES = ["broken_journey", "wrong_data", "security_privacy", "data_loss", "broken_build", "irreversible", "none"];
+const OUTCOMES = ["PASS", "ISSUES", "BLOCKED"];
+const VERDICTS = ["SHIP", "FIX", "REVERT", "SPLIT"];
+const FIX_ROUND_LIMIT = 1;
+
+export type Phase = "verify" | "judge" | "fix" | "recheck" | "final-judge" | "shipped" | "revert-split";
+export type Finding = {
+  id: string;
+  evidence: string;
+  introduced_by_diff: boolean;
+  already_on_main: boolean;
+  blocker_class: string;
+};
+export type Report = { role: string; sha: string; thread_id: string; report_url: string; outcome: string; findings: Finding[] };
+export type State = {
+  ticket: string;
+  pr_url: string;
+  rigor: string;
+  rigor_reason: string;
+  base: string;
+  head: string;
+  carried: string[];
+  phase: Phase;
+  builder_threads: string[];
+  judge_threads: string[];
+  reports: Record<string, Report>;
+  fix_round: number;
+  fix: null | { blockers: string[]; reporter_thread: string; judge_thread: string; sha: string };
+  verdict: null | { verdict: string; sha: string; thread_id: string };
+};
+export type Event = Record<string, any> & { v: number; kind: string; seq: number; key: string };
+export type Comment = { id: number; body: string };
+export type Ledger = { state: State | null; last_seq: number; accepted: { id: number; event: Event }[]; rejected: number[] };
+
+// Refused: the workflow forbids this write. LedgerError: the ledger cannot be trusted.
+export class Refused extends Error {}
+export class LedgerError extends Error {}
+
+function need(ok: unknown, message: string): asserts ok {
+  if (!ok) throw new Refused(message);
+}
+
+function stable(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(stable).join(",")}]`;
+  if (value && typeof value === "object") {
+    return `{${Object.keys(value as object).sort().map((k) => `${JSON.stringify(k)}:${stable((value as any)[k])}`).join(",")}}`;
+  }
+  return JSON.stringify(value);
+}
+
+// Hash the JSON-normalized body, so a write and its read-back compare equal.
+export function keyOf(body: Record<string, unknown>): string {
+  return createHash("sha256").update(stable(JSON.parse(JSON.stringify(body)))).digest("hex");
+}
+
+function fieldsOnly(o: Record<string, unknown>, allowed: string[], what: string) {
+  for (const k of Object.keys(o)) need(allowed.includes(k), `${what} has unknown field "${k}"`);
+}
+
+function text(o: Record<string, unknown>, field: string): string {
+  need(typeof o[field] === "string" && (o[field] as string).trim() !== "", `${field} is required`);
+  return o[field] as string;
+}
+
+export function requiredRoles(rigor: string): string[] {
+  return rigor === "light" ? ["qa-review"] : ["qa", "review"];
+}
+
+// Only these findings can be named as blockers by a judge.
+export function eligible(f: Finding): boolean {
+  return f.introduced_by_diff === true && f.already_on_main === false && f.blocker_class !== "none";
+}
+
+function validateFindings(list: unknown): Finding[] {
+  need(Array.isArray(list), "findings must be an array");
+  const ids = new Set<string>();
+  for (const f of list as Record<string, unknown>[]) {
+    fieldsOnly(f, ["id", "evidence", "introduced_by_diff", "already_on_main", "blocker_class"], "finding");
+    const id = text(f, "id");
+    need(!ids.has(id), `finding id ${id} repeats`);
+    ids.add(id);
+    text(f, "evidence");
+    need(typeof f.introduced_by_diff === "boolean", `finding ${id}.introduced_by_diff must be a boolean`);
+    need(typeof f.already_on_main === "boolean", `finding ${id}.already_on_main must be a boolean`);
+    need(BLOCKER_CLASSES.includes(f.blocker_class as string), `finding ${id}.blocker_class is not a known class`);
+  }
+  return list as Finding[];
+}
+
+function checkThread(s: State, thread: string, excluded: string[], role: string) {
+  need(thread.trim() !== "", `${role} thread_id is required`);
+  need(!s.builder_threads.includes(thread) || role === "builder", `${role} thread is the builder thread; reviews and rulings need an independent thread`);
+  need(!excluded.includes(thread), `${role} thread ${thread} is already recorded for another role`);
+}
+
+function reviewThreads(s: State): string[] {
+  return [...new Set(Object.values(s.reports).map((r) => r.thread_id))].sort();
+}
+
+// The single transition function. Returns the next state or throws Refused.
+export function apply(s: State | null, e: Event): State {
+  if (e.kind === "init") {
+    need(s === null, "init after the ledger exists would reset it");
+    fieldsOnly(e, ["v", "kind", "seq", "key", "ticket", "pr_url", "rigor", "rigor_reason", "base", "sha", "builder_thread_id"], "init");
+    need(e.seq === 1, "init must be the first event");
+    need(RIGORS.includes(e.rigor), `rigor must be one of ${RIGORS.join(", ")}`);
+    text(e, "rigor_reason");
+    need(/^[\w./-]+$/.test(e.base), "base must be a git ref");
+    need(/^[0-9a-f]{40}$/.test(e.sha), "sha must be a full commit SHA");
+    const builder = text(e, "builder_thread_id");
+    return {
+      ticket: text(e, "ticket"), pr_url: text(e, "pr_url"), rigor: e.rigor, rigor_reason: e.rigor_reason,
+      base: e.base, head: e.sha, carried: [], phase: "verify", builder_threads: [builder], judge_threads: [],
+      reports: {}, fix_round: 0, fix: null, verdict: null,
+    };
+  }
+  need(s !== null, `${e.kind} before init`);
+  const next: State = structuredClone(s);
+
+  if (e.kind === "report") {
+    fieldsOnly(e, ["v", "kind", "seq", "key", "role", "sha", "thread_id", "report_url", "outcome", "findings"], "report");
+    need(next.phase === "verify", `reports are taken only in verify; this PR is in ${next.phase}`);
+    need(requiredRoles(next.rigor).includes(e.role), `${e.role} is not a required review for ${next.rigor} rigor`);
+    need(!next.reports[e.role], `${e.role} already reported at this head`);
+    need(e.sha === next.head, `report is for ${e.sha}, but head is ${next.head}`);
+    checkThread(next, text(e, "thread_id"), reviewThreads(next), e.role);
+    text(e, "report_url");
+    need(OUTCOMES.includes(e.outcome), `outcome must be one of ${OUTCOMES.join(", ")}`);
+    const findings = validateFindings(e.findings);
+    next.reports[e.role] = { role: e.role, sha: e.sha, thread_id: e.thread_id, report_url: e.report_url, outcome: e.outcome, findings };
+    if (requiredRoles(next.rigor).every((r) => next.reports[r])) next.phase = "judge";
+    return next;
+  }
+
+  if (e.kind === "verdict") {
+    fieldsOnly(e, ["v", "kind", "seq", "key", "thread_id", "sha", "verdict", "blockers", "tickets", "report_url"], "verdict");
+    need(next.phase === "judge" || next.phase === "final-judge", `verdicts are ruled in judge or final-judge; this PR is in ${next.phase}`);
+    checkThread(next, text(e, "thread_id"), reviewThreads(next), "judge");
+    text(e, "report_url");
+    need(e.sha === next.head, `verdict is for ${e.sha}, but head is ${next.head}`);
+    need(VERDICTS.includes(e.verdict), `verdict must be one of ${VERDICTS.join(", ")}`);
+    need(Array.isArray(e.blockers) && e.blockers.every((b: unknown) => typeof b === "string"), "blockers must be an array of strings");
+    const blockers: string[] = e.blockers;
+    need(new Set(blockers).size === blockers.length, "blockers repeat");
+
+    if (e.verdict === "FIX") {
+      need(next.phase === "judge", "no fix round remains; the final judge rules SHIP with tickets or REVERT / SPLIT");
+      need(next.fix_round < FIX_ROUND_LIMIT, "the fix round is already used");
+      need(blockers.length > 0, "FIX must name exact blockers");
+      const atHead = [next.head, ...next.carried];
+      const reporters = new Set<string>();
+      for (const ref of blockers) {
+        const [role, ...rest] = ref.split(":");
+        const id = rest.join(":");
+        const report = next.reports[role];
+        const finding = report && atHead.includes(report.sha) ? report.findings.find((f) => f.id === id) : undefined;
+        need(finding, `${ref} is not a finding in the reports at this head`);
+        need(eligible(finding), `${ref} is not an introduced, not-on-main finding with a blocker class`);
+        reporters.add(report.thread_id);
+      }
+      need(reporters.size === 1, "FIX blockers must come from one reporter thread, which rechecks them");
+      next.fix_round = 1;
+      next.fix = { blockers, reporter_thread: [...reporters][0], judge_thread: e.thread_id, sha: next.head };
+      next.phase = "fix";
+    } else if (e.verdict === "SHIP") {
+      need(blockers.length === 0, "SHIP cannot name blockers");
+      if (next.fix) {
+        // After a fix, the named-blocker recheck is the QA evidence for this head.
+        const rechecked = next.reports.recheck;
+        need(rechecked && rechecked.results.every((r: { status: string }) => r.status === "fixed"), "SHIP after a fix round needs every named blocker rechecked as fixed");
+      } else {
+        const qa = next.reports.qa ?? next.reports["qa-review"];
+        need(qa && qa.outcome === "PASS", "SHIP needs an independent QA PASS at this head");
+      }
+      next.phase = "shipped";
+    } else {
+      next.phase = "revert-split";
+    }
+    next.verdict = { verdict: e.verdict, sha: e.sha, thread_id: e.thread_id };
+    next.judge_threads.push(e.thread_id);
+    return next;
+  }
+
+  if (e.kind === "recheck") {
+    fieldsOnly(e, ["v", "kind", "seq", "key", "thread_id", "sha", "report_url", "results"], "recheck");
+    need(next.phase === "recheck" && next.fix, `rechecks run only after a fix; this PR is in ${next.phase}`);
+    need(e.sha === next.head, `recheck is for ${e.sha}, but head is ${next.head}`);
+    need(e.thread_id === next.fix.reporter_thread, "only the blocking reporter rechecks the named fixes");
+    text(e, "report_url");
+    need(Array.isArray(e.results), "results must be an array");
+    const seen = e.results.map((r: { blocker: string }) => r.blocker);
+    need(seen.length === next.fix.blockers.length && next.fix.blockers.every((b) => seen.includes(b)), "results must cover exactly the named blockers");
+    for (const r of e.results as { status: string }[]) need(r.status === "fixed" || r.status === "not-fixed", "result status must be fixed or not-fixed");
+    next.reports.recheck = { role: "recheck", sha: e.sha, thread_id: e.thread_id, report_url: e.report_url, outcome: "PASS", findings: [], results: e.results } as Report & { results: unknown };
+    next.phase = "final-judge";
+    return next;
+  }
+
+  if (e.kind === "head") {
+    fieldsOnly(e, ["v", "kind", "seq", "key", "reason", "sha", "thread_id", "from", "patch_id_from", "patch_id_to"], "head");
+    need(/^[0-9a-f]{40}$/.test(e.sha), "sha must be a full commit SHA");
+    need(e.sha !== next.head, "head is already this SHA");
+    if (e.reason === "fix") {
+      need(next.phase === "fix", `a fix commit is accepted only in the fix phase; this PR is in ${next.phase}`);
+      checkThread(next, text(e, "thread_id"), [...reviewThreads(next), ...next.judge_threads], "builder");
+      next.builder_threads.push(e.thread_id);
+      next.head = e.sha;
+      next.carried = [];
+      next.phase = "recheck";
+      return next;
+    }
+    need(e.reason === "carry", "head reason must be fix or carry");
+    need(["judge", "final-judge", "shipped"].includes(next.phase), `a patch-identical carry applies before a ruling; this PR is in ${next.phase}`);
+    need(e.from === next.head, `carry is from ${e.from}, but head is ${next.head}`);
+    need(typeof e.patch_id_from === "string" && e.patch_id_from !== "", "carry needs the judged patch-id");
+    need(e.patch_id_from === e.patch_id_to, "carry needs an unchanged patch-id; otherwise run a fix or re-verify");
+    next.carried.push(next.head);
+    next.head = e.sha;
+    return next;
+  }
+
+  throw new Refused(`unknown event kind ${e.kind}`);
+}
+
+// Parse and reduce the ledger. Malformed or gapped chains are LedgerError: unknown, never empty.
+// A duplicate sequence number means a lost concurrent write: the lowest comment id wins, the rest are rejected.
+export function replay(comments: Comment[]): Ledger {
+  const parsed = comments
+    .filter((c) => c.body.startsWith(MARKER))
+    .sort((a, b) => a.id - b.id)
+    .map((c) => ({ id: c.id, event: parseEvent(c) }));
+  let state: State | null = null;
+  let next = 1;
+  const accepted: Ledger["accepted"] = [];
+  const rejected: number[] = [];
+  for (const { id, event } of parsed) {
+    if (event.seq < next) { rejected.push(id); continue; }
+    if (event.seq > next) throw new LedgerError(`ledger gap: seq ${next} is missing before comment ${id}`);
+    try {
+      state = apply(state, event);
+    } catch (err) {
+      if (err instanceof Refused) throw new LedgerError(`ledger seq ${event.seq} (comment ${id}) is invalid: ${err.message}`);
+      throw err;
+    }
+    accepted.push({ id, event });
+    next++;
+  }
+  return { state, last_seq: next - 1, accepted, rejected };
+}
+
+function parseEvent(c: Comment): Event {
+  const match = /^<!-- ship-loop:event v1 -->\n```json\n([\s\S]*)\n```\s*$/.exec(c.body);
+  if (!match) throw new LedgerError(`comment ${c.id} has the ship-loop marker but no event block`);
+  let event: any;
+  try {
+    event = JSON.parse(match[1]);
+  } catch {
+    throw new LedgerError(`comment ${c.id} holds malformed JSON`);
+  }
+  if (!event || typeof event !== "object" || !Number.isInteger(event.seq) || event.seq < 1 || typeof event.kind !== "string") {
+    throw new LedgerError(`comment ${c.id} lacks a valid seq or kind`);
+  }
+  const { seq: _seq, key, ...body } = event;
+  if (key !== keyOf(body)) throw new LedgerError(`comment ${c.id} fails its content key`);
+  return event as Event;
+}
+
+export function renderEvent(event: Event): string {
+  return `${MARKER}\n\`\`\`json\n${JSON.stringify(event, null, 2)}\n\`\`\`\n`;
+}
+
+// The status document the Heartbeat and conductors read. Field names are stable within v1.
+export function statusOf(ledger: Ledger, pr: string) {
+  const s = ledger.state;
+  const ids = s ? [...new Set(Object.values(s.reports).map((r) => r.thread_id))].sort() : [];
+  return {
+    schema: STATUS_SCHEMA,
+    ledger: s ? "present" : "absent",
+    pr,
+    ticket: s?.ticket ?? null,
+    rigor: s?.rigor ?? null,
+    base: s?.base ?? null,
+    phase: s?.phase ?? null,
+    source_head: s?.head ?? null,
+    carried_shas: s?.carried ?? [],
+    fix_round: s?.fix_round ?? 0,
+    fix_round_limit: FIX_ROUND_LIMIT,
+    fix_blockers: s?.fix?.blockers ?? [],
+    review_thread_ids: ids,
+    review_thread_count: ids.length,
+    builder_thread_ids: s?.builder_threads ?? [],
+    verdict: s?.verdict ?? null,
+    last_seq: ledger.last_seq,
+    rejected_writes: ledger.rejected.length,
+  };
+}
+
+// ---- prompts: the only way a role receives its task ----
+
+const QA_ROLE = { qa: "independent QA", review: "independent code reviewer", "qa-review": "independent combined QA and code reviewer" } as const;
+type PromptRole = keyof typeof QA_ROLE | "judge" | "recheck" | "final-judge" | "fix-builder";
+const ROLE_PHASE: Record<PromptRole, Phase> = { qa: "verify", review: "verify", "qa-review": "verify", judge: "judge", recheck: "recheck", "final-judge": "final-judge", "fix-builder": "fix" };
+
+function blockerLines(s: State): string {
+  const lines: string[] = [];
+  for (const [role, report] of Object.entries(s.reports)) {
+    if (!["qa", "review", "qa-review"].includes(role)) continue;
+    for (const f of report.findings) {
+      const ref = `${role}:${f.id}`;
+      const flag = eligible(f) ? "eligible blocker" : "not eligible (follow-up or skip)";
+      lines.push(`- \`${ref}\` [${f.blocker_class}, introduced=${f.introduced_by_diff}, on_main=${f.already_on_main}] ${flag}: ${f.evidence} (${report.report_url})`);
+    }
+  }
+  return lines.length ? lines.join("\n") : "- none";
+}
+
+export function prompt(s: State, prUrl: string, role: PromptRole): string {
+  need(ROLE_PHASE[role] === s.phase, `role ${role} runs in phase ${ROLE_PHASE[role]}; this PR is in ${s.phase}`);
+  if (role in QA_ROLE) need(requiredRoles(s.rigor).includes(role), `${role} is not a required review for ${s.rigor} rigor`);
+  const head = s.head;
+  const header = `PR ${prUrl} at head ${head}. Ticket ${s.ticket}. Rigor ${s.rigor} (${s.rigor_reason}). Base ${s.base}.`;
+  const reportJson = `{"role": "${role}", "sha": "${head}", "thread_id": "<your native thread id>", "report_url": "<link to your posted report>", "outcome": "PASS|ISSUES|BLOCKED", "findings": [{"id": "F1", "evidence": "file:line, concrete failure, evidence link", "introduced_by_diff": true, "already_on_main": false, "blocker_class": "broken_journey|wrong_data|security_privacy|data_loss|broken_build|irreversible|none"}]}`;
+  const submit = (kind: string) => `Save the JSON payload to a file, then the conductor records it: \`bun ~/.claude/skills/ship-loop/scripts/ship-loop.ts record --pr ${prUrl} --kind ${kind} --file <payload.json>\`. Use only the thread and report links you actually have.`;
+
+  if (role in QA_ROLE) {
+    const who = QA_ROLE[role as keyof typeof QA_ROLE];
+    const scope = role === "review"
+      ? "Change nothing. Trace callers, config, migrations, deploy and rollback outside the diff for consequential effects."
+      : "Follow ~/.claude/skills/story-qa/SKILL.md with the repository's verification skill and drive the real journey end to end, from the CLI or the product's real UI. Where the product has sign-in, sign in to production as the agent's own AgentMail QA account and prove the required owner/admin role; an email sent or a 200 is not proof. Use disposable data, never production data.";
+    const account = "QA account: the agent's own AgentMail account, with credentials in pass at workstation/<PROJECT>_QA_*. Within the assigned app scope you may create it, store its credentials in pass, grant its required QA owner/admin role, and add it to allowlists or Cloudflare Access. Missing QA access or role is `owner sign-in UNPROVEN: needs <access>`, never a request for a personal password. Native CLI subscriptions are execution authentication, not QA accounts.";
+    return [
+      `You are the ${who} for ${header}`,
+      "You did not build this change or rule on it. Check out the head in your own worktree.",
+      scope,
+      account,
+      "Report every finding with evidence. Classify each one honestly: introduced_by_diff, already_on_main, and a blocker_class. Anything already on main, or not introduced by this diff, can never block.",
+      "You cannot authorize a fix round, and you cannot issue a verdict. Only the judge rules.",
+      "Verdict PASS, ISSUES or BLOCKED. Owner sign-in: PROVEN (link), UNPROVEN (access needed) or n/a (why). For each finding: the steps, expected result, actual result and evidence.",
+      `Post your report on the PR, then return this JSON with exactly these fields:\n\`\`\`json\n${reportJson}\n\`\`\``,
+      submit("report"),
+    ].join("\n\n");
+  }
+
+  if (role === "judge") {
+    return [
+      `You are the independent judge for ${header}`,
+      "You did not build, review or test this change. Your thread must not be any of: builder " + s.builder_threads.join(", ") + "; reviewers " + reviewThreads(s).join(", ") + ".",
+      "Findings and eligibility:\n" + blockerLines(s),
+      "Rule once. SHIP only with no blockers and QA PASS at this head; name follow-up tickets for worthwhile new findings. FIX names the exact eligible blockers above from one reporter thread and is the only fix round this PR gets. REVERT or SPLIT drops or divides the unit.",
+      `Post your verdict on the PR, then return this JSON:\n\`\`\`json\n{"thread_id": "<your native thread id>", "sha": "${head}", "verdict": "SHIP|FIX|REVERT|SPLIT", "blockers": ["qa:F1"], "tickets": ["<follow-up links>"], "report_url": "<link to your verdict>"}\n\`\`\``,
+      submit("verdict"),
+    ].join("\n\n");
+  }
+
+  if (role === "fix-builder") {
+    need(s.fix, "no fix is authorized");
+    const named = s.fix.blockers.map((b) => `- \`${b}\``).join("\n");
+    return [
+      `You are the builder for the single fix round on ${header}`,
+      `Fix only these blockers, named by the judge's ruling:\n${named}`,
+      "Do not fix anything else, and do not reopen review. New findings are follow-up tickets. Check out the PR branch, push one commit set, and keep the existing PR.",
+      `When pushed, record the new head: \`bun ~/.claude/skills/ship-loop/scripts/ship-loop.ts record --pr ${prUrl} --kind head\` with payload \`{"reason": "fix", "sha": "<new head sha>", "thread_id": "<your native thread id>"}\`.`,
+    ].join("\n\n");
+  }
+
+  if (role === "recheck") {
+    need(s.fix, "no fix is authorized");
+    const named = s.fix.blockers.map((b) => `- \`${b}\``).join("\n");
+    return [
+      `You are the blocking reporter rechecking the named fixes on ${header}`,
+      `Verify that each blocker below is fixed and that nothing regressed. Do not hunt for new edge cases or reopen the full review. New unrelated findings are not yours to report here.\n${named}`,
+      `Return one result per blocker:\n\`\`\`json\n{"thread_id": "<your native thread id>", "sha": "${head}", "report_url": "<link>", "results": [{"blocker": "${s.fix.blockers[0]}", "status": "fixed|not-fixed", "evidence": "<link>"}]}\n\`\`\``,
+      submit("recheck"),
+    ].join("\n\n");
+  }
+
+  // final-judge: the fix round is spent, so no FIX option is offered.
+  return [
+    `You are the final judge for ${header}`,
+    `The fix round is spent. Your thread must not be any of: builder ${s.builder_threads.join(", ")}; reviewers ${reviewThreads(s).join(", ")}.`,
+    `Recheck results: ${JSON.stringify(s.reports.recheck?.results ?? [])}`,
+    "Rule once. SHIP only if every named blocker is fixed; record worthwhile new findings as follow-up tickets. REVERT or SPLIT otherwise.",
+    `Return:\n\`\`\`json\n{"thread_id": "<your native thread id>", "sha": "${head}", "verdict": "SHIP|REVERT|SPLIT", "blockers": [], "tickets": ["<follow-up links>"], "report_url": "<link to your verdict>"}\n\`\`\``,
+    submit("verdict"),
+  ].join("\n\n");
+}
+
+// ---- native boundary: gh for reads and writes, git for patch-ids ----
+
+export type Gh = {
+  listComments(repo: string, n: number): Promise<Comment[]>;
+  postComment(repo: string, n: number, body: string): Promise<number>;
+};
+
+async function runCmd(cmd: string[], stdin?: string): Promise<string> {
+  const proc = Bun.spawn(cmd, { stdin: stdin === undefined ? "ignore" : new Blob([stdin]), stdout: "pipe", stderr: "pipe" });
+  const [out, err, code] = await Promise.all([new Response(proc.stdout).text(), new Response(proc.stderr).text(), proc.exited]);
+  if (code !== 0) throw new Error(`${cmd[0]} exited ${code}: ${err.trim()}`);
+  return out;
+}
+
+export function ghBoundary(bin: string): Gh {
+  return {
+    async listComments(repo, n) {
+      const out = await runCmd([bin, "api", "--paginate", `repos/${repo}/issues/${n}/comments`, "--jq", ".[] | [.id, .body] | @json"]);
+      return out.split("\n").filter((l) => l.trim() !== "").map((l) => {
+        const [id, body] = JSON.parse(l);
+        return { id, body };
+      });
+    },
+    async postComment(repo, n, body) {
+      const out = await runCmd([bin, "api", "-X", "POST", `repos/${repo}/issues/${n}/comments`, "--input", "-"], JSON.stringify({ body }));
+      const id = JSON.parse(out).id;
+      if (!Number.isInteger(id)) throw new Error("gh did not return a comment id");
+      return id;
+    },
+  };
+}
+
+export async function patchId(base: string, sha: string): Promise<string> {
+  const out = await runCmd(["sh", "-c", `git diff '${base}...${sha}' | git patch-id --stable`]);
+  const id = out.trim().split(/\s+/)[0] ?? "";
+  if (id === "") throw new Error(`no patch-id for ${base}...${sha}`);
+  return id;
+}
+
+// ---- command line ----
+
+const HELP = `ship-loop: the one entry point for a PR's review-round state. State lives in the PR's comments.
+
+  init    --pr <url> --ticket <url> --rigor light|standard|critical --rigor-reason <text> --base <ref> --sha <head> --builder-thread <id>
+          Creates the ledger once. On an existing ledger it resumes and never resets.
+  status  --pr <url> [--json]
+          --json prints the stable ${STATUS_SCHEMA} document: phase, fix_round, review_thread_ids, review_thread_count, source_head.
+  prompt  --pr <url> --role qa|review|qa-review|judge|recheck|final-judge|fix-builder
+          Prints the role's brief for the current phase. Refuses a role out of phase.
+  record  --pr <url> --kind report|verdict|recheck|head [--file <payload.json>]
+          Payload JSON comes from --file or stdin. Records only what the user supplied: native thread IDs and report links.
+          A repeated identical write is a no-op.
+
+Exit codes: 0 recorded or already recorded; 1 refused by the workflow; 2 ledger unreadable or write outcome unknown (never treat as round 0); 3 lost a concurrent write, run status and retry.
+`;
+
+const COMMANDS: Record<string, string[]> = {
+  init: ["pr", "ticket", "rigor", "rigor-reason", "base", "sha", "builder-thread"],
+  status: ["pr", "json"],
+  prompt: ["pr", "role"],
+  record: ["pr", "kind", "file"],
+};
+
+export type Deps = { gh: Gh; patchId: (base: string, sha: string) => Promise<string>; out: (s: string) => void; err: (s: string) => void; stdin: () => Promise<string> };
+
+export async function run(argv: string[], deps: Deps): Promise<number> {
+  const [cmd, ...rest] = argv;
+  if (!cmd || cmd === "--help" || cmd === "-h" || cmd === "help") { deps.out(HELP); return 0; }
+  if (!Object.hasOwn(COMMANDS, cmd)) { deps.err(`unknown command: ${cmd}\n\n${HELP}`); return 1; }
+  const flags: Record<string, string | true> = {};
+  for (let i = 0; i < rest.length; i++) {
+    const name = rest[i];
+    if (!name.startsWith("--")) { deps.err(`unexpected argument: ${name}\n`); return 1; }
+    const key = name.slice(2);
+    if (!COMMANDS[cmd].includes(key)) { deps.err(`unknown flag for ${cmd}: ${name}\n`); return 1; }
+    if (key === "json") { flags[key] = true; continue; }
+    const value = rest[++i];
+    if (value === undefined) { deps.err(`${name} needs a value\n`); return 1; }
+    flags[key] = value;
+  }
+  try {
+    return await dispatch(cmd, flags, deps);
+  } catch (err) {
+    if (err instanceof Refused) { deps.err(`refused: ${err.message}\n`); return 1; }
+    if (err instanceof LedgerError) { deps.err(`ledger unknown: ${err.message}. Not treated as a fresh round; repair or inspect the PR comments.\n`); return 2; }
+    deps.err(`ledger unknown: ${(err as Error).message}\n`);
+    return 2;
+  }
+}
+
+function target(pr: unknown): { url: string; repo: string; n: number } {
+  const m = typeof pr === "string" ? /^https:\/\/github\.com\/([\w.-]+\/[\w.-]+)\/pull\/(\d+)$/.exec(pr) : null;
+  if (!m) throw new Refused("--pr must be a GitHub pull request URL");
+  return { url: pr as string, repo: m[1], n: Number(m[2]) };
+}
+
+async function dispatch(cmd: string, f: Record<string, string | true>, d: Deps): Promise<number> {
+  const { url, repo, n } = target(f.pr);
+  // Any read failure throws before a write can be attempted.
+  const comments = await d.gh.listComments(repo, n);
+  const ledger = replay(comments);
+
+  if (cmd === "status") {
+    const doc = statusOf(ledger, url);
+    if (f.json) d.out(JSON.stringify(doc, null, 2) + "\n");
+    else d.out(ledger.state ? `${doc.phase} at ${doc.source_head}; fix round ${doc.fix_round}/${FIX_ROUND_LIMIT}; ${doc.review_thread_count} review thread(s)\n` : `no ship-loop ledger on ${url}\n`);
+    return 0;
+  }
+
+  if (cmd === "prompt") {
+    need(ledger.state, "no ledger yet: run init after the builder opens the PR");
+    d.out(prompt(ledger.state, url, String(f.role) as PromptRole) + "\n");
+    return 0;
+  }
+
+  if (cmd === "init") {
+    const body = {
+      v: 1, kind: "init", ticket: f.ticket, pr_url: url, rigor: f.rigor, rigor_reason: f["rigor-reason"],
+      base: f.base, sha: f.sha, builder_thread_id: f["builder-thread"],
+    };
+    if (ledger.state) {
+      need(ledger.state.ticket === f.ticket && ledger.state.pr_url === url, "the ledger belongs to another ticket or PR");
+      d.out(`resumed: ledger exists at seq ${ledger.last_seq}; phase ${ledger.state.phase}; no reset\n`);
+      return 0;
+    }
+    return await write(ledger, repo, n, body, d);
+  }
+
+  // record
+  need(ledger.state, "no ledger yet: run init first");
+  const raw = typeof f.file === "string" ? await Bun.file(f.file).text() : await d.stdin();
+  let payload: Record<string, any>;
+  try { payload = JSON.parse(raw); } catch { throw new Refused("payload is not JSON"); }
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) throw new Refused("payload must be an object");
+  const kind = String(f.kind);
+  if (!["report", "verdict", "recheck", "head"].includes(kind)) throw new Refused("kind must be report, verdict, recheck or head");
+  // The flag sets the kind; a payload cannot override it.
+  const body: Record<string, unknown> = { ...payload, v: 1, kind };
+  if (kind === "head" && payload.reason === "carry") {
+    need(/^[0-9a-f]{40}$/.test(String(payload.from)) && /^[0-9a-f]{40}$/.test(String(payload.sha)), "carry needs full from and sha SHAs");
+    body.patch_id_from = await d.patchId(ledger.state.base, String(payload.from));
+    body.patch_id_to = await d.patchId(ledger.state.base, String(payload.sha));
+  }
+  return await write(ledger, repo, n, body, d);
+}
+
+// Idempotent append: an identical accepted event is a no-op; otherwise validate, post, then read back.
+async function write(ledger: Ledger, repo: string, n: number, body: Record<string, unknown>, d: Deps): Promise<number> {
+  const key = keyOf(body);
+  const seen = ledger.accepted.find((a) => a.event.key === key);
+  if (seen) { d.out(`already recorded at seq ${seen.event.seq}\n`); return 0; }
+  const seq = ledger.last_seq + 1;
+  const event = { ...body, seq, key } as Event;
+  apply(ledger.state, event);
+  let id: number;
+  try {
+    id = await d.gh.postComment(repo, n, renderEvent(event));
+  } catch (err) {
+    // The write may have landed. Read back before deciding: rerunning is safe because identical events are no-ops.
+    const after = replay(await d.gh.listComments(repo, n));
+    if (after.accepted.some((a) => a.event.key === key)) { d.out(`recorded at seq ${seq} (confirmed after a failed response)\n`); return 0; }
+    throw new Error(`write outcome unknown: ${(err as Error).message}`);
+  }
+  const after = replay(await d.gh.listComments(repo, n));
+  if (after.accepted.some((a) => a.id === id)) { d.out(`recorded at seq ${seq}\n`); return 0; }
+  if (after.rejected.includes(id)) {
+    d.err(`lost a concurrent write at seq ${seq}; nothing recorded. Run status and retry.\n`);
+    return 3;
+  }
+  throw new Error(`comment ${id} is not in the ledger after write`);
+}
+
+if (import.meta.main) {
+  const ghBin = process.env.SHIP_LOOP_GH ?? "gh";
+  const code = await run(process.argv.slice(2), {
+    gh: ghBoundary(ghBin),
+    patchId,
+    out: (s) => process.stdout.write(s),
+    err: (s) => process.stderr.write(s),
+    stdin: () => Bun.stdin.text(),
+  });
+  process.exit(code);
+}
