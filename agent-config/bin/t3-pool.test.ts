@@ -652,6 +652,9 @@ test("a WIP handoff refusal requests Home succession once without auth, launch o
 	expect(post.args).toEqual(["post", "--from", "t3-pool"]);
 	expect(post.body.split("\n")[0]).toBe("Lane succession requested: big");
 	expect(post.body.split("\n")).toContain("Handoff: none; the successor builds it from t3_thread_read history.");
+	expect(post.body).toContain("Only the established hourly task's bound native Heartbeat thread dispatches");
+	expect(post.body).toContain('Home queues requests to that same writer with t3_thread_send, mode: "queue"');
+	expect(post.body).not.toMatch(/\b(?:Heartbeat or Home|Home or Heartbeat|Home dispatches)\b/);
 	expect(post.poolState.moves[0]).toMatchObject({ phase: "done", notificationPending: true });
 	for (const text of ["t3-thread://v1/big", "big:run", "/work/tree", "lane-branch", "full-access", JSON.stringify(selection), "Home owns thread creation", "wipRoots"]) expect(post.body).toContain(text);
 	expect(state(files).moves[0]).toMatchObject({ phase: "done", kind: "successor" });
@@ -1061,20 +1064,19 @@ for (const accepted of [false, true]) test(`a superseded provider recovery ${acc
 });
 
 
-test("the shipped roster accepts Upkeep and the Voice drain without a fixed lane cap", async () => {
+test("the shipped roster is valid and passes every named root through the planner without a fixed cap", async () => {
 	const files = fixture();
-	expect(defaults.wipRoots).toEqual([
-		"mcp:8145fc74-15ad-428f-b7f6-d9b162fff416", "mcp:6dbd369a-221d-46f0-8e3c-efc1fdc775a9",
-		"mcp:8449eb2b-175f-48cf-ae80-f9f699c7879f", "mcp:51b7a12d-8392-4fb0-b270-6aaafb8b63f8",
-		"mcp:69a8cc28-3648-4607-b15a-143e48dd80b5", "mcp:2ee20fca-f82d-4e94-812b-204ef22308f6",
-	]);
+	expect(Array.isArray(defaults.wipRoots)).toBe(true);
+	expect(defaults.wipRoots.every((id) => typeof id === "string" && /\S/.test(id))).toBe(true);
+	expect(new Set(defaults.wipRoots).size).toBe(defaults.wipRoots.length);
 	for (const id of [...defaults.wipRoots, "unnamed"]) thread(files, id, "codex", { message: handoffRefusal });
 	config(files, { wipRoots: defaults.wipRoots });
 	const fake = server(files);
 	for (let pass = 0; pass < defaults.wipRoots.length; pass++) expect((await result(start(files))).status).toBe(0);
-	expect(posts(files)).toHaveLength(defaults.wipRoots.length);
-	for (const id of defaults.wipRoots) expect(posts(files).some((post) => post.body.includes(`t3-thread://v1/${id}`))).toBe(true);
-	expect(posts(files).some((post) => post.body.includes("t3-thread://v1/unnamed"))).toBe(false);
+	const requests = existsSync(join(files.root, "home-posts")) ? posts(files) : [];
+	expect(requests).toHaveLength(defaults.wipRoots.length);
+	for (const id of defaults.wipRoots) expect(requests.some((post) => post.body.includes(`t3-thread://v1/${id}`))).toBe(true);
+	expect(requests.some((post) => post.body.includes("t3-thread://v1/unnamed"))).toBe(false);
 	expect(fake.commands).toEqual([]);
 	// Home can name another lane; the planner has no global numeric admission cap.
 	config(files, { wipRoots: [...defaults.wipRoots, "unnamed"] });

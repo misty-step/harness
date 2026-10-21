@@ -680,9 +680,19 @@ Criteria:
    contracts.
 5. WHEN verifying changed guidance, THE ENGINEER SHALL inspect the composed
    instructions and exercise the affected actual consumer.
-6. WHEN new work appears, THE SYSTEM SHALL record a backlog issue. Only Home
+6. WHEN new work appears, THE SYSTEM SHALL record a backlog issue. Home
    SHALL open top-level threads: backlog lanes from groomed, specced items,
-   replacements for named lanes, and its own scratch runners. Home
+   and its own scratch runners. Home SHALL route roster-succession requests to
+   the existing hourly task’s bound Heartbeat thread. That single native executor
+   SHALL dispatch exact roster-lane successors under `lane-succession` without
+   fresh Home approval, recovering tracked
+   partial dispatches and reporting completion or a blocker once to Home. It
+   SHALL preserve claim, dedupe, route, adoption, abandonment and source/installed
+   readback guards, consume the newest handoff and leave children, parked and
+   unnamed lanes untouched. Machine-generated PRs replacing only the tracked
+   predecessor ID with its claimed successor in `pools.json` `wipRoots`, preserving
+   every other value and roster length/order, SHALL merge on passing checks;
+   authored policy, tests and other config changes SHALL retain ordinary review. Home
    SHALL explicitly name the active lanes and size that set to model cost,
    reasoning, speed, remaining allowance and time until reset, with no fixed
    lane cap. Resume and account pooling SHALL continue only lanes Home names
