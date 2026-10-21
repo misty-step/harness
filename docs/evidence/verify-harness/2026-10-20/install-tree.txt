@@ -1,0 +1,8 @@
+./.claude/CLAUDE.md
+./.codex/AGENTS.md
+./.config/systemd/user/t3-pool.service
+./.config/systemd/user/t3-pool.timer
+./.config/t3-pool.json
+./.local/bin/t3-pool
+./.local/bin/t3-runtime-mode
+./systemctl-calls
