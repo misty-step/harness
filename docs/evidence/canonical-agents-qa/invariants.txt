@@ -1,0 +1,7 @@
+PASS US-048 AC1–8 unchanged from f947793
+PASS original autonomy rules unchanged except explicit scoped QA setup exception
+PASS installed guidance is regular AGENTS.md with no legacy files or symlinks
+PASS native CLI credential copy removed
+PASS Codex rendered the full canonical and scoped QA policy
+PASS live host guidance and native CLI launcher unchanged
+PASS private run removed and evidence preserved

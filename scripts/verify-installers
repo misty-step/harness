@@ -259,7 +259,7 @@ for consumer in pi omp; do
   fi
 done
 # Claude Code: selected skills land beside foreign and CLI-linked skills, and
-# composed guidance lands in the user-scope CLAUDE.md every session loads.
+# composed guidance lands in native user-scope AGENTS.md alone.
 claude_home="$work/claude-home"
 claude="$claude_home/.claude"
 mkdir -p "$claude/skills/foreign" "$claude/skills/lage" "$claude_home/.fixture-bin"
@@ -292,7 +292,13 @@ check "claude foreign skill" cmp -s "$work/expected-skill" "$claude/skills/forei
 check "claude keeps a foreign foundation skill" grep -Fxq 'foreign foundation skill' "$claude/skills/foundation/SKILL.md"
 check "claude keeps a foreign dev-exec skill" grep -Fxq 'foreign dev-exec skill' "$claude/skills/dev-exec/SKILL.md"
 check "claude CLI-linked skill" test "$(readlink "$claude/skills/code-review")" = ../../.agents/skills/code-review
-check "claude settings untouched" cmp -s "$work/expected-claude-settings" "$claude/settings.json"
+python3 - "$work/expected-claude-settings" "$claude/settings.json" <<'PYCODE'
+import json,sys
+before=json.load(open(sys.argv[1]));after=json.load(open(sys.argv[2]))
+assert {k:v for k,v in after.items() if k != 'hooks'} == before
+assert after['hooks']['SessionStart']
+PYCODE
+check "claude foreign settings preserved and native startup hook added" test "$?" = 0
 expected="$work/claude-guidance"
 : > "$expected"
 while IFS= read -r line || [ -n "$line" ]; do
@@ -304,9 +310,11 @@ while IFS= read -r line || [ -n "$line" ]; do
   else
     printf '%s\n' "$line" >> "$expected"
   fi
-done < "$work/source/claude-config/global/CLAUDE.md"
-check "claude composition" cmp -s "$expected" "$claude/CLAUDE.md"
-check "claude writes no AGENTS.md" test ! -e "$claude/AGENTS.md"
+done < "$work/source/claude-config/global/AGENTS.md"
+check "claude composition" cmp -s "$expected" "$claude/AGENTS.md"
+check "claude canonical content" test ! -L "$claude/AGENTS.md"
+check "claude has no legacy instruction entry" test ! -e "$claude/CLAUDE.md"
+check "claude has no legacy instruction symlink" test ! -L "$claude/CLAUDE.md"
 check "claude pool executable" test -x "$claude_home/.local/bin/t3-pool"
 for pair in pools.json:.config/t3-pool.json t3-pool.service:.config/systemd/user/t3-pool.service t3-pool.timer:.config/systemd/user/t3-pool.timer; do
   check "claude pool ${pair%%:*} bytes" cmp -s "$work/source/agent-config/t3-pool/${pair%%:*}" "$claude_home/${pair#*:}"
@@ -319,40 +327,65 @@ else
   printf 'FAIL claude bundled pool dry run\n' >&2
   failures=$((failures + 1))
 fi
-# A rerun replaces its own CLAUDE.md; a foreign one stops the install before any write.
+# A rerun replaces canonical AGENTS.md and leaves no legacy alias.
 if env -i PATH="$claude_home/.fixture-bin:$PATH" HOME="$claude_home" TMPDIR="$work" \
-  "$work/source/claude-config/install" >"$work/claude-rerun.log" 2>&1 && cmp -s "$expected" "$claude/CLAUDE.md"; then
-  printf 'PASS claude rerun replaces its own CLAUDE.md\n'
+  "$work/source/claude-config/install" >"$work/claude-rerun.log" 2>&1 && cmp -s "$expected" "$claude/AGENTS.md"; then
+  printf 'PASS claude rerun replaces its own AGENTS.md\n'
 else
-  printf 'FAIL claude rerun replaces its own CLAUDE.md\n' >&2
+  printf 'FAIL claude rerun replaces its own AGENTS.md\n' >&2
   failures=$((failures + 1))
 fi
 foreign_home="$work/claude-foreign-home"
 mkdir -p "$foreign_home/.claude"
-printf '# my own notes\n' > "$foreign_home/.claude/CLAUDE.md"
+printf '# my own notes\n' > "$foreign_home/.claude/AGENTS.md"
 if env -i PATH="$PATH" HOME="$foreign_home" TMPDIR="$work" \
   "$work/source/claude-config/install" >"$work/claude-foreign.log" 2>&1; then
-  printf 'FAIL claude refuses a foreign CLAUDE.md (install succeeded)\n' >&2
+  printf 'FAIL claude refuses a foreign AGENTS.md (install succeeded)\n' >&2
   failures=$((failures + 1))
 else
-  check "claude refuses a foreign CLAUDE.md before any write" \
-    test "$(ls -A "$foreign_home/.claude")" = CLAUDE.md
-  check "claude keeps the foreign CLAUDE.md" grep -Fxq '# my own notes' "$foreign_home/.claude/CLAUDE.md"
+  check "claude refuses a foreign AGENTS.md before any write" \
+    test "$(ls -A "$foreign_home/.claude")" = AGENTS.md
+  check "claude keeps the foreign AGENTS.md" grep -Fxq '# my own notes' "$foreign_home/.claude/AGENTS.md"
 fi
 # The ownership marker counts only as the file's first line.
 marker_home="$work/claude-marker-home"
 mkdir -p "$marker_home/.claude"
-printf '# my own notes\n\n<!-- owned by misty-step/harness claude-config -->\n' > "$marker_home/.claude/CLAUDE.md"
-cp "$marker_home/.claude/CLAUDE.md" "$work/expected-marker-claude"
+printf '# my own notes\n\n<!-- owned by misty-step/harness claude-config -->\n' > "$marker_home/.claude/AGENTS.md"
+cp "$marker_home/.claude/AGENTS.md" "$work/expected-marker-claude"
 if env -i PATH="$PATH" HOME="$marker_home" TMPDIR="$work" \
   "$work/source/claude-config/install" >"$work/claude-marker.log" 2>&1; then
-  printf 'FAIL claude refuses a CLAUDE.md with the marker on a later line (install succeeded)\n' >&2
+  printf 'FAIL claude refuses an AGENTS.md with the marker on a later line (install succeeded)\n' >&2
   failures=$((failures + 1))
 else
-  check "claude refuses a CLAUDE.md with the marker on a later line before any write" \
-    test "$(ls -A "$marker_home/.claude")" = CLAUDE.md
-  check "claude keeps a CLAUDE.md with the marker on a later line" \
-    cmp -s "$work/expected-marker-claude" "$marker_home/.claude/CLAUDE.md"
+  check "claude refuses an AGENTS.md with the marker on a later line before any write" \
+    test "$(ls -A "$marker_home/.claude")" = AGENTS.md
+  check "claude keeps an AGENTS.md with the marker on a later line" \
+    cmp -s "$work/expected-marker-claude" "$marker_home/.claude/AGENTS.md"
+fi
+# Native settings must be checked before any selected shared component writes.
+bad_settings="$work/claude-bad-settings-home"
+mkdir -p "$bad_settings/.claude"
+printf '{invalid JSON\n' > "$bad_settings/.claude/settings.json"
+if env -i PATH="$PATH" HOME="$bad_settings" TMPDIR="$work" \
+  "$work/source/claude-config/install" >"$work/claude-bad-settings.log" 2>&1; then
+  printf 'FAIL claude refuses malformed settings before writes\n' >&2
+  failures=$((failures + 1))
+else
+  check "claude malformed settings leave instruction directory untouched" test "$(ls -A "$bad_settings/.claude")" = settings.json
+  check "claude malformed settings write no launchers" test ! -e "$bad_settings/.local/bin"
+fi
+# An unowned script at the reserved hook path must stop the whole installer.
+collision_home="$work/claude-hook-collision-home"
+mkdir -p "$collision_home/.claude/hooks"
+printf '# foreign hook\n' > "$collision_home/.claude/hooks/harness-agents.py"
+if env -i PATH="$PATH" HOME="$collision_home" TMPDIR="$work" \
+  "$work/source/claude-config/install" >"$work/claude-hook-collision.log" 2>&1; then
+  printf 'FAIL claude refuses an unowned native hook before writes\n' >&2
+  failures=$((failures + 1))
+else
+  check "claude unowned native hook remains unchanged" grep -Fxq '# foreign hook' "$collision_home/.claude/hooks/harness-agents.py"
+  check "claude unowned native hook leaves instruction directory untouched" test "$(ls -A "$collision_home/.claude")" = hooks
+  check "claude unowned native hook writes no launchers" test ! -e "$collision_home/.local/bin"
 fi
 # Codex: selected skills land beside its bundled .system skills and foreign
 # links, composed guidance lands in $CODEX_HOME/AGENTS.md, and config.toml,
@@ -408,6 +441,7 @@ done < "$work/source/codex-config/global/AGENTS.md"
 check "codex composition" cmp -s "$expected" "$codex/AGENTS.md"
 check "codex AGENTS.md permissions" test "$(stat -c %a "$codex/AGENTS.md")" = 600
 check "codex writes no CLAUDE.md" test ! -e "$codex/CLAUDE.md"
+check "codex writes no CLAUDE.md symlink" test ! -L "$codex/CLAUDE.md"
 # CODEX_HOME relocates the whole deployment, as it does for Codex itself.
 relocated="$work/codex-relocated"
 if env -i PATH="$PATH" HOME="$work/codex-unused-home" CODEX_HOME="$relocated" TMPDIR="$work" \

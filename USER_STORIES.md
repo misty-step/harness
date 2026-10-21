@@ -81,12 +81,23 @@ disposable Pi and OMP installer smoke.
 
 Run affected native checks and walk the real user path. Nothing is verified
 until the repository's verification skill has driven the real user journey end
-to end on the real product, with evidence linked, signing in as the actual owner
-identity when the product has sign-in; a repository without one gets one. Every authored change
+to end on the real product, with evidence linked, signing in to production with
+the agent's own AgentMail QA account and proving the required owner/admin role
+when the product has sign-in; a repository without one gets one. Every authored change
 gets review and verification scaled to risk. Documents, briefs and measurements
 get one light combined QA/review check plus an independent judge. Riskier
 behavior changes get separate independent QA, review and judge agents. Repeat
 review only for real bugs.
+
+Credentials are pass references under `workstation/<PROJECT>_QA_*`. Verification
+skills generated or refreshed during rollout SHALL encode that QA account,
+production role proof, creation of the agent-owned account, pass storage of generated
+credentials, required QA owner/admin grants, scoped QA allowlist/Cloudflare Access
+changes, evidence and cleanup, without asking for phaedrus's passwords or throwaway profiles.
+Native CLI subscriptions remain execution authentication, not product QA accounts.
+Shared auth QA additions SHALL use Process as the sole HOUSEHOLD_MEMBERS writer
+until Home reassigns ownership, preserving the complete private canonical baseline,
+existing members, owner settings and aliases through one serialized native update.
 
 Evidence: `agent-config/skills/ship-loop/SKILL.md`, `agent-config/skills/ship-loop/roles.md`,
 `agent-config/guidance/engineering.md`.
@@ -662,6 +673,14 @@ Criteria:
 8. WHEN an agent designs or changes an interface, THE PRINCIPAL SHALL receive
    neutral, professional, standard product design with plain words, without
    clever wording, decorative themes or metaphors by default.
+
+9. WHEN instruction content is authored or installed in any repository or host,
+   THE SYSTEM SHALL use only `AGENTS.md`. No `CLAUDE.md` file or symlink SHALL
+   be created, including fixtures, generated content and private proofs.
+   Owned legacy standalone Claude guidance SHALL upgrade rerunnably with all
+   previous bytes preserved and owned aliases removed. Foreign content and links
+   SHALL be refused before
+   writes.
 
 No-gos: no code/config permission changes or new message templates; Kaylee's
 existing Hermes operating skill remains outside this operator-approved

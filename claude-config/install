@@ -18,22 +18,18 @@ base_dir=${AGENT_CONFIG_DIR:-$repo_dir/../agent-config}
 
 skills='lage ship-loop judge release-watch heartbeat lane-succession story-qa pokayoke user-stories authenticated-commands'
 guidance='engineering workstation autonomy'
-owned='<!-- owned by misty-step/harness claude-config -->'
 
-# ~/.claude/CLAUDE.md is the user-scope file Claude Code always loads (an
-# AGENTS.md there loads only as a fallback in projects without a CLAUDE.md).
-# Replace it only when it is ours.
-target="$agent_dir/CLAUDE.md"
-if [ -e "$target" ] && [ "$(head -n 1 "$target")" != "$owned" ]; then
-  printf '%s is not ours; move its content into a repository CLAUDE.md or remove it, then rerun\n' "$target" >&2
-  exit 1
-fi
+# Validate canonical guidance and the legacy entry before any write.
+python3 "$base_dir/lib/canonical_instructions.py" check "$agent_dir"
+python3 "$repo_dir/agents-hook.py" check "$agent_dir"
 
 set --
 for skill in $skills; do set -- "$@" --skill "$skill"; done
 for section in $guidance; do set -- "$@" --guidance "$section"; done
 set -- "$@" --bin t3-runtime-mode.ts --t3-pool
-set -- "$@" --guidance-source "$repo_dir/global/CLAUDE.md" --guidance-file CLAUDE.md
+set -- "$@" --guidance-source "$repo_dir/global/AGENTS.md" --guidance-file AGENTS.md
 "$base_dir/install" --check --agent-dir "$agent_dir" "$@"
+python3 "$base_dir/lib/canonical_instructions.py" migrate "$agent_dir"
 "$base_dir/install" --agent-dir "$agent_dir" "$@"
+python3 "$repo_dir/agents-hook.py" install "$agent_dir"
 printf 'claude: installed %s, t3-runtime-mode and guidance (%s) into %s\n' "$skills" "$guidance" "$agent_dir"

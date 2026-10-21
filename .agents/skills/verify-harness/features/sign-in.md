@@ -1,6 +1,6 @@
 # Sign in
 
-Harness depends on the owner's native logins: gh pushes branches and merges PRs, Claude Code runs every T3 lane, and Codex runs the Codex lanes. Sign-in works when each CLI answers as phaedrus's identity, checked read-only.
+Harness depends on native CLI execution logins: gh pushes branches and merges PRs, Claude Code runs every T3 lane, and Codex runs the Codex lanes. Sign-in works when each CLI answers as phaedrus's identity, checked read-only.
 
 ## Sub-features
 
@@ -32,3 +32,7 @@ Preconditions:
 - Doctor reads the Codex identity from the `id_token` claim in `~/.codex/auth.json`, or `$CODEX_HOME/auth.json`, and reports only whether an account email is present. That email is personal, and the repository is public.
 - The Codex login can be valid while every Codex account is usage-limited. As of 2026-10-20, `codex` and `codex-mistystep` are out until 2026-10-27 and `codex-r90` has no credits. `verify-harness pool` lists limited accounts. A Codex model call is not part of this proof. Codex loading is proved without one; see [Fresh session](./fresh-session.md).
 - T3's per-instance accounts (`claude-mistystep`, `codex-mistystep` and others) keep their own homes. Doctor checks the default CLI logins only.
+
+These native subscription identities are execution authentication, not product QA
+accounts. Harness has no product sign-in; application QA uses the agent's own
+AgentMail account and production owner/admin role proof under global guidance.

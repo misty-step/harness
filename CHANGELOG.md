@@ -1,3 +1,9 @@
+# [0.2.19](https://github.com/misty-step/harness/compare/v0.2.18...v0.2.19) (2026-10-21)
+<!-- landmark:protected-release previous=v0.2.18 source=4894464aadbf39088f237a6ea76974b65ebd46fcbb4d22be236e991cc9e9dd1e -->
+
+### Features
+
+* canonicalize agent instructions and QA account policy (#426) ([a12f6df](https://github.com/misty-step/harness/commit/a12f6dfd9bc4ee5fd2773782e270747f1e363769))
 # [0.2.18](https://github.com/misty-step/harness/compare/v0.2.17...v0.2.18) (2026-10-21)
 <!-- landmark:protected-release previous=v0.2.17 source=c8600aac5112d0912d6f0f16b2a1bba1ac99fb4f015e93c271277973f46fb57b -->
 

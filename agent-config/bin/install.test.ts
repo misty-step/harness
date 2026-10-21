@@ -314,16 +314,13 @@ printf '%s\\n' "$*" >> "$HOME/systemctl-calls"
 		expect(snapshot(files.home)).toEqual(beforeHome);
 	});
 
-	test("--guidance-file CLAUDE.md composes the same guidance into CLAUDE.md only", () => {
+	test("content output to CLAUDE.md is rejected before any write", () => {
 		const files = fixture();
-		expect(invoke(files).exitCode).toBe(0);
-		const agents = readFileSync(join(files.target, "AGENTS.md"), "utf8");
-		rmSync(join(files.target, "AGENTS.md"));
-		const result = invoke(files, ["--guidance-file", "CLAUDE.md"]);
-		expect(result.stderr.toString()).toBe("");
-		expect(result.exitCode).toBe(0);
-		expect(readFileSync(join(files.target, "CLAUDE.md"), "utf8")).toBe(agents);
-		expect(existsSync(join(files.target, "AGENTS.md"))).toBe(false);
+		const beforeAgent = snapshot(files.target);
+		const beforeHome = snapshot(files.home);
+		expect(invoke(files, ["--guidance-file", "CLAUDE.md"]).exitCode).not.toBe(0);
+		expect(snapshot(files.target)).toEqual(beforeAgent);
+		expect(snapshot(files.home)).toEqual(beforeHome);
 	});
 
 	test("an unknown guidance file name aborts before writing", () => {
