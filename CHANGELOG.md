@@ -1,3 +1,9 @@
+# [0.2.16](https://github.com/misty-step/harness/compare/v0.2.15...v0.2.16) (2026-10-21)
+<!-- landmark:protected-release previous=v0.2.15 source=f3ac304b422f10cdc20a2593a60eb44d162a2b14eb0f1bf44a2c0902d60dfe7f -->
+
+### Features
+
+* **verify:** add verify-harness operator verification skill (#414) ([9dc76ee](https://github.com/misty-step/harness/commit/9dc76ee89eb41828f30563d201e4e1bc77a48cc9))
 # [0.2.15](https://github.com/misty-step/harness/compare/v0.2.14...v0.2.15) (2026-10-20)
 <!-- landmark:protected-release previous=v0.2.14 source=e01b292698a950955adbd94394ffe77c2ea109976527b9fa99543bb6abb076ca -->
 
