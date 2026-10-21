@@ -11,7 +11,8 @@ can reject this change's plausible failure. When the product has sign-in, the wa
 as the actual owner identity on the real product; an email sent or a 200 response
 is not a sign-in. A missing skill or unprovable owner sign-in is reported, never passed. Screenshots prove appearance, not
 persistence or delivery; check consequential state at its actual owner.
-Docs/internal edits need composition or owner-path proof, not a fake UI journey.
+Docs are walked as their reader uses them: the published or installed text. Internal edits need
+proof that they compose. Neither gets a fake UI journey.
 
 Disposable data must use the authorized account/integration. Worktrees, browser
 tabs and contexts do not themselves isolate server-side state. Clean up only what
