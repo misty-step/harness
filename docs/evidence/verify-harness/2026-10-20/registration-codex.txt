@@ -1,0 +1,2 @@
+- `r2` = `<copy>/.agents/skills`
+- verify-harness (file: r2/verify-harness/SKILL.md)

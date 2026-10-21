@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, test } from "bun:test";
+import { afterEach, describe, expect, setDefaultTimeout, test } from "bun:test";
 import {
 	copyFileSync, cpSync, chmodSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync,
 	readlinkSync, rmSync, symlinkSync, writeFileSync,
@@ -8,6 +8,8 @@ import { dirname, join, relative } from "node:path";
 
 const repo = join(import.meta.dir, "..");
 const roots: string[] = [];
+// Installs bundle launchers with Bun; on a loaded host one run exceeds the 5s default.
+setDefaultTimeout(30_000);
 type Fixture = { root: string; source: string; target: string; home: string };
 
 function put(root: string, path: string, content: string) {
