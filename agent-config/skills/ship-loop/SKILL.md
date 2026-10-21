@@ -5,7 +5,7 @@ description: Drive a lane's confirmed work from ticket to verified production th
 
 # Ship loop
 
-You are the lane's **conductor**. Dispatch builder, independent QA and review, and product-owner judge agents to turn confirmed intent into verified production changes.
+You lead the initiative. Keep its full outcome and elegant end design in view while shipping the smallest valuable units through builder, independent QA/review and judge agents.
 
 Start with build, then independent QA and review (combined for light changes, parallel otherwise), then the judge. Fix until SHIP using the delta checks below. The tracker holds tickets, PRs and reports; keep no separate ledger.
 
@@ -25,7 +25,7 @@ Prove every change as global guidance's **Verification** section requires: the r
 
 Settle every product and technical consideration before dispatching a builder. Agents decide technical choices. For unresolved product intent, interview the principal with `grilling` and `domain-modeling`, batching questions. Carry confirmed intent forward without another interview. Write settled stories in `SPEC.md` or the existing `USER_STORIES.md` with `user-stories`, then use `to-spec` and `to-tickets` to link them.
 
-Once the principal confirms scope, publish tickets without asking. Proceed when stories are settled and tickets have acceptance criteria and blocking edges.
+Specs, PRDs, grill-with-docs and to-spec describe the initiative’s full value and whole outcome, not a timid slice. Once scope is confirmed, lead a team: split it into the smallest atomically shippable PRs, each leaving main working and worth merging alone. The smallest diff achieving that unit wins. Dispatch independent builders in parallel, sequence dependencies, and keep the final design elegant. Count every parallel child against the lane budget, sized by model, effort, speed and reset distance. Publish settled tickets without asking.
 
 ## 2. Run rounds on the frontier
 
@@ -33,7 +33,7 @@ The **frontier** is every open ticket whose blockers are closed or have an open 
 
 A ticket with one open blocker PR **stacks** on it: its branch starts from that PR's head, its PR targets that branch, its QA and review take that branch as `<base>`, and it skips the file test against that PR. Fix a blocker on the PR that owns it; landing bottom-first (step 3) carries the fix up. A ticket with two open blocker PRs waits for one to land.
 
-Classify each authored change using the concrete triggers in the [rigor table](roles.md#rigor), taking the highest matching tier and any tier assigned to its initiative as a floor.
+Classify each atomic PR using the [rigor table](roles.md#rigor), with its recorded reason and size; an initiative’s broad risk does not impose a floor on unrelated small slices.
 Every authored change gets review and verification, including documents, briefs and measurements.
 Use the tier's models for builders, QA, review and judges until Upkeep routing ships.
 Upkeep owns model choice; ship-loop owns review shape and rigor.
@@ -44,13 +44,13 @@ Upkeep's route command does not exist yet ([Upkeep #75](https://github.com/misty
 - Map `choice.instance` to `target.providerInstanceId` and `choice.model` to `target.model`. Pass `choice.reasoning` in `target.options` as `{"id":"reasoningEffort","value":"<low|medium|high|xhigh>"}` for Sol or `{"id":"effort","value":"<low|medium|high|xhigh>"}` for Claude. Always pass effort explicitly, including table routes.
 - Standard speed sets Codex `target.options.serviceTier: "default"` or Claude `target.options.fastMode: false`. Fast speed requires `--urgent`.
 
-Dispatch roles with `delegate_task` and completed [role briefs](roles.md). Confirm routed providers/models against `orchestrator_capabilities`. Prefer model diversity where the tier allows it, but use an available independent agent rather than wait for an ideal family. Carry the original goal, findings and resolutions into fix briefs; reuse working context where supported. When replacing a delegated child with a retry, `task_cancel` the old task first: usage-limited threads auto-resume and could act on superseded instructions.
+Dispatch roles with `delegate_task` and completed [role briefs](roles.md). Confirm routed providers/models against `orchestrator_capabilities`. Take an available account in the tier’s model class instead of waiting for an ideal route. Use one QA owner per SHA; extra cross-family QA needs a stated critical uncertainty. Carry the original goal, findings and resolutions into fix briefs; reuse working context where supported. When replacing a delegated child with a retry, `task_cancel` the old task first: usage-limited threads auto-resume and could act on superseded instructions.
 
 1. **Build.** One builder, `isolation: "worktree"`, which starts from your local commit: first detach your checkout at the builder's start (`git switch --detach origin/<default branch>`, or the PR head it starts from). It returns a PR and its head SHA.
 2. **Verify.** QA and review at that SHA, combined in one agent for light changes, separate otherwise.
 3. **Judge.** An independent judge gets the ticket, PR and both revision-linked reports. Resolve missing proof before SHIP. A user-facing change without linked verification-skill evidence of the real journey is missing proof.
 4. **Act on the verdict.**
-   - **FIX:** the builder fixes code blockers; you clear lane blockers such as QA that could not run. Independently test and review the changed delta and its consequences, retaining evidence for unchanged behavior. The independent judge rules on the resulting SHA. Recheck the whole scope only when impact is broad or uncertain.
+   - **FIX:** the builder fixes code blockers; you clear lane blockers such as QA that could not run. Rerun only the reporter that raised the blocker on the changed delta and its consequences, retaining unchanged QA/review evidence, then use one independent judge on the new head. Bring both QA and review back only for new files or higher-risk paths, scoped to those changes.
    - **RE-SLICE:** split with `to-tickets` when diagnosis shows the outcome is too large, then continue on the new frontier.
    - **SHIP:** merge (step 3).
 
@@ -72,7 +72,7 @@ Done for a ticket when the PR's current head SHA has a SHIP, ruled there or carr
 
 ## 4. Watch the release
 
-Dispatch `release-watch` with the merge SHA and the ticket's stories. The merge closed the ticket (`Closes #<n>`); reopen it if the watch restores the release. Report `live behavior proven` only when the watch does, and `released` when a library or tool's release check passes. Its restore and incident paths run without you.
+First identify whether this diff changes a deployed artifact. If none does, the judge records `no deploy`: skip release-watch and release waiting. Otherwise dispatch `release-watch` with the merge SHA and the ticket's stories. The merge closed the ticket (`Closes #<n>`); reopen it if the watch restores the release. Report `live behavior proven` only when the watch does, and `released` when a library or tool's release check passes. Its restore and incident paths run without you.
 
 For a service with no automatic deploy, the watch reports `unwatched` and names the ticket for the missing mechanism; label it `release-mechanism` (`gh label create` once) so a fresh conductor finds it. While it is open, skip the watch and report each merge, the first included, as merged, not live. Check it at each Report; when it closes, dispatch one watch at the default branch's head with the stories of every ticket reported merged, not live.
 

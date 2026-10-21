@@ -4,21 +4,19 @@ Fill every `<field>` before dispatch. QA, reviewer and judge each post one PR re
 
 ## Rigor
 
-The conductor chooses the highest matching tier, with any tier assigned to the initiative as a floor. File count and extension never lower the tier. Every authored change gets review and verification. Machine-generated, generator-only release PRs are exempt from review rounds and merge on passing checks alone.
+Classify the changed path, not the repository or initiative. Prefer light rigor for small, reversible, focused PRs; record `Rigor: <light|standard|critical> — <concrete reason>` and the diff size in the PR body. The judge may raise the tier only with a concrete risk. Size is a prompt to check the choice, not permission to ignore a real risk. Machine-generated, generator-only releases keep their checks-only exception.
 
-| Tier | Change | Review shape and models |
+| Tier | Changed path | Review shape and model class |
 | --- | --- | --- |
-| light | Documents, briefs, measurements, copy or a local cosmetic/config edit that changes no runtime behavior or agent instructions (skills, AGENTS.md or shared guidance), and meets no higher-tier trigger | Builder, combined QA and review agent, then an independent judge. Builder and judge use Opus 5.5 at medium; the combined check uses Sonnet 5.5 at medium. Trivial edits may use Haiku 5.5. |
-| standard | Runtime behavior changes, new features, bug fixes, refactors across modules, or operational prompts (skills, AGENTS.md and shared guidance), without a critical trigger | Builder, separate QA and review agents, then an independent judge. Each uses Opus 5.5 at high. |
-| critical | Changes to authentication, authorization, money movement, persisted-data integrity, migrations, security controls, deploy pipelines, shared infrastructure or irreversible operations, regardless of size | Builder uses Opus 5.5 at high. QA uses Opus 5.5 at xhigh; review uses Opus 5.5 at high. An independent Opus 5.5 judge uses high. |
+| light | Documents, briefs, config JSON, constants, bounded cosmetic changes and verification tooling without a production runtime path | One combined independent QA/review agent, then an independent judge; Haiku 5.5 or Sol medium. Most small focused PRs should land here in one round. |
+| standard | Runtime behavior or operational rules with consequences beyond a bounded light change | Separate independent QA and review, then an independent judge; Opus 5.5 high or Sol high. |
+| critical | Concrete changes to authentication, authorization, money, persisted-data integrity, migrations, security controls, deploy behavior, shared-infrastructure runtime or irreversible operations | Separate independent QA and review, then an independent judge; Opus 5.5 high or Sol high. State the actual risk, even for a one-line diff. |
 
-Use the live account headroom in global guidance, Routing until Upkeep. GPT-6.1 Sol at the same effort may replace any role's model on a usable Codex account; critical QA uses Sol at xhigh for a second model family. Never route to `claude-hello`, which is reserved for Home.
+Take an available account in the model class; never wait for one route or start reroute-only threads when another has headroom. Never use claude-hello (reserved for Home), Fable or Astra. Standard speed is the default. Fast mode or xhigh requires a named bottleneck and a reason; critical alone does not require xhigh. All parallel children consume the lane's model/effort/speed/reset-sized budget.
 
-Unlisted or uncertain changes default to standard; unresolved critical risk takes critical. Record the tier and its concrete trigger in each dispatch.
-Lane coordinators run on Opus 5.5 at high.
-No Fable or Astra (phaedrus, 2026-10-20).
+Use one QA owner per SHA. Extra cross-family QA is only for a stated critical uncertainty, not an automatic duplicate. Light combines QA and review but keeps the judge independent. After a fix, rerun only the reporter that raised the blocker on the delta, then one judge; retain unchanged QA/review evidence. Bring both roles back only for new files or higher-risk paths, scoped to what changed.
+
 When context gets heavy, prepare a handoff for Home to dispatch a replacement within its named set.
-For light changes, combine the QA and Reviewer briefs in one dispatch and post both reports. The judge stays independent.
 
 ## Builder
 
@@ -39,7 +37,7 @@ Apply global guidance's mandatory generator override and QA-account contract; ru
 `scripts/probe-agent-policy --verification <repo>` after generating. Instruction content is
 always AGENTS.md alone. Create no CLAUDE.md files or symlinks, including fixtures/private proofs. Put evidence in the PR. Push and open it against <base branch>,
 with a Conventional Commit title, the pr skill's body and "Closes #<n>".
-Every authored PR body carries `Story: <ID>[, <ID>]` using story IDs from SPEC.md or USER_STORIES.md
+Every authored PR body records its `Rigor:` reason and diff size, and carries `Story: <ID>[, <ID>]` using story IDs from SPEC.md or USER_STORIES.md
 (for example, `Story: US-012` or `Story: US-012, US-015`). Use `Story: none` when no story applies.
 Machine-generated, generator-only release PRs are exempt.
 

@@ -59,8 +59,8 @@ Criteria:
    agent-invocable `story-qa` and route user-facing change review to it by
    default from composed guidance.
 2. WHEN an agent prepares to call work done, THE SYSTEM SHALL direct it to
-   verify the relevant actual user path; documents and measurements need no
-   review round.
+   verify the relevant actual user path; documents and measurements use light
+   combined QA/review plus an independent judge.
 3. WHEN selecting a QA walk, THE SYSTEM SHALL tie each affected journey to a
    root story ID or request criterion, user actions, observable postconditions,
    and owned cleanup.
@@ -87,7 +87,13 @@ when the product has sign-in; a repository without one gets one. Every authored 
 gets review and verification scaled to risk. Documents, briefs and measurements
 get one light combined QA/review check plus an independent judge. Riskier
 behavior changes get separate independent QA, review and judge agents. Repeat
-review only for real bugs.
+review only for real bugs: after a fix, only its blocking reporter checks the delta,
+then one judge; retain unchanged evidence. Bring both roles back for new files or
+higher-risk paths. Record tier, concrete reason and diff size; use light for docs,
+config JSON, constants, bounded cosmetic changes and verification tooling without
+a runtime path. One QA owner per SHA; extra cross-family QA requires a concrete
+critical uncertainty. Take an available model-class route, reserve fast/xhigh
+for named bottlenecks, and skip release checks when the judge records no deploy.
 
 Credentials are pass references under `workstation/<PROJECT>_QA_*`. Verification
 skills generated or refreshed during rollout SHALL encode that QA account,
@@ -100,6 +106,19 @@ until Home reassigns ownership, preserving the complete private canonical baseli
 existing members, owner settings and aliases through one serialized native update.
 
 Evidence: `agent-config/skills/ship-loop/SKILL.md`, `agent-config/skills/ship-loop/roles.md`,
+`agent-config/guidance/engineering.md`.
+
+## US-053 Lead full-value initiatives through atomic delivery
+
+Specs, PRDs, grill-with-docs and to-spec SHALL state the full valuable outcome.
+The lane SHALL lead subagent teams toward an elegant implementation through the
+smallest atomically shippable PRs: main stays working and each is worth merging
+alone. The smallest diff that achieves its unit wins. Independent slices build
+in parallel; dependent slices are sequenced. Every parallel child counts against
+the lane budget by model, effort, speed and reset distance. Most small focused
+PRs SHALL use light rigor and one round, with QA, review and an independent judge.
+
+Evidence: `agent-config/skills/ship-loop`, `agent-config/skills/judge`,
 `agent-config/guidance/engineering.md`.
 
 ## Capability: Deployment
