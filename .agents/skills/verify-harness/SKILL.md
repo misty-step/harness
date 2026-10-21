@@ -51,7 +51,7 @@ Doctor never prints a token or the Codex account email. Run it first, and again 
 | `check [all\|shared\|pi\|omp\|workspace]` | [gate](features/gate.md) | scratch only |
 | `install [rev]` | [isolated-deploy](features/isolated-deploy.md) | run dir |
 | `session [claude\|codex\|both]` | [fresh-session](features/fresh-session.md) | run dir and `/tmp/verify-harness-*`; `both` also checks that this skill registers |
-| `live` | [live-drift](features/live-drift.md) | a normal live Claude Code session's runtime state (transcript under `~/.claude/projects/`, `~/.claude.json`), Codex lock files under `~/.codex/tmp` |
+| `live` | [live-drift](features/live-drift.md) | a normal live Claude Code session's runtime state (transcript under `~/.claude/projects/`, `~/.claude.json`, Claude Code's own `~/.claude/skills/synced/` state), Codex lock files under `~/.codex/tmp` |
 | `home` | [home-post](features/home-post.md) | a private inbox in the run dir |
 | `pool` | [t3-pool](features/t3-pool.md) | nothing |
 | `cleanup` | | removes run dir and scratch cwds |
