@@ -19,6 +19,8 @@ Many skills named here are user-invoked, so the Skill tool refuses them. For tho
 
 Use its existing tracker and conventions. Add tracker guidance only when ambiguity blocks work.
 
+Follow global Verification's external evidence rule: keep proof outside the checkout and link it from the PR. Existing repository evidence cleanup belongs to Foundation auditors in focused follow-ups.
+
 Prove every change as global guidance's **Verification** section requires: the repository's verification skill drives the real user journey end to end, with owner sign-in where the product has sign-in, and the evidence is linked. When the repository has no skill, the builder adds one (`~/.agents/skills/create-verification-skill/SKILL.md`) or the ticket stacks on the open PR adding it. Use the agent's own AgentMail QA account, with `pass` references `workstation/<PROJECT>_QA_*`, for production login and proof of the required owner/admin role. Apply global guidance's mandatory generator override during verification rollout; run `scripts/probe-agent-policy --verification <repo>` from harness. Missing QA access is `owner sign-in UNPROVEN: needs <QA access/role>`, never verified; provision authorized QA allowlist/Cloudflare Access additions without asking for phaedrus's passwords. Native CLI subscriptions are execution authentication.
 
 ## 1. Settle intent
