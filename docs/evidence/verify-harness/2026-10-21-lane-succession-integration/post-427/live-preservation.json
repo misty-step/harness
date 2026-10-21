@@ -1,0 +1,15 @@
+{
+  "live_files_unchanged": {
+    ".claude/.credentials.json": true,
+    ".claude/settings.json": true,
+    ".claude/AGENTS.md": false,
+    ".codex/auth.json": true,
+    ".codex/config.toml": true,
+    ".codex/AGENTS.md": false,
+    ".config/t3-pool.json": true,
+    ".config/systemd/user/t3-pool.timer": true,
+    ".t3/userdata/settings.json": true
+  },
+  "private_credential_removed": true,
+  "scope": "All native probes used the private HOME; no live deployment"
+}

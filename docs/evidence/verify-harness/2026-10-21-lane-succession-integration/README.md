@@ -2,9 +2,9 @@
 
 Story: US-050
 
-Tested source: `912165a074b5c0bb80dd3a9aa7e347c28bb49ed4`, an ordinary merge of PR #419 head `d6baa94a42f97e404252fc36f3262dc6466f1b06` and master `20951b17fa40cdff45787ae60a7d11de561da5d9`. The following evidence commit changes no maintained source. This builder used its allocated checkout `t3-53414b65`, detached at the expected PR head before merging. No source was edited in the parent's `t3-8dde1e45` checkout.
+Final tested source: `282d7e5625a4446d9ce6b38f9580d84b270afa9c`. This builder first made ordinary merge `912165a074b5c0bb80dd3a9aa7e347c28bb49ed4` of PR #419 head `d6baa94a42f97e404252fc36f3262dc6466f1b06` and master `20951b17fa40cdff45787ae60a7d11de561da5d9`. Master then advanced to `738a3c2efce4c958f27c9c5568b5ebc9d4f4cf14` with #427; a second ordinary merge preserved it without conflicts. The following evidence commit changes no maintained source. This builder used its allocated checkout `t3-53414b65`, detached at the expected PR head before merging. No source was edited in the parent's `t3-8dde1e45` checkout.
 
-The only conflict was the fresh-session feature description. The resolution keeps master's native SessionStart delivery of AGENTS.md and adds #419's `lane-succession` discovery entry. Both installers still select that skill. The canonical installer, migration library, native hook, canonical global instructions and verification helper are byte-identical to master. The succession skill is byte-identical to `d6baa94`; this integration changes no succession policy. [Preservation receipts](integration-preservation.json) record those comparisons and both merge parents.
+The only conflict was the fresh-session feature description. The resolution keeps master's native SessionStart delivery of AGENTS.md and adds #419's `lane-succession` discovery entry. Both installers still select that skill. The canonical installer, migration library, native hook, canonical global instructions and verification helper are byte-identical to master. The succession skill is byte-identical to `d6baa94`; this integration changes no succession policy. [Initial preservation receipts](integration-preservation.json) and [final preservation receipts](post-427/preservation.json) record those comparisons and merge parents. #427's stories, engineering guidance and ship-loop, judge and release-watch skills are byte-identical to master.
 
 ## What passed
 
@@ -13,6 +13,7 @@ The only conflict was the fresh-session feature description. The resolution keep
 - Fresh native Claude [loading](claude-isolated-context.json), [startup hooks](claude-isolated-hooks.jsonl) and [skill discovery](claude-isolated-init.json) passed. The unauthenticated model result is retained as expected, not described as a successful answer. A separate [authenticated native candidate](claude-candidate-result.json) returned `CANONICAL_QA_OK`, with [complete canonical context](claude-candidate-context.json) and preserved foreign hook. Fresh [Codex loading and discovery](codex-candidate-summary.txt) and repository verification-skill registration passed.
 - [Installer checks](installers.log) passed all 181 `PASS` assertions, including both consumers' skill selection. [Canonical migration tests](canonical-tests.log), nine tests, and [native hook tests](hook-tests.log), six tests, passed. [Policy probe](policy.log) and affected shell syntax checks passed. [Exact commands and scope](checks.json) are recorded.
 - A fresh native consumer with only the Read tool read the actual private installed skill and matched all [28 expected boolean decisions](consumer-comparison.json). Its [Read receipt, returned skill content and reasons](consumer-result.json), [command](consumer-command.json), [prompt](consumer-prompt.txt) and [cases](consumer-cases.json) are retained.
+- After the second merge, the [final native verification transcript](post-427/transcript.txt) records a repeated private install, fresh Claude/Codex loading and skill registration, and authenticated policy readback against `282d7e5`. The original consumer and installer-unit results apply to unchanged skill and canonical loader bytes; they were not duplicated. The final private install compares every deployed selected skill against this final source, including #427's changes.
 
 The consumer cases cover N1's boundary at adoption authorization, including no transfers yet, transferred schedules/watches, unknown authorization and recovery of the same successor. N2 covers explicit fresh Home authority, predecessor restoration before roster reinsertion, absent or withdrawn authority, parked or unrelated lanes and unexpected claims. N3 covers a complete reopened dispatch, readable receipts and fresh referenced state, summary-only or unreadable evidence, unread attachments, missing installed readback, dropped unrelated roots and an unsettled abandoned successor. Additional cases retain child rejection, complete pagination, duplicate/claim exclusion, serialization and the installed-readback adoption gate.
 
@@ -24,7 +25,7 @@ From the repository root, set a unique `VH_DIR` and `VH_EVIDENCE`, then run:
 
 ```sh
 .agents/skills/verify-harness/bin/verify-harness doctor
-.agents/skills/verify-harness/bin/verify-harness install 912165a074b5c0bb80dd3a9aa7e347c28bb49ed4
+.agents/skills/verify-harness/bin/verify-harness install 282d7e5625a4446d9ce6b38f9580d84b270afa9c
 .agents/skills/verify-harness/bin/verify-harness session both
 .agents/skills/verify-harness/bin/verify-harness session-auth
 ```
