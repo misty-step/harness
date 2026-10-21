@@ -1,3 +1,9 @@
+# [0.2.27](https://github.com/misty-step/harness/compare/v0.2.26...v0.2.27) (2026-10-21)
+<!-- landmark:protected-release previous=v0.2.26 source=f59d1f07678b80a7906b71f432a7a8fd899434ada8f8f16effeb0741435953c2 -->
+
+### Features
+
+* **ship-loop:** keep PR review rounds in a comment ledger (#454) ([75063ec](https://github.com/misty-step/harness/commit/75063ec9023016a63210170cf363e20f70c34990))
 # [0.2.26](https://github.com/misty-step/harness/compare/v0.2.25...v0.2.26) (2026-10-21)
 <!-- landmark:protected-release previous=v0.2.25 source=8e67f2d4ba86e1efffa54f6cee2ac52da6893d1200641fd8d2d491fae62440f9 -->
 
