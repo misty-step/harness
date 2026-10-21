@@ -1,10 +1,10 @@
 # Isolated deploy
 
-`claude-config/install` and `codex-config/install` compose the global guidance (`~/.claude/CLAUDE.md`, `~/.codex/AGENTS.md`). They also deploy the shared skills each installer selects, and claude-config installs the `t3-pool` and `t3-runtime-mode` launchers. This feature runs them as the operator would, but into a private HOME.
+`claude-config/install` and `codex-config/install` compose the global guidance (`~/.claude/AGENTS.md`, `~/.codex/AGENTS.md`). They also deploy the shared skills each installer selects, and claude-config installs the `t3-pool` and `t3-runtime-mode` launchers. This feature runs them as the operator would, but into a private HOME.
 
 ## Sub-features
 
-- `deploy-claude`: CLAUDE.md is the harness intro with the engineering, workstation and autonomy sections spliced at the marker; the skills and launchers are in place.
+- `deploy-claude`: AGENTS.md, loaded through the CLAUDE.md compatibility symlink, is the harness intro with the engineering, workstation and autonomy sections spliced at the marker; the skills and launchers are in place.
 - `deploy-codex`: AGENTS.md is composed the same way, and the skills are in place.
 - `deploy-pool-opt-in`: install only reloads user units and never enables `t3-pool.timer`.
 - `deploy-foreign-refusal`: a CLAUDE.md or AGENTS.md without the harness ownership marker stops the install before any write.
@@ -21,7 +21,8 @@ Preconditions:
 - The revision under test is committed, or name another with `install origin/master`.
 
 - **Deploy.** Run `verify-harness install`. Expect `PASS claude-config/install exit 0` and `PASS codex-config/install exit 0`.
-- **Check composition.** In the same output, expect `PASS ~/.claude/CLAUDE.md is the composed guidance`, `PASS ~/.codex/AGENTS.md is the composed guidance` and `PASS claude skills (...) and codex skills (...) byte-identical to source`.
+- **Check composition.** In the same output, expect `PASS ~/.claude/AGENTS.md is the composed guidance`, `PASS ~/.codex/AGENTS.md is the composed guidance` and `PASS claude skills (...) and codex skills (...) byte-identical to source`.
+- **Canonical adapter.** Expect `PASS Claude compatibility symlink targets canonical AGENTS.md`. Content is a regular AGENTS.md; the alias points to that sibling. Shared checks exercise owned legacy upgrades, preserved backups, reruns and foreign/broken-link refusals. All fixtures author content as AGENTS.md.
 - **Check the pool stays opt-in.** Expect `PASS t3-pool and t3-runtime-mode launchers` and `PASS pool timer left opt-in (only daemon-reload)`.
 - **Refuse foreign files.** Expect `PASS claude install refuses a foreign CLAUDE.md, nothing written` and `PASS codex install refuses a foreign AGENTS.md, nothing written`.
 - **Proof.** Keep the install section of `transcript.txt` and `install-tree.txt`.

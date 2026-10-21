@@ -304,9 +304,10 @@ while IFS= read -r line || [ -n "$line" ]; do
   else
     printf '%s\n' "$line" >> "$expected"
   fi
-done < "$work/source/claude-config/global/CLAUDE.md"
+done < "$work/source/claude-config/global/AGENTS.md"
 check "claude composition" cmp -s "$expected" "$claude/CLAUDE.md"
-check "claude writes no AGENTS.md" test ! -e "$claude/AGENTS.md"
+check "claude canonical content" test ! -L "$claude/AGENTS.md"
+check "claude compatibility symlink" test "$(readlink "$claude/CLAUDE.md")" = AGENTS.md
 check "claude pool executable" test -x "$claude_home/.local/bin/t3-pool"
 for pair in pools.json:.config/t3-pool.json t3-pool.service:.config/systemd/user/t3-pool.service t3-pool.timer:.config/systemd/user/t3-pool.timer; do
   check "claude pool ${pair%%:*} bytes" cmp -s "$work/source/agent-config/t3-pool/${pair%%:*}" "$claude_home/${pair#*:}"
@@ -319,30 +320,32 @@ else
   printf 'FAIL claude bundled pool dry run\n' >&2
   failures=$((failures + 1))
 fi
-# A rerun replaces its own CLAUDE.md; a foreign one stops the install before any write.
+# A rerun replaces canonical AGENTS.md and retains the compatibility symlink.
 if env -i PATH="$claude_home/.fixture-bin:$PATH" HOME="$claude_home" TMPDIR="$work" \
   "$work/source/claude-config/install" >"$work/claude-rerun.log" 2>&1 && cmp -s "$expected" "$claude/CLAUDE.md"; then
-  printf 'PASS claude rerun replaces its own CLAUDE.md\n'
+  printf 'PASS claude rerun replaces its own AGENTS.md\n'
 else
-  printf 'FAIL claude rerun replaces its own CLAUDE.md\n' >&2
+  printf 'FAIL claude rerun replaces its own AGENTS.md\n' >&2
   failures=$((failures + 1))
 fi
 foreign_home="$work/claude-foreign-home"
 mkdir -p "$foreign_home/.claude"
-printf '# my own notes\n' > "$foreign_home/.claude/CLAUDE.md"
+printf '# my own notes\n' > "$foreign_home/.claude/AGENTS.md"
+ln -s AGENTS.md "$foreign_home/.claude/CLAUDE.md"
 if env -i PATH="$PATH" HOME="$foreign_home" TMPDIR="$work" \
   "$work/source/claude-config/install" >"$work/claude-foreign.log" 2>&1; then
   printf 'FAIL claude refuses a foreign CLAUDE.md (install succeeded)\n' >&2
   failures=$((failures + 1))
 else
   check "claude refuses a foreign CLAUDE.md before any write" \
-    test "$(ls -A "$foreign_home/.claude")" = CLAUDE.md
+    test "$(ls -A "$foreign_home/.claude")" = "$(printf 'AGENTS.md\nCLAUDE.md')"
   check "claude keeps the foreign CLAUDE.md" grep -Fxq '# my own notes' "$foreign_home/.claude/CLAUDE.md"
 fi
 # The ownership marker counts only as the file's first line.
 marker_home="$work/claude-marker-home"
 mkdir -p "$marker_home/.claude"
-printf '# my own notes\n\n<!-- owned by misty-step/harness claude-config -->\n' > "$marker_home/.claude/CLAUDE.md"
+printf '# my own notes\n\n<!-- owned by misty-step/harness claude-config -->\n' > "$marker_home/.claude/AGENTS.md"
+ln -s AGENTS.md "$marker_home/.claude/CLAUDE.md"
 cp "$marker_home/.claude/CLAUDE.md" "$work/expected-marker-claude"
 if env -i PATH="$PATH" HOME="$marker_home" TMPDIR="$work" \
   "$work/source/claude-config/install" >"$work/claude-marker.log" 2>&1; then
@@ -350,9 +353,35 @@ if env -i PATH="$PATH" HOME="$marker_home" TMPDIR="$work" \
   failures=$((failures + 1))
 else
   check "claude refuses a CLAUDE.md with the marker on a later line before any write" \
-    test "$(ls -A "$marker_home/.claude")" = CLAUDE.md
+    test "$(ls -A "$marker_home/.claude")" = "$(printf 'AGENTS.md\nCLAUDE.md')"
   check "claude keeps a CLAUDE.md with the marker on a later line" \
     cmp -s "$work/expected-marker-claude" "$marker_home/.claude/CLAUDE.md"
+fi
+# Broken compatibility links are refused unless they name the canonical sibling.
+for destination in elsewhere.md /missing/AGENTS.md; do
+  broken_home="$work/claude-broken-$(basename "$destination")"
+  mkdir -p "$broken_home/.claude"
+  ln -s "$destination" "$broken_home/.claude/CLAUDE.md"
+  if env -i PATH="$PATH" HOME="$broken_home" TMPDIR="$work" \
+    "$work/source/claude-config/install" >"$work/claude-broken.log" 2>&1; then
+    printf 'FAIL claude refuses foreign broken compatibility link\n' >&2
+    failures=$((failures + 1))
+  else
+    check "claude preserves foreign broken compatibility link" test "$(readlink "$broken_home/.claude/CLAUDE.md")" = "$destination"
+    check "claude brokenlink refusal writes no canonical content" test ! -e "$broken_home/.claude/AGENTS.md"
+    check "claude brokenlink refusal writes no launchers" test ! -e "$broken_home/.local"
+  fi
+done
+repair_home="$work/claude-repair-home"
+mkdir -p "$repair_home/.claude"
+ln -s AGENTS.md "$repair_home/.claude/CLAUDE.md"
+if env -i PATH="$PATH" HOME="$repair_home" TMPDIR="$work" \
+  "$work/source/claude-config/install" >"$work/claude-repair.log" 2>&1; then
+  check "claude repairs canonical broken compatibility link" cmp -s "$expected" "$repair_home/.claude/CLAUDE.md"
+  check "claude repaired alias stays a symlink" test "$(readlink "$repair_home/.claude/CLAUDE.md")" = AGENTS.md
+else
+  printf 'FAIL claude repairs canonical broken compatibility link\n' >&2
+  failures=$((failures + 1))
 fi
 # Codex: selected skills land beside its bundled .system skills and foreign
 # links, composed guidance lands in $CODEX_HOME/AGENTS.md, and config.toml,

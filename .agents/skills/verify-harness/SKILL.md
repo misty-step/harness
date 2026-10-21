@@ -5,13 +5,22 @@ description: "Verify misty-step/harness the way its operator uses it: native log
 
 # Verify harness
 
-Harness has no app to sign in to. Its user is an agent operator, and the journey is: the owner's native logins work, `./scripts/check` passes, an installer deploys guidance and skills, and a fresh Claude Code or Codex session actually loads them. Every step runs from a shell through one helper:
+Harness has no app to sign in to. Its user is an agent operator, and the journey is: native CLI execution logins work, `./scripts/check` passes, an installer deploys guidance and skills, and a fresh Claude Code or Codex session actually loads them. Every step runs from a shell through one helper:
 
 ```sh
 .agents/skills/verify-harness/bin/verify-harness all
 ```
 
 Run from the repository root of any checkout or worktree. The feature map in [features/README.md](features/README.md) holds the per-feature recipes; a proof covers every feature it lists.
+
+Harness has no product QA sign-in: AgentMail accounts, `workstation/<PROJECT>_QA_*`
+pass references, production login and required owner/admin role proof are n/a here.
+Native gh, Claude and Codex subscriptions authenticate execution; they are not
+product QA accounts. Application verification skills must encode that QA contract.
+Instruction content is always `AGENTS.md`; `CLAUDE.md` is only its sibling symlink,
+including private proof and fixtures. The upstream generator override is maintained
+in `agent-config/guidance/engineering.md`; sweep generated repos with
+`scripts/probe-agent-policy --verification <repo>...`.
 
 ## Launch
 
@@ -51,6 +60,7 @@ Doctor never prints a token or the Codex account email. Run it first, and again 
 | `check [all\|shared\|pi\|omp\|workspace]` | [gate](features/gate.md) | scratch only |
 | `install [rev]` | [isolated-deploy](features/isolated-deploy.md) | run dir |
 | `session [claude\|codex\|both]` | [fresh-session](features/fresh-session.md) | run dir and `/tmp/verify-harness-*`; `both` also checks that this skill registers |
+| `session-auth` | [fresh-session](features/fresh-session.md) | run dir; temporary private copy of native Claude credential, removed after the call |
 | `live` | [live-drift](features/live-drift.md) | a normal live Claude Code session's runtime state (transcript under `~/.claude/projects/`, `~/.claude.json`, Claude Code's own `~/.claude/skills/synced/` state), Codex lock files under `~/.codex/tmp` |
 | `home` | [home-post](features/home-post.md) | a private inbox in the run dir |
 | `pool` | [t3-pool](features/t3-pool.md) | nothing |
@@ -58,7 +68,9 @@ Doctor never prints a token or the Codex account email. Run it first, and again 
 
 `all` runs `doctor`, `check`, `install`, `session`, `live`, `home`, `pool` and `cleanup` in order. Each line is `PASS`, `FAIL` or `NOTE`. The exit status is nonzero if any line failed.
 
-`live` makes the run's only model call: one Haiku turn on the owner's Claude subscription. Codex sessions use `codex debug prompt-input`, which renders the exact model-visible input without calling a model, so they work while Codex accounts are out of credits.
+`session-auth` proves the candidate policy through an authenticated fresh session in the isolated HOME, without changing live deployment. It temporarily copies the native CLI credential into that HOME, removes it after the call, and retains only secret-free loading events and the policy readback.
+
+`live` makes the full run's model call: one Haiku turn on the owner's Claude subscription. Codex sessions use `codex debug prompt-input`, which renders the exact model-visible input without calling a model, so they work while Codex accounts are out of credits.
 
 ## Evidence
 

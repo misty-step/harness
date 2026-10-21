@@ -19,8 +19,7 @@ Edit maintained source and use the affected component's native tools.
 ## Source and deployment
 
 Edit source here, never generated live copies. Root/component `AGENTS.md` files
-instruct maintainers; harness `global/AGENTS.md` (`global/CLAUDE.md` for Claude
-Code) plus `agent-config/guidance/*.md` are the source of deployed global guidance. Do not conflate them.
+instruct maintainers; harness `global/AGENTS.md` plus `agent-config/guidance/*.md` are the source of deployed global guidance. Do not conflate them. `AGENTS.md` holds instruction content; `CLAUDE.md` is only a sibling symlink to `AGENTS.md`, including fixtures and private proofs.
 
 Harness installers declare their selection and call `agent-config/install`
 (resolved as `../agent-config` unless `AGENT_CONFIG_DIR` overrides it); do not

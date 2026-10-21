@@ -1,6 +1,6 @@
 # Fresh session
 
-The deploy only matters if a fresh session loads it. A new Claude Code session must load `CLAUDE_CONFIG_DIR/CLAUDE.md` as its user instructions and list the skills claude-config selects. A new Codex session's model-visible prompt must contain the composed AGENTS.md and list the skills from `CODEX_HOME/skills`.
+The deploy only matters if a fresh session loads it. A new Claude Code session must load canonical `CLAUDE_CONFIG_DIR/AGENTS.md` through its `CLAUDE.md` compatibility symlink as its user instructions and list the skills claude-config selects. A new Codex session's model-visible prompt must contain the composed AGENTS.md and list the skills from `CODEX_HOME/skills`.
 
 ## Sub-features
 
@@ -24,6 +24,7 @@ Preconditions:
 - **Claude Code.** Run `verify-harness session claude`. Expect `PASS fresh Claude Code session loaded user guidance <run>/claude-home/.claude/CLAUDE.md`, `PASS no other instruction file leaked into the session` and `PASS Claude Code session lists every claude-config skill`. The model call line reads `Not logged in`, which is expected for a private HOME.
 - **Codex.** Run `verify-harness session codex`. Expect `PASS fresh Codex session prompt carries the composed AGENTS.md`, `PASS Codex skill root is <run>/claude-home/.codex/skills` and `PASS Codex session lists every codex-config skill`.
 - **Repository skill.** Run `verify-harness session` (both). Expect `PASS Claude Code lists verify-harness from the project .claude/skills symlink` and `PASS Codex lists verify-harness from the project .agents/skills`. A revision older than this skill fails here.
+- **Authenticated candidate.** Run `verify-harness session-auth` to prove the model reads the newly installed canonical and QA policy using native CLI subscription authentication in the isolated HOME. Expect `PASS authenticated fresh Claude model read canonical instructions and QA policy`. The private credential copy is removed; no product account or live deployment changes.
 - **Proof.** Keep `claude-isolated-init.json`, `claude-isolated-instructions.jsonl`, `codex-isolated-summary.txt` and `registration-*`.
 
 ## Gotchas

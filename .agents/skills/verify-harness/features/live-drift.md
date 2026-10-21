@@ -4,7 +4,7 @@ Merged source is only useful once deployed. This feature compares the live `~/.c
 
 ## Sub-features
 
-- `live-guidance`: live `~/.claude/CLAUDE.md` and `~/.codex/AGENTS.md` are byte-identical to the composition.
+- `live-guidance`: live canonical AGENTS.md is regular, CLAUDE.md is its compatibility symlink, and live `~/.claude/CLAUDE.md` and `~/.codex/AGENTS.md` are byte-identical to the composition.
 - `live-skills`: the live skill directories each installer selects in both harnesses match source, ignoring `.harness-owned` markers.
 - `live-claude-model`: the model quotes `# Claude Code global guidance` from its user-level instructions.
 - `live-codex-prompt`: the live Codex prompt carries the composed AGENTS.md and the selected skills from `~/.codex/skills`.

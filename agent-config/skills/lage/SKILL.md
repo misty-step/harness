@@ -10,14 +10,14 @@ The previous lage is the time the launcher passes; otherwise use the newest
 `~/.local/state/home/lage/*.md` filename's UTC time. Use 24 hours ago only when that directory
 is empty. If unreadable, report the gap rather than guessing.
 
-Home delegates to one asynchronous runner. When its checkout has `CLAUDE.md` or hooks, use
+Home delegates to one asynchronous runner. When its checkout has `AGENTS.md` or hooks, use
 `t3_thread_launch` with `scratch: true`. Name the requesting thread's `threadId`, lage skill and
 previous lage's time in the launch message. The runner completes delivery and delegates further
 only when useful.
 
 ## 1. Roster
 
-Read the coordinator's instructions first (Home's are `~/home/CLAUDE.md`). Exclude its out-of-scope
+Read the coordinator's instructions first (Home's are `~/home/AGENTS.md`). Exclude its out-of-scope
 work from assignments and every brief section. Keep private exclusion contents out of this repo.
 
 List every project with `t3_project_list`. For each `projectId`, read:

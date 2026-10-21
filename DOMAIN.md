@@ -12,8 +12,7 @@ and agent rules in [AGENTS.md](AGENTS.md).
 - **Shared primitive:** a harness-neutral skill, guidance section, launcher or
   deploy mechanism owned once in `agent-config/` and selected by each harness.
 - **Guidance section:** a Markdown file in `agent-config/guidance/` that an
-  installer splices into a harness's global guidance file (`AGENTS.md`; `CLAUDE.md`
-  for Claude Code) at the marker line.
+  installer splices into a harness's global guidance file (`AGENTS.md`, with a `CLAUDE.md` compatibility symlink for Claude Code) at the marker line.
 - **Composed guidance:** the deployed global guidance file: a harness intro plus
   its selected sections. It is generated; never edit the deployed copy.
 - **Launcher:** an executable deployed to `~/.local/bin` from
