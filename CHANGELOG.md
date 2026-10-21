@@ -1,3 +1,9 @@
+# [0.2.26](https://github.com/misty-step/harness/compare/v0.2.25...v0.2.26) (2026-10-21)
+<!-- landmark:protected-release previous=v0.2.25 source=8e67f2d4ba86e1efffa54f6cee2ac52da6893d1200641fd8d2d491fae62440f9 -->
+
+### Bug Fixes
+
+* **qa:** scope verification to the changed user path (#455) ([0e7f455](https://github.com/misty-step/harness/commit/0e7f455f4a178e408f484fb35e385343897ae39e))
 # [0.2.25](https://github.com/misty-step/harness/compare/v0.2.24...v0.2.25) (2026-10-21)
 <!-- landmark:protected-release previous=v0.2.24 source=50d5cbf2fbc9fe2a2c46ca62fdb890fcd464570b52566cd8779ec27e1ac43732 -->
 
