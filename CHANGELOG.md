@@ -1,3 +1,9 @@
+# [0.2.20](https://github.com/misty-step/harness/compare/v0.2.19...v0.2.20) (2026-10-21)
+<!-- landmark:protected-release previous=v0.2.19 source=c393b64b2ed0656f35c9defb447fdf89f377a6d4547fe464b99d808a863a9f28 -->
+
+### Features
+
+* **agents:** lead full initiatives through small shippable PRs (#427) ([738a3c2](https://github.com/misty-step/harness/commit/738a3c2efce4c958f27c9c5568b5ebc9d4f4cf14))
 # [0.2.19](https://github.com/misty-step/harness/compare/v0.2.18...v0.2.19) (2026-10-21)
 <!-- landmark:protected-release previous=v0.2.18 source=4894464aadbf39088f237a6ea76974b65ebd46fcbb4d22be236e991cc9e9dd1e -->
 
