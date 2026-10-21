@@ -9,7 +9,7 @@ Watch one merge SHA through release verification. On harm, **restore first, diag
 
 ## 1. Find the release path
 
-Read the repository's AGENTS.md, README and release ADR, then take the matching path:
+Read the repository's AGENTS.md, README and release ADR. If the judge recorded `no deploy`, confirm the diff touches no deployed artifact path and stop without release queries or waiting; report `no deploy`. Otherwise take the matching path:
 
 - **Library or tool:** check its release PR or tag. A failed check is a trigger; a pass is `released`. Go to Report.
 - **Automated deploy:** find this SHA's run or deployment (`gh run list --commit <SHA>`, `gh api repos/<owner>/<repo>/deployments?sha=<SHA>`).

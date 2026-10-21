@@ -17,6 +17,10 @@ Process is the sole writer of shared auth `HOUSEHOLD_MEMBERS` in GitHub Actions 
 When creating or refreshing verification skills, apply this mandatory override to `create-verification-skill`, including rollout workers: canonical `.agents/skills/verify-<app>/` with a `.claude/skills/verify-<app>` symlink; `AGENTS.md` alone with no `CLAUDE.md`, including symlinks; the AgentMail QA account, pass references, production login and owner/admin role proof above. The generated skill must state the exact authorized account setup, role checks, allowlist/Access needs, evidence and cleanup. Read credentials through `authenticated-commands`; missing QA access is reported as blocked, never replaced by a request for phaedrus's password. Run harness's `scripts/probe-agent-policy --verification <repo>...` on each generated repository before handing it back. This override applies even when the upstream generator suggests other paths or identities.
 
 
+## Initiative delivery
+
+Specs, PRDs, grill-with-docs and to-spec state the full value and whole outcome. The lane leads subagent teams, splitting that design into the smallest atomically shippable PRs: each keeps main working and is worth merging alone. Prefer the smallest diff that achieves its unit; build independent slices in parallel and sequence dependencies while preserving an elegant end design. Most small focused PRs use light rigor and one round under [ship-loop](skill://ship-loop/roles.md#rigor). All subagents count against the lane budget by model, effort, speed and reset distance.
+
 ## Design
 
 For design work, follow [Foundations' way of working](https://foundations.mistystep.io/way-of-working): default to neutral, professional interfaces with plain words and standard product design at Linear, Vercel and GitHub quality; no clever wording, decorative themes or metaphors; light and dark follow the system setting. Use [Emil Kowalski's design-engineering skill pack](skill://emil-design-eng); do not use Mobbin.
