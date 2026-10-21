@@ -6,7 +6,7 @@ the same skills and policy Claude Code lanes do.
 
 | Selected | Why |
 | --- | --- |
-| `lage`, `ship-loop`, `judge`, `release-watch`, `heartbeat` | Same lane workflow skills as `claude-config` |
+| `lage`, `ship-loop`, `judge`, `release-watch`, `heartbeat`, `lane-succession` | Same lane workflow skills as `claude-config` |
 | `story-qa`, `user-stories`, `pokayoke`, `authenticated-commands` | Existing shared skills the loop calls |
 | Guidance `engineering`, `workstation`, `autonomy` | Foundations pointer, workstation facts, the standing autonomy policy |
 
