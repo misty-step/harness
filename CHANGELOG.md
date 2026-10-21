@@ -1,3 +1,9 @@
+# [0.2.28](https://github.com/misty-step/harness/compare/v0.2.27...v0.2.28) (2026-10-21)
+<!-- landmark:protected-release previous=v0.2.27 source=5d71dd6ddd9332ac200907d5d5e2014fc32ed1387b5db8a9ca74311cbecc0c22 -->
+
+### Features
+
+* **daybook:** publish isolated concurrent note changes (#461) ([1226661](https://github.com/misty-step/harness/commit/1226661f4897f0003c4f73c569d2391117a0a29b))
 # [0.2.27](https://github.com/misty-step/harness/compare/v0.2.26...v0.2.27) (2026-10-21)
 <!-- landmark:protected-release previous=v0.2.26 source=f59d1f07678b80a7906b71f432a7a8fd899434ada8f8f16effeb0741435953c2 -->
 
