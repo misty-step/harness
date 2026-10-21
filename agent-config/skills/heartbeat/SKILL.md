@@ -24,7 +24,7 @@ Build the roster using `lage` step 1. Pin lane threads with `t3_thread_organize`
 - Leave usage-limited, progressing, held, finished and live-agent waits alone. Nudge an idle lane once for its named unblocked step. If liveness is uncertain, ask once for status. For other failed or demonstrably lost runs, confirm no live agents remain from lane reports and `t3_thread_list` with `includeSubagents: true`; T3 may omit native agents, so absence proves nothing. Restart once with `t3_thread_send`, `mode: "restart"`, naming the error or step.
 - If a nudge, status request or restart leaves the stall unresolved next sweep, report it once to Process, then stop.
 
-Send Process reports via `t3_thread_send` to the Process lane. Find it as the newest unsettled top-level thread in the harness project whose title starts with `Process`. If there is none, use the thread `~/home/NOW.md` names for Process. Resolve any thread id you read from `NOW.md` through its title chain: while a title ends `(succeeded by <id>)`, follow to `<id>`.
+Send Process reports via `t3_thread_send` to the Process lane. Find it as the most recently created unsettled top-level thread in the harness project whose title starts with `Process`. If there is none, use the thread `~/home/NOW.md` names for Process. Resolve that thread, and any thread id you read from `NOW.md`, through its title chain: while a title ends `(succeeded by <id>)`, follow to `<id>`.
 
 ## Digest
 
