@@ -470,7 +470,9 @@ function postHome(body: string) {
 
 function requestSuccession(thread: LimitedThread) {
 	postHome([
+		`Lane succession requested: ${thread.threadId}`,
 		`t3-pool requests Home succession for [${thread.title}](t3-thread://v1/${thread.threadId}).`,
+		"Handoff: none; the successor builds it from t3_thread_read history.",
 		`Latest failed run: ${thread.runId}. T3 refused the provider handoff: "${handoffRefusal}".`,
 		`Project: ${thread.projectId}; workspace: ${thread.worktreePath ?? "project root"}; branch: ${thread.branch ?? "none"}.`,
 		`Current selection: ${JSON.stringify(thread.modelSelection)}; runtime: ${thread.runtimeMode}; interaction: ${thread.interactionMode}.`,

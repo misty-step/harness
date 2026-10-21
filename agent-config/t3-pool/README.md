@@ -110,6 +110,10 @@ whether succession follows from groomed and specced backlog and uses the
 `lane-succession` contract. A child request also leaves recovery to Home and its
 parent, so no detached replacement can lose task ownership.
 
+The first line is `Lane succession requested: <predecessor threadId>`, shared
+with Heartbeat's inbox duplicate check. The request includes
+`Handoff: none; the successor builds it from t3_thread_read history.`
+
 If Home posting fails, the same request is appended to
 `$XDG_STATE_HOME/home/inbox.md`. A successful post or fallback marks the request
 done; subsequent passes do not repost it. A crash between posting and the state

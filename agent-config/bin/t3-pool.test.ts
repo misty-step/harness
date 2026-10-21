@@ -631,6 +631,8 @@ test("a WIP handoff refusal requests Home succession once without auth, launch o
 	expect(readFileSync(join(files.root, "userdata/statev2.sqlite"))).toEqual(before);
 	const [post] = posts(files);
 	expect(post.args).toEqual(["post", "--from", "t3-pool"]);
+	expect(post.body.split("\n")[0]).toBe("Lane succession requested: big");
+	expect(post.body.split("\n")).toContain("Handoff: none; the successor builds it from t3_thread_read history.");
 	expect(post.poolState.moves[0]).toMatchObject({ phase: "done", notificationPending: true });
 	for (const text of ["t3-thread://v1/big", "big:run", "/work/tree", "lane-branch", "full-access", JSON.stringify(selection), "Home owns thread creation", "wipRoots"]) expect(post.body).toContain(text);
 	expect(state(files).moves[0]).toMatchObject({ phase: "done", kind: "successor" });
@@ -657,6 +659,8 @@ test("succession notification falls back to Home's inbox once", async () => {
 	writeFileSync(join(files.root, "home-fails"), "");
 	expect((await result(start(files))).status).toBe(0);
 	const inbox = readFileSync(join(files.root, "state/home/inbox.md"), "utf8");
+	expect(inbox).toContain("\nLane succession requested: big\n");
+	expect(inbox.split("\n")).toContain("Handoff: none; the successor builds it from t3_thread_read history.");
 	expect(inbox).toContain("t3-pool requests Home succession");
 	expect((await result(start(files))).status).toBe(0);
 	expect(readFileSync(join(files.root, "state/home/inbox.md"), "utf8")).toBe(inbox);
@@ -670,6 +674,7 @@ test("children with a handoff refusal request Home recovery without creating a r
 	expect((await result(start(files))).status).toBe(0);
 	expect(fake.commands).toEqual([]);
 	expect(posts(files)[0].body).toContain("t3-thread://v1/big-child");
+	expect(posts(files)[0].body.split("\n")[0]).toBe("Lane succession requested: big-child");
 });
 
 test.each(["account", "provider", "succession"])("%s path cannot act on excluded roots or their children", async (kind) => {
