@@ -4,7 +4,7 @@ Fill every `<field>` before dispatch. QA, reviewer and judge each post one PR re
 
 ## Rigor
 
-Classify the changed path, not the repository or initiative. Prefer light rigor for small, reversible, focused PRs; record `Rigor: <light|standard|critical> — <concrete reason>` and the diff size in the PR body. The judge may raise the tier only with a concrete risk. Size is a prompt to check the choice, not permission to ignore a real risk. Machine-generated, generator-only releases keep their checks-only exception.
+Classify the changed path, not the repository or initiative. Prefer light rigor for small, reversible, focused PRs; record `Rigor: <light|standard|critical> — <concrete reason>` and the diff size in the PR body. The judge may raise the tier only with a concrete risk. Size is a prompt to check the choice, not permission to ignore a real risk. Global **Merge** and `lane-succession` define the checks-only exceptions for generator-only releases and exact-ID roster-only successions.
 
 | Tier | Changed path | Review shape and model class |
 | --- | --- | --- |
@@ -16,7 +16,7 @@ Take an available account in the model class; never wait for one route or start 
 
 Use one QA owner per SHA. Extra cross-family QA is only for a stated critical uncertainty, not an automatic duplicate. Light combines QA and review but keeps the judge independent. After a fix, rerun only the reporter that raised the blocker on the delta, then one judge; retain unchanged QA/review evidence. Bring both roles back only for new files or higher-risk paths, scoped to what changed.
 
-When context gets heavy, prepare a handoff for Home to dispatch a replacement within its named set.
+When context gets heavy, prepare a handoff for Home or Heartbeat to dispatch a replacement within its named set.
 
 ## Builder
 

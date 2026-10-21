@@ -11,7 +11,7 @@ Start with build, then independent QA and review (combined for light changes, pa
 
 No human reviews or merges, in any organization: the independent judge's SHIP plus passing checks is the whole gate.
 
-Machine-generated, generator-only release PRs are the sole exception: merge on passing checks alone, without a review round or `Story:` line.
+Machine-generated, generator-only release PRs merge on passing checks alone, without a review round or `Story:` line. Exact-ID roster-only succession PRs also merge on passing checks under global **Merge** and `lane-succession` dispatcher step 3; authored policy, tests and other config changes keep ordinary review.
 
 Many skills named here are user-invoked, so the Skill tool refuses them. For those, you and every agent you brief read `~/.claude/skills/<name>/SKILL.md` and follow it.
 
@@ -60,7 +60,7 @@ An internal change needs proof that it composes instead of a QA walk.
 
 If the same blocker survives a fix, revisit its cause or the proposed solution.
 
-Done for a ticket when the PR's current head SHA has a SHIP, ruled there or carried there by an unchanged patch-id (step 3), or when a generator-only release PR's checks pass at its current head.
+Done for a ticket when the PR's current head SHA has a SHIP, ruled there or carried there by an unchanged patch-id (step 3), or when a checks-only exception above passes at its current head.
 
 ## 3. Merge
 

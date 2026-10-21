@@ -28,6 +28,23 @@ Preconditions:
 - **Config.** Expect `PASS live ~/.config/t3-pool.json matches source`, then the timer state line.
 - **Proof.** Keep `pool-live-dry-run.json` and the pool section of `transcript.txt`.
 
+## Succession policy candidate
+
+For a change to `heartbeat` or `lane-succession`, first run `install`, `session both`
+and `session-auth` with unique `VH_DIR` and `VH_EVIDENCE`. In a fresh authenticated
+native session on that private HOME, read the installed global guidance and both
+installed skills. With only file-read tools available, request decisions for:
+a valid named root, a listed child, a parked/unnamed lane, concurrent Home dispatch,
+a lost launch response, missing installed readback, pre-adoption abandonment and
+post-adoption failure. Require automatic serialized dispatch only for the named
+root, recovery of the same tracked successor, full restoration receipts before
+reopening, no adoption before readback and one blocker/completion report to Home.
+Also distinguish an exact-ID roster-only PR from authored policy or config changes.
+Retain the prompt, native response and observed decisions outside Git. Run `home`
+and `pool` to prove private delivery and runtime dry-run preservation. No actual
+thread launch, roster mutation or timer activation is part of this policy proof.
+Live deployed guidance remains pending until the normal post-merge release.
+
 ## Gotchas
 
 - Never run `t3-pool` without `--dry-run` to verify. A real pass switches a live lane's account and continues it.
