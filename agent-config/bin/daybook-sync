@@ -1,0 +1,268 @@
+#!/usr/bin/env python3
+# owned by misty-step/harness agent-config daybook-sync
+"""Publish selected note changes from an isolated private Git worktree."""
+import argparse
+import json
+import os
+from pathlib import Path, PurePosixPath
+import re
+import subprocess
+import sys
+import uuid
+
+
+class SyncError(Exception):
+    pass
+
+
+def run(cwd, *args, env=None):
+    clean_env = dict(os.environ if env is None else env)
+    for name in ('GIT_DIR', 'GIT_WORK_TREE', 'GIT_COMMON_DIR', 'GIT_INDEX_FILE',
+                 'GIT_OBJECT_DIRECTORY', 'GIT_ALTERNATE_OBJECT_DIRECTORIES',
+                 'GIT_AUTHOR_NAME', 'GIT_AUTHOR_EMAIL', 'GIT_AUTHOR_DATE',
+                 'GIT_COMMITTER_NAME', 'GIT_COMMITTER_EMAIL', 'GIT_COMMITTER_DATE'):
+        clean_env.pop(name, None)
+    result = subprocess.run(args, cwd=cwd, env=clean_env, stdout=subprocess.PIPE,
+                            stderr=subprocess.PIPE, timeout=120)
+    if result.returncode:
+        # Git conflicts and scanners can include private contents in stderr.
+        raise SyncError(f"{args[0]} {args[1] if len(args) > 1 else ''} failed; inspect the retained workspace locally")
+    return result.stdout.decode('utf-8', errors='surrogateescape').rstrip('\n')
+
+
+def git(cwd, *args):
+    return run(cwd, 'git', '--literal-pathspecs', *args)
+
+
+def private_remote(repo):
+    urls = git(repo, 'remote', 'get-url', '--all', 'origin').splitlines()
+    pushes = git(repo, 'remote', 'get-url', '--push', '--all', 'origin').splitlines()
+    if len(urls) != 1 or pushes != urls:
+        raise SyncError('origin must have one identical fetch and push URL')
+    match = re.fullmatch(r'(?:https://github\.com/|git@github\.com:)([\w.-]+/[\w.-]+?)(?:\.git)?', urls[0])
+    if not match:
+        raise SyncError('origin must name a private github.com repository')
+    if run(repo, 'gh', 'repo', 'view', match[1], '--json', 'isPrivate', '--jq', '.isPrivate') != 'true':
+        raise SyncError('origin is not confirmed private')
+    return urls[0]
+
+
+def fetch(repo):
+    git(repo, 'fetch', '--no-tags', '--no-auto-maintenance', '--no-recurse-submodules',
+        '--refmap=', 'origin', 'refs/heads/master')
+    return git(repo, 'rev-parse', 'FETCH_HEAD')
+
+
+def state_path(workspace):
+    return Path(git(workspace, 'rev-parse', '--absolute-git-dir')) / 'daybook-sync.json'
+
+
+def save(workspace, state):
+    target = state_path(workspace)
+    temporary = target.with_suffix('.tmp')
+    temporary.write_text(json.dumps(state) + '\n')
+    temporary.chmod(0o600)
+    temporary.replace(target)
+
+
+def prepare(repo, agent, email, workspaces=None):
+    repo = Path(repo).resolve(strict=True)
+    # Resolve the user's selection without touching its worktree or index.
+    if Path(git(repo, 'rev-parse', '--show-toplevel')).resolve() != repo:
+        raise SyncError('--repo must be a checkout root')
+    if not re.fullmatch(r'[a-zA-Z0-9][a-zA-Z0-9_.-]{0,63}', agent):
+        raise SyncError('--agent must be a short filename-safe identity')
+    if not re.fullmatch(r'[^\s<>@]+@[^\s<>@]+', email):
+        raise SyncError('--email must be an email identity')
+    remote = private_remote(repo)
+    branch = f'daybook/{agent}-{uuid.uuid4().hex}'
+    workspaces = workspaces or Path.home() / '.local/state/daybook/worktrees'
+    workspaces.mkdir(mode=0o700, parents=True, exist_ok=True)
+    workspace = workspaces / branch.split('/')[1]
+    git(repo, 'worktree', 'add', '--detach', '--no-checkout', str(workspace), 'HEAD')
+    base = fetch(workspace)
+    git(workspace, 'switch', '--no-guess', '-c', branch, base)
+    workspace.chmod(0o700)
+    save(workspace, {'branch': branch, 'agent': agent, 'email': email,
+                     'remote': remote, 'head': base, 'pending': False})
+    return {'workspace': str(workspace), 'branch': branch, 'head': base}
+
+
+def load(workspace):
+    workspace = Path(workspace).resolve(strict=True)
+    if Path(git(workspace, 'rev-parse', '--show-toplevel')).resolve() != workspace:
+        raise SyncError('--workspace must be the prepared checkout root')
+    gitdir = Path(git(workspace, 'rev-parse', '--absolute-git-dir')).resolve()
+    common = Path(git(workspace, 'rev-parse', '--path-format=absolute', '--git-common-dir')).resolve()
+    if gitdir == common:
+        raise SyncError('the primary checkout is never a publishing workspace')
+    try:
+        state = json.loads(state_path(workspace).read_text())
+    except (OSError, ValueError) as exc:
+        raise SyncError('workspace was not prepared by daybook-sync') from exc
+    if (not isinstance(state, dict) or set(state) != {'branch', 'agent', 'email', 'remote', 'head', 'pending'}
+            or any(not isinstance(state[k], str) for k in ('branch', 'agent', 'email', 'remote', 'head'))
+            or not isinstance(state['pending'], bool)):
+        raise SyncError('invalid workspace state')
+    if git(workspace, 'symbolic-ref', '--short', 'HEAD') != state['branch']:
+        raise SyncError('workspace branch changed')
+    if private_remote(workspace) != state['remote']:
+        raise SyncError('workspace origin changed')
+    if git(workspace, 'rev-parse', 'HEAD') != state['head']:
+        raise SyncError('workspace HEAD changed outside daybook-sync; retain and inspect it')
+    for name in ('rebase-merge', 'rebase-apply', 'MERGE_HEAD', 'CHERRY_PICK_HEAD'):
+        if (gitdir / name).exists():
+            raise SyncError('finish or abort the existing Git operation before publication')
+    return workspace, state
+
+
+def changed(workspace):
+    tracked = git(workspace, 'diff', '--name-only', '--no-renames', '-z', 'HEAD', '--')
+    untracked = git(workspace, 'ls-files', '--others', '-z')
+    return set(p for p in (tracked + untracked).split('\0') if p)
+
+
+def safe_path(workspace, name):
+    path = PurePosixPath(name)
+    if (not name or not path.parts or name != str(path) or path.is_absolute() or
+            any(p in ('.', '..', '.git') for p in path.parts)):
+        raise SyncError('select literal relative file paths without traversal')
+    if path.parts[0] == 'journal':
+        raise SyncError('agent publication cannot change journal paths, including renames and deletions')
+    candidate = workspace
+    for part in path.parts:
+        candidate /= part
+        if candidate.is_symlink():
+            raise SyncError('symlink paths cannot be published')
+    if candidate.exists() and not candidate.is_file():
+        raise SyncError('select individual files, never directories')
+    # A deleted symlink has no filesystem entry. Inspect its original mode too.
+    entry = git(workspace, 'ls-tree', 'HEAD', '--', name)
+    if entry and entry.split(' ', 1)[0] != '100644' and entry.split(' ', 1)[0] != '100755':
+        raise SyncError('only regular files can be published')
+
+
+def scan(workspace, *args):
+    run(workspace, 'gitleaks', *args, '--redact', '--no-banner')
+
+
+def publish(workspace, message, paths, attempts=3):
+    workspace, state = load(workspace)
+    if git(workspace, 'diff', '--cached', '--name-only', '-z'):
+        raise SyncError('pre-existing staged changes are preserved; inspect them before publication')
+    edits = changed(workspace)
+    if not state['pending'] and not edits:
+        upstream = fetch(workspace)
+        git(workspace, 'merge-base', '--is-ancestor', state['head'], upstream)
+        return {'workspace': str(workspace), 'head': state['head'], 'published': True}
+    if state['pending']:
+        if edits:
+            raise SyncError('a pending commit must be published before making more edits')
+    else:
+        if not paths or len(paths) != len(set(paths)):
+            raise SyncError('select each changed file exactly once')
+        for path in paths:
+            safe_path(workspace, path)
+        if edits != set(paths):
+            raise SyncError('selected paths must exactly match workspace changes; all other work is preserved')
+        git(workspace, 'add', '--all', '--', *paths)
+        try:
+            scan(workspace, 'protect', '--staged')
+            # Identity is per invocation, never written to shared Git config.
+            git(workspace, '-c', f'user.name={state["agent"]}', '-c', f'user.email={state["email"]}',
+                'commit', '-m', message)
+        except (SyncError, FileNotFoundError):
+            # Only our initially empty index was staged. Keep every worktree byte.
+            git(workspace, 'restore', '--staged', '--', *paths)
+            raise
+        committed = set(git(workspace, 'diff-tree', '--no-commit-id', '--no-renames',
+                            '--name-only', '-z', '-r', 'HEAD').strip('\0').split('\0'))
+        if committed != set(paths) or git(workspace, 'rev-parse', 'HEAD^') != state['head']:
+            raise SyncError('a commit hook changed the selected commit; retain and inspect the workspace')
+        state.update(head=git(workspace, 'rev-parse', 'HEAD'), pending=True)
+        save(workspace, state)
+    for _ in range(attempts):
+        upstream = fetch(workspace)
+        # Covers an interrupted successful push or an already-published retry.
+        if git(workspace, 'rev-list', f'{upstream}..HEAD', '--count') == '0':
+            state.update(pending=False)
+            save(workspace, state)
+            return {'workspace': str(workspace), 'head': state['head'], 'published': True}
+        if changed(workspace):
+            raise SyncError('pending commit must be published before making more edits')
+        try:
+            git(workspace, '-c', 'rebase.autoStash=false', '-c', 'rerere.enabled=false',
+                '-c', f'user.name={state["agent"]}', '-c', f'user.email={state["email"]}',
+                'rebase', upstream)
+        except SyncError as exc:
+            git(workspace, 'rebase', '--abort')
+            raise SyncError('rebase conflict; original local commit and remote commit are retained; resolve in a new prepared workspace') from exc
+        state['head'] = git(workspace, 'rev-parse', 'HEAD')
+        save(workspace, state)
+        outgoing = set(p for p in git(workspace, 'diff', '--name-only', '--no-renames',
+                                     '-z', upstream, 'HEAD', '--').split('\0') if p)
+        for path in outgoing:
+            safe_path(workspace, path)
+        if not outgoing.issubset(paths):
+            raise SyncError('rebase changed unselected paths; commit retained for inspection')
+        scan(workspace, 'git', '.', f'--log-opts={upstream}..HEAD')
+        try:
+            git(workspace, 'push', 'origin', 'HEAD:refs/heads/master')
+        except SyncError:
+            # Retry only an observed advance, never auth, hook or policy failures.
+            if fetch(workspace) == upstream:
+                raise
+            continue
+        state.update(pending=False)
+        save(workspace, state)
+        return {'workspace': str(workspace), 'head': state['head'], 'published': True}
+    raise SyncError(f'push contention exceeded {attempts} attempts; local commit retained; rerun the same publish command')
+
+
+def finish(workspace):
+    workspace, state = load(workspace)
+    if state['pending'] or changed(workspace) or git(workspace, 'ls-files', '--others', '-z'):
+        raise SyncError('pending or dirty workspaces must be retained')
+    upstream = fetch(workspace)
+    git(workspace, 'merge-base', '--is-ancestor', state['head'], upstream)
+    common = git(workspace, 'rev-parse', '--path-format=absolute', '--git-common-dir')
+    # Native removal refuses dirty/untracked contents. No forced cleanup.
+    git(workspace, 'worktree', 'remove', str(workspace))
+    run(Path(common).parent, 'git', f'--git-dir={common}', 'update-ref', '-d',
+        f'refs/heads/{state["branch"]}', state['head'])
+    return {'workspace': str(workspace), 'head': state['head'], 'removed': True}
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    sub = parser.add_subparsers(dest='command', required=True)
+    begin = sub.add_parser('prepare', help='fetch master and create a private agent worktree')
+    begin.add_argument('--repo', required=True)
+    begin.add_argument('--agent', required=True)
+    begin.add_argument('--email', required=True)
+    send = sub.add_parser('publish', help='commit selected files and immediately push with at most three rebases')
+    send.add_argument('--workspace', required=True)
+    send.add_argument('--message', required=True)
+    send.add_argument('paths', nargs='+')
+    clean = sub.add_parser('finish', help='remove only a clean workspace whose HEAD is confirmed on remote master')
+    clean.add_argument('--workspace', required=True)
+    args = parser.parse_args()
+    try:
+        if args.command == 'prepare':
+            result = prepare(args.repo, args.agent, args.email)
+        elif args.command == 'publish':
+            result = publish(args.workspace, args.message, args.paths)
+        else:
+            result = finish(args.workspace)
+        print(json.dumps(result))
+    except subprocess.TimeoutExpired:
+        print('daybook-sync: operation timed out; workspace retained', file=sys.stderr)
+        return 1
+    except (SyncError, OSError) as exc:
+        print(f'daybook-sync: {exc}', file=sys.stderr)
+        return 1
+    return 0
+
+
+if __name__ == '__main__':
+    sys.exit(main())

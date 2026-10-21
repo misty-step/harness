@@ -793,3 +793,30 @@ Criteria:
 Evidence: `agent-config/bin/t3-pool.test.ts`, `agent-config/bin/install.test.ts`,
 `agent-config/bin/t3-runtime-mode.test.ts`, and `scripts/verify-installers`.
 
+
+## US-054 Publish private notes with concurrent agents
+
+Statement: When authorized agents share a private note repository, I want each
+agent to publish small selected changes from its own workspace, so concurrent
+writers preserve each other's work and the human's dirty checkout.
+
+Criteria:
+1. WHEN an agent prepares work, THE SYSTEM SHALL fetch private remote master
+   into a new isolated workspace without changing the selected checkout's files,
+   index or branch, including unpublished local commits.
+2. WHEN publishing, THE SYSTEM SHALL commit only explicitly named regular files
+   with the agent identity, scan secrets, and immediately push without force.
+3. WHEN remote writers advance master, THE SYSTEM SHALL fetch and rebase with
+   at most three publication attempts. Conflicts and failures SHALL preserve
+   the local commit and remote history for explicit recovery.
+4. THE SYSTEM SHALL reject journal changes including rename and delete,
+   symlinks, traversal, unrelated changes, pre-existing staged work and foreign HEADs.
+5. WHEN Claude or Codex configuration is installed, THE SYSTEM SHALL provide
+   the command on shared PATH and a canonical skill reachable by every T3
+   provider through repository instructions, including providers without native skills.
+
+No-gos: no vault contents in harness, global writer lock, force push, root
+stash/rebase, new credentials, timer replacement or agent journal bypass.
+
+Evidence: `agent-config/lib/test_daybook_sync.py`,
+`verify-harness daybook`, `scripts/verify-installers`.
