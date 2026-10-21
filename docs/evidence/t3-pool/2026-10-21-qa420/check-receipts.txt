@@ -75,3 +75,17 @@ Limits:
 This is source and actual-bundle fixture proof. No current-head installer or full end-to-end verification was run under this implementation task.
 No live continuation, live Home post, Home succession dispatch, thread creation, merge, deployment, host configuration or activation change was performed.
 Raw logs and the candidate bundle remain under /home/phaedrus/.cache/tmp/fix420-708d37c/.
+
+One-time origin/master integration:
+Integration commit: 6e80fe274f087fb3e2fb3cc6f219280a1fca0bd0
+Fetched master: f947793fdcd7ceadaa5faa2c6d1485e2009f8a76
+Includes policy merges 848f51a and ec4229b, and generated releases 7bd5f6a and f947793.
+PASS US-048 criteria 1-8 match the integrated master exactly.
+PASS all shared guidance matches the integrated master exactly, including Verification, Design, Work in progress and Review links.
+PASS pool source, maintained tests, RPC, config, pool docs and bundler are unchanged from 7ffe087.
+PASS the rebuilt integrated bundle is byte-identical to the full-suite artifact above.
+Focused command uses the source or rebuilt bundle with --test-name-pattern:
+switches then continues once|revalidates|cached third|provider target limited|children with a handoff|child handoff alerts|pending legacy child|WIP handoff refusal|continues a delegated child|inconsistent persisted
+integration-source.log: 31 pass, 0 fail, 64 filtered out.
+integration-bundle.log: 31 pass, 0 fail, 64 filtered out.
+The 103-case source and 103-case bundle receipts remain valid for unchanged pool inputs. No later master fetch or integration was performed.
