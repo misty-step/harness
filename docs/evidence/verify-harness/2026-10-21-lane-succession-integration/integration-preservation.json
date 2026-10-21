@@ -1,0 +1,20 @@
+{
+  "source": "912165a074b5c0bb80dd3a9aa7e347c28bb49ed4",
+  "parents": [
+    "d6baa94a42f97e404252fc36f3262dc6466f1b06",
+    "20951b17fa40cdff45787ae60a7d11de561da5d9"
+  ],
+  "canonical_source_unchanged": true,
+  "succession_and_retained_evidence_unchanged": true,
+  "tracked_legacy_instruction_files": [],
+  "private_legacy_instruction_paths": [],
+  "skill_sha256": "8d1f56fcffc767bc8fe956de2fe1b1f2fc00c1272c306df36c1e2eb9498d77fd",
+  "installed_roster_has_wipRoots": true,
+  "installed_roster_count": 6,
+  "source_roster_has_wipRoots": false,
+  "native_auto_resume": false,
+  "timer": {
+    "enabled": "disabled",
+    "active": "inactive"
+  }
+}

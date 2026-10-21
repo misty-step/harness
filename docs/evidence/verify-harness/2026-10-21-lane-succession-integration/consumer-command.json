@@ -1,0 +1,28 @@
+{
+  "command": [
+    "claude",
+    "-p",
+    "--model",
+    "haiku",
+    "--safe-mode",
+    "--no-session-persistence",
+    "--tools",
+    "Read",
+    "--allowedTools",
+    "Read",
+    "--permission-mode",
+    "dontAsk",
+    "--strict-mcp-config",
+    "--mcp-config",
+    "{\"mcpServers\":{}}",
+    "--output-format",
+    "stream-json",
+    "--verbose",
+    "--max-turns",
+    "6"
+  ],
+  "cwd": "/tmp/verify-harness-cwd.gtuSTi",
+  "stdin": "consumer-prompt.txt",
+  "environment": "env -i PATH HOME=<private-home> CLAUDE_CONFIG_DIR=<private-home>/.claude TMPDIR=<private-home>",
+  "limits": "Read-only instruction decisions, no T3 effects or actual succession"
+}

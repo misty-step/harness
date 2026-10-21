@@ -1,0 +1,59 @@
+{
+  "source": "912165a074b5c0bb80dd3a9aa7e347c28bb49ed4",
+  "commands": [
+    [
+      "./scripts/probe-agent-policy"
+    ],
+    [
+      "python3",
+      "-m",
+      "unittest",
+      "discover",
+      "-s",
+      "agent-config/lib",
+      "-p",
+      "test_*.py"
+    ],
+    [
+      "python3",
+      "-m",
+      "unittest",
+      "discover",
+      "-s",
+      "claude-config",
+      "-p",
+      "test_*.py"
+    ],
+    [
+      "./scripts/verify-installers"
+    ],
+    [
+      "sh",
+      "-n",
+      "claude-config/install"
+    ],
+    [
+      "sh",
+      "-n",
+      "codex-config/install"
+    ],
+    [
+      "sh",
+      "-n",
+      "agent-config/install"
+    ],
+    [
+      "sh",
+      "-n",
+      "scripts/verify-installers"
+    ],
+    [
+      "sh",
+      "-n",
+      ".agents/skills/verify-harness/bin/verify-harness"
+    ]
+  ],
+  "installer_pass_lines": 181,
+  "full_shared_gate_rerun": false,
+  "reason": "One documentation conflict; canonical loader code unchanged from approved master. Targeted native install and loading plus affected installer and hook checks cover integration."
+}

@@ -1,0 +1,88 @@
+
+== doctor: is this checkout and workstation worth driving? (04:14:06Z)
+repo /home/phaedrus/.t3/worktrees/harness/t3-53414b65 at 912165a on 
+PASS clean tree (evidence excluded)
+PASS tool git
+PASS tool bun
+PASS tool jq
+PASS tool python3
+PASS tool gitleaks
+PASS tool trufflehog
+PASS tool claude
+PASS tool codex
+PASS tool gh
+PASS tool tmux
+PASS bun 1.4.2 >= 1.4.2
+claude 2.1.303 (Claude Code); codex-cli 0.163.0
+
+== install: claude-config and codex-config from HEAD into private HOMEs (04:14:07Z)
+PASS gh signed in as moomooskycow
+PASS gh can push misty-step/harness
+source 912165a (HEAD)
+claude auth {"loggedIn":true,"authMethod":"claude.ai","subscriptionType":"max"}
+PASS claude native subscription identity matches
+codex: Logged in using ChatGPT (chatgpt account-email-present)
+PASS codex signed in with ChatGPT
+PASS home on PATH
+home routes over SSH to its cloud primary; the local ~/.local/state/home/inbox.md is not forwarded (#418)
+PASS t3 server is loopback (http://127.0.0.1:3773)
+t3-pool.timer disabled/inactive
+
+doctor: 0 failure(s); evidence /home/phaedrus/.t3/worktrees/harness/t3-53414b65/docs/evidence/verify-harness/2026-10-21-lane-succession-integration
+T3 pool units installed; opt in with systemctl --user enable --now t3-pool.timer
+claude: installed lage ship-loop judge release-watch heartbeat lane-succession story-qa pokayoke user-stories authenticated-commands, t3-runtime-mode and guidance (engineering workstation autonomy) into /home/phaedrus/.cache/tmp/vh-419-integration-53414b65/run/claude-home/.claude
+PASS claude-config/install exit 0
+codex: installed lage ship-loop judge release-watch heartbeat lane-succession story-qa pokayoke user-stories authenticated-commands and guidance (engineering workstation autonomy) into /home/phaedrus/.cache/tmp/vh-419-integration-53414b65/run/claude-home/.codex
+PASS codex-config/install exit 0
+T3 pool units installed; opt in with systemctl --user enable --now t3-pool.timer
+claude: installed lage ship-loop judge release-watch heartbeat lane-succession story-qa pokayoke user-stories authenticated-commands, t3-runtime-mode and guidance (engineering workstation autonomy) into /home/phaedrus/.cache/tmp/vh-419-integration-53414b65/run/claude-home/.claude
+PASS repeated native adapter install leaves settings byte-identical
+PASS foreign native settings and startup hook preserved
+PASS ~/.claude/AGENTS.md is the composed guidance
+PASS ~/.codex/AGENTS.md is the composed guidance
+PASS Claude uses AGENTS.md alone with no legacy alias
+PASS claude skills (lage ship-loop judge release-watch heartbeat lane-succession story-qa pokayoke user-stories authenticated-commands) and codex skills (lage ship-loop judge release-watch heartbeat lane-succession story-qa pokayoke user-stories authenticated-commands) byte-identical to source
+PASS t3-pool and t3-runtime-mode launchers
+PASS pool timer left opt-in (only daemon-reload across both installs)
+Refusing foreign canonical instructions: /home/phaedrus/.cache/tmp/vh-419-integration-53414b65/run/foreign-home/.claude/AGENTS.md
+PASS claude install refuses a foreign AGENTS.md, nothing written
+/home/phaedrus/.cache/tmp/vh-419-integration-53414b65/run/foreign-home/.codex/AGENTS.md is not ours; move its content into a repository AGENTS.md or remove it, then rerun
+PASS codex install refuses a foreign AGENTS.md, nothing written
+
+install: 0 failure(s); evidence /home/phaedrus/.t3/worktrees/harness/t3-53414b65/docs/evidence/verify-harness/2026-10-21-lane-succession-integration
+
+== session claude: fresh Claude Code session on the isolated install (no credentials there) (04:14:38Z)
+PASS fresh Claude Code session received complete canonical AGENTS.md through native SessionStart
+PASS fresh native session also ran the preserved foreign startup hook
+PASS no other instruction file leaked into the session
+PASS Claude Code session lists every claude-config skill
+  model call: Not logged in · Please run /login
+
+== session codex: fresh Codex session on the isolated install (04:14:41Z)
+PASS fresh Codex session prompt carries the composed AGENTS.md
+PASS Codex skill root is /home/phaedrus/.cache/tmp/vh-419-integration-53414b65/run/claude-home/.codex/skills
+PASS Codex session lists every codex-config skill
+
+== registration: the revision's verify-harness skill in fresh sessions at a copy of its .claude and .agents (04:14:41Z)
+PASS Claude Code lists verify-harness from the project .claude/skills symlink
+PASS Codex lists verify-harness from the project .agents/skills
+
+session: 0 failure(s); evidence /home/phaedrus/.t3/worktrees/harness/t3-53414b65/docs/evidence/verify-harness/2026-10-21-lane-succession-integration
+
+== session-auth: isolated candidate with native CLI subscription authentication (04:16:14Z)
+PASS fresh Claude Code session received complete canonical AGENTS.md through native SessionStart
+PASS fresh native session also ran the preserved foreign startup hook
+PASS no other instruction file leaked into the session
+PASS Claude Code session lists every claude-config skill
+PASS authenticated fresh Claude model read canonical instructions and QA policy
+PASS fresh Codex session prompt carries the composed AGENTS.md
+PASS Codex skill root is /home/phaedrus/.cache/tmp/vh-419-integration-53414b65/run/claude-home/.codex/skills
+PASS Codex session lists every codex-config skill
+
+session-auth: 0 failure(s); evidence /home/phaedrus/.t3/worktrees/harness/t3-53414b65/docs/evidence/verify-harness/2026-10-21-lane-succession-integration
+
+== cleanup: remove run state and scratch cwds; keep evidence (04:18:48Z)
+PASS run state removed
+evidence kept at /home/phaedrus/.t3/worktrees/harness/t3-53414b65/docs/evidence/verify-harness/2026-10-21-lane-succession-integration
+
+cleanup: 0 failure(s); evidence /home/phaedrus/.t3/worktrees/harness/t3-53414b65/docs/evidence/verify-harness/2026-10-21-lane-succession-integration
