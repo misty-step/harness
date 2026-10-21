@@ -14,7 +14,7 @@ Classify the changed path, not the repository or initiative. Prefer light rigor 
 
 Take an available account in the model class; never wait for one route or start reroute-only threads when another has headroom. Never use claude-hello (reserved for Home), Fable or Astra. Standard speed is the default. Fast mode or xhigh requires a named bottleneck and a reason; critical alone does not require xhigh. All subagents consume the lane's model/effort/speed/reset-sized budget.
 
-Use one QA owner per SHA. Extra cross-family QA is only for a stated critical uncertainty, not an automatic duplicate. Light combines QA and review but keeps the judge independent. After a fix, rerun only the reporter that raised the blocker on the delta, then one judge; retain unchanged QA/review evidence. Bring both roles back only for new files or higher-risk paths, scoped to what changed.
+Use one QA owner per SHA. Extra cross-family QA is only for a stated critical uncertainty, not an automatic duplicate. Light combines QA and review but keeps the judge independent. A judge's FIX naming exact blockers authorizes the only fix round. Only the blocking reporter rechecks those fixes; retain unchanged evidence. New findings become tickets unless the fix introduced them. The next judge rules SHIP with tickets or REVERT / SPLIT, never another FIX. Already on main is never a blocker. Ship heuristic features labeled approximate; accuracy is follow-up.
 
 When context gets heavy, prepare a handoff and request a replacement through Home’s inbox for the established Heartbeat executor within Home’s named set.
 
@@ -42,8 +42,8 @@ Every authored PR body records its `Rigor:` reason and diff size, and carries `S
 Machine-generated, generator-only release PRs are exempt.
 
 Push your branch and open the PR without asking. Never force-push a shared branch or merge.
-<Fix only: the judge's blockers at <old SHA>, prior reports and resolutions are below.
-Fix code blockers on the same PR.>
+<Fix only: the judge's FIX ruling at <old SHA>, exact blockers, prior reports and resolutions are below.
+This is the only fix round. Fix only those blockers on the same PR.>
 
 Return the PR URL, head SHA, check result, evidence links and any blocker.
 ```
@@ -53,7 +53,7 @@ Return the PR URL, head SHA, check result, evidence links and any blocker.
 ```
 You are independent QA for <PR URL> at <SHA>. Verify ticket <ticket URL> as a user.
 Base: <base>.
-Scope: <full diff | delta since previously checked SHA> and its consequences.
+Scope: <initial full diff | named fixes from the judge's FIX ruling at <report link>>.
 Prior evidence and resolutions: <links | "first check">.
 
 Read its acceptance criteria, <story IDs and file>, and ~/.claude/skills/story-qa/SKILL.md.
@@ -65,8 +65,10 @@ the agent's own AgentMail QA account <QA identity and pass references workstatio
 on production and prove the required owner/admin role; an email sent or a 200 response
 is not a sign-in.
 
-Walk every criterion and story affected by your scope. Exercise plausible failures and
-check consequential state where it lives. Use disposable data, never production data.
+On the initial check, walk every affected criterion and story, exercise plausible failures
+and check consequential state where it lives. On a recheck, verify only the named fixes
+and defects they introduced; new unrelated findings become tickets. Already on main is
+never a blocker. Use disposable data, never production data.
 QA account and inbox: <agent's own AgentMail QA account and pass references | "n/a: no product sign-in">.
 Create the agent-owned AgentMail QA account, store generated credentials in pass,
 and grant its required QA owner/admin role and allowlist/Cloudflare Access additions
@@ -89,10 +91,12 @@ For BLOCKED: exactly what stopped you.
 You are the code reviewer for <PR URL> at head <SHA>. You did not write it.
 
 Review against <ticket URL> and the repository's AGENTS.md.
-Base: <base>. Scope: <full diff | delta since previously reviewed SHA>.
+Base: <base>. Scope: <initial full diff | named fixes from the judge's FIX ruling at <report link>>.
 Prior findings and resolutions: <links | "first review">.
-Trace consequential effects outside the diff, including callers, config, migrations,
-deploy and rollback. Use specialist review only for a concrete uncertainty.
+On the initial review, trace consequential effects outside the diff, including callers,
+config, migrations, deploy and rollback. On a recheck, verify only the named fixes and
+defects they introduced; new unrelated findings become tickets. Already on main is never
+a blocker. Use specialist review only for a concrete uncertainty in that scope.
 
 Change nothing. Post "Review at <SHA>" with file:line, concrete failure and evidence
 for each finding. After a fix, link retained evidence for unchanged behavior.
