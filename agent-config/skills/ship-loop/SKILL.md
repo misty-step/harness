@@ -17,7 +17,9 @@ Many skills named here are user-invoked, so the Skill tool refuses them. For tho
 
 ## 0. Use the repository's tools
 
-Use its existing tracker and conventions. Add tracker guidance only when ambiguity blocks work. Prove the change with its verification skill or native harness; extract a reusable verification skill when it saves repeated work, including it in this change when that is the smallest coherent repair.
+Use its existing tracker and conventions. Add tracker guidance only when ambiguity blocks work.
+
+Prove every change as global guidance's **Verification** section requires: the repository's verification skill drives the real user journey end to end, with owner sign-in where the product has sign-in, and the evidence is linked. When the repository has no skill, the builder adds one (`~/.agents/skills/create-verification-skill/SKILL.md`) or the ticket stacks on the open PR adding it. When an agent lacks the owner's access, the report says `owner sign-in UNPROVEN: needs <access>`, never verified.
 
 ## 1. Settle intent
 
@@ -33,20 +35,20 @@ A ticket with one open blocker PR **stacks** on it: its branch starts from that 
 
 Classify each authored change using the concrete triggers in the [rigor table](roles.md#rigor), taking the highest matching tier and any tier assigned to its initiative as a floor.
 Every authored change gets review and verification, including documents, briefs and measurements.
-Use the tier's fallback models for builders, QA, review and judges until Upkeep routing ships.
+Use the tier's models for builders, QA, review and judges until Upkeep routing ships.
 Upkeep owns model choice; ship-loop owns review shape and rigor.
 Upkeep's route command does not exist yet ([Upkeep #75](https://github.com/misty-step/upkeep/issues/75)); when it ships, ask Upkeep:
 
 - `upkeep route --kind <review|build|…> --difficulty <routine|hard|critical> --json`, optionally `--task "..."`, `--exclude-vendor <vendor>` and `--urgent`. Map light to routine, standard to hard, critical to critical. QA, review and judge all use `--kind review`; builders use `--kind build`.
-- Try `choices` in order: pick first, then fallbacks. Empty `choices` means no room: wait until `no_room.next_room_at`, or use the fallback table if it is null.
+- Try `choices` in order: pick first, then fallbacks. Empty `choices` means no room: wait until `no_room.next_room_at`, or use the rigor table if it is null.
 - Map `choice.instance` to `target.providerInstanceId` and `choice.model` to `target.model`. Pass `choice.reasoning` in `target.options` as `{"id":"reasoningEffort","value":"<low|medium|high|xhigh>"}` for Sol or `{"id":"effort","value":"<low|medium|high|xhigh>"}` for Claude. Always pass effort explicitly, including table routes.
 - Standard speed sets Codex `target.options.serviceTier: "default"` or Claude `target.options.fastMode: false`. Fast speed requires `--urgent`.
 
-Dispatch roles with `delegate_task` and completed [role briefs](roles.md). Confirm routed providers/models against `orchestrator_capabilities`. Within the tier's family requirements, prefer model diversity, but use an available independent agent rather than wait for an ideal family. Carry the original goal, findings and resolutions into fix briefs; reuse working context where supported. When replacing a delegated child with a retry, `task_cancel` the old task first: usage-limited threads auto-resume and could act on superseded instructions.
+Dispatch roles with `delegate_task` and completed [role briefs](roles.md). Confirm routed providers/models against `orchestrator_capabilities`. Prefer model diversity where the tier allows it, but use an available independent agent rather than wait for an ideal family. Carry the original goal, findings and resolutions into fix briefs; reuse working context where supported. When replacing a delegated child with a retry, `task_cancel` the old task first: usage-limited threads auto-resume and could act on superseded instructions.
 
 1. **Build.** One builder, `isolation: "worktree"`, which starts from your local commit: first detach your checkout at the builder's start (`git switch --detach origin/<default branch>`, or the PR head it starts from). It returns a PR and its head SHA.
 2. **Verify.** QA and review at that SHA, combined in one agent for light changes, separate otherwise.
-3. **Judge.** An independent judge gets the ticket, PR and both revision-linked reports. Resolve missing proof before SHIP.
+3. **Judge.** An independent judge gets the ticket, PR and both revision-linked reports. Resolve missing proof before SHIP. A user-facing change without linked verification-skill evidence of the real journey is missing proof.
 4. **Act on the verdict.**
    - **FIX:** the builder fixes code blockers; you clear lane blockers such as QA that could not run. Independently test and review the changed delta and its consequences, retaining evidence for unchanged behavior. The independent judge rules on the resulting SHA. Recheck the whole scope only when impact is broad or uncertain.
    - **RE-SLICE:** split with `to-tickets` when diagnosis shows the outcome is too large, then continue on the new frontier.
