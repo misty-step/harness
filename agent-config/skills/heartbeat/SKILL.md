@@ -9,7 +9,7 @@ Follow global guidance's **Autonomy** section.
 
 ## Sweep
 
-Read `~/home/CLAUDE.md`. Exclude its out-of-scope work from the roster and every brief; name none of it here.
+Read `~/home/AGENTS.md`. Exclude its out-of-scope work from the roster and every brief; name none of it here.
 
 Use `list_scheduled_tasks` to reconcile this thread's hourly task: `{"type":"interval","everyMs":3600000}`, prompt `Heartbeat sweep: use the heartbeat skill.` Update the existing task or create it with `schedule_task`.
 

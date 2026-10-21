@@ -17,7 +17,7 @@ agent-config/ ── shared install contract ──┬── pi-config/     → 
 | `agent-config/` | Portable skills, shared global guidance, `pass-env`, shared deployment | [README](agent-config/README.md) |
 | `pi-config/` | pi settings, extensions, chrome, guidance intro | [README](pi-config/README.md) |
 | `omp-config/` | OMP routing, config/MCP, extensions, themes, guidance | [README](omp-config/README.md) |
-| `claude-config/` | Shared skills and guidance Claude Code sessions select, such as `lage`; composes `~/.claude/CLAUDE.md` | [README](claude-config/README.md) |
+| `claude-config/` | Shared skills and guidance Claude Code sessions select, such as `lage`; composes `~/.claude/AGENTS.md` with no legacy alias | [README](claude-config/README.md) |
 | `codex-config/` | Shared skills and guidance Codex sessions select; composes `~/.codex/AGENTS.md`; native model, effort and service-tier defaults | [README](codex-config/README.md) |
 
 Foundations: [FOUNDATIONS.md](FOUNDATIONS.md). Intent: [USER_STORIES.md](USER_STORIES.md). Vocabulary, boundaries and

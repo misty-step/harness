@@ -5,7 +5,7 @@ description: "Verify misty-step/harness the way its operator uses it: native log
 
 # Verify harness
 
-Harness has no app to sign in to. Its user is an agent operator, and the journey is: the owner's native logins work, `./scripts/check` passes, an installer deploys guidance and skills, and a fresh Claude Code or Codex session actually loads them. Every step runs from a shell through one helper:
+Harness has no app to sign in to. Its user is an agent operator, and the journey is: native CLI execution logins work, `./scripts/check` passes, an installer deploys guidance and skills, and a fresh Claude Code or Codex session actually loads them. Every step runs from a shell through one helper:
 
 ```sh
 .agents/skills/verify-harness/bin/verify-harness all
@@ -13,12 +13,22 @@ Harness has no app to sign in to. Its user is an agent operator, and the journey
 
 Run from the repository root of any checkout or worktree. The feature map in [features/README.md](features/README.md) holds the per-feature recipes; a proof covers every feature it lists.
 
+Harness has no product QA sign-in: AgentMail accounts, `workstation/<PROJECT>_QA_*`
+pass references, production login and required owner/admin role proof are n/a here.
+Native gh, Claude and Codex subscriptions authenticate execution; they are not
+product QA accounts. Application verification skills must encode that QA contract.
+Instruction content is always `AGENTS.md`. Create no `CLAUDE.md` files or symlinks,
+including private proof and fixtures. Native loading proof records the actual installed version; a private 2.1.305
+comparison does not replace that proof. The upstream generator override is maintained
+in `agent-config/guidance/engineering.md`; sweep generated repos with
+`scripts/probe-agent-policy --verification <repo>...`.
+
 ## Launch
 
 There is no server. Each drive is a short-lived process.
 
 - `verify-harness install [rev]` clones committed `rev` (default `HEAD`; use `origin/master` to check what is deployed) into `~/.cache/tmp/verify-harness/run/source` and runs `claude-config/install` and `codex-config/install` with `env -i` and `HOME=run/claude-home`. A fixture `systemctl` records unit calls, because a private HOME has no user manager. Ready means both installers exited 0 and the composition checks passed.
-- `session`, `live`, `home` and `pool` need that install, and say so if it is missing.
+- `session`, `session-auth`, `session-sdk`, `live`, `home` and `pool` need that install, and say so if it is missing.
 - Teardown is `verify-harness cleanup`.
 
 Run state lives in `$VH_DIR/run`. `VH_DIR` must be an absolute path that belongs to this run, and two concurrent runs need different values, such as `VH_DIR=$HOME/.cache/tmp/verify-harness-$RUN_ID`. The helper removes `run` only when it carries the `.verify-harness-run` marker that `install` writes, and it refuses `$HOME` and any directory above it.
@@ -51,6 +61,8 @@ Doctor never prints a token or the Codex account email. Run it first, and again 
 | `check [all\|shared\|pi\|omp\|workspace]` | [gate](features/gate.md) | scratch only |
 | `install [rev]` | [isolated-deploy](features/isolated-deploy.md) | run dir |
 | `session [claude\|codex\|both]` | [fresh-session](features/fresh-session.md) | run dir and `/tmp/verify-harness-*`; `both` also checks that this skill registers |
+| `session-auth` | [fresh-session](features/fresh-session.md) | run dir; temporary private copy of native Claude credential, removed after the call |
+| `session-sdk` | [fresh-session](features/fresh-session.md) | run dir and temporary native credential copy; requires `VH_CLAUDE_SDK` |
 | `live` | [live-drift](features/live-drift.md) | a normal live Claude Code session's runtime state (transcript under `~/.claude/projects/`, `~/.claude.json`, Claude Code's own `~/.claude/skills/synced/` state), Codex lock files under `~/.codex/tmp` |
 | `home` | [home-post](features/home-post.md) | a private inbox in the run dir |
 | `pool` | [t3-pool](features/t3-pool.md) | nothing |
@@ -58,7 +70,11 @@ Doctor never prints a token or the Codex account email. Run it first, and again 
 
 `all` runs `doctor`, `check`, `install`, `session`, `live`, `home`, `pool` and `cleanup` in order. Each line is `PASS`, `FAIL` or `NOTE`. The exit status is nonzero if any line failed.
 
-`live` makes the run's only model call: one Haiku turn on the owner's Claude subscription. Codex sessions use `codex debug prompt-input`, which renders the exact model-visible input without calling a model, so they work while Codex accounts are out of credits.
+`session-sdk` drives the native Agent SDK launch shape used by T3, including its preset system prompt and default settings sources. It does not append the canonical file through a CLI flag or SDK prompt. Set `VH_CLAUDE_SDK` to the SDK module used by the installed T3 version. For the recorded T3 runtime this is `@anthropic-ai/claude-agent-sdk@0.3.276`; its official npm tarball was extracted into private scratch, with no native binary or host configuration change.
+
+`session-auth` proves the candidate policy through an authenticated fresh session in the isolated HOME, without changing live deployment. It temporarily copies the native CLI credential into that HOME, removes it after the call, and retains only secret-free loading events and the policy readback.
+
+`live` makes the full run's model call: one Haiku turn on the owner's Claude subscription. Codex sessions use `codex debug prompt-input`, which renders the exact model-visible input without calling a model, so they work while Codex accounts are out of credits.
 
 ## Evidence
 
@@ -67,7 +83,7 @@ Artifacts go to `$VH_EVIDENCE`, default `$VH_DIR/evidence/<UTC date>/`, so separ
 - `transcript.txt` holds every step's PASS, FAIL and NOTE lines with timestamps;
 - `check.log` is the full gate output;
 - `install-tree.txt` lists the files the installers wrote outside `skills/`;
-- `claude-*-init.json`, `claude-*-instructions.jsonl` and `claude-*-result.json` are the session's own init event, its `InstructionsLoaded` hook events, and the model's answer;
+- `claude-*-init.json`, `claude-*-instructions.jsonl`, `claude-*-context.json` and `claude-*-result.json` are the session's init event, instruction leakage events, complete native context digest, and model answer;
 - `codex-*-summary.txt` holds the composed AGENTS.md heading and the skill entries from the rendered prompt;
 - `registration-*` shows this skill listed by fresh sessions in a `/tmp` copy of the revision's `.claude` and `.agents`;
 - `home-readback.md` is the private inbox read back through `home inbox`;
@@ -75,7 +91,7 @@ Artifacts go to `$VH_EVIDENCE`, default `$VH_DIR/evidence/<UTC date>/`, so separ
 
 Proof standards:
 
-- Observe the session's own report of what it loaded. Matching file bytes alone does not prove loading.
+- Observe the native SessionStart hook responses and check that their complete text equals canonical AGENTS.md. Hook context does not emit an InstructionsLoaded event; model readback proves consumption. Matching file bytes alone does not prove loading.
 - A dry run proves nothing until the state it claims to skip is unchanged. `pool` compares the state directory before and after.
 - Before committing evidence, run `gitleaks dir <evidence dir>`. Evidence holds no tokens and no personal email; the repository is public.
 
@@ -89,8 +105,9 @@ Removes `$VH_DIR/run` (default `~/.cache/tmp/verify-harness/run`) and the `/tmp/
 
 ## Gotchas
 
-- Sessions start in a fresh `/tmp/verify-harness-cwd.*` directory because Claude Code loads `CLAUDE.md` and skills from every ancestor of its cwd. See [Fresh session](features/fresh-session.md) before changing that.
-- A Claude Code session on the isolated install has no credentials and ends with `Not logged in`. That is expected: its init event and `InstructionsLoaded` hooks fire before the model call. The model-visible proof comes from `live`, which uses the real login.
+- Sessions start in a fresh `/tmp/verify-harness-cwd.*` directory because Claude Code loads `AGENTS.md` and skills from every ancestor of its cwd. See [Fresh session](features/fresh-session.md) before changing that.
+- AGENTS-only user-scope loading must be observed, never inferred from the version or installer. Both native 2.1.303 and a private 2.1.305 comparison failed automatic global discovery outside HOME. The maintained native SessionStart adapter fixes that path; the old failing evidence remains historical. Keep InstructionsLoaded as a leakage check, and prove adapter delivery with native hook responses and an authenticated model readback.
+- A Claude Code session on the isolated install has no credentials and ends with `Not logged in`. Its init and native SessionStart events fire before the model call. Use `session-auth` or `session-sdk` for authenticated candidate readback; `live` proves the deployed version.
 - Under heavy machine load, `agent-config/bin/install.test.ts` tests that bundle launchers can exceed Bun's 5-second default timeout and fail the gate while passing in isolation. Check `/proc/loadavg` and rerun that file alone before calling it a regression.
 - `home` routes every command over SSH to the cloud primary named in `~/.local/state/home/primary.json`. The `home` drive sets `HOME_FLEET_LOCAL=1` with a private `HOME_INBOX` so the probe never reaches phaedrus. Only a real report uses the routed `home post`.
 - The skill and guidance lists come from the installed revision's `claude-config/install` and `codex-config/install`, so a newly selected skill is checked without editing the helper.

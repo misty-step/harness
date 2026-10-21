@@ -8,7 +8,7 @@ The conductor chooses the highest matching tier, with any tier assigned to the i
 
 | Tier | Change | Review shape and models |
 | --- | --- | --- |
-| light | Documents, briefs, measurements, copy or a local cosmetic/config edit that changes no runtime behavior or agent instructions (skills, AGENTS.md, CLAUDE.md or shared guidance), and meets no higher-tier trigger | Builder, combined QA and review agent, then an independent judge. Builder and judge use Opus 5.5 at medium; the combined check uses Sonnet 5.5 at medium. Trivial edits may use Haiku 5.5. |
+| light | Documents, briefs, measurements, copy or a local cosmetic/config edit that changes no runtime behavior or agent instructions (skills, AGENTS.md or shared guidance), and meets no higher-tier trigger | Builder, combined QA and review agent, then an independent judge. Builder and judge use Opus 5.5 at medium; the combined check uses Sonnet 5.5 at medium. Trivial edits may use Haiku 5.5. |
 | standard | Runtime behavior changes, new features, bug fixes, refactors across modules, or operational prompts (skills, AGENTS.md and shared guidance), without a critical trigger | Builder, separate QA and review agents, then an independent judge. Each uses Opus 5.5 at high. |
 | critical | Changes to authentication, authorization, money movement, persisted-data integrity, migrations, security controls, deploy pipelines, shared infrastructure or irreversible operations, regardless of size | Builder uses Opus 5.5 at high. QA uses Opus 5.5 at xhigh; review uses Opus 5.5 at high. An independent Opus 5.5 judge uses high. |
 
@@ -26,7 +26,7 @@ For light changes, combine the QA and Reviewer briefs in one dispatch and post b
 You are the builder for <repo> ticket <ticket URL>: <title>.
 
 Goal: make this ticket's acceptance criteria true, and nothing beyond them.
-Read first: the ticket, its parent spec <spec URL>, and the repo's AGENTS.md or CLAUDE.md.
+Read first: the ticket, its parent spec <spec URL>, and the repo's AGENTS.md.
 Work on branch <branch>, starting from <origin/<default branch> at <SHA> | a stacked
 ticket: its blocker PR's head | a fix round: the PR's head>.
 Keep: <the load-bearing lines and rules the change must leave in place | "nothing listed">.
@@ -34,7 +34,10 @@ Length is a preference, never a reason to remove a Keep item.
 
 Inspect your diff. Run <check command> and drive the changed path with the repository's
 verification skill <path>. If it has none, add one with create-verification-skill
-(`.agents/skills/verify-<app>/`, `.claude/skills/` symlink), or say which open PR adds it. Put evidence in the PR. Push and open it against <base branch>,
+(`.agents/skills/verify-<app>/`, `.claude/skills/` symlink), or say which open PR adds it.
+Apply global guidance's mandatory generator override and QA-account contract; run harness's
+`scripts/probe-agent-policy --verification <repo>` after generating. Instruction content is
+always AGENTS.md alone. Create no CLAUDE.md files or symlinks, including fixtures/private proofs. Put evidence in the PR. Push and open it against <base branch>,
 with a Conventional Commit title, the pr skill's body and "Closes #<n>".
 Every authored PR body carries `Story: <ID>[, <ID>]` using story IDs from SPEC.md or USER_STORIES.md
 (for example, `Story: US-012` or `Story: US-012, US-015`). Use `Story: none` when no story applies.
@@ -60,12 +63,19 @@ Follow story-qa using the repository's verification skill <skill path>. If it ha
 the builder adds one in this PR or the PR stacks on the PR adding it.
 Check out <SHA> in your own worktree. Drive the real journey from the CLI; T3's preview
 browser tools are an alternative for web UIs. When the product has sign-in, sign in as
-the real owner identity <identity> on the real product; an email sent or a 200 response
+the agent's own AgentMail QA account <QA identity and pass references workstation/<PROJECT>_QA_*>
+on production and prove the required owner/admin role; an email sent or a 200 response
 is not a sign-in.
 
 Walk every criterion and story affected by your scope. Exercise plausible failures and
 check consequential state where it lives. Use disposable data, never production data.
-QA account and inbox: <verification skill's | native harness's | "none">.
+QA account and inbox: <agent's own AgentMail QA account and pass references | "n/a: no product sign-in">.
+Create the agent-owned AgentMail QA account, store generated credentials in pass,
+and grant its required QA owner/admin role and allowlist/Cloudflare Access additions
+within the assigned app scope. Global Verification authorizes this narrow QA setup
+exception to the credentials and production-data ask-first rules. Missing QA access
+or role is UNPROVEN; never ask for phaedrus's passwords or a throwaway browser profile.
+Native CLI subscriptions authenticate execution; they are not product QA accounts.
 
 Post "QA report at <SHA>", linking retained evidence for unchanged behavior after a fix.
 Verdict: PASS, ISSUES or BLOCKED. Owner sign-in: PROVEN (evidence link), UNPROVEN (the access
@@ -80,7 +90,7 @@ For BLOCKED: exactly what stopped you.
 ```
 You are the code reviewer for <PR URL> at head <SHA>. You did not write it.
 
-Review against <ticket URL> and the repository's AGENTS.md or CLAUDE.md.
+Review against <ticket URL> and the repository's AGENTS.md.
 Base: <base>. Scope: <full diff | delta since previously reviewed SHA>.
 Prior findings and resolutions: <links | "first review">.
 Trace consequential effects outside the diff, including callers, config, migrations,

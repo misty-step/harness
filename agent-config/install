@@ -26,7 +26,7 @@ Usage: install [--agent-dir DIR] [--check] [--home DIR]
   --guidance NAME        Shared guidance section to inject; repeatable.
   --guidance-source FILE Harness AGENTS.md holding the insertion marker.
   --guidance-file NAME   Composed file in the agent directory: AGENTS.md
-                         (default) or CLAUDE.md.
+                         (only supported value).
   --audio-sandbox        Silent agent sink, Claude Code env, and live proof.
   --session-backup       Install session backup CLI, credential references and inactive user timer.
   --t3-pool              Install account pools and inactive 90-second user timer (opt-in).
@@ -138,7 +138,7 @@ validate_guidance() {
     require_nonempty "$repo_dir/guidance/$name.md"
   done
   case "$guidance_file" in
-    AGENTS.md|CLAUDE.md) ;;
+    AGENTS.md) ;;
     *) printf 'Invalid guidance file: %s\n' "$guidance_file" >&2; exit 1 ;;
   esac
   if [ -n "$guidance" ] || [ -n "$guidance_source" ]; then
