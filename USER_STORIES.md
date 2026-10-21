@@ -671,10 +671,12 @@ Criteria:
 3. WHEN every other account in its pool is limited or reserved, THE SYSTEM
    SHALL move it to another pool with the configured model and effort mapping,
    preserving runtime mode.
-4. WHEN T3 refuses an eligible thread's transcript handoff, THE SYSTEM SHALL
+4. WHEN T3 refuses a named top-level WIP root's transcript handoff, THE SYSTEM SHALL
    request succession from Home once per failed run with its handoff context,
    model, runtime and workspace. Only Home SHALL open threads from groomed and
-   specced backlog; pooling SHALL NOT launch or settle a successor.
+   specced backlog; pooling SHALL NOT launch or settle a successor. A delegated
+   child's handoff refusal SHALL request recovery through its owning parent,
+   without a succession marker or a top-level replacement for the child.
 5. WHEN an instance's newest current usage-limit failure is newer than its
    newest completed run, THE SYSTEM SHALL exclude it until the known reset or,
    for an unknown reset, at most one hour after the failure.

@@ -14,17 +14,20 @@ type LimitedThread = {
 	modelSelection: ModelSelection; runtimeMode: ReturnType<typeof parseMode>;
 	blockedReason: string | null; currentFailure: boolean; active: boolean;
 	// "handoff" is T3 refusing to replay the transcript into the selected provider thread.
-	failure: "usage" | "handoff"; child: boolean; title: string; projectId: string; interactionMode: string;
+	failure: "usage" | "handoff"; child: boolean; parentThreadId: string | null; title: string; projectId: string; interactionMode: string;
 	worktreePath: string | null; branch: string | null;
 	// Same-title threads in its project created after the failure: other starters' successors.
 	successors: string[];
 };
-type Phase = "switch" | "continue" | "launch" | "settle" | "announce" | "done" | "abandoned";
-type Kind = "account" | "provider" | "successor";
-type Move = Pick<LimitedThread, "threadId" | "runId" | "modelSelection" | "runtimeMode" | "child"> & {
-	from: string; to: string; target: ModelSelection; kind: Kind; phase: Phase; attempt: number; rejections: number;
+type Kind = "account" | "provider" | "successor" | "parent";
+type MoveDetails = Pick<LimitedThread, "threadId" | "runId" | "modelSelection" | "runtimeMode" | "child"> & {
+	from: string; to: string; target: ModelSelection; attempt: number; rejections: number;
 	successor?: string;
 };
+type RecoveryNotice = { status: "pending" | "sent"; reason: string };
+type RecoveryMove = MoveDetails & { kind: "account" | "provider"; phase: "switch" | "continue" | "done" | "abandoned"; notice: RecoveryNotice | null };
+type NotificationMove = MoveDetails & { kind: "successor" | "parent"; phase: "announce" | "done" | "abandoned" };
+type Move = RecoveryMove | NotificationMove;
 type Admission = { runId: string; to: string; at: string };
 type State = { version: 1; limits: Record<string, string>; moves: Move[]; admissions: Admission[] };
 type Config = { wipRoots: string[]; pools: string[][]; reserved: string[]; maxMovesPerPass: number; crossProvider: Record<string, string>[]; efforts: string[] };
@@ -34,8 +37,11 @@ const hour = 60 * 60_000;
 const failureMaxAge = 30 * 60_000;
 const hourlyTargetCap = 3;
 const handoffRefusal = "Insufficient context allowance for the provider handoff";
-const phases: Phase[] = ["switch", "continue", "launch", "settle", "announce", "done", "abandoned"];
-const kinds: Kind[] = ["account", "provider", "successor"];
+const rejectedReason = "after three rejected commands";
+
+function isRecovery(move: Move): move is RecoveryMove {
+	return move.kind === "account" || move.kind === "provider";
+}
 
 function string(value: unknown): string {
 	if (typeof value !== "string" || !value.trim()) throw new CliError("Invalid T3 pool data");
@@ -244,7 +250,7 @@ function readSnapshot(path: string, now: number, config: Config): Snapshot {
 				resetAt: typeof row.resetAt === "string" && Number.isFinite(Date.parse(row.resetAt)) ? row.resetAt : null,
 				modelSelection, runtimeMode: parseMode(string(thread.runtimeMode)), failedAt, blockedReason, active,
 				currentFailure: failure === "usage" && active && !superseded && Number.isFinite(failedAt) && failedAt <= now,
-				failure, child, title, projectId: string(thread.projectId), interactionMode: string(thread.interactionMode),
+				failure, child, parentThreadId: optionalString(lineage.parentThreadId), title, projectId: string(thread.projectId), interactionMode: string(thread.interactionMode),
 				worktreePath: optionalString(thread.worktreePath), branch: optionalString(thread.branch),
 				successors: (JSON.parse(string(row.successors)) as unknown[]).map(string),
 			} };
@@ -278,19 +284,43 @@ function readState(path: string): State {
 	}));
 	const moves = state.moves.map((value): Move => {
 		const move = object(value);
-		if (!phases.includes(move.phase as Phase)) throw new CliError("Invalid T3 pool move state");
-		if (!kinds.includes((move.kind ?? "account") as Kind) || typeof (move.child ?? false) !== "boolean") throw new CliError("Invalid T3 pool move kind");
+		const kind = move.kind === undefined ? "account" : move.kind;
+		const child = move.child === undefined ? false : move.child;
+		if (typeof child !== "boolean") throw new CliError("Invalid T3 pool move kind");
 		if (typeof move.attempt !== "number" || !Number.isSafeInteger(move.attempt) || move.attempt < 0) throw new CliError("Invalid T3 pool attempt state");
 		const modelSelection = model(move.modelSelection);
+		const from = string(move.from);
 		const to = string(move.to);
-		const result: Move = {
-			threadId: string(move.threadId), runId: string(move.runId), from: string(move.from), to, modelSelection,
-			target: move.target === undefined ? { ...modelSelection, instanceId: to } : model(move.target),
-			runtimeMode: parseMode(string(move.runtimeMode)), kind: (move.kind ?? "account") as Kind, child: (move.child ?? false) as boolean,
-			phase: move.kind === "successor" && (move.notificationPending === true || !["done", "abandoned"].includes(String(move.phase))) ? "announce" : move.phase as Phase, attempt: move.attempt, rejections: nonnegativeInteger(move.rejections ?? 0),
+		// Only the original account-only format omitted kind and target.
+		if (move.target === undefined && move.kind !== undefined) throw new CliError("Invalid T3 pool move target");
+		const target = move.target === undefined ? { ...modelSelection, instanceId: to } : model(move.target);
+		if (from !== modelSelection.instanceId || to !== target.instanceId) throw new CliError("Inconsistent T3 pool move identity");
+		const details: MoveDetails = {
+			threadId: string(move.threadId), runId: string(move.runId), from, to, modelSelection, target,
+			runtimeMode: parseMode(string(move.runtimeMode)), child, attempt: move.attempt, rejections: nonnegativeInteger(move.rejections ?? 0),
 		};
-		for (const key of ["successor"] as const) if (move[key] !== undefined) result[key] = string(move[key]);
-		return result;
+		if (move.successor !== undefined) details.successor = string(move.successor);
+		if (move.notificationPending !== undefined && (kind !== "successor" && kind !== "parent" || move.phase !== "done" || move.notificationPending !== true)) throw new CliError("Invalid T3 pool notification state");
+		if (kind === "successor" || kind === "parent") {
+			if (move.phase !== "announce" && move.phase !== "done" && move.phase !== "abandoned") throw new CliError("Invalid T3 pool succession phase");
+			if (to !== from || !sameModel(target, modelSelection) || move.notice !== undefined) throw new CliError("Invalid T3 pool succession target");
+			if (kind === "parent" && !child) throw new CliError("Invalid T3 pool parent recovery");
+			return { ...details, kind: child ? "parent" : "successor", phase: move.notificationPending === true ? "announce" : move.phase };
+		}
+		if (kind !== "account" && kind !== "provider") throw new CliError("Invalid T3 pool move kind");
+		if (move.phase !== "switch" && move.phase !== "continue" && move.phase !== "done" && move.phase !== "abandoned") throw new CliError("Invalid T3 pool recovery phase");
+		if (to === from || kind === "account" && !sameModel(target, { ...modelSelection, instanceId: to })) throw new CliError("Invalid T3 pool recovery target");
+		if (details.rejections > 3 || details.rejections === 3 && move.phase !== "abandoned") throw new CliError("Inconsistent T3 pool rejection state");
+		let notice: RecoveryNotice | null = null;
+		if (move.notice !== undefined && move.notice !== null) {
+			const value = object(move.notice);
+			if (move.phase !== "abandoned" || value.status !== "pending" && value.status !== "sent") throw new CliError("Invalid T3 pool recovery notification");
+			notice = { status: value.status, reason: string(value.reason) };
+		} else if (move.phase === "abandoned") {
+			if (details.rejections !== 3) throw new CliError("Invalid T3 pool abandoned state");
+			notice = { status: "pending", reason: rejectedReason };
+		}
+		return { ...details, kind, phase: move.phase, notice };
 	});
 	const admissions = state.admissions ?? [];
 	if (!Array.isArray(admissions)) throw new CliError("Invalid T3 pool admissions");
@@ -306,7 +336,7 @@ function saveState(directory: string, state: State) {
 	const temporary = join(directory, `state.${crypto.randomUUID()}.tmp`);
 	const file = openSync(temporary, "wx", 0o600);
 	// Old readers must never execute a Home notification as a continuation.
-	const persisted = { ...state, moves: state.moves.map((move) => move.kind === "successor" && move.phase === "announce"
+	const persisted = { ...state, moves: state.moves.map((move) => !isRecovery(move) && move.phase === "announce"
 		? { ...move, phase: "done", notificationPending: true } : move) };
 	try { writeFileSync(file, JSON.stringify(persisted) + "\n"); fsyncSync(file); }
 	finally { closeSync(file); }
@@ -346,11 +376,37 @@ function crossSelection(selection: ModelSelection, instanceId: string, config: C
 	return { instanceId, model: target, ...(efforts.length > 0 ? { options: [{ id: option, value: efforts[0].value }] } : {}) };
 }
 
+function sameModel(left: ModelSelection, right: ModelSelection): boolean {
+	return JSON.stringify(left) === JSON.stringify(right);
+}
+
+function configuredTarget(move: RecoveryMove, config: Config): boolean {
+	const source = config.pools.find((pool) => pool.includes(move.from));
+	const target = config.pools.find((pool) => pool.includes(move.to));
+	if (!source || !target) return false;
+	if (move.kind === "account") return source === target && sameModel(move.target, { ...move.modelSelection, instanceId: move.to });
+	const mapped = crossSelection(move.modelSelection, move.to, config);
+	return source !== target && mapped !== null && sameModel(move.target, mapped);
+}
+
+function ineligibleReason(move: RecoveryMove, snapshot: Snapshot, config: Config, now: number): string | null {
+	const current = snapshot.threads.find((thread) => thread.runId === move.runId);
+	if (!current) return "the failed run is no longer current";
+	if (current.blockedReason) return current.blockedReason;
+	if (!matches(current, move)) return "superseded account, model or runtime selection";
+	if (!configuredTarget(move, config)) return "the reserved target no longer matches the configured pools, model or effort";
+	if (config.reserved.includes(move.to)) return "the target is now reserved";
+	if (Object.hasOwn(accountLimits(snapshot, config, now), move.to)) return "the target is now limited";
+	return null;
+}
+
 function choose(thread: LimitedThread, pool: string[], config: Config, state: State, loads: Record<string, number>, previous: Move | undefined): Choice | string {
-	if (thread.failure === "handoff") return { to: thread.modelSelection.instanceId, target: thread.modelSelection, kind: "successor", reason: "handoff refused; request succession from Home" };
+	if (thread.failure === "handoff") return { to: thread.modelSelection.instanceId, target: thread.modelSelection,
+		kind: thread.child ? "parent" : "successor", reason: thread.child ? "handoff refused; request recovery through the owning parent" : "handoff refused; request succession from Home" };
 	const open = (id: string) => !config.reserved.includes(id) && !Object.hasOwn(state.limits, id);
 	const admitted = (id: string) => state.admissions.some((entry) => entry.runId === thread.runId && entry.to === id)
 		|| state.admissions.filter((entry) => entry.to === id).length < hourlyTargetCap;
+	if (previous && isRecovery(previous) && !configuredTarget(previous, config)) return "no target: the reserved target no longer matches the configured pools, model or effort";
 	if (previous) return open(previous.to) && admitted(previous.to)
 		? { to: previous.to, target: previous.target, kind: previous.kind, reason: `resuming ${previous.kind} move at ${previous.phase}` }
 		: "no target: the reserved target is now limited, reserved or at the hourly cap";
@@ -403,13 +459,14 @@ function plan(snapshot: Snapshot, config: Config, state: State, now: number) {
 		if (!reason && choice && admittedMoves >= config.maxMovesPerPass) reason = `per-pass move cap; next: ${choice.kind} move to ${choice.to}`;
 		const child = thread.child ? { child: true as const } : {};
 		if (!reason && choice) {
-			const move: Move = previous ?? {
-				threadId: thread.threadId, runId: thread.runId, from, to: choice.to, target: choice.target, kind: choice.kind, child: thread.child,
+			const details: MoveDetails = {
+				threadId: thread.threadId, runId: thread.runId, from, to: choice.to, target: choice.target, child: thread.child,
 				modelSelection: thread.modelSelection, runtimeMode: thread.runtimeMode, attempt: 0, rejections: 0,
-				phase: choice.kind === "successor" ? "announce" : "switch",
 			};
+			const move: Move = previous ?? (choice.kind === "account" || choice.kind === "provider" ? { ...details, kind: choice.kind, phase: "switch", notice: null }
+				: { ...details, kind: choice.kind, phase: "announce" });
 			if (!previous) state.moves.push(move);
-			if (move.kind !== "successor" && !state.admissions.some((entry) => entry.runId === move.runId && entry.to === move.to)) {
+			if (isRecovery(move) && !state.admissions.some((entry) => entry.runId === move.runId && entry.to === move.to)) {
 				state.admissions.push({ runId: move.runId, to: move.to, at: new Date(now).toISOString() });
 			}
 			moves.push(move);
@@ -426,10 +483,42 @@ function matches(thread: LimitedThread, move: Move): boolean {
 	const selection = JSON.stringify(thread.modelSelection);
 	return thread.threadId === move.threadId && thread.runId === move.runId && thread.blockedReason === null
 		&& thread.runtimeMode === move.runtimeMode && thread.failedInstance === move.from
-		&& (selection === JSON.stringify(move.modelSelection) || move.kind !== "successor" && selection === JSON.stringify(move.target));
+		&& thread.child === move.child && (move.kind !== "successor" || thread.parentThreadId === null)
+		&& (move.kind !== "parent" || thread.parentThreadId !== null)
+		&& thread.failure === (isRecovery(move) ? "usage" : "handoff")
+		&& (selection === JSON.stringify(move.modelSelection) || isRecovery(move) && selection === JSON.stringify(move.target));
 }
 
-function commandIdFor(move: Move, database: string, directory: string, state: State): string | null {
+function abandon(move: RecoveryMove, reason: string, directory: string, state: State) {
+	move.phase = "abandoned";
+	move.notice = { status: "pending", reason };
+	saveState(directory, state);
+}
+
+function stopProviderMove(move: RecoveryMove, reason: string, database: string, directory: string, state: State) {
+	if (move.kind !== "provider" || move.phase !== "continue") return;
+	const db = new Database(database, { readonly: true, strict: true });
+	try {
+		const receipt = db.query("SELECT status FROM orchestration_command_receipts WHERE command_id = ?").get(`t3-pool:${move.runId}:continue:${move.attempt}`);
+		// A lost acknowledgement can leave a successful continuation checkpointed
+		// at continue after its failed run has already been superseded.
+		if (receipt !== null && object(receipt).status === "accepted") {
+			move.phase = "done";
+			saveState(directory, state);
+		} else abandon(move, `because ${reason}`, directory, state);
+	} finally { db.close(); }
+}
+
+function rejected(move: RecoveryMove, directory: string, state: State) {
+	move.rejections++;
+	if (move.rejections >= 3) abandon(move, rejectedReason, directory, state);
+	else saveState(directory, state);
+	const rejection = { at: new Date().toISOString(), thread: move.threadId, run: move.runId, phase: move.phase, rejections: move.rejections, reason: "T3 rejected the command" };
+	appendFileSync(join(directory, "rejections.jsonl"), JSON.stringify(rejection) + "\n", { mode: 0o600, flush: true });
+	process.stderr.write(JSON.stringify(rejection) + "\n");
+}
+
+function commandIdFor(move: RecoveryMove, database: string, directory: string, state: State): string | null {
 	const db = new Database(database, { readonly: true, strict: true });
 	try {
 		db.exec("PRAGMA query_only = ON; PRAGMA busy_timeout = 3000;");
@@ -441,9 +530,7 @@ function commandIdFor(move: Move, database: string, directory: string, state: St
 			// receipt proves this command did not run, never on a transport error.
 			if (receipt === null || object(receipt).status !== "rejected") return id;
 			move.attempt++;
-			move.rejections++;
-			if (move.rejections >= 3) move.phase = "abandoned";
-			saveState(directory, state);
+			rejected(move, directory, state);
 		}
 	} finally { db.close(); }
 }
@@ -469,6 +556,7 @@ function postHome(body: string) {
 }
 
 function requestSuccession(thread: LimitedThread) {
+	if (thread.child || thread.parentThreadId !== null) throw new CliError("Only top-level WIP roots may request succession");
 	postHome([
 		`Lane succession requested: ${thread.threadId}`,
 		`t3-pool requests Home succession for [${thread.title}](t3-thread://v1/${thread.threadId}).`,
@@ -479,6 +567,27 @@ function requestSuccession(thread: LimitedThread) {
 		"Home owns thread creation from groomed and specced backlog. Read the predecessor with t3_thread_read and use the lane-succession contract if succession is warranted.",
 		"After verifying the replacement, intentionally replace the predecessor ID in pools.json wipRoots and deploy the config. Titles do not transfer pool eligibility.",
 	].join("\n"));
+}
+
+function requestParentRecovery(thread: LimitedThread) {
+	if (!thread.child || thread.parentThreadId === null) throw new CliError("Child recovery requires its owning parent");
+	postHome([
+		`Delegated child recovery requested: ${thread.threadId}`,
+		`t3-pool requests recovery of [${thread.title}](t3-thread://v1/${thread.threadId}) through its owning parent [${thread.parentThreadId}](t3-thread://v1/${thread.parentThreadId}).`,
+		`Latest failed run: ${thread.runId}. T3 refused the provider handoff: "${handoffRefusal}".`,
+		`Current selection: ${JSON.stringify(thread.modelSelection)}; runtime: ${thread.runtimeMode}.`,
+		"Home: route recovery to the owning parent. The parent owns continuation or replacement of this task and must retain delivery of its result.",
+		"Do not open a top-level replacement for this child.",
+	].join("\n"));
+}
+
+function notifyAbandoned(directory: string, state: State) {
+	for (const move of state.moves) {
+		if (!isRecovery(move) || move.notice?.status !== "pending") continue;
+		postHome(`t3-pool abandoned recovery of [${move.threadId}](t3-thread://v1/${move.threadId}) ${move.notice.reason}. Failed run: ${move.runId}; original selection: ${JSON.stringify(move.modelSelection)}; selected target: ${JSON.stringify(move.target)}. Read the thread before choosing recovery; no new thread was opened.`);
+		move.notice.status = "sent";
+		saveState(directory, state);
+	}
 }
 
 async function main(args: string[]) {
@@ -496,7 +605,7 @@ async function main(args: string[]) {
 		if (!existsSync(config)) throw new CliError("T3 pool roster absent; install t3-pool.json with explicit wipRoots");
 		return configuration(JSON.parse(readFileSync(config, "utf8")));
 	};
-	const configSelection = readConfig();
+	readConfig();
 	const directory = join(process.env.XDG_STATE_HOME || join(homedir(), ".local/state"), "t3-pool");
 	let lock: number | undefined;
 	if (!dryRun) {
@@ -512,7 +621,17 @@ async function main(args: string[]) {
 	}
 	try {
 		const state = readState(join(directory, "state.json"));
-		const { moves, candidates, excluded } = plan(readSnapshot(database, Date.now(), readConfig()), configSelection, state, Date.now());
+		// Deliver durable terminal notices before pruning obsolete failed runs.
+		if (!dryRun) notifyAbandoned(directory, state);
+		const currentConfig = readConfig();
+		const snapshot = readSnapshot(database, Date.now(), currentConfig);
+		if (!dryRun) for (const move of state.moves) {
+			if (move.kind !== "provider" || move.phase !== "continue") continue;
+			const reason = ineligibleReason(move, snapshot, currentConfig, Date.now());
+			if (reason) stopProviderMove(move, reason, database, directory, state);
+		}
+		if (!dryRun) notifyAbandoned(directory, state);
+		const { moves, candidates, excluded } = plan(snapshot, currentConfig, state, Date.now());
 		if (dryRun) for (const candidate of candidates) process.stdout.write(JSON.stringify({ dryRun, ...candidate }) + "\n");
 		if (!dryRun) saveState(directory, state);
 		if (!dryRun && moves.length > 0) {
@@ -525,35 +644,32 @@ async function main(args: string[]) {
 					...(move.target.model === move.modelSelection.model ? {} : { model: move.target.model }), ...(move.successor ? { successor: move.successor } : {}) }) + "\n", { mode: 0o600, flush: true });
 				logged.add(move.runId);
 			};
-			const reject = (move: Move) => {
+			const reject = (move: RecoveryMove) => {
 				const before = move.rejections;
 				commandIdFor(move, database, directory, state);
 				// A rejection without a receipt still counts toward abandonment.
-				if (move.rejections === before && move.phase !== "abandoned") {
-					move.rejections++;
-					if (move.rejections >= 3) move.phase = "abandoned";
-					save();
-				}
-				const rejection = { at: new Date().toISOString(), thread: move.threadId, run: move.runId, phase: move.phase, rejections: move.rejections, reason: "T3 rejected the command" };
-				appendFileSync(join(directory, "rejections.jsonl"), JSON.stringify(rejection) + "\n", { mode: 0o600, flush: true });
-				process.stderr.write(JSON.stringify(rejection) + "\n");
-				if (move.phase === "abandoned") postHome(`t3-pool abandoned recovery of [${move.threadId}](t3-thread://v1/${move.threadId}) after three rejected commands. Failed run: ${move.runId}; original selection: ${JSON.stringify(move.modelSelection)}; selected target: ${JSON.stringify(move.target)}. Read the thread before choosing recovery; no new thread was opened.`);
+				if (move.rejections === before && move.phase !== "abandoned") rejected(move, directory, state);
 			};
-			for (const move of moves.filter((move) => move.kind === "successor")) {
-				const current = readSnapshot(database, Date.now(), readConfig()).threads.find((thread) => matches(thread, move));
+			for (const move of moves.filter((move) => !isRecovery(move))) {
+				const config = readConfig();
+				const current = readSnapshot(database, Date.now(), config).threads.find((thread) => matches(thread, move));
 				if (!current) continue;
-				requestSuccession(current);
+				if (move.kind === "successor") {
+					if (!config.wipRoots.includes(current.threadId)) continue;
+					requestSuccession(current);
+				} else requestParentRecovery(current);
 				move.phase = "done";
 				save();
-				process.stdout.write(JSON.stringify({ requested: move.threadId, kind: "succession", run: move.runId }) + "\n");
+				process.stdout.write(JSON.stringify({ requested: move.threadId, kind: move.kind === "successor" ? "succession" : "parent-recovery", run: move.runId }) + "\n");
 			}
-			const dispatches = moves.filter((move) => move.kind !== "successor");
+			const dispatches = moves.filter(isRecovery);
 			if (dispatches.length > 0) await withT3Session(base, "agent-pool", async (send) => {
-				const eligible = (move: Move) => {
-					const snapshot = readSnapshot(database, Date.now(), readConfig());
-					const current = snapshot.threads.find((thread) => thread.runId === move.runId);
-					return current && matches(current, move) && !readConfig().reserved.includes(move.to)
-						&& !Object.hasOwn(accountLimits(snapshot, readConfig(), Date.now()), move.to) ? current : undefined;
+				const eligible = (move: RecoveryMove) => {
+					const config = readConfig();
+					const snapshot = readSnapshot(database, Date.now(), config);
+					const reason = ineligibleReason(move, snapshot, config, Date.now());
+					if (reason) stopProviderMove(move, reason, database, directory, state);
+					return reason === null ? snapshot.threads.find((thread) => thread.runId === move.runId) : undefined;
 				};
 				for (const move of dispatches) {
 					try {
@@ -592,6 +708,7 @@ async function main(args: string[]) {
 				}
 			});
 		}
+		if (!dryRun) notifyAbandoned(directory, state);
 		process.stdout.write(JSON.stringify({ dryRun, planned: moves.length, limited: Object.keys(state.limits).sort(), ...(dryRun ? { excluded } : {}) }) + "\n");
 	} finally { if (lock !== undefined) closeSync(lock); }
 }

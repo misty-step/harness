@@ -3,7 +3,8 @@
 `t3-pool` continues fresh usage-limited Claude and Codex threads on another
 account: the same provider first, then the other provider with a mapped model.
 It continues delegated children so their results still reach their parents.
-When T3 refuses a transcript handoff, it requests succession from Home once.
+When T3 refuses a top-level WIP root's transcript handoff, it requests succession
+from Home once. A blocked child requests recovery through its owning parent.
 Only Home opens top-level threads from groomed and specced backlog.
 `claude-config/install` selects it through
 `agent-config/install --t3-pool`. Installation deploys inactive systemd user
@@ -76,7 +77,8 @@ Its continuation is a user `message.dispatch`, so T3's
 task's completion notifies the parent, as an orchestrator follow-up to a
 child thread does. The pass prints the task id. The pool never launches successors.
 Top-level lanes take the pass and hourly caps before children.
-Eligibility and target limits are re-read before switching and continuing.
+Eligibility, target pool membership, model and effort mapping, reservations and
+target limits are re-read before switching and continuing.
 
 For each account, `F` is its newest current root usage-limit failure; `S` is its
 newest completed-run completion. Archived, deleted, settled and superseded
@@ -103,12 +105,14 @@ attempts an eligible move and responds to an actual T3 handoff refusal.
 ## Succession requests
 
 The pool never launches, renames or settles a thread. A handoff refusal on an
-eligible WIP thread produces one `home post --from t3-pool` per failed run, with
+explicitly named top-level WIP root produces one `home post --from t3-pool` per failed run, with
 the predecessor link, failed run, project, workspace, branch, current model and
 options, runtime and interaction mode, and the failure reason. Home decides
 whether succession follows from groomed and specced backlog and uses the
-`lane-succession` contract. A child request also leaves recovery to Home and its
-parent, so no detached replacement can lose task ownership.
+`lane-succession` contract. A child's handoff refusal instead reports its verified
+owning parent and asks Home to route recovery through that parent. Child alerts
+contain neither the succession marker nor the handoff line below. They never
+request a top-level replacement, so task results remain attached to their parent.
 
 The first line is `Lane succession requested: <predecessor threadId>`, shared
 with Heartbeat's inbox duplicate check. The request includes
@@ -135,11 +139,24 @@ the next pass retries the same command ID, which T3 deduplicates. Only an
 authoritative `rejected` receipt permits a new attempt ID. A rejected move is
 recorded and skipped so the pass can continue; three rejections across either
 phase mark it `abandoned` and notify Home with both original and target
-selections. A failed continuation retries without switching again.
+selections, including when a cached receipt reveals the third rejection after a
+restart. A failed continuation retries without switching again. If a provider
+move cannot continue after switching, it is abandoned with the reason and both
+selections sent to Home. An accepted continuation receipt prevents a false
+abandonment alert after a lost acknowledgement. Terminal notifications persist
+until Home posting or its inbox fallback succeeds, even if the failed run is
+superseded. A crash after delivery but before saving can repeat the notification.
 Succession requests serialize with legacy `phase: done` plus a pending notification
 flag, so the old reader cannot execute them. Reverting to the unrestricted old
 planner is not an authorized rollback: leave the timer off until the replacement
-retains the WIP filter. Corrupt state fails closed. Runtime mode never changes.
+retains the WIP filter. Corrupt state fails closed before authentication, state
+rewrites or notifications. Recovery phases are `switch`, `continue`, `done` and
+`abandoned`; succession and parent recovery notification phases are `announce`,
+`done` and `abandoned`. Pending child succession notifications from the earlier
+format migrate to parent recovery without a succession marker. Retired
+`launch` and `settle` phases are rejected. Only the original account-only format
+may omit both kind and target. Source and target identities must agree with
+their selections. Runtime mode never changes.
 
 `moves.jsonl` records each move once, with time, thread, source, destination,
 failed run and kind (`account` or `provider`), plus the mapped
