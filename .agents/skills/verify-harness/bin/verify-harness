@@ -7,9 +7,11 @@ umask 077
 
 skill_dir=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 root=$(git -C "$skill_dir" rev-parse --show-toplevel)
-base=$(printf '%s' "${VH_DIR:-$HOME/.cache/tmp/verify-harness}" | tr -s /)
-base=${base%/}
-case "$base" in /*|"") ;; *) echo "VH_DIR must be an absolute path" >&2; exit 1 ;; esac
+base=${VH_DIR:-$HOME/.cache/tmp/verify-harness}
+case "$base" in /*) ;; *) echo "VH_DIR must be an absolute path" >&2; exit 1 ;; esac
+# Canonical form, so ., .. and repeated slashes cannot slip past the breadth check.
+base=$(realpath -m -- "$base")
+[ "$base" != / ] || base=''
 case "$HOME/" in "$base"/*) echo "VH_DIR=${base:-/} is too broad; name a directory of its own" >&2; exit 1 ;; esac
 run="$base/run"
 # Only a directory carrying this marker is ever removed.
@@ -24,9 +26,10 @@ owner_codex_mode=chatgpt
 
 fails=0
 case "${1:-}" in doctor|check|install|session|live|home|pool|cleanup|all) ;; *) usage_needed=1 ;; esac
-[ -n "${usage_needed:-}" ] || mkdir -p "$evidence"
-[ -n "${usage_needed:-}" ] ||
-  evidence=$(CDPATH= cd -- "$evidence" && pwd)
+if [ -z "${usage_needed:-}" ]; then
+  mkdir -p "$evidence" && evidence=$(CDPATH= cd -- "$evidence" && pwd) ||
+    { echo "cannot create evidence directory $evidence" >&2; exit 1; }
+fi
 log="$evidence/transcript.txt"
 say() { printf '%s\n' "$*" | tee -a "$log"; }
 pass() { say "PASS $*"; }
@@ -354,7 +357,8 @@ cmd_pool() {
       pass "live dry run: $(printf '%s\n' "$out" | tail -n 1 | jq -c '{planned, limited}')" || fail "live dry run output"
   else fail "live dry run: $out"; fi
   if [ "$(snap)" = "$before" ]; then pass "dry run wrote no pool state"
-  elif [ "$(passes)" != "$passes_before" ] || systemctl --user is-active --quiet t3-pool.service; then
+  # A running pass reports activating, not active; any state but inactive counts.
+  elif [ "$(passes)" != "$passes_before" ] || ! case "$passes_before $(passes)" in *ActiveState=inactive*ActiveState=inactive*) true ;; *) false ;; esac; then
     say "NOTE a live t3-pool.service pass ran during the dry run; inert check inconclusive, rerun pool"
   else fail "dry run changed $state"; fi
   out=$(env -i PATH="$PATH" HOME="$run/claude-home" "$run/claude-home/.local/bin/t3-pool" --dry-run 2>&1)
