@@ -81,8 +81,9 @@ disposable Pi and OMP installer smoke.
 
 Run affected native checks and walk the real user path. Nothing is verified
 until the repository's verification skill has driven the real user journey end
-to end on the real product, with evidence linked, signing in to production with the agent's own AgentMail QA account and proving
-the required owner/admin role when the product has sign-in; a repository without one gets one. Every authored change
+to end on the real product, with evidence linked, signing in to production with
+the agent's own AgentMail QA account and proving the required owner/admin role
+when the product has sign-in; a repository without one gets one. Every authored change
 gets review and verification scaled to risk. Documents, briefs and measurements
 get one light combined QA/review check plus an independent judge. Riskier
 behavior changes get separate independent QA, review and judge agents. Repeat
@@ -674,7 +675,7 @@ Criteria:
    symlink to it, including fixtures, generated content and private proofs.
    Owned legacy standalone Claude guidance SHALL upgrade rerunnably with all
    previous bytes preserved; foreign content and links SHALL be refused before
-   writes. Existing criteria 1–8 remain in force.
+   writes.
 
 No-gos: no code/config permission changes or new message templates; Kaylee's
 existing Hermes operating skill remains outside this operator-approved

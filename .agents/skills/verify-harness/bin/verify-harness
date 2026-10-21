@@ -98,7 +98,7 @@ cmd_doctor() {
   gh_push=$(gh api repos/misty-step/harness --jq .permissions.push 2>/dev/null)
   [ "$gh_push" = true ] && pass "gh can push misty-step/harness" || fail "gh push permission is '$gh_push'"
   claude_auth=$(claude auth status 2>/dev/null | jq -c '{loggedIn, email, authMethod, subscriptionType}' 2>/dev/null)
-  say "claude auth $claude_auth"
+  say "claude auth $(printf '%s' "$claude_auth" | jq -c 'del(.email)')"
   [ "$(printf '%s' "$claude_auth" | jq -r '.loggedIn and .email == "'"$owner_claude"'"')" = true ] &&
     pass "claude native subscription identity matches" || fail "claude native subscription identity does not match"
   codex_login=$(codex login status 2>&1 | head -n 1)
