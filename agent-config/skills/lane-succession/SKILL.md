@@ -14,11 +14,11 @@ Only Home opens threads (global guidance, Autonomy, **Work in progress**). Four 
 - The **dispatcher** launches the successor. This is Home, or a script that Home has explicitly authorized.
 - The **successor** is the new thread.
 
-A successor replaces its predecessor in the active roster, so succession never adds to the work-in-progress count.
+A successor takes its predecessor's place among the lanes Home names, so succession never adds a lane.
 
 ## Scope
 
-Succession applies only to top-level lane threads on Home's active roster: `parentThreadId` is null in `t3_thread_read`, and the thread is not Home, Heartbeat or a one-off in the scratch project (`No project`). A delegated child, such as a builder, QA, reviewer or judge, never hands off, because its result reaches its parent only from its own thread. A child whose context is heavy finishes its task and reports; its parent dispatches the rest.
+Succession applies only to top-level lane threads that Home names as active, including lanes it names to drain. In such a thread, `parentThreadId` is null in `t3_thread_read`, and the thread is not Home, Heartbeat or a one-off in the scratch project (`No project`). An unnamed or backlogged lane gets no successor. A delegated child, such as a builder, QA, reviewer or judge, never hands off, because its result reaches its parent only from its own thread. A child whose context is heavy finishes its task and reports; its parent dispatches the rest.
 
 ## When
 
@@ -85,7 +85,7 @@ Run these in your own lane when **When** fires. Pick a moment when no delegated 
 
 ## Reporter steps for a stuck lane
 
-Heartbeat runs these for a top-level lane on the active roster whose latest failed run carries the error above. `t3-pool` runs the same check as a script, without step 2. Reporters never launch a thread.
+Heartbeat runs these for a top-level lane Home names, draining or not, whose latest failed run carries the error above. `t3-pool` runs the same check as a script, without step 2. Reporters never launch a thread.
 
 1. **Follow the chain.** While the thread's title ends `(succeeded by <id>)`, move to `<id>`. If the chain ends at a different thread, that thread is now the lane, so judge it instead. Skip the lane if its project has a thread with the same title created after the failure, or if `home inbox --all` already has a request for it. If the failed thread is itself a successor (its first user message begins `Lane succession:`) and it has not claimed its predecessor, the succession has failed. Report that once to Process and request no further successor for the lane.
 2. **Write the handoff** from the predecessor's history, as in successor step 2.
