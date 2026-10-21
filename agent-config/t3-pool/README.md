@@ -65,8 +65,12 @@ The CLI reads `$T3CODE_HOME/userdata/statev2.sqlite` read-only, defaulting to
 - No archive, deletion, settlement, pending request, queued run or superseding
   provider-session error.
 - No user account, model or runtime change superseding a reserved move.
-- For a handoff refusal, no `(succeeded by …)` title and no same-title thread in
+- For a top-level handoff refusal, no `(succeeded by …)` title and no same-title thread in
   its project created after the failure: another starter got there first.
+
+Usage-limit recovery ignores display titles, including duplicate child titles
+under unrelated parents. Verified ownership and newer parent work still govern
+whether a child can continue.
 
 A delegated child qualifies only when it is an app-owned subagent whose
 original task already has a result and whose entire ancestry is eligible.
@@ -134,16 +138,24 @@ count conservatively toward the hourly cap. No manual state edits are needed.
 `XDG_CONFIG_HOME` and `XDG_STATE_HOME` override the respective roots.
 
 Passes take a nonblocking `flock`. A move's target, admission and command IDs
-are saved with fsync before dispatch. After a crash or lost acknowledgement,
-the next pass retries the same command ID, which T3 deduplicates. Only an
+are saved with fsync before dispatch. After a crash or lost acknowledgement
+without an accepted receipt, the next pass retries the same command ID, which
+T3 deduplicates. Only an
 authoritative `rejected` receipt permits a new attempt ID. A rejected move is
 recorded and skipped so the pass can continue; three rejections across either
 phase mark it `abandoned` and notify Home with both original and target
 selections, including when a cached receipt reveals the third rejection after a
-restart. A failed continuation retries without switching again. If a provider
-move cannot continue after switching, it is abandoned with the reason and both
-selections sent to Home. An accepted continuation receipt prevents a false
-abandonment alert after a lost acknowledgement. Terminal notifications persist
+restart. Every account and provider move is reconciled at pass start and before
+both commands, whether checkpointed at `switch` or `continue`. An accepted
+continuation receipt completes the move without replay or alert. An accepted
+switch receipt or the thread already selecting its target proves that switching
+took effect. An eligible selected target continues within the existing caps.
+If recovery is interrupted after switching, the move is abandoned and Home gets
+the reason and both selections, including when the switch acknowledgement was
+lost or the account was removed from the pool. A receipt whose target is no
+longer selected also alerts. With no applied switch evidence, an invalid target
+gets no interruption alert. A failed continuation retries without switching
+again. Terminal notifications persist
 until Home posting or its inbox fallback succeeds, even if the failed run is
 superseded. A crash after delivery but before saving can repeat the notification.
 Succession requests serialize with legacy `phase: done` plus a pending notification
@@ -228,7 +240,9 @@ or `flock`, the installer skips pooling with a notice and installs the other
 selected primitives normally. Pool state and logs survive reinstalls.
 
 Same-provider account moves ran live on 2026-10-20: three claudeAgent lanes
-continued on claude-mistystep. The supported RPC cannot inject a synthetic
+continued on claude-mistystep. Those receipts predate this change. Live recovery
+at the current revision remains unproven and is tracked in
+[#409](https://github.com/misty-step/harness/issues/409). The supported RPC cannot inject a synthetic
 usage-limit failure, so child and cross-provider moves are proven by
 fixture tests until an authorized live pass makes one. Succession requests are
 proven with an isolated Home inbox; the pool cannot create a successor. The

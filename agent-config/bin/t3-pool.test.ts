@@ -32,6 +32,12 @@ if (args[2] === "issue" && existsSync(root + "/auth-config.json")) {
  const path = root + "/config/t3-pool.json";
  writeFileSync(path, JSON.stringify({ ...JSON.parse(readFileSync(path, "utf8")), ...JSON.parse(readFileSync(root + "/auth-config.json", "utf8")) }));
 }
+if (args[2] === "issue" && existsSync(root + "/auth-receipt")) {
+ const { Database } = await import("bun:sqlite");
+ const db = new Database(root + "/userdata/statev2.sqlite");
+ db.run("INSERT INTO orchestration_command_receipts VALUES (?, 'accepted')", [readFileSync(root + "/auth-receipt", "utf8")]);
+ db.close();
+}
 if (args[2] === "issue") console.log(JSON.stringify({ sessionId: "pool-session", token: ${JSON.stringify(token)} }));
 else if (args[2] === "revoke") writeFileSync(root + "/revoked", args[3]);
 else process.exit(1);
@@ -1040,6 +1046,7 @@ for (const accepted of [false, true]) test(`a superseded provider recovery ${acc
 	const selection = thread(files, "limited", "claudeAgent", { model: "claude-opus-5-5", options: [{ id: "effort", value: "high" }] });
 	const target = { instanceId: "codex", model: "gpt-6.1-sol", options: [{ id: "reasoningEffort", value: "high" }] };
 	seedMove(files, selection, { kind: "provider", to: "codex", target, phase: "continue" });
+	files.db.run("INSERT INTO orchestration_command_receipts VALUES ('t3-pool:limited:run:switch:0','accepted')");
 	run(files, "limited", "newer", { status: "completed", ordinal: 2, completedAt: later });
 	if (accepted) files.db.run("INSERT INTO orchestration_command_receipts VALUES ('t3-pool:limited:run:continue:0','accepted')");
 	const fake = server(files);
@@ -1107,3 +1114,181 @@ test.each(["file", "key", "json"])("an absent or invalid roster %s authorizes no
 	expect(existsSync(join(files.root, "state"))).toBe(false);
 	expect(fake.commands).toEqual([]);
 });
+
+function selectTarget(files: Fixture, target: ReturnType<typeof thread>) {
+	files.db.run("UPDATE orchestration_v2_projection_threads SET provider_instance_id=?, payload_json=json_set(payload_json,'$.providerInstanceId',?,'$.modelSelection',json(?)) WHERE thread_id='limited'",
+		[target.instanceId, target.instanceId, JSON.stringify(target)]);
+}
+
+for (const kind of ["account", "provider"] as const) {
+	for (const phase of ["switch", "continue"] as const) {
+		for (const applied of ["receipt", "selection", "both"] as const) {
+			for (const eligibility of ["eligible", "limited", "removed"] as const) test(`applied recovery ${kind}/${phase}/${applied}/${eligibility} continues or alerts once`, async () => {
+				const files = fixture();
+				const selection = thread(files, "limited", "claudeAgent", { model: "claude-opus-5-5", options: [{ id: "effort", value: "high" }] });
+				const target = kind === "account" ? { ...selection, instanceId: "claude-hello" }
+					: { instanceId: "codex", model: "gpt-6.1-sol", options: [{ id: "reasoningEffort", value: "high" }] };
+				seedMove(files, selection, { kind, phase, to: target.instanceId, target });
+				if (applied !== "selection") files.db.run("INSERT INTO orchestration_command_receipts VALUES ('t3-pool:limited:run:switch:2','accepted')");
+				if (applied !== "receipt") selectTarget(files, target);
+				if (eligibility === "limited") {
+					thread(files, "target-limited", target.instanceId);
+					config(files, { wipRoots: ["limited"] });
+				} else if (eligibility === "removed") config(files, { pools: [["claudeAgent", "claude-mistystep"], ["codex-mistystep", "codex-r90"]] });
+				const fake = server(files);
+				for (let pass = 0; pass < 3; pass++) expect((await result(start(files))).status).toBe(0);
+				if (eligibility === "eligible" && applied !== "receipt") {
+					expect(fake.commands.filter((command) => command.type === "message.dispatch")).toHaveLength(1);
+					expect(state(files).moves[0].phase).toBe("done");
+					expect(existsSync(join(files.root, "home-posts"))).toBe(false);
+				} else {
+					expect(fake.commands).toEqual([]);
+					expect(state(files).moves[0]).toMatchObject({ phase: "abandoned", notice: { status: "sent" } });
+					expect(posts(files)).toHaveLength(1);
+					expect(posts(files)[0].body).toContain(`original selection: ${JSON.stringify(selection)}`);
+					expect(posts(files)[0].body).toContain(`selected target: ${JSON.stringify(target)}`);
+				}
+			});
+		}
+		for (const eligibility of ["eligible", "limited"] as const) test(`accepted continuation completes ${kind}/${phase}/${eligibility} without auth, replay or alert`, async () => {
+			const files = fixture();
+			const selection = thread(files, "limited", "claudeAgent", { model: "claude-opus-5-5", options: [{ id: "effort", value: "high" }] });
+			const target = kind === "account" ? { ...selection, instanceId: "claude-hello" }
+				: { instanceId: "codex", model: "gpt-6.1-sol", options: [{ id: "reasoningEffort", value: "high" }] };
+			seedMove(files, selection, { kind, phase, to: target.instanceId, target, attempt: 2 });
+			files.db.run("INSERT INTO orchestration_command_receipts VALUES ('t3-pool:limited:run:continue:1','accepted')");
+			if (eligibility === "limited") { thread(files, "target-limited", target.instanceId); config(files, { wipRoots: ["limited"] }); }
+			const fake = server(files);
+			for (let pass = 0; pass < 2; pass++) expect((await result(start(files))).status).toBe(0);
+			expect(state(files).moves[0]).toMatchObject({ phase: "done", notice: null });
+			expect(fake.commands).toEqual([]);
+			expect(existsSync(join(files.root, "auth-calls"))).toBe(false);
+			expect(existsSync(join(files.root, "home-posts"))).toBe(false);
+		});
+	}
+	for (const boundary of ["auth", "ack", "lost-ack"] as const) {
+		for (const eligibility of boundary === "auth" ? ["reserved", "removed"] : ["limited", "removed"]) test(`interrupted recovery ${kind}/${boundary}/${eligibility} alerts only for an applied switch`, async () => {
+			const files = fixture();
+			thread(files, "limited", "claudeAgent", { model: "claude-opus-5-5", options: [{ id: "effort", value: "high" }] });
+			if (kind === "provider") config(files, { reserved: ["claude-hello", "claude-r90", "claude-mistystep"] });
+			const target = kind === "account" ? "claude-hello" : "codex";
+			const patch = { pools: [["claudeAgent", "claude-mistystep"], ["codex-mistystep", "codex-r90"]] };
+			if (boundary === "auth") {
+				writeFileSync(join(files.root, "auth-config.json"), JSON.stringify(eligibility === "removed" ? patch : { reserved: [target] }));
+			}
+			const fake = server(files, () => {
+				if (boundary !== "auth") {
+					if (eligibility === "removed") config(files, patch);
+					else { thread(files, "target-limited", target); config(files, { wipRoots: ["limited"] }); }
+				}
+				return boundary === "lost-ack" ? "close" : "success";
+			});
+			expect((await result(start(files))).status).toBe(boundary === "lost-ack" ? 1 : 0);
+			if (boundary === "lost-ack") expect(state(files).moves[0].phase).toBe("switch");
+			for (let pass = 0; pass < 2; pass++) expect((await result(start(files))).status).toBe(0);
+			expect(fake.commands.map((command) => command.type)).toEqual(boundary === "auth" ? [] : ["provider.switch"]);
+			expect(existsSync(join(files.root, "home-posts"))).toBe(boundary !== "auth");
+			if (boundary !== "auth") {
+				expect(posts(files)).toHaveLength(1);
+				expect(state(files).moves[0]).toMatchObject({ phase: "abandoned", notice: { status: "sent" } });
+			}
+		});
+	}
+}
+
+for (const owner of ["root", "child"] as const) {
+	for (const unrelated of ["root", "child", "suffix"] as const) test(`usage recovery ignores display titles for ${owner} with unrelated ${unrelated}`, async () => {
+		const files = fixture();
+		if (owner === "root") thread(files);
+		else child(files, "limited", "parent");
+		const title = unrelated === "suffix" ? "Spec axis review (succeeded by unrelated)" : "Spec axis review";
+		files.db.run("UPDATE orchestration_v2_projection_threads SET payload_json=json_set(payload_json,'$.title',?) WHERE thread_id='limited'", [title]);
+		if (unrelated === "root") thread(files, "unrelated", "claude-r90", { status: "completed" });
+		else child(files, "unrelated", "other-parent");
+		files.db.run("UPDATE orchestration_v2_projection_threads SET payload_json=json_set(payload_json,'$.title',?,'$.createdAt',?) WHERE thread_id='unrelated'", [title, new Date().toISOString()]);
+		config(files, { wipRoots: [owner === "root" ? "limited" : "parent"] });
+		const fake = server(files);
+		expect(plans(await result(start(files, ["--dry-run"])))[0]).toMatchObject({ thread: "limited", kind: "account" });
+		expect((await result(start(files))).status).toBe(0);
+		expect(fake.commands.map((command) => command.type)).toEqual(["provider.switch", "message.dispatch"]);
+		expect(state(files).moves[0]).toMatchObject({ phase: "done", child: owner === "child" });
+		if (owner === "child") expect(fake.applied.has("t3-pool:limited:run:continue:0")).toBe(true);
+	});
+}
+
+for (const owner of ["root", "child"] as const) test(`handoff title deduplication applies only to a top-level root, ${owner} control`, async () => {
+	const files = fixture();
+	if (owner === "root") thread(files, "limited", "claudeAgent", { message: handoffRefusal });
+	else {
+		child(files, "limited", "parent");
+		files.db.run("UPDATE orchestration_v2_projection_turn_items SET payload_json=json_set(payload_json,'$.failure.class','provider_error','$.failure.message',?) WHERE thread_id='limited'", [handoffRefusal]);
+	}
+	thread(files, "unrelated", "claude-r90", { status: "completed" });
+	files.db.run("UPDATE orchestration_v2_projection_threads SET payload_json=json_set(payload_json,'$.title','Lane limited','$.createdAt',?) WHERE thread_id='unrelated'", [new Date().toISOString()]);
+	config(files, { wipRoots: [owner === "root" ? "limited" : "parent"] });
+	const fake = server(files);
+	expect((await result(start(files))).status).toBe(0);
+	expect(fake.commands).toEqual([]);
+	expect(existsSync(join(files.root, "home-posts"))).toBe(owner === "child");
+	if (owner === "child") {
+		expect(posts(files)[0].body).toContain("t3-thread://v1/parent");
+		expect(posts(files)[0].body).not.toContain("Lane succession requested:");
+		expect(posts(files)[0].body).not.toContain("Handoff: none;");
+	}
+});
+
+for (const kind of ["account", "provider"] as const) test(`applied ${kind} switch reports interruption when the source limit expires`, async () => {
+	const files = fixture();
+	const selection = thread(files, "limited", "claudeAgent", { model: "claude-opus-5-5", options: [{ id: "effort", value: "high" }], resetAt: past });
+	const target = kind === "account" ? { ...selection, instanceId: "claude-hello" }
+		: { instanceId: "codex", model: "gpt-6.1-sol", options: [{ id: "reasoningEffort", value: "high" }] };
+	selectTarget(files, target);
+	seedMove(files, selection, { kind, to: target.instanceId, target });
+	const fake = server(files);
+	for (let pass = 0; pass < 2; pass++) expect((await result(start(files))).status).toBe(0);
+	expect(fake.commands).toEqual([]);
+	expect(posts(files)).toHaveLength(1);
+	expect(posts(files)[0].body).toContain("source has room or its limit expired");
+});
+
+for (const kind of ["account", "provider"] as const) {
+	for (const boundary of ["auth", "ack"] as const) test(`accepted continuation arriving at ${kind}/${boundary} prevents replay and false alerts`, async () => {
+		const files = fixture();
+		thread(files, "limited", "claudeAgent", { model: "claude-opus-5-5", options: [{ id: "effort", value: "high" }] });
+		if (kind === "provider") config(files, { reserved: ["claude-hello", "claude-r90", "claude-mistystep"] });
+		const receipt = "t3-pool:limited:run:continue:0";
+		if (boundary === "auth") writeFileSync(join(files.root, "auth-receipt"), receipt);
+		const fake = server(files, () => {
+			if (boundary === "ack") files.db.run("INSERT INTO orchestration_command_receipts VALUES (?, 'accepted')", [receipt]);
+			return "success";
+		});
+		for (let pass = 0; pass < 2; pass++) expect((await result(start(files))).status).toBe(0);
+		expect(fake.commands.map((command) => command.type)).toEqual(boundary === "auth" ? [] : ["provider.switch"]);
+		expect(state(files).moves[0]).toMatchObject({ phase: "done", notice: null });
+		expect(existsSync(join(files.root, "home-posts"))).toBe(false);
+	});
+	test(`interrupted applied ${kind} recovery retains a failed notice across restart and pruning`, async () => {
+		const files = fixture();
+		const selection = thread(files, "limited", "claudeAgent", { model: "claude-opus-5-5", options: [{ id: "effort", value: "high" }] });
+		const target = kind === "account" ? { ...selection, instanceId: "claude-hello" }
+			: { instanceId: "codex", model: "gpt-6.1-sol", options: [{ id: "reasoningEffort", value: "high" }] };
+		seedMove(files, selection, { kind, to: target.instanceId, target });
+		selectTarget(files, target);
+		thread(files, "target-limited", target.instanceId);
+		config(files, { wipRoots: ["limited"] });
+		writeFileSync(join(files.root, "home-fails"), "fixture");
+		const inbox = join(files.root, "state/home/inbox.md");
+		mkdirSync(inbox, { recursive: true });
+		const fake = server(files);
+		expect((await result(start(files))).status).toBe(1);
+		expect(state(files).moves[0]).toMatchObject({ phase: "abandoned", notice: { status: "pending" } });
+		run(files, "limited", "newer", { status: "completed", ordinal: 2, completedAt: later });
+		rmSync(join(files.root, "home-fails"));
+		rmSync(inbox, { recursive: true });
+		for (let pass = 0; pass < 2; pass++) expect((await result(start(files))).status).toBe(0);
+		expect(fake.commands).toEqual([]);
+		expect(posts(files)).toHaveLength(1);
+		expect(posts(files)[0].poolState.moves[0]).toMatchObject({ phase: "abandoned", notice: { status: "pending" } });
+		expect(state(files).moves).toEqual([]);
+	});
+}

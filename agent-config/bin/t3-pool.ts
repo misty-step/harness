@@ -241,7 +241,7 @@ function readSnapshot(path: string, now: number, config: Config): Snapshot {
 			const blockedReason = childReason
 				?? (!wip.has(string(thread.id)) ? "outside maintained WIP roots or unverified ancestry" : null)
 				?? (!active ? "archived, deleted or settled"
-				: / \(succeeded by [^)]+\)$/.test(title) ? "already succeeded"
+				: failure === "handoff" && !child && / \(succeeded by [^)]+\)$/.test(title) ? "already succeeded"
 				: superseded ? "superseded provider failure"
 				: !Number.isFinite(failedAt) || failedAt > now || now - failedAt >= failureMaxAge ? "failure is not within the last 30 minutes"
 				: row.pending !== 0 || row.queued !== 0 ? "pending request or queued run" : null);
@@ -396,7 +396,9 @@ function ineligibleReason(move: RecoveryMove, snapshot: Snapshot, config: Config
 	if (!matches(current, move)) return "superseded account, model or runtime selection";
 	if (!configuredTarget(move, config)) return "the reserved target no longer matches the configured pools, model or effort";
 	if (config.reserved.includes(move.to)) return "the target is now reserved";
-	if (Object.hasOwn(accountLimits(snapshot, config, now), move.to)) return "the target is now limited";
+	const limits = accountLimits(snapshot, config, now);
+	if (Object.hasOwn(limits, move.to)) return "the target is now limited";
+	if (!Object.hasOwn(limits, move.from)) return "the source has room or its limit expired; native recovery owns it";
 	return null;
 }
 
@@ -450,7 +452,7 @@ function plan(snapshot: Snapshot, config: Config, state: State, now: number) {
 		if (!reason && (previous ? !matches(thread, previous) : from !== thread.failedInstance)) reason = "superseded account, model or runtime selection";
 		if (!reason && thread.failure === "usage" && !Object.hasOwn(state.limits, thread.failedInstance)) reason = "source has room or its limit expired; native recovery owns it";
 		if (!reason && !pool) reason = "source is not in a configured pool";
-		if (!reason && thread.successors.some((id) => id !== previous?.successor)) reason = "a same-title thread created after the failure: another starter's successor";
+		if (!reason && thread.failure === "handoff" && !thread.child && thread.successors.some((id) => id !== previous?.successor)) reason = "a same-title thread created after the failure: another starter's successor";
 		let choice: Choice | undefined;
 		if (!reason && pool) {
 			const chosen = choose(thread, pool, config, state, loads, previous);
@@ -495,17 +497,33 @@ function abandon(move: RecoveryMove, reason: string, directory: string, state: S
 	saveState(directory, state);
 }
 
-function stopProviderMove(move: RecoveryMove, reason: string, database: string, directory: string, state: State) {
-	if (move.kind !== "provider" || move.phase !== "continue") return;
+function reconcileRecovery(move: RecoveryMove, reason: string | null, database: string, directory: string, state: State): boolean {
+	if (move.phase !== "switch" && move.phase !== "continue") return false;
 	const db = new Database(database, { readonly: true, strict: true });
 	try {
-		const receipt = db.query("SELECT status FROM orchestration_command_receipts WHERE command_id = ?").get(`t3-pool:${move.runId}:continue:${move.attempt}`);
-		// A lost acknowledgement can leave a successful continuation checkpointed
-		// at continue after its failed run has already been superseded.
-		if (receipt !== null && object(receipt).status === "accepted") {
+		const accepted = (phase: "switch" | "continue") => {
+			const prefix = `t3-pool:${move.runId}:${phase}:`;
+			return db.query("SELECT 1 FROM orchestration_command_receipts WHERE status = 'accepted' AND substr(command_id, 1, ?) = ? LIMIT 1").get(prefix.length, prefix) !== null;
+		};
+		if (accepted("continue")) {
 			move.phase = "done";
 			saveState(directory, state);
-		} else abandon(move, `because ${reason}`, directory, state);
+			return false;
+		}
+		const row = db.query("SELECT json_extract(payload_json, '$.modelSelection') AS selection FROM orchestration_v2_projection_threads WHERE thread_id = ?").get(move.threadId);
+		const selected = row !== null && sameModel(model(JSON.parse(string(object(row).selection))), move.target);
+		if (accepted("switch") || selected) {
+			if (reason || !selected) {
+				abandon(move, `because ${reason ?? "the applied switch no longer selects the reserved target"}`, directory, state);
+				return false;
+			}
+			if (move.phase === "switch") {
+				move.phase = "continue";
+				move.attempt = 0;
+				saveState(directory, state);
+			}
+		}
+		return reason === null;
 	} finally { db.close(); }
 }
 
@@ -626,9 +644,9 @@ async function main(args: string[]) {
 		const currentConfig = readConfig();
 		const snapshot = readSnapshot(database, Date.now(), currentConfig);
 		if (!dryRun) for (const move of state.moves) {
-			if (move.kind !== "provider" || move.phase !== "continue") continue;
+			if (!isRecovery(move)) continue;
 			const reason = ineligibleReason(move, snapshot, currentConfig, Date.now());
-			if (reason) stopProviderMove(move, reason, database, directory, state);
+			reconcileRecovery(move, reason, database, directory, state);
 		}
 		if (!dryRun) notifyAbandoned(directory, state);
 		const { moves, candidates, excluded } = plan(snapshot, currentConfig, state, Date.now());
@@ -668,8 +686,8 @@ async function main(args: string[]) {
 					const config = readConfig();
 					const snapshot = readSnapshot(database, Date.now(), config);
 					const reason = ineligibleReason(move, snapshot, config, Date.now());
-					if (reason) stopProviderMove(move, reason, database, directory, state);
-					return reason === null ? snapshot.threads.find((thread) => thread.runId === move.runId) : undefined;
+					return reconcileRecovery(move, reason, database, directory, state)
+						? snapshot.threads.find((thread) => thread.runId === move.runId) : undefined;
 				};
 				for (const move of dispatches) {
 					try {
@@ -687,6 +705,7 @@ async function main(args: string[]) {
 						if (!switched || switched.modelSelection.instanceId !== move.to) continue;
 						const commandId = commandIdFor(move, database, directory, state);
 						if (!commandId) continue;
+						record(move);
 						// T3's manual guard checks the latest failed run and pending requests
 						// atomically. For a delegated child, this user continuation makes T3
 						// record a fresh task whose completion notifies the parent.
