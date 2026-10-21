@@ -95,6 +95,9 @@ production role proof, creation of the agent-owned account, pass storage of gene
 credentials, required QA owner/admin grants, scoped QA allowlist/Cloudflare Access
 changes, evidence and cleanup, without asking for phaedrus's passwords or throwaway profiles.
 Native CLI subscriptions remain execution authentication, not product QA accounts.
+Shared auth QA additions SHALL use Process as the sole HOUSEHOLD_MEMBERS writer
+until Home reassigns ownership, preserving the complete private canonical baseline,
+existing members, owner settings and aliases through one serialized native update.
 
 Evidence: `agent-config/skills/ship-loop/SKILL.md`, `agent-config/skills/ship-loop/roles.md`,
 `agent-config/guidance/engineering.md`.

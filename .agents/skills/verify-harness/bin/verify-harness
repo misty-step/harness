@@ -25,7 +25,7 @@ owner_claude=phaedrus@mistystep.io
 owner_codex_mode=chatgpt
 
 fails=0
-case "${1:-}" in doctor|check|install|session|session-auth|live|home|pool|cleanup|all) ;; *) usage_needed=1 ;; esac
+case "${1:-}" in doctor|check|install|session|session-auth|session-sdk|live|home|pool|cleanup|all) ;; *) usage_needed=1 ;; esac
 if [ -z "${usage_needed:-}" ]; then
   mkdir -p "$evidence" && evidence=$(CDPATH= cd -- "$evidence" && pwd) ||
     { echo "cannot create evidence directory $evidence" >&2; exit 1; }
@@ -164,8 +164,15 @@ cmd_install() {
   need_lists || return
   say "source $(git -C "$run/source" rev-parse --short HEAD) ($rev)"
   h="$run/claude-home"
+  mkdir -p "$h/.claude"
+  printf '%s\n' '{"env":{"HARNESS_FOREIGN_SETTING":"preserve"},"hooks":{"SessionStart":[{"hooks":[{"type":"command","command":"printf foreign-startup-sentinel"}]}]}}' > "$h/.claude/settings.json"
   install_into "$h" claude >> "$log" 2>&1 && pass "claude-config/install exit 0" || fail "claude-config/install"
   install_into "$h" codex >> "$log" 2>&1 && pass "codex-config/install exit 0" || fail "codex-config/install"
+  cp "$h/.claude/settings.json" "$run/settings-first.json"
+  install_into "$h" claude >> "$log" 2>&1 && cmp -s "$run/settings-first.json" "$h/.claude/settings.json" &&
+    pass "repeated native adapter install leaves settings byte-identical" || fail "native adapter rerun"
+  jq -e '.env.HARNESS_FOREIGN_SETTING == "preserve" and .hooks.SessionStart[0].hooks == [{"type":"command","command":"printf foreign-startup-sentinel"}]' "$h/.claude/settings.json" >/dev/null &&
+    pass "foreign native settings and startup hook preserved" || fail "foreign native settings or hook changed"
   compose claude AGENTS.md > "$run/expected-claude-AGENTS.md"
   compose codex AGENTS.md > "$run/expected-AGENTS.md"
   cmp -s "$run/expected-claude-AGENTS.md" "$h/.claude/AGENTS.md" && pass "~/.claude/AGENTS.md is the composed guidance" || fail "Claude AGENTS.md composition"
@@ -215,14 +222,19 @@ claude_session() { # claude_session <config-dir, empty for the live default> <ho
   printf '{"hooks":{"InstructionsLoaded":[{"hooks":[{"type":"command","command":"%s/hook"}]}]}}\n' "$hooks" > "$hooks/settings.json"
   (cd "$cwd" && claude_env "$1" "$2" \
     timeout 180 claude -p "${4:-Reply with OK}" --model haiku --tools "" --settings "$hooks/settings.json" \
-      --output-format stream-json --verbose < /dev/null) > "$run/$3.jsonl" 2> "$run/$3.err"
+      --output-format stream-json --verbose --include-hook-events < /dev/null) > "$run/$3.jsonl" 2> "$run/$3.err"
   jq -c 'select(.subtype == "init") | {cwd, model, skills}' "$run/$3.jsonl" > "$evidence/$3-init.json"
   jq -c 'select(.type == "result") | {is_error, result}' "$run/$3.jsonl" > "$evidence/$3-result.json"
+  jq -c 'select(.subtype == "hook_response" and .hook_event == "SessionStart") | {subtype, hook_event, stdout, exit_code, outcome}' "$run/$3.jsonl" > "$evidence/$3-hooks.jsonl"
   jq -c 'select(.file_path) | {hook_event_name, file_path, memory_type, load_reason}' "$hooks/events.jsonl" > "$evidence/$3-instructions.jsonl" 2>/dev/null
-  loaded=$(jq -r 'select(.memory_type == "User") | .file_path' "$evidence/$3-instructions.jsonl")
-  [ "$loaded" = "${1:-$2/.claude}/AGENTS.md" ] && pass "fresh Claude Code session loaded user guidance $loaded" ||
-    fail "fresh Claude Code session user guidance: '$loaded'"
-  others=$(jq -r 'select(.memory_type != "User") | .file_path' "$evidence/$3-instructions.jsonl")
+  python3 "$skill_dir/bin/claude-context.py" "$run/$3.jsonl" "${1:-$2/.claude}/AGENTS.md" > "$evidence/$3-context.json" &&
+    pass "fresh Claude Code session received complete canonical AGENTS.md through native SessionStart" ||
+    fail "fresh Claude Code session canonical SessionStart context"
+  if [ -n "$1" ]; then
+    jq -e 'select(.subtype == "hook_response" and .stdout == "foreign-startup-sentinel" and .outcome == "success")' "$run/$3.jsonl" >/dev/null &&
+      pass "fresh native session also ran the preserved foreign startup hook" || fail "foreign startup hook did not run"
+  fi
+  others=$(jq -r '.file_path' "$evidence/$3-instructions.jsonl")
   [ -z "$others" ] && pass "no other instruction file leaked into the session" || fail "extra instruction files: $others"
   before=$fails
   for skill in $(list_of claude skills); do
@@ -290,6 +302,44 @@ cmd_session_auth() {
   jq -e '.is_error == false and .result == "CANONICAL_QA_OK"' "$evidence/claude-candidate-result.json" >/dev/null &&
     pass "authenticated fresh Claude model read canonical instructions and QA policy" || fail "authenticated candidate model policy readback"
   codex_session "$h/.codex" "$h" codex-candidate
+}
+
+cmd_session_sdk() {
+  need_run || return
+  [ -f "${VH_CLAUDE_SDK:-}" ] || { fail "set VH_CLAUDE_SDK to T3's SDK module"; return; }
+  step "session-sdk: native SDK launch shape used by T3, no instruction-file launch argument"
+  h="$run/claude-home"
+  target="$h/.claude/.credentials.json"
+  [ ! -e "$target" ] && [ ! -L "$target" ] || { fail "isolated credential destination already exists"; return; }
+  install -m 600 "$HOME/.claude/.credentials.json" "$target" || { fail "stage native CLI authentication"; return; }
+  trap 'rm -f -- "$target"' 0
+  trap 'exit 130' 2
+  trap 'exit 143' 15
+  cwd=$(fresh_cwd)
+  printf '%s\n' "$cwd" >> "$base/cwds"
+  executable=$(command -v claude)
+  env -i PATH="$PATH" HOME="$h" TMPDIR="$run" \
+    timeout 180 bun "$skill_dir/bin/claude-sdk-session.mjs" "$VH_CLAUDE_SDK" "$executable" "$cwd" "$run/claude-sdk.jsonl" \
+    'From the loaded harness global AGENTS.md, return JSON with keys heading, lastLine and sharedAuthWriter. Use the first Markdown heading and the final nonempty line exactly, and name the sole writer of shared HOUSEHOLD_MEMBERS. No tools.'
+  rm -f -- "$target"
+  trap - 0 2 15
+  jq -c 'select(.subtype == "init") | {cwd, model, skills}' "$run/claude-sdk.jsonl" > "$evidence/claude-sdk-init.json"
+  jq -c 'select(.subtype == "hook_response" and .hook_event == "SessionStart") | {subtype, hook_event, stdout, exit_code, outcome}' "$run/claude-sdk.jsonl" > "$evidence/claude-sdk-hooks.jsonl"
+  python3 "$skill_dir/bin/claude-context.py" "$run/claude-sdk.jsonl" "$h/.claude/AGENTS.md" > "$evidence/claude-sdk-context.json" &&
+    pass "T3 SDK native session received every canonical guidance part" || fail "T3 SDK native context"
+  jq -e 'select(.subtype == "hook_response" and .stdout == "foreign-startup-sentinel" and .outcome == "success")' "$run/claude-sdk.jsonl" >/dev/null &&
+    pass "T3 SDK also ran the preserved foreign startup hook" || fail "T3 SDK foreign startup hook"
+  jq -c 'select(.type == "result") | {is_error, result}' "$run/claude-sdk.jsonl" > "$evidence/claude-sdk-result.json"
+  python3 - "$evidence/claude-sdk-result.json" "$h/.claude/AGENTS.md" <<'PYCODE'
+import json,sys
+from pathlib import Path
+result=json.loads(Path(sys.argv[1]).read_text());assert not result['is_error']
+text=result['result'].strip()
+if text.startswith('```'): text='\n'.join(text.splitlines()[1:-1])
+answer=json.loads(text);lines=[s for s in Path(sys.argv[2]).read_text().splitlines() if s.strip()]
+assert answer == {'heading': next(s for s in lines if s.startswith('# ')), 'lastLine': lines[-1], 'sharedAuthWriter': 'Process'}, answer
+PYCODE
+  [ "$?" -eq 0 ] && pass "authenticated T3 SDK model read global AGENTS.md and the shared-auth writer policy" || fail "T3 SDK model guidance readback"
 }
 
 cmd_registration() {
@@ -416,6 +466,7 @@ Usage: verify-harness <command>
   install [rev]     deploy claude-config and codex-config from rev (default HEAD) into private HOMEs
   session [claude|codex|both]  fresh sessions on the isolated install; both also checks this skill registers
   session-auth      isolated candidate model readback using native CLI subscription authentication
+  session-sdk       authenticated T3 SDK launch; requires VH_CLAUDE_SDK module path
   live              compare live ~/.claude, ~/.codex and t3-pool config with the installed rev; fresh live sessions
   home              home post into a private inbox, bad posts, routed probe
   pool              t3-pool dry runs and opt-in state
@@ -434,6 +485,7 @@ case "$command" in
   install) cmd_install "$@" ;;
   session) cmd_session "$@" ;;
   session-auth) cmd_session_auth ;;
+  session-sdk) cmd_session_sdk ;;
   live) cmd_live ;;
   home) cmd_home ;;
   pool) cmd_pool ;;

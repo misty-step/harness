@@ -1,10 +1,10 @@
 # Fresh session
 
-The deploy only matters if a fresh session loads it. A new Claude Code session must load canonical `CLAUDE_CONFIG_DIR/AGENTS.md` natively, with no `CLAUDE.md` present, as its user instructions and list the skills claude-config selects. A new Codex session's model-visible prompt must contain the composed AGENTS.md and list the skills from `CODEX_HOME/skills`.
+The deploy only matters if a fresh session loads it. A new Claude Code session must receive canonical `CLAUDE_CONFIG_DIR/AGENTS.md` through the installed native SessionStart adapter, with no legacy file or symlink and list the skills claude-config selects. A new Codex session's model-visible prompt must contain the composed AGENTS.md and list the skills from `CODEX_HOME/skills`.
 
 ## Sub-features
 
-- `session-claude-guidance`: Claude Code fires `InstructionsLoaded` for the deployed AGENTS.md as `memory_type: User`, and for no other file.
+- `session-claude-guidance`: Claude Code emits native SessionStart responses whose complete text equals deployed AGENTS.md. No other instruction file leaks in.
 - `session-claude-skills`: the Claude Code init event lists every skill `claude-config/install` selects (on 2026-10-20: `lage`, `ship-loop`, `judge`, `release-watch`, `heartbeat`, `story-qa`, `pokayoke`, `user-stories` and `authenticated-commands`).
 - `session-codex-guidance`: Codex's rendered prompt contains `<!-- owned by misty-step/harness codex-config -->` and the composed sections.
 - `session-codex-skills`: the prompt's skill root `r0` is the deployed `skills` directory, and it lists every skill `codex-config/install` selects.
@@ -23,10 +23,11 @@ Preconditions:
 
 - `verify-harness install` passed in this `VH_DIR`.
 
-- **Claude Code.** Run `verify-harness session claude`. Expect `PASS fresh Claude Code session loaded user guidance <run>/claude-home/.claude/AGENTS.md`, `PASS no other instruction file leaked into the session` and `PASS Claude Code session lists every claude-config skill`. The model call line reads `Not logged in`, which is expected for a private HOME.
+- **Claude Code.** Run `verify-harness session claude`. Expect `PASS fresh Claude Code session received complete canonical AGENTS.md through native SessionStart`, `PASS no other instruction file leaked into the session` and `PASS Claude Code session lists every claude-config skill`. The model call line reads `Not logged in`, which is expected for a private HOME.
 - **Codex.** Run `verify-harness session codex`. Expect `PASS fresh Codex session prompt carries the composed AGENTS.md`, `PASS Codex skill root is <run>/claude-home/.codex/skills` and `PASS Codex session lists every codex-config skill`.
 - **Repository skill.** Run `verify-harness session` (both). Expect `PASS Claude Code lists verify-harness from the project .claude/skills symlink` and `PASS Codex lists verify-harness from the project .agents/skills`. A revision older than this skill fails here.
 - **Authenticated candidate.** Run `verify-harness session-auth` to prove the model reads the newly installed canonical and QA policy using native CLI subscription authentication in the isolated HOME. Expect `PASS authenticated fresh Claude model read canonical instructions and QA policy`. The private credential copy is removed; no product account or live deployment changes.
+- **T3 SDK.** Run `VH_CLAUDE_SDK=<T3 SDK module> verify-harness session-sdk`. Expect complete native context, a preserved foreign hook, and an authenticated readback of the first heading, final nonempty line and shared-auth writer. The SDK preset append contains only runtime information, with no canonical guidance; HOME selects user settings without a config-directory override.
 - **Proof.** Keep `claude-isolated-init.json`, `claude-isolated-instructions.jsonl`, `codex-isolated-summary.txt` and `registration-*`.
 
 ## Gotchas
@@ -36,4 +37,4 @@ Preconditions:
 - `codex debug prompt-input` needs no login and makes no model call. It warns that it cannot create PATH aliases under a temp dir; ignore that warning.
 - Built-in Claude Code skills, such as `simplify` and `loop`, appear alongside the selected ones. Only the selected skills are asserted.
 
-- Native 2.1.303 and a private native 2.1.305 comparison did not load user-scope AGENTS.md from the isolated cwd outside HOME. The model returned MISSING_POLICY. This is a loading blocker, not an installer pass. An ancestor-based project load does not establish global user-scope loading.
+- Native 2.1.303 and a private native 2.1.305 comparison did not load user-scope AGENTS.md from the isolated cwd outside HOME. The model returned MISSING_POLICY. The maintained SessionStart adapter is the integration for that missing global discovery path. The old failure is retained in evidence; an ancestor-based project load alone remains insufficient.

@@ -43,3 +43,22 @@ installs preserve that backup; a conflicting backup stops the upgrade.
 An existing `AGENTS.md` link to an owned standalone legacy file is supported.
 Migration snapshots all legacy bytes before removing that link or the legacy entry.
 Foreign reverse links and conflicting backups stop the install without writes.
+
+## Native startup
+
+Claude's automatic AGENTS discovery follows project ancestors. It does not load
+user-scope `~/.claude/AGENTS.md` from a cwd outside HOME on the native versions
+probed here. The installer adds a native `SessionStart` hook in user settings,
+which also applies to T3's Claude Agent SDK launches. The adapter reads the
+canonical file on startup, resume, clear and compaction. It passes the complete
+text in bounded parts, below Claude's hook-output limit, without another
+instruction-content file or a shell launcher wrapper.
+
+The installer owns `hooks/harness-agents.py` and only its own SessionStart
+handlers. It preserves foreign settings, file mode, hooks and their order,
+refuses malformed settings or unowned handler collisions before shared install
+writes, and updates the owned handlers without duplicates on rerun. Explicit
+`disableAllHooks`, safe mode or settings-source exclusions still take effect.
+
+References: [AGENTS discovery](https://code.claude.com/docs/en/memory#when-claude-code-reads-agentsmd),
+[native hook context and limits](https://code.claude.com/docs/en/hooks#add-context-for-claude).

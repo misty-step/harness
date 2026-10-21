@@ -25,7 +25,7 @@ Post to Home only for something shipped, something blocked, a question for him, 
 - creating, widening or revoking credentials;
 - effects on third parties, such as messages to people outside the team.
 
-Verification's explicitly scoped AgentMail QA setup is the narrow exception to the credentials and production-data ask-first rules above. All other credential and production-data changes still require permission.
+Verification's explicitly scoped AgentMail QA setup is the narrow exception to the credentials and production-data ask-first rules above. Shared HOUSEHOLD_MEMBERS changes remain Process-only under Verification's complete-baseline procedure. All other credential and production-data changes still require permission.
 
 Lane threads run in Full access (phaedrus, 2026-10-20). Set a lane's mode yourself with `t3-runtime-mode <threadId> full-access`.
 

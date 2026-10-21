@@ -21,7 +21,7 @@ Preconditions:
 - Doctor shows Claude Code signed in.
 
 - **Compare files.** Run `verify-harness live`. Expect `PASS live ~/.claude/AGENTS.md matches source`, `PASS live ~/.codex/AGENTS.md matches source` and `PASS live ~/.claude and ~/.codex shared skills match source`.
-- **Real Claude Code session.** In the same run, expect `PASS fresh Claude Code session loaded user guidance /home/phaedrus/.claude/AGENTS.md`, `model answered: # Claude Code global guidance` and `PASS the model sees the live global guidance`.
+- **Real Claude Code session.** In the same run, expect `PASS fresh Claude Code session received complete canonical AGENTS.md through native SessionStart`, `model answered: # Claude Code global guidance` and `PASS the model sees the live global guidance`.
 - **Real Codex prompt.** In the same run, expect `PASS fresh Codex session prompt carries the composed AGENTS.md` and `PASS Codex skill root is /home/phaedrus/.codex/skills`.
 - **Proof.** Keep `claude-live-*.json*`, `codex-live-summary.txt` and the live section of `transcript.txt`.
 
