@@ -3,8 +3,9 @@
 `t3-pool` continues fresh usage-limited Claude and Codex threads on another
 account: the same provider first, then the other provider with a mapped model.
 It continues delegated children so their results still reach their parents.
-When a lane's transcript is too large for its target, it starts a successor
-thread instead. `claude-config/install` selects it through
+When T3 refuses a transcript handoff, it requests succession from Home once.
+Only Home opens top-level threads from groomed and specced backlog.
+`claude-config/install` selects it through
 `agent-config/install --t3-pool`. Installation deploys inactive systemd user
 units; activation is explicit. An enabled timer runs 90 seconds after startup
 and 90 seconds after each pass finishes.
@@ -12,11 +13,34 @@ and 90 seconds after each pass finishes.
 ## Configuration and eligibility
 
 `pools.json` owns the instance lists, reserved accounts, `maxMovesPerPass`, the
-cross-provider model map and its shared efforts.
+cross-provider model map, shared efforts and the explicit `wipRoots` IDs.
 Installation copies it to `~/.config/t3-pool.json`. Each pool needs at least two
 unique instance IDs of the same driver with compatible models and options.
 An instance can belong to only one pool. The CLI uses bundled defaults when
 no installed config exists.
+
+Home names the active set according to available budget; there is no fixed
+global lane cap. The current named roots are Tach, Process 2, Overmind and
+Marmalade, plus draining Voice and Habitat, confirmed through T3 on 2026-10-21. Home and Heartbeat are exempt from the WIP count but
+are not pool targets. Verify roots and other backlog lanes are excluded.
+
+Home changes the WIP set by intentionally editing `wipRoots` in this source
+`pools.json`, reviewing the exact current IDs with `t3_thread_read`, and deploying
+the config through the normal harness installer. Installation replaces the owned
+`~/.config/t3-pool.json`; an installed config can also be edited for immediate
+operation, then reconciled to source before the next install. `wipRoots: []`
+disables all moves. Older configs missing the key use the bundled maintained
+roots. Names and `(succeeded by …)` claims never transfer eligibility: after Home
+creates and verifies a successor, Home replaces the predecessor ID intentionally.
+
+A thread is eligible only if it is a maintained top-level root or a descendant
+whose every parent edge agrees with its original task's owner and forked node.
+Missing, conflicting or cyclic ancestry and any archived, deleted or settled
+ancestor fail closed. The cached `lineage.rootThreadId` is not authority.
+The planner and executor use this same boundary; configuration and ancestry are
+read again before each switch, continuation and Home request. Account usage
+observed on excluded lanes can still make an account unavailable as a target;
+that observation never authorizes moving those lanes.
 
 The shipped reservations are `claude-hello`, `claude-r90` and `codex-r90`.
 `codex-r90` has no credits; remove its reservation only after a future observed
@@ -39,13 +63,13 @@ The CLI reads `$T3CODE_HOME/userdata/statev2.sqlite` read-only, defaulting to
   its project created after the failure: another starter got there first.
 
 A delegated child qualifies only when it is an app-owned subagent whose
-original task already has a result and whose parent is neither archived nor
-deleted. Its continuation is a user `message.dispatch`, so T3's
+original task already has a result and whose entire ancestry is eligible.
+A newer run, queued run or app-owned delegation on its parent after the failure
+means the parent has taken over recovery, so the pool skips the stale child. Its continuation is a user `message.dispatch`, so T3's
 `recordSubagentFollowup` gives the new run a fresh parent-owned task; that
 task's completion notifies the parent, as an orchestrator follow-up to a
-child thread does. The pass prints the task id. Children never get successors,
-because a successor cannot report to the parent. Top-level lanes take the pass
-and hourly caps before children.
+child thread does. The pass prints the task id. The pool never launches successors.
+Top-level lanes take the pass and hourly caps before children.
 Eligibility and target limits are re-read before switching and continuing.
 
 For each account, `F` is its newest current root usage-limit failure; `S` is its
@@ -61,30 +85,29 @@ Targets come from the thread's pool. When every other account in it is limited
 or reserved, they come from the other pools, with the model and effort mapped by
 `crossProvider`: Sol at an effort becomes Opus 5.5 at the same effort, and back.
 Other options, such as `fastMode` or `serviceTier`, are provider-specific and
-stay behind. An unmapped model or an effort outside `efforts` gets no
-cross-provider move. A same-pool account that is only at its hourly cap does not
+stay behind. An unmapped model, implicit or duplicate effort, or an effort outside `efforts`
+gets no cross-provider move; provider defaults cannot prove equivalent effort. A same-pool account that is only at its hourly cap does not
 send the thread to another provider.
 
-T3 replays a compact handoff into the target's provider thread for this lane.
-If the target already holds a transcript of it, T3 budgets
-`window − used − max(16k, window/4)` tokens and refuses when that leaves no
-room for the handoff. The pool reads each provider thread's `contextUsage` and
-prefers a target that fits. When none fits, or when T3 has already refused, it
-starts a successor instead.
+T3 owns transcript admission. Accounts sharing native history can resume without
+a handoff; stale per-account context rows do not justify succession. The pool
+attempts an eligible move and responds to an actual T3 handoff refusal.
 
-## Successors
+## Succession requests
 
-A successor follows the `lane-succession` skill's contract (#411). The pool
-calls `orchestration.launchThread` with a pre-assigned thread id, the old
-thread's title, project and interaction mode, the target's model selection and
-the old runtime mode. The workspace is `existing_worktree` with the old
-`worktreePath` and branch, or `root` when there is none. The first message is
-the contract's fixed text: the successor reads the old thread, writes the
-handoff under `~/.local/state/t3-handoffs/`, claims the old thread and continues.
-The pool then settles the old thread unless it has a newer run, and posts the
-new thread id with `home post --from t3-pool`. If that fails, it appends the
-same body to `$XDG_STATE_HOME/home/inbox.md`. Heartbeat confirms that the
-successor continues.
+The pool never launches, renames or settles a thread. A handoff refusal on an
+eligible WIP thread produces one `home post --from t3-pool` per failed run, with
+the predecessor link, failed run, project, workspace, branch, current model and
+options, runtime and interaction mode, and the failure reason. Home decides
+whether succession follows from groomed and specced backlog and uses the
+`lane-succession` contract. A child request also leaves recovery to Home and its
+parent, so no detached replacement can lose task ownership.
+
+If Home posting fails, the same request is appended to
+`$XDG_STATE_HOME/home/inbox.md`. A successful post or fallback marks the request
+done; subsequent passes do not repost it. A crash between posting and the state
+save can repeat a request, identified by the same failed run. It cannot create a
+thread. Neither a dry run nor a succession-only pass issues an RPC session.
 
 ## State and retries
 
@@ -97,17 +120,18 @@ count conservatively toward the hourly cap. No manual state edits are needed.
 
 Passes take a nonblocking `flock`. A move's target, admission and command IDs
 are saved with fsync before dispatch. After a crash or lost acknowledgement,
-the next pass retries the same command ID, which T3 deduplicates. A lost launch
-acknowledgement resumes the same successor thread. Only an authoritative
-`rejected` receipt permits a new attempt ID. A launch can fail before T3 writes
-a receipt; that failure keeps its ID but still counts as a rejection. A rejected move is
+the next pass retries the same command ID, which T3 deduplicates. Only an authoritative
+`rejected` receipt permits a new attempt ID. A rejected move is
 recorded and skipped so the pass can continue; three rejections across either
-phase mark it `abandoned`. A failed continuation retries without switching again.
-Corrupt state fails closed. Runtime mode never changes.
+phase mark it `abandoned` and notify Home with both original and target selections. A failed continuation retries without switching again.
+Succession requests serialize with legacy `phase: done` plus a pending notification
+flag, so the old reader cannot execute them. Reverting to the unrestricted old
+planner is not an authorized rollback: leave the timer off until the replacement
+retains the WIP filter. Corrupt state fails closed. Runtime mode never changes.
 
 `moves.jsonl` records each move once, with time, thread, source, destination,
-failed run and kind (`account`, `provider` or `successor`), plus the mapped
-model or successor thread when there is one. Each finished move also prints a
+failed run and kind (`account` or `provider`), plus the mapped
+model when there is one. Succession requests print a `requested` line instead. Each finished move also prints a
 `moved` line to the journal. `rejections.jsonl` and stderr record rejected attempts without
 server error bodies or credentials.
 
@@ -144,7 +168,7 @@ no move is eligible, normal passes also issue no session; T3's native
 
 The tests use a SQLite projection and an authenticated fixture WebSocket server.
 They cover eligibility, child follow-up tasks, cross-provider mapping,
-transcript-size prediction, successors, Home fallback, recovery evidence,
+transitive WIP ancestry, stale child rejection, Home succession requests, fallback, recovery evidence,
 unknown resets, reservations, load, caps across restarts, rejection and
 abandonment, lost acknowledgements, interruption, private output and installer
 ownership. Installer checks run in
@@ -173,6 +197,7 @@ selected primitives normally. Pool state and logs survive reinstalls.
 
 Same-provider account moves ran live on 2026-10-20: three claudeAgent lanes
 continued on claude-mistystep. The supported RPC cannot inject a synthetic
-usage-limit failure, so child, cross-provider and successor moves are proven by
-live dry runs and fixture tests until a live pass makes one. The shipped pass is
+usage-limit failure, so child and cross-provider moves are proven by
+fixture tests until an authorized live pass makes one. Succession requests are
+proven with an isolated Home inbox; the pool cannot create a successor. The shipped pass is
 capped at one move for observation.

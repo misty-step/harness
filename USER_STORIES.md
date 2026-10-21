@@ -656,31 +656,33 @@ preview service, scheduler or upload credential is introduced.
 
 ## US-050 Continue T3 threads across pooled accounts
 
-Statement: When a T3 account reaches its usage limit, I want the thread to
-continue on another account without switching it myself.
+Statement: When a T3 account reaches its usage limit, I want only maintained
+WIP lanes and their children to continue on another account without switching
+them myself; Home owns any new thread.
 
 Criteria:
-1. WHEN an active thread's latest executed run fails at a usage limit within
+1. WHEN an eligible WIP thread's latest executed run fails at a usage limit within
    the last 30 minutes, THE SYSTEM SHALL continue it on the least-loaded
    eligible instance in its Claude or Codex pool, preserving model, options and
    runtime mode. Superseded work SHALL remain untouched.
 2. WHEN that thread is a delegated child, THE SYSTEM SHALL continue it only
-   through T3's follow-up task, so its result still reaches its parent.
+   through T3's follow-up task, so its result still reaches its parent. A child
+   whose parent has newer work SHALL remain under its parent's recovery.
 3. WHEN every other account in its pool is limited or reserved, THE SYSTEM
    SHALL move it to another pool with the configured model and effort mapping,
    preserving runtime mode.
-4. WHEN the target cannot take its transcript, predicted from the target's
-   existing context usage or reported by T3's handoff refusal, THE SYSTEM SHALL
-   start a top-level lane's successor on the same project and workspace under the
-   lane-succession contract, settle the old thread and tell Home.
+4. WHEN T3 refuses an eligible thread's transcript handoff, THE SYSTEM SHALL
+   request succession from Home once per failed run with its handoff context,
+   model, runtime and workspace. Only Home SHALL open threads from groomed and
+   specced backlog; pooling SHALL NOT launch or settle a successor.
 5. WHEN an instance's newest current usage-limit failure is newer than its
    newest completed run, THE SYSTEM SHALL exclude it until the known reset or,
    for an unknown reset, at most one hour after the failure.
 6. WHEN no eligible account has room, THE SYSTEM SHALL leave the thread for
    T3's native recovery. Reserved accounts SHALL never be targets.
 7. WHEN a pass retries or overlaps another pass, THE SYSTEM SHALL select at
-   most one target per failed run and avoid duplicate continuations and
-   successors. Each pass SHALL move at most two threads (one during ramp), and
+   most one target per failed run and avoid duplicate continuations. Each pass
+   SHALL move at most two threads (one during ramp), and
    each target SHALL receive at most three moves per rolling hour, across
    process restarts.
 8. WHEN the operator requests a dry run, THE SYSTEM SHALL list proposed moves
@@ -692,6 +694,14 @@ Criteria:
 10. WHEN a harness installs pooling, THE SYSTEM SHALL preserve foreign units
     and existing activation state, leave initial activation opt-in, and skip
     pooling gracefully on hosts without a systemd user manager.
+11. WHEN pooling plans or executes any recovery, THE SYSTEM SHALL permit only
+    the explicitly maintained WIP roots and their transitive children with
+    verified parent/task ownership. Missing, ambiguous, cyclic or inactive
+    ancestry SHALL fail closed. Home and Heartbeat SHALL remain excluded, as
+    SHALL unnamed roots including Verify. Home SHALL size the named active set
+    to budget without a fixed global lane cap; named draining lanes remain
+    eligible. Succession titles SHALL NOT confer eligibility; Home SHALL
+    intentionally update the maintained root IDs.
 
 Evidence: `agent-config/bin/t3-pool.test.ts`, `agent-config/bin/install.test.ts`,
 `agent-config/bin/t3-runtime-mode.test.ts`, and `scripts/verify-installers`.

@@ -15,7 +15,7 @@ type LimitedThread = {
 	blockedReason: string | null; currentFailure: boolean; active: boolean;
 	// "handoff" is T3 refusing to replay the transcript into the selected provider thread.
 	failure: "usage" | "handoff"; child: boolean; title: string; projectId: string; interactionMode: string;
-	worktreePath: string | null; branch: string | null; context: Record<string, { used: number; window: number }>;
+	worktreePath: string | null; branch: string | null;
 	// Same-title threads in its project created after the failure: other starters' successors.
 	successors: string[];
 };
@@ -23,11 +23,11 @@ type Phase = "switch" | "continue" | "launch" | "settle" | "announce" | "done" |
 type Kind = "account" | "provider" | "successor";
 type Move = Pick<LimitedThread, "threadId" | "runId" | "modelSelection" | "runtimeMode" | "child"> & {
 	from: string; to: string; target: ModelSelection; kind: Kind; phase: Phase; attempt: number; rejections: number;
-	title?: string; reason?: string; successor?: string;
+	successor?: string;
 };
 type Admission = { runId: string; to: string; at: string };
 type State = { version: 1; limits: Record<string, string>; moves: Move[]; admissions: Admission[] };
-type Config = { pools: string[][]; reserved: string[]; maxMovesPerPass: number; crossProvider: Record<string, string>[]; efforts: string[] };
+type Config = { wipRoots: string[]; pools: string[][]; reserved: string[]; maxMovesPerPass: number; crossProvider: Record<string, string>[]; efforts: string[] };
 type Snapshot = { threads: LimitedThread[]; failures: LimitedThread[]; room: Record<string, number>; running: Record<string, number> };
 type Choice = { to: string; target: ModelSelection; kind: Kind; reason: string };
 const hour = 60 * 60_000;
@@ -73,6 +73,10 @@ function configuration(value: unknown): Config {
 			return id;
 		});
 	});
+	const roots = Object.hasOwn(config, "wipRoots") ? config.wipRoots : defaults.wipRoots;
+	if (!Array.isArray(roots)) throw new CliError("Invalid T3 WIP roots");
+	const wipRoots = roots.map(string);
+	if (new Set(wipRoots).size !== wipRoots.length) throw new CliError("T3 WIP roots must be unique");
 	const reserved = config.reserved ?? defaults.reserved;
 	if (!Array.isArray(reserved)) throw new CliError("Invalid reserved T3 instances");
 	const maxMovesPerPass = config.maxMovesPerPass ?? defaults.maxMovesPerPass;
@@ -91,7 +95,7 @@ function configuration(value: unknown): Config {
 	});
 	const efforts = config.efforts ?? defaults.efforts;
 	if (!Array.isArray(efforts)) throw new CliError("Invalid T3 cross-provider efforts");
-	return { pools, reserved: reserved.map(string), maxMovesPerPass, crossProvider: pairs, efforts: efforts.map(string) };
+	return { wipRoots, pools, reserved: reserved.map(string), maxMovesPerPass, crossProvider: pairs, efforts: efforts.map(string) };
 }
 
 // Match T3's latestExecutedRun and latestRootProviderFailure, not submission
@@ -106,7 +110,7 @@ const poolFailureSql = (alias: string) => `(json_extract(${alias}.payload_json, 
     OR json_extract(${alias}.payload_json, '$.failure.message') LIKE '${handoffRefusal}%')`;
 
 const limitedThreadsSql = `
-SELECT t.payload_json AS thread, r.run_id AS runId,
+SELECT t.thread_id AS threadId, t.payload_json AS thread, r.run_id AS runId,
   r.run_id = (${latestExecutedRunSql}) AS latestRun,
   r.provider_instance_id AS failedInstance, item.updated_at AS failedAt,
   json_extract(item.payload_json, '$.failure.class') AS failureClass,
@@ -126,14 +130,16 @@ SELECT t.payload_json AS thread, r.run_id AS runId,
     WHERE task.subagent_id = json_extract(t.payload_json, '$.forkedFrom.nodeId') AND task.child_thread_id = t.thread_id
       AND task.thread_id = json_extract(t.payload_json, '$.lineage.parentThreadId') AND task.origin = 'app_owned'
       AND COALESCE(json_type(task.payload_json, '$.result'), 'null') <> 'null') AS followable,
+  EXISTS(SELECT 1 FROM orchestration_v2_projection_runs parentRun
+    WHERE parentRun.thread_id = json_extract(t.payload_json, '$.lineage.parentThreadId')
+      AND (parentRun.status = 'queued' OR json_extract(parentRun.payload_json, '$.startedAt') > item.updated_at))
+    OR EXISTS(SELECT 1 FROM orchestration_v2_projection_subagents newerTask
+      WHERE newerTask.thread_id = json_extract(t.payload_json, '$.lineage.parentThreadId')
+        AND newerTask.child_thread_id <> t.thread_id AND newerTask.origin = 'app_owned'
+        AND json_extract(newerTask.payload_json, '$.startedAt') > item.updated_at) AS parentAdvanced,
   (SELECT parent.deleted_at IS NULL AND json_extract(parent.payload_json, '$.archivedAt') IS NULL
    FROM orchestration_v2_projection_threads parent
    WHERE parent.thread_id = json_extract(t.payload_json, '$.lineage.parentThreadId')) AS parentActive,
-  (SELECT json_group_array(json_object('instance', native.instance, 'usage', json(native.usage))) FROM (
-     SELECT provider_instance_id AS instance, json_extract(payload_json, '$.contextUsage') AS usage
-     FROM orchestration_v2_projection_provider_threads
-     WHERE thread_id = t.thread_id AND owner_node_id IS NULL AND provider_instance_id IS NOT NULL
-     ORDER BY updated_at) native) AS contextUsage,
   (SELECT json_group_array(other.thread_id) FROM orchestration_v2_projection_threads other
    WHERE other.thread_id <> t.thread_id AND other.deleted_at IS NULL
      AND json_extract(other.payload_json, '$.projectId') = json_extract(t.payload_json, '$.projectId')
@@ -154,30 +160,60 @@ WHERE t.deleted_at IS NULL
   AND ${poolFailureSql("item")}
 ORDER BY t.thread_id`;
 
-// Newest occupancy of each provider thread T3 would resume on an instance.
-function contextUsage(value: unknown): LimitedThread["context"] {
-	const context: LimitedThread["context"] = {};
-	const entries: unknown = JSON.parse(string(value));
-	if (!Array.isArray(entries)) throw new CliError("Invalid T3 context usage");
-	for (const entry of entries.map(object)) {
-		const usage = entry.usage;
-		if (typeof usage !== "object" || usage === null || Array.isArray(usage)) continue;
-		const { usedTokens, maxTokens, autoCompactThreshold } = usage as Record<string, unknown>;
-		if (typeof usedTokens !== "number" || !Number.isFinite(usedTokens)) continue;
-		const max = typeof maxTokens === "number" && maxTokens > 0 ? maxTokens : 128_000;
-		const compact = typeof autoCompactThreshold === "number" && autoCompactThreshold > 0 ? autoCompactThreshold : Infinity;
-		context[string(entry.instance)] = { used: usedTokens, window: Math.min(max, compact) };
+// Titles and lineage.rootThreadId do not establish ownership.
+function wipThreads(db: Database, roots: string[]): Set<string> {
+	const nodes = new Map<string, { parent: string | null; valid: boolean; active: boolean }>();
+	const owners = new Map<string, { id: string; parent: string }[]>();
+	for (const value of db.query("SELECT subagent_id AS id, thread_id AS parent, child_thread_id AS child FROM orchestration_v2_projection_subagents WHERE child_thread_id IS NOT NULL").all()) {
+		const row = object(value);
+		const child = string(row.child);
+		const tasks = owners.get(child) ?? [];
+		tasks.push({ id: string(row.id), parent: string(row.parent) });
+		owners.set(child, tasks);
 	}
-	return context;
+	for (const value of db.query("SELECT thread_id AS id, deleted_at AS deleted, payload_json AS payload FROM orchestration_v2_projection_threads").all()) {
+		const row = object(value);
+		const payload = object(JSON.parse(string(row.payload)));
+		const lineage = typeof payload.lineage === "object" && payload.lineage !== null ? object(payload.lineage) : {};
+		const fork = typeof payload.forkedFrom === "object" && payload.forkedFrom !== null ? object(payload.forkedFrom) : {};
+		const parent = typeof lineage.parentThreadId === "string" ? lineage.parentThreadId : null;
+		const tasks = owners.get(string(row.id)) ?? [];
+		const valid = parent === null
+			? lineage.parentThreadId === null && lineage.relationshipToParent === null && tasks.length === 0
+			: lineage.relationshipToParent === "subagent" && fork.type === "node"
+				&& tasks.filter((task) => task.id === fork.nodeId && task.parent === parent).length === 1
+				&& tasks.every((task) => task.parent === parent);
+		nodes.set(string(row.id), { parent, valid, active: row.deleted === null && payload.deletedAt === null
+			&& payload.archivedAt === null && payload.settledOverride !== "settled" });
+	}
+	const allowed = new Set<string>();
+	for (const id of nodes.keys()) {
+		const seen = new Set<string>();
+		let current: string | null = id;
+		while (current !== null && !seen.has(current)) {
+			seen.add(current);
+			const node = nodes.get(current);
+			if (!node?.valid || !node.active) break;
+			if (node.parent === null) {
+				if (roots.includes(current)) allowed.add(id);
+				break;
+			}
+			current = node.parent;
+		}
+	}
+	return allowed;
 }
 
-function readSnapshot(path: string, now: number): Snapshot {
+function readSnapshot(path: string, now: number, config: Config): Snapshot {
 	const db = new Database(path, { readonly: true, strict: true });
 	try {
 		db.exec("PRAGMA query_only = ON; PRAGMA busy_timeout = 3000;");
+		db.exec("BEGIN;");
+		const wip = wipThreads(db, config.wipRoots);
 		const failures = db.query(limitedThreadsSql).all().map((value): { thread: LimitedThread; latest: boolean } => {
 			const row = object(value);
 			const thread = object(JSON.parse(string(row.thread)));
+			if (thread.id !== row.threadId) throw new CliError("Inconsistent T3 thread identity");
 			// A target session's historical error cannot supersede the source run
 			// while a reserved move is waiting for its guarded continuation.
 			const superseded = thread.providerInstanceId === row.failedInstance && row.sessionError !== null && row.sessionError !== row.failureMessage;
@@ -194,9 +230,10 @@ function readSnapshot(path: string, now: number): Snapshot {
 				: lineage.relationshipToParent !== "subagent" || thread.creationSource === "provider" || row.followable !== 1
 					? "delegated child: no app-owned task result to follow up"
 				: row.parentActive !== 1 ? "delegated child: parent archived or deleted"
-				: failure === "handoff" ? "delegated child: too large to continue, and a successor cannot report to its parent" : null;
+				: row.parentAdvanced !== 0 ? "delegated child: parent has newer work" : null;
 			const title = string(thread.title);
 			const blockedReason = childReason
+				?? (!wip.has(string(thread.id)) ? "outside maintained WIP roots or unverified ancestry" : null)
 				?? (!active ? "archived, deleted or settled"
 				: / \(succeeded by [^)]+\)$/.test(title) ? "already succeeded"
 				: superseded ? "superseded provider failure"
@@ -208,7 +245,7 @@ function readSnapshot(path: string, now: number): Snapshot {
 				modelSelection, runtimeMode: parseMode(string(thread.runtimeMode)), failedAt, blockedReason, active,
 				currentFailure: failure === "usage" && active && !superseded && Number.isFinite(failedAt) && failedAt <= now,
 				failure, child, title, projectId: string(thread.projectId), interactionMode: string(thread.interactionMode),
-				worktreePath: optionalString(thread.worktreePath), branch: optionalString(thread.branch), context: contextUsage(row.contextUsage),
+				worktreePath: optionalString(thread.worktreePath), branch: optionalString(thread.branch),
 				successors: (JSON.parse(string(row.successors)) as unknown[]).map(string),
 			} };
 		});
@@ -250,9 +287,9 @@ function readState(path: string): State {
 			threadId: string(move.threadId), runId: string(move.runId), from: string(move.from), to, modelSelection,
 			target: move.target === undefined ? { ...modelSelection, instanceId: to } : model(move.target),
 			runtimeMode: parseMode(string(move.runtimeMode)), kind: (move.kind ?? "account") as Kind, child: (move.child ?? false) as boolean,
-			phase: move.phase as Phase, attempt: move.attempt, rejections: nonnegativeInteger(move.rejections ?? 0),
+			phase: move.kind === "successor" && (move.notificationPending === true || !["done", "abandoned"].includes(String(move.phase))) ? "announce" : move.phase as Phase, attempt: move.attempt, rejections: nonnegativeInteger(move.rejections ?? 0),
 		};
-		for (const key of ["title", "reason", "successor"] as const) if (move[key] !== undefined) result[key] = string(move[key]);
+		for (const key of ["successor"] as const) if (move[key] !== undefined) result[key] = string(move[key]);
 		return result;
 	});
 	const admissions = state.admissions ?? [];
@@ -268,7 +305,10 @@ function readState(path: string): State {
 function saveState(directory: string, state: State) {
 	const temporary = join(directory, `state.${crypto.randomUUID()}.tmp`);
 	const file = openSync(temporary, "wx", 0o600);
-	try { writeFileSync(file, JSON.stringify(state) + "\n"); fsyncSync(file); }
+	// Old readers must never execute a Home notification as a continuation.
+	const persisted = { ...state, moves: state.moves.map((move) => move.kind === "successor" && move.phase === "announce"
+		? { ...move, phase: "done", notificationPending: true } : move) };
+	try { writeFileSync(file, JSON.stringify(persisted) + "\n"); fsyncSync(file); }
 	finally { closeSync(file); }
 	renameSync(temporary, join(directory, "state.json"));
 	const dir = openSync(directory, "r");
@@ -302,18 +342,12 @@ function crossSelection(selection: ModelSelection, instanceId: string, config: C
 	if (!pair) return null;
 	const [target, option] = Object.entries(pair).find(([name]) => name !== selection.model)!;
 	const efforts = (selection.options ?? []).filter((candidate) => candidate.id === pair[selection.model]);
-	if (efforts.some((effort) => typeof effort.value !== "string" || !config.efforts.includes(effort.value))) return null;
+	if (efforts.length !== 1 || efforts.some((effort) => typeof effort.value !== "string" || !config.efforts.includes(effort.value))) return null;
 	return { instanceId, model: target, ...(efforts.length > 0 ? { options: [{ id: option, value: efforts[0].value }] } : {}) };
 }
 
-// Mirrors T3's handoffBudget: an existing provider thread on the target must
-// leave a quarter of its window, at least 16k tokens, plus the handoff note.
-function fits(thread: LimitedThread, instance: string): boolean {
-	const usage = thread.context[instance];
-	return !usage || usage.window - usage.used - Math.max(16_000, Math.ceil(usage.window / 4)) >= 2048;
-}
-
 function choose(thread: LimitedThread, pool: string[], config: Config, state: State, loads: Record<string, number>, previous: Move | undefined): Choice | string {
+	if (thread.failure === "handoff") return { to: thread.modelSelection.instanceId, target: thread.modelSelection, kind: "successor", reason: "handoff refused; request succession from Home" };
 	const open = (id: string) => !config.reserved.includes(id) && !Object.hasOwn(state.limits, id);
 	const admitted = (id: string) => state.admissions.some((entry) => entry.runId === thread.runId && entry.to === id)
 		|| state.admissions.filter((entry) => entry.to === id).length < hourlyTargetCap;
@@ -321,8 +355,7 @@ function choose(thread: LimitedThread, pool: string[], config: Config, state: St
 		? { to: previous.to, target: previous.target, kind: previous.kind, reason: `resuming ${previous.kind} move at ${previous.phase}` }
 		: "no target: the reserved target is now limited, reserved or at the hourly cap";
 	const index = pool.indexOf(thread.failedInstance);
-	// A handoff refusal is not a usage limit, so its own account can host the successor.
-	const ordered = thread.failure === "handoff" ? [...pool.slice(index), ...pool.slice(0, index)] : [...pool.slice(index + 1), ...pool.slice(0, index)];
+	const ordered = [...pool.slice(index + 1), ...pool.slice(0, index)];
 	let options = ordered.filter(open).map((id) => ({ id, target: { ...thread.modelSelection, instanceId: id } as ModelSelection | null }));
 	const provider = options.length === 0;
 	if (provider) {
@@ -332,33 +365,24 @@ function choose(thread: LimitedThread, pool: string[], config: Config, state: St
 	}
 	const ranked = options.filter((option) => admitted(option.id)).sort((a, b) => (loads[a.id] ?? 0) - (loads[b.id] ?? 0));
 	if (ranked.length === 0) return "no target: other accounts are limited, reserved or at the hourly cap";
-	const fit = thread.failure === "usage" ? ranked.find((option) => fits(thread, option.id)) : undefined;
-	if (fit) return { to: fit.id, target: fit.target!, kind: provider ? "provider" : "account", reason: provider
-		? "fresh usage-limit failure; its pool is limited or reserved, so the mapped model on the least-loaded account of another pool"
+	return { to: ranked[0].id, target: ranked[0].target!, kind: provider ? "provider" : "account", reason: provider
+		? "fresh usage-limit failure; mapped model on the least-loaded account of another pool"
 		: "fresh usage-limit failure; least-loaded eligible target" };
-	if (thread.child) return "delegated child: too large for every target, and a successor cannot report to its parent";
-	return { to: ranked[0].id, target: ranked[0].target!, kind: "successor", reason: thread.failure === "handoff"
-		? `${handoffRefusal}; successor on the least-loaded eligible account`
-		: "fresh usage-limit failure; every target's transcript is too large for the handoff, so a successor" };
 }
 
 function plan(snapshot: Snapshot, config: Config, state: State, now: number) {
 	state.limits = accountLimits(snapshot, config, now);
 	state.admissions = state.admissions.filter((entry) => Date.parse(entry.at) > now - hour);
 	const latest = new Set(snapshot.threads.map((thread) => thread.runId));
-	// A launched successor finishes its bookkeeping even if its old lane changes.
-	const finishing = (move: Move) => move.kind === "successor" && (move.phase === "settle" || move.phase === "announce");
-	state.moves = state.moves.filter((move) => latest.has(move.runId) || finishing(move));
-	const moves: Move[] = state.moves.filter(finishing);
+	state.moves = state.moves.filter((move) => latest.has(move.runId));
+	const moves: Move[] = [];
 	const excluded: Record<string, number> = {};
-	const candidates: { thread: string; run: string; from: string; reason: string; to?: string; kind?: Kind; model?: string; child?: true }[] =
-		moves.map((move) => ({ thread: move.threadId, run: move.runId, from: move.from, to: move.to, kind: move.kind, reason: `finishing successor at ${move.phase}` }));
+	const candidates: { thread: string; run: string; from: string; reason: string; to?: string; kind?: Kind; model?: string; child?: true }[] = [];
 	const loads = { ...snapshot.running };
 	let admittedMoves = 0;
 	// Top-level lanes take the pass and hourly caps before delegated children.
 	for (const thread of [...snapshot.threads].sort((a, b) => Number(a.child) - Number(b.child))) {
 		const previous = state.moves.find((move) => move.runId === thread.runId);
-		if (previous && finishing(previous)) continue;
 		if (thread.blockedReason) {
 			excluded[thread.blockedReason] = (excluded[thread.blockedReason] ?? 0) + 1;
 			continue;
@@ -382,15 +406,10 @@ function plan(snapshot: Snapshot, config: Config, state: State, now: number) {
 			const move: Move = previous ?? {
 				threadId: thread.threadId, runId: thread.runId, from, to: choice.to, target: choice.target, kind: choice.kind, child: thread.child,
 				modelSelection: thread.modelSelection, runtimeMode: thread.runtimeMode, attempt: 0, rejections: 0,
-				phase: choice.kind === "successor" ? "launch" : "switch",
-				...(choice.kind === "successor" ? {
-					title: thread.title, successor: crypto.randomUUID(),
-					reason: thread.failure === "handoff" ? `T3 refused the provider handoff on ${thread.failedInstance} ("${handoffRefusal}")`
-						: `usage limit on ${thread.failedInstance}, and every eligible account's transcript of it is too large for T3's handoff`,
-				} : {}),
+				phase: choice.kind === "successor" ? "announce" : "switch",
 			};
 			if (!previous) state.moves.push(move);
-			if (!state.admissions.some((entry) => entry.runId === move.runId && entry.to === move.to)) {
+			if (move.kind !== "successor" && !state.admissions.some((entry) => entry.runId === move.runId && entry.to === move.to)) {
 				state.admissions.push({ runId: move.runId, to: move.to, at: new Date(now).toISOString() });
 			}
 			moves.push(move);
@@ -439,33 +458,7 @@ function followUpTask(database: string, move: Move): string | null {
 	} finally { db.close(); }
 }
 
-function settledThread(database: string, threadId: string): boolean {
-	const db = new Database(database, { readonly: true, strict: true });
-	try {
-		db.exec("PRAGMA query_only = ON; PRAGMA busy_timeout = 3000;");
-		const row = db.query(`SELECT json_extract(payload_json, '$.settledOverride') = 'settled' AS settled
-      FROM orchestration_v2_projection_threads WHERE thread_id = ?`).get(threadId);
-		return row !== null && object(row).settled === 1;
-	} finally { db.close(); }
-}
-
-// The lane-succession skill's contract (#411): verbatim, filling in only the predecessor.
-function successorMessage(move: Move): string {
-	return `Lane succession: you succeed T3 thread ${move.threadId}. Use the lane-succession skill's successor steps: read that thread with t3_thread_read, write its handoff under ~/.local/state/t3-handoffs/ unless one is attached below, then continue the lane's work.`;
-}
-
-// Home learns the new thread id; when `home post` fails, policy says append to its inbox.
-function announce(move: Move, settled: boolean) {
-	const link = (id: string) => `[${move.title}](t3-thread://v1/${id})`;
-	const effort = move.target.options?.find((option) => option.id === "effort" || option.id === "reasoningEffort")?.value;
-	const body = [
-		`t3-pool started a successor for lane "${move.title}".`,
-		"",
-		`- Old thread: ${link(move.threadId)}, ${settled ? "settled" : "not settled (T3 rejected the settle; settle it by hand)"}. Its latest run failed: ${move.reason}.`,
-		`- Successor: ${link(move.successor!)} on \`${move.to}\` with \`${move.target.model}\`${effort === undefined ? "" : ` at ${effort} effort`}, the same workspace and runtime mode \`${move.runtimeMode}\`.`,
-		"- Its first message is the `lane-succession` contract: it reads the old thread, writes the handoff under `~/.local/state/t3-handoffs/`, claims the old thread as `(succeeded by …)`, and continues.",
-		`- Move NOW and Home pointers from \`${move.threadId}\` to \`${move.successor}\`.`,
-	].join("\n");
+function postHome(body: string) {
 	try {
 		const posted = Bun.spawnSync({ cmd: ["home", "post", "--from", "t3-pool"], stdin: Buffer.from(body + "\n"), stdout: "ignore", stderr: "ignore", timeout: 30_000 });
 		if (posted.exitCode === 0) return;
@@ -473,6 +466,17 @@ function announce(move: Move, settled: boolean) {
 	const inbox = join(process.env.XDG_STATE_HOME || join(homedir(), ".local/state"), "home/inbox.md");
 	mkdirSync(dirname(inbox), { recursive: true, mode: 0o700 });
 	appendFileSync(inbox, `\n## ${new Date().toISOString()} [t3-pool]\n\n${body}\n`, { mode: 0o600, flush: true });
+}
+
+function requestSuccession(thread: LimitedThread) {
+	postHome([
+		`t3-pool requests Home succession for [${thread.title}](t3-thread://v1/${thread.threadId}).`,
+		`Latest failed run: ${thread.runId}. T3 refused the provider handoff: "${handoffRefusal}".`,
+		`Project: ${thread.projectId}; workspace: ${thread.worktreePath ?? "project root"}; branch: ${thread.branch ?? "none"}.`,
+		`Current selection: ${JSON.stringify(thread.modelSelection)}; runtime: ${thread.runtimeMode}; interaction: ${thread.interactionMode}.`,
+		"Home owns thread creation from groomed and specced backlog. Read the predecessor with t3_thread_read and use the lane-succession contract if succession is warranted.",
+		"After verifying the replacement, intentionally replace the predecessor ID in pools.json wipRoots and deploy the config. Titles do not transfer pool eligibility.",
+	].join("\n"));
 }
 
 async function main(args: string[]) {
@@ -486,7 +490,8 @@ async function main(args: string[]) {
 	const database = join(base, "userdata/statev2.sqlite");
 	if (!existsSync(database)) { process.stdout.write('{"status":"T3 database absent","planned":0}\n'); return; }
 	const config = join(process.env.XDG_CONFIG_HOME || join(homedir(), ".config"), "t3-pool.json");
-	const configSelection = configuration(existsSync(config) ? JSON.parse(readFileSync(config, "utf8")) : defaults);
+	const readConfig = () => configuration(existsSync(config) ? JSON.parse(readFileSync(config, "utf8")) : defaults);
+	const configSelection = readConfig();
 	const directory = join(process.env.XDG_STATE_HOME || join(homedir(), ".local/state"), "t3-pool");
 	let lock: number | undefined;
 	if (!dryRun) {
@@ -502,7 +507,7 @@ async function main(args: string[]) {
 	}
 	try {
 		const state = readState(join(directory, "state.json"));
-		const { moves, candidates, excluded } = plan(readSnapshot(database, Date.now()), configSelection, state, Date.now());
+		const { moves, candidates, excluded } = plan(readSnapshot(database, Date.now(), readConfig()), configSelection, state, Date.now());
 		if (dryRun) for (const candidate of candidates) process.stdout.write(JSON.stringify({ dryRun, ...candidate }) + "\n");
 		if (!dryRun) saveState(directory, state);
 		if (!dryRun && moves.length > 0) {
@@ -518,7 +523,7 @@ async function main(args: string[]) {
 			const reject = (move: Move) => {
 				const before = move.rejections;
 				commandIdFor(move, database, directory, state);
-				// Launch can fail before T3 writes a receipt; such a failure still counts.
+				// A rejection without a receipt still counts toward abandonment.
 				if (move.rejections === before && move.phase !== "abandoned") {
 					move.rejections++;
 					if (move.rejections >= 3) move.phase = "abandoned";
@@ -527,54 +532,26 @@ async function main(args: string[]) {
 				const rejection = { at: new Date().toISOString(), thread: move.threadId, run: move.runId, phase: move.phase, rejections: move.rejections, reason: "T3 rejected the command" };
 				appendFileSync(join(directory, "rejections.jsonl"), JSON.stringify(rejection) + "\n", { mode: 0o600, flush: true });
 				process.stderr.write(JSON.stringify(rejection) + "\n");
+				if (move.phase === "abandoned") postHome(`t3-pool abandoned recovery of [${move.threadId}](t3-thread://v1/${move.threadId}) after three rejected commands. Failed run: ${move.runId}; original selection: ${JSON.stringify(move.modelSelection)}; selected target: ${JSON.stringify(move.target)}. Read the thread before choosing recovery; no new thread was opened.`);
 			};
-			await withT3Session(base, "agent-pool", async (send, call) => {
+			for (const move of moves.filter((move) => move.kind === "successor")) {
+				const current = readSnapshot(database, Date.now(), readConfig()).threads.find((thread) => matches(thread, move));
+				if (!current) continue;
+				requestSuccession(current);
+				move.phase = "done";
+				save();
+				process.stdout.write(JSON.stringify({ requested: move.threadId, kind: "succession", run: move.runId }) + "\n");
+			}
+			const dispatches = moves.filter((move) => move.kind !== "successor");
+			if (dispatches.length > 0) await withT3Session(base, "agent-pool", async (send) => {
 				const eligible = (move: Move) => {
-					const snapshot = readSnapshot(database, Date.now());
+					const snapshot = readSnapshot(database, Date.now(), readConfig());
 					const current = snapshot.threads.find((thread) => thread.runId === move.runId);
-					return current && matches(current, move) && !configSelection.reserved.includes(move.to)
-						&& !Object.hasOwn(accountLimits(snapshot, configSelection, Date.now()), move.to) ? current : undefined;
+					return current && matches(current, move) && !readConfig().reserved.includes(move.to)
+						&& !Object.hasOwn(accountLimits(snapshot, readConfig(), Date.now()), move.to) ? current : undefined;
 				};
-				for (const move of moves) {
+				for (const move of dispatches) {
 					try {
-						if (move.kind === "successor") {
-							if (move.phase === "launch") {
-								const current = eligible(move);
-								if (!current || current.successors.some((id) => id !== move.successor)) continue;
-								const commandId = commandIdFor(move, database, directory, state);
-								if (!commandId) continue;
-								const launched = object(await call("orchestration.launchThread", {
-									commandId, threadId: move.successor, creationSource: "server", projectId: current.projectId, title: current.title,
-									modelSelection: move.target, runtimeMode: move.runtimeMode, interactionMode: current.interactionMode,
-									workspaceStrategy: current.worktreePath === null ? { type: "root" }
-										: { type: "existing_worktree", worktreePath: current.worktreePath, ...(current.branch === null ? {} : { branch: current.branch }) },
-									initialMessage: { text: successorMessage(move), attachments: [] },
-								}));
-								if (string(launched.threadId) !== move.successor) throw new CliError("T3 launched an unexpected successor thread");
-								record(move);
-								move.phase = "settle";
-								move.attempt = 0;
-								save();
-							}
-							if (move.phase === "settle") {
-								// Settle only the failed lane it replaced; a newer run means someone revived it.
-								if (readSnapshot(database, Date.now()).threads.some((thread) => thread.runId === move.runId && thread.active)) {
-									const commandId = commandIdFor(move, database, directory, state);
-									if (commandId) {
-										try { await send({ type: "thread.settle", commandId, threadId: move.threadId }); }
-										catch (error) { if (!(error instanceof CommandRejected)) throw error; }
-									}
-								}
-								move.phase = "announce";
-								move.attempt = 0;
-								save();
-							}
-							announce(move, settledThread(database, move.threadId));
-							move.phase = "done";
-							save();
-							process.stdout.write(JSON.stringify({ moved: move.threadId, kind: move.kind, to: move.to, successor: move.successor }) + "\n");
-							continue;
-						}
 						if (!eligible(move)) continue;
 						if (move.phase === "switch") {
 							const commandId = commandIdFor(move, database, directory, state);

@@ -7,5 +7,13 @@
   "reserved": ["claude-hello", "claude-r90", "codex-r90"],
   "maxMovesPerPass": 1,
   "crossProvider": [{ "claude-opus-5-5": "effort", "gpt-6.1-sol": "reasoningEffort" }],
-  "efforts": ["low", "medium", "high", "xhigh"]
+  "efforts": ["low", "medium", "high", "xhigh"],
+  "wipRoots": [
+    "mcp:8145fc74-15ad-428f-b7f6-d9b162fff416",
+    "mcp:614bca31-1183-4c15-95f3-61f64329e94a",
+    "mcp:4052cdbc-3e05-4a37-af86-3e8597f5fc51",
+    "mcp:a959c2a3-11f1-463f-a3df-e41ffa331450",
+    "mcp:9854bf1e-eeb1-4360-9ee5-7a0638a4b432",
+    "mcp:67719895-4cf1-4975-9b36-ffb7cce52509"
+  ]
 }
