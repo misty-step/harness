@@ -73,7 +73,7 @@ function configuration(value: unknown): Config {
 			return id;
 		});
 	});
-	const roots = Object.hasOwn(config, "wipRoots") ? config.wipRoots : defaults.wipRoots;
+	const roots = config.wipRoots;
 	if (!Array.isArray(roots)) throw new CliError("Invalid T3 WIP roots");
 	const wipRoots = roots.map(string);
 	if (new Set(wipRoots).size !== wipRoots.length) throw new CliError("T3 WIP roots must be unique");
@@ -490,7 +490,10 @@ async function main(args: string[]) {
 	const database = join(base, "userdata/statev2.sqlite");
 	if (!existsSync(database)) { process.stdout.write('{"status":"T3 database absent","planned":0}\n'); return; }
 	const config = join(process.env.XDG_CONFIG_HOME || join(homedir(), ".config"), "t3-pool.json");
-	const readConfig = () => configuration(existsSync(config) ? JSON.parse(readFileSync(config, "utf8")) : defaults);
+	const readConfig = () => {
+		if (!existsSync(config)) throw new CliError("T3 pool roster absent; install t3-pool.json with explicit wipRoots");
+		return configuration(JSON.parse(readFileSync(config, "utf8")));
+	};
 	const configSelection = readConfig();
 	const directory = join(process.env.XDG_STATE_HOME || join(homedir(), ".local/state"), "t3-pool");
 	let lock: number | undefined;

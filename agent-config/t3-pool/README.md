@@ -16,21 +16,26 @@ and 90 seconds after each pass finishes.
 cross-provider model map, shared efforts and the explicit `wipRoots` IDs.
 Installation copies it to `~/.config/t3-pool.json`. Each pool needs at least two
 unique instance IDs of the same driver with compatible models and options.
-An instance can belong to only one pool. The CLI uses bundled defaults when
-no installed config exists.
+An instance can belong to only one pool. The installed config file and its
+`wipRoots` key are required; absent or invalid rosters fail closed.
 
 Home names the active set according to available budget; there is no fixed
 global lane cap. The current named roots are Tach, Process 2, Overmind and
-Marmalade, plus draining Voice and Habitat, confirmed through T3 on 2026-10-21. Home and Heartbeat are exempt from the WIP count but
-are not pool targets. Verify roots and other backlog lanes are excluded.
+Marmalade, plus draining Voice and Habitat, confirmed through T3 on 2026-10-21.
+Home and Heartbeat are exempt from the WIP count but are not pool targets. Verify roots and other backlog lanes are excluded.
+
+Pool and Heartbeat read the same runtime authority:
+`${XDG_CONFIG_HOME:-$HOME/.config}/t3-pool.json`, key `wipRoots`, an array of
+unique nonempty exact root IDs. They never infer membership from NOW or all
+open threads. No separate registry or budget calculator is involved.
 
 Home changes the WIP set by intentionally editing `wipRoots` in this source
 `pools.json`, reviewing the exact current IDs with `t3_thread_read`, and deploying
 the config through the normal harness installer. Installation replaces the owned
 `~/.config/t3-pool.json`; an installed config can also be edited for immediate
 operation, then reconciled to source before the next install. `wipRoots: []`
-disables all moves. Older configs missing the key use the bundled maintained
-roots. Names and `(succeeded by …)` claims never transfer eligibility: after Home
+disables all moves. A missing file or key, malformed JSON, non-array value,
+duplicate or blank ID stops recovery before any action. Names and `(succeeded by …)` claims never transfer eligibility: after Home
 creates and verifies a successor, Home replaces the predecessor ID intentionally.
 
 A thread is eligible only if it is a maintained top-level root or a descendant
@@ -65,7 +70,8 @@ The CLI reads `$T3CODE_HOME/userdata/statev2.sqlite` read-only, defaulting to
 A delegated child qualifies only when it is an app-owned subagent whose
 original task already has a result and whose entire ancestry is eligible.
 A newer run, queued run or app-owned delegation on its parent after the failure
-means the parent has taken over recovery, so the pool skips the stale child. Its continuation is a user `message.dispatch`, so T3's
+means the parent has taken over recovery, so the pool skips the stale child.
+Its continuation is a user `message.dispatch`, so T3's
 `recordSubagentFollowup` gives the new run a fresh parent-owned task; that
 task's completion notifies the parent, as an orchestrator follow-up to a
 child thread does. The pass prints the task id. The pool never launches successors.
@@ -85,8 +91,9 @@ Targets come from the thread's pool. When every other account in it is limited
 or reserved, they come from the other pools, with the model and effort mapped by
 `crossProvider`: Sol at an effort becomes Opus 5.5 at the same effort, and back.
 Other options, such as `fastMode` or `serviceTier`, are provider-specific and
-stay behind. An unmapped model, implicit or duplicate effort, or an effort outside `efforts`
-gets no cross-provider move; provider defaults cannot prove equivalent effort. A same-pool account that is only at its hourly cap does not
+stay behind. An unmapped model, implicit or duplicate effort, or an effort
+outside `efforts` gets no cross-provider move; provider defaults cannot prove
+equivalent effort. A same-pool account that is only at its hourly cap does not
 send the thread to another provider.
 
 T3 owns transcript admission. Accounts sharing native history can resume without
@@ -120,10 +127,11 @@ count conservatively toward the hourly cap. No manual state edits are needed.
 
 Passes take a nonblocking `flock`. A move's target, admission and command IDs
 are saved with fsync before dispatch. After a crash or lost acknowledgement,
-the next pass retries the same command ID, which T3 deduplicates. Only an authoritative
-`rejected` receipt permits a new attempt ID. A rejected move is
+the next pass retries the same command ID, which T3 deduplicates. Only an
+authoritative `rejected` receipt permits a new attempt ID. A rejected move is
 recorded and skipped so the pass can continue; three rejections across either
-phase mark it `abandoned` and notify Home with both original and target selections. A failed continuation retries without switching again.
+phase mark it `abandoned` and notify Home with both original and target
+selections. A failed continuation retries without switching again.
 Succession requests serialize with legacy `phase: done` plus a pending notification
 flag, so the old reader cannot execute them. Reverting to the unrestricted old
 planner is not an authorized rollback: leave the timer off until the replacement
@@ -131,8 +139,9 @@ retains the WIP filter. Corrupt state fails closed. Runtime mode never changes.
 
 `moves.jsonl` records each move once, with time, thread, source, destination,
 failed run and kind (`account` or `provider`), plus the mapped
-model when there is one. Succession requests print a `requested` line instead. Each finished move also prints a
-`moved` line to the journal. `rejections.jsonl` and stderr record rejected attempts without
+model when there is one. Succession requests print a `requested` line instead.
+Each finished move also prints a `moved` line to the journal. `rejections.jsonl`
+and stderr record rejected attempts without
 server error bodies or credentials.
 
 ## Authenticated continuation
@@ -163,12 +172,14 @@ Dry runs print each fresh candidate with its move, kind or waiting reason,
 marking children, then the move count, limited accounts and counts of excluded
 failures by reason. A candidate held by the pass cap names its next move.
 They issue no sessions, dispatch no commands and write no state or logs. When
-no move is eligible, normal passes also issue no session; T3's native
-`autoResumeLimitedThreads` remains responsible for reset.
+no move is eligible, normal passes also issue no session. The pool never changes
+`autoResumeLimitedThreads`; broad native auto-resume must remain off while
+enforcing Home's named set.
 
 The tests use a SQLite projection and an authenticated fixture WebSocket server.
 They cover eligibility, child follow-up tasks, cross-provider mapping,
-transitive WIP ancestry, stale child rejection, Home succession requests, fallback, recovery evidence,
+transitive WIP ancestry, stale child rejection, Home succession requests,
+fallback, recovery evidence,
 unknown resets, reservations, load, caps across restarts, rejection and
 abandonment, lost acknowledgements, interruption, private output and installer
 ownership. Installer checks run in
@@ -199,5 +210,5 @@ Same-provider account moves ran live on 2026-10-20: three claudeAgent lanes
 continued on claude-mistystep. The supported RPC cannot inject a synthetic
 usage-limit failure, so child and cross-provider moves are proven by
 fixture tests until an authorized live pass makes one. Succession requests are
-proven with an isolated Home inbox; the pool cannot create a successor. The shipped pass is
-capped at one move for observation.
+proven with an isolated Home inbox; the pool cannot create a successor. The
+shipped pass is capped at one move for observation.

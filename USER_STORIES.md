@@ -695,8 +695,9 @@ Criteria:
     and existing activation state, leave initial activation opt-in, and skip
     pooling gracefully on hosts without a systemd user manager.
 11. WHEN pooling plans or executes any recovery, THE SYSTEM SHALL permit only
-    the explicitly maintained WIP roots and their transitive children with
-    verified parent/task ownership. Missing, ambiguous, cyclic or inactive
+    the explicitly maintained WIP roots from the same roster as Heartbeat,
+    and their transitive children with verified parent/task ownership. An absent
+    or invalid roster SHALL authorize no recovery. Missing, ambiguous, cyclic or inactive
     ancestry SHALL fail closed. Home and Heartbeat SHALL remain excluded, as
     SHALL unnamed roots including Verify. Home SHALL size the named active set
     to budget without a fixed global lane cap; named draining lanes remain

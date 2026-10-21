@@ -865,3 +865,22 @@ test.each(["run", "task"])("never revives a child after newer parent %s work", a
 	expect(fake.commands).toEqual([]);
 	expect(existsSync(join(files.root, "auth-calls"))).toBe(false);
 });
+
+
+test.each(["file", "key", "json"])("an absent or invalid roster %s authorizes no action", async (defect) => {
+	const files = fixture();
+	thread(files);
+	const path = join(files.root, "config/t3-pool.json");
+	if (defect === "file") rmSync(path);
+	if (defect === "key") {
+		const value = JSON.parse(readFileSync(path, "utf8"));
+		delete value.wipRoots;
+		writeFileSync(path, JSON.stringify(value));
+	}
+	if (defect === "json") writeFileSync(path, "{");
+	const fake = server(files);
+	for (const args of [["--dry-run"], []]) expect((await result(start(files, args))).status).toBe(1);
+	expect(existsSync(join(files.root, "auth-calls"))).toBe(false);
+	expect(existsSync(join(files.root, "state"))).toBe(false);
+	expect(fake.commands).toEqual([]);
+});
