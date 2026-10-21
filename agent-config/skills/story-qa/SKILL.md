@@ -8,8 +8,8 @@ argument-hint: "[repository, story IDs, or run scope]"
 
 Use the repository's verification skill for the shortest real user/consumer journey that
 can reject this change's plausible failure. When the product has sign-in, the walk signs in
-as the actual owner identity on the real product; an email sent or a 200 response
-is not a sign-in. A missing skill or unprovable owner sign-in is reported, never passed. Screenshots prove appearance, not
+to production with the agent's own AgentMail QA account and proves the required
+owner/admin role; an email sent or a 200 response is not a sign-in. A missing skill or unprovable owner sign-in is reported, never passed. Screenshots prove appearance, not
 persistence or delivery; check consequential state at its actual owner.
 Docs are walked as their reader uses them: the published or installed text. Internal edits need
 proof that they compose. Neither gets a fake UI journey.
