@@ -19,7 +19,7 @@ When creating or refreshing verification skills, apply this mandatory override t
 
 ## Initiative delivery
 
-Specs, PRDs, grill-with-docs and to-spec state the full value and whole outcome. The lane leads subagent teams, splitting that design into the smallest atomically shippable PRs: each keeps main working and is worth merging alone. Prefer the smallest diff that achieves its unit; build independent slices in parallel and sequence dependencies while preserving an elegant end design. Most small focused PRs use light rigor and one round under [ship-loop](skill://ship-loop/roles.md#rigor). Parallel children count against the lane budget by model, effort, speed and reset distance.
+Specs, PRDs, grill-with-docs and to-spec state the full value and whole outcome. The lane leads subagent teams, splitting that design into the smallest atomically shippable PRs: each keeps main working and is worth merging alone. Prefer the smallest diff that achieves its unit; build independent slices in parallel and sequence dependencies while preserving an elegant end design. Most small focused PRs use light rigor and one round under [ship-loop](skill://ship-loop/roles.md#rigor). All subagents count against the lane budget by model, effort, speed and reset distance.
 
 ## Design
 

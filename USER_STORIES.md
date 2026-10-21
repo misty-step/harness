@@ -114,7 +114,7 @@ Specs, PRDs, grill-with-docs and to-spec SHALL state the full valuable outcome.
 The lane SHALL lead subagent teams toward an elegant implementation through the
 smallest atomically shippable PRs: main stays working and each is worth merging
 alone. The smallest diff that achieves its unit wins. Independent slices build
-in parallel; dependent slices are sequenced. Every parallel child counts against
+in parallel; dependent slices are sequenced. Every subagent counts against
 the lane budget by model, effort, speed and reset distance. Most small focused
 PRs SHALL use light rigor and one round, with QA, review and an independent judge.
 

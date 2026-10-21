@@ -25,7 +25,7 @@ Prove every change as global guidance's **Verification** section requires: the r
 
 Settle every product and technical consideration before dispatching a builder. Agents decide technical choices. For unresolved product intent, interview the principal with `grilling` and `domain-modeling`, batching questions. Carry confirmed intent forward without another interview. Write settled stories in `SPEC.md` or the existing `USER_STORIES.md` with `user-stories`, then use `to-spec` and `to-tickets` to link them.
 
-Specs, PRDs, grill-with-docs and to-spec describe the initiative’s full value and whole outcome, not a timid slice. Once scope is confirmed, lead a team: split it into the smallest atomically shippable PRs, each leaving main working and worth merging alone. The smallest diff achieving that unit wins. Dispatch independent builders in parallel, sequence dependencies, and keep the final design elegant. Count every parallel child against the lane budget, sized by model, effort, speed and reset distance. Publish settled tickets without asking.
+Specs, PRDs, grill-with-docs and to-spec describe the initiative’s full value and whole outcome, not a timid slice. Once scope is confirmed, lead a team: split it into the smallest atomically shippable PRs, each leaving main working and worth merging alone. The smallest diff achieving that unit wins. Dispatch independent builders in parallel, sequence dependencies, and keep the final design elegant. Count every subagent against the lane budget, sized by model, effort, speed and reset distance. Publish settled tickets without asking.
 
 ## 2. Run rounds on the frontier
 
