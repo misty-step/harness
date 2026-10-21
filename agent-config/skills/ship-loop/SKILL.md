@@ -7,11 +7,11 @@ description: Drive a lane's confirmed work from ticket to verified production th
 
 You lead the initiative. Keep its full outcome and elegant end design in view while shipping the smallest valuable units through builder, independent QA/review and judge agents.
 
-Start with build, then independent QA and review (combined for light changes, parallel otherwise), then the judge. Fix until SHIP using the delta checks below. The tracker holds tickets, PRs and reports; keep no separate ledger.
+Start with build, then independent QA and review (combined for light changes, parallel otherwise), then the judge. Allow at most one judge-authorized fix round. The tracker holds tickets, PRs and reports; keep no separate ledger.
 
 No human reviews or merges, in any organization: the independent judge's SHIP plus passing checks is the whole gate.
 
-Machine-generated, generator-only release PRs are the sole exception: merge on passing checks alone, without a review round or `Story:` line.
+Machine-generated, generator-only release PRs merge on passing checks alone, without a review round or `Story:` line. Exact-ID roster-only succession PRs also merge on passing checks under global **Merge** and `lane-succession` dispatcher step 3; authored policy, tests and other config changes keep ordinary review.
 
 Many skills named here are user-invoked, so the Skill tool refuses them. For those, you and every agent you brief read `~/.claude/skills/<name>/SKILL.md` and follow it.
 
@@ -48,28 +48,39 @@ Upkeep's route command does not exist yet ([Upkeep #75](https://github.com/misty
 
 Dispatch roles with `delegate_task` and completed [role briefs](roles.md). Confirm routed providers/models against `orchestrator_capabilities`. Take an available account in the tier’s model class instead of waiting for an ideal route. Use one QA owner per SHA; extra cross-family QA needs a stated critical uncertainty. Carry the original goal, findings and resolutions into fix briefs; reuse working context where supported. When replacing a delegated child with a retry, `task_cancel` the old task first: usage-limited threads auto-resume and could act on superseded instructions.
 
-1. **Build.** One builder, `isolation: "worktree"`, which starts from your local commit: first detach your checkout at the builder's start (`git switch --detach origin/<default branch>`, or the PR head it starts from). It returns a PR and its head SHA.
-2. **Verify.** QA and review at that SHA, combined in one agent for light changes, separate otherwise.
-3. **Judge.** An independent judge gets the ticket, PR and both revision-linked reports. Resolve missing proof before SHIP. A user-facing change without linked verification-skill evidence of the real journey is missing proof.
+**The round helper is the path for every step below.** `scripts/ship-loop.ts` in this skill (`bun ~/.claude/skills/ship-loop/scripts/ship-loop.ts --help`) keeps each PR's round state in the PR's own comments. A new conductor, thread, succession, retry or new head reads the same state, so no round is tracked anywhere else:
+
+The PR author is the ledger's sole writer, identified through GitHub's native PR and comment metadata. Use that native GitHub identity when recording events; markers from other commenters are ignored, including malformed ones. Unknown author or unreadable trusted events stop the command without resetting the round.
+
+- `init --pr <url> ...`: once the builder has opened the PR. On an existing ledger it resumes and never resets.
+- `status --pr <url> --json`: `phase`, `fix_round`, `review_thread_ids`, `review_thread_count`, `source_head`.
+- `prompt --pr <url> --role <qa|review|qa-review|judge|recheck|fix-builder|final-judge>`: the only brief a role gets. It refuses a role out of phase.
+- `record --pr <url> --kind <report|verdict|recheck|head> --file <payload.json>`: writes only what the user supplied, such as native thread IDs and report links. It refuses any write the workflow forbids.
+
+1. **Build.** One builder, `isolation: "worktree"`, which starts from your local commit: first detach your checkout at the builder's start (`git switch --detach origin/<default branch>`, or the PR head it starts from). It returns a PR and its head SHA. Run `init` with that PR.
+2. **Verify.** `prompt --role qa-review` for light changes, or `qa` and `review` otherwise. Record each report with `record --kind report`.
+3. **Judge.** `prompt --role judge` gives the independent judge the eligible findings. Resolve missing proof before SHIP. A user-facing change without linked verification-skill evidence of the real journey is missing proof. Record the ruling with `record --kind verdict`.
 4. **Act on the verdict.**
-   - **FIX:** the builder fixes code blockers; you clear lane blockers such as QA that could not run. Rerun only the reporter that raised the blocker on the changed delta and its consequences, retaining unchanged QA/review evidence, then use one independent judge on the new head. Bring both QA and review back only for new files or higher-risk paths, scoped to those changes.
-   - **RE-SLICE:** split with `to-tickets` when diagnosis shows the outcome is too large, then continue on the new frontier.
+   - **FIX:** only a judge's FIX ruling naming exact eligible blockers authorizes a fix round. Reviewer findings alone do not. The helper persists the authorization before the builder runs; `prompt --role fix-builder` then fixes those code blockers, and the new head is recorded with `record --kind head`. You clear named lane blockers such as missing proof. Dispatch a new independent thread for the blocking reporter's recheck role with `prompt --role recheck`; `record --kind recheck` keeps its actual new `thread_id`, the original `reporter_thread_id`, exact blocker results and fix-introduced `regressions` (empty if none). Retain unchanged QA/review evidence. New unrelated findings become follow-up tickets. Rechecks do not hunt for new edge cases or reopen the full review.
+   - **REVERT / SPLIT:** drop or revert the unit, or split it into independently shippable PRs with `to-tickets`.
    - **SHIP:** merge (step 3).
 
 An internal change needs proof that it composes instead of a QA walk.
 
-If the same blocker survives a fix, revisit its cause or the proposed solution.
+After the first fix round, `prompt --role final-judge` includes the recheck report, named results and recorded regressions, with no FIX option: SHIP with follow-up tickets or REVERT / SPLIT. The helper refuses a second FIX. No third round. Rebases, changed SHAs and new findings do not reset this cap.
 
-Done for a ticket when the PR's current head SHA has a SHIP, ruled there or carried there by an unchanged patch-id (step 3), or when a generator-only release PR's checks pass at its current head.
+Already on main means never a blocker for this PR. Track pre-existing bugs separately. Ship heuristic features labeled approximate; accuracy improvements are follow-up work.
+
+Done for a ticket when the PR's current head SHA has a SHIP, ruled there or carried there by an unchanged patch-id (step 3), or when a checks-only exception above passes at its current head.
 
 ## 3. Merge
 
 - Confirm the repository's fast affected checks passed at the judged SHA, in its CI or by running its documented check command.
-- A verdict carries across a rebase alone only when the patch-id is unchanged: `git diff <old base>...<judged SHA> | git patch-id --stable` must equal `git diff origin/<default branch>...<new head> | git patch-id --stable`. `<old base>` is the SHA recorded for the PR below in a stack, otherwise `origin/<default branch>`. For any other head change, including conflict resolution, use the delta checks and independent judgment in step 2.
+- A verdict carries across a rebase alone only when the patch-id is unchanged: `git diff <old base>...<judged SHA> | git patch-id --stable` must equal `git diff origin/<default branch>...<new head> | git patch-id --stable`. `<old base>` is the SHA recorded for the PR below in a stack, otherwise `origin/<default branch>`. Record a carry with `record --kind head` (`reason: carry`); the helper compares the patch-ids itself. For any other head change, including conflict resolution, re-verify and get the independent judge's ruling under the fix-round cap (step 2).
 - Squash-merge, with the PR title as a Conventional Commit (`docs/release-convention.md` in misty-step/harness). Land a stack bottom-first:
   1. Before the bottom PR lands, record every PR's head SHA once, in a comment on the bottom PR.
   2. After each PR lands, run `git fetch --prune`, then move the next one from a detached HEAD, which works whichever worktree holds its lane-owned branch: `git switch --detach <its recorded head>`, `git rebase --onto origin/<default branch> <the SHA recorded for the PR below>`, `git push --force-with-lease=<branch>:<its recorded head> origin HEAD:refs/heads/<branch>`.
-  3. If the push is refused, fetch and inspect the branch's delta. Keep those commits. Carry the verdict by unchanged patch-id, or run step 2's delta checks and get the independent judge's ruling. Record the resulting judged head and repeat step 2 from it, including the detached checkout and rebase, with the lease pinned to that same head. Never force over the commits that moved the branch. The PR above still rebases from the first head recorded.
+  3. If the push is refused, fetch and inspect the branch's delta. Keep those commits. Carry the verdict by unchanged patch-id, or re-verify and get the independent judge's ruling under the fix-round cap. Record the resulting judged head and repeat step 2 from it, including the detached checkout and rebase, with the lease pinned to that same head. Never force over the commits that moved the branch. The PR above still rebases from the first head recorded.
   4. Retarget the PR to the default branch if GitHub hasn't, and run the fast affected checks at its new head before it merges.
 
 ## 4. Watch the release

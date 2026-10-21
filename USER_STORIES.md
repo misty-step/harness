@@ -86,10 +86,14 @@ the agent's own AgentMail QA account and proving the required owner/admin role
 when the product has sign-in; a repository without one gets one. Every authored change
 gets review and verification scaled to risk. Documents, briefs and measurements
 get one light combined QA/review check plus an independent judge. Riskier
-behavior changes get separate independent QA, review and judge agents. Repeat
-review only for real bugs: after a fix, only its blocking reporter checks the delta,
-then one judge; retain unchanged evidence. Bring both roles back for new files or
-higher-risk paths. Record tier, concrete reason and diff size; use light for docs,
+behavior changes get separate independent QA, review and judge agents. A PR's
+review round count is stored on the PR: a new thread, succession, retry or new
+head reads the same count and cannot start another fix round. Only a judge's
+FIX naming eligible blockers can start the single permitted fix round. Its
+blocking reporter rechecks only those fixes. After that round the next ruling
+is SHIP with tickets or REVERT / SPLIT. New findings become tickets unless the
+fix introduced them. Already on main is never a blocker. Ship heuristic features labeled approximate,
+with accuracy as follow-up. Record tier, concrete reason and diff size; use light for docs,
 config JSON, constants, bounded cosmetic changes and verification tooling without
 a runtime path. One QA owner per SHA; extra cross-family QA requires a concrete
 critical uncertainty. Take an available model-class route, reserve fast/xhigh
@@ -680,9 +684,19 @@ Criteria:
    contracts.
 5. WHEN verifying changed guidance, THE ENGINEER SHALL inspect the composed
    instructions and exercise the affected actual consumer.
-6. WHEN new work appears, THE SYSTEM SHALL record a backlog issue. Only Home
+6. WHEN new work appears, THE SYSTEM SHALL record a backlog issue. Home
    SHALL open top-level threads: backlog lanes from groomed, specced items,
-   replacements for named lanes, and its own scratch runners. Home
+   and its own scratch runners. Home SHALL route roster-succession requests to
+   the existing hourly task’s bound Heartbeat thread. That single native executor
+   SHALL dispatch exact roster-lane successors under `lane-succession` without
+   fresh Home approval, recovering tracked
+   partial dispatches and reporting completion or a blocker once to Home. It
+   SHALL preserve claim, dedupe, route, adoption, abandonment and source/installed
+   readback guards, consume the newest handoff and leave children, parked and
+   unnamed lanes untouched. Machine-generated PRs replacing only the tracked
+   predecessor ID with its claimed successor in `pools.json` `wipRoots`, preserving
+   every other value and roster length/order, SHALL merge on passing checks;
+   authored policy, tests and other config changes SHALL retain ordinary review. Home
    SHALL explicitly name the active lanes and size that set to model cost,
    reasoning, speed, remaining allowance and time until reset, with no fixed
    lane cap. Resume and account pooling SHALL continue only lanes Home names

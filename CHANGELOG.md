@@ -1,3 +1,27 @@
+# [0.2.27](https://github.com/misty-step/harness/compare/v0.2.26...v0.2.27) (2026-10-21)
+<!-- landmark:protected-release previous=v0.2.26 source=f59d1f07678b80a7906b71f432a7a8fd899434ada8f8f16effeb0741435953c2 -->
+
+### Features
+
+* **ship-loop:** keep PR review rounds in a comment ledger (#454) ([75063ec](https://github.com/misty-step/harness/commit/75063ec9023016a63210170cf363e20f70c34990))
+# [0.2.26](https://github.com/misty-step/harness/compare/v0.2.25...v0.2.26) (2026-10-21)
+<!-- landmark:protected-release previous=v0.2.25 source=8e67f2d4ba86e1efffa54f6cee2ac52da6893d1200641fd8d2d491fae62440f9 -->
+
+### Bug Fixes
+
+* **qa:** scope verification to the changed user path (#455) ([0e7f455](https://github.com/misty-step/harness/commit/0e7f455f4a178e408f484fb35e385343897ae39e))
+# [0.2.25](https://github.com/misty-step/harness/compare/v0.2.24...v0.2.25) (2026-10-21)
+<!-- landmark:protected-release previous=v0.2.24 source=50d5cbf2fbc9fe2a2c46ca62fdb890fcd464570b52566cd8779ec27e1ac43732 -->
+
+### Bug Fixes
+
+* **review:** bound fix rounds behind judge rulings (#450) ([ae3d68d](https://github.com/misty-step/harness/commit/ae3d68dbb0a9866dae6c2ee517107dd1691bb776))
+# [0.2.24](https://github.com/misty-step/harness/compare/v0.2.23...v0.2.24) (2026-10-21)
+<!-- landmark:protected-release previous=v0.2.23 source=5c99739dd17ef85fe73a4ac4d4fe2cdd7de60957837a587ddf4940f78c850c7b -->
+
+### Features
+
+* **heartbeat:** dispatch named roster successions automatically (#441) ([67c95b3](https://github.com/misty-step/harness/commit/67c95b3b294ad903531393442875d9aa8d05a3ff))
 # [0.2.23](https://github.com/misty-step/harness/compare/v0.2.22...v0.2.23) (2026-10-21)
 <!-- landmark:protected-release previous=v0.2.22 source=939212e181770bca37de0d61b42aff6089eae871f3a6e6b3c1c3b08362363d0b -->
 

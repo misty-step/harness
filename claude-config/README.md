@@ -10,7 +10,7 @@ runs Claude Code, so the skills and guidance lanes and Home use deploy here.
 | `judge` | Product-owner ruling on findings: blocker, file or skip |
 | `release-watch` | Post-merge health, restore, incident and postmortem triggers |
 | `heartbeat` | The sweep that keeps lanes moving |
-| `lane-succession` | Replace a lane whose context outgrows a provider switch with a Home-dispatched successor thread |
+| `lane-succession` | Replace a lane whose context outgrows a provider switch with a successor dispatched by the existing native Heartbeat thread |
 | `story-qa`, `user-stories`, `pokayoke`, `authenticated-commands` | Existing shared skills the loop calls |
 | Guidance `engineering`, `workstation`, `autonomy` | Foundations pointer, workstation facts, the standing autonomy policy |
 | `t3-pool` | Continue usage-limited T3 threads on another account every 90 seconds ([contract](../agent-config/t3-pool/README.md)) |
