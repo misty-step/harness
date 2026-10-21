@@ -166,6 +166,119 @@ class DaybookSyncTest(unittest.TestCase):
         self.g(self.human, 'commit', '-m', 'machine snapshot')
         self.assertEqual(self.g(self.human, 'show', 'HEAD:journal/human.md'), 'exact machine snapshot bytes')
 
+    def test_upstream_rename_cannot_redirect_a_selected_edit_into_journal(self):
+        w = self.prepare()
+        self.put(w, 'notes/shared.md', 'agent revision\n')
+        self.g(self.human, 'mv', 'notes/shared.md', 'journal/relocated.md')
+        self.g(self.human, 'commit', '-m', 'human relocates note into journal')
+        self.g(self.human, 'push', 'origin', 'master')
+        upstream = self.g(self.remote, 'rev-parse', 'master')
+        with self.assertRaisesRegex(sync.SyncError, 'journal'):
+            self.publish(w, 'notes/shared.md')
+        self.assertEqual(self.g(self.remote, 'rev-parse', 'master'), upstream)
+        self.assertEqual(self.g(self.remote, 'show', 'master:journal/relocated.md'), 'base')
+        self.assertTrue(json.loads(sync.state_path(w).read_text())['pending'])
+        self.assertIn('agent revision', self.g(w, 'show', '--format=', 'HEAD'))
+
+    def test_upstream_rename_cannot_change_unselected_paths(self):
+        w = self.prepare()
+        self.put(w, 'notes/shared.md', 'agent revision\n')
+        self.g(self.human, 'mv', 'notes/shared.md', 'notes/relocated.md')
+        self.g(self.human, 'commit', '-m', 'human relocates note')
+        self.g(self.human, 'push', 'origin', 'master')
+        upstream = self.g(self.remote, 'rev-parse', 'master')
+        with self.assertRaisesRegex(sync.SyncError, 'unselected'):
+            self.publish(w, 'notes/shared.md')
+        self.assertEqual(self.g(self.remote, 'rev-parse', 'master'), upstream)
+        self.assertTrue(json.loads(sync.state_path(w).read_text())['pending'])
+        self.assertIn('agent revision', self.g(w, 'show', '--format=', 'HEAD'))
+
+    def test_ignored_unselected_bytes_are_preserved_before_rebase(self):
+        self.put(self.human, '.gitignore', 'notes/ignored.md\n')
+        self.g(self.human, 'add', '.gitignore')
+        self.g(self.human, 'commit', '-m', 'ignore scratch fixture')
+        self.g(self.human, 'push', 'origin', 'master')
+        w = self.prepare()
+        before = self.g(w, 'rev-parse', 'HEAD')
+        self.put(w, 'notes/ignored.md', 'local scratch bytes\n')
+        self.put(w, 'notes/agent.md', 'selected note\n')
+        self.put(self.human, 'notes/ignored.md', 'remote tracked bytes\n')
+        self.g(self.human, 'add', '-f', 'notes/ignored.md')
+        self.g(self.human, 'commit', '-m', 'track ignored path')
+        self.g(self.human, 'push', 'origin', 'master')
+        upstream = self.g(self.remote, 'rev-parse', 'master')
+        with self.assertRaisesRegex(sync.SyncError, 'exactly match'):
+            self.publish(w, 'notes/agent.md')
+        self.assertEqual((w / 'notes/ignored.md').read_bytes(), b'local scratch bytes\n')
+        self.assertEqual((w / 'notes/agent.md').read_bytes(), b'selected note\n')
+        self.assertEqual(self.g(w, 'rev-parse', 'HEAD'), before)
+        self.assertEqual(self.g(self.remote, 'rev-parse', 'master'), upstream)
+
+    def test_ignored_unselected_bytes_are_preserved_on_pending_retry(self):
+        self.put(self.human, '.gitignore', 'notes/ignored.md\n')
+        self.g(self.human, 'add', '.gitignore')
+        self.g(self.human, 'commit', '-m', 'ignore scratch fixture')
+        self.g(self.human, 'push', 'origin', 'master')
+        w = self.prepare()
+        hooks = self.root / 'deny-hooks'
+        hooks.mkdir()
+        hook = hooks / 'pre-push'
+        hook.write_text('#!/bin/sh\nexit 1\n')
+        hook.chmod(0o700)
+        self.g(w, 'config', 'core.hooksPath', str(hooks))
+        self.put(w, 'notes/agent.md', 'selected note\n')
+        with self.assertRaises(sync.SyncError):
+            self.publish(w, 'notes/agent.md')
+        before = self.g(w, 'rev-parse', 'HEAD')
+        hook.unlink()
+        self.put(w, 'notes/ignored.md', 'local scratch bytes\n')
+        self.put(self.human, 'notes/ignored.md', 'remote tracked bytes\n')
+        self.g(self.human, 'add', '-f', 'notes/ignored.md')
+        self.g(self.human, 'commit', '-m', 'track ignored path')
+        self.g(self.human, 'push', 'origin', 'master')
+        upstream = self.g(self.remote, 'rev-parse', 'master')
+        with self.assertRaisesRegex(sync.SyncError, 'pending'):
+            self.publish(w, 'notes/agent.md')
+        self.assertEqual((w / 'notes/ignored.md').read_bytes(), b'local scratch bytes\n')
+        self.assertEqual(self.g(w, 'show', 'HEAD:notes/agent.md'), 'selected note')
+        self.assertEqual(self.g(w, 'rev-parse', 'HEAD'), before)
+        self.assertEqual(self.g(self.remote, 'rev-parse', 'master'), upstream)
+
+    def test_ignored_bytes_created_between_push_attempts_are_preserved(self):
+        self.put(self.human, '.gitignore', 'notes/ignored.md\n')
+        self.g(self.human, 'add', '.gitignore')
+        self.g(self.human, 'commit', '-m', 'ignore scratch fixture')
+        self.g(self.human, 'push', 'origin', 'master')
+        w = self.prepare()
+        other = self.root / 'racing-writer'
+        self.g(self.root, 'clone', str(self.remote), str(other))
+        self.g(other, 'config', 'user.name', 'Race writer')
+        self.g(other, 'config', 'user.email', 'race@example.invalid')
+        hooks = self.root / 'retry-hooks'
+        hooks.mkdir()
+        hook = hooks / 'pre-push'
+        hook.write_text(f'''#!/bin/sh
+set -e
+unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE
+if [ ! -f '{hooks}/ran' ]; then
+  touch '{hooks}/ran'
+  printf 'local scratch bytes\\n' > '{w}/notes/ignored.md'
+  printf 'remote tracked bytes\\n' > '{other}/notes/ignored.md'
+  git -C '{other}' add -f notes/ignored.md
+  git -C '{other}' commit -qm 'track ignored path'
+  git -C '{other}' push -q origin master
+fi
+''')
+        hook.chmod(0o700)
+        self.g(w, 'config', 'core.hooksPath', str(hooks))
+        self.put(w, 'notes/agent.md', 'selected note\n')
+        with self.assertRaisesRegex(sync.SyncError, 'pending'):
+            self.publish(w, 'notes/agent.md')
+        self.assertEqual((w / 'notes/ignored.md').read_bytes(), b'local scratch bytes\n')
+        self.assertEqual(self.g(w, 'show', 'HEAD:notes/agent.md'), 'selected note')
+        self.assertEqual(self.g(self.remote, 'rev-parse', 'master'), self.g(other, 'rev-parse', 'HEAD'))
+        self.assertTrue(json.loads(sync.state_path(w).read_text())['pending'])
+
     def test_symlinks_directories_traversal_and_literal_pathspecs(self):
         w = self.prepare()
         outside = self.root / 'outside'

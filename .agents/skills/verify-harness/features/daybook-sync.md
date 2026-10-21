@@ -12,7 +12,9 @@ changes a named file, publishes it, reads exact remote bytes and agent identity,
 and finishes by removing the clean worktree and local branch. Other cases cover
 simultaneous writers, overlapping conflicts, three real push races, retry after
 lost success, denied pushes, staged/foreign work, symlinks and traversal, journal
-creation/edit/rename/deletion and real gitleaks rejection. The human root retains
+creation/edit/rename/deletion, upstream renames into forbidden or unselected paths,
+ignored scratch preservation before rebases and pending retries, and real gitleaks
+rejection. The human root retains
 its original files, staged index, branch and unpublished commit.
 
 Proof is `transcript.txt`, `daybook-install.txt` and `daybook-tests.txt` under the

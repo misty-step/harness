@@ -20,10 +20,13 @@ permission to read personal records or disclose them to another provider.
 4. Inspect `git diff` and `git status` in the workspace. Select each changed file
    explicitly. Keep commits small and limited to the selected request.
 5. Run `daybook-sync publish --workspace <workspace> --message <message> -- <file>...`.
-   It rejects staged work, unexpected paths and symlinks, scans for secrets,
+   It rejects staged work, unexpected paths (including ignored scratch files)
+   and symlinks, scans for secrets,
    commits with the supplied agent identity, and pushes `HEAD:master` immediately.
-   Publication rebases on freshly fetched master and retries remote contention
-   at most three times. Success returns JSON with `published: true` and the SHA.
+   Publication rebases on freshly fetched master, revalidates the resulting
+   paths against journal protection and the explicit selection, and retries
+   remote contention at most three times. Success returns JSON with
+   `published: true` and the SHA.
 6. Run `daybook-sync finish --workspace <workspace>`. It confirms the remote
    contains HEAD, then removes the clean worktree without force and deletes
    only its exact local branch. Retain every failed or pending workspace.

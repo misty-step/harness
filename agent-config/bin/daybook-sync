@@ -118,7 +118,7 @@ def load(workspace):
 
 def changed(workspace):
     tracked = git(workspace, 'diff', '--name-only', '--no-renames', '-z', 'HEAD', '--')
-    untracked = git(workspace, 'ls-files', '--others', '--exclude-standard', '-z')
+    untracked = git(workspace, 'ls-files', '--others', '-z')
     return set(p for p in (tracked + untracked).split('\0') if p)
 
 
@@ -188,6 +188,8 @@ def publish(workspace, message, paths, attempts=3):
             state.update(pending=False)
             save(workspace, state)
             return {'workspace': str(workspace), 'head': state['head'], 'published': True}
+        if changed(workspace):
+            raise SyncError('pending commit must be published before making more edits')
         try:
             git(workspace, '-c', 'rebase.autoStash=false', '-c', 'rerere.enabled=false',
                 '-c', f'user.name={state["agent"]}', '-c', f'user.email={state["email"]}',
@@ -197,6 +199,12 @@ def publish(workspace, message, paths, attempts=3):
             raise SyncError('rebase conflict; original local commit and remote commit are retained; resolve in a new prepared workspace') from exc
         state['head'] = git(workspace, 'rev-parse', 'HEAD')
         save(workspace, state)
+        outgoing = set(p for p in git(workspace, 'diff', '--name-only', '--no-renames',
+                                     '-z', upstream, 'HEAD', '--').split('\0') if p)
+        for path in outgoing:
+            safe_path(workspace, path)
+        if not outgoing.issubset(paths):
+            raise SyncError('rebase changed unselected paths; commit retained for inspection')
         scan(workspace, 'git', '.', f'--log-opts={upstream}..HEAD')
         try:
             git(workspace, 'push', 'origin', 'HEAD:refs/heads/master')
