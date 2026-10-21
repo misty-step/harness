@@ -17,8 +17,8 @@ Harness has no product QA sign-in: AgentMail accounts, `workstation/<PROJECT>_QA
 pass references, production login and required owner/admin role proof are n/a here.
 Native gh, Claude and Codex subscriptions authenticate execution; they are not
 product QA accounts. Application verification skills must encode that QA contract.
-Instruction content is always `AGENTS.md`; `CLAUDE.md` is only its sibling symlink,
-including private proof and fixtures. The upstream generator override is maintained
+Instruction content is always `AGENTS.md`. Create no `CLAUDE.md` files or symlinks,
+including private proof and fixtures. Native loading proof uses Claude Code 2.1.305. The upstream generator override is maintained
 in `agent-config/guidance/engineering.md`; sweep generated repos with
 `scripts/probe-agent-policy --verification <repo>...`.
 
@@ -101,7 +101,7 @@ Removes `$VH_DIR/run` (default `~/.cache/tmp/verify-harness/run`) and the `/tmp/
 
 ## Gotchas
 
-- Sessions start in a fresh `/tmp/verify-harness-cwd.*` directory because Claude Code loads `CLAUDE.md` and skills from every ancestor of its cwd. See [Fresh session](features/fresh-session.md) before changing that.
+- Sessions start in a fresh `/tmp/verify-harness-cwd.*` directory because Claude Code loads `AGENTS.md` and skills from every ancestor of its cwd. See [Fresh session](features/fresh-session.md) before changing that.
 - A Claude Code session on the isolated install has no credentials and ends with `Not logged in`. That is expected: its init event and `InstructionsLoaded` hooks fire before the model call. The model-visible proof comes from `live`, which uses the real login.
 - Under heavy machine load, `agent-config/bin/install.test.ts` tests that bundle launchers can exceed Bun's 5-second default timeout and fail the gate while passing in isolation. Check `/proc/loadavg` and rerun that file alone before calling it a regression.
 - `home` routes every command over SSH to the cloud primary named in `~/.local/state/home/primary.json`. The `home` drive sets `HOME_FLEET_LOCAL=1` with a private `HOME_INBOX` so the probe never reaches phaedrus. Only a real report uses the routed `home post`.

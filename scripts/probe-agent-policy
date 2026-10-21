@@ -18,10 +18,7 @@ for repo in args.repos:
     for directory, dirs, files in os.walk(root, followlinks=False):
         dirs[:] = [d for d in dirs if d not in {'.git', 'node_modules', '.cache', '.venv', '__pycache__'}]
         if 'CLAUDE.md' in files or 'CLAUDE.md' in dirs:
-            alias = Path(directory) / 'CLAUDE.md'
-            canonical = alias.with_name('AGENTS.md')
-            if not alias.is_symlink() or os.readlink(alias) != 'AGENTS.md' or not canonical.is_file() or canonical.is_symlink():
-                failures.append(f'{alias}: must be a symlink to regular sibling AGENTS.md')
+            failures.append(f'{Path(directory) / "CLAUDE.md"}: forbidden instruction filename; use AGENTS.md alone')
     if args.verification:
         skills = list((root / '.agents/skills').glob('verify-*/SKILL.md'))
         if not skills:

@@ -671,10 +671,11 @@ Criteria:
    clever wording, decorative themes or metaphors by default.
 
 9. WHEN instruction content is authored or installed in any repository or host,
-   THE SYSTEM SHALL use only `AGENTS.md`; `CLAUDE.md` SHALL only be a sibling
-   symlink to it, including fixtures, generated content and private proofs.
+   THE SYSTEM SHALL use only `AGENTS.md`. No `CLAUDE.md` file or symlink SHALL
+   be created, including fixtures, generated content and private proofs.
    Owned legacy standalone Claude guidance SHALL upgrade rerunnably with all
-   previous bytes preserved; foreign content and links SHALL be refused before
+   previous bytes preserved and owned aliases removed. Foreign content and links
+   SHALL be refused before
    writes.
 
 No-gos: no code/config permission changes or new message templates; Kaylee's

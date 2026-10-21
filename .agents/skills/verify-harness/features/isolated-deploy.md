@@ -4,10 +4,10 @@
 
 ## Sub-features
 
-- `deploy-claude`: AGENTS.md, loaded through the CLAUDE.md compatibility symlink, is the harness intro with the engineering, workstation and autonomy sections spliced at the marker; the skills and launchers are in place.
+- `deploy-claude`: AGENTS.md, loaded natively with no legacy entry, is the harness intro with the engineering, workstation and autonomy sections spliced at the marker; the skills and launchers are in place.
 - `deploy-codex`: AGENTS.md is composed the same way, and the skills are in place.
 - `deploy-pool-opt-in`: install only reloads user units and never enables `t3-pool.timer`.
-- `deploy-foreign-refusal`: a CLAUDE.md or AGENTS.md without the harness ownership marker stops the install before any write.
+- `deploy-foreign-refusal`: an AGENTS.md or legacy entry without the harness ownership marker stops the install before any write.
 
 ## How to get to it (user POV)
 
@@ -22,9 +22,9 @@ Preconditions:
 
 - **Deploy.** Run `verify-harness install`. Expect `PASS claude-config/install exit 0` and `PASS codex-config/install exit 0`.
 - **Check composition.** In the same output, expect `PASS ~/.claude/AGENTS.md is the composed guidance`, `PASS ~/.codex/AGENTS.md is the composed guidance` and `PASS claude skills (...) and codex skills (...) byte-identical to source`.
-- **Canonical adapter.** Expect `PASS Claude compatibility symlink targets canonical AGENTS.md`. Content is a regular AGENTS.md; the alias points to that sibling. Shared checks exercise owned legacy upgrades, preserved backups, reruns and foreign/broken-link refusals. All fixtures author content as AGENTS.md.
+- **Canonical adapter.** Expect `PASS Claude uses AGENTS.md alone with no legacy alias`. Content is a regular AGENTS.md, with no legacy file or symlink. Shared checks exercise owned legacy upgrades, preserved backups, reruns and foreign/broken-link refusals. All fixtures author content as AGENTS.md.
 - **Check the pool stays opt-in.** Expect `PASS t3-pool and t3-runtime-mode launchers` and `PASS pool timer left opt-in (only daemon-reload)`.
-- **Refuse foreign files.** Expect `PASS claude install refuses a foreign CLAUDE.md, nothing written` and `PASS codex install refuses a foreign AGENTS.md, nothing written`.
+- **Refuse foreign files.** Expect `PASS claude install refuses a foreign AGENTS.md, nothing written` and `PASS codex install refuses a foreign AGENTS.md, nothing written`.
 - **Proof.** Keep the install section of `transcript.txt` and `install-tree.txt`.
 
 ## Gotchas

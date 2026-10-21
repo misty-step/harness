@@ -32,8 +32,7 @@ class CanonicalInstructionsTest(unittest.TestCase):
         migrate(*self.args)
         self.assertEqual(self.backup.read_bytes(), self.content)
         self.assertEqual(self.canonical.read_bytes(), self.content)
-        self.assertTrue(self.legacy.is_symlink())
-        self.assertEqual(self.legacy.read_bytes(), self.content)
+        self.assertFalse(os.path.lexists(self.legacy))
         self.canonical.write_bytes(OWNED + b'\n# New composition\n')
         before = self.snapshot()
         migrate(*self.args)
@@ -72,12 +71,19 @@ class CanonicalInstructionsTest(unittest.TestCase):
                     self.assertEqual(before, self.snapshot())
                     path.unlink() if kind == 'link' else path.rmdir()
 
-    def test_only_canonical_broken_compatibility_link_is_repairable(self):
+    def test_owned_alias_removed_and_broken_alias_refused(self):
         self.legacy.symlink_to('current/AGENTS.md')
-        validate(*self.args)
+        before = self.snapshot()
+        with self.assertRaises(ValueError):
+            migrate(*self.args)
+        self.assertEqual(before, self.snapshot())
+        self.canonical.write_bytes(self.content)
         migrate(*self.args)
-        self.canonical.write_bytes(self.content)  # The installer's composition step.
-        self.assertEqual(self.legacy.read_bytes(), self.content)
+        self.assertFalse(os.path.lexists(self.legacy))
+        self.assertEqual(self.canonical.read_bytes(), self.content)
+        before = self.snapshot()
+        migrate(*self.args)
+        self.assertEqual(before, self.snapshot())
 
     def test_backup_collision_and_symlink_parent_refused(self):
         self.legacy.write_bytes(self.content)
@@ -100,7 +106,8 @@ class CanonicalInstructionsTest(unittest.TestCase):
         self.backup.parent.mkdir()
         self.backup.write_bytes(self.content)
         migrate(*self.args)
-        self.assertEqual(self.legacy.read_bytes(), self.content)
+        self.assertFalse(os.path.lexists(self.legacy))
+        self.assertEqual(self.canonical.read_bytes(), self.content)
         self.assertEqual(self.backup.read_bytes(), self.content)
 
 

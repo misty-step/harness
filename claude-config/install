@@ -19,7 +19,7 @@ base_dir=${AGENT_CONFIG_DIR:-$repo_dir/../agent-config}
 skills='lage ship-loop judge release-watch heartbeat story-qa pokayoke user-stories authenticated-commands'
 guidance='engineering workstation autonomy'
 
-# Validate canonical guidance and the legacy compatibility entry before any write.
+# Validate canonical guidance and the legacy entry before any write.
 python3 "$base_dir/lib/canonical_instructions.py" check "$agent_dir"
 
 set --

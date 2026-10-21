@@ -37,7 +37,7 @@ verification skill <path>. If it has none, add one with create-verification-skil
 (`.agents/skills/verify-<app>/`, `.claude/skills/` symlink), or say which open PR adds it.
 Apply global guidance's mandatory generator override and QA-account contract; run harness's
 `scripts/probe-agent-policy --verification <repo>` after generating. Instruction content is
-always AGENTS.md; CLAUDE.md is only its sibling symlink, including fixtures/private proofs. Put evidence in the PR. Push and open it against <base branch>,
+always AGENTS.md alone. Create no CLAUDE.md files or symlinks, including fixtures/private proofs. Put evidence in the PR. Push and open it against <base branch>,
 with a Conventional Commit title, the pr skill's body and "Closes #<n>".
 Every authored PR body carries `Story: <ID>[, <ID>]` using story IDs from SPEC.md or USER_STORIES.md
 (for example, `Story: US-012` or `Story: US-012, US-015`). Use `Story: none` when no story applies.

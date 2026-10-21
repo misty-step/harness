@@ -25,7 +25,7 @@ This directory is the maintained source for verifying harness as its operator us
 
 - [Sign in](./sign-in.md) covers native gh, Claude Code and Codex execution logins.
 - [Gate](./gate.md) covers `./scripts/check`, which runs the native tests and the isolated installer checks.
-- [Isolated deploy](./isolated-deploy.md) covers claude-config and codex-config installs into a private HOME, plus canonical AGENTS.md content, the CLAUDE.md compatibility symlink, and refusal of foreign guidance files.
+- [Isolated deploy](./isolated-deploy.md) covers claude-config and codex-config installs into a private HOME, plus canonical AGENTS.md content, absence of legacy files and symlinks, and refusal of foreign guidance files.
 - [Fresh session](./fresh-session.md) covers a fresh Claude Code and Codex session loading the deployed guidance and shared skills; session-auth also proves the candidate policy reaches an authenticated model.
 - [Live drift](./live-drift.md) covers whether the live `~/.claude` and `~/.codex` match source, with a real model call.
 - [Home post](./home-post.md) covers reporting to Home with `home post`, refused posts and the SSH route.

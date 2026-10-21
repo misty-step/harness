@@ -23,8 +23,8 @@ def validate(canonical, legacy, backup):
         raise ValueError(f"Refusing foreign canonical instructions: {canonical}")
     if present(legacy):
         if legacy.is_symlink():
-            if os.readlink(legacy) != os.path.relpath(canonical, legacy.parent):
-                raise ValueError(f"Refusing foreign compatibility link: {legacy}")
+            if os.readlink(legacy) != os.path.relpath(canonical, legacy.parent) or not owned(canonical):
+                raise ValueError(f"Refusing unowned legacy alias: {legacy}")
         elif not owned(legacy):
             raise ValueError(f"Refusing foreign legacy instructions: {legacy}")
         else:
@@ -58,16 +58,9 @@ def migrate(canonical, legacy, backup):
             preserve(backup, legacy.read_bytes())
         if not present(canonical):
             preserve(canonical, backup.read_bytes())
-    if not legacy.is_symlink():
-        fd, name = tempfile.mkstemp(prefix=".compat-", dir=canonical.parent)
-        os.close(fd)
-        staged = Path(name)
-        try:
-            staged.unlink()
-            staged.symlink_to(os.path.relpath(canonical, legacy.parent))
-            staged.replace(legacy)
-        finally:
-            staged.unlink(missing_ok=True)
+    if present(legacy):
+        legacy.unlink()
+
 
 
 if __name__ == "__main__":

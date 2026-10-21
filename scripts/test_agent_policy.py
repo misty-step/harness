@@ -21,22 +21,27 @@ class AgentPolicyProbeTest(unittest.TestCase):
         return {str(p.relative_to(self.repo)): os.readlink(p) if p.is_symlink()
                 else p.read_bytes() if p.is_file() else 'dir' for p in self.repo.rglob('*')}
 
-    def test_canonical_alias_passes_without_mutation(self):
-        (self.repo / 'CLAUDE.md').symlink_to('AGENTS.md')
+    def test_canonical_instructions_pass_without_mutation(self):
         before = self.snapshot()
         self.assertEqual(self.probe().returncode, 0)
         self.assertEqual(before, self.snapshot())
 
-    def test_broken_and_indirect_aliases_are_reported_without_mutation(self):
-        alias = self.repo / 'CLAUDE.md'
-        for target in ('missing', './AGENTS.md'):
-            alias.symlink_to(target)
-            before = self.snapshot()
-            result = self.probe()
-            self.assertNotEqual(result.returncode, 0)
-            self.assertIn('must be a symlink to regular sibling AGENTS.md', result.stderr)
-            self.assertEqual(before, self.snapshot())
-            alias.unlink()
+    def test_reserved_name_is_rejected_without_creating_it(self):
+        import contextlib
+        import io
+        import runpy
+        from unittest.mock import patch
+        for kind in ('file', 'directory'):
+            files = ['CLAUDE.md'] if kind == 'file' else []
+            dirs = ['CLAUDE.md'] if kind == 'directory' else []
+            output = io.StringIO()
+            with patch('sys.argv', [str(PROBE), str(self.repo)]), \
+                 patch('os.walk', return_value=iter([(str(self.repo), dirs, files)])), \
+                 contextlib.redirect_stderr(output), \
+                 self.assertRaises(SystemExit) as caught:
+                runpy.run_path(str(PROBE), run_name='__main__')
+            self.assertEqual(caught.exception.code, 1)
+            self.assertIn('forbidden instruction filename', output.getvalue())
 
     def test_generator_omissions_fail_and_complete_contract_passes(self):
         skill = self.repo / '.agents/skills/verify-example'

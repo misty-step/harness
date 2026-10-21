@@ -4,7 +4,7 @@ Every authored PR body has a `Story: <ID>[, <ID>]` line with story IDs from SPEC
 
 ## Instruction files
 
-`AGENTS.md` is the only instruction-content filename in every repository and host. Claude compatibility uses `CLAUDE.md` only as a symlink to the sibling `AGENTS.md`. Author instruction content in `AGENTS.md`, including fixtures, generated files and private proofs; never write content into `CLAUDE.md`. Preserve foreign instructions and use the owned harness migration for installed legacy files.
+`AGENTS.md` is the only instruction-content filename in every repository and host. Claude Code reads it natively. Create no `CLAUDE.md`, including symlinks, fixtures, generated files and private proofs. Preserve foreign instructions and use the owned harness migration to preserve legacy content and remove owned aliases.
 
 ## Verification
 
@@ -12,7 +12,7 @@ Nothing is verified until the repository's verification skill has driven the rea
 
 Agents use their own AgentMail QA account for every app, with credentials in `pass` at `workstation/<PROJECT>_QA_*`. Provisioning and reusing that QA account, its pass entries, and required QA allowlist or Cloudflare Access additions is authorized within the assigned application scope. Use disposable QA data. Owner proof means a successful production login with the required owner/admin role and linked evidence; a login without that role is unproven. Never ask for phaedrus's passwords or a throwaway browser profile. Native CLI subscriptions are execution authentication, not product QA accounts.
 
-When creating or refreshing verification skills, apply this mandatory override to `create-verification-skill`, including rollout workers: canonical `.agents/skills/verify-<app>/` with a `.claude/skills/verify-<app>` symlink; `AGENTS.md` instruction content with `CLAUDE.md` only a symlink; the AgentMail QA account, pass references, production login and owner/admin role proof above. The generated skill must state the exact authorized account setup, role checks, allowlist/Access needs, evidence and cleanup. Read credentials through `authenticated-commands`; missing QA access is reported as blocked, never replaced by a request for phaedrus's password. Run harness's `scripts/probe-agent-policy --verification <repo>...` on each generated repository before handing it back. This override applies even when the upstream generator suggests other paths or identities.
+When creating or refreshing verification skills, apply this mandatory override to `create-verification-skill`, including rollout workers: canonical `.agents/skills/verify-<app>/` with a `.claude/skills/verify-<app>` symlink; `AGENTS.md` alone with no `CLAUDE.md`, including symlinks; the AgentMail QA account, pass references, production login and owner/admin role proof above. The generated skill must state the exact authorized account setup, role checks, allowlist/Access needs, evidence and cleanup. Read credentials through `authenticated-commands`; missing QA access is reported as blocked, never replaced by a request for phaedrus's password. Run harness's `scripts/probe-agent-policy --verification <repo>...` on each generated repository before handing it back. This override applies even when the upstream generator suggests other paths or identities.
 
 
 ## Design
