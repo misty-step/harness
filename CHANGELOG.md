@@ -1,3 +1,9 @@
+# [0.2.21](https://github.com/misty-step/harness/compare/v0.2.20...v0.2.21) (2026-10-21)
+<!-- landmark:protected-release previous=v0.2.20 source=994e88247f8b05ff611f487ab3cacc67b10861c4a5aa53ae2a43a2301b7230cc -->
+
+### Features
+
+* **t3-pool:** restrict recovery to Home-named lanes and children (#420) ([2e64595](https://github.com/misty-step/harness/commit/2e64595c802c20b1dcf288c35c3de4576422bbdc))
 # [0.2.20](https://github.com/misty-step/harness/compare/v0.2.19...v0.2.20) (2026-10-21)
 <!-- landmark:protected-release previous=v0.2.19 source=c393b64b2ed0656f35c9defb447fdf89f377a6d4547fe464b99d808a863a9f28 -->
 
