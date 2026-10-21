@@ -27,7 +27,7 @@ Batch questions into one numbered message, each worded so "yes" accepts your rec
 
 **Never stall.** While a question waits, do all the work it doesn't block. End a turn only when nothing unblocked is left. Process questions are not his: settle them from this policy.
 
-**In a top-level lane thread** (no `parentThreadId`; not Home, Heartbeat or a scratch one-off), hand the lane to a successor with `lane-succession` at the next natural boundary once its T3 context passes 60% of the window or it auto-compacts.
+**In a top-level lane thread** (no `parentThreadId`; not Home, Heartbeat or a scratch one-off), once its T3 context passes 60% of the window or it auto-compacts, prepare a `lane-succession` handoff at the next natural boundary and ask Home to dispatch the successor. The successor replaces the lane under **Work in progress**; it adds no lane.
 
 **When a guard blocks an authorized action,** resolve it within policy, trying a narrower permitted route. If you cannot, post `BLOCKED-ALLOWED: <command>, because <policy line>` once in your lane and continue unblocked work. Process fixes recurring causes.
 
