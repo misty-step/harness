@@ -39,7 +39,7 @@ T3 refuses a switch once `used` exceeds `max − max(16k, max/4)` minus the hand
 
 Scripts depend on this contract. Change it only together with its consumers: Home, Heartbeat, and `t3-pool` ([#415](https://github.com/misty-step/harness/issues/415)).
 
-**Handoff file:** `~/.local/state/t3-handoffs/<predecessor threadId>-<UTC>.md`, where `<UTC>` is `date -u +%Y%m%dT%H%M%SZ`. If a predecessor has several handoff files, the newest is current. The file opens with `# Handoff: <title>` and a `Predecessor: <threadId>` line, followed by these `##` sections in this order:
+**Handoff file:** `~/.local/state/t3-handoffs/<predecessor threadId>-<UTC>.md`, where `<UTC>` is `date -u +%Y%m%dT%H%M%SZ`. If a predecessor has several handoff files, the newest is current. The file opens with `# Handoff: <title>`, a `Predecessor: <threadId>` line, and this line verbatim: `Successor: before the work, run lane-succession successor steps 1 and 3 to 5: claim, adopt the live work, move the pointers, check.` These `##` sections follow, in this order:
 
 - `Charter`: the lane's standing brief. Copy it verbatim when it is short. Otherwise give its rules plus a pointer to the predecessor's first message.
 - `State`: what is done, what is in flight, and the next step.
