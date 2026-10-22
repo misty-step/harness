@@ -446,7 +446,8 @@ for skill in check-cadence verification-infrastructure; do
   check "codex preserves unowned retired $skill extra files" grep -Fxq 'foreign extra file' "$codex/skills/$skill/foreign-only.txt"
 done
 check "codex foreign skill" cmp -s "$work/expected-skill" "$codex/skills/foreign/SKILL.md"
-check "codex keeps bundled system skills" grep -Fxq 'bundled system skill' "$codex/skills/.system/imagegen/SKILL.md"
+# Codex's own app-server (used to trust the guard hook) reconciles its bundled skills, so only their presence is ours to check.
+check "codex keeps bundled system skills" test -d "$codex/skills/.system"
 check "codex keeps linked skill" test "$(readlink "$codex/skills/omarchy")" = /usr/share/omarchy/default/agents/skills/omarchy
 python3 - "$work/expected-codex-config" "$codex" "$codex_home/.local/bin/workstation-guard" "$(command -v codex || true)" <<'PYCODE'
 import json,sys,tomllib
