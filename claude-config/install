@@ -26,7 +26,7 @@ python3 "$repo_dir/agents-hook.py" check "$agent_dir"
 set --
 for skill in $skills; do set -- "$@" --skill "$skill"; done
 for section in $guidance; do set -- "$@" --guidance "$section"; done
-set -- "$@" --bin t3-runtime-mode.ts --bin daybook-sync --t3-pool
+set -- "$@" --bin t3-runtime-mode.ts --bin daybook-sync --bin workstation-guard --t3-pool
 set -- "$@" --guidance-source "$repo_dir/global/AGENTS.md" --guidance-file AGENTS.md
 "$base_dir/install" --check --agent-dir "$HOME/.agents" --preserve-foreign-skills --skill daybook-sync
 "$base_dir/install" --check --agent-dir "$agent_dir" "$@"
@@ -34,4 +34,4 @@ python3 "$base_dir/lib/canonical_instructions.py" migrate "$agent_dir"
 "$base_dir/install" --agent-dir "$agent_dir" "$@"
 "$base_dir/install" --agent-dir "$HOME/.agents" --preserve-foreign-skills --skill daybook-sync
 python3 "$repo_dir/agents-hook.py" install "$agent_dir"
-printf 'claude: installed %s, t3-runtime-mode and guidance (%s) into %s\n' "$skills" "$guidance" "$agent_dir"
+printf 'claude: installed %s, t3-runtime-mode, workstation-guard and guidance (%s) into %s\n' "$skills" "$guidance" "$agent_dir"

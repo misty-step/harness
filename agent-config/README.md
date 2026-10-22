@@ -10,6 +10,7 @@ harness installer declares which primitives it selects.
 | `skills/` | Portable skill packages, clean-replaced when selected |
 | `guidance/*.md` | Global-guidance sections spliced at the harness marker |
 | `bin/daybook-sync` | Isolated private-note prepare, selected commit/push, bounded rebase and safe cleanup (US-054) |
+| `bin/workstation-guard` | PreToolUse hook for Claude Code and Codex: on mirrodin, serenity and nassau it refuses privileged or host-device containers and VMs, reboot/power-off, `pkill`/`killall` and display or session restarts, and points to exe.dev or `ssh hetzner-ci` (US-003) |
 | `bin/pass-env.ts` | pass-backed environment launcher |
 | `bin/t3-runtime-mode.ts` | Set a local T3 thread's runtime mode through authenticated RPC |
 | `bin/t3-pool.ts` | Continue eligible WIP threads across accounts and providers; request succession from Home after a handoff refusal ([contract](t3-pool/README.md), US-050) |
@@ -45,6 +46,21 @@ and preflight never executes candidate source. Both harness installs select
 Each guidance file is one complete `##` section. The installer replaces the
 harness file's `<!-- shared guidance: agent-config -->` line with the selected
 sections in order; a missing marker aborts the deploy.
+
+## Workstation guard
+
+`bin/workstation-guard` reads the native PreToolUse hook JSON and acts only for
+the shell tool (`Bash`) on the hosts in `WORKSTATION_GUARD_HOSTS` (default
+`mirrodin serenity nassau`). It parses the command, looking through `sudo`,
+`env`, `bash -c`, substitutions, pipelines and heredocs, so quoted text in a
+commit message, `echo` or `grep` is not refused. A refusal exits 2 with the
+reason and the exe.dev and `hetzner-ci` alternatives on stderr, which both
+harnesses treat as a block. Any other tool, host or unparsable input is
+allowed. Residual risk: commands assembled at run time (`$cmd`, scripts,
+compose files) are invisible, and a refused flag used as the container's own
+argument (`docker run img prog --privileged`) is refused. Claude Code's
+installer adds the hook to `settings.json`; Codex's adds it to `hooks.json`
+and trusts it through Codex's own RPC.
 
 ## Set a T3 thread's runtime mode
 
