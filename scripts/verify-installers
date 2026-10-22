@@ -286,7 +286,7 @@ check "claude canonical shared daybook skill" cmp -s "$work/source/agent-config/
 check "claude daybook-sync executable" test -x "$claude_home/.local/bin/daybook-sync"
 check "claude daybook-sync bytes" cmp -s "$work/source/agent-config/bin/daybook-sync" "$claude_home/.local/bin/daybook-sync"
 check "claude daybook-sync CLI" "$claude_home/.local/bin/daybook-sync" --help
-for skill in lage ship-loop judge release-watch heartbeat lane-succession story-qa pokayoke user-stories authenticated-commands daybook-sync; do
+for skill in lage ship-loop judge release-watch heartbeat lane-succession story-qa pokayoke user-stories authenticated-commands daybook-sync remote-execution; do
   check "claude $skill skill bytes" cmp -s "$work/source/agent-config/skills/$skill/SKILL.md" "$claude/skills/$skill/SKILL.md"
 done
 check "claude release-watch package bytes" diff -r "$work/source/agent-config/skills/release-watch" "$claude/skills/release-watch"
@@ -421,7 +421,7 @@ check "codex canonical shared daybook skill" cmp -s "$work/source/agent-config/s
 check "codex daybook-sync executable" test -x "$codex_home/.local/bin/daybook-sync"
 check "codex daybook-sync bytes" cmp -s "$work/source/agent-config/bin/daybook-sync" "$codex_home/.local/bin/daybook-sync"
 check "codex daybook-sync CLI" "$codex_home/.local/bin/daybook-sync" --help
-for skill in lage ship-loop judge release-watch heartbeat lane-succession story-qa pokayoke user-stories authenticated-commands daybook-sync; do
+for skill in lage ship-loop judge release-watch heartbeat lane-succession story-qa pokayoke user-stories authenticated-commands daybook-sync remote-execution; do
   check "codex $skill skill package" diff -r --exclude=.harness-owned "$work/source/agent-config/skills/$skill" "$codex/skills/$skill"
   check "codex $skill ownership marker" grep -Fxq 'owned by misty-step/harness agent-config' "$codex/skills/$skill/.harness-owned"
 done
