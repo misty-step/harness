@@ -36,9 +36,9 @@ set -- --preserve-foreign-skills --bin daybook-sync --bin workstation-guard
 for skill in $skills; do set -- "$@" --skill "$skill"; done
 for section in $guidance; do set -- "$@" --guidance "$section"; done
 set -- "$@" --guidance-source "$repo_dir/global/AGENTS.md" --guidance-file AGENTS.md
-python3 "$repo_dir/pretool-hook.py" check "$agent_dir"
 "$base_dir/install" --check --agent-dir "$HOME/.agents" --preserve-foreign-skills --skill daybook-sync
 "$base_dir/install" --check --agent-dir "$agent_dir" "$@"
+python3 "$repo_dir/pretool-hook.py" check "$agent_dir"
 "$base_dir/install" --agent-dir "$agent_dir" "$@"
 "$base_dir/install" --agent-dir "$HOME/.agents" --preserve-foreign-skills --skill daybook-sync
 python3 "$repo_dir/pretool-hook.py" install "$agent_dir"
