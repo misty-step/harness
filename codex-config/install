@@ -16,7 +16,7 @@ base_dir=${AGENT_CONFIG_DIR:-$repo_dir/../agent-config}
   exit 1
 }
 
-skills='lage ship-loop judge release-watch heartbeat lane-succession story-qa pokayoke user-stories authenticated-commands daybook-sync'
+skills='lage ship-loop judge release-watch heartbeat lane-succession story-qa pokayoke user-stories authenticated-commands daybook-sync remote-execution'
 guidance='engineering workstation autonomy'
 owned='<!-- owned by misty-step/harness codex-config -->'
 
