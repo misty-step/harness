@@ -78,9 +78,20 @@ test("vm new creates a tagged VM, waits for ssh and prints the target", async ()
 	expect(r.code).toBe(0);
 	expect(r.out.trim()).toBe("task-1.exe.xyz");
 	const calls = f.calls();
-	expect(calls).toContainEqual(["ssh", "-o", "BatchMode=yes", "exe.dev", "new", "--name=task-1", "--tag=remote-run,lane", "--comment=demo", "--json", "--cpu=2", "--memory=8GB", "--disk=20GB"]);
+	expect(calls).toContainEqual(["ssh", "-o", "BatchMode=yes", "exe.dev", "new", "--name=task-1", "--tag=remote-run,lane", "--comment='demo'", "--json", "--cpu=2", "--memory=8GB", "--disk=20GB"]);
 	expect(calls.filter((c) => c.includes("true")).length).toBe(3);
 	expect(JSON.stringify(calls)).not.toContain("StrictHostKeyChecking=no\"");
+});
+
+test("vm new quotes the comment for the exe.dev lobby, defaults it, and refuses quotes", async () => {
+	const f = fixture();
+	expect((await remoteRun(f, ["vm", "new", "task-2", "--comment", "QA PR 476; disposable"])).code).toBe(0);
+	expect(f.calls().find((c) => c.includes("--name=task-2"))).toContain("--comment='QA PR 476; disposable'");
+	expect((await remoteRun(f, ["vm", "new", "task-3"])).code).toBe(0);
+	expect(f.calls().find((c) => c.includes("--name=task-3"))).toContain("--comment='remote-run; disposable'");
+	const bad = await remoteRun(f, ["vm", "new", "task-4", "--comment", "x' --image evil"]);
+	expect(bad.code).toBe(2);
+	expect(f.calls().some((c) => c.includes("--name=task-4"))).toBe(false);
 });
 
 test("vm exec passes the exit code and quotes arguments; put/get use scp -r", async () => {

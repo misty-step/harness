@@ -100,8 +100,11 @@ async function vm(args: string[]): Promise<number> {
 				console.error(`VM ${name} already exists: ${existing.status} tags=${(existing.tags ?? []).join(",")} ${existing.comment ?? ""}`);
 				return 1;
 			}
+			const comment = opts.comment?.[0] ?? "remote-run; disposable";
+			if (!/^[^'\\\r\n]{1,200}$/.test(comment)) throw new Usage("--comment must be 1-200 characters without quotes, backslashes or newlines");
+			// ssh joins the remote arguments with spaces and the exe.dev lobby re-splits them, so quote the free text.
 			const newArgs = [...SSH_OPTS, "exe.dev", "new", `--name=${name}`, `--tag=${TOOL_TAG},${owner}`,
-				`--comment=${opts.comment?.[0] ?? "remote-run; disposable"}`, "--json"];
+				`--comment='${comment}'`, "--json"];
 			for (const k of ["cpu", "memory", "disk"]) if (opts[k]) newArgs.push(`--${k}=${opts[k][0]}`);
 			const created = await run("ssh", newArgs, { capture: true });
 			if (created.code !== 0) throw new Fail("ssh exe.dev new failed");
