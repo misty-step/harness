@@ -9,7 +9,7 @@
   "crossProvider": [{ "claude-opus-5-5": "effort", "gpt-6.1-sol": "reasoningEffort" }],
   "efforts": ["low", "medium", "high", "xhigh"],
   "wipRoots": [
-    "mcp:d712e243-83c3-4985-841f-2e3d3d67e8e5",
+    "mcp:ed92cb37-f4b8-4cb9-8c6e-a3dbe8fc9478",
     "mcp:c78f446c-7b29-4528-9589-e05631e39a94",
     "mcp:07fc2709-720f-43c9-9763-67baa06b11c0",
     "mcp:22951f6e-5925-4c40-8192-3a7f1c31890b",
