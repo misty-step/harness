@@ -23,6 +23,42 @@ comparison does not replace that proof. The upstream generator override is maint
 in `agent-config/guidance/engineering.md`; sweep generated repos with
 `scripts/probe-agent-policy --verification <repo>...`.
 
+## Focused experiment: build, tests and installer smoke
+
+For [explore-queue #3](https://github.com/misty-step/explore-queue/issues/3),
+run this bounded proof from a **clean, committed checkout**:
+
+```sh
+.agents/skills/verify-harness/bin/experiment
+```
+
+Doctor is the initial clean-tree check. The command drives `./scripts/check all`,
+the repository's canonical build/test gate, including launcher bundling and the
+end-to-end `scripts/verify-installers` smoke. The smoke installs every consumer
+in disposable homes, reads the deployed output, checks foreign state preservation
+and reruns installation. Harness has no separate application build command.
+A missing tool or failed check yields `FAIL` and exit 1; success requires exit 0,
+both completion markers and a still-clean checkout. Run automated checks on
+`hetzner-ci` under the repository's remote-execution policy; dependencies match
+[CI](../../../.github/workflows/ci.yml).
+
+Each invocation prints its unique evidence directory and writes `summary.txt`
+(revision, command, exit, log SHA-256, PASS/FAIL) and `check.log` there. The default
+parent is `~/.cache/tmp/verify-harness-experiment`; set `VH_EXPERIMENT_EVIDENCE`
+to an absolute external directory to choose another. The gate cleans its private
+homes; evidence survives. No login, live install, model call or Home post occurs.
+This proves the gate and installer journey only; use the broader drives below
+for fresh-session loading, live drift and operational features.
+
+To check failure detection, clone the tested commit into external scratch, append
+`test("experiment deliberate failure", () => expect(1).toBe(2));` to
+`scripts/workspace-inventory.test.ts`, and commit that deliberate fault **only in the disposable clone**, and run the same command.
+Expect `FAIL harness experiment`, gate exit 1 and the fault in the clone's diff.
+Keep the clean and broken summaries plus the mutation diff in the draft PR;
+never push the fault commit. Scan evidence for secrets before publishing it.
+Remove only the disposable clone after inspection; retain the evidence through
+review. The existing `.claude/skills/verify-harness` symlink discovers this skill.
+
 ## Launch
 
 There is no server. Each drive is a short-lived process.
