@@ -1,3 +1,9 @@
+# [0.2.34](https://github.com/misty-step/harness/compare/v0.2.33...v0.2.34) (2026-10-22)
+<!-- landmark:protected-release previous=v0.2.33 source=d2de1b35cadd84cf41d05cf869e0e91f1e389e5c51c1ee784dca5dadd0550557 -->
+
+### Features
+
+* **agent-config:** remote-run CLI for exe.dev VMs and Hetzner builds (#476) ([4e076de](https://github.com/misty-step/harness/commit/4e076de397ad8526c982d6a15c90c0ac51d41c08))
 # [0.2.33](https://github.com/misty-step/harness/compare/v0.2.32...v0.2.33) (2026-10-22)
 <!-- landmark:protected-release previous=v0.2.32 source=1b4a0d12095bbedbab1384e8821e6447536d9e93bbbc98fb8a1a5814dada02f0 -->
 
