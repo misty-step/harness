@@ -1,3 +1,9 @@
+# [0.2.31](https://github.com/misty-step/harness/compare/v0.2.30...v0.2.31) (2026-10-22)
+<!-- landmark:protected-release previous=v0.2.30 source=d256619231c455e1b9835efb189a951250b61307cb637248d3ef8c7de46a3b20 -->
+
+### Features
+
+* **guard:** refuse host-affecting shell commands on workstations (#474) ([06cc127](https://github.com/misty-step/harness/commit/06cc12724ead0a096bec7592cfaf0ba813789f8d))
 # [0.2.30](https://github.com/misty-step/harness/compare/v0.2.29...v0.2.30) (2026-10-22)
 <!-- landmark:protected-release previous=v0.2.29 source=ef360057bca06138151be749457bd5ade976232ec56570f9274c47f9fbc9a182 -->
 
