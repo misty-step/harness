@@ -21,6 +21,7 @@ class PretoolHookTest(unittest.TestCase):
         self.addCleanup(temp.cleanup)
         self.directory = Path(temp.name)
         self.path = self.directory/'hooks.json'
+        self.real_trust = hook.trust
         trust = patch.object(hook, 'trust')
         self.trust = trust.start()
         self.addCleanup(trust.stop)
@@ -47,6 +48,11 @@ class PretoolHookTest(unittest.TestCase):
             self.path.write_text(value)
             with self.assertRaises(ValueError): hook.install(self.directory)
             self.assertEqual(self.path.read_text(), value)
+
+    def test_without_codex_on_path_trust_is_skipped_with_a_warning(self):
+        with patch.object(hook.shutil, 'which', return_value=None), patch('sys.stderr') as stderr:
+            self.real_trust(self.directory)
+        self.assertIn('/hooks', ''.join(call.args[0] for call in stderr.write.call_args_list))
 
     def test_nonregular_destination_is_refused(self):
         self.path.symlink_to('missing.json')
