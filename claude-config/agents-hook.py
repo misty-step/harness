@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # owned by misty-step/harness claude-config agents-hook
-"""Install Claude's native SessionStart adapter; keep instructions in AGENTS.md."""
+"""Install Claude's native SessionStart adapter and workstation guard; keep instructions in AGENTS.md."""
 import json
 import os
 from pathlib import Path
@@ -32,6 +32,33 @@ def parts(text):
 
 def command(script, part):
     return f'python3 {shlex.quote(str(script))} {part}'
+
+
+def guard_command():
+    return shlex.quote(str(Path.home() / '.local' / 'bin' / 'workstation-guard'))
+
+
+def guard_hook():
+    return {'type': 'command', 'command': guard_command(), 'timeout': 10}
+
+
+def guard_groups(data):
+    groups = data.get('hooks', {}).get('PreToolUse', [])
+    if not isinstance(groups, list):
+        raise ValueError('PreToolUse must be an array')
+    retained = []
+    for group in groups:
+        if not isinstance(group, dict) or not isinstance(group.get('hooks'), list) or not all(isinstance(hook, dict) for hook in group['hooks']):
+            raise ValueError('PreToolUse entries must contain a hooks array of objects')
+        hooks = []
+        for hook in group['hooks']:
+            if hook.get('command') != guard_command():
+                hooks.append(hook)
+            elif hook != guard_hook() or group.get('matcher') != 'Bash':
+                raise ValueError('Refusing a foreign hook collision at the workstation guard command')
+        if hooks or not group['hooks']:
+            retained.append({**group, 'hooks': hooks})
+    return [*retained, {'matcher': 'Bash', 'hooks': [guard_hook()]}]
 
 
 def plan(directory):
@@ -66,6 +93,7 @@ def plan(directory):
                 hooks.append(hook)
         if hooks or not group['hooks']:
             retained.append({**group, 'hooks': hooks})
+    guard_groups(data)
     return script, settings, data, retained
 
 
@@ -89,6 +117,7 @@ def install(directory):
     count = len(parts(text))
     groups.append({'hooks': [{'type': 'command', 'command': command(script, part)} for part in range(count)]})
     data.setdefault('hooks', {})['SessionStart'] = groups
+    data['hooks']['PreToolUse'] = guard_groups(data)
     write_atomic(script, Path(__file__).read_text(), 0o700)
     settings_path = directory / 'settings.json'
     mode = stat.S_IMODE(settings_path.stat().st_mode) if settings_path.exists() else 0o600
