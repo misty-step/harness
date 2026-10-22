@@ -4,6 +4,14 @@ Use native logins. Credential commands and discovery live in `skill://authentica
 Scratch belongs under `~/.cache/tmp`; `/tmp` is RAM-backed.
 Audio plays into silent `agent-sandbox`; record its monitor and hand over files for the operator to play.
 
+## Remote-first execution
+
+Run development, test environments and QA on exe.dev VMs, and builds, automated tests and CI on the Hetzner box (`ssh hetzner-ci`); `skill://remote-execution` has the commands.
+The workstations (mirrodin, serenity, nassau) are overflow only, after checking that remote capacity is full.
+Never run a privileged container or anything with host-device access on a workstation: no `--privileged`, `--device`, host `/dev` or console mounts, host PID/IPC namespaces or systemd-in-container.
+Never reboot, shut down, restart the display or session, or `pkill`/`killall` on a workstation; stop only a process you started, by its exact PID.
+If remote capacity is missing, tell Home what is missing in two sentences; this does not authorize buying capacity.
+
 ## Routing until Upkeep
 
 For every dispatch, use the authoritative [ship-loop routing and rigor table](skill://ship-loop/roles.md#rigor) for review shape, models and effort.
