@@ -12,6 +12,7 @@ harness installer declares which primitives it selects.
 | `bin/daybook-sync` | Isolated private-note prepare, selected commit/push, bounded rebase and safe cleanup (US-054) |
 | `bin/workstation-guard` | PreToolUse hook for Claude Code and Codex: on mirrodin, serenity and nassau it refuses privileged or host-device containers and VMs, reboot/power-off, `pkill`/`killall` and display or session restarts, and points to exe.dev or `ssh hetzner-ci` (US-003) |
 | `bin/pass-env.ts` | pass-backed environment launcher |
+| `bin/remote-run.ts` | `remote-run`: tagged exe.dev VMs and unprivileged docker builds on hetzner-ci, with cleanup ([skill](skills/remote-execution/SKILL.md)) |
 | `bin/t3-runtime-mode.ts` | Set a local T3 thread's runtime mode through authenticated RPC |
 | `bin/t3-pool.ts` | Continue eligible WIP threads across accounts and providers; request succession from Home after a handoff refusal ([contract](t3-pool/README.md), US-050) |
 | `bin/openrouter-key.ts` | OpenRouter key resolver: R90 checkouts get the R90 entry, others `--personal` (US-028) |
