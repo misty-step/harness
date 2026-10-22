@@ -150,16 +150,19 @@ class AgentsHookTest(unittest.TestCase):
         hook.install(self.directory)
         script = str(self.directory/'hooks/harness-agents.py')
 
-        def run(mode, entrypoint):
+        def run(mode, entrypoint, tool='Bash'):
             env = {**os.environ, 'CLAUDE_CODE_ENTRYPOINT': entrypoint}
-            return subprocess.run(['python3', script, 'permission'], input=json.dumps({'permission_mode': mode}),
+            return subprocess.run(['python3', script, 'permission'], input=json.dumps({'permission_mode': mode, 'tool_name': tool}),
                                   capture_output=True, text=True, check=True, env=env).stdout
         decision = json.loads(run('bypassPermissions', 'sdk-ts'))['hookSpecificOutput']['decision']
         self.assertEqual(decision['behavior'], 'deny')
         self.assertIn('literal path', decision['message'])
+        self.assertEqual(run('bypassPermissions', 'sdk-ts', 'AskUserQuestion'), '')
+        self.assertEqual(run('bypassPermissions', 'sdk-ts', 'ExitPlanMode'), '')
         self.assertEqual(run('default', 'sdk-ts'), '')
         self.assertEqual(run('bypassPermissions', 'cli'), '')
         self.assertEqual(subprocess.run(['python3', script, 'permission'], input='not json', capture_output=True, text=True, check=True).stdout, '')
+        self.assertEqual(subprocess.run(['python3', script, 'permission'], input='[]', capture_output=True, text=True, check=True).stdout, '')
 
 
 if __name__ == '__main__': unittest.main()
