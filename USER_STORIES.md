@@ -219,11 +219,16 @@ Criteria:
    THEN THE SYSTEM SHALL require separate operator approval.
 4. WHILE stage A is in effect, THE SYSTEM SHALL keep agent sessions and model
    credentials on the desktop.
+5. WHEN an agent on a workstation runs a shell command that starts a privileged
+   or host-device container or VM, reboots or powers off, kills processes by
+   name, or restarts the display or session, THE SYSTEM SHALL refuse it through
+   the PreToolUse hook in Claude Code and Codex and point to a disposable
+   exe.dev VM or `ssh hetzner-ci`.
 
 No-gos: no automatic additional VM or model-credential transfer.
 
 Evidence: `agent-config/guidance/workstation.md`,
-`omp-config/global/AGENTS.md`
+`omp-config/global/AGENTS.md`, `agent-config/bin/workstation-guard`
 
 ## US-025 Work in an owned exe.dev project workspace — retired automation
 

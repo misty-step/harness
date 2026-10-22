@@ -107,5 +107,26 @@ class AgentsHookTest(unittest.TestCase):
         self.assertTrue(updated['disableAllHooks'])
         self.assertEqual(updated['hooks']['SessionStart'][:-1], data['hooks']['SessionStart'])
 
+    def test_guard_hook_is_added_once_beside_foreign_pretooluse_hooks(self):
+        foreign = {'matcher': 'Edit', 'hooks': [{'type': 'command', 'command': 'foreign-pre'}]}
+        self.foreign['hooks']['PreToolUse'] = [foreign]
+        (self.directory/'settings.json').write_text(json.dumps(self.foreign))
+        hook.install(self.directory)
+        guard = {'matcher': 'Bash', 'hooks': [hook.guard_hook()]}
+        self.assertEqual(json.loads((self.directory/'settings.json').read_text())['hooks']['PreToolUse'], [foreign, guard])
+        before = self.snapshot()
+        hook.install(self.directory)
+        self.assertEqual(before, self.snapshot())
+
+    def test_foreign_guard_command_collisions_and_malformed_pretooluse_are_refused(self):
+        command = hook.guard_command()
+        for pretool in ({'PreToolUse': {}}, {'PreToolUse': [{'matcher': 'Bash'}]},
+                        {'PreToolUse': [{'matcher': 'Edit', 'hooks': [hook.guard_hook()]}]},
+                        {'PreToolUse': [{'matcher': 'Bash', 'hooks': [{'type': 'command', 'command': command, 'timeout': 99}]}]}):
+            (self.directory/'settings.json').write_text(json.dumps({'hooks': pretool}))
+            before = self.snapshot()
+            with self.assertRaises(ValueError): hook.install(self.directory)
+            self.assertEqual(before, self.snapshot())
+
 
 if __name__ == '__main__': unittest.main()
