@@ -38,8 +38,8 @@ end-to-end `scripts/verify-installers` smoke. The smoke installs every consumer
 in disposable homes, reads the deployed output, checks foreign state preservation
 and reruns installation. Harness has no separate application build command.
 A missing tool or failed check yields `FAIL` and exit 1; success requires exit 0,
-both completion markers and a still-clean checkout. Run automated checks on
-`hetzner-ci` under the repository's remote-execution policy; dependencies match
+both completion markers and a still-clean checkout. Run from the authorized checkout; use remote hosts only when explicitly
+authorized for the task. Dependencies match
 [CI](../../../.github/workflows/ci.yml).
 
 Each invocation prints its unique evidence directory and writes `summary.txt`
