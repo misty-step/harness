@@ -1,3 +1,9 @@
+# [0.2.32](https://github.com/misty-step/harness/compare/v0.2.31...v0.2.32) (2026-10-22)
+<!-- landmark:protected-release previous=v0.2.31 source=b832f151db47e06068edd22fcb26ffe01e676aa863a00c26628a52a15911f3e6 -->
+
+### Bug Fixes
+
+* **claude:** refuse unanswerable approval requests instead of stalling delegated runs (#477) ([da2da73](https://github.com/misty-step/harness/commit/da2da736f5ae0d4e167485f048baef41dfae25f2))
 # [0.2.31](https://github.com/misty-step/harness/compare/v0.2.30...v0.2.31) (2026-10-22)
 <!-- landmark:protected-release previous=v0.2.30 source=d256619231c455e1b9835efb189a951250b61307cb637248d3ef8c7de46a3b20 -->
 
