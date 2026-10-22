@@ -37,3 +37,7 @@ launcher writes; use `./scripts/verify`.
 tests and isolated installer checks; installers test committed HEAD.
 Root Landmark automation owns releases.
 Run `upkeep where <task-kind>` before dispatching.
+
+## No fallbacks
+
+No fallbacks, backup paths or masking safety nets. Write the one best solution: direct, clean, simple, elegant. If it fails, it must fail loudly and visibly so we can fix it. Security checks (auth, signatures, schema validation) stay, but fail loudly, never silently.
