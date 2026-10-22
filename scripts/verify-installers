@@ -489,6 +489,7 @@ check "codex writes no CLAUDE.md" test ! -e "$codex/CLAUDE.md"
 check "codex writes no CLAUDE.md symlink" test ! -L "$codex/CLAUDE.md"
 # CODEX_HOME relocates the whole deployment, as it does for Codex itself.
 relocated="$work/codex-relocated"
+mkdir -p "$work/codex-unused-home"  # the hook installer runs python3, which needs an existing HOME
 if env -i PATH="$PATH" HOME="$work/codex-unused-home" CODEX_HOME="$relocated" TMPDIR="$work" \
   "$work/source/codex-config/install" >"$work/codex-relocated.log" 2>&1 \
   && cmp -s "$expected" "$relocated/AGENTS.md" && test -f "$relocated/skills/lage/SKILL.md" \
