@@ -1,3 +1,9 @@
+# [0.2.33](https://github.com/misty-step/harness/compare/v0.2.32...v0.2.33) (2026-10-22)
+<!-- landmark:protected-release previous=v0.2.32 source=1b4a0d12095bbedbab1384e8821e6447536d9e93bbbc98fb8a1a5814dada02f0 -->
+
+### Bug Fixes
+
+* **claude:** leave AskUserQuestion and ExitPlanMode to the harness (#480) ([bf8e8dc](https://github.com/misty-step/harness/commit/bf8e8dc36929101e8d872149e0d8cb94c7049344))
 # [0.2.32](https://github.com/misty-step/harness/compare/v0.2.31...v0.2.32) (2026-10-22)
 <!-- landmark:protected-release previous=v0.2.31 source=b832f151db47e06068edd22fcb26ffe01e676aa863a00c26628a52a15911f3e6 -->
 
