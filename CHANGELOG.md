@@ -1,3 +1,9 @@
+# [0.2.30](https://github.com/misty-step/harness/compare/v0.2.29...v0.2.30) (2026-10-22)
+<!-- landmark:protected-release previous=v0.2.29 source=ef360057bca06138151be749457bd5ade976232ec56570f9274c47f9fbc9a182 -->
+
+### Features
+
+* **guidance:** run development, QA and builds remotely first (#471) ([3c9e199](https://github.com/misty-step/harness/commit/3c9e199e9e56ed26d6c871b930d1828eae000aaa))
 # [0.2.29](https://github.com/misty-step/harness/compare/v0.2.28...v0.2.29) (2026-10-22)
 <!-- landmark:protected-release previous=v0.2.28 source=aa757cad9099ff6e859559c439388980374c72cfac0d83213de23bfd0d4239ff -->
 
