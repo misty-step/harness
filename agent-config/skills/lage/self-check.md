@@ -1,34 +1,53 @@
-# Draft self-check
+# Result self-check
 
-Can he decide from the brief alone? Inspect every question's options, recommendation and
-unanswered consequence, every source mention's link and its first-mention summary, and coverage
-of unresolved asks. With `brief` and `pointer` naming the draft files, both greps must print nothing:
+Check coverage against the investigation: every in-scope lane and unresolved principal
+question is present, including questions from closed lanes. Standing-policy answers belong
+in stuck with an agent owner. Preserve all options, evidence and read gaps in detail.
 
-```sh
-for draft in "$brief" "$pointer"; do
-  sed -E 's/\[[^]]*\]\([^)]*\)//g' "$draft" |
-    grep -Ein '#[0-9]|\b(PR|issue|ticket|story|ADR|spec|doc|thread|GH)s?[ -]?[0-9]'
-  grep -Ein '\bQ[0-9]|(items?|asks?|decisions?) [0-9]|open item|[0-9]+ ?[-–,] ?[0-9]+ (yes|no)\b|[0-9]+ to [0-9]+' "$draft"
-done
-```
+Read only the primary fields once: can the principal scan the decisions, lane strip, shipped
+outcomes and stuck owners on one screen? Each decision line gives the complete question,
+recommendation and cost of no answer. Each lane has a state and short now/next. Move supporting
+paragraphs into detail; keep research coverage intact. Home folds detail and overflow rather
+than handing the principal a long document.
 
-Verify one numbering sequence and equal header and pointer counts:
+With `result` and `pointer` naming the draft files, check the delivery contract:
 
 ```sh
-python3 - "$brief" "$pointer" <<'PY'
-import re, sys
+python3 - "$result" "$pointer" <<'PY'
+import json, sys
 from pathlib import Path
-brief, pointer = (Path(p).read_text() for p in sys.argv[1:])
-n = int(re.search(r'\*\*Lage, .*?\*\* (\d+) decisions for you\.', brief)[1])
-assert [int(x) for x in re.findall(r'^(\d+)\. ', brief, re.M)] == list(range(1, n + 1))
-assert int(re.search(r'\b(\d+) waiting\b', pointer)[1]) == n
-print(f'PASS: {n} questions; header and pointer agree')
+r = json.loads(Path(sys.argv[1]).read_text())
+p = Path(sys.argv[2]).read_text()
+assert r['schema'] == 'lage.v1'
+assert r['as_of'] and r['since']
+for key in ('decisions', 'lanes', 'shipped', 'stuck'):
+    assert isinstance(r[key], list), key
+assert isinstance(r['details']['not_checked'], list)
+for key, fields in {
+    'decisions': ('id', 'question', 'recommendation', 'if_unanswered', 'requester'),
+    'lanes': ('name', 'url', 'state', 'now', 'next'),
+    'shipped': ('summary',),
+    'stuck': ('summary', 'owner'),
+}.items():
+    for item in r[key]:
+        assert all(isinstance(item[f], str) and item[f].strip() for f in fields)
+        assert isinstance(item['details'], dict)
+        assert item['links']
+        for link in item['links']:
+            assert link['label'] and link['url'].startswith(('https://', 't3-thread://v1/'))
+assert len({d['id'] for d in r['decisions']}) == len(r['decisions'])
+assert len({lane['url'] for lane in r['lanes']}) == len(r['lanes'])
+assert f"{len(r['decisions'])} decisions; {len(r['stuck'])} stuck" in p
+assert len(p.splitlines()) <= 3
+print('PASS: structured result and compact pointer agree')
 PY
 ```
 
-Repair failures and rerun. Greps cannot prove meaningful summaries or complete questions;
-inspect the whole brief, including status items and **Not checked**.
+This checks structure, not whether the facts are right or the primary view is readable.
+Inspect the decision alternatives, recommendation reasons, ownership, observation times,
+claim precision and source links. Keep raw local paths and unseen question labels out of
+primary fields. Open the pointer's HTTPS URL and parse the served JSON before posting.
 
-Open the pointer's HTTPS link and confirm it serves the full brief. Check every review link
-against global autonomy's review-link rule. Delivery is complete only when that brief is reachable
-and the inbox contains its linked pointer; a saved local file alone does not pass.
+Delivery is complete when Home can read the result and the inbox contains one pointer.
+A saved file or successful fallback append alone does not prove Home received it. Rendering
+the inline page belongs to Home; the runner reports only the delivery it observed.

@@ -507,7 +507,7 @@ Evidence: `omp-config/extensions/credentials/credentials.test.ts`,
 
 ## US-020 Receive an executive status brief
 
-Statement: When I ask for sachstand, I want a concise, evidence-based status
+Statement: When I ask for executive status, I want a concise, evidence-based status
 brief identifying its session and decisions, with optional speech, so I can
 orient across concurrent work without changing that work.
 
@@ -519,10 +519,18 @@ Criteria:
 3. WHERE speech is explicitly requested, THE SYSTEM SHALL attempt speech and
    report its output or error while retaining the written brief. Ordinary status
    SHALL remain in chat without mandatory/default audio.
+4. WHEN I request lage across agent lanes, THE SYSTEM SHALL give Home a complete
+   structured result for one compact inline page: decision questions with
+   recommendations and waiting costs first, one state/now/next row per lane,
+   short shipped outcomes and stuck owners, with supporting detail folded.
+5. WHEN compacting the lage result, THE SYSTEM SHALL preserve investigation
+   coverage, every unresolved principal question and read gap; extra detail or
+   rows SHALL remain available through progressive disclosure.
 
 No-gos: no unrequested project mutations or decisions during a status brief.
 
-Evidence: `agent-config/skills/sachstand/SKILL.md`,
+Evidence: `agent-config/skills/lage/SKILL.md`,
+`agent-config/skills/lage/result-format.md`, `agent-config/skills/sachstand/SKILL.md`,
 `agent-config/skills/sachstand/scripts/speak.ts`; native online synthesis smoke
 produced a two-second WAV with `--no-play` on 2026-09-24.
 
