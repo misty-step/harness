@@ -61,6 +61,8 @@ def guard_groups(data):
     return [*retained, {'matcher': 'Bash', 'hooks': [guard_hook()]}]
 
 
+INTERACTIVE_TOOLS = ('AskUserQuestion', 'ExitPlanMode')  # asking the user is their purpose; leave them to the harness
+
 PERMISSION_REFUSAL = (
     'Refused: this action needs an interactive approval that no one can give in this session '
     "(Claude Code's built-in safety check; permission rules cannot allow it). Do not retry it unchanged. "
@@ -103,7 +105,9 @@ def refuse_unanswerable():
         event = json.load(sys.stdin)
     except ValueError:
         return
-    if event.get('permission_mode') != 'bypassPermissions' or not os.environ.get('CLAUDE_CODE_ENTRYPOINT', '').startswith('sdk'):
+    if not isinstance(event, dict) or event.get('permission_mode') != 'bypassPermissions' or event.get('tool_name') in INTERACTIVE_TOOLS:
+        return
+    if not os.environ.get('CLAUDE_CODE_ENTRYPOINT', '').startswith('sdk'):
         return
     print(json.dumps({'hookSpecificOutput': {'hookEventName': 'PermissionRequest',
                                               'decision': {'behavior': 'deny', 'message': PERMISSION_REFUSAL}}}))
