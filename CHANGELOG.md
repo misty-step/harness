@@ -1,3 +1,9 @@
+# [0.2.29](https://github.com/misty-step/harness/compare/v0.2.28...v0.2.29) (2026-10-22)
+<!-- landmark:protected-release previous=v0.2.28 source=aa757cad9099ff6e859559c439388980374c72cfac0d83213de23bfd0d4239ff -->
+
+### Bug Fixes
+
+* **lage:** return a compact result for inline rendering (#464) ([d50d76d](https://github.com/misty-step/harness/commit/d50d76d6660e905685bd705b0ff6fc1bf447ca23))
 # [0.2.28](https://github.com/misty-step/harness/compare/v0.2.27...v0.2.28) (2026-10-21)
 <!-- landmark:protected-release previous=v0.2.27 source=5d71dd6ddd9332ac200907d5d5e2014fc32ed1387b5db8a9ca74311cbecc0c22 -->
 
