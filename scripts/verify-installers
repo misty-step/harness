@@ -311,8 +311,11 @@ assert after['hooks']['SessionStart']
 pre=after['hooks']['PreToolUse']
 assert pre[0] == before['hooks']['PreToolUse'][0]
 assert pre[1:] == [{'matcher':'Bash','hooks':[{'type':'command','command':sys.argv[3],'timeout':10}]}]
+perm=after['hooks']['PermissionRequest']
+assert len(perm) == 1 and set(perm[0]) == {'hooks'} and perm[0]['hooks'][0]['command'].endswith('hooks/harness-agents.py permission')
 PYCODE
 check "claude foreign settings preserved, native startup and guard hooks added" test "$?" = 0
+check "claude permission hook refuses an unanswerable full-access request" sh -c "echo '{\"permission_mode\":\"bypassPermissions\"}' | CLAUDE_CODE_ENTRYPOINT=sdk-ts python3 '$claude/hooks/harness-agents.py' permission | grep -q '\"behavior\": \"deny\"'"
 check "claude workstation-guard bytes" cmp -s "$work/source/agent-config/bin/workstation-guard" "$claude_home/.local/bin/workstation-guard"
 check "claude guard refuses a privileged container" test "$(guard_status "$claude_home/.local/bin/workstation-guard" 'docker run --privileged hello-world')" = 2
 check "claude guard allows docker ps" test "$(guard_status "$claude_home/.local/bin/workstation-guard" 'docker ps')" = 0
