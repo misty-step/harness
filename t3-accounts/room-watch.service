@@ -1,0 +1,9 @@
+[Unit]
+Description=Report fresh AI account exhaustion and recovery to Home
+
+[Service]
+Type=oneshot
+EnvironmentFile=%h/.config/t3-accounts/room-watch.env
+Environment=PATH=%h/.local/bin:/usr/local/bin:/usr/bin:/bin
+ExecStart=%h/.local/bin/t3-accounts room-watch
+TimeoutStartSec=5min

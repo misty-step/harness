@@ -4,3 +4,4 @@ set -eu
 root=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 mkdir -p "$HOME/.local/bin"
 install -m 755 "$root/t3-accounts" "$HOME/.local/bin/t3-accounts"
+install -m 755 "$root/room_events.py" "$HOME/.local/bin/t3-accounts-room-events"

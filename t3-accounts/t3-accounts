@@ -5,6 +5,7 @@
   t3-accounts status        server x account table (read-only)
   t3-accounts sync          store this server's Claude tokens in its own T3; push Codex owner logins to readers
   t3-accounts watch         sync, check expiry and health, post to Home when something changes
+  t3-accounts room-watch    read live room and deliver exhaustion/recovery events
   t3-accounts claude-renew ACCOUNT   store a new `claude setup-token` in pass and in this server's T3
 
 Claude: a long-lived `claude setup-token` per account lives in this server's pass and is stored as
@@ -98,6 +99,18 @@ if __name__ == "__main__" and sys.argv[1:2] == ["roster"]:
         sys.exit("t3-accounts: roster configuration is unavailable or invalid")
     print(json.dumps(result, indent=2))
     sys.exit(0)
+
+
+if __name__ == "__main__" and sys.argv[1:2] == ["room-watch"]:
+    try:
+        home = pathlib.Path.home()
+        room = subprocess.run([str(home / ".local/bin/upkeep"), "room", "--json"],
+                              capture_output=True, text=True, timeout=180, check=True)
+        result = subprocess.run([str(home / ".local/bin/t3-accounts-room-events"), *sys.argv[2:]],
+                                input=room.stdout, text=True)
+        sys.exit(result.returncode)
+    except (OSError, subprocess.SubprocessError):
+        sys.exit("t3-accounts: live room unavailable; no availability event inferred")
 
 
 HOME = pathlib.Path.home()
@@ -420,42 +433,6 @@ def all_statuses():
     return statuses
 
 
-AUTH_ERROR_HINTS = ("authentication_error", "invalid api key", "invalid bearer", "oauth token has expired",
-                    "token has been revoked", "401", "please run /login", "not logged in")
-
-
-def claude_live(problems, state):
-    """Once a day, make one tiny request per Claude token so a revoked or expired token shows up early.
-    Results persist in state, so a bad token stays reported between daily checks."""
-    results = state.setdefault("claude_live", {})
-    last = state.get("claude_live_at")
-    if not last or age_days(last) >= 1:
-        (HOME / ".cache/tmp").mkdir(parents=True, exist_ok=True)
-        for entry in CONFIG["claude"]:
-            if entry["instance"] in CONFIG["retired"]:
-                continue
-            token = pass_value(entry["pass"])
-            if not token:
-                continue
-            try:
-                with tempfile.TemporaryDirectory(dir=HOME / ".cache/tmp") as cfg:
-                    p = subprocess.run([str(HOME / ".local/bin/claude"), "-p", "Reply with exactly: ok", "--model", "haiku", "--output-format", "json"],
-                                       env={"PATH": "/usr/bin:/bin", "HOME": str(HOME), "CLAUDE_CONFIG_DIR": cfg, "CLAUDE_CODE_OAUTH_TOKEN": token},
-                                       capture_output=True, text=True, timeout=120, cwd=cfg)
-                text = (p.stdout + p.stderr).lower()
-                try:
-                    ok = json.loads(p.stdout).get("is_error") is False
-                except Exception:
-                    ok = False
-                results[entry["account"]] = "ok" if ok or not any(h in text for h in AUTH_ERROR_HINTS) else "rejected"
-            except Exception:
-                pass  # timeouts and local errors are not evidence about the token; keep the last result
-        state["claude_live_at"] = NOW.isoformat()
-    for entry in CONFIG["claude"]:
-        if entry["instance"] not in CONFIG["retired"] and results.get(entry["account"]) == "rejected":
-            problems.append((f"claude-live:{entry['account']}", f"Claude {entry['account']}: the token in pass was rejected. Renew once with `t3-accounts claude-renew {entry['account']}`.", "high" if entry["keep"] else "low"))
-
-
 def post_home(body):
     subprocess.run(["home", "post", "--from", "Accounts"], input=body, text=True, timeout=60)
 
@@ -471,7 +448,6 @@ def cmd_watch(post=True):
     if log:
         statuses = all_statuses()
     check(statuses, problems, state, owners, table)
-    claude_live(problems, state)
     open_now = {k: (msg, sev) for k, msg, sev in problems}
     before = state.get("open", {})
     unreachable = [h for h in HOSTS if h not in statuses]
