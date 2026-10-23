@@ -104,6 +104,65 @@ class CliTest(unittest.TestCase):
         self.assertIn("credential-missing", result.stdout)
         self.assertEqual(self.server.requests, [])
 
+    def native_profile(self):
+        profile = self.root / "native"
+        profile.mkdir()
+        url = f"http://127.0.0.1:{self.server.server_port}/mcp"
+        (profile / ".claude.json").write_text(json.dumps({"mcpServers": {"native-test": {"type": "http", "url": url}}}))
+        (profile / ".credentials.json").write_text(json.dumps({"mcpOAuth": {"cached": {
+            "serverName": "native-test", "serverUrl": url, "accessToken": TOKEN}}}))
+        self.env.pop("TEST_T3_TOKEN")
+        return profile
+
+    def test_native_profile_calls_with_existing_oauth_cache(self):
+        profile = self.native_profile()
+        before = (profile / ".credentials.json").read_bytes()
+        result = self.run_cli("--claude-profile", str(profile), "--server", "native-test", "call", "t3_thread_read", '{"threadId":"owned"}')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(json.loads(result.stdout), {"received": {"threadId": "owned"}})
+        self.assertNotIn(TOKEN, result.stdout + result.stderr)
+        self.assertEqual((profile / ".credentials.json").read_bytes(), before)
+
+    def test_native_discovery_does_not_read_credentials(self):
+        profile = self.native_profile()
+        (profile / ".credentials.json").unlink()
+        result = self.run_cli("--claude-profile", str(profile), "servers")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(json.loads(result.stdout)[0]["id"], "native-test")
+        self.assertEqual(self.server.requests, [])
+
+    def test_native_cache_must_match_both_server_name_and_url(self):
+        profile = self.native_profile()
+        path = profile / ".credentials.json"
+        value = json.loads(path.read_text())
+        value["mcpOAuth"]["cached"]["serverUrl"] = "https://other.example/mcp"
+        path.write_text(json.dumps(value))
+        result = self.run_cli("--claude-profile", str(profile), "--server", "native-test", "check")
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("native-credential-missing", result.stdout)
+        self.assertNotIn(TOKEN, result.stdout + result.stderr)
+        self.assertEqual(self.server.requests, [])
+
+    def test_socks_curl_receives_credential_only_on_stdin(self):
+        proxy = self.root / "curl"
+        receipt = self.root / "curl-argv"
+        proxy.write_text(f'''#!{sys.executable}
+import json,sys,os
+from pathlib import Path
+Path(os.environ["CURL_RECEIPT"]).write_text(json.dumps(sys.argv))
+lines=sys.stdin.read().splitlines()
+body=json.loads(json.loads(next(line[7:] for line in lines if line.startswith("data = "))))
+result={{"structuredContent":{{"via":"socks"}}}}
+print("HTTP/1.1 200 OK\\r\\nContent-Type: application/json\\r\\n\\r\\n"+json.dumps({{"jsonrpc":"2.0","id":body.get("id"),"result":result}}))
+''')
+        proxy.chmod(0o700)
+        self.env.update(PATH=str(self.root) + os.pathsep + self.env["PATH"], CURL_RECEIPT=str(receipt))
+        result = self.run_cli("--server", "test", "--socks-proxy", "localhost:1055", "call", "t3_thread_read")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(json.loads(result.stdout), {"via": "socks"})
+        self.assertIn("--socks5-hostname", receipt.read_text())
+        self.assertNotIn(TOKEN, receipt.read_text() + result.stdout + result.stderr)
+
     def test_health_posts_failure_once_then_recovery(self):
         home = self.root / "home"
         receipt = self.root / "posts"

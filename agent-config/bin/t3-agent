@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # owned by misty-step/harness agent-config t3-agent
-"""Drive T3's MCP interface using the existing Fleet endpoint catalog."""
+"""Drive T3 through an existing Fleet catalog or native Claude MCP profile."""
 import argparse
 import datetime
 import json
@@ -24,16 +24,77 @@ class NoRedirect(urllib.request.HTTPRedirectHandler):
         return None
 
 
+def credential(server):
+    if "claude_profile" not in server:
+        value = os.environ.get(server["token_env"], "").strip()
+        if not value:
+            raise AccessError("credential-missing: configured environment value is empty")
+        return value.splitlines()[0]
+    try:
+        path = Path(server["claude_profile"]) / ".credentials.json"
+        cache = json.loads(path.read_text())["mcpOAuth"]
+        matches = [entry["accessToken"] for entry in cache.values()
+                   if entry.get("serverName") == server["id"] and entry.get("serverUrl") == server["url"]]
+        if len(matches) != 1 or not isinstance(matches[0], str) or not matches[0].strip():
+            raise ValueError()
+        token = matches[0].strip()
+        if any(character.isspace() for character in token):
+            raise ValueError()
+        return token
+    except (OSError, ValueError, KeyError, TypeError, AttributeError):
+        raise AccessError("native-credential-missing: select an existing authenticated MCP profile; no login or refresh was attempted") from None
+
+
+def http_failure(code):
+    hint = {401: "credential rejected; check expiry", 403: "credential lacks permission",
+            404: "MCP endpoint or session not found"}.get(code, "request rejected")
+    return AccessError(f"http-{code}: {hint}; no operation was retried")
+
+
 class Client:
     def __init__(self, server):
         self.url = server["url"]
-        self.token = os.environ.get(server["token_env"], "").strip().splitlines()[0]
+        self.token = credential(server)
+        self.proxy = server.get("socks_proxy")
         self.session = None
         self.sequence = 0
         self.open = urllib.request.build_opener(NoRedirect()).open
         self.rpc("initialize", {"protocolVersion": "2025-06-18", "capabilities": {},
                                "clientInfo": {"name": "t3-agent", "version": "1"}})
         self.rpc("notifications/initialized", {}, notify=True)
+
+    def curl(self, payload, headers):
+        # Curl configuration goes over stdin so neither the process list nor a file holds the credential.
+        def quoted(value):
+            return json.dumps(value)
+        config = "\n".join(["url = " + quoted(self.url), 'request = "POST"',
+                             "data = " + quoted(json.dumps(payload))] +
+                            ["header = " + quoted(key + ": " + value) for key, value in headers.items()])
+        try:
+            result = subprocess.run(["curl", "--silent", "--show-error", "--include", "--max-time", "30",
+                                     "--socks5-hostname", self.proxy, "--max-filesize", "16777216", "--config", "-"],
+                                    input=config, capture_output=True, text=True, timeout=35)
+        except (OSError, subprocess.TimeoutExpired):
+            raise AccessError("proxy-unreachable: check curl and the configured SOCKS proxy; write outcome may be unknown") from None
+        if result.returncode:
+            raise AccessError(f"proxy-unreachable: curl exit {result.returncode}; check SOCKS proxy and T3 endpoint; write outcome may be unknown")
+        raw = result.stdout
+        try:
+            while raw.startswith("HTTP/"):
+                header, separator, raw = raw.partition("\r\n\r\n") if "\r\n\r\n" in raw else raw.partition("\n\n")
+                if not separator:
+                    raise ValueError()
+                lines = header.splitlines()
+                status = int(lines[0].split()[1])
+                if status >= 300:
+                    raise http_failure(status)
+                for line in lines[1:]:
+                    key, separator, value = line.partition(":")
+                    if key.lower() == "mcp-session-id" and separator:
+                        self.session = value.strip()
+            return raw
+        except (ValueError, IndexError):
+            raise AccessError("invalid-proxy-response: inspect the configured SOCKS transport") from None
 
     def rpc(self, method, params, notify=False):
         self.sequence += 1
@@ -44,17 +105,18 @@ class Client:
                    "Accept": "application/json, text/event-stream", "MCP-Protocol-Version": "2025-06-18"}
         if self.session:
             headers["Mcp-Session-Id"] = self.session
-        request = urllib.request.Request(self.url, data=json.dumps(payload).encode(), headers=headers)
-        try:
-            with self.open(request, timeout=30) as response:
-                self.session = response.headers.get("Mcp-Session-Id", self.session)
-                raw = response.read(16 * 1024 * 1024).decode()
-        except urllib.error.HTTPError as error:
-            hint = {401: "credential rejected; check expiry", 403: "credential lacks permission",
-                    404: "MCP endpoint or session not found"}.get(error.code, "request rejected")
-            raise AccessError(f"http-{error.code}: {hint}; no operation was retried") from None
-        except (urllib.error.URLError, TimeoutError, OSError):
-            raise AccessError("unreachable: check host, tailnet and T3 service; outcome may be unknown; do not repeat writes blindly") from None
+        if self.proxy:
+            raw = self.curl(payload, headers)
+        else:
+            request = urllib.request.Request(self.url, data=json.dumps(payload).encode(), headers=headers)
+            try:
+                with self.open(request, timeout=30) as response:
+                    self.session = response.headers.get("Mcp-Session-Id", self.session)
+                    raw = response.read(16 * 1024 * 1024).decode()
+            except urllib.error.HTTPError as error:
+                raise http_failure(error.code) from None
+            except (urllib.error.URLError, TimeoutError, OSError):
+                raise AccessError("unreachable: check host, tailnet and T3 service; outcome may be unknown; do not repeat writes blindly") from None
         if notify or not raw.strip():
             return None
         try:
@@ -83,27 +145,33 @@ class Client:
         return value
 
 
-def catalog(path):
+def catalog(path, claude_profile=None):
     try:
-        with open(path, "rb") as handle:
-            servers = tomllib.load(handle)["servers"]
+        if claude_profile:
+            profile = str(Path(claude_profile).expanduser())
+            config = json.loads((Path(profile) / ".claude.json").read_text())["mcpServers"]
+            servers = [{"id": name, "url": entry["url"], "claude_profile": profile}
+                       for name, entry in config.items() if entry.get("type") in {"http", "sse"}]
+        else:
+            with open(path, "rb") as handle:
+                servers = tomllib.load(handle)["servers"]
         for server in servers:
             url = urllib.parse.urlsplit(server["url"])
             if url.username or url.password or url.query or url.fragment:
                 raise ValueError()
             if url.scheme != "https" and not (url.scheme == "http" and url.hostname in {"127.0.0.1", "localhost", "::1"}):
                 raise ValueError()
-            if not server["id"] or not server["token_env"]:
+            if not server["id"] or ("claude_profile" not in server and not server["token_env"]):
                 raise ValueError()
         if not servers or len({s["id"] for s in servers}) != len(servers):
             raise ValueError()
         return servers
     except (OSError, ValueError, KeyError, TypeError):
-        raise AccessError("invalid-catalog: provide a Fleet TOML catalog with unique id, HTTPS url and token_env per server") from None
+        raise AccessError("invalid-catalog: provide a Fleet TOML catalog or native Claude HTTP MCP profile with unique server IDs and HTTPS URLs") from None
 
 
 def credentials(servers):
-    missing = [s for s in servers if not os.environ.get(s["token_env"], "").strip()]
+    missing = [s for s in servers if "token_env" in s and not os.environ.get(s["token_env"], "").strip()]
     if not missing:
         return
     if os.environ.get("T3_AGENT_INJECTED") or any(not s.get("token_pass") for s in missing):
@@ -124,14 +192,17 @@ def check(servers, config_path):
     for server in servers:
         row = {"server": server["id"], "url": server["url"], "ok": False}
         try:
-            if not os.environ.get(server["token_env"], "").strip():
+            if "token_env" in server and not os.environ.get(server["token_env"], "").strip():
                 if os.environ.get("T3_AGENT_CHECK_INJECTED") == server["id"]:
                     raise AccessError("credential-load-failed: configured pass reference supplied no value")
                 if not server.get("token_pass"):
                     raise AccessError("credential-missing: no existing environment value or pass reference")
                 command = ["pass-env", "run", "-e", server["token_env"] + "=" + server["token_pass"],
                            "--", sys.executable, str(Path(__file__).resolve()), "--config", config_path,
-                           "--server", server["id"], "check"]
+                           "--server", server["id"]]
+                if server.get("socks_proxy"):
+                    command += ["--socks-proxy", server["socks_proxy"]]
+                command += ["check"]
                 try:
                     child = subprocess.run(command, capture_output=True, text=True, timeout=90,
                                            env={**os.environ, "T3_AGENT_CHECK_INJECTED": server["id"]})
@@ -193,6 +264,8 @@ def notify(result, path, report_url):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--config", default=str(Path.home() / ".config/fleet/config.toml"))
+    parser.add_argument("--claude-profile", help="read an existing Claude HTTP MCP profile and its OAuth cache in place")
+    parser.add_argument("--socks-proxy", help="existing SOCKS5 host:port; curl receives credentials only on stdin")
     parser.add_argument("--server", help="exact server ID from the catalog")
     commands = parser.add_subparsers(dest="command", required=True)
     commands.add_parser("servers", help="list configured endpoints without reading credentials")
@@ -207,7 +280,16 @@ def main():
     args = parser.parse_args()
     if args.command == "check" and args.notify and not args.report_url:
         raise AccessError("report-url-required: Home notifications need an accessible evidence link")
-    servers = catalog(Path(args.config).expanduser())
+    if args.socks_proxy:
+        try:
+            proxy = urllib.parse.urlsplit("socks5://" + args.socks_proxy)
+            if not proxy.hostname or not proxy.port or proxy.username or proxy.password or proxy.path or proxy.query or proxy.fragment:
+                raise ValueError()
+        except ValueError:
+            raise AccessError("invalid-proxy: supply SOCKS5 host:port without credentials or a path") from None
+    servers = catalog(Path(args.config).expanduser(), args.claude_profile)
+    for server in servers:
+        server["socks_proxy"] = args.socks_proxy
     if args.server:
         servers = [s for s in servers if s["id"] == args.server]
         if not servers:

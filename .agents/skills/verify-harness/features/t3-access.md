@@ -46,3 +46,12 @@ the user unit directory, set `T3_ACCESS_REPORT_URL` in
 `~/.config/t3-agent/watch.env`, and enable `t3-access@<server-id>.timer` for only
 the intended servers. Check the loaded unit and first execution result. These
 units do not restart T3 or refresh its credentials.
+
+For a machine that already has T3 OAuth connections in a Claude profile, use
+`t3-agent --claude-profile <profile-directory> servers`, then add
+`--server <returned-id>` for calls. If its tailnet is behind an existing SOCKS
+proxy, also pass `--socks-proxy <host:port>`. This reads the matching server's
+existing OAuth access credential in place, without a model call, login, refresh
+or credential copy. Repeat the same thread round trip from that actual machine.
+The native-profile tests check that server discovery reads no credentials and
+that cache lookup matches both server name and URL.
