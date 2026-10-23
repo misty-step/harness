@@ -833,3 +833,25 @@ stash/rebase, new credentials, timer replacement or agent journal bypass.
 
 Evidence: `agent-config/lib/test_daybook_sync.py`,
 `verify-harness daybook`, `scripts/verify-installers`.
+
+
+## US-051 Drive T3 from any authorized agent
+
+Statement: As an operator of agents inside and outside T3, I want every agent
+to use the same documented, scriptable interface to my T3 servers, so it can
+choose an account, complete work, and recover from access failures without
+manual intervention.
+
+Acceptance:
+
+1. Agents can discover configured servers and live tool/provider/model catalogs,
+   then list, launch, read, send to and settle threads through T3's own MCP.
+2. The shell entry point uses existing endpoint and credential references, never
+   prints credentials, never creates credentials, and does not retry writes.
+3. A read-only access check reports each server's result; its optional watcher
+   delivers new failures and recoveries to Home with a review link.
+4. Inside-T3 and outside-agent instructions explain explicit project selection,
+   account selection, uncertain write outcomes and common access failures.
+
+Evidence: `agent-config/bin/test_t3_agent.py` and
+`.agents/skills/verify-harness/features/t3-access.md`.

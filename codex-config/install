@@ -32,7 +32,7 @@ if [ -e "$target" ] || [ -L "$target" ]; then
   fi
 fi
 
-set -- --preserve-foreign-skills --bin daybook-sync --bin workstation-guard --bin remote-run.ts
+set -- --preserve-foreign-skills --bin t3-agent --bin daybook-sync --bin workstation-guard --bin remote-run.ts
 for skill in $skills; do set -- "$@" --skill "$skill"; done
 for section in $guidance; do set -- "$@" --guidance "$section"; done
 set -- "$@" --guidance-source "$repo_dir/global/AGENTS.md" --guidance-file AGENTS.md

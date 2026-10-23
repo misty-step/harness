@@ -35,6 +35,7 @@ recipe uses disposable configuration and needs no session or login preconditions
 - [T3 accounts roster](./t3-accounts.md) covers the canonical read-only account and credential-reference producer.
 - [Private note sync](./daybook-sync.md) covers the installed CLI with local Git remotes, concurrent writers, dirty human root preservation, journal and secret rejection, retry and cleanup.
 - [T3 pool](./t3-pool.md) covers t3-pool dry runs against the live T3 database and the installed bundle.
+- [T3 access](./t3-access.md) covers the installed MCP CLI, existing credentials, thread round trips and failure notifications.
 
 The gate runs `scripts/probe-agent-policy`; run it with `--verification <repo>...`
 for the generated-skill rollout contract. This is a read-only file and contract
