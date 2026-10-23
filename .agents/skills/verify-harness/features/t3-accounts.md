@@ -26,3 +26,20 @@ as verification of the roster command.
 
 Link the checked revision, remote command and result in the PR. No web, provider
 login or inference journey is affected by this command.
+
+## Exhaustion and recovery events
+
+The same suite installs `t3-accounts room-watch` into a disposable HOME and
+feeds a synthetic live-room command. A rejecting Home stub leaves a pending
+event on disk; a successful retry delivers it once. The tests also exercise
+unknown, expired, future, reset-lapsed, repeated, and recovered observations.
+They do not access native credentials or call a provider.
+
+After the reviewed authority install, run `t3-accounts room-watch` once and
+check the `t3-accounts-room-watch.timer` result. For real sender verification,
+use a dedicated scratch state and synthetic account names with the installed
+`t3-accounts-room-events` command, explicitly label the Home messages as QA,
+and read them back through `home inbox`. Retain the Home post identifiers and
+remove the scratch state. Do not change the authority's actual state to force
+an exhaustion or recovery event. Link the source and observation time in the
+retained proof. Verify that no duplicate event appears on a second run.
