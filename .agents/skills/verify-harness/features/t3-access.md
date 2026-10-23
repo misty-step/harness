@@ -66,3 +66,11 @@ existing OAuth access credential in place, without a model call, login, refresh
 or credential copy. Repeat the same thread round trip from that actual machine.
 The native-profile tests check that server discovery reads no credentials and
 that cache lookup matches both server name and URL.
+
+When only another machine holds the authorized profile, pass `--via <ssh-host>`
+for each existing SSH hop in order. The remote machine needs the same installed
+CLI; host-key checks remain strict. `@file` arguments are read locally and
+forwarded on stdin. `check --notify` posts on the originating machine, including
+when SSH fails, so the remote computer needs no Home credentials. Optional
+`T3_ACCESS_ARGS` in the watcher's environment file can supply this route and the
+native profile/proxy arguments.
