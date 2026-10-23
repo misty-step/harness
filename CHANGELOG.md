@@ -1,3 +1,13 @@
+# [0.2.35](https://github.com/misty-step/harness/compare/v0.2.34...v0.2.35) (2026-10-23)
+<!-- landmark:protected-release previous=v0.2.34 source=e1166171c54420e7611968eb0434362a7e6938f8e3300b862df3a5a0bf2ff6a8 -->
+
+### Features
+
+* **accounts:** expose canonical T3 roster and credential references (#494) ([4feea8c](https://github.com/misty-step/harness/commit/4feea8c3c91a26ec68aebf496ad4c2e01136cb1e))
+
+### Bug Fixes
+
+* **guidance:** route accounts from fresh Upkeep evidence (#493) ([3c12e11](https://github.com/misty-step/harness/commit/3c12e1178e8bb45bab4fa25e5adbb827e9e70dfc))
 # [0.2.34](https://github.com/misty-step/harness/compare/v0.2.33...v0.2.34) (2026-10-22)
 <!-- landmark:protected-release previous=v0.2.33 source=d2de1b35cadd84cf41d05cf869e0e91f1e389e5c51c1ee784dca5dadd0550557 -->
 
