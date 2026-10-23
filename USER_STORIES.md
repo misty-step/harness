@@ -853,5 +853,5 @@ Acceptance:
 4. Inside-T3 and outside-agent instructions explain explicit project selection,
    account selection, uncertain write outcomes and common access failures.
 
-Evidence: `agent-config/bin/t3-agent.test.py` and
+Evidence: `agent-config/bin/test_t3_agent.py` and
 `.agents/skills/verify-harness/features/t3-access.md`.

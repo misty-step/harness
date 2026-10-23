@@ -10,6 +10,11 @@ import shlex
 import subprocess
 import sys
 import tempfile
+
+if sys.version_info < (3, 11):
+    print(json.dumps({"error": "python-runtime: t3-agent requires Python 3.11 or newer; put the supported interpreter on PATH (on macOS, include /opt/homebrew/bin before /usr/bin)"}), file=sys.stderr)
+    sys.exit(2)
+
 import tomllib
 import urllib.error
 import urllib.parse
@@ -72,7 +77,7 @@ class Client:
                              "data = " + quoted(json.dumps(payload))] +
                             ["header = " + quoted(key + ": " + value) for key, value in headers.items()])
         try:
-            result = subprocess.run(["curl", "--silent", "--show-error", "--include", "--max-time", "30",
+            result = subprocess.run(["curl", "--disable", "--silent", "--show-error", "--include", "--max-time", "30",
                                      "--socks5-hostname", self.proxy, "--max-filesize", "16777216", "--config", "-"],
                                     input=config, capture_output=True, text=True, timeout=35)
         except (OSError, subprocess.TimeoutExpired):
