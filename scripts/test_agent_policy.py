@@ -43,6 +43,28 @@ class AgentPolicyProbeTest(unittest.TestCase):
             self.assertEqual(caught.exception.code, 1)
             self.assertIn('forbidden instruction filename', output.getvalue())
 
+    def test_dated_availability_is_rejected_but_live_lookup_passes(self):
+        guidance = self.repo / 'agent-config/guidance'
+        guidance.mkdir(parents=True)
+        source = guidance / 'workstation.md'
+        for claim in (
+            'As of 2026-10-21, `codex-mistystep` Sol and `claude-mistystep` Opus are usable; '
+            '`claudeAgent` is exhausted until 03:40Z.',
+            'Account quota is exhausted\nuntil 03:40Z.',
+            '2026-10-23: this account is available.',
+        ):
+            with self.subTest(claim=claim):
+                source.write_text(claim + '\n')
+                before = self.snapshot()
+                result = self.probe()
+                self.assertEqual(result.returncode, 1)
+                self.assertIn('time-specific account availability', result.stderr)
+                self.assertIn('upkeep room --json', result.stderr)
+                self.assertEqual(before, self.snapshot())
+        source.write_text('Before account routing, run `upkeep room --json`.\n'
+                          'Missing or stale quota is unknown. Use native probe evidence no older than 15 minutes.\n')
+        self.assertEqual(self.probe().returncode, 0)
+
     def test_generator_omissions_fail_and_complete_contract_passes(self):
         skill = self.repo / '.agents/skills/verify-example'
         skill.mkdir(parents=True)
