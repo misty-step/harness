@@ -76,7 +76,7 @@ class Client:
                              "data = " + quoted(json.dumps(payload))] +
                             ["header = " + quoted(key + ": " + value) for key, value in headers.items()])
         try:
-            result = subprocess.run(["curl", "--silent", "--show-error", "--include", "--max-time", "30",
+            result = subprocess.run(["curl", "--disable", "--silent", "--show-error", "--include", "--max-time", "30",
                                      "--socks5-hostname", self.proxy, "--max-filesize", "16777216", "--config", "-"],
                                     input=config, capture_output=True, text=True, timeout=35)
         except (OSError, subprocess.TimeoutExpired):

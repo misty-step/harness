@@ -2,6 +2,10 @@
 import json
 import os
 from pathlib import Path
+import select
+import shutil
+import socket
+import socketserver
 import subprocess
 import sys
 import tempfile
@@ -31,6 +35,20 @@ class Handler(BaseHTTPRequestHandler):
         result = {"protocolVersion": "2025-06-18", "capabilities": {}, "serverInfo": {"name": "test", "version": "1"}}
         if body["method"] == "tools/call":
             name = body["params"]["name"]
+            if name == "t3_thread_send":
+                writes = sum(item.get("method") == "tools/call" for item in self.server.requests)
+                mode = getattr(self.server, "curl_mode", "normal")
+                if mode == "retry" and writes == 1:
+                    self.send_response(503)
+                    self.send_header("Content-Length", "0")
+                    self.end_headers()
+                    return
+                if mode == "redirect" and self.path != "/accepted":
+                    self.send_response(307)
+                    self.send_header("Location", "/accepted")
+                    self.send_header("Content-Length", "0")
+                    self.end_headers()
+                    return
             if name == "reject":
                 result = {"isError": True, "structuredContent": {"code": "forbidden", "message": TOKEN}}
             elif name == "t3_environment_read":
@@ -43,6 +61,41 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Mcp-Session-Id", "synthetic-session")
         self.end_headers()
         self.wfile.write(("data: " + json.dumps(reply) + "\n\n").encode())
+
+
+class SocksHandler(socketserver.BaseRequestHandler):
+    def read(self, size):
+        value = b""
+        while len(value) < size:
+            part = self.request.recv(size - len(value))
+            if not part:
+                raise ConnectionError()
+            value += part
+        return value
+
+    def handle(self):
+        greeting = self.read(2)
+        self.read(greeting[1])
+        self.request.sendall(b"\x05\x00")
+        request = self.read(4)
+        if request[3] == 1:
+            host = socket.inet_ntoa(self.read(4))
+        elif request[3] == 3:
+            host = self.read(self.read(1)[0]).decode()
+        else:
+            return
+        port = int.from_bytes(self.read(2), "big")
+        with socket.create_connection((host, port)) as target:
+            self.request.sendall(b"\x05\x00\x00\x01\x7f\x00\x00\x01\x00\x00")
+            while True:
+                readable, _, _ = select.select([self.request, target], [], [], 5)
+                if not readable:
+                    return
+                for source in readable:
+                    data = source.recv(65536)
+                    if not data:
+                        return
+                    (target if source is self.request else self.request).sendall(data)
 
 
 class CliTest(unittest.TestCase):
@@ -162,6 +215,29 @@ print("HTTP/1.1 200 OK\\r\\nContent-Type: application/json\\r\\n\\r\\n"+json.dum
         self.assertEqual(json.loads(result.stdout), {"via": "socks"})
         self.assertIn("--socks5-hostname", receipt.read_text())
         self.assertNotIn(TOKEN, receipt.read_text() + result.stdout + result.stderr)
+
+    @unittest.skipUnless(shutil.which("curl"), "curl required for real SOCKS transport")
+    def test_curl_ignores_user_configuration(self):
+        trace = self.root / "curl-trace"
+        (self.root / ".curlrc").write_text(f'trace-ascii = "{trace}"\nretry = 1\nretry-delay = 0\nlocation\n')
+        self.env.update(CURL_HOME=str(self.root), NO_PROXY="", no_proxy="")
+        proxy = socketserver.ThreadingTCPServer(("127.0.0.1", 0), SocksHandler)
+        worker = threading.Thread(target=proxy.serve_forever, daemon=True)
+        worker.start()
+        try:
+            for mode in ("normal", "retry", "redirect"):
+                with self.subTest(mode=mode):
+                    self.server.curl_mode = mode
+                    self.server.requests.clear()
+                    result = self.run_cli("--server", "test", "--socks-proxy", f"127.0.0.1:{proxy.server_address[1]}", "call", "t3_thread_send", '{"message":"test"}')
+                    writes = [r for r in self.server.requests if r["method"] == "tools/call"]
+                    self.assertEqual(len(writes), 1)
+                    self.assertFalse(trace.exists(), "curl must not write an authenticated trace from user config")
+                    self.assertEqual(result.returncode, 0 if mode == "normal" else 1)
+        finally:
+            proxy.shutdown()
+            proxy.server_close()
+            worker.join()
 
     def test_health_posts_failure_once_then_recovery(self):
         home = self.root / "home"
