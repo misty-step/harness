@@ -1,3 +1,9 @@
+# [0.2.37](https://github.com/misty-step/harness/compare/v0.2.36...v0.2.37) (2026-10-23)
+<!-- landmark:protected-release previous=v0.2.36 source=8a04e2ae94907acb88ba1dbb45303d5acad6fe02dfb0fc985f4c8cd16074c25c -->
+
+### Features
+
+* route T3 commands through existing SSH hops (#505) ([7925e0e](https://github.com/misty-step/harness/commit/7925e0ee03179dc50fc01fc8cf1a244208a52ed4))
 # [0.2.36](https://github.com/misty-step/harness/compare/v0.2.35...v0.2.36) (2026-10-23)
 <!-- landmark:protected-release previous=v0.2.35 source=b826c4907976158f940d840a7a020b2eb31ce566d08001085f1a3a145e85f0d6 -->
 
