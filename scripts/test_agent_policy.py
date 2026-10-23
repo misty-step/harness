@@ -65,6 +65,22 @@ class AgentPolicyProbeTest(unittest.TestCase):
                           'Missing or stale quota is unknown. Use native probe evidence no older than 15 minutes.\n')
         self.assertEqual(self.probe().returncode, 0)
 
+    def test_operator_directive_with_quoted_examples_passes(self):
+        guidance = self.repo / 'agent-config/guidance'
+        guidance.mkdir(parents=True)
+        source = guidance / 'workstation.md'
+        source.write_text(
+            'Account room is live state, never a written fact. '
+            'Never write availability ("out until", "% left") into instruction files, handoffs, memory or briefs. '
+            'Before saying an account is out or routing around it, run `upkeep room` '
+            '(or, until it ships, one tiny probe call on that account). '
+            'An "out" claim needs a reading under 15 minutes old with its source; '
+            'a relayed "out" without one is stale. Unknown is unknown, not zero.\n'
+        )
+        before = self.snapshot()
+        self.assertEqual(self.probe().returncode, 0)
+        self.assertEqual(before, self.snapshot())
+
     def test_generator_omissions_fail_and_complete_contract_passes(self):
         skill = self.repo / '.agents/skills/verify-example'
         skill.mkdir(parents=True)
