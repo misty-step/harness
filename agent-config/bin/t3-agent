@@ -9,6 +9,11 @@ from pathlib import Path
 import subprocess
 import sys
 import tempfile
+
+if sys.version_info < (3, 11):
+    print(json.dumps({"error": "python-runtime: t3-agent requires Python 3.11 or newer; put the supported interpreter on PATH (on macOS, include /opt/homebrew/bin before /usr/bin)"}), file=sys.stderr)
+    sys.exit(2)
+
 import tomllib
 import urllib.error
 import urllib.parse

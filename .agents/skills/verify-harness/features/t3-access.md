@@ -5,10 +5,21 @@ Use existing authorized credentials. This recipe never issues sessions or
 changes the T3 server. Native subscription login is execution authentication;
 there is no separate product QA account for this CLI.
 
+The executable requires Python 3.11 or later. Noninteractive macOS SSH may
+select the older system Python even when Homebrew Python is installed. Use the
+configured user tools before system tools:
+
+```sh
+PATH="$HOME/.local/bin:$HOME/.bun/bin:/opt/homebrew/bin:$PATH" t3-agent --help
+```
+
+An unsupported interpreter must return an actionable `python-runtime` error
+without a traceback; the documented PATH must reach the normal help output.
+
 1. On the CI host, run the executable boundary tests:
 
    ```sh
-   python3 -m unittest discover -s agent-config/bin -p 't3-agent.test.py' -v
+   python3 -m unittest discover -s agent-config/bin -p 'test_t3_agent.py' -v
    ```
 
    Pass means the real HTTP client handles SSE, sends each write once, rejects
