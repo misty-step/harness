@@ -214,23 +214,25 @@ def validate_pending(receipt, pending):
     timestamp(pending.get("startedAt"))
 
 
-def promote(entry, stage):
-    # pass insert encrypts directly to its destination. Swap only encrypted bytes so
-    # a killed encryption/promotion cannot truncate the credential in use.
-    store = Path(os.environ.get("PASSWORD_STORE_DIR", str(Path.home() / ".password-store"))).resolve()
-    current = store / (entry + ".gpg")
-    source = store / (stage + ".gpg")
-    require(current.parent.resolve().is_relative_to(store) and current.is_file() and not current.is_symlink()
-            and source.parent == current.parent and source.is_file() and not source.is_symlink(),
-            "encrypted-promotion-path-invalid: existing native pass files required")
-    fd, temporary = tempfile.mkstemp(prefix=".t3-renewal-", suffix=".gpg", dir=current.parent)
+def record_pass(entry):
+    store = Path(os.environ.get("PASSWORD_STORE_DIR", str(Path.home() / ".password-store")))
+    if (store / ".git").exists():
+        run(["pass", "git", "add", "--", entry + ".gpg"])
+        signing = run(["pass", "git", "config", "--type", "bool", "--default", "false", "--get", "pass.signcommits"]).strip()
+        require(signing in {"true", "false"}, "invalid-pass-signing-config")
+        run(["pass", "git", "commit", *(["-S"] if signing == "true" else []), "--only", "--allow-empty",
+             "-m", "Renew approved T3 watcher", "--", entry + ".gpg"])
+
+
+def copy_cipher(source, destination):
+    fd, temporary = tempfile.mkstemp(prefix=".t3-renewal-", suffix=".gpg", dir=destination.parent)
     try:
         with os.fdopen(fd, "wb") as output, source.open("rb") as encrypted:
             shutil.copyfileobj(encrypted, output)
             output.flush()
             os.fsync(output.fileno())
-        os.replace(temporary, current)
-        directory = os.open(current.parent, os.O_RDONLY)
+        os.replace(temporary, destination)
+        directory = os.open(destination.parent, os.O_RDONLY)
         try:
             os.fsync(directory)
         finally:
@@ -238,10 +240,39 @@ def promote(entry, stage):
     finally:
         if os.path.exists(temporary):
             os.unlink(temporary)
-    if (store / ".git").exists():
-        run(["pass", "git", "add", "--", entry + ".gpg"])
-        # --only preserves unrelated staged entries; allow-empty permits crash recovery.
-        run(["pass", "git", "commit", "--only", "--allow-empty", "-m", "Renew approved T3 watcher", "--", entry + ".gpg"])
+
+
+def stage_pass(entry, data):
+    store = Path(os.environ.get("PASSWORD_STORE_DIR", str(Path.home() / ".password-store"))).resolve()
+    destination = store / (entry + ".gpg")
+    require(destination.parent.resolve().is_relative_to(store) and destination.parent.is_dir()
+            and not destination.exists() and not destination.is_symlink(), "invalid-new-stage-path")
+    # Native pass auto-commits its entire Git index. Encrypt in a private pass
+    # directory with the same nearest recipients, then publish only ciphertext.
+    recipients = destination.parent
+    while recipients != store and not (recipients / ".gpg-id").exists():
+        recipients = recipients.parent
+    cache = Path.home() / ".cache/tmp"
+    cache.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix="t3-renewal-pass-", dir=cache) as isolated:
+        for name in (".gpg-id", ".gpg-id.sig"):
+            if (recipients / name).exists():
+                shutil.copyfile(recipients / name, Path(isolated) / name)
+        run(["pass", "insert", "--multiline", entry], data=data,
+            env={**os.environ, "PASSWORD_STORE_DIR": isolated})
+        copy_cipher(Path(isolated) / (entry + ".gpg"), destination)
+    record_pass(entry)
+
+
+def promote(entry, stage):
+    store = Path(os.environ.get("PASSWORD_STORE_DIR", str(Path.home() / ".password-store"))).resolve()
+    current = store / (entry + ".gpg")
+    source = store / (stage + ".gpg")
+    require(current.parent.resolve().is_relative_to(store) and current.is_file() and not current.is_symlink()
+            and source.parent == current.parent and source.is_file() and not source.is_symlink(),
+            "encrypted-promotion-path-invalid: existing native pass files required")
+    copy_cipher(source, current)
+    record_pass(entry)
 
 
 def renew(server, receipt, document, state, config):
@@ -257,7 +288,8 @@ def renew(server, receipt, document, state, config):
                     "invalid-previous-stage-reference")
             store = Path(os.environ.get("PASSWORD_STORE_DIR", str(Path.home() / ".password-store")))
             if (store / (previous_stage + ".gpg")).exists():
-                run(["pass", "rm", "--force", previous_stage])
+                (store / (previous_stage + ".gpg")).unlink()
+                record_pass(previous_stage)
         pending = pending_for(receipt)
         receipt["renewal"] = pending
         save(state, document)  # Durable intent precedes the non-idempotent owner call.
@@ -268,8 +300,7 @@ def renew(server, receipt, document, state, config):
         require(isinstance(token, str) and token and not any(c.isspace() for c in token), "invalid-candidate-token: held")
         candidate(listed(server), value, pending["label"])
         value = {key: value[key] for key in ("sessionId", "method", "scopes", "subject", "expiresAt")} | {"client": {"label": pending["label"], "deviceType": "bot"}}
-        run(["pass", "insert", "--multiline", "--force", pending["stagePass"]],
-            data=token + "\n" + json.dumps(value) + "\n")
+        stage_pass(pending["stagePass"], token + "\n" + json.dumps(value) + "\n")
         pending["phase"] = "staged"
         save(state, document)
     else:

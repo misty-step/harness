@@ -88,7 +88,10 @@ auth session issue --base-dir <approved-base>
   --label t3-access:watch-readonly:<host>:<attempt> --json --log-level none
 ```
 
-Candidate output stays in memory and encrypted pass storage. No credential is
+Candidate output stays in memory and encrypted pass storage. Native pass
+encrypts in a private scratch directory with the destination's nearest recipient
+configuration and signature. Only ciphertext enters the shared store and its Git
+index, so pass's automatic commits cannot capture unrelated staged work. No credential is
 passed in argv, logged, or written to a plaintext file. The candidate's native
 metadata and 30-day lifetime must match; `t3-agent check` must successfully read
 the environment and project list using that candidate before promotion to the
@@ -114,7 +117,7 @@ reuses that entry and revalidates it, including after promotion before receipt
 advancement. Candidate rejection leaves the current pass reference unchanged.
 A failed promotion retains the attempt for idempotent retry, never another mint.
 The latest successful encrypted candidate is retained as recovery material.
-Its predecessor staging entry is removed through pass before the next due
+Its predecessor encrypted staging entry is removed before the next due
 issuance, keeping successful staging bounded to one entry per watcher.
 
 If issuance times out, its outcome is unknown. The next scan reconciles the

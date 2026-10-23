@@ -38,7 +38,7 @@ if name == 'ssh':
     label = command[command.index('--label') + 1]
     assert command[7:] == ['--subject','mcp-client','--scope','orchestration:read','--ttl','30d','--label',label,'--json','--log-level','none']
     issued = dt.datetime.now(dt.timezone.utc)
-    value = dict(sessionId='replacement', subject='mcp-client', scopes=['orchestration:read'],
+    value = dict(sessionId=('replacement' if sessions[0]['sessionId'] == 'original' else 'replacement-next'), subject='mcp-client', scopes=['orchestration:read'],
                  method='bearer-access-token', client={'label':label,'deviceType':'bot'},
                  issuedAt=issued.isoformat(), expiresAt=(issued + dt.timedelta(days=30)).isoformat())
     if mode == 'wrong-scope': value['scopes'].append('access:write')
@@ -54,6 +54,11 @@ if name == 'ssh':
     value['token'] = 'synthetic-test-credential'
     print(json.dumps(value)); sys.exit()
 if name == 'pass':
+    if args[0] == 'git':
+        if args[1] == 'config': print('false'); sys.exit()
+        if mode == 'post-promotion-failed' and args[1] == 'commit' and args[-1] == 'test/watcher.gpg': sys.exit(1)
+        if mode == 'stage-response-lost' and args[1] == 'commit' and '-renewal-' in args[-1]: sys.exit(1)
+        sys.exit()
     path = pathlib.Path(os.environ['PASSWORD_STORE_DIR']) / (args[-1] + '.gpg')
     if args[0] == 'insert':
         if mode == 'stage-failed' and '-renewal-' in args[-1]:
@@ -61,7 +66,6 @@ if name == 'pass':
         if mode == 'promote-failed' and '-renewal-' not in args[-1]: sys.exit(1)
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(sys.stdin.read())
-        if mode == 'stage-response-lost' and '-renewal-' in args[-1]: sys.exit(1)
         sys.exit()
     if args[0] == 'rm':
         path.unlink(); sys.exit()
@@ -227,6 +231,7 @@ base_dir = "/home/owner/.t3"
 
     def test_stage_write_acknowledgement_loss_recovers_encrypted_candidate(self):
         self.mode("stage-response-lost")
+        (self.root / "store/.git").mkdir()
         self.assertEqual(self.call().returncode, 1)
         self.assertEqual(self.state_value()["renewal"]["phase"], "issuing")
         self.mode("")
@@ -244,6 +249,19 @@ base_dir = "/home/owner/.t3"
         self.passfile().write_text(original)
         self.assertEqual(self.call().returncode, 0)
         self.assertEqual(len(self.issued()), 1)
+
+    def test_next_renewal_prunes_only_its_previous_encrypted_stage(self):
+        self.assertEqual(self.call().returncode, 0)
+        self.receipt = self.state_value()
+        stage = self.root / "store" / (self.receipt["lastRenewal"]["stagePass"] + ".gpg")
+        self.assertTrue(stage.is_file())
+        self.receipt["expiresAt"] = (dt.datetime.now(dt.timezone.utc) + dt.timedelta(days=2)).isoformat()
+        self.write_state(); self.write_sessions()
+        self.assertEqual(self.call().returncode, 0)
+        self.assertFalse(stage.exists())
+        self.assertEqual(self.state_value()["sessionId"], "replacement-next")
+        self.assertEqual(self.state_value()["previous"], self.receipt["previous"])
+        self.assertEqual(len(self.issued()), 2)
 
     def test_bad_native_scope_subject_and_ttl_cannot_promote(self):
         for mode in ("wrong-scope", "wrong-subject", "wrong-ttl"):
@@ -266,11 +284,12 @@ base_dir = "/home/owner/.t3"
     def test_post_promotion_failure_recovers_with_same_candidate(self):
         # A failing native Git receipt happens after the atomic credential swap.
         (self.root / "store/.git").mkdir()
+        self.mode("post-promotion-failed")
         self.assertEqual(self.call().returncode, 1)
         self.assertEqual(self.passfile().read_text().splitlines()[0], TOKEN)
         self.assertEqual(self.state_value()["sessionId"], "original")
         self.assertEqual(self.state_value()["renewal"]["phase"], "promoting")
-        (self.root / "store/.git").rmdir()
+        self.mode("")
         self.assertEqual(self.call().returncode, 0)
         self.assertEqual(len(self.issued()), 1)
 
@@ -353,6 +372,8 @@ base_dir = "/home/owner/.t3"
         result = self.call()
         self.assertEqual(result.returncode, 1)
         self.assertEqual(self.passfile().read_bytes(), original)
+        self.assertEqual(native(["pass", "git", "diff", "--cached", "--name-only"]).strip(), "unrelated.txt",
+                         "staging must preserve the shared index")
         self.server.fail = False
         result = self.call()
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
