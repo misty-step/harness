@@ -282,7 +282,7 @@ sys.exit({status})
             self.assertEqual(self.run_cli(*arguments).returncode, 0)
         messages = posted.read_text()
         self.assertEqual(messages.count("T3 access on ssh:first -> second failed:"), 1)
-        self.assertEqual(messages.count("recovered."), 1)
+        self.assertEqual(messages.count("T3 access on ssh:first -> second recovered."), 1)
         self.assertIn("ssh:first -> second recovered.", messages)
 
     @unittest.skipUnless(shutil.which("curl"), "curl required for real SOCKS transport")
