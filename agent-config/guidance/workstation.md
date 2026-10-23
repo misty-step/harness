@@ -15,11 +15,12 @@ If remote capacity is missing, tell Home what is missing in two sentences; this 
 ## Routing until Upkeep
 
 For every dispatch, use the authoritative [ship-loop routing and rigor table](skill://ship-loop/roles.md#rigor) for review shape, models and effort.
-Use the role's model from that table and an account with current headroom. As of 2026-10-21, `codex-mistystep` Sol and `claude-mistystep` Opus are usable; `claudeAgent` is exhausted until 03:40Z. Check live limits rather than treating an earlier exhaustion report as permanent. `claude-hello` is reserved for Home. No Fable or Astra.
+Use the role's model from that table and an account with current room. `claude-hello` is reserved for Home. No Fable or Astra.
+Account room is live state, never a written fact. Never write availability ("out until", "% left") into instruction files, handoffs, memory or briefs. Before saying an account is out or routing around it, run `upkeep room` (or, until it ships, one tiny probe call on that account). An "out" claim needs a reading under 15 minutes old with its source; a relayed "out" without one is stale. Unknown is unknown, not zero.
 Reserve fast mode for bottlenecks and top priorities.
 Pass the role's effort explicitly to `delegate_task`: Claude uses `target.options: [{"id":"effort","value":"<low|medium|high|xhigh>"}]`; Sol uses `target.options: [{"id":"reasoningEffort","value":"<low|medium|high|xhigh>"}]`.
 For fast mode, add `{"id":"fastMode","value":true}` to Claude's `target.options` on models that offer it (Opus 5.5), or `{"id":"serviceTier","value":"priority"}` to Sol's.
-Check `upkeep anthropic` and `orchestrator_capabilities` before trusting any provider or model list.
+Check `orchestrator_capabilities` before trusting any provider or model list.
 
 For authorized Daybook note work, read `~/.agents/skills/daybook-sync/SKILL.md`.
 Use its isolated workspace and immediate publication protocol across T3 providers.
