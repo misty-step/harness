@@ -61,10 +61,81 @@ The [integration contract](https://github.com/misty-step/upkeep/issues/208#issue
 and [Upkeep stories US-160 and US-163](https://github.com/misty-step/upkeep/pull/209)
 record the requested shared-roster behavior.
 
+## Owner keepalive
+
+`t3-accounts keepalive [--force] [ACCOUNT]` refreshes Codex owner logins whose
+`last_refresh` is at least three days old, then syncs readers. `--force` skips
+the age check; `ACCOUNT` selects one configured account. The owner's own Codex
+app-server performs the refresh. Reader homes never refresh credentials. Failed
+keepalives report to Home and exit nonzero. The existing keepalive systemd timer
+can continue calling `t3-accounts keepalive`.
+
+## Plain and pull hosts
+
+Add non-T3 machines separately from `hosts`. Keys inside `codex` must match
+configured account emails; these example identities are synthetic:
+
+```json
+{
+  "plain_hosts": {
+    "hetzner-ci": {
+      "dest": "hetzner-ci",
+      "codex": {
+        "main@example.test": "~/.codex",
+        "r90@example.test": "~/.codex-t3/r90",
+        "phraznikov@example.test": "~/.codex-t3/phraznikov"
+      }
+    },
+    "grok-box": {
+      "pull": true,
+      "codex": {
+        "main@example.test": "~/.codex"
+      }
+    }
+  }
+}
+```
+
+Sync pushes owner snapshots to plain SSH hosts, blanking `refresh_token` on the
+owner before transport. It never overwrites a home with its own refresh token.
+Health comes from `CODEX_HOME=<home> codex login status`; plain hosts receive no
+T3 status calls. `roster --json` continues to describe only T3 hosts and ignores
+`plain_hosts`.
+
+Pull hosts omit `dest` because they have no inbound SSH. Their box-side
+`t3-reader-pull` must periodically connect outbound to the authority and:
+
+1. Fetch `t3-accounts reader-payload ACCOUNT` for each configured account. The
+   JSON has `payload` (the owner's auth.json with a blank refresh token) and
+   `label`. This output contains access credentials: pipe it privately into the
+   consumer, never logs. The command refuses a snapshot with a nonblank refresh
+   token.
+2. Preserve any home with its own refresh token. Otherwise validate the snapshot,
+   atomically write `payload` to the configured home's `auth.json` with mode
+   `0600`, and keep reader metadata outside the home, under
+   `~/.local/state/t3-accounts/readers/`.
+3. Run `codex login status` for each home and send a token-free report on stdin
+   to `t3-accounts pull-report grok-box` on the authority. The report shape is
+   `{"accounts":{"main@example.test":{"live":"ready","has_refresh":false,"last_refresh":"<ISO UTC>","access_exp":"<ISO UTC>"}}}`.
+   `live` must be `ready`, `unauthenticated`, or `missing`; `has_refresh` must be
+   a boolean. Timestamps must be ISO strings or null. Use `unauthenticated`
+   when login status fails and `missing` when no login exists.
+
+Only configured pull hosts and their configured Codex accounts are accepted.
+Invalid input exits nonzero without replacing the previous report. The authority
+stamps receipt time as `at` and atomically stores the report with mode `0600` at
+`~/.local/state/t3-accounts/pull/grok-box.json`. Watch flags unreadable or invalid reports, missing reports,
+reports older than three hours, accounts not ready, and access tokens expiring
+in less than 48 hours. A ready account without an expiry raises a low-priority
+problem. Plain and pull checks, status, and plain pushes skip accounts whose
+owner or host instance is retired. Sync and status never initiate SSH to pull hosts. The
+box-side `t3-reader-pull` is managed separately from this executable.
+
 ## Verification
 
 ```sh
-python3 -m unittest discover -s t3-accounts -p 'test_*.py' -v
+PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s t3-accounts -p 'test_*.py'
+python3 -m py_compile t3-accounts/t3-accounts
 ```
 
 Run on Hetzner through `remote-run build --image python:3.12-slim -- ...`.
@@ -72,6 +143,11 @@ Tests install the actual executable into a disposable HOME, exercise seven
 managed accounts and four watch-only rows, reject malformed configuration, and
 check that native credentials and state remain untouched. No native credentials
 are copied to the test host. The fixture identities are synthetic.
+Reader tests monkeypatch host commands and use synthetic snapshots to check
+plain-host login preservation, pull report health and expiry, owner keepalive,
+reader-payload rejection, and roster isolation. They also exercise shell quoting,
+private directory creation, report schema and path rejection, atomic publication,
+unreadable stored reports, and retired-account filtering. They use no network or SSH.
 
 ## Fresh availability events
 
