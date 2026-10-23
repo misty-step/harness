@@ -163,6 +163,55 @@ print("HTTP/1.1 200 OK\\r\\nContent-Type: application/json\\r\\n\\r\\n"+json.dum
         self.assertIn("--socks5-hostname", receipt.read_text())
         self.assertNotIn(TOKEN, receipt.read_text() + result.stdout + result.stderr)
 
+    def ssh_stub(self, response, status=0):
+        executable = self.root / "ssh"
+        receipt = self.root / "ssh-receipt.json"
+        executable.write_text(f'''#!{sys.executable}
+import json,sys
+from pathlib import Path
+Path({str(receipt)!r}).write_text(json.dumps({{"argv":sys.argv,"stdin":sys.stdin.read()}}))
+print({json.dumps(response)!r})
+sys.exit({status})
+''')
+        executable.chmod(0o700)
+        self.env["PATH"] = str(self.root) + os.pathsep + self.env["PATH"]
+        return receipt
+
+    def test_ssh_hops_use_existing_auth_and_no_local_catalog(self):
+        receipt = self.ssh_stub([{"id": "remote"}])
+        self.config.unlink()
+        result = self.run_cli("--via", "first-host", "--via", "second-host", "servers")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(json.loads(result.stdout), [{"id": "remote"}])
+        sent = json.loads(receipt.read_text())
+        self.assertIn("StrictHostKeyChecking=yes", sent["argv"])
+        self.assertIn("--via second-host", sent["argv"][-1])
+        self.assertNotIn("--via first-host", sent["argv"][-1])
+        self.assertEqual(self.server.requests, [])
+
+    def test_ssh_file_arguments_travel_on_stdin(self):
+        receipt = self.ssh_stub({"accepted": True})
+        payload = self.root / "message.json"
+        payload.write_text('{"message":"hello from a file"}')
+        result = self.run_cli("--via", "remote", "--server", "test", "call", "t3_thread_send", "@" + str(payload))
+        self.assertEqual(result.returncode, 0, result.stderr)
+        sent = json.loads(receipt.read_text())
+        self.assertEqual(json.loads(sent["stdin"]), {"message": "hello from a file"})
+        self.assertNotIn("hello from a file", sent["argv"][-1])
+        self.assertIn("@-", sent["argv"][-1])
+
+    def test_ssh_health_failure_is_reported_locally(self):
+        receipt = self.ssh_stub({}, status=255)
+        home = self.root / "home"
+        posted = self.root / "posted"
+        home.write_text('#!/bin/sh\ncat >> "$TEST_POSTS"\n')
+        home.chmod(0o700)
+        self.env["TEST_POSTS"] = str(posted)
+        result = self.run_cli("--via", "remote", "--server", "test", "check", "--notify", "--state", str(self.root / "state.json"))
+        self.assertEqual(result.returncode, 1, result.stderr)
+        self.assertIn("ssh-failed", posted.read_text())
+        self.assertNotIn("--notify", json.loads(receipt.read_text())["argv"][-1])
+
     def test_health_posts_failure_once_then_recovery(self):
         home = self.root / "home"
         receipt = self.root / "posts"

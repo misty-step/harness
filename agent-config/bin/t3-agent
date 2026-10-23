@@ -6,6 +6,7 @@ import datetime
 import json
 import os
 from pathlib import Path
+import shlex
 import subprocess
 import sys
 import tempfile
@@ -261,11 +262,60 @@ def notify(result, path, report_url):
             os.unlink(temporary)
 
 
+def via_ssh(args):
+    destination = args.via[0]
+    if destination.startswith("-") or any(character.isspace() for character in destination):
+        raise AccessError("invalid-ssh-destination: use an existing SSH host alias or user@host")
+    forwarded = []
+    for option, value in (("--config", args.config), ("--claude-profile", args.claude_profile),
+                          ("--socks-proxy", args.socks_proxy), ("--server", args.server)):
+        if value:
+            forwarded += [option, value]
+    for hop in args.via[1:]:
+        forwarded += ["--via", hop]
+    forwarded.append(args.command)
+    payload = None
+    if args.command == "call":
+        arguments = args.arguments
+        if arguments.startswith("@"):
+            payload = sys.stdin.read() if arguments == "@-" else Path(arguments[1:]).read_text()
+            arguments = "@-"
+        forwarded += [args.tool, arguments]
+    command = 'PATH="$HOME/.local/bin:$HOME/.bun/bin:/opt/homebrew/bin:$PATH" exec "$HOME/.local/bin/t3-agent" '
+    command += shlex.join(forwarded)
+    try:
+        result = subprocess.run(["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=10",
+                                 "-o", "StrictHostKeyChecking=yes", destination, command],
+                                **({"input": payload} if payload is not None else {"stdin": subprocess.DEVNULL}),
+                                capture_output=True, text=True, timeout=120)
+        value = json.loads(result.stdout)
+        code = result.returncode
+        if args.command == "check":
+            if not isinstance(value, dict) or not isinstance(value.get("servers"), list) or not value["servers"]:
+                raise ValueError()
+            if any(not isinstance(row, dict) or not isinstance(row.get("server"), str)
+                   or not isinstance(row.get("ok"), bool) for row in value["servers"]):
+                raise ValueError()
+    except (OSError, ValueError, subprocess.TimeoutExpired):
+        error = "ssh-failed: no valid T3 response through the existing SSH route; verify its host key, authentication and installed CLI; write outcome may be unknown"
+        if args.command != "check":
+            raise AccessError(error) from None
+        value = {"observedAt": datetime.datetime.now(datetime.timezone.utc).isoformat(), "servers": [
+            {"server": args.server or destination, "ok": False, "error": error}]}
+        code = 1
+    if code and args.command != "check":
+        raise AccessError("remote-call-failed: inspect the selected remote CLI and thread before retrying")
+    if args.command == "check" and args.notify:
+        notify(value, Path(args.state).expanduser(), args.report_url)
+    return value, code
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--config", default=str(Path.home() / ".config/fleet/config.toml"))
+    parser.add_argument("--config", help="Fleet TOML catalog (default ~/.config/fleet/config.toml on the executing host)")
     parser.add_argument("--claude-profile", help="read an existing Claude HTTP MCP profile and its OAuth cache in place")
     parser.add_argument("--socks-proxy", help="existing SOCKS5 host:port; curl receives credentials only on stdin")
+    parser.add_argument("--via", action="append", help="run through an existing SSH host; repeat for ordered hops")
     parser.add_argument("--server", help="exact server ID from the catalog")
     commands = parser.add_subparsers(dest="command", required=True)
     commands.add_parser("servers", help="list configured endpoints without reading credentials")
@@ -280,6 +330,8 @@ def main():
     args = parser.parse_args()
     if args.command == "check" and args.notify and not args.report_url:
         raise AccessError("report-url-required: Home notifications need an accessible evidence link")
+    if args.via:
+        return via_ssh(args)
     if args.socks_proxy:
         try:
             proxy = urllib.parse.urlsplit("socks5://" + args.socks_proxy)
@@ -287,7 +339,8 @@ def main():
                 raise ValueError()
         except ValueError:
             raise AccessError("invalid-proxy: supply SOCKS5 host:port without credentials or a path") from None
-    servers = catalog(Path(args.config).expanduser(), args.claude_profile)
+    config_path = args.config or str(Path.home() / ".config/fleet/config.toml")
+    servers = catalog(Path(config_path).expanduser(), args.claude_profile)
     for server in servers:
         server["socks_proxy"] = args.socks_proxy
     if args.server:
@@ -299,7 +352,7 @@ def main():
     if args.command != "check" and len(servers) != 1:
         raise AccessError("server-required: select one catalog ID with --server")
     if args.command == "check":
-        result = check(servers, args.config)
+        result = check(servers, config_path)
         if args.notify:
             notify(result, Path(args.state).expanduser(), args.report_url)
         return result, int(any(not row["ok"] for row in result["servers"]))
