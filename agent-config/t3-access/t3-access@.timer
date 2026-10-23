@@ -1,0 +1,11 @@
+# owned by misty-step/harness t3-access
+[Unit]
+Description=Check T3 access to %i every five minutes
+
+[Timer]
+OnBootSec=5min
+OnUnitInactiveSec=5min
+RandomizedDelaySec=15s
+
+[Install]
+WantedBy=timers.target
