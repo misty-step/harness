@@ -6,8 +6,15 @@ description: Discover credentials and run authenticated commands through native 
 # Authenticated commands
 
 Keep working native logins. Before declaring credentials missing, check native
-auth, `pass-env list TERM`, project `.env.pass`/ignored env, then existing consumers
+auth, `pass-env list TERM`, and project `.env.pass` references. Do not inspect
+secret-bearing dotenv files, including ignored env files and existing consumers
 such as `~/.hermes/profiles/*/.env`. An unreadable remote secret is not a lost key.
+
+`pass-env` is the approved credential injection route: it decrypts existing
+encrypted `pass` entries and injects their values into the command's environment.
+`.env.pass` files contain `NAME=pass/entry` reference mappings, not secret values.
+`pass-env` does not load plaintext dotenv files; applications may load those
+files themselves through their own dotenv support.
 
 ```sh
 pass-env run -e NAME=workstation/ENTRY -- command
