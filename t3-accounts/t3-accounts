@@ -168,9 +168,10 @@ def py(host, code, *args, stdin=None, timeout=60):
     script = "python3 -c " + shlex.quote(code) + " " + " ".join(shlex.quote(a) for a in args)
     rc, out = run(host, script, stdin=stdin, timeout=timeout)
     try:
-        return json.loads(out.strip().splitlines()[-1])
+        result = json.loads(out.strip().splitlines()[-1])
     except Exception:
         return {"error": f"exit {rc}"}
+    return result if isinstance(result, dict) else {"error": f"exit {rc}: snippet printed no JSON object"}
 
 
 def sync_helpers():

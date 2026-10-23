@@ -42,6 +42,12 @@ class ReaderCommands(unittest.TestCase):
         self.py = self.enterContext(patch.object(self.app, "py", side_effect=AssertionError("unexpected py")))
         self.run = self.enterContext(patch.object(self.app, "run", side_effect=AssertionError("unexpected run")))
 
+    def test_py_non_object_json_becomes_error(self):
+        for out in ("null", "[1]", "3"):
+            self.run.side_effect = None
+            self.run.return_value = (0, out)
+            self.assertIn("error", self.original_py("plain", "print(1)"))
+
     def owner_info(self):
         return {"present": True, "has_refresh": True, "last_refresh": self.app.NOW.isoformat(),
                 "access_exp": (self.app.NOW + dt.timedelta(days=5)).isoformat(), "access_sha": "owner"}
@@ -474,3 +480,4 @@ class ReaderCommands(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
