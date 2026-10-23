@@ -269,6 +269,7 @@ def notify(result, path, report_url):
 
 def via_ssh(args):
     destination = args.via[0]
+    transport_id = "ssh:" + " -> ".join(args.via)
     if destination.startswith("-") or any(character.isspace() for character in destination):
         raise AccessError("invalid-ssh-destination: use an existing SSH host alias or user@host")
     forwarded = []
@@ -301,12 +302,14 @@ def via_ssh(args):
             if any(not isinstance(row, dict) or not isinstance(row.get("server"), str)
                    or not isinstance(row.get("ok"), bool) for row in value["servers"]):
                 raise ValueError()
+            if not args.server:
+                value["servers"].append({"server": transport_id, "ok": True})
     except (OSError, ValueError, subprocess.TimeoutExpired):
         error = "ssh-failed: no valid T3 response through the existing SSH route; verify its host key, authentication and installed CLI; write outcome may be unknown"
         if args.command != "check":
             raise AccessError(error) from None
         value = {"observedAt": datetime.datetime.now(datetime.timezone.utc).isoformat(), "servers": [
-            {"server": args.server or destination, "ok": False, "error": error}]}
+            {"server": args.server or transport_id, "ok": False, "error": error}]}
         code = 1
     if code and args.command != "check":
         raise AccessError("remote-call-failed: inspect the selected remote CLI and thread before retrying")

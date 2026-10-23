@@ -264,6 +264,27 @@ sys.exit({status})
         self.assertEqual(result.returncode, 1, result.stderr)
         self.assertIn("ssh-failed", posted.read_text())
         self.assertNotIn("--notify", json.loads(receipt.read_text())["argv"][-1])
+
+    def test_all_server_ssh_failure_deduplicates_and_reports_recovery(self):
+        self.ssh_stub({}, status=255)
+        home = self.root / "home"
+        posted = self.root / "posted"
+        home.write_text('#!/bin/sh\ncat >> "$TEST_POSTS"\n')
+        home.chmod(0o700)
+        self.env["TEST_POSTS"] = str(posted)
+        arguments = ("--via", "first", "--via", "second", "check", "--notify",
+                     "--state", str(self.root / "state.json"))
+        for unused in range(2):
+            self.assertEqual(self.run_cli(*arguments).returncode, 1)
+        self.ssh_stub({"observedAt": "recovered", "servers": [
+            {"server": "one", "ok": True}, {"server": "two", "ok": True}]})
+        for unused in range(2):
+            self.assertEqual(self.run_cli(*arguments).returncode, 0)
+        messages = posted.read_text()
+        self.assertEqual(messages.count("failed:"), 1)
+        self.assertEqual(messages.count("recovered."), 1)
+        self.assertIn("ssh:first -> second recovered.", messages)
+
     @unittest.skipUnless(shutil.which("curl"), "curl required for real SOCKS transport")
     def test_curl_ignores_user_configuration(self):
         trace = self.root / "curl-trace"
