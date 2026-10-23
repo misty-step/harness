@@ -458,9 +458,11 @@ def plain_codex_status(host, home):
         quoted_home = '"$HOME"/' + shlex.quote(home[2:])
     else:
         quoted_home = shlex.quote(home)
-    rc, out = run(host, f"CODEX_HOME={quoted_home} timeout 30 codex login status 2>&1 | tail -1")
+    rc, out = run(host, f"set -o pipefail; CODEX_HOME={quoted_home} timeout 30 codex login status 2>&1 | tail -1")
     if rc == 255 or host in DEAD:
         return "unreachable"
+    if rc == 124:
+        return "timeout"
     return "ready" if "Logged in" in out else "unauthenticated"
 
 
@@ -520,8 +522,11 @@ def check_pull(host, cfg, problems, owners, table):
         if error:
             problems.append((key, f"Codex {entry['account']} on {host} (pull host): {error}; run its t3-reader-pull.", sev))
             continue
-        if age is None or age > PULL_STALE_HOURS or not r:
+        if age is None or age > PULL_STALE_HOURS:
             problems.append((key, f"Codex {entry['account']} on {host} (pull host): no fresh report ({'never' if age is None else f'{age:.1f}h old'}); run its t3-reader-pull.", sev))
+            continue
+        if not r:
+            problems.append((key, f"Codex {entry['account']} on {host} (pull host): account not present in report; run its t3-reader-pull.", sev))
             continue
         if r.get("live") != "ready":
             problems.append((key, f"Codex {entry['account']} on {host} (pull host): codex login status says {r.get('live')}.", sev))
@@ -537,7 +542,9 @@ def check_pull(host, cfg, problems, owners, table):
 
 def cmd_reader_payload(account):
     """Print the owner's auth.json with refresh_token blanked (for pull hosts). Never prints a refresh token."""
-    entry = next(e for e in CONFIG["codex"] if e["account"] == account)
+    entry = next((e for e in CONFIG["codex"] if e["account"] == account), None)
+    if entry is None:
+        sys.exit(f"Unknown Codex account {account}")
     owner_host, owner_home = owner_of(entry)
     snap = py(owner_host, CODEX_READER_PAYLOAD, owner_home)
     tokens = (snap.get("payload") or {}).get("tokens") or {}
@@ -579,8 +586,11 @@ def check_plain(problems, owners, table):
             sev = "high" if entry["keep"] else "low"
             key = f"codex-plain:{host}:{entry['account']}"
             info = py(host, CODEX_INFO, home)
-            if info.get("error") or not info.get("present"):
-                problems.append((key, f"Codex {entry['account']} on {host} (plain host): {'unreachable' if info.get('error') else 'no auth.json in ' + home}.", sev))
+            if host in DEAD or info.get("error"):
+                problems.append((key, f"Codex {entry['account']} on {host} (plain host): unreachable.", sev))
+                continue
+            if not info.get("present"):
+                problems.append((key, f"Codex {entry['account']} on {host} (plain host): no auth.json in {home}.", sev))
                 continue
             live = plain_codex_status(host, home)
             if live != "ready":

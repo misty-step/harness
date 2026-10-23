@@ -91,6 +91,15 @@ class ReaderCommands(unittest.TestCase):
                 self.run.side_effect = execute
                 self.assertEqual(self.app.plain_codex_status("plain", home), "ready")
 
+    def test_plain_health_distinguishes_timeout_from_unauthenticated(self):
+        self.run.side_effect = None
+        self.run.return_value = (124, "")
+        self.assertEqual(self.app.plain_codex_status("plain", "~/.codex"), "timeout")
+        self.assertIn("set -o pipefail", self.run.call_args.args[1])
+
+        self.run.return_value = (1, "Not logged in\n")
+        self.assertEqual(self.app.plain_codex_status("plain", "~/.codex"), "unauthenticated")
+
     def test_python_remote_arguments_are_shell_quoted(self):
         home = "~/home with 'quotes'; $(touch injected)"
         account = "person'; touch injected; #@example.test"
@@ -145,6 +154,21 @@ class ReaderCommands(unittest.TestCase):
         self.py.assert_not_called()
         self.run.assert_not_called()
 
+    def test_fresh_pull_report_missing_account_has_specific_problem(self):
+        self.write_report()
+        report_path = self.app.PULL_DIR / "pull.json"
+        report = json.loads(report_path.read_text())
+        report["accounts"] = {}
+        report_path.write_text(json.dumps(report))
+
+        problems, table = [], []
+        self.app.check_pull("pull", self.app.PLAIN["pull"], problems, {}, table)
+
+        self.assertEqual([p[0] for p in problems], [f"codex-plain:pull:{self.account}"])
+        self.assertIn("account not present in report", problems[0][1])
+        self.assertNotIn("no fresh report", problems[0][1])
+        self.assertEqual(table, [])
+
     def test_pull_report_own_login_does_not_get_reader_expiry_warning(self):
         self.write_report(expires=1)
         report_path = self.app.PULL_DIR / "pull.json"
@@ -181,6 +205,31 @@ class ReaderCommands(unittest.TestCase):
             self.app.cmd_reader_payload(self.account)
         self.assertEqual(output.getvalue(), "")
         self.py.assert_called_once_with("authority", self.app.CODEX_READER_PAYLOAD, "~/.codex0")
+
+    def test_reader_payload_unknown_account_exits_cleanly(self):
+        with self.assertRaisesRegex(SystemExit, "Unknown Codex account missing@example.test"):
+            self.app.cmd_reader_payload("missing@example.test")
+        self.py.assert_not_called()
+
+    def test_plain_host_problem_surfaces_in_watch_output_and_exit_code(self):
+        self.app.STATE_PATH = Path(self.scratch.name) / "state.json"
+        self.app.DEAD.clear()
+
+        def unreachable(host, script, **kwargs):
+            self.app.DEAD.add(host)
+            return 255, ""
+
+        self.run.side_effect = unreachable
+        with patch.object(self.app, "sync_helpers"), \
+                patch.object(self.app, "all_statuses", return_value={}), \
+                patch.object(self.app, "sync_claude"), \
+                patch.object(self.app, "sync_codex"), \
+                patch.object(self.app, "py", self.original_py), \
+                contextlib.redirect_stdout(io.StringIO()) as output:
+            result = self.app.cmd_watch(post=False)
+
+        self.assertEqual(result, 1)
+        self.assertIn(f"Codex {self.account} on plain (plain host): unreachable.", output.getvalue())
 
     def test_reader_snapshot_blanks_refresh_token_on_owner(self):
         source = {"tokens": {"access_token": "synthetic-access", "refresh_token": "synthetic-refresh"}}
