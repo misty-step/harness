@@ -16,12 +16,13 @@ base_dir=${AGENT_CONFIG_DIR:-$repo_dir/../agent-config}
   exit 1
 }
 
-skills='lage ship-loop judge release-watch heartbeat lane-succession story-qa pokayoke user-stories authenticated-commands'
+skills='lage ship-loop judge release-watch heartbeat lane-succession story-qa pokayoke user-stories authenticated-commands daybook-sync remote-execution'
 guidance='engineering workstation autonomy'
 owned='<!-- owned by misty-step/harness codex-config -->'
 
 # $CODEX_HOME/AGENTS.md is Codex's global instructions file; its skills load
-# from $CODEX_HOME/skills. config.toml is not touched. Replace AGENTS.md only
+# from $CODEX_HOME/skills. config.toml is touched only by Codex's own RPC, to
+# trust the workstation guard hook. Replace AGENTS.md only
 # when it is ours.
 target="$agent_dir/AGENTS.md"
 if [ -e "$target" ] || [ -L "$target" ]; then
@@ -31,14 +32,18 @@ if [ -e "$target" ] || [ -L "$target" ]; then
   fi
 fi
 
-set -- --preserve-foreign-skills
+set -- --preserve-foreign-skills --bin daybook-sync --bin workstation-guard --bin remote-run.ts
 for skill in $skills; do set -- "$@" --skill "$skill"; done
 for section in $guidance; do set -- "$@" --guidance "$section"; done
 set -- "$@" --guidance-source "$repo_dir/global/AGENTS.md" --guidance-file AGENTS.md
+"$base_dir/install" --check --agent-dir "$HOME/.agents" --preserve-foreign-skills --skill daybook-sync
 "$base_dir/install" --check --agent-dir "$agent_dir" "$@"
+python3 "$repo_dir/pretool-hook.py" check "$agent_dir"
 "$base_dir/install" --agent-dir "$agent_dir" "$@"
+"$base_dir/install" --agent-dir "$HOME/.agents" --preserve-foreign-skills --skill daybook-sync
+python3 "$repo_dir/pretool-hook.py" install "$agent_dir"
 # Codex loads AGENTS.override.md in place of AGENTS.md when it exists.
 if [ -e "$agent_dir/AGENTS.override.md" ]; then
   printf 'warning: %s/AGENTS.override.md shadows the installed AGENTS.md\n' "$agent_dir" >&2
 fi
-printf 'codex: installed %s and guidance (%s) into %s\n' "$skills" "$guidance" "$agent_dir"
+printf 'codex: installed %s, workstation-guard and guidance (%s) into %s\n' "$skills" "$guidance" "$agent_dir"

@@ -29,6 +29,7 @@ case "$selection" in all|shared) (cd agent-config && bun test --max-concurrency=
 case "$selection" in all|shared) PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s agent-config/lib -p 'test_*.py';; esac
 case "$selection" in all|shared) PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s t3-accounts -p 'test_*.py';; esac
 case "$selection" in all|shared) PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s claude-config -p 'test_*.py';; esac
+case "$selection" in all|shared) PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s codex-config -p 'test_*.py';; esac
 case "$selection" in all|shared) PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s agent-config/session-backup -p 'test_*.py';; esac
 case "$selection" in all|pi) (cd pi-config && bun test --max-concurrency=1 bin/ extensions/);; esac
 case "$selection" in all|omp) (cd omp-config && bun test --max-concurrency=1 bin/ extensions/);; esac

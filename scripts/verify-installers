@@ -26,6 +26,13 @@ check() {
     failures=$((failures + 1))
   fi
 }
+# The workstation guard decides from its stdin only; run the installed copy under a fake workstation name.
+guard_status() {
+  status=0
+  python3 -c 'import json, sys; print(json.dumps({"tool_name": "Bash", "tool_input": {"command": sys.argv[1]}}))' "$2" |
+    env -i PATH="$PATH" WORKSTATION_GUARD_HOSTS="$(python3 -c 'import socket; print(socket.gethostname().split(".")[0])')" "$1" >/dev/null 2>&1 || status=$?
+  echo "$status"
+}
 for consumer in pi omp; do
   home="$work/$consumer-home"
   agent="$home/agent"
@@ -272,7 +279,7 @@ mkdir -p "$claude/skills/foundation" "$claude/skills/dev-exec"
 printf 'foreign foundation skill\n' > "$claude/skills/foundation/SKILL.md"
 printf 'foreign dev-exec skill\n' > "$claude/skills/dev-exec/SKILL.md"
 ln -s ../../.agents/skills/code-review "$claude/skills/code-review"
-printf '{"foreign":"keep"}\n' > "$claude/settings.json"
+printf '{"foreign":"keep","hooks":{"PreToolUse":[{"matcher":"Edit","hooks":[{"type":"command","command":"foreign-pre"}]}]}}\n' > "$claude/settings.json"
 cp "$claude/settings.json" "$work/expected-claude-settings"
 if env -i PATH="$claude_home/.fixture-bin:$PATH" HOME="$claude_home" TMPDIR="$work" \
   "$work/source/claude-config/install" >"$work/claude.log" 2>&1; then
@@ -282,7 +289,13 @@ else
   cat "$work/claude.log" >&2
   failures=$((failures + 1))
 fi
-for skill in lage ship-loop judge release-watch heartbeat lane-succession story-qa pokayoke user-stories authenticated-commands; do
+check "claude canonical shared daybook skill" cmp -s "$work/source/agent-config/skills/daybook-sync/SKILL.md" "$claude_home/.agents/skills/daybook-sync/SKILL.md"
+check "claude daybook-sync executable" test -x "$claude_home/.local/bin/daybook-sync"
+check "claude daybook-sync bytes" cmp -s "$work/source/agent-config/bin/daybook-sync" "$claude_home/.local/bin/daybook-sync"
+check "claude daybook-sync CLI" "$claude_home/.local/bin/daybook-sync" --help
+check "claude remote-run executable" test -x "$claude_home/.local/bin/remote-run"
+check "claude remote-run CLI" "$claude_home/.local/bin/remote-run" --help
+for skill in lage ship-loop judge release-watch heartbeat lane-succession story-qa pokayoke user-stories authenticated-commands daybook-sync remote-execution; do
   check "claude $skill skill bytes" cmp -s "$work/source/agent-config/skills/$skill/SKILL.md" "$claude/skills/$skill/SKILL.md"
 done
 check "claude release-watch package bytes" diff -r "$work/source/agent-config/skills/release-watch" "$claude/skills/release-watch"
@@ -292,13 +305,22 @@ check "claude foreign skill" cmp -s "$work/expected-skill" "$claude/skills/forei
 check "claude keeps a foreign foundation skill" grep -Fxq 'foreign foundation skill' "$claude/skills/foundation/SKILL.md"
 check "claude keeps a foreign dev-exec skill" grep -Fxq 'foreign dev-exec skill' "$claude/skills/dev-exec/SKILL.md"
 check "claude CLI-linked skill" test "$(readlink "$claude/skills/code-review")" = ../../.agents/skills/code-review
-python3 - "$work/expected-claude-settings" "$claude/settings.json" <<'PYCODE'
+python3 - "$work/expected-claude-settings" "$claude/settings.json" "$claude_home/.local/bin/workstation-guard" <<'PYCODE'
 import json,sys
 before=json.load(open(sys.argv[1]));after=json.load(open(sys.argv[2]))
-assert {k:v for k,v in after.items() if k != 'hooks'} == before
+assert {k:v for k,v in after.items() if k != 'hooks'} == {k:v for k,v in before.items() if k != 'hooks'}
 assert after['hooks']['SessionStart']
+pre=after['hooks']['PreToolUse']
+assert pre[0] == before['hooks']['PreToolUse'][0]
+assert pre[1:] == [{'matcher':'Bash','hooks':[{'type':'command','command':sys.argv[3],'timeout':10}]}]
+perm=after['hooks']['PermissionRequest']
+assert len(perm) == 1 and set(perm[0]) == {'hooks'} and perm[0]['hooks'][0]['command'].endswith('hooks/harness-agents.py permission')
 PYCODE
-check "claude foreign settings preserved and native startup hook added" test "$?" = 0
+check "claude foreign settings preserved, native startup and guard hooks added" test "$?" = 0
+check "claude permission hook refuses an unanswerable full-access request" sh -c "echo '{\"permission_mode\":\"bypassPermissions\",\"tool_name\":\"Bash\"}' | CLAUDE_CODE_ENTRYPOINT=sdk-ts python3 '$claude/hooks/harness-agents.py' permission | grep -q '\"behavior\": \"deny\"'"
+check "claude workstation-guard bytes" cmp -s "$work/source/agent-config/bin/workstation-guard" "$claude_home/.local/bin/workstation-guard"
+check "claude guard refuses a privileged container" test "$(guard_status "$claude_home/.local/bin/workstation-guard" 'docker run --privileged hello-world')" = 2
+check "claude guard allows docker ps" test "$(guard_status "$claude_home/.local/bin/workstation-guard" 'docker ps')" = 0
 expected="$work/claude-guidance"
 : > "$expected"
 while IFS= read -r line || [ -n "$line" ]; do
@@ -328,6 +350,7 @@ else
   failures=$((failures + 1))
 fi
 # A rerun replaces canonical AGENTS.md and leaves no legacy alias.
+cp "$claude/settings.json" "$work/claude-settings-before-rerun"
 if env -i PATH="$claude_home/.fixture-bin:$PATH" HOME="$claude_home" TMPDIR="$work" \
   "$work/source/claude-config/install" >"$work/claude-rerun.log" 2>&1 && cmp -s "$expected" "$claude/AGENTS.md"; then
   printf 'PASS claude rerun replaces its own AGENTS.md\n'
@@ -335,6 +358,7 @@ else
   printf 'FAIL claude rerun replaces its own AGENTS.md\n' >&2
   failures=$((failures + 1))
 fi
+check "claude rerun leaves settings byte-identical" cmp -s "$work/claude-settings-before-rerun" "$claude/settings.json"
 foreign_home="$work/claude-foreign-home"
 mkdir -p "$foreign_home/.claude"
 printf '# my own notes\n' > "$foreign_home/.claude/AGENTS.md"
@@ -401,7 +425,8 @@ for skill in check-cadence verification-infrastructure; do
 done
 printf 'bundled system skill\n' > "$codex/skills/.system/imagegen/SKILL.md"
 ln -s /usr/share/omarchy/default/agents/skills/omarchy "$codex/skills/omarchy"
-printf 'model = "synthetic"\n[projects."/synthetic"]\ntrust_level = "trusted"\n' > "$codex/config.toml"
+printf 'model = "synthetic"\n[projects."/synthetic"]\ntrust_level = "trusted"\n[hooks.state."/foreign/hooks.json:session_start:0:0"]\ntrusted_hash = "sha256:foreign"\n' > "$codex/config.toml"
+printf '{"hooks":{"SessionStart":[{"hooks":[{"type":"command","command":"foreign-start"}]}],"PreToolUse":[{"matcher":"Edit","hooks":[{"type":"command","command":"foreign-pre"}]}]}}\n' > "$codex/hooks.json"
 printf '{"synthetic":"codex auth sentinel"}\n' > "$codex/auth.json"
 cp "$codex/config.toml" "$work/expected-codex-config"
 cp "$codex/auth.json" "$work/expected-codex-auth"
@@ -413,7 +438,13 @@ else
   cat "$work/codex.log" >&2
   failures=$((failures + 1))
 fi
-for skill in lage ship-loop judge release-watch heartbeat lane-succession story-qa pokayoke user-stories authenticated-commands; do
+check "codex canonical shared daybook skill" cmp -s "$work/source/agent-config/skills/daybook-sync/SKILL.md" "$codex_home/.agents/skills/daybook-sync/SKILL.md"
+check "codex daybook-sync executable" test -x "$codex_home/.local/bin/daybook-sync"
+check "codex daybook-sync bytes" cmp -s "$work/source/agent-config/bin/daybook-sync" "$codex_home/.local/bin/daybook-sync"
+check "codex daybook-sync CLI" "$codex_home/.local/bin/daybook-sync" --help
+check "codex remote-run executable" test -x "$codex_home/.local/bin/remote-run"
+check "codex remote-run CLI" "$codex_home/.local/bin/remote-run" --help
+for skill in lage ship-loop judge release-watch heartbeat lane-succession story-qa pokayoke user-stories authenticated-commands daybook-sync remote-execution; do
   check "codex $skill skill package" diff -r --exclude=.harness-owned "$work/source/agent-config/skills/$skill" "$codex/skills/$skill"
   check "codex $skill ownership marker" grep -Fxq 'owned by misty-step/harness agent-config' "$codex/skills/$skill/.harness-owned"
 done
@@ -422,9 +453,30 @@ for skill in check-cadence verification-infrastructure; do
   check "codex preserves unowned retired $skill extra files" grep -Fxq 'foreign extra file' "$codex/skills/$skill/foreign-only.txt"
 done
 check "codex foreign skill" cmp -s "$work/expected-skill" "$codex/skills/foreign/SKILL.md"
-check "codex keeps bundled system skills" grep -Fxq 'bundled system skill' "$codex/skills/.system/imagegen/SKILL.md"
+# Codex's own app-server (used to trust the guard hook) reconciles its bundled skills, so only their presence is ours to check.
+check "codex keeps bundled system skills" test -d "$codex/skills/.system"
 check "codex keeps linked skill" test "$(readlink "$codex/skills/omarchy")" = /usr/share/omarchy/default/agents/skills/omarchy
-check "codex config.toml untouched" cmp -s "$work/expected-codex-config" "$codex/config.toml"
+python3 - "$work/expected-codex-config" "$codex" "$codex_home/.local/bin/workstation-guard" "$(command -v codex || true)" <<'PYCODE'
+import json,sys,tomllib
+config,codex,guard,native=sys.argv[1:]
+before=tomllib.load(open(config,'rb'));after=tomllib.load(open(codex+'/config.toml','rb'))
+hooks=json.load(open(codex+'/hooks.json'))['hooks']
+assert hooks['SessionStart'] == [{'hooks':[{'type':'command','command':'foreign-start'}]}]
+assert hooks['PreToolUse'][0] == {'matcher':'Edit','hooks':[{'type':'command','command':'foreign-pre'}]}
+assert hooks['PreToolUse'][1:] == [{'matcher':'Bash','hooks':[{'type':'command','command':guard,'timeout':10}]}]
+if native:  # Codex's own RPC records trust beside the foreign state; without Codex, trust is a documented manual step.
+    assert after['hooks']['state']['/foreign/hooks.json:session_start:0:0'] == before['hooks']['state']['/foreign/hooks.json:session_start:0:0']
+    assert after['hooks']['state'][codex+'/hooks.json:pre_tool_use:1:0']['trusted_hash'].startswith('sha256:')
+    assert {k:v for k,v in after.items() if k != 'hooks'} == {k:v for k,v in before.items() if k != 'hooks'}
+else:
+    assert after == before
+PYCODE
+check "codex foreign hooks and state preserved, guard hook installed and trusted" test "$?" = 0
+check "codex workstation-guard bytes" cmp -s "$work/source/agent-config/bin/workstation-guard" "$codex_home/.local/bin/workstation-guard"
+check "codex guard refuses a privileged container" test "$(guard_status "$codex_home/.local/bin/workstation-guard" 'docker run --privileged hello-world')" = 2
+check "codex guard allows docker ps" test "$(guard_status "$codex_home/.local/bin/workstation-guard" 'docker ps')" = 0
+cp "$codex/hooks.json" "$work/codex-hooks-before-rerun"
+cp "$codex/config.toml" "$work/codex-config-before-rerun"
 check "codex auth untouched" cmp -s "$work/expected-codex-auth" "$codex/auth.json"
 expected="$work/codex-guidance"
 : > "$expected"
@@ -444,6 +496,7 @@ check "codex writes no CLAUDE.md" test ! -e "$codex/CLAUDE.md"
 check "codex writes no CLAUDE.md symlink" test ! -L "$codex/CLAUDE.md"
 # CODEX_HOME relocates the whole deployment, as it does for Codex itself.
 relocated="$work/codex-relocated"
+mkdir -p "$work/codex-unused-home"  # the hook installer runs python3, which needs an existing HOME
 if env -i PATH="$PATH" HOME="$work/codex-unused-home" CODEX_HOME="$relocated" TMPDIR="$work" \
   "$work/source/codex-config/install" >"$work/codex-relocated.log" 2>&1 \
   && cmp -s "$expected" "$relocated/AGENTS.md" && test -f "$relocated/skills/lage/SKILL.md" \
@@ -463,6 +516,8 @@ else
   failures=$((failures + 1))
 fi
 check "codex clean-replaces owned skill" test ! -e "$codex/skills/lage/obsolete.md"
+check "codex rerun leaves hooks.json byte-identical" cmp -s "$work/codex-hooks-before-rerun" "$codex/hooks.json"
+check "codex rerun leaves config.toml byte-identical" cmp -s "$work/codex-config-before-rerun" "$codex/config.toml"
 
 # Compare the entire fixture, including extra files, link targets and modes.
 snapshot_home() {

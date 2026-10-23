@@ -107,5 +107,62 @@ class AgentsHookTest(unittest.TestCase):
         self.assertTrue(updated['disableAllHooks'])
         self.assertEqual(updated['hooks']['SessionStart'][:-1], data['hooks']['SessionStart'])
 
+    def test_guard_hook_is_added_once_beside_foreign_pretooluse_hooks(self):
+        foreign = {'matcher': 'Edit', 'hooks': [{'type': 'command', 'command': 'foreign-pre'}]}
+        self.foreign['hooks']['PreToolUse'] = [foreign]
+        (self.directory/'settings.json').write_text(json.dumps(self.foreign))
+        hook.install(self.directory)
+        guard = {'matcher': 'Bash', 'hooks': [hook.guard_hook()]}
+        self.assertEqual(json.loads((self.directory/'settings.json').read_text())['hooks']['PreToolUse'], [foreign, guard])
+        before = self.snapshot()
+        hook.install(self.directory)
+        self.assertEqual(before, self.snapshot())
+
+    def test_foreign_guard_command_collisions_and_malformed_pretooluse_are_refused(self):
+        command = hook.guard_command()
+        for pretool in ({'PreToolUse': {}}, {'PreToolUse': [{'matcher': 'Bash'}]},
+                        {'PreToolUse': [{'matcher': 'Edit', 'hooks': [hook.guard_hook()]}]},
+                        {'PreToolUse': [{'matcher': 'Bash', 'hooks': [{'type': 'command', 'command': command, 'timeout': 99}]}]}):
+            (self.directory/'settings.json').write_text(json.dumps({'hooks': pretool}))
+            before = self.snapshot()
+            with self.assertRaises(ValueError): hook.install(self.directory)
+            self.assertEqual(before, self.snapshot())
+
+    def test_permission_hook_is_added_once_beside_foreign_hooks_and_collisions_are_refused(self):
+        foreign = {'hooks': [{'type': 'command', 'command': 'foreign-permission'}]}
+        self.foreign['hooks']['PermissionRequest'] = [foreign]
+        (self.directory/'settings.json').write_text(json.dumps(self.foreign))
+        hook.install(self.directory)
+        script = self.directory/'hooks/harness-agents.py'
+        installed = json.loads((self.directory/'settings.json').read_text())['hooks']['PermissionRequest']
+        self.assertEqual(installed, [foreign, {'hooks': [hook.permission_hook(script)]}])
+        before = self.snapshot()
+        hook.install(self.directory)
+        self.assertEqual(before, self.snapshot())
+        for group in ({'matcher': 'Bash', 'hooks': [hook.permission_hook(script)]},
+                      {'hooks': [{**hook.permission_hook(script), 'timeout': 99}]}):
+            (self.directory/'settings.json').write_text(json.dumps({'hooks': {'PermissionRequest': [group]}}))
+            before = self.snapshot()
+            with self.assertRaises(ValueError): hook.install(self.directory)
+            self.assertEqual(before, self.snapshot())
+
+    def test_permission_hook_refuses_only_unanswerable_full_access_requests(self):
+        hook.install(self.directory)
+        script = str(self.directory/'hooks/harness-agents.py')
+
+        def run(mode, entrypoint, tool='Bash'):
+            env = {**os.environ, 'CLAUDE_CODE_ENTRYPOINT': entrypoint}
+            return subprocess.run(['python3', script, 'permission'], input=json.dumps({'permission_mode': mode, 'tool_name': tool}),
+                                  capture_output=True, text=True, check=True, env=env).stdout
+        decision = json.loads(run('bypassPermissions', 'sdk-ts'))['hookSpecificOutput']['decision']
+        self.assertEqual(decision['behavior'], 'deny')
+        self.assertIn('literal path', decision['message'])
+        self.assertEqual(run('bypassPermissions', 'sdk-ts', 'AskUserQuestion'), '')
+        self.assertEqual(run('bypassPermissions', 'sdk-ts', 'ExitPlanMode'), '')
+        self.assertEqual(run('default', 'sdk-ts'), '')
+        self.assertEqual(run('bypassPermissions', 'cli'), '')
+        self.assertEqual(subprocess.run(['python3', script, 'permission'], input='not json', capture_output=True, text=True, check=True).stdout, '')
+        self.assertEqual(subprocess.run(['python3', script, 'permission'], input='[]', capture_output=True, text=True, check=True).stdout, '')
+
 
 if __name__ == '__main__': unittest.main()

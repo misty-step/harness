@@ -11,7 +11,11 @@ Harness has no app to sign in to. Its user is an agent operator, and the journey
 .agents/skills/verify-harness/bin/verify-harness all
 ```
 
-Run from the repository root of any checkout or worktree. The feature map in [features/README.md](features/README.md) holds the per-feature recipes; a proof covers every feature it lists.
+Run from the repository root of any checkout or worktree. For private note sync, run `verify-harness daybook` to install into a private
+HOME and drive the CLI against disposable local Git remotes. No vault contents
+or live deployment are needed.
+
+The feature map in [features/README.md](features/README.md) holds the per-feature recipes; a proof covers every feature it lists.
 
 Harness has no product QA sign-in: AgentMail accounts, `workstation/<PROJECT>_QA_*`
 pass references, production login and required owner/admin role proof are n/a here.

@@ -33,6 +33,7 @@ recipe uses disposable configuration and needs no session or login preconditions
 - [Live drift](./live-drift.md) covers whether the live `~/.claude` and `~/.codex` match source, with a real model call.
 - [Home post](./home-post.md) covers reporting to Home with `home post`, refused posts and the SSH route.
 - [T3 accounts roster](./t3-accounts.md) covers the canonical read-only account and credential-reference producer.
+- [Private note sync](./daybook-sync.md) covers the installed CLI with local Git remotes, concurrent writers, dirty human root preservation, journal and secret rejection, retry and cleanup.
 - [T3 pool](./t3-pool.md) covers t3-pool dry runs against the live T3 database and the installed bundle.
 
 The gate runs `scripts/probe-agent-policy`; run it with `--verification <repo>...`
