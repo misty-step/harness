@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """t3-accounts: keep every AI account usable on every T3 server with the fewest approvals.
 
+  t3-accounts roster --json  canonical account roster and credential references (read-only)
   t3-accounts status        server x account table (read-only)
   t3-accounts sync          store this server's Claude tokens in its own T3; push Codex owner logins to readers
   t3-accounts watch         sync, check expiry and health, post to Home when something changes
@@ -25,6 +26,79 @@ import shlex
 import subprocess
 import sys
 import tempfile
+
+def roster(config):
+    """Project the owner-authored roster; never resolve a credential reference."""
+    def require(condition):
+        if not condition:
+            raise ValueError("invalid roster configuration")
+
+    def text(value):
+        return isinstance(value, str) and 0 < len(value) <= 512 and not any(c.isspace() or ord(c) < 32 for c in value)
+
+    hosts = config["hosts"]
+    require(isinstance(hosts, dict) and hosts)
+    require(all(text(host) and isinstance(dest, str) for host, dest in hosts.items()))
+    local = [host for host, dest in hosts.items() if dest == ""]
+    require(len(local) == 1)
+    accounts = []
+    identities = set()
+    mappings = set()
+
+    def add(provider, email, tracking, keep, instances, sources):
+        require(type(keep) is bool)
+        require(all(text(instance) for instance in instances.values()))
+        identity = (provider, email)
+        require(identity not in identities)
+        identities.add(identity)
+        for host, instance in instances.items():
+            require((host, instance) not in mappings)
+            mappings.add((host, instance))
+        accounts.append({"provider": provider, "email": email,
+                         "email_reason": "not_configured" if email is None else None,
+                         "tracking": tracking, "keep": keep, "instances": instances,
+                         "credential_sources": sources})
+
+    for provider, key in (("anthropic", "claude"), ("codex", "codex")):
+        require(isinstance(config[key], list))
+        for entry in config[key]:
+            email = entry["account"]
+            require(text(email) and email.count("@") == 1 and all(email.split("@")))
+            if provider == "anthropic":
+                require(text(entry["instance"]) and text(entry["pass"]))
+                instances = {host: entry["instance"] for host in hosts}
+                sources = [{"kind": "pass", "host": host, "entry": entry["pass"]} for host in hosts]
+            else:
+                aliases = entry["instances"]
+                require(isinstance(aliases, dict) and set(aliases) <= set(hosts) | {"*"})
+                instances = {host: aliases.get(host, aliases.get("*")) for host in hosts}
+                owner_host, owner_home = entry["owner"].split(":", 1)
+                require(owner_host in hosts and text(owner_home) and owner_home.startswith(("~/", "/")))
+                sources = [{"kind": "codex_home", "host": owner_host, "home": owner_home}]
+            add(provider, email, "managed", entry["keep"], instances, sources)
+    require(isinstance(config["watch_only"], list))
+    for instance in config["watch_only"]:
+        require(text(instance))
+        add(instance, None, "watch_only", False, {host: instance for host in hosts}, [])
+    require(isinstance(config["retired"], list) and all(text(i) for i in config["retired"]))
+    return {"schema_version": 1,
+            "source": {"host": local[0], "path": "~/.config/t3-accounts/accounts.json"},
+            "hosts": dict(hosts), "accounts": accounts, "retired": list(config["retired"])}
+
+
+# The roster command exits before legacy sync/status initialization. Its only input
+# is the configuration file; none of the credential or T3 helpers below can run.
+if __name__ == "__main__" and sys.argv[1:2] == ["roster"]:
+    if sys.argv[1:] != ["roster", "--json"]:
+        sys.exit("usage: t3-accounts roster --json")
+    try:
+        config = json.loads((pathlib.Path.home() / ".config/t3-accounts/accounts.json").read_text())
+        result = roster(config)
+    except (OSError, ValueError, KeyError, TypeError, AttributeError):
+        sys.exit("t3-accounts: roster configuration is unavailable or invalid")
+    print(json.dumps(result, indent=2))
+    sys.exit(0)
+
 
 HOME = pathlib.Path.home()
 CONFIG = json.loads((HOME / ".config/t3-accounts/accounts.json").read_text())
