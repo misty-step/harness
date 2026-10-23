@@ -16,7 +16,7 @@ base_dir=${AGENT_CONFIG_DIR:-$repo_dir/../agent-config}
   exit 1
 }
 
-skills='lage ship-loop judge release-watch heartbeat lane-succession story-qa pokayoke user-stories authenticated-commands daybook-sync remote-execution'
+skills='lage ship-loop judge release-watch heartbeat lane-succession story-qa pokayoke user-stories authenticated-commands daybook-sync remote-execution t3-access'
 guidance='engineering workstation autonomy'
 
 # Validate canonical guidance and the legacy entry before any write.
@@ -28,10 +28,10 @@ for skill in $skills; do set -- "$@" --skill "$skill"; done
 for section in $guidance; do set -- "$@" --guidance "$section"; done
 set -- "$@" --bin t3-runtime-mode.ts --bin t3-agent --bin daybook-sync --bin workstation-guard --bin remote-run.ts --t3-pool
 set -- "$@" --guidance-source "$repo_dir/global/AGENTS.md" --guidance-file AGENTS.md
-"$base_dir/install" --check --agent-dir "$HOME/.agents" --preserve-foreign-skills --skill daybook-sync
+"$base_dir/install" --check --agent-dir "$HOME/.agents" --preserve-foreign-skills --skill daybook-sync --skill t3-access
 "$base_dir/install" --check --agent-dir "$agent_dir" "$@"
 python3 "$base_dir/lib/canonical_instructions.py" migrate "$agent_dir"
 "$base_dir/install" --agent-dir "$agent_dir" "$@"
-"$base_dir/install" --agent-dir "$HOME/.agents" --preserve-foreign-skills --skill daybook-sync
+"$base_dir/install" --agent-dir "$HOME/.agents" --preserve-foreign-skills --skill daybook-sync --skill t3-access
 python3 "$repo_dir/agents-hook.py" install "$agent_dir"
 printf 'claude: installed %s, t3-runtime-mode, workstation-guard and guidance (%s) into %s\n' "$skills" "$guidance" "$agent_dir"
