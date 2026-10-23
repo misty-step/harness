@@ -74,3 +74,44 @@ forwarded on stdin. `check --notify` posts on the originating machine, including
 when SSH fails, so the remote computer needs no Home credentials. Optional
 `T3_ACCESS_ARGS` in the watcher's environment file can supply this route and the
 native profile/proxy arguments.
+
+## Approved watcher renewal (US-051)
+
+This separate command is an issuer; `t3-agent` remains non-issuing. Use only
+explicit owner approval for the watcher grants and same-scope replacement.
+The [renewal contract](../../../../agent-config/t3-access/README.md) documents
+private catalog bindings, token-free receipts, recovery and deployment.
+Do not run renewal against live credentials while building or reviewing it.
+
+1. On Hetzner, with Python 3.11+, Bun, pass and GPG installed, run
+   `python3 -m unittest discover -s agent-config/bin -p
+   'test_t3_*.py' -v`. The renewal suite installs the candidate CLI and inactive
+   daily units into a disposable HOME, loads help, and drives its real executable
+   against native SSH/pass/Home protocol fixtures and the real `t3-agent` HTTP
+   client. Assert exact issuer arguments; fresh-grant no-op; candidate rejection
+   retaining current access; redaction; lock contention; lost issue/stage
+   acknowledgements; promotion recovery without reissuance; and failure/recovery
+   notification delivery. The native encrypted-store test uses real GPG, pass,
+   pass-env and a Git-backed store, preserves unrelated staged changes, and proves
+   the current ciphertext is unchanged on candidate rejection. No skips are a
+   passing result. Grok receipts and obsolete `previous` entries must be
+   identical after success. No test issues a live credential or activates a timer.
+2. From an isolated installation, run `t3-agent --config <existing-watchers>
+   check` against every approved watcher. This proves the existing read-only
+   consumer, not live renewal. Retain only sanitized per-server status/version.
+3. After independent review and authorized deployment, add the reviewed private
+   owner bindings and install the inactive units. Read the installed CLI help,
+   unit bytes and loaded `systemctl --user cat t3-access-renew.{service,timer}`.
+   Enable the timer through the documented native path and inspect its next run.
+   A fresh scan must issue nothing and leave current receipts unchanged.
+4. When an approved grant is due, retain a reviewed renewal proof: native
+   token-free before/after metadata with exact subject/scope/TTL, candidate
+   consumer success before promotion, current watcher success afterward, and a
+   subsequent fresh scan with no issuance. Never change live expiry or delete a
+   pending attempt to manufacture this proof. Until then, state explicitly that
+   live renewal and timer activation are unproven; fixture/consumer proof is not
+   a claim of live credential replacement.
+
+Link the checked SHA, command results and remaining deployment proof from the
+PR. Keep generated output outside Git; never publish private catalog routes,
+pass contents, tokens, environment dumps or native issuer JSON.

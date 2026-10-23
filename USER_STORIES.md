@@ -846,12 +846,19 @@ Acceptance:
 
 1. Agents can discover configured servers and live tool/provider/model catalogs,
    then list, launch, read, send to and settle threads through T3's own MCP.
-2. The shell entry point uses existing endpoint and credential references, never
-   prints credentials, never creates credentials, and does not retry writes.
+2. The `t3-agent` shell entry point uses existing endpoint and credential
+   references, never prints or creates credentials, and does not retry writes.
 3. A read-only access check reports each server's result; its optional watcher
    delivers new failures and recoveries to Home with a review link.
 4. Inside-T3 and outside-agent instructions explain explicit project selection,
    account selection, uncertain write outcomes and common access failures.
+5. A separate daily renewal command keeps explicitly approved read-only watcher
+   access working before expiry through existing owner SSH. It preserves the
+   exact `mcp-client` subject, `orchestration:read` scope and 30-day lifetime;
+   validates encrypted candidates through the real consumer before promotion;
+   holds ambiguous issuance without duplicate minting; and reports failures and
+   recovery to Home. Unrelated grants and provider logins remain untouched.
 
-Evidence: `agent-config/bin/test_t3_agent.py` and
+Evidence: `agent-config/bin/test_t3_agent.py`,
+`agent-config/bin/test_t3_access_renew.py` and
 `.agents/skills/verify-harness/features/t3-access.md`.
