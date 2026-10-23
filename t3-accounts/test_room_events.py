@@ -1,5 +1,6 @@
 import copy
 import datetime as dt
+import hashlib
 import json
 import os
 import subprocess
@@ -90,8 +91,9 @@ class EventsTest(unittest.TestCase):
             env = dict(os.environ, HOME=str(root), PATH=str(root / '.local/bin') + ':' + str(Path(sys.executable).parent) + ':/usr/bin:/bin')
             component = Path(__file__).resolve().parent
             subprocess.run(['sh', str(component / 'install')], env=env, check=True)
-            now = dt.datetime.now(dt.timezone.utc)
+            now = dt.datetime.now(dt.timezone.utc) - dt.timedelta(seconds=10)
             room = reading('current', now, percent=0)
+            room['accounts'][0]['quota'].update(state='partial', weekly={'room_percent': None, 'resets_at': None})
             (root / 'input.json').write_text(json.dumps(room))
             bindir = root / '.local/bin'
             (bindir / 'upkeep').write_text('#!/usr/bin/env python3\nimport os,pathlib\nprint(pathlib.Path(os.environ["HOME"], "input.json").read_text())\n')
@@ -108,7 +110,53 @@ class EventsTest(unittest.TestCase):
             subprocess.run(command, env=env, capture_output=True, text=True, check=True)
             subprocess.run(command, env=env, capture_output=True, text=True, check=True)
             self.assertEqual((root / 'posts').read_text().count('POST-END'), 1)
+            later = now + dt.timedelta(seconds=1)
+            room['accounts'][0]['quota']['observed_at'] = later.isoformat()
+            room['accounts'][0]['probe'] = {'state': 'works', 'observed_at': later.isoformat(),
+                                           'source': 'synthetic probe', 'model': 'cheap-model'}
+            (root / 'input.json').write_text(json.dumps(room))
+            subprocess.run(command, env=env, capture_output=True, text=True, check=True)
+            self.assertEqual((root / 'posts').read_text().count('POST-END'), 1)
+            self.assertEqual(next(iter(json.loads(state.read_text())['accounts'].values()))['state'], 'limited')
+            room['accounts'][0]['quota']['observed_at'] = (now + dt.timedelta(seconds=2)).isoformat()
+            room['accounts'][0]['quota']['five_hour']['room_percent'] = 50
+            room['accounts'][0]['probe'] = {'state': 'unknown'}
+            (root / 'input.json').write_text(json.dumps(room))
+            subprocess.run(command, env=env, capture_output=True, text=True, check=True)
+            self.assertEqual((root / 'posts').read_text().count('POST-END'), 1)
             self.assertFalse((root / '.config/t3-accounts/accounts.json').exists())
+
+    def test_installed_watch_retires_old_probe_without_announcing_recovery(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            env = dict(os.environ, HOME=str(root), PATH=str(root / '.local/bin') + ':' + str(Path(sys.executable).parent) + ':/usr/bin:/bin')
+            component = Path(__file__).resolve().parent
+            subprocess.run(['sh', str(component / 'install')], env=env, check=True)
+            bindir = root / '.local/bin'
+            digest = hashlib.sha256(b'synthetic-fixture').hexdigest()[:12]
+            commands = {
+                'pass': '#!/bin/sh\nprintf synthetic-fixture',
+                'bun': '#!/usr/bin/env python3\nimport sys,json\nif "envhash" in sys.argv:print(' + repr(digest) + ')\nelif "status" in sys.argv:print("claude-qa\\t"+json.dumps({"auth":"authenticated","status":"ready"}))\nelse:sys.exit(99)\n',
+                'home': '#!/bin/sh\ntouch "$HOME/unexpected-post"\n',
+            }
+            for name, body in commands.items():
+                (bindir / name).write_text(body)
+                (bindir / name).chmod(0o755)
+            config = root / '.config/t3-accounts/accounts.json'
+            config.parent.mkdir(parents=True)
+            config.write_text(json.dumps({'hosts': {'authority': ''}, 'claude': [{
+                'account': 'qa@example.test', 'instance': 'claude-qa', 'pass': 'fixture/ONLY',
+                'keep': True, 'issued': dt.date.today().isoformat()}], 'codex': [], 'retired': [], 'watch_only': []}))
+            state = root / '.local/state/t3-accounts/state.json'
+            state.parent.mkdir(parents=True)
+            state.write_text(json.dumps({'open': {'claude-live:qa@example.test': ['old rejection', 'high']},
+                                         'claude_live': {'qa@example.test': 'rejected'}}))
+            result = subprocess.run([str(bindir / 't3-accounts'), 'watch'], env=env, capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertFalse((root / 'unexpected-post').exists())
+            saved = json.loads(state.read_text())
+            self.assertEqual(saved['open'], {})
+            self.assertEqual(saved['claude_live'], {'qa@example.test': 'rejected'})
 
 if __name__ == '__main__':
     unittest.main()

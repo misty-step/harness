@@ -449,7 +449,7 @@ def cmd_watch(post=True):
         statuses = all_statuses()
     check(statuses, problems, state, owners, table)
     open_now = {k: (msg, sev) for k, msg, sev in problems}
-    before = state.get("open", {})
+    before = {k: v for k, v in state.get("open", {}).items() if not k.startswith("claude-live:")}
     unreachable = [h for h in HOSTS if h not in statuses]
     misses = state.setdefault("unreachable_runs", {})
     for h in HOSTS:

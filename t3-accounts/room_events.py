@@ -36,7 +36,7 @@ def percent(value):
 
 def observation(row, now, quota_age, probe_age):
     quota = row.get('quota', {})
-    if quota.get('state') == 'current' and fresh(quota.get('observed_at'), now, quota_age):
+    if quota.get('state') in ('current', 'partial') and fresh(quota.get('observed_at'), now, quota_age):
         windows = [quota.get(key) or {} for key in ('five_hour', 'weekly')]
         if any(moment(window.get('resets_at')) is not None and moment(window['resets_at']) <= now for window in windows):
             return None
@@ -45,9 +45,10 @@ def observation(row, now, quota_age, probe_age):
             empty = [window for window in known if window['room_percent'] == 0]
             resets = [moment(window.get('resets_at')) for window in empty]
             resets = [reset for reset in resets if reset is not None and reset > now]
-            return {'state': 'limited' if empty else 'works', 'observed_at': quota['observed_at'],
-                    'resets_at': max(resets).isoformat() if resets else None,
-                    'source': quota.get('source'), 'model': None}
+            if empty or len(known) == len(windows):
+                return {'state': 'limited' if empty else 'works', 'observed_at': quota['observed_at'],
+                        'resets_at': max(resets).isoformat() if resets else None,
+                        'source': quota.get('source'), 'model': None}
     probe = row.get('probe', {})
     if probe.get('state') in ('works', 'limited') and fresh(probe.get('observed_at'), now, probe_age):
         return {key: probe.get(key) for key in ('state', 'observed_at', 'resets_at', 'source', 'model')}
