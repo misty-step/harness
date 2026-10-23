@@ -2,6 +2,9 @@
 
 This directory is the maintained source for verifying harness as its operator uses it. Read this index, run `verify-harness doctor`, then use the matching feature file as the recipe.
 
+The [T3 accounts roster](./t3-accounts.md) is a standalone CLI journey. Its
+recipe uses disposable configuration and needs no session or login preconditions.
+
 ## Baseline preconditions
 
 - Run from the root of a harness checkout or worktree on the revision under test, with the change committed. Installers read committed HEAD.
@@ -29,6 +32,7 @@ This directory is the maintained source for verifying harness as its operator us
 - [Fresh session](./fresh-session.md) covers a fresh Claude Code and Codex session loading the deployed guidance and shared skills; session-auth also proves the candidate policy reaches an authenticated model.
 - [Live drift](./live-drift.md) covers whether the live `~/.claude` and `~/.codex` match source, with a real model call.
 - [Home post](./home-post.md) covers reporting to Home with `home post`, refused posts and the SSH route.
+- [T3 accounts roster](./t3-accounts.md) covers the canonical read-only account and credential-reference producer.
 - [Private note sync](./daybook-sync.md) covers the installed CLI with local Git remotes, concurrent writers, dirty human root preservation, journal and secret rejection, retry and cleanup.
 - [T3 pool](./t3-pool.md) covers t3-pool dry runs against the live T3 database and the installed bundle.
 - [T3 access](./t3-access.md) covers the installed MCP CLI, existing credentials, thread round trips and failure notifications.
