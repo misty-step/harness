@@ -72,3 +72,28 @@ Tests install the actual executable into a disposable HOME, exercise seven
 managed accounts and four watch-only rows, reject malformed configuration, and
 check that native credentials and state remain untouched. No native credentials
 are copied to the test host. The fixture identities are synthetic.
+
+## Fresh availability events
+
+`t3-accounts room-watch` reads `upkeep room --json` and posts fresh exhaustion
+and recovery transitions with `home post --from Accounts`. The authority runs
+this command every five minutes through `t3-accounts-room-watch.timer`.
+The existing hourly credential watcher retains its own schedule and no longer
+runs its separate daily Claude probe.
+
+Set `T3_ACCOUNTS_ROOM_URL` to the private live room evidence URL in
+`~/.config/t3-accounts/room-watch.env` on the authority, then run
+`./t3-accounts/install-room-watch`. The URL contains no token.
+Run the installer only on the authority. Readers do not post duplicate events.
+
+Unknown, expired, future-dated and reset-lapsed observations do not change an
+account's last confirmed availability. A tiny-model probe success says only
+that the named model works. Every event includes the observation time, source
+and provider reset when supplied. The first confirmed exhaustion posts an
+event; the first healthy observation establishes the baseline silently.
+
+Before delivery, the watcher atomically saves transitions and pending events
+under `~/.local/state/t3-accounts/room-events.json`. Failed delivery leaves the
+pending event for the next run. A crash after Home accepts an event but before
+the acknowledgement is saved can repeat that event with the same event ID.
+A file lock serializes concurrent runs on the authority.
