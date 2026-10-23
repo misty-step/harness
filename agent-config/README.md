@@ -55,7 +55,8 @@ the shell tool (`Bash`) on the hosts in `WORKSTATION_GUARD_HOSTS` (default
 `mirrodin serenity nassau`). It parses the command, looking through `sudo`,
 `env`, `bash -c`, substitutions, pipelines and heredocs, so quoted text in a
 commit message, `echo` or `grep` is not refused. A refusal exits 2 with the
-reason and the exe.dev and `hetzner-ci` alternatives on stderr, which both
+reason and the exe.dev alternative on stderr, plus `hetzner-ci` for builds and
+tests only (it never hosts agent sessions),, which both
 harnesses treat as a block. Any other tool, host or unparsable input is
 allowed. Residual risk: commands assembled at run time (`$cmd`, scripts,
 compose files) are invisible, and a refused flag used as the container's own

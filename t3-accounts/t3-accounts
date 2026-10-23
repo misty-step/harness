@@ -128,7 +128,7 @@ HELPER_SRC = HOME / ".local/share/t3-login/t3-login-helper.mjs"
 HELPER = ".local/share/t3-login/t3-login-helper.mjs"
 REMOTE_ENV = 'export PATH="$HOME/.local/bin:$HOME/.bun/bin:/opt/homebrew/bin:$PATH"; cd ~;'
 HOSTS = CONFIG["hosts"]
-# Non-T3 hosts (e.g. hetzner-ci): fixed Codex homes, owner->reader push only, health from the Codex CLI itself.
+# Non-T3 hosts (e.g. an exe.dev VM; never hetzner-ci, which is build/CI only): fixed Codex homes, owner->reader push only, health from the Codex CLI itself.
 PLAIN = CONFIG.get("plain_hosts", {})
 NOW = dt.datetime.now(dt.timezone.utc)
 CLAUDE_TOKEN_DAYS = 365      # `claude setup-token` lifetime
