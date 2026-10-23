@@ -14,13 +14,15 @@ SSH, since a machine's system Python can be older than its installed runtime.
 ```sh
 t3-agent servers
 t3-agent --server <catalog-id> tools
-t3-agent --server <catalog-id> call orchestrator_capabilities '{}'
+t3-agent --server <catalog-id> call orchestrator_capabilities '{}' > /path/to/capabilities.json
 t3-agent --server <catalog-id> call t3_project_list '{"limit":10}'
 t3-agent --server <catalog-id> call t3_thread_list '{"projectId":"<returned ID>","limit":10}'
 ```
 
 The catalog owns server URLs. Live tool schemas and `orchestrator_capabilities`
 own provider IDs, models, options and modes; discover them on the target server.
+Filter the saved catalog to the requested provider before reading it: unrelated
+provider catalogs can exceed an agent's context window. Do not print the full catalog.
 Read usage through the installed Upkeep interface (`upkeep room` when available).
 An outside agent's own usage allowance is separate from T3's subscriptions.
 
