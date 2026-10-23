@@ -3,6 +3,7 @@
 import argparse
 import os
 from pathlib import Path
+import re
 import sys
 
 parser = argparse.ArgumentParser(description=__doc__)
@@ -19,6 +20,12 @@ for repo in args.repos:
         dirs[:] = [d for d in dirs if d not in {'.git', 'node_modules', '.cache', '.venv', '__pycache__'}]
         if 'CLAUDE.md' in files or 'CLAUDE.md' in dirs:
             failures.append(f'{Path(directory) / "CLAUDE.md"}: forbidden instruction filename; use AGENTS.md alone')
+    # Calendar/clock-qualified quota claims expire before installed guidance does.
+    for guidance in sorted((root / 'agent-config/guidance').glob('*.md')):
+        for paragraph in guidance.read_text().split('\n\n'):
+            if (re.search(r'\b(?:20\d{2}-\d{2}-\d{2}|\d{1,2}:\d{2}(?:Z|\s*UTC)?)\b', paragraph)
+                    and re.search(r'\b(?:exhausted|usable|available|unavailable|out of credits|headroom)\b', paragraph, re.I)):
+                failures.append(f'{guidance}: time-specific account availability; use upkeep room --json evidence')
     if args.verification:
         skills = list((root / '.agents/skills').glob('verify-*/SKILL.md'))
         if not skills:

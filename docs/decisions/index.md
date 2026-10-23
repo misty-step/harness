@@ -12,6 +12,8 @@ The [primitives map](../architecture/primitives.yaml) describes ownership.
 
 - [0013](0013-application-management-not-desktop-control.md): authorize native application management without granting live-desktop control.
 
+- [0014](0014-live-account-routing-evidence.md): route accounts from fresh Upkeep evidence instead of dated instruction prose.
+
 ## Principles
 
 - [007](../principles/007-braver-engineers-continuous-deployment.md): engineer authority and continuous deployment safety.
