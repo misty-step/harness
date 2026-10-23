@@ -369,7 +369,7 @@ def sync_codex(log, problems, statuses, owners):
             if not home or host in DEAD or cfg.get("pull") or codex_retired(entry, host):
                 continue
             here = py(host, CODEX_INFO, home)
-            if here.get("error") or here.get("has_refresh"):
+            if not here or host in DEAD or here.get("error") or here.get("has_refresh"):
                 continue  # unreachable, or this host's own separate login
             if here.get("access_sha") == info.get("access_sha") and here.get("last_refresh") == info.get("last_refresh") and here.get("reader"):
                 continue
@@ -546,6 +546,8 @@ def cmd_reader_payload(account):
     if entry is None:
         sys.exit(f"Unknown Codex account {account}")
     owner_host, owner_home = owner_of(entry)
+    if codex_retired(entry, owner_host):
+        sys.exit(f"Codex account {account} is retired")
     snap = py(owner_host, CODEX_READER_PAYLOAD, owner_home)
     tokens = (snap.get("payload") or {}).get("tokens") or {}
     if not tokens.get("access_token") or tokens.get("refresh_token") != "":
