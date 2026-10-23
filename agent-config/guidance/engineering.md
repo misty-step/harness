@@ -27,7 +27,7 @@ Specs, PRDs, grill-with-docs and to-spec state the full value and whole outcome.
 
 ## Design
 
-For design work, follow [Foundations' way of working](https://foundations.mistystep.io/way-of-working): default to neutral, professional interfaces with plain words and standard product design at Linear, Vercel and GitHub quality; no clever wording, decorative themes or metaphors; light and dark follow the system setting. Use [Emil Kowalski's design-engineering skill pack](skill://emil-design-eng); do not use Mobbin.
+For every Misty Step and R90 product, follow [Foundations' way of working](https://foundations.mistystep.io/way-of-working): default to neutral, professional interfaces with plain words and standard product design at Linear, Vercel and GitHub quality; no clever wording, decorative themes or metaphors; light and dark follow the system setting. Use [Emil Kowalski's design-engineering skill pack](skill://emil-design-eng); do not use Mobbin. Apply [article 10](https://foundations.mistystep.io/#10): no gratuitous text or additions, no eyebrow labels, and no secondary labels repeating primary labels. Fix hierarchy or layout before adding copy; cut taglines and helper text when that makes them unnecessary, keeping required information reachable. Improve user experience (UX), developer experience (DX) and agent experience (AX) together without breaking existing behavior. Builders demonstrate all three outcomes; reviewers record each and check regressions. Pass only when all three improve and existing behavior still works. Jakub Krehel's [“Less is more, more or less”](https://jakub.kr/writing/less-is-more) supports deliberate subtraction; these specific rules are ours.
 
 ## Agent ergonomics
 
