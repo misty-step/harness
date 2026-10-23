@@ -1,3 +1,10 @@
+# [0.2.36](https://github.com/misty-step/harness/compare/v0.2.35...v0.2.36) (2026-10-23)
+<!-- landmark:protected-release previous=v0.2.35 source=b826c4907976158f940d840a7a020b2eb31ce566d08001085f1a3a145e85f0d6 -->
+
+### Features
+
+* add scriptable T3 access and health notifications (#498) ([f834c2b](https://github.com/misty-step/harness/commit/f834c2b7e7e702f2ddf0e9b662bf0f4e7315c7d0))
+* use existing native MCP profiles and SOCKS transport (#502) ([2e7cc0c](https://github.com/misty-step/harness/commit/2e7cc0c3ad1d2f71834ffdfab8bdcfa8016b643a))
 # [0.2.35](https://github.com/misty-step/harness/compare/v0.2.34...v0.2.35) (2026-10-23)
 <!-- landmark:protected-release previous=v0.2.34 source=e1166171c54420e7611968eb0434362a7e6938f8e3300b862df3a5a0bf2ff6a8 -->
 
