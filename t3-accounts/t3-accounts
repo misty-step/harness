@@ -163,10 +163,10 @@ def run(host, script, stdin=None, timeout=60):
     return p.returncode, p.stdout
 
 
-def py(host, code, *args, stdin=None):
+def py(host, code, *args, stdin=None, timeout=60):
     """Run a Python snippet on a host with arguments; the snippet prints one JSON line."""
     script = "python3 -c " + shlex.quote(code) + " " + " ".join(shlex.quote(a) for a in args)
-    rc, out = run(host, script, stdin=stdin)
+    rc, out = run(host, script, stdin=stdin, timeout=timeout)
     try:
         return json.loads(out.strip().splitlines()[-1])
     except Exception:
@@ -525,7 +525,10 @@ def check_pull(host, cfg, problems, owners, table):
             continue
         if r.get("live") != "ready":
             problems.append((key, f"Codex {entry['account']} on {host} (pull host): codex login status says {r.get('live')}.", sev))
-        table.append((entry["account"], host, "-", home, "reader", r.get("last_refresh"), r.get("access_exp"), False))
+        role = "own login" if r["has_refresh"] else "reader"
+        table.append((entry["account"], host, "-", home, role, r.get("last_refresh"), r.get("access_exp"), False))
+        if role != "reader":
+            continue
         if r.get("access_exp") and (parse_time(r["access_exp"]) - NOW).total_seconds() / 3600 < READER_EXPIRY_HOURS:
             problems.append((f"codex-reader-expiry:{host}:{entry['account']}", f"Codex {entry['account']} reader on {host}: access token expires soon. The owner {entry['owner']} must refresh.", "high"))
         elif r.get("live") == "ready" and not r.get("access_exp"):
@@ -787,8 +790,10 @@ def cmd_keepalive(force=False, only=None, min_days=3.0):
         if only and only not in (entry["account"],):
             continue
         host, home = owner_of(entry)
+        if instance_for(entry, host) in CONFIG["retired"]:
+            continue
         before = py(host, CODEX_INFO, home)
-        res = py(host, CODEX_KEEPALIVE, home, "1" if force else "0", str(min_days))
+        res = py(host, CODEX_KEEPALIVE, home, "1" if force else "0", str(min_days), timeout=210)
         after = py(host, CODEX_INFO, home)
         print(f"keepalive codex {entry['account']:24} {host}:{home}  {res.get('result', res.get('error'))}  "
               f"last_refresh {(before.get('last_refresh') or '-')[:19]} -> {(after.get('last_refresh') or '-')[:19]}  "

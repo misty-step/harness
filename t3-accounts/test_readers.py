@@ -145,6 +145,17 @@ class ReaderCommands(unittest.TestCase):
         self.py.assert_not_called()
         self.run.assert_not_called()
 
+    def test_pull_report_own_login_does_not_get_reader_expiry_warning(self):
+        self.write_report(expires=1)
+        report_path = self.app.PULL_DIR / "pull.json"
+        report = json.loads(report_path.read_text())
+        report["accounts"][self.account]["has_refresh"] = True
+        report_path.write_text(json.dumps(report))
+        problems, table = [], []
+        self.app.check_pull("pull", self.app.PLAIN["pull"], problems, {}, table)
+        self.assertEqual(problems, [])
+        self.assertEqual(table[0][4], "own login")
+
     def test_plain_health_uses_codex_cli_and_pull_report(self):
         self.write_report()
         self.py.side_effect = None
@@ -392,6 +403,14 @@ class ReaderCommands(unittest.TestCase):
         self.assertEqual([c.args[0] for c in self.py.call_args_list], ["authority"] * 3)
         self.assertEqual(self.py.call_args_list[1].args,
                          ("authority", self.app.CODEX_KEEPALIVE, "~/.codex0", "1", "3.0"))
+        self.assertGreaterEqual(self.py.call_args_list[1].kwargs["timeout"], 180)
+        sync.assert_called_once_with()
+
+    def test_keepalive_skips_retired_owner_instances(self):
+        self.app.CONFIG["retired"] = ["codex-0"]
+        with patch.object(self.app, "cmd_sync") as sync, contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(self.app.cmd_keepalive(only=self.account), 0)
+        self.py.assert_not_called()
         sync.assert_called_once_with()
 
     def test_keepalive_failure_syncs_and_reports(self):
