@@ -1,3 +1,9 @@
+# [0.2.38](https://github.com/misty-step/harness/compare/v0.2.37...v0.2.38) (2026-10-23)
+<!-- landmark:protected-release previous=v0.2.37 source=0de2faf54d7bb45a00e4c361e4613335651a602e642e0688775a0e9dc1c84c97 -->
+
+### Features
+
+* **accounts:** report fresh room transitions to Home (#496) ([e2c61af](https://github.com/misty-step/harness/commit/e2c61af7fab2e02cc449c740ad0d84b6c1720068))
 # [0.2.37](https://github.com/misty-step/harness/compare/v0.2.36...v0.2.37) (2026-10-23)
 <!-- landmark:protected-release previous=v0.2.36 source=8a04e2ae94907acb88ba1dbb45303d5acad6fe02dfb0fc985f4c8cd16074c25c -->
 
