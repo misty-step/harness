@@ -1,0 +1,399 @@
+#!/usr/bin/env python3
+# owned by misty-step/harness agent-config t3-access-renew
+"""Renew explicitly approved read-only watcher grants through native owner SSH."""
+import argparse
+import datetime as dt
+import fcntl
+import json
+import os
+from pathlib import Path
+import re
+import shlex
+import shutil
+import subprocess
+import sys
+import tempfile
+import uuid
+import urllib.parse
+
+if sys.version_info < (3, 11):
+    print('{"error":"python-runtime: Python 3.11 or newer required"}', file=sys.stderr)
+    sys.exit(2)
+import tomllib
+
+SCOPES = ["orchestration:read"]
+UTC = dt.timezone.utc
+
+
+class RenewalError(Exception):
+    pass
+
+
+def require(value, message):
+    if not value:
+        raise RenewalError(message)
+
+
+def timestamp(value):
+    try:
+        parsed = dt.datetime.fromisoformat(value.replace("Z", "+00:00"))
+        require(parsed.tzinfo is not None, "invalid-receipt: timestamp needs timezone")
+        return parsed
+    except (ValueError, TypeError, AttributeError):
+        raise RenewalError("invalid-receipt: expected ISO timestamp with timezone") from None
+
+
+def run(argv, *, data=None, env=None, timeout=45):
+    # Never forward child output, including exceptions that may contain captured secrets.
+    try:
+        child = subprocess.run(argv, input=data, text=True, capture_output=True,
+                               timeout=timeout, env=env)
+        require(child.returncode == 0, "boundary-failed: " + Path(argv[0]).name)
+        return child.stdout
+    except (OSError, UnicodeError, subprocess.TimeoutExpired):
+        raise RenewalError("boundary-unavailable-or-timeout: " + Path(argv[0]).name) from None
+
+
+def decode(value):
+    try:
+        return json.loads(value)
+    except (ValueError, TypeError):
+        raise RenewalError("invalid-boundary-json") from None
+
+
+def save(path, value):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, temporary = tempfile.mkstemp(prefix=".renewal-", dir=path.parent)
+    try:
+        with os.fdopen(fd, "w") as handle:
+            json.dump(value, handle, indent=2)
+            handle.write("\n")
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(temporary, path)
+        directory = os.open(path.parent, os.O_RDONLY)
+        try:
+            os.fsync(directory)
+        finally:
+            os.close(directory)
+    finally:
+        if os.path.exists(temporary):
+            os.unlink(temporary)
+
+
+def native(server, action, extra=()):
+    command = 'exec "$HOME/.local/bin/t3" ' + shlex.join([
+        "auth", "session", action, "--base-dir", server["renewal"]["base_dir"],
+        *extra, "--json", "--log-level", "none"])
+    try:
+        return decode(run(["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=10",
+                           "-o", "StrictHostKeyChecking=yes", server["renewal"]["ssh"], command]))
+    except RenewalError:
+        message = ("issuance-outcome-unknown: reconcile saved attempt; no repeat issuance" if action == "issue"
+                   else "native-owner-list-failed: check existing SSH route and native store")
+        raise RenewalError(message) from None
+
+
+def metadata(value, label=None):
+    require(isinstance(value, dict) and value.get("subject") == "mcp-client"
+            and value.get("scopes") == SCOPES and value.get("method") == "bearer-access-token"
+            and isinstance(value.get("sessionId"), str) and value["sessionId"]
+            and isinstance(value.get("client"), dict)
+            and value["client"].get("deviceType") == "bot", "unapproved-native-session")
+    if label is not None:
+        require(value["client"].get("label") == label, "candidate-label-mismatch")
+    timestamp(value.get("expiresAt"))
+    return value
+
+
+def listed(server):
+    rows = native(server, "list")
+    require(isinstance(rows, list) and all(isinstance(row, dict) for row in rows), "invalid-native-list")
+    return rows
+
+
+def tracked(rows, receipt):
+    matches = [row for row in rows if row.get("sessionId") == receipt["sessionId"]]
+    require(len(matches) == 1, "tracked-session-missing: inspect owner store; no issuance attempted")
+    value = metadata(matches[0])
+    require(timestamp(value["expiresAt"]) == timestamp(receipt["expiresAt"]), "tracked-expiry-mismatch")
+    require(abs((timestamp(value["expiresAt"]) - timestamp(value.get("issuedAt"))).total_seconds() - 30 * 86400) <= 1,
+            "tracked-ttl-mismatch")
+    return value
+
+
+def candidate(rows, value, label):
+    metadata(value, label)
+    matches = [row for row in rows if isinstance(row.get("client"), dict) and row["client"].get("label") == label]
+    require(len(matches) == 1, "ambiguous-candidate-label: held; no repeat issuance")
+    remote = metadata(matches[0], label)
+    require(remote["sessionId"] == value["sessionId"] and
+            timestamp(remote["expiresAt"]) == timestamp(value["expiresAt"]), "candidate-receipt-mismatch")
+    lifetime = timestamp(remote["expiresAt"]) - timestamp(remote.get("issuedAt"))
+    require(abs(lifetime.total_seconds() - 30 * 86400) <= 1, "candidate-ttl-mismatch")
+    require(timestamp(remote["expiresAt"]) > dt.datetime.now(UTC), "candidate-expired: held")
+    return remote
+
+
+def load(config, state):
+    try:
+        with config.open("rb") as handle:
+            servers = tomllib.load(handle)["servers"]
+        document = json.loads(state.read_text())
+        require(isinstance(document.get("approval"), str) and document["approval"].strip(), "approval-reference-required")
+        receipts = document["credentials"]
+        require(isinstance(receipts, dict) and isinstance(servers, list) and 0 < len(servers) <= 4, "invalid-catalog-or-state")
+        selected = []
+        for server in servers:
+            url = urllib.parse.urlsplit(server["url"])
+            require(url.hostname and not (url.username or url.password or url.query or url.fragment)
+                    and (url.scheme == "https" or (url.scheme == "http" and url.hostname in {"localhost", "127.0.0.1", "::1"})),
+                    "invalid-mcp-url")
+            binding = server["renewal"]
+            host = binding["host"]
+            require(isinstance(host, str) and re.fullmatch(r"[a-zA-Z0-9_-]+", host), "invalid-host")
+            receipt = receipts["watcher/" + host]
+            require(receipt["role"] == "watcher" and receipt["host"] == host
+                    and receipt["subject"] == "mcp-client" and receipt["scopes"] == SCOPES
+                    and receipt["ttl"] == "30d" and receipt["tokenPass"] == server["token_pass"],
+                    "unapproved-watcher-receipt")
+            require(isinstance(receipt["sessionId"], str) and receipt["sessionId"], "invalid-session-id")
+            timestamp(receipt["expiresAt"])
+            if "renewal" in receipt:
+                validate_pending(receipt, receipt["renewal"])
+            require(isinstance(receipt.get("lastRenewal", {}), dict), "invalid-last-renewal-receipt")
+            require(re.fullmatch(r"[a-zA-Z0-9_.@-]+", binding["ssh"]) and not binding["ssh"].startswith("-"),
+                    "invalid-owner-ssh-destination")
+            require(binding["base_dir"].startswith("/") and "\n" not in binding["base_dir"], "invalid-base-dir")
+            require(re.fullmatch(r"[A-Z_][A-Z0-9_]*", server["token_env"]), "invalid-token-env")
+            require(re.fullmatch(r"[a-zA-Z0-9_/-]+", server["token_pass"])
+                    and not any(p in {"", ".", ".."} for p in server["token_pass"].split("/")), "invalid-pass-reference")
+            require(isinstance(server["id"], str) and server["id"] and "claude_profile" not in server, "invalid-server")
+            selected.append((server, receipt))
+        require(len({s["id"] for s, _ in selected}) == len(selected)
+                and len({r["host"] for _, r in selected}) == len(selected)
+                and len({r["tokenPass"] for _, r in selected}) == len(selected), "duplicate-watcher")
+        require({"watcher/" + r["host"] for _, r in selected} ==
+                {key for key, value in receipts.items() if key.startswith("watcher/") or value.get("role") == "watcher"},
+                "watcher-catalog-mismatch")
+        return document, selected
+    except (OSError, ValueError, KeyError, TypeError, AttributeError):
+        raise RenewalError("invalid-catalog-or-state: explicit approved watcher bindings required") from None
+
+
+def verify(server, config, entry):
+    env = dict(os.environ)
+    env.pop(server["token_env"], None)
+    try:
+        raw = run(["pass-env", "run", "-e", server["token_env"] + "=" + entry,
+                   "--", "t3-agent", "--config", str(config), "--server", server["id"], "check"],
+                  env=env, timeout=110)
+    except RenewalError:
+        kind = "current" if entry == server["token_pass"] else "candidate"
+        raise RenewalError("consumer-validation-failed: " + kind + "; inspect pass-env and read-only MCP access") from None
+    report = decode(raw)
+    require(isinstance(report, dict) and isinstance(report.get("servers"), list)
+            and len(report["servers"]) == 1 and isinstance(report["servers"][0], dict)
+            and report["servers"][0].get("server") == server["id"]
+            and report["servers"][0].get("ok") is True, "consumer-validation-failed")
+
+
+def pending_for(receipt):
+    label = "t3-access:watch-readonly:" + receipt["host"] + ":" + uuid.uuid4().hex
+    return {"phase": "issuing", "label": label, "startedAt": dt.datetime.now(UTC).isoformat(),
+            "stagePass": receipt["tokenPass"] + "-renewal-" + label.rsplit(":", 1)[1]}
+
+
+def validate_pending(receipt, pending):
+    require(isinstance(pending, dict), "invalid-renewal-state")
+    prefix = "t3-access:watch-readonly:" + receipt["host"] + ":"
+    label = pending.get("label", "")
+    require(isinstance(label, str) and label.startswith(prefix) and re.fullmatch(r"[0-9a-f]{32}", label[len(prefix):])
+            and pending.get("stagePass") == receipt["tokenPass"] + "-renewal-" + label[len(prefix):]
+            and pending.get("phase") in {"issuing", "staged", "promoting"}, "invalid-renewal-state")
+    timestamp(pending.get("startedAt"))
+
+
+def record_pass(entry):
+    store = Path(os.environ.get("PASSWORD_STORE_DIR", str(Path.home() / ".password-store")))
+    if (store / ".git").exists():
+        run(["pass", "git", "add", "--", entry + ".gpg"])
+        signing = run(["pass", "git", "config", "--type", "bool", "--default", "false", "--get", "pass.signcommits"]).strip()
+        require(signing in {"true", "false"}, "invalid-pass-signing-config")
+        run(["pass", "git", "commit", *(["-S"] if signing == "true" else []), "--only", "--allow-empty",
+             "-m", "Renew approved T3 watcher", "--", entry + ".gpg"])
+
+
+def copy_cipher(source, destination):
+    fd, temporary = tempfile.mkstemp(prefix=".t3-renewal-", suffix=".gpg", dir=destination.parent)
+    try:
+        with os.fdopen(fd, "wb") as output, source.open("rb") as encrypted:
+            shutil.copyfileobj(encrypted, output)
+            output.flush()
+            os.fsync(output.fileno())
+        os.replace(temporary, destination)
+        directory = os.open(destination.parent, os.O_RDONLY)
+        try:
+            os.fsync(directory)
+        finally:
+            os.close(directory)
+    finally:
+        if os.path.exists(temporary):
+            os.unlink(temporary)
+
+
+def stage_pass(entry, data):
+    store = Path(os.environ.get("PASSWORD_STORE_DIR", str(Path.home() / ".password-store"))).resolve()
+    destination = store / (entry + ".gpg")
+    require(destination.parent.resolve().is_relative_to(store) and destination.parent.is_dir()
+            and not destination.exists() and not destination.is_symlink(), "invalid-new-stage-path")
+    # Native pass auto-commits its entire Git index. Encrypt in a private pass
+    # directory with the same nearest recipients, then publish only ciphertext.
+    recipients = destination.parent
+    while recipients != store and not (recipients / ".gpg-id").exists():
+        recipients = recipients.parent
+    cache = Path.home() / ".cache/tmp"
+    cache.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix="t3-renewal-pass-", dir=cache) as isolated:
+        for name in (".gpg-id", ".gpg-id.sig"):
+            if (recipients / name).exists():
+                shutil.copyfile(recipients / name, Path(isolated) / name)
+        run(["pass", "insert", "--multiline", entry], data=data,
+            env={**os.environ, "PASSWORD_STORE_DIR": isolated})
+        copy_cipher(Path(isolated) / (entry + ".gpg"), destination)
+    record_pass(entry)
+
+
+def promote(entry, stage):
+    store = Path(os.environ.get("PASSWORD_STORE_DIR", str(Path.home() / ".password-store"))).resolve()
+    current = store / (entry + ".gpg")
+    source = store / (stage + ".gpg")
+    require(current.parent.resolve().is_relative_to(store) and current.is_file() and not current.is_symlink()
+            and source.parent == current.parent and source.is_file() and not source.is_symlink(),
+            "encrypted-promotion-path-invalid: existing native pass files required")
+    copy_cipher(source, current)
+    record_pass(entry)
+
+
+def renew(server, receipt, document, state, config):
+    pending = receipt.get("renewal")
+    if pending is None:
+        rows = listed(server)
+        tracked(rows, receipt)  # The configured SSH store must already own this approved grant.
+        if timestamp(receipt["expiresAt"]) - dt.datetime.now(UTC) > dt.timedelta(days=7):
+            return "fresh"
+        previous_stage = receipt.get("lastRenewal", {}).get("stagePass")
+        if previous_stage:
+            require(isinstance(previous_stage, str) and re.fullmatch(re.escape(receipt["tokenPass"]) + r"-renewal-[0-9a-f]{32}", previous_stage),
+                    "invalid-previous-stage-reference")
+            store = Path(os.environ.get("PASSWORD_STORE_DIR", str(Path.home() / ".password-store")))
+            if (store / (previous_stage + ".gpg")).exists():
+                (store / (previous_stage + ".gpg")).unlink()
+                record_pass(previous_stage)
+        pending = pending_for(receipt)
+        receipt["renewal"] = pending
+        save(state, document)  # Durable intent precedes the non-idempotent owner call.
+        value = native(server, "issue", ["--subject", "mcp-client", "--scope", "orchestration:read",
+                                         "--ttl", "30d", "--label", pending["label"]])
+        metadata(value, pending["label"])
+        token = value.pop("token", None)
+        require(isinstance(token, str) and token and not any(c.isspace() for c in token), "invalid-candidate-token: held")
+        candidate(listed(server), value, pending["label"])
+        value = {key: value[key] for key in ("sessionId", "method", "scopes", "subject", "expiresAt")} | {"client": {"label": pending["label"], "deviceType": "bot"}}
+        stage_pass(pending["stagePass"], token + "\n" + json.dumps(value) + "\n")
+        pending["phase"] = "staged"
+        save(state, document)
+    else:
+        validate_pending(receipt, pending)
+        rows = listed(server)
+        # A timeout/kill may have minted a grant without delivering its only copy of the token.
+        # Listing cannot recover a token or prove that a delayed SSH process will never issue.
+        try:
+            staged = run(["pass", "show", pending["stagePass"]])
+        except RenewalError:
+            matches = [r for r in rows if isinstance(r.get("client"), dict) and r["client"].get("label") == pending["label"]]
+            raise RenewalError(f"issuance-held: {len(matches)} matching sessions; encrypted candidate unavailable; reconcile this attempt, never mint again") from None
+        token, separator, raw = staged.partition("\n")
+        require(separator and token and not any(c.isspace() for c in token), "invalid-encrypted-candidate: held")
+        value = decode(raw)
+        candidate(rows, value, pending["label"])
+    verify(server, config, pending["stagePass"])
+    pending["phase"] = "promoting"
+    save(state, document)
+    promote(receipt["tokenPass"], pending["stagePass"])
+    verify(server, config, receipt["tokenPass"])
+    remote = candidate(listed(server), value, pending["label"])
+    receipt.update(sessionId=remote["sessionId"], expiresAt=remote["expiresAt"],
+                   issuedAt=remote["issuedAt"], label=pending["label"],
+                   lastRenewal={"predecessorSessionId": receipt["sessionId"], "stagePass": pending["stagePass"]})
+    del receipt["renewal"]
+    save(state, document)
+    # Keep the encrypted candidate as recovery material; no revoke/cleanup of previous grants.
+    return "renewed"
+
+
+def report(rows, state, url):
+    health_path = state.with_name(state.name + ".health.json")
+    previous = decode(health_path.read_text()) if health_path.exists() else {}
+    current = {r["server"]: r.get("error", "ok") for r in rows}
+    for row in rows:
+        key = row["server"]
+        if previous.get(key) == current[key] or (current[key] == "ok" and key not in previous):
+            continue
+        status = "recovered" if current[key] == "ok" else "failed: " + current[key]
+        attempt = " Attempt: " + row["attempt"] + ", phase " + row["phase"] + "." if row.get("attempt") else ""
+        body = f"T3 watcher renewal on {key} {status}.{attempt} Review [renewal evidence]({url}).\n"
+        run(["home", "post", "--from", "T3-access-renewal"], data=body, timeout=30)
+    save(health_path, current)
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--config", type=Path, default=Path.home() / ".config/t3-agent/watchers.toml")
+    parser.add_argument("--state", type=Path, default=Path.home() / ".local/state/t3-agent/approved-credentials.json")
+    parser.add_argument("--report-url", required=True, help="accessible review link for Home failures/recoveries")
+    args = parser.parse_args()
+    require(args.report_url.startswith("https://") and not any(c.isspace() for c in args.report_url), "invalid-report-url")
+    args.config = args.config.expanduser().resolve()
+    args.state = args.state.expanduser().resolve()
+    os.umask(0o077)
+    os.environ["PASSWORD_STORE_GPG_OPTS"] = (os.environ.get("PASSWORD_STORE_GPG_OPTS", "")
+                                              + " --batch --no-tty --pinentry-mode error")
+    args.state.parent.mkdir(parents=True, exist_ok=True)
+    with args.state.with_name(args.state.name + ".renewal.lock").open("a") as lock:
+        try:
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            raise RenewalError("renewal-locked: another scan owns this state") from None
+        rows = []
+        try:
+            document, selected = load(args.config, args.state)
+        except RenewalError as error:
+            selected = []
+            rows.append({"server": "configuration", "ok": False, "error": str(error)})
+        for server, receipt in selected:
+            row = {"server": server["id"], "host": receipt["host"], "ok": False}
+            try:
+                row.update(status=renew(server, receipt, document, args.state, args.config), ok=True)
+            except (RenewalError, OSError) as error:
+                row["error"] = str(error) if isinstance(error, RenewalError) else "state-io-failed: preserve state and inspect storage"
+                if "renewal" in receipt:
+                    row["attempt"] = receipt["renewal"].get("label")
+                    row["phase"] = receipt["renewal"].get("phase")
+            rows.append(row)
+        result = {"observedAt": dt.datetime.now(UTC).isoformat(), "watchers": rows}
+        try:
+            report(rows, args.state, args.report_url)
+        except (RenewalError, OSError) as error:
+            result["error"] = "notification-failed: Home report not delivered; next scan retries"
+        print(json.dumps(result))
+        return 1 if "error" in result or any(not r["ok"] for r in rows) else 0
+
+
+if __name__ == "__main__":
+    try:
+        sys.exit(main())
+    except (RenewalError, OSError) as error:
+        message = str(error) if isinstance(error, RenewalError) else "state-io-failed: preserve state and inspect permissions/storage"
+        print(json.dumps({"error": message}), file=sys.stderr)
+        sys.exit(1)

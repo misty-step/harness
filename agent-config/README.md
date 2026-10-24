@@ -146,3 +146,11 @@ command. Those jobs may merge existing root commits in an isolated disposable
 worktree to keep the human root a fast-forward ancestor. They then advance the
 root only when Git preserves its pending bytes. Agent workspaces instead rebase
 and cannot publish journal paths. No installer activates or replaces timers.
+
+## Renew approved T3 watcher access
+
+The opt-in `--t3-access-renew` installer selection deploys the separate renewal
+CLI, `t3-agent`, and inactive daily user units. It preserves private catalogs,
+receipts, credentials and timer activation. See [the watcher renewal
+contract](t3-access/README.md) for approved native owner issuance, encrypted
+staging, consumer validation, JSON errors and interrupted-attempt recovery.

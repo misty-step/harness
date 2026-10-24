@@ -1,0 +1,11 @@
+# owned by misty-step/harness t3-access
+[Unit]
+Description=Renew approved read-only T3 watcher grants
+
+[Service]
+Type=oneshot
+Environment=PATH=%h/.local/bin:/usr/local/bin:/usr/bin:/bin
+EnvironmentFile=%h/.config/t3-agent/watch.env
+ExecStart=%h/.local/bin/t3-access-renew --report-url ${T3_ACCESS_REPORT_URL}
+TimeoutStartSec=45min
+UMask=0077
