@@ -1,3 +1,9 @@
+# [0.2.41](https://github.com/misty-step/harness/compare/v0.2.40...v0.2.41) (2026-10-24)
+<!-- landmark:protected-release previous=v0.2.40 source=8fb049f710aa9fff597e462ba2fc1bec41d04dcb24a812f76b5dff8119177f42 -->
+
+### Features
+
+* **t3-access:** renew approved read-only watcher grants (#512) ([2058563](https://github.com/misty-step/harness/commit/2058563c85e4e7793c4210af966381e23e4e3fc3))
 # [0.2.40](https://github.com/misty-step/harness/compare/v0.2.39...v0.2.40) (2026-10-24)
 <!-- landmark:protected-release previous=v0.2.39 source=ec3443b0608182d497e4972d00c7e581d19d4d70ca6270a6aac27878893027b2 -->
 
