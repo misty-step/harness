@@ -2,8 +2,8 @@
 # Deploy owned pi configuration into the pi coding-agent directory.
 #
 # Source of truth for this machine's pi preferences: settings, the custom
-# composer chrome, the LOC status extension, the Exa web-search extension, the
-# model-failover extension, and the image-budget extension. Shared primitives —
+# composer chrome, the LOC status extension, the Exa web-search extension, and
+# the image-budget extension. Shared primitives —
 # skill packages, global guidance, and the pass-env launcher — come from the
 # sibling agent-config repo through its single deploy contract.
 #
@@ -48,8 +48,8 @@ require_base() {
   }
 }
 
-components_all="config guidance pi-chrome loc web-search failover accounts image-budget openrouter-live audio-sandbox pass-env skills openrouter-auth"
-engineering_skills='agent-design authenticated-commands cloudflare-workers design-studio engineering-operations pokayoke remote-execution story-qa system-one test-audit typesafe-ai user-stories visual-state-review'
+components_all="config guidance pi-chrome loc web-search image-budget openrouter-live audio-sandbox pass-env skills openrouter-auth"
+engineering_skills='agent-design authenticated-commands cloudflare-workers design-studio engineering-operations pokayoke remote-execution security-audit story-qa system-one test-audit typesafe-ai user-stories visual-state-review'
 
 selected=${PI_CONFIG_COMPONENTS:-all}
 case "$selected" in
@@ -76,7 +76,7 @@ validate_config() {
   require_bun
   require_nonempty "$repo_dir/settings.json"
   supports_default_model || {
-    echo 'Pi must list openai-pool/gpt-6.1-sol; upgrade Pi to 0.99.1 or newer before installing this default.' >&2
+    echo 'Pi must resolve openrouter/deepseek/deepseek-v4.1-flash-1017; refresh the Pi model catalog or upgrade Pi before installing this default.' >&2
     exit 1
   }
   bun "$repo_dir/bin/pi-merge-settings.ts" \
@@ -85,22 +85,22 @@ validate_config() {
     --check
 }
 
-# Pool and slot providers clone Pi's bundled Codex catalog, not the separately
-# refreshed pi.dev overlay. Refuse a binary that cannot resolve this default.
+# The OpenRouter catalog must resolve the default before we write it. Refuse a
+# cached catalog that lacks the model; a missing default fails closed untouched.
+# Without OpenRouter auth the catalog is empty, so there is nothing to refuse.
 supports_default_model() {
   command -v pi >/dev/null 2>&1 || return 0
+  PI_CODING_AGENT_DIR="$agent_dir" pi auth check --provider openrouter --no-refresh >/dev/null 2>&1 || return 0
   listed=$(PI_CODING_AGENT_DIR="$agent_dir" pi --no-extensions \
-    --extension "$repo_dir/extensions/accounts/index.ts" \
-    --list-models openai-pool/gpt-6.1-sol 2>/dev/null) || return 1
-  printf '%s\n' "$listed" | grep -Eq '^openai-pool[[:space:]]+gpt-6\.1-sol[[:space:]]'
+    --list-models openrouter/deepseek/deepseek-v4.1-flash-1017 2>/dev/null) || return 1
+  printf '%s\n' "$listed" | grep -Eq '^openrouter[[:space:]]+deepseek/deepseek-v4\.1-flash-1017[[:space:]]'
 }
 
-# Subscription routes require Pi-native logins; OMP tokens are never copied.
-# Missing logins are reported without restoring a retired paid default.
+# The default bills an OpenRouter key; Pi-native logins are not used or copied.
+# A missing key is reported without restoring another provider's default.
 subscriptions_ready() {
   command -v pi >/dev/null 2>&1 || return 1
-  PI_CODING_AGENT_DIR="$agent_dir" pi auth check --provider openai --no-refresh >/dev/null 2>&1 ||
-    PI_CODING_AGENT_DIR="$agent_dir" pi auth check --provider openai-codex --no-refresh >/dev/null 2>&1
+  PI_CODING_AGENT_DIR="$agent_dir" pi auth check --provider openrouter --no-refresh >/dev/null 2>&1
 }
 
 install_config() {
@@ -109,9 +109,9 @@ install_config() {
     --source "$repo_dir/settings.json" --local "$local_settings" \
     --dest "$agent_dir/settings.json"
   if subscriptions_ready; then
-    printf 'pi: Codex login ready; default GPT-6.1 Sol xhigh (model policy)\n'
+    printf 'pi: OpenRouter auth ready; default DeepSeek V4.1 Flash 1017 max (model policy)\n'
   else
-    printf 'pi: default GPT-6.1 Sol xhigh installed; Codex login missing. Run /login for openai in pi before use.\n'
+    printf 'pi: default DeepSeek V4.1 Flash 1017 max installed; OpenRouter auth missing. Run the openrouter-auth component or /login for openrouter in pi before use.\n'
   fi
 }
 
@@ -174,7 +174,10 @@ validate_shared() {
 
 install_shared() {
   run_shared
-  rm -rf -- "$agent_dir/extensions/diff-review" "$agent_dir/extensions/continuation-nudge"
+  # Retired packages and the removed pool's shared block state.
+  rm -rf -- "$agent_dir/extensions/diff-review" "$agent_dir/extensions/continuation-nudge" \
+    "$agent_dir/extensions/failover" "$agent_dir/extensions/accounts"
+  rm -f -- "$agent_dir/account-pool.json"
   if has skills; then
     for skill in session-close pr-preview sachstand video dev-exec foundation; do
       rm -rf -- "$agent_dir/skills/$skill"
@@ -218,37 +221,6 @@ install_web_search() {
   install -d -m 700 "$agent_dir/extensions/web-search"
   for file in index.ts format.ts web-search.test.ts; do
     install -m 600 "$repo_dir/extensions/web-search/$file" "$agent_dir/extensions/web-search/$file"
-  done
-}
-
-validate_failover() {
-  for file in index.ts decide.ts decide.test.ts; do
-    require_nonempty "$repo_dir/extensions/failover/$file"
-  done
-}
-
-install_failover() {
-  # Pokayoke: clean-replace the owned package so obsolete files cannot survive.
-  rm -rf "$agent_dir/extensions/failover"
-  install -d -m 700 "$agent_dir/extensions/failover"
-  for file in index.ts decide.ts decide.test.ts; do
-    install -m 600 "$repo_dir/extensions/failover/$file" "$agent_dir/extensions/failover/$file"
-  done
-}
-
-validate_accounts() {
-  for file in index.ts native.ts native.test.ts pool.ts pool.test.ts slots.ts slots.test.ts README.md; do
-    require_nonempty "$repo_dir/extensions/accounts/$file"
-  done
-}
-
-install_accounts() {
-  # Pokayoke: clean-replace the owned package so obsolete files cannot survive.
-  # Slot logins live in auth.json under the slot ids and are never touched here.
-  rm -rf "$agent_dir/extensions/accounts"
-  install -d -m 700 "$agent_dir/extensions/accounts"
-  for file in index.ts native.ts native.test.ts pool.ts pool.test.ts slots.ts slots.test.ts README.md; do
-    install -m 600 "$repo_dir/extensions/accounts/$file" "$agent_dir/extensions/accounts/$file"
   done
 }
 
@@ -314,8 +286,6 @@ if has guidance || has pass-env || has skills || has audio-sandbox; then validat
 if has pi-chrome; then validate_pi_chrome; fi
 if has loc; then validate_loc; fi
 if has web-search; then validate_web_search; fi
-if has failover; then validate_failover; fi
-if has accounts; then validate_accounts; fi
 if has image-budget; then validate_image_budget; fi
 if has openrouter-live; then validate_openrouter_live; fi
 if has audio-sandbox; then validate_audio_sandbox; fi
@@ -326,8 +296,6 @@ if has guidance || has pass-env || has skills || has audio-sandbox; then install
 if has pi-chrome; then install_pi_chrome; fi
 if has loc; then install_loc; fi
 if has web-search; then install_web_search; fi
-if has failover; then install_failover; fi
-if has accounts; then install_accounts; fi
 if has image-budget; then install_image_budget; fi
 if has openrouter-live; then install_openrouter_live; fi
 if has audio-sandbox; then install_audio_sandbox; fi

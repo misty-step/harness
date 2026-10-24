@@ -3,7 +3,7 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-test("deployment repairs recovery disables and retires owned Luna pins without erasing foreign state", () => {
+test("deployment repairs recovery disables and retires pooled effort pins without erasing foreign state", () => {
 	const root = mkdtempSync(join(tmpdir(), "pi-settings-migration-"));
 	try {
 		const source = join(root, "source.json");
@@ -13,9 +13,11 @@ test("deployment repairs recovery disables and retires owned Luna pins without e
 			retry: { enabled: false, maxRetries: 7 },
 			compaction: { enabled: false, keepRecentTokens: 4000 },
 			modelThinkingLevels: {
-				"openai-pool/gpt-6-luna": "max",
-				"openai-codex-2/gpt-6-luna": "max",
 				"openai-pool/gpt-6.1-sol": "xhigh",
+				"openai-codex-2/gpt-6-luna": "max",
+				"xai-2/grok-5": "high",
+				"openrouter-2/deepseek/deepseek-v4.1-flash": "high",
+				"openai/gpt-6.1-sol": "xhigh",
 				"foreign/gpt-6-luna": "high",
 			},
 			lastChangelogVersion: "foreign-runtime-state",
@@ -26,7 +28,7 @@ test("deployment repairs recovery disables and retires owned Luna pins without e
 		expect(installed.retry).toEqual({ enabled: true, maxRetries: 7 });
 		expect(installed.compaction).toEqual({ enabled: true, keepRecentTokens: 4000 });
 		expect(installed.modelThinkingLevels).toEqual({
-			"openai-pool/gpt-6.1-sol": "xhigh",
+			"openai/gpt-6.1-sol": "xhigh",
 			"foreign/gpt-6-luna": "high",
 		});
 		expect(installed.lastChangelogVersion).toBe("foreign-runtime-state");

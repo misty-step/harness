@@ -44,6 +44,12 @@ for consumer in pi omp; do
   printf 'retired nudge\n' > "$agent/extensions/continuation-nudge/index.ts"
   mkdir -p "$agent/extensions/loc"
   printf 'old owned LOC warming hook\n' > "$agent/extensions/loc/git-hook.sh"
+  if [ "$consumer" = pi ]; then
+    mkdir -p "$agent/extensions/accounts" "$agent/extensions/failover"
+    printf 'retired pool package\n' > "$agent/extensions/accounts/index.ts"
+    printf 'retired chain package\n' > "$agent/extensions/failover/index.ts"
+    printf '{"openai":{"lastUsed":1}}\n' > "$agent/account-pool.json"
+  fi
   # Claude Code settings carry foreign keys the audio sandbox must preserve.
   mkdir -p "$home/.claude"
   printf '{"env":{"OTEL_LOGS_EXPORTER":"otlp"},"hooks":{"SessionStart":[]}}\n' > "$home/.claude/settings.json"
@@ -141,8 +147,13 @@ for consumer in pi omp; do
     done
   fi
   check "$consumer foreign skill" cmp -s "$work/expected-skill" "$agent/skills/foreign/SKILL.md"
+  check "$consumer security-audit skill" test -f "$agent/skills/security-audit/SKILL.md"
   if [ "$consumer" = pi ]; then
     check "pi retires installed LOC warming hook" test ! -e "$agent/extensions/loc/git-hook.sh"
+    check "pi retires account pools" test ! -e "$agent/extensions/accounts"
+    check "pi retires failover chain" test ! -e "$agent/extensions/failover"
+    check "pi removes pool state" test ! -e "$agent/account-pool.json"
+    check "pi default model" jq -e '.defaultProvider == "openrouter" and .defaultModel == "deepseek/deepseek-v4.1-flash-1017" and .defaultThinkingLevel == "max"' "$agent/settings.json"
     # US-028: Pi replaces only its OpenRouter mapping, retaining foreign auth.
     check "pi OpenRouter auth mapping and foreign credential" \
       jq -e '.synthetic == "auth sentinel" and .anthropic == {type:"api_key",key:"synthetic-foreign"} and .openrouter == {type:"api_key",key:"!openrouter-key --personal workstation/OPENROUTER_MISTY_STEP_HARNESS_WORKSTATION_RECOVERY_API_KEY"}' "$agent/auth.json"

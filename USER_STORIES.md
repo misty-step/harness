@@ -334,24 +334,18 @@ Criteria:
    selection SHALL remain available. Automatic advisor review SHALL stay off.
 4. OMP SHALL have no paid or cross-model fallback and no default Grok/Gemini
    reviewer or scout. Visual work SHALL retain the configured Opus hold.
-   Pi recovery SHALL use Sol xhigh then Astra xhigh through its native Codex
-   pool, without depending on SuperGrok. Explicit effort overrides SHALL remain
-   available; the default effort SHALL be xhigh rather than low.
    All shared subscription accounts SHALL be authorized for any work and
    SHALL fail over between each other; no engineer launch SHALL require any
    one account. Authorization SHALL NOT be treated as proof of available quota.
-5. WHEN the Pi installer runs, THE SYSTEM SHALL select GPT-6.1 Sol xhigh as
-   Pi's default, request priority service for native Codex inference, and report
-   a missing Pi-native Codex login rather than restore
-   the retired DeepSeek default. Pi SHALL use only OpenAI Codex, xAI and
-   OpenRouter routes: any Anthropic model, direct or through OpenRouter,
-   SHALL be refused before inference. If native startup selects an unapproved
-   model after login loss, agent prompts, provider requests, compaction and
-   branch summaries SHALL be refused before paid inference.
-   Source-owned retry and automatic compaction SHALL be enabled on deployment;
-   unrelated live settings SHALL remain unchanged.
+5. WHEN the Pi installer runs, THE SYSTEM SHALL select OpenRouter
+   `deepseek/deepseek-v4.1-flash-1017` at max as Pi's default and report a
+   missing OpenRouter credential rather than restore another provider's
+   default. Pi SHALL install no pool or account-slot providers and no custom
+   model-fallback chain; stock Pi owns retry and automatic compaction, which
+   SHALL be enabled on deployment. Unrelated live settings, foreign model pins
+   and the model already selected in existing sessions SHALL remain unchanged.
 6. WHEN configuration is deployed, THE SYSTEM SHALL preserve OAuth stores and
-   the model already selected in existing sessions.
+   foreign credentials.
 7. WHEN OMP configuration is deployed, THE SYSTEM SHALL remove retired owned
    routing settings while preserving foreign settings and all live auth/account
    content. Native OMP, not a copied model/effort validator, owns resolution.
@@ -365,7 +359,8 @@ Evidence: `omp-config/config.yml`, `omp-config/agents/designer.md`,
 `omp-config/bin/omp-merge-config.test.ts`,
 `omp-config/global/AGENTS.md`, `omp-config/README.md`,
 `pi-config/settings.json`, `pi-config/install`,
-`./scripts/verify all`, fresh native OMP model-selection and loading checks.
+`pi-config/bin/pi-merge-settings.test.ts`, `scripts/verify-installers`,
+`./scripts/verify all`, fresh native OMP and Pi model-selection checks.
 
 ## US-046 Launch engineers only on the ticket's model roster — retired
 
@@ -617,46 +612,12 @@ stored; no network or model call in the check.
 Evidence: `omp-config/bin/omp-secrets-policy.test.ts`,
 `scripts/verify-installers`
 
-## US-045 Sign Pi into more than one account per provider
+## US-045 Sign Pi into more than one account per provider — retired
 
-Statement: When one subscription account is exhausted or blocked, I want Pi to
-hold further accounts for the same provider, each signed in by me through Pi's
-own login, so I can switch accounts without a second harness's credentials.
-
-Criteria:
-1. WHEN the Pi installer deploys the `accounts` component, `/login` SHALL list
-   `OpenAI Codex (account 2)` through `(account 4)` beside the base provider,
-   and `--model openai-codex-2/<model>` SHALL resolve without a login instead
-   of failing as an unknown model.
-2. WHEN I sign in to a slot, THE SYSTEM SHALL store that login under the slot
-   id in Pi's `auth.json`, and every request on a slot model SHALL use the
-   slot's login, never the base provider's.
-3. WHEN the component is removed, THE SYSTEM SHALL leave the base providers and
-   their stored logins working as stock Pi.
-4. WHEN a slot model is selected, Pi's model policy SHALL approve exactly the
-   models it approves for the base provider, at the same thinking level, and
-   SHALL refuse unlisted look-alike provider ids.
-
-5. WHEN I select a pool model (`openai-pool/…`, `xai-pool/…`,
-   `openrouter-pool/…`), THE SYSTEM SHALL serve the request from one signed-in
-   account of that provider, keep it for the session while usable, and start
-   other sessions on the least recently used account.
-6. WHEN an account fails on a usage or rate limit before producing output,
-   THE SYSTEM SHALL block it until the reset the provider states (else a
-   conservative default), share that block with every Pi session, and serve
-   the same request from the next account; other failures SHALL surface
-   unchanged, and with every account blocked or signed out the request SHALL
-   fail with that reason.
-7. WHEN an API-key slot has no stored key, THE SYSTEM SHALL treat it as signed
-   out rather than read the base provider's environment key.
-
-No-gos: no reading, copying, or refreshing another harness's stored tokens; no
-Claude Code or Google client impersonation added by this repository.
-
-Evidence: `pi-config/extensions/accounts/slots.test.ts`,
-`pi-config/extensions/accounts/pool.test.ts`, `pi-config/docs/decisions/historical/026-pool-accounts-behind-one-provider-with-shared-blocks.md`,
-`pi-config/docs/decisions/historical/024-extra-accounts-are-cloned-providers-with-pi-owned-logins.md`,
-and the isolated `/login` walk recorded in the PR.
+Pi account slots and pooled providers are retired by the operator's
+single-model decision (ADR-028). Pi runs one OpenRouter model on its own key;
+native Pi logins and foreign credentials remain untouched, and no replacement
+pooling, rotation or block state is installed.
 
 ## US-048 Carry lean, useful agent guidance
 
