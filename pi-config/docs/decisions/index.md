@@ -8,7 +8,9 @@ agent will otherwise re-propose. Do not write one per PR. Start from
 
 ## Steering
 
-None yet. Each historical record still states its own revisit condition; the
+- [028](028-one-openrouter-model-retire-account-pools-and-slots.md): one OpenRouter model; retire account pools and slot providers.
+
+Each historical record still states its own revisit condition; the
 [README](../../README.md#review-triggers) collects them.
 
 ## Historical
@@ -37,7 +39,7 @@ Former ADRs, unchanged; their numbers stay reserved.
 - [021](historical/021-extract-shared-primitives-into-a-base-repo.md): extract shared primitives into a base repo; keep the harnesses thin.
 - [022](historical/022-bridge-pis-model-catalog-to-the-live.md): bridge pi's model catalog to the live OpenRouter list.
 - [023](historical/023-resolve-openrouter-account-by-launch-directory.md): resolve OpenRouter account by launch directory.
-- [024](historical/024-extra-accounts-are-cloned-providers-with-pi-owned-logins.md): extra accounts are cloned providers with Pi-owned logins.
+- [024](historical/024-extra-accounts-are-cloned-providers-with-pi-owned-logins.md): extra accounts are cloned providers with Pi-owned logins. Superseded by 028.
 - [025](historical/025-pi-uses-only-openai-grok-and-openrouter.md): Pi uses only OpenAI, Grok and OpenRouter.
-- [026](historical/026-pool-accounts-behind-one-provider-with-shared-blocks.md): pool accounts behind one provider with shared blocks.
+- [026](historical/026-pool-accounts-behind-one-provider-with-shared-blocks.md): pool accounts behind one provider with shared blocks. Superseded by 028.
 - [027](historical/027-anthropic-for-pi-only-through-the-omp-gateway.md): Anthropic for Pi only through OMP's gateway, and slot sign-ins.

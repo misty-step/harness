@@ -1,27 +1,10 @@
 {
   "theme": "system",
-  "defaultProvider": "openai-pool",
-  "defaultModel": "gpt-6.1-sol",
-  "defaultThinkingLevel": "xhigh",
+  "defaultProvider": "openrouter",
+  "defaultModel": "deepseek/deepseek-v4.1-flash-1017",
+  "defaultThinkingLevel": "max",
   "modelThinkingLevels": {
-    "openai-pool/gpt-6-astra": "xhigh",
-    "openai-pool/gpt-6.1-sol": "xhigh",
-    "openai/gpt-6-astra": "xhigh",
-    "openai/gpt-6.1-sol": "xhigh",
-    "openai-2/gpt-6-astra": "xhigh",
-    "openai-2/gpt-6.1-sol": "xhigh",
-    "openai-3/gpt-6-astra": "xhigh",
-    "openai-3/gpt-6.1-sol": "xhigh",
-    "openai-4/gpt-6-astra": "xhigh",
-    "openai-4/gpt-6.1-sol": "xhigh",
-    "openai-codex/gpt-6-astra": "xhigh",
-    "openai-codex/gpt-6.1-sol": "xhigh",
-    "openai-codex-2/gpt-6-astra": "xhigh",
-    "openai-codex-2/gpt-6.1-sol": "xhigh",
-    "openai-codex-3/gpt-6-astra": "xhigh",
-    "openai-codex-3/gpt-6.1-sol": "xhigh",
-    "openai-codex-4/gpt-6-astra": "xhigh",
-    "openai-codex-4/gpt-6.1-sol": "xhigh"
+    "openrouter/deepseek/deepseek-v4.1-flash-1017": "max"
   },
   "retry": {
     "enabled": true,

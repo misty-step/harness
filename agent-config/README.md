@@ -54,9 +54,9 @@ sections in order; a missing marker aborts the deploy.
 the shell tool (`Bash`) on the hosts in `WORKSTATION_GUARD_HOSTS` (default
 `mirrodin serenity nassau`). It parses the command, looking through `sudo`,
 `env`, `bash -c`, substitutions, pipelines and heredocs, so quoted text in a
-commit message, `echo` or `grep` is not refused. A refusal exits 2 with the
-reason and the exe.dev and `hetzner-ci` alternatives on stderr, which both
-harnesses treat as a block. Any other tool, host or unparsable input is
+commit message, `echo` or `grep` is not refused. A refusal exits 2 with the reason and the exe.dev alternative on stderr, plus
+`hetzner-ci` for builds and tests only (it never hosts agent sessions); both
+harnesses treat that as a block. Any other tool, host or unparsable input is
 allowed. Residual risk: commands assembled at run time (`$cmd`, scripts,
 compose files) are invisible, and a refused flag used as the container's own
 argument (`docker run img prog --privileged`) is refused. Claude Code's
@@ -106,6 +106,14 @@ code review remain.
 at `65a39f393687675ce170e6094757de20370365b9`. Refresh by replacing the whole
 directory, keeping its licence, updating this pin and reviewing the thin
 `system-one` companion, which owns only fleet OpenRouter wiring.
+
+## Cloudflare security-audit skill
+
+`skills/security-audit/` is the unmodified MIT package from
+[`cloudflare/security-audit-skill`](https://github.com/cloudflare/security-audit-skill/tree/c1c8a8c14710/skills/security-audit)
+at commit `c1c8a8c14710`. Refresh by replacing the whole
+directory, keeping its licence, updating this pin, and rerunning the package's
+validator tests.
 
 ## Verification
 

@@ -107,6 +107,7 @@ class WorkstationGuardTest(unittest.TestCase):
         self.assertIn('exe.dev', message)
         self.assertIn('remote-execution', message)
         self.assertIn('ssh hetzner-ci', message)
+        self.assertIn('never agent sessions', message)
 
     def test_only_workstations_are_guarded(self):
         self.assertEqual(bash('pkill foo', host='hetzner-ci', hosts=None), (0, ''))

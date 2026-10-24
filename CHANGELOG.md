@@ -1,3 +1,15 @@
+# [0.2.40](https://github.com/misty-step/harness/compare/v0.2.39...v0.2.40) (2026-10-24)
+<!-- landmark:protected-release previous=v0.2.39 source=ec3443b0608182d497e4972d00c7e581d19d4d70ca6270a6aac27878893027b2 -->
+
+### Features
+
+* **pi:** default to DeepSeek V4.1 Flash 1017 and retire account pools (#520) ([f4c3bbf](https://github.com/misty-step/harness/commit/f4c3bbfc245d96985020b1c527e98f6799093f65))
+# [0.2.39](https://github.com/misty-step/harness/compare/v0.2.38...v0.2.39) (2026-10-23)
+<!-- landmark:protected-release previous=v0.2.38 source=b869e702d3bd8d631448e40d50a2a545fc0b6e99f7d47605998108ad02eadd11 -->
+
+### Features
+
+* **accounts:** plain and pull hosts, reader-payload/pull-report, restore keepalive (#507) ([f02875d](https://github.com/misty-step/harness/commit/f02875d41cba9346e37ceb3346b0d18bab2c5e5b))
 # [0.2.38](https://github.com/misty-step/harness/compare/v0.2.37...v0.2.38) (2026-10-23)
 <!-- landmark:protected-release previous=v0.2.37 source=0de2faf54d7bb45a00e4c361e4613335651a602e642e0688775a0e9dc1c84c97 -->
 

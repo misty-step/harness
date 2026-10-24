@@ -5,6 +5,9 @@
   t3-accounts status        server x account table (read-only)
   t3-accounts sync          store this server's Claude tokens in its own T3; push Codex owner logins to readers
   t3-accounts watch         sync, check expiry and health, post to Home when something changes
+  t3-accounts keepalive [--force] [ACCOUNT]   refresh stale Codex OWNER logins with their own Codex CLI, then sync
+  t3-accounts reader-payload ACCOUNT   emit a reader snapshot for a pull host (contains access credentials)
+  t3-accounts pull-report HOST         record a pull host health report from stdin JSON
   t3-accounts room-watch    read live room and deliver exhaustion/recovery events
   t3-accounts claude-renew ACCOUNT   store a new `claude setup-token` in pass and in this server's T3
 
@@ -17,11 +20,16 @@ with refresh_token blanked on the owner host (atomic, mode 0600) and labels it "
 every home entry into its shadow homes and refuses non-symlinks there). A home with its own refresh token is a separate
 login on that server and is left alone. Warnings: a reader whose last_refresh lags its owner's by more
 than 2h after the push, or whose access token expires within 48h (also checked on owners).
-Config: ~/.config/t3-accounts/accounts.json. No secret is printed.
+Config: ~/.config/t3-accounts/accounts.json. Optional plain_hosts maps non-T3 hosts to {dest,
+codex: {account: home}}; these homes get owner->reader pushes and health from `codex login status`,
+never T3 status calls. A plain host with pull: true omits dest and fetches reader-payload itself,
+then sends pull-report JSON; watch flags reports older than 3h, unready logins and expiry within 48h.
+Only reader-payload prints access credentials; it refuses any snapshot with a nonblank refresh_token.
 """
 import datetime as dt
 import hashlib
 import json
+import os
 import pathlib
 import shlex
 import subprocess
@@ -120,6 +128,12 @@ HELPER_SRC = HOME / ".local/share/t3-login/t3-login-helper.mjs"
 HELPER = ".local/share/t3-login/t3-login-helper.mjs"
 REMOTE_ENV = 'export PATH="$HOME/.local/bin:$HOME/.bun/bin:/opt/homebrew/bin:$PATH"; cd ~;'
 HOSTS = CONFIG["hosts"]
+# Non-T3 hosts (e.g. an exe.dev VM; never hetzner-ci, which is build/CI only): fixed Codex homes, owner->reader push only, health from the Codex CLI itself.
+PLAIN = CONFIG.get("plain_hosts", {})
+BUILD_ONLY = {"hetzner-ci", "runner-box-hel1", "2.29.249.120"}  # build/CI only: no agent logins there
+for _name, _plain in PLAIN.items():
+    if {_name, str(_plain.get("dest", "")).split("@")[-1]} & BUILD_ONLY:
+        sys.exit(f"t3-accounts: plain host {_name} is build/CI only and never holds agent logins; remove it from plain_hosts")
 NOW = dt.datetime.now(dt.timezone.utc)
 CLAUDE_TOKEN_DAYS = 365      # `claude setup-token` lifetime
 CLAUDE_WARN_DAYS = 30
@@ -139,7 +153,7 @@ def run(host, script, stdin=None, timeout=60):
     A host that times out or refuses SSH is skipped for the rest of this run."""
     if host in DEAD:
         return 255, ""
-    dest = HOSTS[host]
+    dest = HOSTS[host] if host in HOSTS else PLAIN[host]["dest"]
     cmd = ["bash", "-c", REMOTE_ENV + script] if not dest else \
         ["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=10", "-o", "ServerAliveInterval=5", "-o", "ServerAliveCountMax=2",
          "-o", "LogLevel=ERROR", dest, REMOTE_ENV + script]
@@ -153,14 +167,15 @@ def run(host, script, stdin=None, timeout=60):
     return p.returncode, p.stdout
 
 
-def py(host, code, *args, stdin=None):
+def py(host, code, *args, stdin=None, timeout=60):
     """Run a Python snippet on a host with arguments; the snippet prints one JSON line."""
     script = "python3 -c " + shlex.quote(code) + " " + " ".join(shlex.quote(a) for a in args)
-    rc, out = run(host, script, stdin=stdin)
+    rc, out = run(host, script, stdin=stdin, timeout=timeout)
     try:
-        return json.loads(out.strip().splitlines()[-1])
+        result = json.loads(out.strip().splitlines()[-1])
     except Exception:
         return {"error": f"exit {rc}"}
+    return result if isinstance(result, dict) else {"error": f"exit {rc}: snippet printed no JSON object"}
 
 
 def sync_helpers():
@@ -174,7 +189,7 @@ def instance_for(entry, host):
 
 
 def t3_status(host, ids):
-    rc, out = run(host, f"bun {HELPER} status " + " ".join(ids))
+    rc, out = run(host, f"bun {HELPER} status " + " ".join(shlex.quote(i) for i in ids))
     result = {}
     for line in out.splitlines():
         if "\t" in line:
@@ -240,7 +255,7 @@ try:
     assert data["tokens"]["access_token"] and data["tokens"]["refresh_token"]==""
 except Exception:
     print(json.dumps({"result":"bad-payload"})); sys.exit()
-os.makedirs(home,exist_ok=True)
+os.makedirs(home,mode=0o700,exist_ok=True)
 if os.path.exists(p):
     if (json.load(open(p)).get("tokens") or {}).get("refresh_token"):
         print(json.dumps({"result":"own-login"})); sys.exit()
@@ -258,12 +273,7 @@ def parse_time(value):
     """Parse ISO times like 2026-10-21T14:38:09.415160669Z (nanoseconds allowed) as UTC."""
     if not value:
         return None
-    v = value.strip().replace("Z", "+00:00")
-    main, _, zone = v.partition("+")
-    if "." in main:
-        head, frac = main.split(".", 1)
-        main = head + "." + frac[:6]
-    t = dt.datetime.fromisoformat(main + ("+" + zone if zone else ""))
+    t = dt.datetime.fromisoformat(value.strip().replace("Z", "+00:00"))
     return t if t.tzinfo else t.replace(tzinfo=dt.timezone.utc)
 
 
@@ -290,14 +300,14 @@ def sync_claude(log, problems):
         want = sha(token)
         # This server's pass feeds only this server's T3; other servers use their own credentials.
         for host in [h for h, dest in HOSTS.items() if not dest]:
-            rc, out = run(host, f"bun {HELPER} envhash {entry['instance']} CLAUDE_CODE_OAUTH_TOKEN")
+            rc, out = run(host, f"bun {HELPER} envhash {shlex.quote(entry['instance'])} CLAUDE_CODE_OAUTH_TOKEN")
             have = out.strip()
             if rc != 0:
                 log.append(f"{host}: unreachable for {entry['instance']}")
                 continue
             if have == want:
                 continue
-            rc, out = run(host, f"bun {HELPER} setenv {entry['instance']} CLAUDE_CODE_OAUTH_TOKEN", stdin=token)
+            rc, out = run(host, f"bun {HELPER} setenv {shlex.quote(entry['instance'])} CLAUDE_CODE_OAUTH_TOKEN", stdin=token)
             outcome = out.strip().splitlines()[-1] if out.strip() else ""
             log.append(f"{host}: {entry['instance']} token from pass -> {outcome if outcome in ('stored', 'mismatch') else 'failed'}")
 
@@ -305,6 +315,11 @@ def sync_claude(log, problems):
 def owner_of(entry):
     host, home = entry["owner"].split(":", 1)
     return host, home
+
+
+def codex_retired(entry, host):
+    owner_host, _ = owner_of(entry)
+    return any(instance_for(entry, h) in CONFIG["retired"] for h in (owner_host, host))
 
 
 def is_owner_home(entry, host, home):
@@ -354,6 +369,24 @@ def sync_codex(log, problems, statuses, owners):
                 payload = json.dumps(snap)
             res = py(host, CODEX_WRITE_READER, home, label, stdin=payload)
             log.append(f"{host}: Codex {entry['account']} reader {inst} ({home}) <- {owner_host} -> {res.get('result')}")
+        for host, cfg in PLAIN.items():
+            home = cfg.get("codex", {}).get(entry["account"])
+            if not home or host in DEAD or cfg.get("pull") or codex_retired(entry, host):
+                continue
+            here = py(host, CODEX_INFO, home)
+            if not here or host in DEAD or here.get("error") or here.get("has_refresh"):
+                continue  # unreachable, or this host's own separate login
+            if here.get("access_sha") == info.get("access_sha") and here.get("last_refresh") == info.get("last_refresh") and here.get("reader"):
+                continue
+            if payload is None:
+                snap = py(owner_host, CODEX_READER_PAYLOAD, owner_home)
+                tokens = (snap.get("payload") or {}).get("tokens") or {}
+                if not tokens.get("access_token") or tokens.get("refresh_token") != "":
+                    log.append(f"{owner_host}: Codex {entry['account']} owner snapshot unusable; readers not updated this run")
+                    continue
+                payload = json.dumps(snap)
+            res = py(host, CODEX_WRITE_READER, home, label, stdin=payload)
+            log.append(f"{host}: Codex {entry['account']} reader (plain host, {home}) <- {owner_host} -> {res.get('result')}")
 
 
 # --- checks ---
@@ -402,6 +435,7 @@ def check(statuses, problems, state, owners, table):
                 hours = (parse_time(info["access_exp"]) - NOW).total_seconds() / 3600
                 if hours < READER_EXPIRY_HOURS:
                     problems.append((f"codex-reader-expiry:{host}:{inst}", f"Codex {entry['account']} reader on {host} ({inst}): access token expires in {hours:.0f}h ({info['access_exp'][:16]}Z). The owner {entry['owner']} must refresh (use its Codex CLI).", "high"))
+    check_plain(problems, owners, table)
     tracked = {e["instance"]: e for e in CONFIG["claude"]}
     tracked.update({instance_for(e, h): e for e in CONFIG["codex"] for h in HOSTS})
     was_ready = set(state.get("ready", []))
@@ -419,6 +453,168 @@ def check(statuses, problems, state, owners, table):
                 keep = entry["keep"] if entry else False
                 problems.append((f"health:{key}", f"{host} · {inst}: {st.get('message') or st.get('auth')}", "high" if keep else "low"))
     state["ready"] = sorted(now_ready | {k for k in was_ready if k.split(':', 1)[0] not in statuses})
+
+
+def plain_codex_status(host, home):
+    """Health of a Codex home on a non-T3 host, straight from the Codex CLI."""
+    if home == "~":
+        quoted_home = '"$HOME"'
+    elif home.startswith("~/"):
+        quoted_home = '"$HOME"/' + shlex.quote(home[2:])
+    else:
+        quoted_home = shlex.quote(home)
+    rc, out = run(host, f"set -o pipefail; CODEX_HOME={quoted_home} timeout 30 codex login status 2>&1 | tail -1")
+    if rc == 255 or host in DEAD:
+        return "unreachable"
+    if rc == 124:
+        return "timeout"
+    return "ready" if "Logged in" in out else "unauthenticated"
+
+
+PULL_DIR = HOME / ".local/state/t3-accounts/pull"
+PULL_STALE_HOURS = 3
+
+
+def pull_report_path(host):
+    if host not in PLAIN or PLAIN[host].get("pull") is not True or pathlib.Path(host).name != host:
+        raise ValueError("invalid pull host")
+    path = PULL_DIR / f"{host}.json"
+    if path.resolve().parent != PULL_DIR.resolve():
+        raise ValueError("invalid pull report path")
+    return path
+
+
+def validate_pull_report(host, rep):
+    if not isinstance(rep, dict) or not isinstance(rep.get("accounts"), dict):
+        raise ValueError("invalid pull report accounts")
+    configured = set(PLAIN[host].get("codex", {})) & {e["account"] for e in CONFIG["codex"]}
+    for account, row in rep["accounts"].items():
+        if account not in configured or not isinstance(row, dict):
+            raise ValueError("invalid pull report account")
+        if row.get("live") not in ("ready", "unauthenticated", "missing") or type(row.get("has_refresh")) is not bool:
+            raise ValueError("invalid pull report health")
+        for field in ("access_exp", "last_refresh"):
+            value = row.get(field)
+            if value is not None and (not isinstance(value, str) or not value.strip() or parse_time(value) is None):
+                raise ValueError("invalid pull report timestamp")
+
+
+def read_pull_report(host):
+    try:
+        path = pull_report_path(host)
+        rep = json.loads(path.read_text())
+        validate_pull_report(host, rep)
+        if not isinstance(rep.get("at"), str) or parse_time(rep["at"]) is None:
+            raise ValueError("invalid receipt time")
+        return rep, None
+    except FileNotFoundError:
+        return {}, None
+    except (OSError, ValueError, TypeError):
+        return {}, "invalid or unreadable report"
+
+
+def check_pull(host, cfg, problems, owners, table):
+    """Pull hosts (no inbound SSH, e.g. the grok box) report via `t3-accounts pull-report`; read that here."""
+    rep, error = read_pull_report(host)
+    age = (NOW - parse_time(rep["at"])).total_seconds() / 3600 if rep.get("at") else None
+    for entry in CONFIG["codex"]:
+        home = cfg.get("codex", {}).get(entry["account"])
+        if not home or codex_retired(entry, host):
+            continue
+        key = f"codex-plain:{host}:{entry['account']}"
+        sev = "high" if entry["keep"] else "low"
+        r = (rep.get("accounts") or {}).get(entry["account"])
+        if error:
+            problems.append((key, f"Codex {entry['account']} on {host} (pull host): {error}; run its t3-reader-pull.", sev))
+            continue
+        if age is None or age > PULL_STALE_HOURS:
+            problems.append((key, f"Codex {entry['account']} on {host} (pull host): no fresh report ({'never' if age is None else f'{age:.1f}h old'}); run its t3-reader-pull.", sev))
+            continue
+        if not r:
+            problems.append((key, f"Codex {entry['account']} on {host} (pull host): account not present in report; run its t3-reader-pull.", sev))
+            continue
+        if r.get("live") != "ready":
+            problems.append((key, f"Codex {entry['account']} on {host} (pull host): codex login status says {r.get('live')}.", sev))
+        role = "own login" if r["has_refresh"] else "reader"
+        table.append((entry["account"], host, "-", home, role, r.get("last_refresh"), r.get("access_exp"), False))
+        if role != "reader":
+            continue
+        if r.get("access_exp") and (parse_time(r["access_exp"]) - NOW).total_seconds() / 3600 < READER_EXPIRY_HOURS:
+            problems.append((f"codex-reader-expiry:{host}:{entry['account']}", f"Codex {entry['account']} reader on {host}: access token expires soon. The owner {entry['owner']} must refresh.", "high"))
+        elif r.get("live") == "ready" and not r.get("access_exp"):
+            problems.append((f"codex-reader-expiry:{host}:{entry['account']}", f"Codex {entry['account']} reader on {host}: access token expiry is unknown.", "low"))
+
+
+def cmd_reader_payload(account):
+    """Print the owner's auth.json with refresh_token blanked (for pull hosts). Never prints a refresh token."""
+    entry = next((e for e in CONFIG["codex"] if e["account"] == account), None)
+    if entry is None:
+        sys.exit(f"Unknown Codex account {account}")
+    owner_host, owner_home = owner_of(entry)
+    if codex_retired(entry, owner_host):
+        sys.exit(f"Codex account {account} is retired")
+    snap = py(owner_host, CODEX_READER_PAYLOAD, owner_home)
+    tokens = (snap.get("payload") or {}).get("tokens") or {}
+    if not tokens.get("access_token") or tokens.get("refresh_token") != "":
+        sys.exit("owner snapshot unusable")
+    snap["label"] = reader_label(owner_host, py(owner_host, CODEX_INFO, owner_home))
+    print(json.dumps(snap))
+
+
+def cmd_pull_report(host):
+    try:
+        path = pull_report_path(host)
+        rep = json.loads(sys.stdin.read())
+        validate_pull_report(host, rep)
+    except (OSError, ValueError, TypeError):
+        sys.exit("t3-accounts: invalid pull host or report; nothing stored")
+    rep["at"] = NOW.isoformat()
+    PULL_DIR.mkdir(mode=0o700, parents=True, exist_ok=True)
+    fd, temporary = tempfile.mkstemp(dir=PULL_DIR)
+    try:
+        with os.fdopen(fd, "w") as stream:
+            json.dump(rep, stream, indent=1)
+        os.replace(temporary, path)
+    finally:
+        if os.path.exists(temporary):
+            os.unlink(temporary)
+    print("recorded")
+
+
+def check_plain(problems, owners, table):
+    for host, cfg in PLAIN.items():
+        if cfg.get("pull"):
+            check_pull(host, cfg, problems, owners, table)
+            continue
+        for entry in CONFIG["codex"]:
+            home = cfg.get("codex", {}).get(entry["account"])
+            if not home or codex_retired(entry, host):
+                continue
+            sev = "high" if entry["keep"] else "low"
+            key = f"codex-plain:{host}:{entry['account']}"
+            info = py(host, CODEX_INFO, home)
+            if host in DEAD or info.get("error"):
+                problems.append((key, f"Codex {entry['account']} on {host} (plain host): unreachable.", sev))
+                continue
+            if not info.get("present"):
+                problems.append((key, f"Codex {entry['account']} on {host} (plain host): no auth.json in {home}.", sev))
+                continue
+            live = plain_codex_status(host, home)
+            if live != "ready":
+                problems.append((key, f"Codex {entry['account']} on {host} (plain host): codex login status says {live}.", sev))
+            role = "own login" if info.get("has_refresh") else "reader"
+            table.append((entry["account"], host, "-", home, role, info.get("last_refresh"), info.get("access_exp"), False))
+            if role != "reader":
+                continue
+            owner = owners.get(entry["account"])
+            if owner and owner.get("last_refresh") and info.get("last_refresh"):
+                lag = (parse_time(owner["last_refresh"]) - parse_time(info["last_refresh"])).total_seconds() / 3600
+                if lag > READER_LAG_HOURS:
+                    problems.append((f"codex-reader-lag:{host}:{entry['account']}", f"Codex {entry['account']} reader on {host} lags its owner {owner['host']} by {lag:.1f}h after the push.", "high"))
+            if info.get("access_exp"):
+                hours = (parse_time(info["access_exp"]) - NOW).total_seconds() / 3600
+                if hours < READER_EXPIRY_HOURS:
+                    problems.append((f"codex-reader-expiry:{host}:{entry['account']}", f"Codex {entry['account']} reader on {host}: access token expires in {hours:.0f}h. The owner {entry['owner']} must refresh (use its Codex CLI).", "high"))
 
 
 def all_statuses():
@@ -510,6 +706,21 @@ def cmd_status():
             st = statuses.get(h, {}).get(insts[h])
             cells.append("unreachable" if h not in statuses else "ready" if ready(st) else (st or {}).get("auth", "missing"))
         print(f"{label:34}" + "".join(f"{c:20}" for c in cells))
+    for h, cfg in PLAIN.items():
+        if cfg.get("pull"):
+            rep, error = read_pull_report(h)
+            print(f"\n{h} (pull host; last report {rep.get('at', 'never')[:16]}Z)" + (f"; {error}" if error else ""))
+            for a, r in (rep.get("accounts") or {}).items():
+                entry = next(e for e in CONFIG["codex"] if e["account"] == a)
+                if codex_retired(entry, h):
+                    continue
+                print(f"{'Codex ' + a:34}{r.get('live', '?'):20}{cfg['codex'].get(a, '')}")
+            continue
+        print(f"\n{h} (plain host, no T3; status from codex login status)")
+        for e in CONFIG["codex"]:
+            home = cfg.get("codex", {}).get(e["account"])
+            if home and not codex_retired(e, h):
+                print(f"{'Codex ' + e['account']:34}{plain_codex_status(h, home):20}{home}")
 
 
 def cmd_claude_renew(account):
@@ -541,6 +752,83 @@ def cmd_claude_renew(account):
     cmd_sync()
 
 
+# Owner keepalive: the owner's own Codex CLI refreshes itself via the documented app-server call
+# getAuthStatus(refreshToken=true). `codex exec` alone does not refresh a token younger than ~8 days.
+CODEX_KEEPALIVE = r"""
+import json,os,sys,subprocess,select,time,datetime as dt
+home=os.path.expanduser(sys.argv[1]); force=sys.argv[2]=="1"; min_days=float(sys.argv[3])
+p=os.path.join(home,"auth.json")
+def lr():
+    try: return json.load(open(p)).get("last_refresh")
+    except Exception: return None
+def has_rt():
+    try: return bool((json.load(open(p)).get("tokens") or {}).get("refresh_token"))
+    except Exception: return False
+before=lr()
+if not has_rt(): print(json.dumps({"result":"not-owner","before":before})); sys.exit()
+try: age=(dt.datetime.now(dt.timezone.utc)-dt.datetime.fromisoformat(before.replace("Z","+00:00")[:26]+"+00:00" if "." in before else before.replace("Z","+00:00"))).total_seconds()/86400
+except Exception: age=999
+if age<min_days and not force: print(json.dumps({"result":"fresh","before":before,"age_days":round(age,2)})); sys.exit()
+codex=os.path.expanduser("~/.local/bin/codex")
+if not os.path.exists(codex): codex="codex"
+pr=subprocess.Popen([codex,"app-server"],stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.DEVNULL,env=dict(os.environ,CODEX_HOME=home),text=True,cwd=os.path.expanduser("~"))
+def send(m): pr.stdin.write(json.dumps(m)+"\n"); pr.stdin.flush()
+def wait(i,t=90):
+    end=time.time()+t
+    while time.time()<end:
+        r,_,_=select.select([pr.stdout],[],[],1)
+        if r:
+            l=pr.stdout.readline()
+            if not l: return None
+            try: m=json.loads(l)
+            except Exception: continue
+            if m.get("id")==i: return m
+    return None
+err=None
+send({"jsonrpc":"2.0","id":1,"method":"initialize","params":{"clientInfo":{"name":"t3-accounts-keepalive","version":"1"}}})
+r=wait(1)
+if not r or "error" in r: err="app-server initialize failed"
+else:
+    send({"jsonrpc":"2.0","method":"initialized"})
+    send({"jsonrpc":"2.0","id":2,"method":"getAuthStatus","params":{"includeToken":False,"refreshToken":True}})
+    r=wait(2)
+    if not r or "error" in r: err="getAuthStatus failed"
+    time.sleep(1)
+pr.kill()
+after=lr()
+print(json.dumps({"result":"refreshed" if after and after!=before else "FAILED","before":before,"after":after,"age_days":round(age,2),"error":err}))
+"""
+
+
+def cmd_keepalive(force=False, only=None, min_days=3.0):
+    """Refresh each Codex OWNER login (never readers) whose last_refresh is older than min_days, then sync."""
+    failures = []
+    for entry in CONFIG["codex"]:
+        if only and only not in (entry["account"],):
+            continue
+        host, home = owner_of(entry)
+        if instance_for(entry, host) in CONFIG["retired"]:
+            continue
+        before = py(host, CODEX_INFO, home)
+        res = py(host, CODEX_KEEPALIVE, home, "1" if force else "0", str(min_days), timeout=210)
+        after = py(host, CODEX_INFO, home)
+        print(f"keepalive codex {entry['account']:24} {host}:{home}  {res.get('result', res.get('error'))}  "
+              f"last_refresh {(before.get('last_refresh') or '-')[:19]} -> {(after.get('last_refresh') or '-')[:19]}  "
+              f"expires {(before.get('access_exp') or '-')[:16]} -> {(after.get('access_exp') or '-')[:16]}")
+        if res.get("result") not in ("refreshed", "fresh"):
+            failures.append(f"Codex {entry['account']} owner {host}:{home} keepalive {res.get('result') or res.get('error')}")
+    cmd_sync()
+    if failures:
+        msg = "**Accounts keepalive FAILED:**\n" + "\n".join(f"- {f}" for f in failures) + "\n"
+        print(msg, file=sys.stderr)
+        try:
+            post_home(msg)
+        except Exception as e:
+            print(f"post_home failed: {e}", file=sys.stderr)
+        return 1
+    return 0
+
+
 if __name__ == "__main__":
     args = sys.argv[1:]
     if not args or args[0] in ("-h", "--help"):
@@ -551,6 +839,13 @@ if __name__ == "__main__":
         cmd_sync()
     elif args[0] == "watch":
         sys.exit(cmd_watch(post="--no-post" not in args))
+    elif args[0] == "keepalive":
+        rest = [a for a in args[1:] if not a.startswith("--")]
+        sys.exit(cmd_keepalive(force="--force" in args, only=rest[0] if rest else None))
+    elif args[0] == "reader-payload" and len(args) == 2:
+        cmd_reader_payload(args[1])
+    elif args[0] == "pull-report" and len(args) == 2:
+        cmd_pull_report(args[1])
     elif args[0] == "claude-renew" and len(args) == 2:
         cmd_claude_renew(args[1])
     else:

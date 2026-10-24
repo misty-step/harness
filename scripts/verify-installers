@@ -51,6 +51,12 @@ for consumer in pi omp; do
   printf 'retired nudge\n' > "$agent/extensions/continuation-nudge/index.ts"
   mkdir -p "$agent/extensions/loc"
   printf 'old owned LOC warming hook\n' > "$agent/extensions/loc/git-hook.sh"
+  if [ "$consumer" = pi ]; then
+    mkdir -p "$agent/extensions/accounts" "$agent/extensions/failover"
+    printf 'retired pool package\n' > "$agent/extensions/accounts/index.ts"
+    printf 'retired chain package\n' > "$agent/extensions/failover/index.ts"
+    printf '{"openai":{"lastUsed":1}}\n' > "$agent/account-pool.json"
+  fi
   # Claude Code settings carry foreign keys the audio sandbox must preserve.
   mkdir -p "$home/.claude"
   printf '{"env":{"OTEL_LOGS_EXPORTER":"otlp"},"hooks":{"SessionStart":[]}}\n' > "$home/.claude/settings.json"
@@ -148,8 +154,13 @@ for consumer in pi omp; do
     done
   fi
   check "$consumer foreign skill" cmp -s "$work/expected-skill" "$agent/skills/foreign/SKILL.md"
+  check "$consumer security-audit skill" test -f "$agent/skills/security-audit/SKILL.md"
   if [ "$consumer" = pi ]; then
     check "pi retires installed LOC warming hook" test ! -e "$agent/extensions/loc/git-hook.sh"
+    check "pi retires account pools" test ! -e "$agent/extensions/accounts"
+    check "pi retires failover chain" test ! -e "$agent/extensions/failover"
+    check "pi removes pool state" test ! -e "$agent/account-pool.json"
+    check "pi default model" jq -e '.defaultProvider == "openrouter" and .defaultModel == "deepseek/deepseek-v4.1-flash-1017" and .defaultThinkingLevel == "max"' "$agent/settings.json"
     # US-028: Pi replaces only its OpenRouter mapping, retaining foreign auth.
     check "pi OpenRouter auth mapping and foreign credential" \
       jq -e '.synthetic == "auth sentinel" and .anthropic == {type:"api_key",key:"synthetic-foreign"} and .openrouter == {type:"api_key",key:"!openrouter-key --personal workstation/OPENROUTER_MISTY_STEP_HARNESS_WORKSTATION_RECOVERY_API_KEY"}' "$agent/auth.json"
@@ -263,6 +274,61 @@ for consumer in pi omp; do
     check "omp inheritance tests retired" test ! -e "$agent/extensions/subagent-inheritance/index.test.ts"
     check "omp model validator retired" test ! -e "$agent/bin/omp-model-policy.ts"
     check "omp foreign routing sibling preserved" cmp -s "$work/expected-routing-sibling" "$agent/extensions/subagent-inheritance/foreign.ts"
+  fi
+
+  if [ "$consumer" = pi ]; then
+    # Partial deployments keep settings and packages paired: a shared-only
+    # install must not retire the route it does not migrate, and config-only
+    # must not migrate the default while leaving pool providers installed.
+    seed_pool_route() {
+      mkdir -p "$agent/extensions/accounts" "$agent/extensions/failover"
+      printf 'pool\n' > "$agent/extensions/accounts/index.ts"
+      printf 'chain\n' > "$agent/extensions/failover/index.ts"
+      printf '{"openai":{}}\n' > "$agent/account-pool.json"
+      jq '.defaultProvider = "openai-pool" | .defaultModel = "gpt-6.1-sol" | .modelThinkingLevels = {"openai-pool/gpt-6.1-sol":"xhigh","foreign/m":"high"}' \
+        "$agent/settings.json" > "$work/pi-pool-settings" && mv "$work/pi-pool-settings" "$agent/settings.json"
+    }
+    seed_pool_route
+    if env -i PATH="$PATH" HOME="$home" TMPDIR="$work" PI_CODING_AGENT_DIR="$agent" PI_CONFIG_COMPONENTS=guidance \
+      "$work/source/pi-config/install" >"$work/pi-guidance-only.log" 2>&1; then
+      check "pi guidance-only keeps pool extension" test -f "$agent/extensions/accounts/index.ts"
+      check "pi guidance-only keeps failover" test -f "$agent/extensions/failover/index.ts"
+      check "pi guidance-only keeps pool state" test -f "$agent/account-pool.json"
+      check "pi guidance-only keeps configured route" jq -e '.defaultProvider == "openai-pool" and .defaultModel == "gpt-6.1-sol"' "$agent/settings.json"
+    else
+      printf 'FAIL pi guidance-only installer exit\n' >&2
+      cat "$work/pi-guidance-only.log" >&2
+      failures=$((failures + 1))
+    fi
+    if env -i PATH="$PATH" HOME="$home" TMPDIR="$work" PI_CODING_AGENT_DIR="$agent" PI_CONFIG_COMPONENTS=config \
+      "$work/source/pi-config/install" >"$work/pi-config-only.log" 2>&1; then
+      check "pi config-only retires account pools" test ! -e "$agent/extensions/accounts"
+      check "pi config-only retires failover" test ! -e "$agent/extensions/failover"
+      check "pi config-only removes pool state" test ! -e "$agent/account-pool.json"
+      check "pi config-only migrates default and foreign pin" \
+        jq -e '.defaultProvider == "openrouter" and .defaultModel == "deepseek/deepseek-v4.1-flash-1017" and .modelThinkingLevels["foreign/m"] == "high" and (.modelThinkingLevels | has("openai-pool/gpt-6.1-sol") | not)' "$agent/settings.json"
+    else
+      printf 'FAIL pi config-only installer exit\n' >&2
+      cat "$work/pi-config-only.log" >&2
+      failures=$((failures + 1))
+    fi
+    # A machine-local pooled default would keep a provider the migration removes;
+    # preflight must refuse it before any read or write of the installed route.
+    seed_pool_route
+    mkdir -p "$home/.config/harness"
+    printf '{"defaultProvider":"openai-pool","defaultModel":"gpt-6.1-sol"}\n' > "$home/.config/harness/pi.json"
+    cp "$agent/settings.json" "$work/pi-local-default-before"
+    if env -i PATH="$PATH" HOME="$home" TMPDIR="$work" PI_CODING_AGENT_DIR="$agent" PI_CONFIG_COMPONENTS=config \
+      "$work/source/pi-config/install" >"$work/pi-local-default.log" 2>&1; then
+      printf 'FAIL pi refuses a retired local default (install succeeded)\n' >&2
+      failures=$((failures + 1))
+    else
+      check "pi refuses a retired local default" grep -q 'Refusing retired pooled default provider' "$work/pi-local-default.log"
+      check "pi keeps the route after a refused local default" test -f "$agent/extensions/accounts/index.ts"
+      check "pi keeps settings after a refused local default" cmp -s "$work/pi-local-default-before" "$agent/settings.json"
+    fi
+    rm -rf "$home/.config/harness" "$agent/extensions/accounts" "$agent/extensions/failover"
+    rm -f "$agent/account-pool.json"
   fi
 done
 # Claude Code: selected skills land beside foreign and CLI-linked skills, and
