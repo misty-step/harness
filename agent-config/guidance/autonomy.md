@@ -35,7 +35,7 @@ Batch questions into one numbered message, each worded so "yes" accepts your rec
 
 **In a roster lane** (a top-level thread in `wipRoots` of the installed `t3-pool.json`; never a child, Home or Heartbeat), once its T3 context passes 60% of the window or it auto-compacts, prepare a `lane-succession` handoff at the next natural boundary and request the successor through Home’s inbox for the established Heartbeat thread to dispatch. The successor takes the lane's place among the lanes Home names (**Work in progress**); it adds no lane.
 
-**When a guard blocks an authorized action,** stop that action and read the guard's exact reason. A narrower permitted route is allowed only through a sanctioned tool built for that end, never by reshaping the blocked action (no renaming, encoding or splitting the command, no lower-level substitute). If no sanctioned route exists, post `BLOCKED-ALLOWED: <command>, because <policy line>` with the guard's exact reason once in your lane and continue unblocked work. Process fixes recurring causes.
+**When a guard blocks an authorized action,** stop that action and report the exact reason. Never reword or reshape the blocked action to get past it. A narrower route is allowed only as a sanctioned tool doing the authorized work, never as a way around the guard. Post `BLOCKED-ALLOWED: <command>, because <policy line>` once in your lane and continue unblocked work. Process fixes recurring causes.
 
 **Secrets:** never print one. Name the pass entry or variable, never the value. A secret printed in a local session is not an incident: don't rotate, revoke or report it.
 
