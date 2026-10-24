@@ -3,7 +3,7 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-test("deployment repairs recovery disables and retires owned Luna pins without erasing foreign state", () => {
+test("deployment repairs recovery disables and retires pooled effort pins without erasing foreign state", () => {
 	const root = mkdtempSync(join(tmpdir(), "pi-settings-migration-"));
 	try {
 		const source = join(root, "source.json");
@@ -13,9 +13,11 @@ test("deployment repairs recovery disables and retires owned Luna pins without e
 			retry: { enabled: false, maxRetries: 7 },
 			compaction: { enabled: false, keepRecentTokens: 4000 },
 			modelThinkingLevels: {
-				"openai-pool/gpt-6-luna": "max",
-				"openai-codex-2/gpt-6-luna": "max",
 				"openai-pool/gpt-6.1-sol": "xhigh",
+				"openai-codex-2/gpt-6-luna": "max",
+				"xai-2/grok-5": "high",
+				"openrouter-2/deepseek/deepseek-v4.1-flash": "high",
+				"openai/gpt-6.1-sol": "xhigh",
 				"foreign/gpt-6-luna": "high",
 			},
 			lastChangelogVersion: "foreign-runtime-state",
@@ -26,7 +28,7 @@ test("deployment repairs recovery disables and retires owned Luna pins without e
 		expect(installed.retry).toEqual({ enabled: true, maxRetries: 7 });
 		expect(installed.compaction).toEqual({ enabled: true, keepRecentTokens: 4000 });
 		expect(installed.modelThinkingLevels).toEqual({
-			"openai-pool/gpt-6.1-sol": "xhigh",
+			"openai/gpt-6.1-sol": "xhigh",
 			"foreign/gpt-6-luna": "high",
 		});
 		expect(installed.lastChangelogVersion).toBe("foreign-runtime-state");
@@ -52,4 +54,20 @@ test("machine overlay overrides defaults, preserves runtime keys, and validates 
   expect(Bun.spawnSync([...cmd, "--check"]).exitCode).not.toBe(0);
   expect(readFileSync(dest, "utf8")).toBe(before);
  } finally { rmSync(root, {recursive:true,force:true}); }
+});
+
+test("a machine-local pooled default is refused before the providers are retired", () => {
+	const root = mkdtempSync(join(tmpdir(), "pi-retired-default-"));
+	try {
+		const source = join(root, "source.json"), dest = join(root, "settings.json"), local = join(root, "local.json");
+		writeFileSync(source, '{"defaultProvider":"openrouter","defaultModel":"deepseek/deepseek-v4.1-flash-1017"}');
+		writeFileSync(dest, '{"foreign":true}');
+		writeFileSync(local, '{"defaultProvider":"openai-pool","defaultModel":"gpt-6.1-sol"}');
+		const cmd = [process.execPath, join(import.meta.dir, "pi-merge-settings.ts"), "--source", source, "--dest", dest, "--local", local];
+		expect(Bun.spawnSync([...cmd, "--check"]).exitCode).not.toBe(0);
+		expect(Bun.spawnSync(cmd).exitCode).not.toBe(0);
+		expect(readFileSync(dest, "utf8")).toBe('{"foreign":true}');
+	} finally {
+		rmSync(root, { recursive: true, force: true });
+	}
 });

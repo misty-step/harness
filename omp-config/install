@@ -124,7 +124,7 @@ install_mcp() {
 
 
 
-engineering_skills='agent-design authenticated-commands cloudflare-workers design-studio engineering-operations pokayoke remote-execution story-qa system-one test-audit typesafe-ai user-stories visual-state-review'
+engineering_skills='agent-design authenticated-commands cloudflare-workers design-studio engineering-operations pokayoke remote-execution security-audit story-qa system-one test-audit typesafe-ai user-stories visual-state-review'
 validate_skill() {
   case "${1-}" in
     ''|*[!a-zA-Z0-9_-]*)
