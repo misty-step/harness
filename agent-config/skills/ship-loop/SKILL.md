@@ -37,14 +37,7 @@ A ticket with one open blocker PR **stacks** on it: its branch starts from that 
 
 Classify each atomic PR using the [rigor table](roles.md#rigor), with its recorded reason and size; an initiative’s broad risk does not impose a floor on unrelated small slices.
 Every authored change gets review and verification, including documents, briefs and measurements.
-Use the tier's models for builders, QA, review and judges until Upkeep routing ships.
-Upkeep owns model choice; ship-loop owns review shape and rigor.
-Upkeep's route command does not exist yet ([Upkeep #75](https://github.com/misty-step/upkeep/issues/75)); when it ships, ask Upkeep:
-
-- `upkeep route --kind <review|build|…> --difficulty <routine|hard|critical> --json`, optionally `--task "..."`, `--exclude-vendor <vendor>` and `--urgent`. Map light to routine, standard to hard, critical to critical. QA, review and judge all use `--kind review`; builders use `--kind build`.
-- Try `choices` in order: pick first, then fallbacks. Empty `choices` means no room: wait until `no_room.next_room_at`, or use the rigor table if it is null.
-- Map `choice.instance` to `target.providerInstanceId` and `choice.model` to `target.model`. Pass `choice.reasoning` in `target.options` as `{"id":"reasoningEffort","value":"<low|medium|high|xhigh>"}` for Sol or `{"id":"effort","value":"<low|medium|high|xhigh>"}` for Claude. Always pass effort explicitly, including table routes.
-- Standard speed sets Codex `target.options.serviceTier: "default"` or Claude `target.options.fastMode: false`. Fast speed requires `--urgent`.
+Use the tier's models for builders, QA, review and judges.
 
 Dispatch roles with `delegate_task` and completed [role briefs](roles.md). Confirm routed providers/models against `orchestrator_capabilities`. Take an available account in the tier’s model class instead of waiting for an ideal route. Use one QA owner per SHA; extra cross-family QA needs a stated critical uncertainty. Carry the original goal, findings and resolutions into fix briefs; reuse working context where supported. When replacing a delegated child with a retry, `task_cancel` the old task first: usage-limited threads auto-resume and could act on superseded instructions.
 
