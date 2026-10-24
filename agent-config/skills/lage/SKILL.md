@@ -60,7 +60,7 @@ A side effect is a pushed commit, opened or merged PR, deploy, published ticket 
 
 Read tails with `afterPosition` near `itemCount - 12` and `maxCharsPerItem` around 3000.
 Recover truncated asks or reports with `itemId` and `textOffset`; read older history only to
-resolve missing context. Mark unavailable facts `unknown: <why>`. Report an account's room only from a live reading, with its source and age; an `out` claim needs a reading under 15 minutes old, and with no reading the account is `unknown: no live reading`, never zero.
+resolve missing context. Mark unavailable facts `unknown: <why>`. Report an account's room only from a live `upkeep room` reading, with its source and age; an `out` claim needs a reading under 15 minutes old, and with no reading the account is `unknown: no live reading`, never zero.
 
 Read the coordinator's open-loops file (Home's is `~/home/NOW.md`). An ask it already answers is
 a dropped relay, not a principal decision. Finish with every lane covered and PR states verified.

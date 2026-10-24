@@ -21,6 +21,7 @@ t3-agent --server <catalog-id> call t3_thread_list '{"projectId":"<returned ID>"
 
 The catalog owns server URLs. Live tool schemas and `orchestrator_capabilities`
 own provider IDs, models, options and modes; discover them on the target server.
+Read usage through the installed Upkeep interface (`upkeep room` when available).
 An outside agent's own usage allowance is separate from T3's subscriptions.
 
 For authorized independent work, use `t3_thread_launch` with a project,
