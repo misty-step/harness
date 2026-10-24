@@ -107,6 +107,14 @@ at `65a39f393687675ce170e6094757de20370365b9`. Refresh by replacing the whole
 directory, keeping its licence, updating this pin and reviewing the thin
 `system-one` companion, which owns only fleet OpenRouter wiring.
 
+## Cloudflare security-audit skill
+
+`skills/security-audit/` is the unmodified MIT package from
+[`cloudflare/security-audit-skill`](https://github.com/cloudflare/security-audit-skill/tree/c1c8a8c14710/skills/security-audit)
+at commit `c1c8a8c14710`. Refresh by replacing the whole
+directory, keeping its licence, updating this pin, and rerunning the package's
+validator tests.
+
 ## Verification
 
 ```sh

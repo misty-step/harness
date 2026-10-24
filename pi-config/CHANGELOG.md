@@ -2,6 +2,11 @@
 
 ### Changed
 
+* Default every fresh session to OpenRouter `deepseek/deepseek-v4.1-flash-1017`
+  at max.
+* Retire the failover chain and the accounts/pool extensions. Stock Pi owns
+  retry and compaction; deployment removes retired pooled effort pins while
+  preserving foreign providers.
 * Default to Sol xhigh and recover through Astra xhigh on Pi-native Codex pools;
   use explicit Sol low for lightweight work instead of Luna or SuperGrok.
 * Enable source-owned retry and automatic compaction so deployment repairs live
