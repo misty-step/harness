@@ -68,6 +68,14 @@ if (values.local) {
 	}
 }
 
+// Pooled and slot providers are retired. A local override must not keep one as
+// the default while deployment removes its providers; fail before any write.
+const retiredProvider = /^(openai-pool|openai-[2-4]|openai-codex-[2-4]|xai-pool|xai-2|openrouter-pool|openrouter-2)$/;
+const defaultProvider = source.defaultProvider;
+if (typeof defaultProvider === "string" && retiredProvider.test(defaultProvider)) {
+	throw new Error(`Refusing retired pooled default provider: ${defaultProvider}. Set defaultProvider to openrouter in the machine-local overlay.`);
+}
+
 let live: { [key: string]: Json } | null = null;
 try {
 	const destStat = await lstat(destPath);
@@ -84,9 +92,8 @@ if (values.check) process.exit(0);
 
 await mkdir(dirname(destPath), { recursive: true, mode: 0o700 });
 const merged = overlay(source, live ?? {});
-// Pooled and slot providers are retired. Do not keep their effort pins alive
-// through the otherwise-preserving merge, or touch foreign providers.
-const retiredProvider = /^(openai-pool|openai-[2-4]|openai-codex-[2-4]|xai-pool|xai-2|openrouter-pool|openrouter-2)$/;
+// Do not keep retired providers' effort pins alive through the
+// otherwise-preserving merge, or touch foreign providers.
 if (isMapping(merged) && isMapping(merged.modelThinkingLevels)) {
 	for (const key of Object.keys(merged.modelThinkingLevels)) {
 		const slash = key.indexOf("/");

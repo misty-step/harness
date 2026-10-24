@@ -305,6 +305,23 @@ for consumer in pi omp; do
       cat "$work/pi-config-only.log" >&2
       failures=$((failures + 1))
     fi
+    # A machine-local pooled default would keep a provider the migration removes;
+    # preflight must refuse it before any read or write of the installed route.
+    seed_pool_route
+    mkdir -p "$home/.config/harness"
+    printf '{"defaultProvider":"openai-pool","defaultModel":"gpt-6.1-sol"}\n' > "$home/.config/harness/pi.json"
+    cp "$agent/settings.json" "$work/pi-local-default-before"
+    if env -i PATH="$PATH" HOME="$home" TMPDIR="$work" PI_CODING_AGENT_DIR="$agent" PI_CONFIG_COMPONENTS=config \
+      "$work/source/pi-config/install" >"$work/pi-local-default.log" 2>&1; then
+      printf 'FAIL pi refuses a retired local default (install succeeded)\n' >&2
+      failures=$((failures + 1))
+    else
+      check "pi refuses a retired local default" grep -q 'Refusing retired pooled default provider' "$work/pi-local-default.log"
+      check "pi keeps the route after a refused local default" test -f "$agent/extensions/accounts/index.ts"
+      check "pi keeps settings after a refused local default" cmp -s "$work/pi-local-default-before" "$agent/settings.json"
+    fi
+    rm -rf "$home/.config/harness" "$agent/extensions/accounts" "$agent/extensions/failover"
+    rm -f "$agent/account-pool.json"
   fi
 done
 # Claude Code: selected skills land beside foreign and CLI-linked skills, and

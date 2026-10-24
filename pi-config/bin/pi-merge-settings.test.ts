@@ -55,3 +55,19 @@ test("machine overlay overrides defaults, preserves runtime keys, and validates 
   expect(readFileSync(dest, "utf8")).toBe(before);
  } finally { rmSync(root, {recursive:true,force:true}); }
 });
+
+test("a machine-local pooled default is refused before the providers are retired", () => {
+	const root = mkdtempSync(join(tmpdir(), "pi-retired-default-"));
+	try {
+		const source = join(root, "source.json"), dest = join(root, "settings.json"), local = join(root, "local.json");
+		writeFileSync(source, '{"defaultProvider":"openrouter","defaultModel":"deepseek/deepseek-v4.1-flash-1017"}');
+		writeFileSync(dest, '{"foreign":true}');
+		writeFileSync(local, '{"defaultProvider":"openai-pool","defaultModel":"gpt-6.1-sol"}');
+		const cmd = [process.execPath, join(import.meta.dir, "pi-merge-settings.ts"), "--source", source, "--dest", dest, "--local", local];
+		expect(Bun.spawnSync([...cmd, "--check"]).exitCode).not.toBe(0);
+		expect(Bun.spawnSync(cmd).exitCode).not.toBe(0);
+		expect(readFileSync(dest, "utf8")).toBe('{"foreign":true}');
+	} finally {
+		rmSync(root, { recursive: true, force: true });
+	}
+});
