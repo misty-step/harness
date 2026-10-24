@@ -52,6 +52,8 @@ Options: `--dir`, `--cpus`, `--memory`, `--timeout`; fetched files land under
 `~/.cache/tmp/remote-run/<id>/`. Privileged, device, host-namespace and volume
 flags are rejected. Raw fallback: `ssh hetzner-ci` with `rsync`, run the
 project's command in a task-named directory and remove it when done.
-Leave the box's runner services, Incus and firewall alone.
+Leave the box's runner services, Incus and firewall alone. Hetzner is build and
+CI only: never install or start an agent harness (codex, claude or similar) or
+an agent session there.
 If the box is saturated or unreachable, say so rather than falling back to a
 workstation without checking first that remote capacity is full.

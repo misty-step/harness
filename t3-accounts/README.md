@@ -78,8 +78,8 @@ configured account emails; these example identities are synthetic:
 ```json
 {
   "plain_hosts": {
-    "hetzner-ci": {
-      "dest": "hetzner-ci",
+    "exe-worker-1": {
+      "dest": "exe-worker-1",
       "codex": {
         "main@example.test": "~/.codex",
         "r90@example.test": "~/.codex-t3/r90",

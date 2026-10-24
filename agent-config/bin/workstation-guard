@@ -20,8 +20,9 @@ import sys
 HOSTS = ('mirrodin', 'serenity', 'nassau')
 ALTERNATIVE = (
     'Workstations are not disposable. Run this on a disposable exe.dev VM (skill `remote-execution`, '
-    '`ssh exe.dev new ...`) or the Hetzner box (`ssh hetzner-ci`) instead; see the remote-first '
-    'execution section of the workstation guidance.'
+    '`ssh exe.dev new ...`) instead. Builds and automated tests can go to the Hetzner build box '
+    '(`remote-run build`, or `ssh hetzner-ci` to queue a job); it runs builds, tests and CI only, '
+    'never agent sessions. See the remote-first execution section of the workstation guidance.'
 )
 
 WRAPPERS = {  # name -> options that take a value

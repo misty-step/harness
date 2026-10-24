@@ -128,8 +128,12 @@ HELPER_SRC = HOME / ".local/share/t3-login/t3-login-helper.mjs"
 HELPER = ".local/share/t3-login/t3-login-helper.mjs"
 REMOTE_ENV = 'export PATH="$HOME/.local/bin:$HOME/.bun/bin:/opt/homebrew/bin:$PATH"; cd ~;'
 HOSTS = CONFIG["hosts"]
-# Non-T3 hosts (e.g. hetzner-ci): fixed Codex homes, owner->reader push only, health from the Codex CLI itself.
+# Non-T3 hosts (e.g. an exe.dev VM; never hetzner-ci, which is build/CI only): fixed Codex homes, owner->reader push only, health from the Codex CLI itself.
 PLAIN = CONFIG.get("plain_hosts", {})
+BUILD_ONLY = {"hetzner-ci", "runner-box-hel1", "2.29.249.120"}  # build/CI only: no agent logins there
+for _name, _plain in PLAIN.items():
+    if {_name, str(_plain.get("dest", "")).split("@")[-1]} & BUILD_ONLY:
+        sys.exit(f"t3-accounts: plain host {_name} is build/CI only and never holds agent logins; remove it from plain_hosts")
 NOW = dt.datetime.now(dt.timezone.utc)
 CLAUDE_TOKEN_DAYS = 365      # `claude setup-token` lifetime
 CLAUDE_WARN_DAYS = 30

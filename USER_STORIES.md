@@ -223,7 +223,8 @@ Criteria:
    or host-device container or VM, reboots or powers off, kills processes by
    name, or restarts the display or session, THE SYSTEM SHALL refuse it through
    the PreToolUse hook in Claude Code and Codex and point to a disposable
-   exe.dev VM or `ssh hetzner-ci`.
+   exe.dev VM, or `ssh hetzner-ci` for builds and tests only (hetzner-ci is a
+   build and CI box and never hosts agent harnesses or sessions).
 
 No-gos: no automatic additional VM or model-credential transfer.
 
