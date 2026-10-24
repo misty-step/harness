@@ -23,6 +23,9 @@ Bundled `skills/.system`, other linked skills and unowned retired packages
 stay untouched. `~/.codex/AGENTS.md` is owned (first line is the ownership
 marker); a foreign file or any symlink stops the install before any write.
 
-`config.toml` is source for four native defaults only and is not deployed by
-this installer; see the root README's
+The installer also registers the workstation guard in `$CODEX_HOME/hooks.json`
+(foreign hooks kept) and trusts it through Codex's own `config/batchWrite`
+RPC, because Codex skips untrusted hooks; without `codex` on `PATH` it warns
+and the hook needs trusting with `/hooks`. `config.toml` is source for four
+native defaults only and is otherwise not deployed by this installer; see the root README's
 [Codex defaults](../README.md#codex-defaults-native-installation).

@@ -25,7 +25,7 @@ intent     grilling + domain-modeling → user-stories → to-spec → to-ticket
 round      builder ─────────── implement (tdd, code-review), pr
            ├─ QA ───────────── story-qa + verify-<app>          ┐ same head SHA,
            └─ reviewer ─────── code-review + blast-radius        ┘ fresh agents
-           judge ───────────── judge: blocker | file | skip  →  SHIP | FIX | RE-SLICE
+           judge ───────────── judge: blocker | file | skip  →  SHIP | FIX | REVERT | SPLIT
 merge      gate at the judged SHA; self-merge (misty-step, moomooskycow) or team review (r90group)
 release    release-watch: deploy, live identity, smoke, 30 min of signals → restore, incident, pokayoke
 oversight  heartbeat (hourly sweep, unsticks lanes) · lage (Home's executive brief)

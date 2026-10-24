@@ -9,11 +9,14 @@
   "crossProvider": [{ "claude-opus-5-5": "effort", "gpt-6.1-sol": "reasoningEffort" }],
   "efforts": ["low", "medium", "high", "xhigh"],
   "wipRoots": [
-    "mcp:8145fc74-15ad-428f-b7f6-d9b162fff416",
-    "mcp:bb364610-42c9-4d68-a43d-7c67c79bf07a",
-    "mcp:8449eb2b-175f-48cf-ae80-f9f699c7879f",
-    "mcp:51b7a12d-8392-4fb0-b270-6aaafb8b63f8",
-    "mcp:69a8cc28-3648-4607-b15a-143e48dd80b5",
-    "mcp:2ee20fca-f82d-4e94-812b-204ef22308f6"
+    "mcp:659f9f29-47de-4f27-a71e-b5b84d2f0244",
+    "mcp:c78f446c-7b29-4528-9589-e05631e39a94",
+    "mcp:07fc2709-720f-43c9-9763-67baa06b11c0",
+    "mcp:22951f6e-5925-4c40-8192-3a7f1c31890b",
+    "mcp:a0d73816-4107-473d-9043-69ae99efc855",
+    "mcp:535d6157-2ba8-4a5a-b6e2-a2f3e12ca448",
+    "mcp:84dd6034-51e2-494b-b7f4-a5c208aa12a9",
+    "mcp:8b420fd9-7a84-45f0-ba9b-907f8a5c581b",
+    "mcp:d8672653-a3d5-481a-a70a-457a15954422"
   ]
 }

@@ -582,8 +582,8 @@ function requestSuccession(thread: LimitedThread) {
 		`Latest failed run: ${thread.runId}. T3 refused the provider handoff: "${handoffRefusal}".`,
 		`Project: ${thread.projectId}; workspace: ${thread.worktreePath ?? "project root"}; branch: ${thread.branch ?? "none"}.`,
 		`Current selection: ${JSON.stringify(thread.modelSelection)}; runtime: ${thread.runtimeMode}; interaction: ${thread.interactionMode}.`,
-		"Home owns thread creation from groomed and specced backlog. Read the predecessor with t3_thread_read and use the lane-succession contract if succession is warranted.",
-		"After verifying the replacement, intentionally replace the predecessor ID in pools.json wipRoots and deploy the config. Titles do not transfer pool eligibility.",
+		"Home owns thread creation from groomed and specced backlog. Only the established hourly task's bound native Heartbeat thread dispatches named roster successions under lane-succession's dispatcher ownership. Home queues requests to that same writer with t3_thread_send, mode: \"queue\"; the pool only requests.",
+		"That Heartbeat dispatcher verifies the replacement, intentionally replaces the predecessor ID in pools.json wipRoots and deploys the config. Titles do not transfer pool eligibility.",
 	].join("\n"));
 }
 

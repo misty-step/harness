@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # owned by misty-step/harness claude-config agents-hook
-"""Install Claude's native SessionStart adapter; keep instructions in AGENTS.md."""
+"""Install Claude's native SessionStart adapter and workstation guard; keep instructions in AGENTS.md."""
 import json
 import os
 from pathlib import Path
@@ -32,6 +32,85 @@ def parts(text):
 
 def command(script, part):
     return f'python3 {shlex.quote(str(script))} {part}'
+
+
+def guard_command():
+    return shlex.quote(str(Path.home() / '.local' / 'bin' / 'workstation-guard'))
+
+
+def guard_hook():
+    return {'type': 'command', 'command': guard_command(), 'timeout': 10}
+
+
+def guard_groups(data):
+    groups = data.get('hooks', {}).get('PreToolUse', [])
+    if not isinstance(groups, list):
+        raise ValueError('PreToolUse must be an array')
+    retained = []
+    for group in groups:
+        if not isinstance(group, dict) or not isinstance(group.get('hooks'), list) or not all(isinstance(hook, dict) for hook in group['hooks']):
+            raise ValueError('PreToolUse entries must contain a hooks array of objects')
+        hooks = []
+        for hook in group['hooks']:
+            if hook.get('command') != guard_command():
+                hooks.append(hook)
+            elif hook != guard_hook() or group.get('matcher') != 'Bash':
+                raise ValueError('Refusing a foreign hook collision at the workstation guard command')
+        if hooks or not group['hooks']:
+            retained.append({**group, 'hooks': hooks})
+    return [*retained, {'matcher': 'Bash', 'hooks': [guard_hook()]}]
+
+
+INTERACTIVE_TOOLS = ('AskUserQuestion', 'ExitPlanMode')  # asking the user is their purpose; leave them to the harness
+
+PERMISSION_REFUSAL = (
+    'Refused: this action needs an interactive approval that no one can give in this session '
+    "(Claude Code's built-in safety check; permission rules cannot allow it). Do not retry it unchanged. "
+    'For a removal, run `rm` directly on a literal path, or on `${VAR:?}`, not inside `sh -c`/`bash -c` '
+    'or a script that builds the target from a variable or command output; put several steps in a script '
+    'file and run that. For anything else, use a different tool or ask the parent.'
+)
+
+
+def permission_command(script):
+    return command(script, 'permission')
+
+
+def permission_hook(script):
+    return {'type': 'command', 'command': permission_command(script), 'timeout': 10}
+
+
+def permission_groups(data, script):
+    groups = data.get('hooks', {}).get('PermissionRequest', [])
+    if not isinstance(groups, list):
+        raise ValueError('PermissionRequest must be an array')
+    retained = []
+    for group in groups:
+        if not isinstance(group, dict) or not isinstance(group.get('hooks'), list) or not all(isinstance(hook, dict) for hook in group['hooks']):
+            raise ValueError('PermissionRequest entries must contain a hooks array of objects')
+        hooks = []
+        for hook in group['hooks']:
+            if hook.get('command') != permission_command(script):
+                hooks.append(hook)
+            elif hook != permission_hook(script) or set(group) != {'hooks'}:
+                raise ValueError('Refusing a foreign hook collision at the permission hook command')
+        if hooks or not group['hooks']:
+            retained.append({**group, 'hooks': hooks})
+    return [*retained, {'hooks': [permission_hook(script)]}]
+
+
+def refuse_unanswerable():
+    """Answer a permission request nobody can answer: a full-access session driven through the SDK."""
+    try:
+        event = json.load(sys.stdin)
+    except ValueError:
+        return
+    if not isinstance(event, dict) or event.get('permission_mode') != 'bypassPermissions' or event.get('tool_name') in INTERACTIVE_TOOLS:
+        return
+    if not os.environ.get('CLAUDE_CODE_ENTRYPOINT', '').startswith('sdk'):
+        return
+    print(json.dumps({'hookSpecificOutput': {'hookEventName': 'PermissionRequest',
+                                              'decision': {'behavior': 'deny', 'message': PERMISSION_REFUSAL}}}))
 
 
 def plan(directory):
@@ -66,6 +145,8 @@ def plan(directory):
                 hooks.append(hook)
         if hooks or not group['hooks']:
             retained.append({**group, 'hooks': hooks})
+    guard_groups(data)
+    permission_groups(data, script)
     return script, settings, data, retained
 
 
@@ -89,6 +170,8 @@ def install(directory):
     count = len(parts(text))
     groups.append({'hooks': [{'type': 'command', 'command': command(script, part)} for part in range(count)]})
     data.setdefault('hooks', {})['SessionStart'] = groups
+    data['hooks']['PreToolUse'] = guard_groups(data)
+    data['hooks']['PermissionRequest'] = permission_groups(data, script)
     write_atomic(script, Path(__file__).read_text(), 0o700)
     settings_path = directory / 'settings.json'
     mode = stat.S_IMODE(settings_path.stat().st_mode) if settings_path.exists() else 0o600
@@ -107,7 +190,9 @@ def emit(part):
 
 if __name__ == '__main__':
     try:
-        if len(sys.argv) == 2:
+        if sys.argv[1:] == ['permission']:
+            refuse_unanswerable()
+        elif len(sys.argv) == 2:
             emit(int(sys.argv[1]))
         elif len(sys.argv) == 3 and sys.argv[1] == 'check':
             plan(Path(sys.argv[2]).absolute())

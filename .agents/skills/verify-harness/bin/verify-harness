@@ -25,7 +25,7 @@ owner_claude=phaedrus@mistystep.io
 owner_codex_mode=chatgpt
 
 fails=0
-case "${1:-}" in doctor|check|install|session|session-auth|session-sdk|live|home|pool|cleanup|all) ;; *) usage_needed=1 ;; esac
+case "${1:-}" in doctor|check|install|session|session-auth|session-sdk|live|home|pool|daybook|cleanup|all) ;; *) usage_needed=1 ;; esac
 if [ -z "${usage_needed:-}" ]; then
   mkdir -p "$evidence" && evidence=$(CDPATH= cd -- "$evidence" && pwd) ||
     { echo "cannot create evidence directory $evidence" >&2; exit 1; }
@@ -458,6 +458,31 @@ cmd_cleanup() {
   [ -s "$log" ] && say "evidence kept at $evidence" || fail "evidence missing at $evidence"
 }
 
+cmd_daybook() {
+  step "daybook: isolated installed CLI, concurrent Git writers and recovery"
+  daybook_home=$(mktemp -d "$base/daybook.XXXXXX") || { fail "daybook scratch"; return; }
+  if env -i PATH="$PATH" HOME="$daybook_home" \
+    "$root/agent-config/install" --agent-dir "$daybook_home/.agents" \
+      --preserve-foreign-skills --skill daybook-sync --bin daybook-sync > "$evidence/daybook-install.txt" 2>&1 &&
+    cmp -s "$root/agent-config/skills/daybook-sync/SKILL.md" "$daybook_home/.agents/skills/daybook-sync/SKILL.md"; then
+    pass "daybook canonical shared skill and PATH command installed into private HOME"
+  else
+    fail "daybook isolated install (see daybook-install.txt)"
+    rm -rf -- "$daybook_home"
+    return
+  fi
+  if DAYBOOK_SYNC_SOURCE="$daybook_home/.local/bin/daybook-sync" PYTHONDONTWRITEBYTECODE=1 \
+    python3 -m unittest discover -s "$root/agent-config/lib" -p test_daybook_sync.py -v \
+      > "$evidence/daybook-tests.txt" 2>&1; then
+    cat "$evidence/daybook-tests.txt" | tee -a "$log"
+    pass "daybook installed CLI published and cleaned up; concurrent writes, conflicts, dirty root, journals and secrets preserved"
+  else
+    cat "$evidence/daybook-tests.txt" | tee -a "$log"
+    fail "daybook installed CLI journey"
+  fi
+  rm -rf -- "$daybook_home"
+}
+
 usage() {
   cat <<'EOF'
 Usage: verify-harness <command>
@@ -469,9 +494,10 @@ Usage: verify-harness <command>
   session-sdk       authenticated T3 SDK launch; requires VH_CLAUDE_SDK module path
   live              compare live ~/.claude, ~/.codex and t3-pool config with the installed rev; fresh live sessions
   home              home post into a private inbox, bad posts, routed probe
+  daybook           isolated installed note CLI against local Git remotes
   pool              t3-pool dry runs and opt-in state
   cleanup           remove run state; keep evidence
-  all               doctor, check, install, session, live, home, pool, cleanup
+  all               doctor, check, install, session, live, home, pool, daybook, cleanup
 Env: VH_EVIDENCE=<dir> (default $VH_DIR/evidence/<UTC stamp>)
      VH_DIR=<absolute dir owned by this run> (default ~/.cache/tmp/verify-harness)
 EOF
@@ -489,8 +515,9 @@ case "$command" in
   live) cmd_live ;;
   home) cmd_home ;;
   pool) cmd_pool ;;
+  daybook) cmd_daybook ;;
   cleanup) cmd_cleanup ;;
-  all) cmd_doctor; cmd_check; cmd_install "${1:-HEAD}"; cmd_session; cmd_live; cmd_home; cmd_pool; cmd_cleanup ;;
+  all) cmd_doctor; cmd_check; cmd_install "${1:-HEAD}"; cmd_session; cmd_live; cmd_home; cmd_pool; cmd_daybook; cmd_cleanup ;;
   *) usage; exit 1 ;;
 esac
 say ""

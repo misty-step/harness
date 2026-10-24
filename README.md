@@ -19,6 +19,7 @@ agent-config/ ── shared install contract ──┬── pi-config/     → 
 | `omp-config/` | OMP routing, config/MCP, extensions, themes, guidance | [README](omp-config/README.md) |
 | `claude-config/` | Shared skills and guidance Claude Code sessions select, such as `lage`; composes `~/.claude/AGENTS.md` with no legacy alias | [README](claude-config/README.md) |
 | `codex-config/` | Shared skills and guidance Codex sessions select; composes `~/.codex/AGENTS.md`; native model, effort and service-tier defaults | [README](codex-config/README.md) |
+| `t3-accounts/` | Maintained native account helper and canonical read-only roster producer | [README](t3-accounts/README.md) |
 
 Foundations: [FOUNDATIONS.md](FOUNDATIONS.md). Intent: [USER_STORIES.md](USER_STORIES.md). Vocabulary, boundaries and
 invariants: [DOMAIN.md](DOMAIN.md). Decisions: [docs/decisions/](docs/decisions/index.md). Agent
@@ -110,7 +111,7 @@ codex-config/install
 - OMP: `$PI_CODING_AGENT_DIR` when set, otherwise `$(omp config path)`.
   OMP also stages declared workstation safety helpers; see its component guide.
 - Claude Code: `$CLAUDE_CONFIG_DIR`, default `~/.claude`.
-- Codex: `$CODEX_HOME`, default `~/.codex` (skills and `AGENTS.md`; never `config.toml`).
+- Codex: `$CODEX_HOME`, default `~/.codex` (skills, `AGENTS.md` and the guard hook in `hooks.json`; `config.toml` only for that hook's trust, written by Codex's own RPC).
 - Shared launchers: `$HOME/.local/bin`. Foreign destinations fail closed.
 - Selections: `PI_CONFIG_COMPONENTS` and `OMP_INSTALL_COMPONENTS`, documented in
   the component guides; claude-config and codex-config declare its skills and guidance in their
@@ -153,7 +154,7 @@ so no redundant feature override is stored. See the
 [speed guide](https://developers.openai.com/codex/speed), and
 [Plan preset source](https://github.com/openai/codex/blob/main/codex-rs/models-manager/src/collaboration_mode_presets.rs).
 
-`codex-config/install` deploys skills and guidance only; it never writes `config.toml`.
+`codex-config/install` deploys skills, guidance and the workstation guard hook; its only `config.toml` write is that hook's trust, made through Codex's own RPC.
 Do not replace or symlink `~/.codex/config.toml` with this four-key source;
 preserve unrelated settings, credentials, plugins, approvals and runtime state.
 After merge/review, an authorized host operator applies only these keys through

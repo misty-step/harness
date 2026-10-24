@@ -86,10 +86,14 @@ the agent's own AgentMail QA account and proving the required owner/admin role
 when the product has sign-in; a repository without one gets one. Every authored change
 gets review and verification scaled to risk. Documents, briefs and measurements
 get one light combined QA/review check plus an independent judge. Riskier
-behavior changes get separate independent QA, review and judge agents. Repeat
-review only for real bugs: after a fix, only its blocking reporter checks the delta,
-then one judge; retain unchanged evidence. Bring both roles back for new files or
-higher-risk paths. Record tier, concrete reason and diff size; use light for docs,
+behavior changes get separate independent QA, review and judge agents. A PR's
+review round count is stored on the PR: a new thread, succession, retry or new
+head reads the same count and cannot start another fix round. Only a judge's
+FIX naming eligible blockers can start the single permitted fix round. Its
+blocking reporter rechecks only those fixes. After that round the next ruling
+is SHIP with tickets or REVERT / SPLIT. New findings become tickets unless the
+fix introduced them. Already on main is never a blocker. Ship heuristic features labeled approximate,
+with accuracy as follow-up. Record tier, concrete reason and diff size; use light for docs,
 config JSON, constants, bounded cosmetic changes and verification tooling without
 a runtime path. One QA owner per SHA; extra cross-family QA requires a concrete
 critical uncertainty. Take an available model-class route, reserve fast/xhigh
@@ -215,11 +219,17 @@ Criteria:
    THEN THE SYSTEM SHALL require separate operator approval.
 4. WHILE stage A is in effect, THE SYSTEM SHALL keep agent sessions and model
    credentials on the desktop.
+5. WHEN an agent on a workstation runs a shell command that starts a privileged
+   or host-device container or VM, reboots or powers off, kills processes by
+   name, or restarts the display or session, THE SYSTEM SHALL refuse it through
+   the PreToolUse hook in Claude Code and Codex and point to a disposable
+   exe.dev VM, or `ssh hetzner-ci` for builds and tests only (hetzner-ci is a
+   build and CI box and never hosts agent harnesses or sessions).
 
 No-gos: no automatic additional VM or model-credential transfer.
 
 Evidence: `agent-config/guidance/workstation.md`,
-`omp-config/global/AGENTS.md`
+`omp-config/global/AGENTS.md`, `agent-config/bin/workstation-guard`
 
 ## US-025 Work in an owned exe.dev project workspace — retired automation
 
@@ -498,7 +508,7 @@ Evidence: `omp-config/extensions/credentials/credentials.test.ts`,
 
 ## US-020 Receive an executive status brief
 
-Statement: When I ask for sachstand, I want a concise, evidence-based status
+Statement: When I ask for executive status, I want a concise, evidence-based status
 brief identifying its session and decisions, with optional speech, so I can
 orient across concurrent work without changing that work.
 
@@ -510,10 +520,18 @@ Criteria:
 3. WHERE speech is explicitly requested, THE SYSTEM SHALL attempt speech and
    report its output or error while retaining the written brief. Ordinary status
    SHALL remain in chat without mandatory/default audio.
+4. WHEN I request lage across agent lanes, THE SYSTEM SHALL give Home a complete
+   structured result for one compact inline page: decision questions with
+   recommendations and waiting costs first, one state/now/next row per lane,
+   short shipped outcomes and stuck owners, with supporting detail folded.
+5. WHEN compacting the lage result, THE SYSTEM SHALL preserve investigation
+   coverage, every unresolved principal question and read gap; extra detail or
+   rows SHALL remain available through progressive disclosure.
 
 No-gos: no unrequested project mutations or decisions during a status brief.
 
-Evidence: `agent-config/skills/sachstand/SKILL.md`,
+Evidence: `agent-config/skills/lage/SKILL.md`,
+`agent-config/skills/lage/result-format.md`, `agent-config/skills/sachstand/SKILL.md`,
 `agent-config/skills/sachstand/scripts/speak.ts`; native online synthesis smoke
 produced a two-second WAV with `--no-play` on 2026-09-24.
 
@@ -641,9 +659,19 @@ Criteria:
    contracts.
 5. WHEN verifying changed guidance, THE ENGINEER SHALL inspect the composed
    instructions and exercise the affected actual consumer.
-6. WHEN new work appears, THE SYSTEM SHALL record a backlog issue. Only Home
+6. WHEN new work appears, THE SYSTEM SHALL record a backlog issue. Home
    SHALL open top-level threads: backlog lanes from groomed, specced items,
-   replacements for named lanes, and its own scratch runners. Home
+   and its own scratch runners. Home SHALL route roster-succession requests to
+   the existing hourly task’s bound Heartbeat thread. That single native executor
+   SHALL dispatch exact roster-lane successors under `lane-succession` without
+   fresh Home approval, recovering tracked
+   partial dispatches and reporting completion or a blocker once to Home. It
+   SHALL preserve claim, dedupe, route, adoption, abandonment and source/installed
+   readback guards, consume the newest handoff and leave children, parked and
+   unnamed lanes untouched. Machine-generated PRs replacing only the tracked
+   predecessor ID with its claimed successor in `pools.json` `wipRoots`, preserving
+   every other value and roster length/order, SHALL merge on passing checks;
+   authored policy, tests and other config changes SHALL retain ordinary review. Home
    SHALL explicitly name the active lanes and size that set to model cost,
    reasoning, speed, remaining allowance and time until reset, with no fixed
    lane cap. Resume and account pooling SHALL continue only lanes Home names
@@ -740,3 +768,52 @@ Criteria:
 Evidence: `agent-config/bin/t3-pool.test.ts`, `agent-config/bin/install.test.ts`,
 `agent-config/bin/t3-runtime-mode.test.ts`, and `scripts/verify-installers`.
 
+
+## US-054 Publish private notes with concurrent agents
+
+Statement: When authorized agents share a private note repository, I want each
+agent to publish small selected changes from its own workspace, so concurrent
+writers preserve each other's work and the human's dirty checkout.
+
+Criteria:
+1. WHEN an agent prepares work, THE SYSTEM SHALL fetch private remote master
+   into a new isolated workspace without changing the selected checkout's files,
+   index or branch, including unpublished local commits.
+2. WHEN publishing, THE SYSTEM SHALL commit only explicitly named regular files
+   with the agent identity, scan secrets, and immediately push without force.
+3. WHEN remote writers advance master, THE SYSTEM SHALL fetch and rebase with
+   at most three publication attempts. Conflicts and failures SHALL preserve
+   the local commit and remote history for explicit recovery.
+4. THE SYSTEM SHALL reject journal changes including rename and delete,
+   symlinks, traversal, unrelated changes, pre-existing staged work and foreign HEADs.
+5. WHEN Claude or Codex configuration is installed, THE SYSTEM SHALL provide
+   the command on shared PATH and a canonical skill reachable by every T3
+   provider through repository instructions, including providers without native skills.
+
+No-gos: no vault contents in harness, global writer lock, force push, root
+stash/rebase, new credentials, timer replacement or agent journal bypass.
+
+Evidence: `agent-config/lib/test_daybook_sync.py`,
+`verify-harness daybook`, `scripts/verify-installers`.
+
+
+## US-051 Drive T3 from any authorized agent
+
+Statement: As an operator of agents inside and outside T3, I want every agent
+to use the same documented, scriptable interface to my T3 servers, so it can
+choose an account, complete work, and recover from access failures without
+manual intervention.
+
+Acceptance:
+
+1. Agents can discover configured servers and live tool/provider/model catalogs,
+   then list, launch, read, send to and settle threads through T3's own MCP.
+2. The shell entry point uses existing endpoint and credential references, never
+   prints credentials, never creates credentials, and does not retry writes.
+3. A read-only access check reports each server's result; its optional watcher
+   delivers new failures and recoveries to Home with a review link.
+4. Inside-T3 and outside-agent instructions explain explicit project selection,
+   account selection, uncertain write outcomes and common access failures.
+
+Evidence: `agent-config/bin/test_t3_agent.py` and
+`.agents/skills/verify-harness/features/t3-access.md`.

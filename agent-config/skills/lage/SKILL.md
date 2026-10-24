@@ -1,14 +1,14 @@
 ---
 name: lage
-description: Executive brief on every open lane, in-flight initiative and running agent, complete enough to decide from without opening anything. Use for /lage, "get me up to speed", "status on all lanes", or before choosing what to dispatch next.
+description: Investigate every lane and return a compact structured result for Home to render inline, with decisions first and supporting detail folded. Use for /lage, "get me up to speed", "status on all lanes", or before choosing what to dispatch next.
 ---
 
 # Lage
 
 Read-only investigation: never message a lane, merge, re-run or start work to improve the brief.
 The previous lage is the time the launcher passes; otherwise use the newest
-`~/.local/state/home/lage/*.md` filename's UTC time. Use 24 hours ago only when that directory
-is empty. If unreadable, report the gap rather than guessing.
+timestamped result (`.json`) or legacy brief (`.md`) in `~/.local/state/home/lage/`, excluding
+`*-pointer.md`. Use 24 hours ago only when that directory is empty. If unreadable, report the gap.
 
 Home delegates to one asynchronous runner. When its checkout has `AGENTS.md` or hooks, use
 `t3_thread_launch` with `scratch: true`. Name the requesting thread's `threadId`, lage skill and
@@ -60,7 +60,7 @@ A side effect is a pushed commit, opened or merged PR, deploy, published ticket 
 
 Read tails with `afterPosition` near `itemCount - 12` and `maxCharsPerItem` around 3000.
 Recover truncated asks or reports with `itemId` and `textOffset`; read older history only to
-resolve missing context. Mark unavailable facts `unknown: <why>`.
+resolve missing context. Mark unavailable facts `unknown: <why>`. Report an account's room only from a live `upkeep room` reading, with its source and age; an `out` claim needs a reading under 15 minutes old, and with no reading the account is `unknown: no live reading`, never zero.
 
 Read the coordinator's open-loops file (Home's is `~/home/NOW.md`). An ask it already answers is
 a dropped relay, not a principal decision. Finish with every lane covered and PR states verified.
@@ -84,46 +84,50 @@ are agent-answerable: classify them as stuck. Deploying merged code through its 
 pipeline is shipping, not a production write. Claim only what evidence proves: started, PR open,
 merged, artifact verified or live behavior proven ([Foundations](https://foundations.mistystep.io/way-of-working)).
 
-## 4. Write
+## 4. Return a compact result
 
-Lead with what needs him. Start `**Lage, <date> <local time>.** <N> decisions for you.`
-List all unresolved principal questions in priority order, urgent first, including closed-lane asks.
-Write each question in full with its requester, context, options and their costs, recommendation
-and reason, and what happens if unanswered and when. Give each question its own numbered entry
-in one sequence, 1…N. Never bundle approvals or substitute unseen source labels or item numbers.
-Numbered references use only individual entries from this brief, never ranges.
+Keep the investigation above complete. Read [result-format.md](result-format.md) and write one
+`lage.v1` JSON result for Home, which renders one inline page in its own thread. The first view
+should fit one screen:
 
-Recommendations follow standing autonomy and Foundations. Flag noncompliant options and recommend
-a compliant one. Reclassify agent-answerable asks explicitly instead of silently dropping them.
+1. Decisions first: one line per question, recommendation and cost of no answer.
+2. Lane strip: one row per lane, state pill and one-line now/next.
+3. Shipped since the previous lage: short outcome bullets.
+4. Stuck items: one line each, with the owner who can unblock them.
 
-Follow with lane states, latest verifiable progress and next steps with owners; shipped outcomes
-and closure reasons; stuck work and who unsticks it; running children, scratch work and standing
-threads' last and next runs. Include capacity from `upkeep status` if available. Give each status
-item only what changes a decision. Drop empty sections except **Not checked**, which lists read
-gaps. Do not cap the brief's length.
+Use plain words and aim for 250 words across those primary fields at the current roster size.
+Put options, reasoning, evidence, running children, schedules, capacity, scratch work and read
+gaps in each item's detail or the result's `details`. Home folds them by default and may fold
+overflow with its count visible. Keep every lane and unresolved ask in the result; compact
+writing changes presentation, never research coverage. Unknown facts stay explicitly unknown.
 
-Link every mention of every PR, issue, ticket, story, spec, doc, file, ADR and thread. Put the whole
-reference inside its Markdown link and expand ranges into individual links. At first mention,
-give each linked item a one-line summary sufficient to understand it without opening it.
-Expand unfamiliar jargon; an opaque title is insufficient. For unreadable sources, give their
-known purpose and read gap; if purpose is unknown, report missing context against the linked lane.
-Link threads as `[title](t3-thread://v1/<threadId>)`; resolve source and local-artifact links under global autonomy's review-link rule. Use familiar names for lanes and agents.
-Mark unverified claims "lane says".
+State each question in full, with recommendation and consequence in the same scan line; retain
+its requester, options, costs, reason and deadline in detail. An ask answered by standing policy
+belongs in stuck with its agent owner. Recommendations follow standing autonomy and Foundations.
 
-Embed relevant source content. Never substitute "see NOW.md" or another file pointer for it.
-Before delivery, run [self-check.md](self-check.md) on the draft and pointer and repair failures.
-The brief is ready when he can decide from it alone and every lane and unresolved ask is covered.
+Use links alongside the facts they support. A linked object has a clear label and accessible
+URL; thread URLs retain their exact `t3-thread://v1/<threadId>`. Resolve local-artifact links
+under global autonomy's review-link rule. Mark unverified claims "lane says". Home uses the
+structured fields for state pills, comparisons and progressive disclosure; the runner supplies
+facts rather than a long document for the principal to read.
 
-## 5. Deliver
+Run [self-check.md](self-check.md) on the result and pointer before delivery.
+
+## 5. Deliver to Home
 
 Home's thread is phaedrus-only; never `t3_thread_send` there.
 
-Save the full brief to `~/.local/state/home/lage/<YYYY-MM-DDTHHMMZ>.md` using current UTC time;
-create the directory if needed. Publish the full brief under global autonomy's review-link rule.
-Pipe one pointer to `home post --from Lage` via stdin, containing a clickable HTTPS link to the
-full brief and `<N> waiting; <S> stuck`. N counts all principal questions; agent-answerable
-reclassifications count only as stuck. If `home post` fails, append `## <UTC> [Lage]` and the same
-pointer directly to `~/.local/state/home/inbox.md`; report the fallback in the runner.
+Save the JSON to `~/.local/state/home/lage/<YYYY-MM-DDTHHMMZ>.json` and a short Markdown pointer
+beside it as `<YYYY-MM-DDTHHMMZ>-pointer.md`. Publish the reviewed JSON under global autonomy's
+review-link rule, then pipe the pointer to `home post --from Lage` on stdin:
 
-Done when the linked full brief is reachable and the inbox contains its single linked pointer.
-If saving, publishing or both inbox paths fail, report the failed step without claiming delivery.
+`Lage ready: <N> decisions; <S> stuck. [Structured result](<HTTPS URL>) — Home: render inline.`
+
+Derive N from `decisions` and S from `stuck`; agent-answerable asks count only as stuck. Home
+renders the decisions, lane strip, shipped bullets and stuck owners inline, with detail folded.
+The link is the machine-readable handoff, not the principal's reading assignment.
+
+If posting fails, append `## <UTC> [Lage]` and that same pointer to
+`~/.local/state/home/inbox.md`, and report the fallback in the runner. Done means the JSON is
+reachable and the single pointer is delivered through the primary inbox or Home has read the
+fallback. Report a failed step precisely; delivery alone does not prove Home rendered the page.

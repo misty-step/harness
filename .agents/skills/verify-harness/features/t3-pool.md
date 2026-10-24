@@ -28,6 +28,38 @@ Preconditions:
 - **Config.** Expect `PASS live ~/.config/t3-pool.json matches source`, then the timer state line.
 - **Proof.** Keep `pool-live-dry-run.json` and the pool section of `transcript.txt`.
 
+## Succession policy candidate
+
+For a change to `heartbeat` or `lane-succession`, first run `install`, `session both`
+and `session-auth` with unique `VH_DIR` and `VH_EVIDENCE`. In a fresh authenticated
+native session on that private HOME, read the installed global guidance and both
+installed skills. Use the helper's fresh cwd outside the live HOME and a symlink
+there to the private installed skills; read through that link so native file-read
+discovery does not pick up live ancestor instructions. With only file-read tools available, request decisions for:
+a valid named root, a listed child, a parked/unnamed lane, Home queueing to the
+existing Heartbeat executor, duplicate queued requests, a lost launch response,
+missing installed readback, pre-adoption abandonment and post-adoption failure.
+Include unknown/duplicate scheduler bindings, legacy Home dispatch with unknown
+prior-run liveness, interruption before first receipt and interruption during
+pending recovery. Require known inactive prior runs, complete reconciliation and
+preserved receipts. Former lock-acquisition crash points require no lock takeover:
+the next native turn reconciles before effects. Require automatic dispatch only in
+the established native owner, recovery of the same tracked successor, full
+restoration receipts before reopening, no adoption or settlement before readback,
+and one blocker/completion report to Home. Also distinguish an exact-ID roster-only
+PR from authored policy or config changes.
+
+Read back the actual scheduler binding and owner ancestry/history through native
+MCP reads. Check the installed T3 runtime's per-thread run/queue implementation or
+its documented contract; do not infer serialization from titles or this policy.
+Record the native read-only execution path, with no terminal ACP route required.
+Do not send to the scheduled Heartbeat to test routing: that starts a real sweep.
+Policy decisions prove consumption, not effectful automatic succession.
+Retain the prompt, native response and observed decisions outside Git. Run `home`
+and `pool` to prove private delivery and runtime dry-run preservation. No actual
+thread launch, roster mutation or timer activation is part of this policy proof.
+Live deployed guidance remains pending until the normal post-merge release.
+
 ## Gotchas
 
 - Never run `t3-pool` without `--dry-run` to verify. A real pass switches a live lane's account and continues it.

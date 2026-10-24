@@ -5,7 +5,7 @@ account: the same provider first, then the other provider with a mapped model.
 It continues delegated children so their results still reach their parents.
 When T3 refuses a top-level WIP root's transcript handoff, it requests succession
 from Home once. A blocked child requests recovery through its owning parent.
-Only Home opens top-level threads from groomed and specced backlog.
+Home alone opens backlog threads. The existing hourly task’s bound native Heartbeat thread alone dispatches exact roster-lane successions under `lane-succession`, without fresh Home approval; Home queues requests and retains membership and budget.
 `claude-config/install` selects it through
 `agent-config/install --t3-pool`. Installation deploys inactive systemd user
 units; activation is explicit. An enabled timer runs 90 seconds after startup
@@ -37,8 +37,11 @@ the config through the normal harness installer. Installation replaces the owned
 `~/.config/t3-pool.json`; an installed config can also be edited for immediate
 operation, then reconciled to source before the next install. `wipRoots: []`
 disables all moves. A missing file or key, malformed JSON, non-array value,
-duplicate or blank ID stops recovery before any action. Names and `(succeeded by …)` claims never transfer eligibility: after Home
-creates and verifies a successor, Home replaces the predecessor ID intentionally.
+duplicate or blank ID stops recovery before any action. Names and `(succeeded by …)` claims never transfer eligibility: after the dispatcher
+creates and verifies a successor, it replaces only the predecessor ID under the
+`lane-succession` contract. Its machine-generated roster-only PR merges on passing
+checks, then the native installer deploys it and the dispatcher reads it back.
+Authored policy, test and other config changes keep ordinary review.
 
 A thread is eligible only if it is a maintained top-level root or a descendant
 whose every parent edge agrees with its original task's owner and forked node.
@@ -112,9 +115,14 @@ attempts an eligible move and responds to an actual T3 handoff refusal.
 The pool never launches, renames or settles a thread. A handoff refusal on an
 explicitly named top-level WIP root produces one `home post --from t3-pool` per failed run, with
 the predecessor link, failed run, project, workspace, branch, current model and
-options, runtime and interaction mode, and the failure reason. Home decides
-whether succession follows from groomed and specced backlog and uses the
-`lane-succession` contract. A child's handoff refusal instead reports its verified
+options, runtime and interaction mode, and the failure reason. Heartbeat consumes
+requests for valid installed roster lanes using `lane-succession` dispatcher steps
+0–4, one at a time in the existing hourly task’s bound native Heartbeat thread.
+Home queues requests to that same executor; scripts and delegated children never
+dispatch. Unknown or duplicate scheduler ownership blocks effects. It recovers tracked partial
+dispatches, uses the newest handoff and reports completion or a blocker once to
+Home. The pool only requests; children, parked and unnamed lanes gain no dispatch
+authority. A child's handoff refusal instead reports its verified
 owning parent and asks Home to route recovery through that parent. Child alerts
 contain neither the succession marker nor the handoff line below. They never
 request a top-level replacement, so task results remain attached to their parent.
