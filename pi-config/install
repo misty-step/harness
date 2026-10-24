@@ -108,6 +108,12 @@ install_config() {
   bun "$repo_dir/bin/pi-merge-settings.ts" \
     --source "$repo_dir/settings.json" --local "$local_settings" \
     --dest "$agent_dir/settings.json"
+  # The settings migration owns retirement of the pool packages and their
+  # shared state. A shared-only deployment must not dismantle a route it leaves
+  # configured; correspondingly, migrating the default must not leave providers
+  # behind. Run after the merge so a failed write keeps the old pair together.
+  rm -rf -- "$agent_dir/extensions/failover" "$agent_dir/extensions/accounts"
+  rm -f -- "$agent_dir/account-pool.json"
   if subscriptions_ready; then
     printf 'pi: OpenRouter auth ready; default DeepSeek V4.1 Flash 1017 max (model policy)\n'
   else
@@ -174,10 +180,7 @@ validate_shared() {
 
 install_shared() {
   run_shared
-  # Retired packages and the removed pool's shared block state.
-  rm -rf -- "$agent_dir/extensions/diff-review" "$agent_dir/extensions/continuation-nudge" \
-    "$agent_dir/extensions/failover" "$agent_dir/extensions/accounts"
-  rm -f -- "$agent_dir/account-pool.json"
+  rm -rf -- "$agent_dir/extensions/diff-review" "$agent_dir/extensions/continuation-nudge"
   if has skills; then
     for skill in session-close pr-preview sachstand video dev-exec foundation; do
       rm -rf -- "$agent_dir/skills/$skill"
