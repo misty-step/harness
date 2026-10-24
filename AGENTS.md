@@ -36,7 +36,6 @@ launcher writes; use `./scripts/verify`.
 `./scripts/bootstrap` wires secret-scanning hooks. `./scripts/check` runs native
 tests and isolated installer checks; installers test committed HEAD.
 Root Landmark automation owns releases.
-Run `sitrep where <task-kind>` before dispatching.
 
 ## No fallbacks
 
