@@ -3,6 +3,7 @@
 Use native logins. Credential commands and discovery live in `skill://authenticated-commands`.
 Scratch belongs under `~/.cache/tmp`; `/tmp` is RAM-backed.
 Audio plays into silent `agent-sandbox`; record its monitor and hand over files for the operator to play.
+Verify desktop UI off-screen and read the framebuffer (`skill://engineering-operations`); the operator's workspaces, popups and screen stay untouched.
 
 ## Remote-first execution
 
