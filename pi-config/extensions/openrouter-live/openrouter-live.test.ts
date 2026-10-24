@@ -1,7 +1,7 @@
 /**
  * Pure unit tests for extensions/openrouter-live/live.ts. Run with
- * `bun test extensions/` — same contract as extensions/failover/decide.test.ts:
- * brain-only, no harness import, no network, no filesystem.
+ * `bun test extensions/` — pure module tests: brain-only, no harness import,
+ * no network, no filesystem.
  */
 import { expect, test } from "bun:test";
 import {

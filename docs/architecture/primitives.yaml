@@ -34,11 +34,17 @@ primitives:
     summary: OMP routing, models, MCP, secrets policy and installer for a live OMP agent directory.
     code: [omp-config/install, omp-config/config.yml, omp-config/models.yml, omp-config/mcp.json, omp-config/secrets.yml, omp-config/bin/, omp-config/patches/]
     docs: [omp-config/README.md]
+  - id: claude-config
+    group: deploy
+    name: Claude Code harness
+    summary: Claude Code's skill and guidance selection and installer for ~/.claude/skills and an owned ~/.claude/AGENTS.md with no legacy alias.
+    code: [claude-config/install, claude-config/global/]
+    docs: [claude-config/README.md]
   - id: guidance
     group: guidance
     name: Global guidance
-    summary: Harness intros plus shared sections spliced into each harness's deployed global AGENTS.md.
-    code: [agent-config/guidance/, pi-config/global/, omp-config/global/]
+    summary: Harness intros plus shared sections spliced into each harness's deployed global guidance file (AGENTS.md alone).
+    code: [agent-config/guidance/, pi-config/global/, omp-config/global/, claude-config/global/]
   - id: skills
     group: guidance
     name: Portable skills

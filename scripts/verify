@@ -19,11 +19,18 @@ printf 'Source: %s (%s)\n' "$(git rev-parse HEAD)" "$selection"
 if [ -n "$(git status --porcelain)" ]; then
   printf 'Note: unit tests read working files; isolated installer checks read committed HEAD.\n'
 fi
-for script in install scripts/bootstrap scripts/check scripts/verify scripts/verify-installers .githooks/pre-push agent-config/install pi-config/install omp-config/install; do
+for script in install scripts/bootstrap scripts/check scripts/verify scripts/verify-installers .githooks/pre-push agent-config/install pi-config/install omp-config/install claude-config/install codex-config/install .agents/skills/verify-harness/bin/verify-harness; do
   sh -n "$script"
 done
-bun test --max-concurrency=1 scripts/workspace-inventory.test.ts scripts/protected-release.test.ts scripts/trufflehog-gate.test.ts
+./scripts/probe-agent-policy
+PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s scripts -p 'test_agent_policy.py'
+bun test --max-concurrency=1 scripts/workspace-inventory.test.ts scripts/protected-release.test.ts scripts/protected-release-check.test.ts scripts/trufflehog-gate.test.ts
 case "$selection" in all|shared) (cd agent-config && bun test --max-concurrency=1 bin/ skills/ audio-sandbox/);; esac
+case "$selection" in all|shared) PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s agent-config/lib -p 'test_*.py';; esac
+case "$selection" in all|shared) PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s agent-config/bin -p 'test_t3_agent.py';; esac
+case "$selection" in all|shared) PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s t3-accounts -p 'test_*.py';; esac
+case "$selection" in all|shared) PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s claude-config -p 'test_*.py';; esac
+case "$selection" in all|shared) PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s codex-config -p 'test_*.py';; esac
 case "$selection" in all|shared) PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s agent-config/session-backup -p 'test_*.py';; esac
 case "$selection" in all|pi) (cd pi-config && bun test --max-concurrency=1 bin/ extensions/);; esac
 case "$selection" in all|omp) (cd omp-config && bun test --max-concurrency=1 bin/ extensions/);; esac

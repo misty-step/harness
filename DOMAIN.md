@@ -6,14 +6,14 @@ and agent rules in [AGENTS.md](AGENTS.md).
 
 ## Terms
 
-- **Harness:** an agent runtime this repository configures: pi or OMP.
-- **Component:** one of the three top-level source trees: `agent-config/`,
-  `pi-config/` or `omp-config/`.
+- **Harness:** an agent runtime this repository configures: pi, OMP, Claude Code or Codex.
+- **Component:** a top-level source tree: `agent-config/`, `pi-config/`,
+  `omp-config/`, `claude-config/` or `codex-config/`.
 - **Shared primitive:** a harness-neutral skill, guidance section, launcher or
   deploy mechanism owned once in `agent-config/` and selected by each harness.
 - **Guidance section:** a Markdown file in `agent-config/guidance/` that an
-  installer splices into a harness's global `AGENTS.md` at the marker line.
-- **Composed guidance:** the deployed global `AGENTS.md`: a harness intro plus
+  installer splices into a harness's global guidance file (`AGENTS.md` alone) at the marker line.
+- **Composed guidance:** the deployed global guidance file: a harness intro plus
   its selected sections. It is generated; never edit the deployed copy.
 - **Launcher:** an executable deployed to `~/.local/bin` from
   `agent-config/bin/` (`pass-env`, `openrouter-key`).
@@ -21,15 +21,22 @@ and agent rules in [AGENTS.md](AGENTS.md).
   harness installer declares for deployment.
 - **Deploy (install):** a live mutation of an agent directory and `~/.local/bin`.
   It is never verification.
+- **Desktop isolation:** separation from the operator's live screen, cursor,
+  capture surfaces and input channels; not a prohibition on application management.
+- **Application management:** authorized installation, configuration and service
+  activation through the application's native owner.
+- **Activation:** a running consumer has loaded the intended deployed version;
+  installed bytes or an on-disk version command alone do not prove it.
 - **Audited host-install route:** Workbench's typed user socket. Selected-asset
   recipes own reviewed-green admission, transactions and guarded rollback.
-  Repository installs own exact merged-default-branch admission, fixed existing
-  Harness/ai-usage installer execution and live managed-code readback. OMP owns
-  the client and cage exposure. Neither accepts caller commands or auth changes.
+  Repository installs own exact merged-default-branch admission, fixed native
+  Harness/ai-usage/iron-forest/Cantrip owner paths and managed-code/live-state
+  readback. OMP owns the client and cage exposure. Neither accepts caller
+  commands, source paths, environments or auth changes.
 
 ## Owns and delegates
 
-This repository owns agent configuration source for both harnesses. It does not own:
+This repository owns agent configuration source for every harness. It does not own:
 
 - runtime state, sessions, logs, or authentication files in agent directories,
   which installers preserve;
@@ -53,9 +60,13 @@ This repository owns agent configuration source for both harnesses. It does not 
   owned cleanup; foreign work and durable task evidence must be preserved.
 - **INV-013** The host-install client cannot submit a shell, caller environment,
   destination or source-proof object. Selected-asset installation cannot activate
-  consumers; the fixed ai-usage repository installer uses its supported plugin
-  rescan without activating the collector or restarting OMP/Pi.
-  Enforced by `omp-config/bin/omp-host-install.py` and
+  consumers; repository recipes own only their named application's supported
+  lifecycle. The ai-usage installer rescans plugins without activating its
+  collector; an explicit Cantrip install uses and preserves its existing startup
+  owner. Harness CLI installation may ask only the managed native broker to
+  refresh itself when its running executable differs from the installed one.
+  None of these paths restarts OMP/Pi or grants operator desktop control.
+  Enforced by `omp-config/bin/omp-host-install.py`, `omp-config/install` and
   `omp-config/bin/test_omp_host_install.py`; Workbench enforces the host boundary.
   Native installation is also available directly through the scoped installers.
 
@@ -63,6 +74,10 @@ This repository owns agent configuration source for both harnesses. It does not 
 
 - `agent-config/`: shared primitives (skills, guidance sections, launchers),
   the shared installer, the audio sandbox, and System One (`system-one/`).
+- `claude-config/`: Claude Code's skill and guidance selection, its guidance
+  intro and installer.
+- `codex-config/`: Codex's native defaults (`config.toml`), its skill and
+  guidance selection, guidance intro and installer.
 - `docs/`: cross-component decisions (`docs/decisions/`), principles, the
   primitives map (`docs/architecture/primitives.yaml`), verification and
   migration records, and token-efficiency measurements.

@@ -11,8 +11,7 @@ afterEach(() => {
 	for (const path of roots.splice(0)) rmSync(path, { recursive: true, force: true });
 });
 
-// Optional replay against the installed Landmark binary.
-test.skipIf(!landmark)("US-015 a docs-only base advance invalidates a candidate before landing; regeneration recovers", () => {
+function fixture() {
 	const scratch = process.env.TMPDIR ?? join(homedir(), ".cache/tmp");
 	mkdirSync(scratch, { recursive: true });
 	const repo = mkdtempSync(join(scratch, "protected-release-"));
@@ -35,6 +34,12 @@ test.skipIf(!landmark)("US-015 a docs-only base advance invalidates a candidate 
 	commit("chore: baseline");
 	git("tag", "v0.1.0");
 	commit("fix: repair an observable defect");
+	return { git, commit, prepare, changelog, baseline };
+}
+
+// Optional replays against the installed Landmark binary.
+test.skipIf(!landmark)("US-015 a docs-only base advance invalidates a candidate before landing; regeneration recovers", () => {
+	const { git, commit, prepare, changelog, baseline } = fixture();
 	expect(prepare().exitCode).toBe(0);
 	const candidate = readFileSync(changelog, "utf8");
 	commit("chore(release): 0.1.1");
@@ -60,4 +65,22 @@ test.skipIf(!landmark)("US-015 a docs-only base advance invalidates a candidate 
 	const next = prepare();
 	expect(next.exitCode).toBe(0);
 	expect(JSON.parse(next.stdout.toString()).release_tag).toBe("v0.1.2");
+});
+
+// v0.2.4: CI failed on the landed release commit, so publish never tagged it.
+test.skipIf(!landmark)("US-015 a landed candidate left untagged is stranded by the next change; withdrawing it recovers", () => {
+	const { commit, prepare, changelog, baseline } = fixture();
+	expect(prepare().exitCode).toBe(0);
+	commit("chore(release): 0.1.1");
+	commit("fix: land after the untagged release");
+	const stranded = prepare();
+	expect(stranded.exitCode).toBe(1);
+	expect(stranded.stderr.toString()).toContain("protected release changelog differs from classified candidate commits");
+
+	writeFileSync(changelog, baseline);
+	commit("fix(release): withdraw the unpublished 0.1.1 changelog entry");
+	const regenerated = prepare();
+	expect(regenerated.exitCode).toBe(0);
+	expect(JSON.parse(regenerated.stdout.toString()).release_tag).toBe("v0.1.1");
+	expect(readFileSync(changelog, "utf8")).toContain("land after the untagged release");
 });

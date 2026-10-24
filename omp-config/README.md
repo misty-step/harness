@@ -49,13 +49,8 @@ Available targeted components are `config`, `guidance`, `mcp`, `agents`,
 OMP uses `$PI_CODING_AGENT_DIR` when set, otherwise `$(omp config path)`.
 Shared helpers and safety entrypoints deploy to `$HOME/.local/bin`. Foreign
 entrypoints fail closed. Redirecting the agent directory alone does not isolate
-HOME or host writes. The root `../install` installs both native harnesses;
+HOME or host writes. The root `../install` installs every harness, Claude Code included;
 component installers are preferable for targeted changes.
-
-### Kaylee pane input
-
-Copy hermes-config's `plugins/delegate-agent-guard/pane_guard.py` beside this
-extension's installed `index.ts`. Verify identical bytes in both native guards.
 
 Configuration overlays source-owned keys while preserving foreign keys. MCP
 overlays declared servers and preserves foreign inventory and owned-server auth.
@@ -173,9 +168,91 @@ Use `work-tracker --url https://powder.mistystep.io` directly for work records.
 The legacy Glass writer bridge and note-only Powder wrapper are removed.
 Powder owns native validation, revisions and receipts; R90 work stays in Habitat.
 
-Run this repository's scoped installer directly after merge. The optional
-Workbench host-install client remains available for its existing operator route,
-but writable local config and executable paths no longer require that broker.
+Run this repository's scoped installer directly after merge when its native
+filesystem paths suffice. Existing namespaces may retain earlier read-only
+mounts; do not reconnect the live desktop or restart active engineers to escape
+them. Use the approved Workbench route when an operation requires host context.
+
+### Authorized application management
+
+Display isolation prevents capture of the operator's live screen and control of
+their cursor or input. It does not prohibit authorized application installation,
+configuration or service activation through native owners. Never expose a host
+shell, compositor/input socket or session bus to perform that work. Installing
+files and proving a running process loaded them are separate obligations.
+
+`omp-host-install` uses Workbench's existing schema-1 socket protocol and fixed
+repository choices: `harness`, `ai-usage`, `iron-forest`, and `cantrip`. It accepts
+an exact merged revision, not caller commands, source/destination paths,
+environment overrides or arbitrary service names. Harness installation never
+automatically installs or activates Cantrip.
+
+For the published Cantrip 0.1.8 cloud-timeout fix:
+
+```sh
+omp-host-install capabilities
+omp-host-install readback-repository --repository cantrip
+omp-host-install install-repository --repository cantrip \
+  --revision b23d488e82ab79886b17c1976197c4c2504dbf1d
+omp-host-install readback-repository --repository cantrip
+```
+
+The explicit Cantrip recipe uses the existing `cantrip.service` startup owner,
+preserving its unit, drop-ins and enablement along with configuration, keys,
+models, history and audio. It refuses busy or unknown lifecycle state and proves
+readiness plus the running MainPID executable's identity against the newly
+installed binary. An installed `--version` result alone is not live activation
+proof. Recovery remains application-owned: replacing the old binary is not a
+safe automatic rollback after a possible history migration.
+
+Only Cantrip repository installation has a 2100-second transport deadline for
+source admission, a bounded build and lifecycle proof; other requests retain
+900 seconds. This is not the speech-inference timeout and changes no app config.
+
+#### Refreshing an existing broker without desktop authority
+
+The broker's managed executable and its running service are distinct. From the
+merged Workbench checkout, use its native owner installer to plan and stage the
+broker release (these commands do not restart the service):
+
+For a legacy broker without `service_refresh: quiescent`, coordinate an exclusive
+host-install maintenance window before staging. Submit no other bridge
+installations until the new capabilities reply. Ordinary desktop work continues.
+
+```sh
+./install.sh --profile mirrodin --only host-install
+./install.sh --profile mirrodin --only host-install --apply
+```
+
+Make the updated Harness CLI source available as a merged default-branch
+revision, then use the already supported host-side Harness repository recipe:
+
+```sh
+omp-host-install install-repository --repository harness --revision FULL_MERGED_HARNESS_SHA
+omp-host-install capabilities
+```
+
+At successful CLI-install completion, the installer considers only the
+UID-owned managed link at
+`~/.local/lib/workbench-host-install/workbench-host-install`, resolving under
+its exact `releases/<release>/bin/workbench-host-install` layout to a UID-owned,
+executable file with all write bits cleared. If its successful `--help` advertises
+the exact native `workbench-host-install refresh-service` usage line, the
+installer invokes that fixed executable with only `refresh-service`.
+Missing, old or unmanaged brokers do not change ordinary installation.
+
+The native command no-ops when no update is pending. Otherwise a fixed
+outside-cgroup worker uses the broker's quiescent handoff: earlier requests
+complete and later connections wait on systemd's listener for the selected ELF.
+The one-time legacy bootstrap lacks this protocol and restarts only
+`workbench-host-install.service` within the coordinated maintenance window.
+It must not treat a capabilities response as an idle reservation.
+The worker proves the new running identity. The Harness installer runs in the
+host context supplied by the existing broker,
+not by breaking out of the engineer namespace. No OMP/Pi/Hermes restart,
+Cantrip installation or new execution bridge is involved. Confirm capabilities
+actually advertise Cantrip after the request and refresh complete, then run the
+explicit Cantrip commands above; an installer receipt alone is not that proof.
 
 ## Isolated installer checks
 

@@ -8,23 +8,28 @@ umask 077
 
 repo_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 marker='<!-- shared guidance: agent-config -->'
+skill_marker='owned by misty-step/harness agent-config'
 
 usage() {
   cat <<'EOF'
 Usage: install [--agent-dir DIR] [--check] [--home DIR]
-               [--skill NAME|all]...
+               [--skill NAME|all]... [--preserve-foreign-skills]
                [--bin NAME]...
-               [--guidance NAME]... --guidance-source FILE
-               [--audio-sandbox] [--session-backup]
+               [--guidance NAME]... --guidance-source FILE [--guidance-file NAME]
+               [--audio-sandbox] [--session-backup] [--t3-pool]
 
   --agent-dir DIR        Harness agent directory (required for agent primitives).
   --home DIR             Home for ~/.local/bin tools (default $HOME).
   --skill NAME|all       Skill package to clean-replace; repeatable.
+  --preserve-foreign-skills Refuse unmarked skill collisions; retire only marked skills.
   --bin NAME             Standalone launcher to install; repeatable.
   --guidance NAME        Shared guidance section to inject; repeatable.
   --guidance-source FILE Harness AGENTS.md holding the insertion marker.
+  --guidance-file NAME   Composed file in the agent directory: AGENTS.md
+                         (only supported value).
   --audio-sandbox        Silent agent sink, Claude Code env, and live proof.
   --session-backup       Install session backup CLI, credential references and inactive user timer.
+  --t3-pool              Install account pools and inactive 90-second user timer (opt-in).
   --check                Validate the selection; write nothing.
 EOF
 }
@@ -32,28 +37,46 @@ EOF
 agent_dir=
 home_dir=${HOME}
 guidance_source=
+guidance_file=AGENTS.md
 check=0
 skills=
+preserve_foreign_skills=0
 bins=
 guidance=
 audio_sandbox=0
 session_backup=0
+t3_pool=0
+t3_pool_requested=0
 
 while [ $# -gt 0 ]; do
   case "$1" in
     --agent-dir) agent_dir=${2-}; shift 2 ;;
     --home) home_dir=${2-}; shift 2 ;;
     --skill) skills="$skills ${2-}"; shift 2 ;;
+    --preserve-foreign-skills) preserve_foreign_skills=1; shift ;;
     --bin) bins="$bins ${2-}"; shift 2 ;;
     --guidance) guidance="$guidance ${2-}"; shift 2 ;;
     --guidance-source) guidance_source=${2-}; shift 2 ;;
+    --guidance-file) guidance_file=${2-}; shift 2 ;;
     --audio-sandbox) audio_sandbox=1; shift ;;
     --session-backup) session_backup=1; shift ;;
+    --t3-pool) t3_pool=1; t3_pool_requested=1; shift ;;
     --check) check=1; shift ;;
     -h|--help) usage; exit 0 ;;
     *) printf 'Unknown argument: %s\n' "$1" >&2; usage >&2; exit 1 ;;
   esac
 done
+
+# Pooling requires a user manager; other primitives work on macOS/containers.
+if [ "$t3_pool" = 1 ]; then
+  if command -v systemctl >/dev/null 2>&1 && command -v flock >/dev/null 2>&1 &&
+    systemctl --user show-environment >/dev/null 2>&1; then
+    bins="$bins t3-pool.ts"
+  else
+    printf 'Skipping T3 pool: systemd user manager and flock are required\n'
+    t3_pool=0
+  fi
+fi
 
 require_nonempty() {
   [ -s "$1" ] || {
@@ -68,7 +91,7 @@ require_bun() {
 
 agent_selection=0
 if [ -n "$skills$bins$guidance$guidance_source" ] || [ "$audio_sandbox" = 1 ]; then agent_selection=1; fi
-if [ -z "$agent_dir" ] && { [ "$session_backup" = 0 ] || [ "$agent_selection" = 1 ]; }; then
+if [ -z "$agent_dir" ] && { [ "$session_backup" = 0 ] && [ "$t3_pool_requested" = 0 ] || [ "$agent_selection" = 1 ]; }; then
   echo "--agent-dir is required for agent primitives" >&2; usage >&2; exit 1
 fi
 
@@ -85,12 +108,25 @@ for name in $skills; do
   fi
 done
 
+owns_skill() {
+  [ -d "$1" ] && [ ! -L "$1" ] &&
+    [ -f "$1/.harness-owned" ] && [ ! -L "$1/.harness-owned" ] &&
+    [ "$(cat "$1/.harness-owned")" = "$skill_marker" ]
+}
+
 validate_skills() {
   for name in $skill_list; do
     case "$name" in
       ''|*/*|.|..) printf 'Invalid skill name: %s\n' "$name" >&2; exit 1 ;;
     esac
     require_nonempty "$repo_dir/skills/$name/SKILL.md"
+    destination="$agent_dir/skills/$name"
+    if [ "$preserve_foreign_skills" = 1 ] && { [ -e "$destination" ] || [ -L "$destination" ]; }; then
+      if ! owns_skill "$destination"; then
+        printf 'warning: refusing unowned skill destination: %s\n' "$destination" >&2
+        exit 1
+      fi
+    fi
   done
 }
 
@@ -101,6 +137,10 @@ validate_guidance() {
     esac
     require_nonempty "$repo_dir/guidance/$name.md"
   done
+  case "$guidance_file" in
+    AGENTS.md) ;;
+    *) printf 'Invalid guidance file: %s\n' "$guidance_file" >&2; exit 1 ;;
+  esac
   if [ -n "$guidance" ] || [ -n "$guidance_source" ]; then
     require_nonempty "$guidance_source"
     grep -Fqx "$marker" "$guidance_source" || {
@@ -137,6 +177,18 @@ validate_bin() {
         if [ ! -f "$dest" ] || [ -L "$dest" ] || ! validate_launcher_header "$dest"; then
           printf 'Refusing unowned launcher destination: %s\n' "$dest" >&2
           exit 1
+        fi
+      fi
+      ;;
+    *)
+      dest="$home_dir/.local/bin/$name"
+      header="# owned by misty-step/harness agent-config $name"
+      [ "$(sed -n 2p "$repo_dir/bin/$name")" = "$header" ] || {
+        printf 'Standalone launcher lacks its ownership header: %s\n' "$name" >&2; exit 1
+      }
+      if [ -e "$dest" ] || [ -L "$dest" ]; then
+        if [ ! -f "$dest" ] || [ -L "$dest" ] || [ "$(sed -n 2p "$dest")" != "$header" ]; then
+          printf 'Refusing unowned launcher destination: %s\n' "$dest" >&2; exit 1
         fi
       fi
       ;;
@@ -195,12 +247,57 @@ install_session_backup() {
   done
 }
 
+t3_pool_files() {
+  printf '%s\n' \
+    "pools.json:.config/t3-pool.json" \
+    "t3-pool.service:.config/systemd/user/t3-pool.service" \
+    "t3-pool.timer:.config/systemd/user/t3-pool.timer"
+}
+
+validate_t3_pool() {
+  [ "$t3_pool" = 1 ] || return 0
+  for pair in $(t3_pool_files); do
+    source="$repo_dir/t3-pool/${pair%%:*}"
+    destination="$home_dir/${pair#*:}"
+    require_nonempty "$source"
+    # A native systemd mask is an explicit off switch, never an install target.
+    case "${pair%%:*}" in
+      *.service|*.timer) [ ! -L "$destination" ] || [ "$(readlink "$destination")" != /dev/null ] || continue ;;
+    esac
+    if [ -e "$destination" ] || [ -L "$destination" ]; then
+      pool_marker='# owned by misty-step/harness t3-pool'
+      [ "${pair%%:*}" != pools.json ] || pool_marker='  "ownedBy": "misty-step/harness t3-pool",'
+      if [ ! -f "$destination" ] || [ -L "$destination" ] || ! grep -Fqx "$pool_marker" "$destination"; then
+        printf 'Refusing foreign T3 pool destination: %s\n' "$destination" >&2
+        exit 1
+      fi
+    fi
+  done
+}
+
+install_t3_pool() {
+  for pair in $(t3_pool_files); do
+    destination="$home_dir/${pair#*:}"
+    case "${pair%%:*}" in
+      *.service|*.timer) [ ! -L "$destination" ] || [ "$(readlink "$destination")" != /dev/null ] || continue ;;
+    esac
+    install -d -m 700 "$(dirname -- "$destination")"
+    install -m 600 "$repo_dir/t3-pool/${pair%%:*}" "$destination"
+  done
+  systemctl --user daemon-reload
+  # Activation is explicit. Reinstall preserves enabled, disabled and masked.
+  printf 'T3 pool units installed; opt in with systemctl --user enable --now t3-pool.timer\n'
+}
+
 install_skill() {
   name=$1
   install -d -m 700 "$agent_dir/skills"
   temp=$(mktemp -d "$agent_dir/skills/.$name.XXXXXX")
   trap 'rm -rf "$temp"' 0 1 2 15
   cp -R "$repo_dir/skills/$name"/. "$temp"/
+  if [ "$preserve_foreign_skills" = 1 ]; then
+    printf '%s\n' "$skill_marker" > "$temp/.harness-owned"
+  fi
   chmod -R u=rwX,go= "$temp"
   rm -rf -- "$agent_dir/skills/$name"
   mv "$temp" "$agent_dir/skills/$name"
@@ -231,14 +328,18 @@ install_bin() {
       ;;
     *)
       install -d -m 700 "$home_dir/.local/bin"
-      install -m 700 "$repo_dir/bin/$name" "$home_dir/.local/bin/$name"
+      staged=$(mktemp "$home_dir/.local/bin/.$name.XXXXXX")
+      trap 'rm -f "$staged"' 0 1 2 15
+      install -m 700 "$repo_dir/bin/$name" "$staged"
+      mv "$staged" "$home_dir/.local/bin/$name"
+      trap - 0 1 2 15
       ;;
   esac
 }
 
 install_guidance() {
   install -d -m 700 "$agent_dir"
-  temp=$(mktemp "$agent_dir/.AGENTS.md.XXXXXX")
+  temp=$(mktemp "$agent_dir/.$guidance_file.XXXXXX")
   trap 'rm -f "$temp"' 0 1 2 15
   while IFS= read -r line || [ -n "$line" ]; do
     if [ "$line" = "$marker" ]; then
@@ -251,7 +352,7 @@ install_guidance() {
     fi
   done < "$guidance_source" > "$temp"
   chmod 600 "$temp"
-  mv "$temp" "$agent_dir/AGENTS.md"
+  mv "$temp" "$agent_dir/$guidance_file"
   trap - 0 1 2 15
 }
 
@@ -260,17 +361,12 @@ validate_guidance
 validate_bins
 validate_audio_sandbox
 validate_session_backup
+validate_t3_pool
 
 if [ "$check" = 1 ]; then
   exit 0
 fi
 
-if [ -n "$agent_dir" ]; then
-  rm -rf -- "$agent_dir/skills/dev-exec"
-fi
-if [ -n "$agent_dir" ]; then
-  rm -rf -- "$agent_dir/skills/foundation"
-fi
 for name in design-check review-check foundation-check story-deletion-check semantic-check; do
   destination="$home_dir/.local/bin/$name"
   if [ -f "$destination" ] && grep -Fq ": owned standalone launcher (misty-step/harness)." "$destination"; then
@@ -293,22 +389,30 @@ for name in dev.slice dev-fleet.slice dev-exec.slice; do
 done
 for name in $skill_list; do
   install_skill "$name"
+  retired=
   case "$name" in
     engineering-operations)
-      rm -rf -- "$agent_dir/skills/agent-ergonomics" "$agent_dir/skills/capture" ;;
+      retired='agent-ergonomics capture' ;;
     cloudflare-workers)
-      rm -rf -- "$agent_dir/skills/wrangler" ;;
+      retired=wrangler ;;
     remote-execution)
-      rm -rf -- "$agent_dir/skills/using-exe-dev" ;;
+      retired=using-exe-dev ;;
     design-studio)
-      rm -rf -- "$agent_dir/skills/frontend-design" "$agent_dir/skills/show-me" "$agent_dir/skills/herdr" ;;
+      retired='frontend-design show-me herdr' ;;
     sachstand)
-      rm -rf -- "$agent_dir/skills/decide" ;;
+      retired=decide ;;
     story-qa)
-      rm -rf -- "$agent_dir/skills/check-cadence" "$agent_dir/skills/verification-infrastructure" ;;
+      retired='check-cadence verification-infrastructure' ;;
   esac
+  for old in $retired; do
+    destination="$agent_dir/skills/$old"
+    if [ "$preserve_foreign_skills" = 0 ] || owns_skill "$destination"; then
+      rm -rf -- "$destination"
+    fi
+  done
 done
 for name in $bins; do install_bin "$name"; done
 if [ -n "$guidance" ]; then install_guidance; fi
 if [ "$audio_sandbox" = 1 ]; then bun "$repo_dir/audio-sandbox/install.ts" host --home "$home_dir"; fi
 if [ "$session_backup" = 1 ]; then install_session_backup; fi
+if [ "$t3_pool" = 1 ]; then install_t3_pool; fi

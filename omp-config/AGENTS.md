@@ -8,6 +8,6 @@ Shared primitives belong in sibling `../agent-config` (`AGENT_CONFIG_DIR`
 overrides it); this installer declares selection. External skills retain
 upstream provenance; homebrew skills carry distinct outcomes or local knowledge.
 
-Run `../scripts/check omp`; shared changes exercise both consumers.
+Run `../scripts/check omp`; shared changes exercise every consumer.
 `README.md` records component operations. Global instructions point to the
 shared native `local-facts` skill rather than a composed sidecar.

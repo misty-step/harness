@@ -1,0 +1,14 @@
+{
+  "observation": "Two live global guidance files changed during final private verification interval; no live installer was run by this builder. Other selected live files remained unchanged. Read-only comparison below does not identify the external writer.",
+  "master": "738a3c2efce4c958f27c9c5568b5ebc9d4f4cf14",
+  "global_guidance": {
+    "claude": {
+      "matches_master_738a3c2e": true,
+      "mtime_utc": "2026-10-21T04:20:26.971787+00:00"
+    },
+    "codex": {
+      "matches_master_738a3c2e": true,
+      "mtime_utc": "2026-10-21T04:20:27.426481+00:00"
+    }
+  }
+}

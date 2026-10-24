@@ -7,7 +7,7 @@
  *
  * `host` writes a PipeWire drop-in that creates the silent sink whenever
  * PipeWire starts, and merges the contract into Claude Code's settings `env`.
- * Claude Code has no installer in this repository, so only these keys are
+ * claude-config does not write Claude Code's settings, so only these keys are
  * owned there. When the live daemon is reachable, it also creates the sink now
  * (no daemon restart, default device untouched) and proves routing: sandboxed
  * native and Pulse streams link only to the sink, and a stream aimed at a

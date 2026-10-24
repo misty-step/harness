@@ -83,3 +83,12 @@ jobs:
           commit-message: ${{ steps.prepare.outputs.commit-message }}
           body: |
             Automated changelog for `${{ steps.prepare.outputs.release-tag }}` (US-015).
+      - name: Merge generated release after required checks
+        if: steps.release-pr.outputs.pull-request-number != ''
+        env:
+          GH_TOKEN: ${{ steps.bot-token.outputs.token }}
+          RELEASE_PR: ${{ steps.release-pr.outputs.pull-request-number }}
+          RELEASE_HEAD: ${{ steps.release-pr.outputs.pull-request-head-sha }}
+        run: |
+          gh pr merge "$RELEASE_PR" --repo "$GITHUB_REPOSITORY" \
+            --auto --squash --match-head-commit "$RELEASE_HEAD"

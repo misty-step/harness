@@ -1,0 +1,525 @@
+#!/bin/sh
+# Drive harness the way its operator does: native logins, the gate, isolated
+# deploys, fresh Claude Code and Codex sessions, live drift, home post, t3-pool.
+# Never deploys to the live HOME. Evidence survives cleanup.
+set -u
+umask 077
+
+skill_dir=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+root=$(git -C "$skill_dir" rev-parse --show-toplevel)
+base=${VH_DIR:-$HOME/.cache/tmp/verify-harness}
+case "$base" in /*) ;; *) echo "VH_DIR must be an absolute path" >&2; exit 1 ;; esac
+# Canonical form, so ., .. and repeated slashes cannot slip past the breadth check.
+base=$(realpath -m -- "$base")
+[ "$base" != / ] || base=''
+case "$HOME/" in "$base"/*) echo "VH_DIR=${base:-/} is too broad; name a directory of its own" >&2; exit 1 ;; esac
+run="$base/run"
+# Only a directory carrying this marker is ever removed.
+marker="$run/.verify-harness-run"
+# One evidence directory per VH_DIR and UTC day, so separate commands share it.
+evidence=${VH_EVIDENCE:-$base/evidence/$(date -u +%Y-%m-%d)}
+
+# Native execution identities, independent of product AgentMail QA accounts.
+owner_gh=moomooskycow
+owner_claude=phaedrus@mistystep.io
+owner_codex_mode=chatgpt
+
+fails=0
+case "${1:-}" in doctor|check|install|session|session-auth|session-sdk|live|home|pool|daybook|cleanup|all) ;; *) usage_needed=1 ;; esac
+if [ -z "${usage_needed:-}" ]; then
+  mkdir -p "$evidence" && evidence=$(CDPATH= cd -- "$evidence" && pwd) ||
+    { echo "cannot create evidence directory $evidence" >&2; exit 1; }
+fi
+log="$evidence/transcript.txt"
+say() { printf '%s\n' "$*" | tee -a "$log"; }
+pass() { say "PASS $*"; }
+fail() { say "FAIL $*"; fails=$((fails + 1)); }
+step() { say ""; say "== $* ($(date -u +%H:%M:%SZ))"; }
+need_run() {
+  [ -f "$marker" ] && [ -f "$run/claude-home/.claude/AGENTS.md" ] || {
+    fail "no isolated install at $run; run: verify-harness install"
+    return 1
+  }
+  need_lists
+}
+# An empty selection would make every skill loop pass vacuously.
+need_lists() {
+  for c in claude codex; do
+    for kind in skills guidance; do
+      [ -n "$(list_of "$c" "$kind")" ] || { fail "no $kind='...' line in $c-config/install"; return 1; }
+    done
+  done
+}
+remove_run() {
+  [ -e "$run" ] || return 0
+  [ -f "$marker" ] || { fail "$run has no verify-harness marker; not removing it"; return 1; }
+  rm -rf -- "$run"
+}
+# The installers' own selections, so a newly added skill or section is checked.
+list_of() { sed -n "s/^$2='\\(.*\\)'\$/\\1/p" "$run/source/$1-config/install"; }
+# A fresh cwd outside /home: Claude Code walks every ancestor of the cwd for
+# AGENTS.md and .claude/skills, so a cwd under the live HOME leaks live files.
+fresh_cwd() { mktemp -d /tmp/verify-harness-cwd.XXXXXX; }
+
+compose() { # compose <component> > expected
+  while IFS= read -r line || [ -n "$line" ]; do
+    if [ "$line" = '<!-- shared guidance: agent-config -->' ]; then
+      for section in $(list_of "$1" guidance); do
+        cat "$run/source/agent-config/guidance/$section.md"
+        printf '\n'
+      done
+    else
+      printf '%s\n' "$line"
+    fi
+  done < "$run/source/$1-config/global/$2"
+}
+
+cmd_doctor() {
+  step "doctor: is this checkout and workstation worth driving?"
+  say "repo $root at $(git -C "$root" rev-parse --short HEAD) on $(git -C "$root" branch --show-current)"
+  case "$evidence" in "$root"/*) set -- ":(exclude)${evidence#"$root"/}" ;; *) set -- ;; esac
+  [ -z "$(git -C "$root" status --porcelain -- . "$@")" ] && pass "clean tree (evidence excluded)" ||
+    say "NOTE dirty tree: unit tests read working files, installers read committed HEAD"
+  for tool in git bun jq python3 gitleaks trufflehog claude codex gh tmux; do
+    command -v "$tool" >/dev/null 2>&1 && pass "tool $tool" || fail "tool $tool missing"
+  done
+  bun_version=$(bun --version 2>/dev/null || echo 0)
+  printf '%s\n1.4.2\n' "$bun_version" | sort -V -C -r 2>/dev/null &&
+    pass "bun $bun_version >= 1.4.2" || fail "bun $bun_version < 1.4.2"
+  say "claude $(claude --version 2>/dev/null); $(codex --version 2>/dev/null)"
+
+  # Native logins, read-only. Never print a token.
+  # One retry: a transient API error otherwise reads as a wrong login.
+  gh_err=$(mktemp)
+  gh_user=$(gh api user --jq .login 2>"$gh_err" || { sleep 2; gh api user --jq .login 2>"$gh_err"; })
+  [ -n "$gh_user" ] || say "gh api user: $(head -n 1 "$gh_err")"
+  rm -f -- "$gh_err"
+  [ "$gh_user" = "$owner_gh" ] && pass "gh signed in as $gh_user" || fail "gh login is '$gh_user', want $owner_gh"
+  gh_push=$(gh api repos/misty-step/harness --jq .permissions.push 2>/dev/null)
+  [ "$gh_push" = true ] && pass "gh can push misty-step/harness" || fail "gh push permission is '$gh_push'"
+  claude_auth=$(claude auth status 2>/dev/null | jq -c '{loggedIn, email, authMethod, subscriptionType}' 2>/dev/null)
+  say "claude auth $(printf '%s' "$claude_auth" | jq -c 'del(.email)')"
+  [ "$(printf '%s' "$claude_auth" | jq -r '.loggedIn and .email == "'"$owner_claude"'"')" = true ] &&
+    pass "claude native subscription identity matches" || fail "claude native subscription identity does not match"
+  codex_login=$(codex login status 2>&1 | head -n 1)
+  codex_identity=$(python3 -I - "${CODEX_HOME:-$HOME/.codex}/auth.json" 2>/dev/null <<'EOF'
+import base64, json, sys
+auth = json.load(open(sys.argv[1]))
+claim = (auth.get("tokens") or {}).get("id_token", "").split(".")[1]
+claims = json.loads(base64.urlsafe_b64decode(claim + "=" * (-len(claim) % 4)))
+# The account email is personal; evidence records only that one is present.
+print(auth.get("auth_mode", ""), "account-email-present" if claims.get("email") else "no-account-email")
+EOF
+)
+  say "codex: $codex_login ($codex_identity)"
+  case "$codex_login $codex_identity" in
+    "Logged in using ChatGPT $owner_codex_mode "*) pass "codex signed in with ChatGPT" ;;
+    *) fail "codex login: $codex_login" ;;
+  esac
+
+  # Home and T3 endpoints the guidance relies on.
+  command -v home >/dev/null 2>&1 && pass "home on PATH" || fail "home missing from PATH"
+  route="$HOME/.local/state/home/primary.json"
+  [ -f "$route" ] && say "home routes over SSH to its cloud primary; the local ~/.local/state/home/inbox.md is not forwarded (#418)" ||
+    say "home is local (no primary route)"
+  runtime="${T3CODE_HOME:-$HOME/.t3}/userdata/server-runtime.json"
+  origin=$(jq -r '.origin // empty' "$runtime" 2>/dev/null)
+  case "$origin" in
+    http://127.0.0.1:*|http://localhost:*|http://\[::1\]:*) pass "t3 server is loopback ($origin)" ;;
+    *) fail "t3 server runtime '$origin' at $runtime" ;;
+  esac
+  say "t3-pool.timer $(systemctl --user is-enabled t3-pool.timer 2>&1)/$(systemctl --user is-active t3-pool.timer 2>&1)"
+}
+
+cmd_check() {
+  step "check: ./scripts/check ${1:-all} (isolated installers, committed HEAD)"
+  started=$(date +%s)
+  if (cd "$root" && ./scripts/check "$@") > "$evidence/check.log" 2>&1; then
+    pass "scripts/check ${1:-all} in $(( $(date +%s) - started ))s"
+  else
+    fail "scripts/check ${1:-all}; see $evidence/check.log"
+  fi
+  tail -n 3 "$evidence/check.log" | tee -a "$log"
+  say "installer assertions: $(grep -c '^PASS' "$evidence/check.log") PASS, $(grep -c '^FAIL' "$evidence/check.log") FAIL"
+}
+
+install_into() { # install_into <home> <component>
+  mkdir -p "$1/.fixture-bin"
+  # No user manager in a private HOME: record unit calls instead of making them.
+  printf '#!/bin/sh\n[ "$*" != "--user show-environment" ] || exit 0\nprintf "%%s\\n" "$*" >> "$HOME/systemctl-calls"\n' > "$1/.fixture-bin/systemctl"
+  chmod 700 "$1/.fixture-bin/systemctl"
+  env -i PATH="$1/.fixture-bin:$PATH" HOME="$1" TMPDIR="$run" "$run/source/$2-config/install"
+}
+
+cmd_install() {
+  rev=${1:-HEAD}
+  step "install: claude-config and codex-config from $rev into private HOMEs"
+  remove_run || return
+  sha=$(git -C "$root" rev-parse --verify --quiet "$rev^{commit}") || { fail "unknown revision $rev"; return; }
+  mkdir -p "$run" && : > "$marker"
+  # A clone copies branches only; fetch the commit itself so remote-tracking revs work.
+  git clone --quiet --no-hardlinks --no-local "$root" "$run/source" &&
+    git -C "$run/source" fetch --quiet origin "$sha" &&
+    git -C "$run/source" checkout --quiet --detach "$sha" || { fail "clone $rev"; return; }
+  need_lists || return
+  say "source $(git -C "$run/source" rev-parse --short HEAD) ($rev)"
+  h="$run/claude-home"
+  mkdir -p "$h/.claude"
+  printf '%s\n' '{"env":{"HARNESS_FOREIGN_SETTING":"preserve"},"hooks":{"SessionStart":[{"hooks":[{"type":"command","command":"printf foreign-startup-sentinel"}]}]}}' > "$h/.claude/settings.json"
+  install_into "$h" claude >> "$log" 2>&1 && pass "claude-config/install exit 0" || fail "claude-config/install"
+  install_into "$h" codex >> "$log" 2>&1 && pass "codex-config/install exit 0" || fail "codex-config/install"
+  cp "$h/.claude/settings.json" "$run/settings-first.json"
+  install_into "$h" claude >> "$log" 2>&1 && cmp -s "$run/settings-first.json" "$h/.claude/settings.json" &&
+    pass "repeated native adapter install leaves settings byte-identical" || fail "native adapter rerun"
+  jq -e '.env.HARNESS_FOREIGN_SETTING == "preserve" and .hooks.SessionStart[0].hooks == [{"type":"command","command":"printf foreign-startup-sentinel"}]' "$h/.claude/settings.json" >/dev/null &&
+    pass "foreign native settings and startup hook preserved" || fail "foreign native settings or hook changed"
+  compose claude AGENTS.md > "$run/expected-claude-AGENTS.md"
+  compose codex AGENTS.md > "$run/expected-AGENTS.md"
+  cmp -s "$run/expected-claude-AGENTS.md" "$h/.claude/AGENTS.md" && pass "~/.claude/AGENTS.md is the composed guidance" || fail "Claude AGENTS.md composition"
+  cmp -s "$run/expected-AGENTS.md" "$h/.codex/AGENTS.md" && pass "~/.codex/AGENTS.md is the composed guidance" || fail "AGENTS.md composition"
+  [ ! -L "$h/.claude/AGENTS.md" ] && [ ! -e "$h/.claude/CLAUDE.md" ] && [ ! -L "$h/.claude/CLAUDE.md" ] &&
+    pass "Claude uses AGENTS.md alone with no legacy alias" || fail "Claude legacy instruction entry"
+  before=$fails
+  for d in claude codex; do
+    for skill in $(list_of "$d" skills); do
+      diff -rq --exclude=.harness-owned "$run/source/agent-config/skills/$skill" "$h/.$d/skills/$skill" >/dev/null ||
+        fail "$d skill $skill bytes differ"
+    done
+  done
+  [ "$fails" = "$before" ] && pass "claude skills ($(list_of claude skills)) and codex skills ($(list_of codex skills)) byte-identical to source"
+  [ -x "$h/.local/bin/t3-pool" ] && [ -x "$h/.local/bin/t3-runtime-mode" ] && pass "t3-pool and t3-runtime-mode launchers" || fail "launchers"
+  [ "$(cat "$h/systemctl-calls" 2>/dev/null)" = "$(printf '%s\n' '--user daemon-reload' '--user daemon-reload')" ] && pass "pool timer left opt-in (only daemon-reload across both installs)" || fail "systemctl calls: $(cat "$h/systemctl-calls" 2>/dev/null)"
+  (cd "$h" && find . -path ./.fixture-bin -prune -o -type f -print | grep -v '/skills/' | sort) > "$evidence/install-tree.txt"
+
+  # Broken state: a foreign global file must stop the install before any write.
+  f="$run/foreign-home"
+  mkdir -p "$f/.claude" "$f/.codex"
+  printf '# my own notes\n' > "$f/.claude/AGENTS.md"
+  printf '# my own notes\n' > "$f/.codex/AGENTS.md"
+  if install_into "$f" claude >> "$log" 2>&1; then fail "claude install overwrote a foreign AGENTS.md"
+  else [ "$(ls -A "$f/.claude")" = AGENTS.md ] && grep -Fxq '# my own notes' "$f/.claude/AGENTS.md" &&
+    pass "claude install refuses a foreign AGENTS.md, nothing written" || fail "foreign AGENTS.md not preserved"; fi
+  if install_into "$f" codex >> "$log" 2>&1; then fail "codex install overwrote a foreign AGENTS.md"
+  else [ "$(ls -A "$f/.codex")" = AGENTS.md ] && grep -Fxq '# my own notes' "$f/.codex/AGENTS.md" &&
+    pass "codex install refuses a foreign AGENTS.md, nothing written" || fail "foreign AGENTS.md not preserved"; fi
+}
+
+claude_env() { # claude_env <config-dir or empty> <home> command...
+  if [ -n "$1" ]; then cfg=$1 home_dir=$2; shift 2
+    env -i PATH="$PATH" HOME="$home_dir" CLAUDE_CONFIG_DIR="$cfg" TMPDIR="$run" "$@"
+  else home_dir=$2; shift 2
+    env -i PATH="$PATH" HOME="$home_dir" TMPDIR="$run" "$@"
+  fi
+}
+
+claude_session() { # claude_session <config-dir, empty for the live default> <home> <label> [prompt]
+  cwd=$(fresh_cwd)
+  printf '%s\n' "$cwd" >> "$base/cwds"
+  hooks=$(mktemp -d /tmp/verify-harness-hooks.XXXXXX)
+  printf '%s\n' "$hooks" >> "$base/cwds"
+  printf '#!/bin/sh\ncat >> "%s/events.jsonl"\nprintf "\\n" >> "%s/events.jsonl"\n' "$hooks" "$hooks" > "$hooks/hook"
+  chmod 700 "$hooks/hook"
+  printf '{"hooks":{"InstructionsLoaded":[{"hooks":[{"type":"command","command":"%s/hook"}]}]}}\n' "$hooks" > "$hooks/settings.json"
+  (cd "$cwd" && claude_env "$1" "$2" \
+    timeout 180 claude -p "${4:-Reply with OK}" --model haiku --tools "" --settings "$hooks/settings.json" \
+      --output-format stream-json --verbose --include-hook-events < /dev/null) > "$run/$3.jsonl" 2> "$run/$3.err"
+  jq -c 'select(.subtype == "init") | {cwd, model, skills}' "$run/$3.jsonl" > "$evidence/$3-init.json"
+  jq -c 'select(.type == "result") | {is_error, result}' "$run/$3.jsonl" > "$evidence/$3-result.json"
+  jq -c 'select(.subtype == "hook_response" and .hook_event == "SessionStart") | {subtype, hook_event, stdout, exit_code, outcome}' "$run/$3.jsonl" > "$evidence/$3-hooks.jsonl"
+  jq -c 'select(.file_path) | {hook_event_name, file_path, memory_type, load_reason}' "$hooks/events.jsonl" > "$evidence/$3-instructions.jsonl" 2>/dev/null
+  python3 "$skill_dir/bin/claude-context.py" "$run/$3.jsonl" "${1:-$2/.claude}/AGENTS.md" > "$evidence/$3-context.json" &&
+    pass "fresh Claude Code session received complete canonical AGENTS.md through native SessionStart" ||
+    fail "fresh Claude Code session canonical SessionStart context"
+  if [ -n "$1" ]; then
+    jq -e 'select(.subtype == "hook_response" and .stdout == "foreign-startup-sentinel" and .outcome == "success")' "$run/$3.jsonl" >/dev/null &&
+      pass "fresh native session also ran the preserved foreign startup hook" || fail "foreign startup hook did not run"
+  fi
+  others=$(jq -r '.file_path' "$evidence/$3-instructions.jsonl")
+  [ -z "$others" ] && pass "no other instruction file leaked into the session" || fail "extra instruction files: $others"
+  before=$fails
+  for skill in $(list_of claude skills); do
+    jq -e --arg s "$skill" '.skills | index($s)' "$evidence/$3-init.json" >/dev/null || fail "Claude Code session lacks skill $skill"
+  done
+  [ "$fails" = "$before" ] && pass "Claude Code session lists every claude-config skill"
+}
+
+codex_session() { # codex_session <codex-home> <home> <label>
+  cwd=$(fresh_cwd)
+  printf '%s\n' "$cwd" >> "$base/cwds"
+  # prompt-input renders the exact model-visible input without a model call.
+  (cd "$cwd" && env -i PATH="$PATH" HOME="$2" CODEX_HOME="$1" TMPDIR="$run" \
+    timeout 120 codex debug prompt-input "verify-harness") > "$run/$3.json" 2> "$run/$3.err" ||
+    { fail "codex debug prompt-input exit"; return; }
+  jq -r '.. | strings' "$run/$3.json" > "$run/$3.txt"
+  grep -Fq '<!-- owned by misty-step/harness codex-config -->' "$run/$3.txt" &&
+    pass "fresh Codex session prompt carries the composed AGENTS.md" || fail "Codex prompt lacks the composed AGENTS.md"
+  heading=$(awk '/<!-- owned by misty-step\/harness codex-config -->/ { on = 1 } on && /^# / { print; exit }' "$run/$3.txt")
+  grep -Fq -- "- \`r0\` = \`$1/skills\`" "$run/$3.txt" && pass "Codex skill root is $1/skills" || fail "Codex skill root is not $1/skills"
+  before=$fails
+  for skill in $(list_of codex skills); do
+    grep -Fq -- "(file: r0/$skill/SKILL.md)" "$run/$3.txt" || fail "Codex session lacks skill $skill"
+  done
+  [ "$fails" = "$before" ] && pass "Codex session lists every codex-config skill"
+  { printf 'AGENTS.md heading: %s\n' "$heading"
+    grep -o '(file: r[0-9]*/[^)]*)' "$run/$3.txt"; } > "$evidence/$3-summary.txt"
+  if [ "$1" != "$HOME/.codex" ] && grep -Fq "$HOME/.codex" "$run/$3.txt"; then fail "live ~/.codex leaked into the isolated prompt"; fi
+}
+
+cmd_session() {
+  need_run || return
+  h="$run/claude-home"
+  case "${1:-both}" in
+    claude|both)
+      step "session claude: fresh Claude Code session on the isolated install (no credentials there)"
+      claude_session "$h/.claude" "$h" claude-isolated
+      jq -r '.result' "$evidence/claude-isolated-result.json" | sed 's/^/  model call: /' | tee -a "$log" ;;
+  esac
+  case "${1:-both}" in
+    codex|both)
+      step "session codex: fresh Codex session on the isolated install"
+      codex_session "$h/.codex" "$h" codex-isolated ;;
+  esac
+  [ "${1:-both}" != both ] || cmd_registration
+}
+
+cmd_session_auth() {
+  need_run || return
+  step "session-auth: isolated candidate with native CLI subscription authentication"
+  h="$run/claude-home"
+  credential="$HOME/.claude/.credentials.json"
+  target="$h/.claude/.credentials.json"
+  [ -f "$credential" ] || { fail "native Claude credential file unavailable; use authenticated-commands"; return; }
+  [ ! -e "$target" ] && [ ! -L "$target" ] || { fail "isolated credential destination already exists"; return; }
+  # A private copy avoids refresh writes to the live subscription credential file.
+  install -m 600 "$credential" "$target" || { fail "stage native CLI authentication"; return; }
+  trap 'rm -f -- "$target"' 0
+  trap 'exit 130' 2
+  trap 'exit 143' 15
+  claude_session "$h/.claude" "$h" claude-candidate \
+    'Read only your loaded global instructions. Return exactly CANONICAL_QA_OK if they require AGENTS.md instruction content, no CLAUDE.md files or symlinks, and the agent own AgentMail QA account with production owner/admin role proof. Otherwise return MISSING_POLICY.'
+  rm -f -- "$target"
+  trap - 0 2 15
+  jq -e '.is_error == false and .result == "CANONICAL_QA_OK"' "$evidence/claude-candidate-result.json" >/dev/null &&
+    pass "authenticated fresh Claude model read canonical instructions and QA policy" || fail "authenticated candidate model policy readback"
+  codex_session "$h/.codex" "$h" codex-candidate
+}
+
+cmd_session_sdk() {
+  need_run || return
+  [ -f "${VH_CLAUDE_SDK:-}" ] || { fail "set VH_CLAUDE_SDK to T3's SDK module"; return; }
+  step "session-sdk: native SDK launch shape used by T3, no instruction-file launch argument"
+  h="$run/claude-home"
+  target="$h/.claude/.credentials.json"
+  [ ! -e "$target" ] && [ ! -L "$target" ] || { fail "isolated credential destination already exists"; return; }
+  install -m 600 "$HOME/.claude/.credentials.json" "$target" || { fail "stage native CLI authentication"; return; }
+  trap 'rm -f -- "$target"' 0
+  trap 'exit 130' 2
+  trap 'exit 143' 15
+  cwd=$(fresh_cwd)
+  printf '%s\n' "$cwd" >> "$base/cwds"
+  executable=$(command -v claude)
+  env -i PATH="$PATH" HOME="$h" TMPDIR="$run" \
+    timeout 180 bun "$skill_dir/bin/claude-sdk-session.mjs" "$VH_CLAUDE_SDK" "$executable" "$cwd" "$run/claude-sdk.jsonl" \
+    'From the loaded harness global AGENTS.md, return JSON with keys heading, lastLine and sharedAuthWriter. Copy the first Markdown heading source line verbatim, including its leading # and space. Copy the final nonempty line verbatim, and name the sole writer of shared HOUSEHOLD_MEMBERS. No tools.'
+  rm -f -- "$target"
+  trap - 0 2 15
+  jq -c 'select(.subtype == "init") | {cwd, model, skills}' "$run/claude-sdk.jsonl" > "$evidence/claude-sdk-init.json"
+  jq -c 'select(.subtype == "hook_response" and .hook_event == "SessionStart") | {subtype, hook_event, stdout, exit_code, outcome}' "$run/claude-sdk.jsonl" > "$evidence/claude-sdk-hooks.jsonl"
+  python3 "$skill_dir/bin/claude-context.py" "$run/claude-sdk.jsonl" "$h/.claude/AGENTS.md" > "$evidence/claude-sdk-context.json" &&
+    pass "T3 SDK native session received every canonical guidance part" || fail "T3 SDK native context"
+  jq -e 'select(.subtype == "hook_response" and .stdout == "foreign-startup-sentinel" and .outcome == "success")' "$run/claude-sdk.jsonl" >/dev/null &&
+    pass "T3 SDK also ran the preserved foreign startup hook" || fail "T3 SDK foreign startup hook"
+  jq -c 'select(.type == "result") | {is_error, result}' "$run/claude-sdk.jsonl" > "$evidence/claude-sdk-result.json"
+  python3 - "$evidence/claude-sdk-result.json" "$h/.claude/AGENTS.md" <<'PYCODE'
+import json,sys
+from pathlib import Path
+result=json.loads(Path(sys.argv[1]).read_text());assert not result['is_error']
+text=result['result'].strip()
+if text.startswith('```'): text='\n'.join(text.splitlines()[1:-1])
+answer=json.loads(text);lines=[s for s in Path(sys.argv[2]).read_text().splitlines() if s.strip()]
+assert answer == {'heading': next(s for s in lines if s.startswith('# ')), 'lastLine': lines[-1], 'sharedAuthWriter': 'Process'}, answer
+PYCODE
+  [ "$?" -eq 0 ] && pass "authenticated T3 SDK model read global AGENTS.md and the shared-auth writer policy" || fail "T3 SDK model guidance readback"
+}
+
+cmd_registration() {
+  need_run || return
+  step "registration: the revision's verify-harness skill in fresh sessions at a copy of its .claude and .agents"
+  h="$run/claude-home"
+  # A copy outside /home, so neither harness can find the skill anywhere else.
+  reg=$(fresh_cwd)
+  printf '%s\n' "$reg" >> "$base/cwds"
+  git -C "$run/source" archive HEAD .claude .agents | tar -x -C "$reg"
+  (cd "$reg" && claude_env "$h/.claude" "$h" \
+    timeout 180 claude -p "Reply with OK" --output-format stream-json --verbose < /dev/null) 2>/dev/null |
+    jq -c 'select(.subtype == "init") | {skills: (.skills | map(select(. == "verify-harness")))}' > "$evidence/registration-claude.json"
+  [ ! -e "$h/.claude/skills/verify-harness" ] && jq -e '.skills == ["verify-harness"]' "$evidence/registration-claude.json" >/dev/null &&
+    pass "Claude Code lists verify-harness from the project .claude/skills symlink" || fail "Claude Code does not list the project verify-harness"
+  (cd "$reg" && env -i PATH="$PATH" HOME="$h" CODEX_HOME="$h/.codex" TMPDIR="$run" \
+    timeout 120 codex debug prompt-input "verify-harness") 2>/dev/null | jq -r '.. | strings' > "$run/registration-codex.txt"
+  slot=$(sed -n 's/.*(file: \(r[0-9]*\)\/verify-harness\/SKILL.md).*/\1/p' "$run/registration-codex.txt" | head -n 1)
+  { grep -F -- "- \`$slot\` = " "$run/registration-codex.txt"; grep -F -- "- verify-harness: " "$run/registration-codex.txt"; } |
+    sed "s#$reg#<copy>#; s/: Verify.*(file/ (file/" > "$evidence/registration-codex.txt"
+  [ -n "$slot" ] && grep -Fxq -- "- \`$slot\` = \`$reg/.agents/skills\`" "$run/registration-codex.txt" &&
+    pass "Codex lists verify-harness from the project .agents/skills" || fail "Codex does not list the project verify-harness"
+}
+
+cmd_live() {
+  need_run || return
+  step "live: deployed ~/.claude and ~/.codex against $(git -C "$run/source" rev-parse --short HEAD) (read-only)"
+  h="$run/claude-home"
+  cmp -s "$h/.claude/AGENTS.md" "$HOME/.claude/AGENTS.md" && pass "live ~/.claude/AGENTS.md matches source" || fail "DRIFT live ~/.claude/AGENTS.md"
+  cmp -s "$h/.codex/AGENTS.md" "$HOME/.codex/AGENTS.md" && pass "live ~/.codex/AGENTS.md matches source" || fail "DRIFT live ~/.codex/AGENTS.md"
+  [ -f "$HOME/.claude/AGENTS.md" ] && [ ! -L "$HOME/.claude/AGENTS.md" ] &&
+    [ ! -e "$HOME/.claude/CLAUDE.md" ] && [ ! -L "$HOME/.claude/CLAUDE.md" ] &&
+    pass "live Claude uses AGENTS.md alone" || fail "DRIFT live Claude legacy instruction entry"
+  before=$fails
+  for d in claude codex; do
+    for skill in $(list_of "$d" skills); do
+      diff -rq --exclude=.harness-owned "$h/.$d/skills/$skill" "$HOME/.$d/skills/$skill" >/dev/null 2>&1 || fail "DRIFT live ~/.$d/skills/$skill"
+    done
+  done
+  [ "$fails" = "$before" ] && pass "live ~/.claude and ~/.codex shared skills match source"
+  say "Fresh live Claude Code session (real login, one haiku call)"
+  claude_session "" "$HOME" claude-live \
+    'Copy the first Markdown heading source line of your user-level (global) AGENTS.md verbatim, including its leading # and space. Output only that raw line, without backticks or quotation marks.'
+  answer=$(jq -r '.result' "$evidence/claude-live-result.json")
+  say "  model answered: $answer"
+  [ "$answer" = "$(grep -m 1 '^# ' "$HOME/.claude/AGENTS.md")" ] && pass "the model sees the live global guidance" ||
+    fail "model answer differs from the live AGENTS.md heading"
+  say "Fresh live Codex session (real CODEX_HOME, no model call)"
+  codex_session "$HOME/.codex" "$HOME" codex-live
+}
+
+cmd_home() {
+  need_run || return
+  step "home: post to a private inbox, read it back, reject bad posts, probe the route"
+  inbox="$run/home-inbox.md"
+  export HOME_FLEET_LOCAL=1 HOME_INBOX="$inbox" HOME_MEMORY_DIR="$run/home-memory"
+  body=$(printf 'verify-harness probe\n\n## a quoted heading\n- item')
+  header=$(printf '%s\n' "$body" | home post --from 'Verify harness' 2>&1) &&
+    printf '%s\n' "$header" | grep -Eq '^## [0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}Z \[Verify harness\] post:[0-9a-f]{16}$' &&
+    pass "home post answered $header" || fail "home post: $header"
+  readback=$(home inbox --all 2>&1)
+  printf '%s\n' "$readback" | grep -Fxq '## a quoted heading' && printf '%s\n' "$readback" | grep -Fxq -- "$header" &&
+    pass "home inbox reads the post back under its own header, body intact" || fail "home inbox readback"
+  printf '%s\n' "$readback" > "$evidence/home-readback.md"
+  before=$(wc -c < "$inbox")
+  if printf '\n' | home post --from 'Verify harness' >> "$log" 2>&1; then fail "empty body posted"
+  else pass "empty body refused"; fi
+  if printf 'x\n' | home post --from 'bad]name' >> "$log" 2>&1; then fail "bracket name posted"
+  else pass "name with ] refused"; fi
+  [ "$(wc -c < "$inbox")" = "$before" ] && pass "refused posts wrote nothing" || fail "refused posts changed the inbox"
+  unset HOME_FLEET_LOCAL HOME_INBOX HOME_MEMORY_DIR
+  route="$HOME/.local/state/home/primary.json"
+  if [ -f "$route" ]; then
+    usage=$(timeout 30 home --help 2>&1 | head -n 1)
+    case "$usage" in usage:*) pass "routed home answers over SSH from its cloud primary: $usage" ;;
+      *) fail "routed home --help: $usage" ;; esac
+    say "NOTE every home command runs on the cloud primary; nothing forwards ~/.local/state/home/inbox.md (#418)"
+  fi
+}
+
+cmd_pool() {
+  need_run || return
+  step "pool: t3-pool dry runs and opt-in state (read-only)"
+  state="${XDG_STATE_HOME:-$HOME/.local/state}/t3-pool"
+  snap() { find "$state" -type f -exec stat -c '%n %s %Y' {} + 2>/dev/null | sort; }
+  # The live timer can run a real pass in the window; attribute writes to it, not the dry run.
+  passes() { systemctl --user show t3-pool.service -p NRestarts -p ExecMainStartTimestampMonotonic -p ActiveState 2>/dev/null | tr '\n' ' '; }
+  before=$(snap) passes_before=$(passes)
+  if out=$(cd "$root" && timeout 60 bun agent-config/bin/t3-pool.ts --dry-run 2>&1); then
+    printf '%s\n' "$out" > "$evidence/pool-live-dry-run.json"
+    printf '%s\n' "$out" | tail -n 1 | jq -e '.dryRun == true and (.planned | type == "number")' >/dev/null &&
+      pass "live dry run: $(printf '%s\n' "$out" | tail -n 1 | jq -c '{planned, limited}')" || fail "live dry run output"
+  else fail "live dry run: $out"; fi
+  if [ "$(snap)" = "$before" ]; then pass "dry run wrote no pool state"
+  # A running pass reports activating, not active; any state but inactive counts.
+  elif [ "$(passes)" != "$passes_before" ] || ! case "$passes_before $(passes)" in *ActiveState=inactive*ActiveState=inactive*) true ;; *) false ;; esac; then
+    say "NOTE a live t3-pool.service pass ran during the dry run; inert check inconclusive, rerun pool"
+  else fail "dry run changed $state"; fi
+  out=$(env -i PATH="$PATH" HOME="$run/claude-home" "$run/claude-home/.local/bin/t3-pool" --dry-run 2>&1)
+  printf '%s\n' "$out" | grep -Fq '"planned":0' && pass "installed bundle runs with no source or T3 database" || fail "installed bundle: $out"
+  cmp -s "$run/source/agent-config/t3-pool/pools.json" "${XDG_CONFIG_HOME:-$HOME/.config}/t3-pool.json" &&
+    pass "live ~/.config/t3-pool.json matches source" || fail "DRIFT live t3-pool.json"
+  say "t3-pool.timer is $(systemctl --user is-enabled t3-pool.timer 2>&1) (activation is an explicit operator choice)"
+}
+
+cmd_cleanup() {
+  step "cleanup: remove run state and scratch cwds; keep evidence"
+  if [ -f "$base/cwds" ]; then
+    while IFS= read -r d; do
+      case "$d" in /tmp/verify-harness-*) rm -rf -- "$d" ;; esac
+    done < "$base/cwds"
+    rm -f -- "$base/cwds"
+  fi
+  remove_run
+  [ ! -e "$run" ] && pass "run state removed" || fail "run state remains at $run"
+  [ -s "$log" ] && say "evidence kept at $evidence" || fail "evidence missing at $evidence"
+}
+
+cmd_daybook() {
+  step "daybook: isolated installed CLI, concurrent Git writers and recovery"
+  daybook_home=$(mktemp -d "$base/daybook.XXXXXX") || { fail "daybook scratch"; return; }
+  if env -i PATH="$PATH" HOME="$daybook_home" \
+    "$root/agent-config/install" --agent-dir "$daybook_home/.agents" \
+      --preserve-foreign-skills --skill daybook-sync --bin daybook-sync > "$evidence/daybook-install.txt" 2>&1 &&
+    cmp -s "$root/agent-config/skills/daybook-sync/SKILL.md" "$daybook_home/.agents/skills/daybook-sync/SKILL.md"; then
+    pass "daybook canonical shared skill and PATH command installed into private HOME"
+  else
+    fail "daybook isolated install (see daybook-install.txt)"
+    rm -rf -- "$daybook_home"
+    return
+  fi
+  if DAYBOOK_SYNC_SOURCE="$daybook_home/.local/bin/daybook-sync" PYTHONDONTWRITEBYTECODE=1 \
+    python3 -m unittest discover -s "$root/agent-config/lib" -p test_daybook_sync.py -v \
+      > "$evidence/daybook-tests.txt" 2>&1; then
+    cat "$evidence/daybook-tests.txt" | tee -a "$log"
+    pass "daybook installed CLI published and cleaned up; concurrent writes, conflicts, dirty root, journals and secrets preserved"
+  else
+    cat "$evidence/daybook-tests.txt" | tee -a "$log"
+    fail "daybook installed CLI journey"
+  fi
+  rm -rf -- "$daybook_home"
+}
+
+usage() {
+  cat <<'EOF'
+Usage: verify-harness <command>
+  doctor            read-only workstation, login and endpoint check
+  check [selection] ./scripts/check (all|shared|pi|omp|workspace)
+  install [rev]     deploy claude-config and codex-config from rev (default HEAD) into private HOMEs
+  session [claude|codex|both]  fresh sessions on the isolated install; both also checks this skill registers
+  session-auth      isolated candidate model readback using native CLI subscription authentication
+  session-sdk       authenticated T3 SDK launch; requires VH_CLAUDE_SDK module path
+  live              compare live ~/.claude, ~/.codex and t3-pool config with the installed rev; fresh live sessions
+  home              home post into a private inbox, bad posts, routed probe
+  daybook           isolated installed note CLI against local Git remotes
+  pool              t3-pool dry runs and opt-in state
+  cleanup           remove run state; keep evidence
+  all               doctor, check, install, session, live, home, pool, daybook, cleanup
+Env: VH_EVIDENCE=<dir> (default $VH_DIR/evidence/<UTC stamp>)
+     VH_DIR=<absolute dir owned by this run> (default ~/.cache/tmp/verify-harness)
+EOF
+}
+
+command=${1:-}
+[ "$#" -gt 0 ] && shift
+case "$command" in
+  doctor) cmd_doctor ;;
+  check) cmd_check "$@" ;;
+  install) cmd_install "$@" ;;
+  session) cmd_session "$@" ;;
+  session-auth) cmd_session_auth ;;
+  session-sdk) cmd_session_sdk ;;
+  live) cmd_live ;;
+  home) cmd_home ;;
+  pool) cmd_pool ;;
+  daybook) cmd_daybook ;;
+  cleanup) cmd_cleanup ;;
+  all) cmd_doctor; cmd_check; cmd_install "${1:-HEAD}"; cmd_session; cmd_live; cmd_home; cmd_pool; cmd_daybook; cmd_cleanup ;;
+  *) usage; exit 1 ;;
+esac
+say ""
+say "$command: $fails failure(s); evidence $evidence"
+[ "$fails" -eq 0 ]

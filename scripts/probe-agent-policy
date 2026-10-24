@@ -1,0 +1,45 @@
+#!/usr/bin/env python3
+"""Read-only sweep: canonical instruction files and generated verification policy."""
+import argparse
+import os
+from pathlib import Path
+import re
+import sys
+
+parser = argparse.ArgumentParser(description=__doc__)
+parser.add_argument('--verification', action='store_true', help='also check generated verification skills for the QA-account contract')
+parser.add_argument('repos', nargs='*', default=['.'])
+args = parser.parse_args()
+failures = []
+for repo in args.repos:
+    root = Path(repo).resolve()
+    if not root.is_dir():
+        failures.append(f'{root}: repository directory missing')
+        continue
+    for directory, dirs, files in os.walk(root, followlinks=False):
+        dirs[:] = [d for d in dirs if d not in {'.git', 'node_modules', '.cache', '.venv', '__pycache__'}]
+        if 'CLAUDE.md' in files or 'CLAUDE.md' in dirs:
+            failures.append(f'{Path(directory) / "CLAUDE.md"}: forbidden instruction filename; use AGENTS.md alone')
+    # Calendar/clock-qualified quota claims expire before installed guidance does.
+    for guidance in sorted((root / 'agent-config/guidance').glob('*.md')):
+        for paragraph in guidance.read_text().split('\n\n'):
+            if (re.search(r'\b(?:20\d{2}-\d{2}-\d{2}|\d{1,2}:\d{2}(?:Z|\s*UTC)?)\b', paragraph)
+                    and re.search(r'\b(?:exhausted|usable|available|unavailable|out of credits|headroom)\b', paragraph, re.I)):
+                failures.append(f'{guidance}: time-specific account availability; use upkeep room --json evidence')
+    if args.verification:
+        skills = list((root / '.agents/skills').glob('verify-*/SKILL.md'))
+        if not skills:
+            failures.append(f'{root}: no canonical verification skill')
+        for skill in skills:
+            text = skill.read_text()
+            for required in ('AgentMail', 'workstation/<PROJECT>_QA_', 'production', 'owner/admin', 'AGENTS.md'):
+                if required not in text:
+                    failures.append(f'{skill}: missing verification contract term {required}')
+            alias = root / '.claude/skills' / skill.parent.name
+            if not alias.is_symlink() or alias.resolve() != skill.parent.resolve():
+                failures.append(f'{alias}: must link to {skill.parent}')
+for failure in failures:
+    print(f'FAIL {failure}', file=sys.stderr)
+if failures:
+    sys.exit(1)
+print('PASS canonical agent policy' + (' and generated verification QA contract' if args.verification else ''))

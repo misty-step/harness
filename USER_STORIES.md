@@ -59,8 +59,8 @@ Criteria:
    agent-invocable `story-qa` and route user-facing change review to it by
    default from composed guidance.
 2. WHEN an agent prepares to call work done, THE SYSTEM SHALL direct it to
-   verify the relevant actual user path; documents and measurements need no
-   review round.
+   verify the relevant actual user path; documents and measurements use light
+   combined QA/review plus an independent judge.
 3. WHEN selecting a QA walk, THE SYSTEM SHALL tie each affected journey to a
    root story ID or request criterion, user actions, observable postconditions,
    and owned cleanup.
@@ -79,11 +79,59 @@ disposable Pi and OMP installer smoke.
 
 ## US-023 Keep verification useful
 
-Run affected native checks and walk the real user path. Code that ships gets
-one independent review, repeated only for real bugs. Documents, briefs and
-measurements need no review.
+Run affected native checks and walk the real user path. Nothing is verified
+until the repository's verification skill has driven the real user journey end
+to end on the real product, with evidence linked, signing in to production with
+the agent's own AgentMail QA account and proving the required owner/admin role
+when the product has sign-in; a repository without one gets one. Every authored change
+gets review and verification scaled to risk. Documents, briefs and measurements
+get one light combined QA/review check plus an independent judge. Riskier
+behavior changes get separate independent QA, review and judge agents. A PR's
+review round count is stored on the PR: a new thread, succession, retry or new
+head reads the same count and cannot start another fix round. Only a judge's
+FIX naming eligible blockers can start the single permitted fix round. Its
+blocking reporter rechecks only those fixes. After that round the next ruling
+is SHIP with tickets or REVERT / SPLIT. New findings become tickets unless the
+fix introduced them. Already on main is never a blocker. Ship heuristic features labeled approximate,
+with accuracy as follow-up. Record tier, concrete reason and diff size; use light for docs,
+config JSON, constants, bounded cosmetic changes and verification tooling without
+a runtime path. One QA owner per SHA; extra cross-family QA requires a concrete
+critical uncertainty. Take an available model-class route, reserve fast/xhigh
+for named bottlenecks, and skip release checks when the judge records no deploy.
 
-Evidence: `agent-config/skills/story-qa/check-cadence.md`.
+Verification evidence SHALL live outside Git and be linked from the PR with the
+checked revision, commands and observed result. Routing SHALL prefer native
+GitHub PR/issue media attachments and appropriate release bundles, preserving
+independent private access where repository visibility may change. Repositories
+retain maintained code, build inputs, small deterministic fixtures and documentation. Generated
+verification skills SHALL write run output outside the checkout. Existing bulky
+evidence and fixtures are cleaned up gradually through Foundation audits.
+
+Credentials are pass references under `workstation/<PROJECT>_QA_*`. Verification
+skills generated or refreshed during rollout SHALL encode that QA account,
+production role proof, creation of the agent-owned account, pass storage of generated
+credentials, required QA owner/admin grants, scoped QA allowlist/Cloudflare Access
+changes, evidence and cleanup, without asking for phaedrus's passwords or throwaway profiles.
+Native CLI subscriptions remain execution authentication, not product QA accounts.
+Shared auth QA additions SHALL use Process as the sole HOUSEHOLD_MEMBERS writer
+until Home reassigns ownership, preserving the complete private canonical baseline,
+existing members, owner settings and aliases through one serialized native update.
+
+Evidence: `agent-config/skills/ship-loop/SKILL.md`, `agent-config/skills/ship-loop/roles.md`,
+`agent-config/guidance/engineering.md`.
+
+## US-053 Lead full-value initiatives through atomic delivery
+
+Specs, PRDs, grill-with-docs and to-spec SHALL state the full valuable outcome.
+The lane SHALL lead subagent teams toward an elegant implementation through the
+smallest atomically shippable PRs: main stays working and each is worth merging
+alone. The smallest diff that achieves its unit wins. Independent slices build
+in parallel; dependent slices are sequenced. Every subagent counts against
+the lane budget by model, effort, speed and reset distance. Most small focused
+PRs SHALL use light rigor and one round, with QA, review and an independent judge.
+
+Evidence: `agent-config/skills/ship-loop`, `agent-config/skills/judge`,
+`agent-config/guidance/engineering.md`.
 
 ## Capability: Deployment
 
@@ -105,36 +153,51 @@ No-gos: no unowned file deletion or live credential tampering.
 
 Evidence: `./scripts/verify-installers`
 
-## US-052 Finish approved host installations from the engineer cage
+## US-052 Manage authorized applications without controlling the desktop
 
-Statement: While an engineer is caged, I want it to finish installing merged,
-independently reviewed, green source with host readback and reversible rollback,
-so routine approved installations stop waiting on the desk.
+Statement: While an engineer is isolated from my desktop, I want it to finish
+authorized application installation, configuration and activation through native
+owner paths, with host readback and explicit live-state evidence, without taking
+over my screen or cursor.
 
 Criteria:
 1. THE SYSTEM SHALL expose only typed capabilities, named installation,
-   receipt readback and receipt rollback through Workbench's owned socket,
-   rejecting arbitrary command, destination, environment and repository fields.
-2. THE SYSTEM SHALL preserve host display isolation, hidden live Hermes state
-   and read-only installed code; a host-added socket under the existing library
-   mount SHALL be usable without restarting an active engineer.
+   selected-asset receipt readback/rollback, and fixed repository install/readback
+   through Workbench's owned socket. Arbitrary commands, destinations,
+   environments, caller-authored source proof and unknown repositories SHALL fail.
+2. THE SYSTEM SHALL preserve operator screen, cursor and capture isolation,
+   hidden live Hermes state and namespace boundaries. Writable installed code
+   and authorized application management SHALL NOT require desktop authority.
 3. WHEN `cli` is selected, THE SYSTEM SHALL stage the client without activating
-   the cage, altering the retained native OMP binary or restarting consumers.
-4. THE SYSTEM SHALL delegate source eligibility, selected existing-installer
-   execution, host byte/mode/link checks and drift-safe rollback to Workbench,
-   with durable receipts appended to the existing Glass commission.
-5. THE SYSTEM SHALL distinguish installed code from requested activation and
-   SHALL permit Kaylee skill installation without whole-profile, identity,
-   credential, other-profile, cron-runtime or live-state replacement.
+   the cage, altering the retained native OMP binary or restarting active engineers.
+4. THE SYSTEM SHALL delegate source eligibility, fixed native installer execution,
+   host byte/mode/link checks and recipe-specific recovery to Workbench.
+   Selected-asset receipts SHALL remain on the existing Glass commission.
+5. THE SYSTEM SHALL distinguish installed code from live activation and SHALL
+   permit Kaylee skill installation without whole-profile, identity, credential,
+   other-profile, cron-runtime or live-state replacement.
+6. WHEN an explicitly requested application recipe owns activation, THE SYSTEM
+   SHALL use that application's existing startup owner, preserve unrelated
+   configuration and runtime data, and prove the running process loaded the
+   installed executable. Cantrip SHALL use the fixed `cantrip` repository route,
+   not an arbitrary command or automatic Harness-install side effect.
+7. WHEN CLI installation finds a UID-owned managed Workbench broker advertising
+   the exact `refresh-service` command, THE SYSTEM SHALL invoke only that command.
+   It SHALL no-op when the running broker is current; otherwise its fixed native
+   worker SHALL wait behind the current host installer request and restart only
+   `workbench-host-install.service` to load the changed broker executable.
 
-No-gos: No arbitrary host shell, caller-authored source proof, new live-profile
-mount, desk/gateway restart or second deployment engine. Initial reviewed,
-merged broker bootstrap remains an explicitly authorized desk operation.
+No-gos: No arbitrary host shell, new live-profile mount, display/input/session-bus
+exposure, unrelated consumer restart or second deployment engine. Initial broker
+provisioning uses its authorized native owner installer; existing broker updates
+use the managed release plus host-side Harness installer refresh.
 
-Evidence: `omp-config/bin/omp-host-install.py`,
+Evidence: `omp-config/bin/omp-host-install.py`, `omp-config/install`,
 `omp-config/bin/test_omp_host_install.py`,
-`omp-config/bin/test_omp_display.py`; installed `omp-host-install` requests with
-Workbench host readback and audited rollback on the existing Glass commission.
+`omp-config/bin/test_omp_display.py`; Workbench owns host readback and audited
+selected-asset rollback. The [application-management runbook](omp-config/README.md#authorized-application-management)
+and [decision 0013](docs/decisions/0013-application-management-not-desktop-control.md)
+describe the Cantrip and existing-broker paths.
 
 ## Capability: Execution offload
 
@@ -156,11 +219,17 @@ Criteria:
    THEN THE SYSTEM SHALL require separate operator approval.
 4. WHILE stage A is in effect, THE SYSTEM SHALL keep agent sessions and model
    credentials on the desktop.
+5. WHEN an agent on a workstation runs a shell command that starts a privileged
+   or host-device container or VM, reboots or powers off, kills processes by
+   name, or restarts the display or session, THE SYSTEM SHALL refuse it through
+   the PreToolUse hook in Claude Code and Codex and point to a disposable
+   exe.dev VM, or `ssh hetzner-ci` for builds and tests only (hetzner-ci is a
+   build and CI box and never hosts agent harnesses or sessions).
 
 No-gos: no automatic additional VM or model-credential transfer.
 
 Evidence: `agent-config/guidance/workstation.md`,
-`omp-config/global/AGENTS.md`
+`omp-config/global/AGENTS.md`, `agent-config/bin/workstation-guard`
 
 ## US-025 Work in an owned exe.dev project workspace — retired automation
 
@@ -275,24 +344,18 @@ Criteria:
    selection SHALL remain available. Automatic advisor review SHALL stay off.
 4. OMP SHALL have no paid or cross-model fallback and no default Grok/Gemini
    reviewer or scout. Visual work SHALL retain the configured Opus hold.
-   Pi recovery SHALL use Sol xhigh then Astra xhigh through its native Codex
-   pool, without depending on SuperGrok. Explicit effort overrides SHALL remain
-   available; the default effort SHALL be xhigh rather than low.
    All shared subscription accounts SHALL be authorized for any work and
    SHALL fail over between each other; no engineer launch SHALL require any
    one account. Authorization SHALL NOT be treated as proof of available quota.
-5. WHEN the Pi installer runs, THE SYSTEM SHALL select GPT-6.1 Sol xhigh as
-   Pi's default, request priority service for native Codex inference, and report
-   a missing Pi-native Codex login rather than restore
-   the retired DeepSeek default. Pi SHALL use only OpenAI Codex, xAI and
-   OpenRouter routes: any Anthropic model, direct or through OpenRouter,
-   SHALL be refused before inference. If native startup selects an unapproved
-   model after login loss, agent prompts, provider requests, compaction and
-   branch summaries SHALL be refused before paid inference.
-   Source-owned retry and automatic compaction SHALL be enabled on deployment;
-   unrelated live settings SHALL remain unchanged.
+5. WHEN the Pi installer runs, THE SYSTEM SHALL select OpenRouter
+   `deepseek/deepseek-v4.1-flash-1017` at max as Pi's default and report a
+   missing OpenRouter credential rather than restore another provider's
+   default. Pi SHALL install no pool or account-slot providers and no custom
+   model-fallback chain; stock Pi owns retry and automatic compaction, which
+   SHALL be enabled on deployment. Unrelated live settings, foreign model pins
+   and the model already selected in existing sessions SHALL remain unchanged.
 6. WHEN configuration is deployed, THE SYSTEM SHALL preserve OAuth stores and
-   the model already selected in existing sessions.
+   foreign credentials.
 7. WHEN OMP configuration is deployed, THE SYSTEM SHALL remove retired owned
    routing settings while preserving foreign settings and all live auth/account
    content. Native OMP, not a copied model/effort validator, owns resolution.
@@ -306,7 +369,8 @@ Evidence: `omp-config/config.yml`, `omp-config/agents/designer.md`,
 `omp-config/bin/omp-merge-config.test.ts`,
 `omp-config/global/AGENTS.md`, `omp-config/README.md`,
 `pi-config/settings.json`, `pi-config/install`,
-`./scripts/verify all`, fresh native OMP model-selection and loading checks.
+`pi-config/bin/pi-merge-settings.test.ts`, `scripts/verify-installers`,
+`./scripts/verify all`, fresh native OMP and Pi model-selection checks.
 
 ## US-046 Launch engineers only on the ticket's model roster — retired
 
@@ -327,17 +391,17 @@ isolation remain; memory caps and admission checks are removed.
 ## US-015 Publish verified harness releases
 
 Statement: When a harness change merits a release, I want its generated
-changelog independently model-reviewed and verified before publication, so
+changelog verified before publication, so
 release automation cannot publish an unverified default-branch candidate.
 
 Criteria:
 1. WHEN a verified `master` change warrants a release, THE SYSTEM SHALL stage
    the generated changelog in a pull request instead of pushing directly to
    protected `master`.
-2. WHEN that pull request has an independent model review, green observed
-   checks and verification against the current base, THE SYSTEM SHALL merge
-   the exact reviewed head normally before publishing its version tag and
-   GitHub Release; server-required CI and human approvals SHALL NOT gate it.
+2. WHEN that pull request contains only generated notes for reviewed changes
+   and passes required exact-head checks against the current base, THE SYSTEM
+   SHALL merge through native GitHub auto-merge before publishing its version
+   tag and GitHub Release, without a second review or human approval.
 3. IF the release candidate has not landed or its tag points to a different
    commit, THEN THE SYSTEM SHALL refuse publication.
 4. WHEN the release workflow is retried, THE SYSTEM SHALL preserve an already
@@ -444,7 +508,7 @@ Evidence: `omp-config/extensions/credentials/credentials.test.ts`,
 
 ## US-020 Receive an executive status brief
 
-Statement: When I ask for sachstand, I want a concise, evidence-based status
+Statement: When I ask for executive status, I want a concise, evidence-based status
 brief identifying its session and decisions, with optional speech, so I can
 orient across concurrent work without changing that work.
 
@@ -456,10 +520,18 @@ Criteria:
 3. WHERE speech is explicitly requested, THE SYSTEM SHALL attempt speech and
    report its output or error while retaining the written brief. Ordinary status
    SHALL remain in chat without mandatory/default audio.
+4. WHEN I request lage across agent lanes, THE SYSTEM SHALL give Home a complete
+   structured result for one compact inline page: decision questions with
+   recommendations and waiting costs first, one state/now/next row per lane,
+   short shipped outcomes and stuck owners, with supporting detail folded.
+5. WHEN compacting the lage result, THE SYSTEM SHALL preserve investigation
+   coverage, every unresolved principal question and read gap; extra detail or
+   rows SHALL remain available through progressive disclosure.
 
 No-gos: no unrequested project mutations or decisions during a status brief.
 
-Evidence: `agent-config/skills/sachstand/SKILL.md`,
+Evidence: `agent-config/skills/lage/SKILL.md`,
+`agent-config/skills/lage/result-format.md`, `agent-config/skills/sachstand/SKILL.md`,
 `agent-config/skills/sachstand/scripts/speak.ts`; native online synthesis smoke
 produced a two-second WAV with `--no-play` on 2026-09-24.
 
@@ -558,46 +630,12 @@ stored; no network or model call in the check.
 Evidence: `omp-config/bin/omp-secrets-policy.test.ts`,
 `scripts/verify-installers`
 
-## US-045 Sign Pi into more than one account per provider
+## US-045 Sign Pi into more than one account per provider — retired
 
-Statement: When one subscription account is exhausted or blocked, I want Pi to
-hold further accounts for the same provider, each signed in by me through Pi's
-own login, so I can switch accounts without a second harness's credentials.
-
-Criteria:
-1. WHEN the Pi installer deploys the `accounts` component, `/login` SHALL list
-   `OpenAI Codex (account 2)` through `(account 4)` beside the base provider,
-   and `--model openai-codex-2/<model>` SHALL resolve without a login instead
-   of failing as an unknown model.
-2. WHEN I sign in to a slot, THE SYSTEM SHALL store that login under the slot
-   id in Pi's `auth.json`, and every request on a slot model SHALL use the
-   slot's login, never the base provider's.
-3. WHEN the component is removed, THE SYSTEM SHALL leave the base providers and
-   their stored logins working as stock Pi.
-4. WHEN a slot model is selected, Pi's model policy SHALL approve exactly the
-   models it approves for the base provider, at the same thinking level, and
-   SHALL refuse unlisted look-alike provider ids.
-
-5. WHEN I select a pool model (`openai-pool/…`, `xai-pool/…`,
-   `openrouter-pool/…`), THE SYSTEM SHALL serve the request from one signed-in
-   account of that provider, keep it for the session while usable, and start
-   other sessions on the least recently used account.
-6. WHEN an account fails on a usage or rate limit before producing output,
-   THE SYSTEM SHALL block it until the reset the provider states (else a
-   conservative default), share that block with every Pi session, and serve
-   the same request from the next account; other failures SHALL surface
-   unchanged, and with every account blocked or signed out the request SHALL
-   fail with that reason.
-7. WHEN an API-key slot has no stored key, THE SYSTEM SHALL treat it as signed
-   out rather than read the base provider's environment key.
-
-No-gos: no reading, copying, or refreshing another harness's stored tokens; no
-Claude Code or Google client impersonation added by this repository.
-
-Evidence: `pi-config/extensions/accounts/slots.test.ts`,
-`pi-config/extensions/accounts/pool.test.ts`, `pi-config/docs/decisions/historical/026-pool-accounts-behind-one-provider-with-shared-blocks.md`,
-`pi-config/docs/decisions/historical/024-extra-accounts-are-cloned-providers-with-pi-owned-logins.md`,
-and the isolated `/login` walk recorded in the PR.
+Pi account slots and pooled providers are retired by the operator's
+single-model decision (ADR-028). Pi runs one OpenRouter model on its own key;
+native Pi logins and foreign credentials remain untouched, and no replacement
+pooling, rotation or block state is installed.
 
 ## US-048 Carry lean, useful agent guidance
 
@@ -621,6 +659,44 @@ Criteria:
    contracts.
 5. WHEN verifying changed guidance, THE ENGINEER SHALL inspect the composed
    instructions and exercise the affected actual consumer.
+6. WHEN new work appears, THE SYSTEM SHALL record a backlog issue. Home
+   SHALL open top-level threads: backlog lanes from groomed, specced items,
+   and its own scratch runners. Home SHALL route roster-succession requests to
+   the existing hourly task’s bound Heartbeat thread. That single native executor
+   SHALL dispatch exact roster-lane successors under `lane-succession` without
+   fresh Home approval, recovering tracked
+   partial dispatches and reporting completion or a blocker once to Home. It
+   SHALL preserve claim, dedupe, route, adoption, abandonment and source/installed
+   readback guards, consume the newest handoff and leave children, parked and
+   unnamed lanes untouched. Machine-generated PRs replacing only the tracked
+   predecessor ID with its claimed successor in `pools.json` `wipRoots`, preserving
+   every other value and roster length/order, SHALL merge on passing checks;
+   authored policy, tests and other config changes SHALL retain ordinary review. Home
+   SHALL explicitly name the active lanes and size that set to model cost,
+   reasoning, speed, remaining allowance and time until reset, with no fixed
+   lane cap. Resume and account pooling SHALL continue only lanes Home names
+   and their children, including named draining lanes; unnamed and backlogged
+   lanes SHALL remain untouched. Process's existing coverage-table verification rollout
+   SHALL run at most three workers concurrently and settle merged or parked
+   workers before starting the next; it SHALL add no repositories or threads
+   beyond that table.
+
+7. WHEN an agent reports or posts to Home, THE PRINCIPAL SHALL receive
+   self-contained summaries and clickable, accessible links to everything needed
+   for review, including previews and evidence, without opening local paths or
+   running commands; links SHALL remain accessible until the item is decided,
+   and private evidence SHALL remain private.
+8. WHEN an agent designs or changes an interface, THE PRINCIPAL SHALL receive
+   neutral, professional, standard product design with plain words, without
+   clever wording, decorative themes or metaphors by default.
+
+9. WHEN instruction content is authored or installed in any repository or host,
+   THE SYSTEM SHALL use only `AGENTS.md`. No `CLAUDE.md` file or symlink SHALL
+   be created, including fixtures, generated content and private proofs.
+   Owned legacy standalone Claude guidance SHALL upgrade rerunnably with all
+   previous bytes preserved and owned aliases removed. Foreign content and links
+   SHALL be refused before
+   writes.
 
 No-gos: no code/config permission changes or new message templates; Kaylee's
 existing Hermes operating skill remains outside this operator-approved
@@ -637,3 +713,107 @@ and native GitHub evidence remain application capabilities, not harness-managed
 lifecycle. `story-qa` still guides actual affected-path verification; no replacement
 preview service, scheduler or upload credential is introduced.
 
+## US-050 Continue T3 threads across pooled accounts
+
+Statement: When a T3 account reaches its usage limit, I want only maintained
+WIP lanes and their children to continue on another account without switching
+them myself; Home owns any new thread.
+
+Criteria:
+1. WHEN an eligible WIP thread's latest executed run fails at a usage limit within
+   the last 30 minutes, THE SYSTEM SHALL continue it on the least-loaded
+   eligible instance in its Claude or Codex pool, preserving model, options and
+   runtime mode. Superseded work SHALL remain untouched.
+2. WHEN that thread is a delegated child, THE SYSTEM SHALL continue it only
+   through T3's follow-up task, so its result still reaches its parent. A child
+   whose parent has newer work SHALL remain under its parent's recovery.
+3. WHEN every other account in its pool is limited or reserved, THE SYSTEM
+   SHALL move it to another pool with the configured model and effort mapping,
+   preserving runtime mode.
+4. WHEN T3 refuses a named top-level WIP root's transcript handoff, THE SYSTEM SHALL
+   request succession from Home once per failed run with its handoff context,
+   model, runtime and workspace. Only Home SHALL open threads from groomed and
+   specced backlog; pooling SHALL NOT launch or settle a successor. A delegated
+   child's handoff refusal SHALL request recovery through its owning parent,
+   without a succession marker or a top-level replacement for the child.
+5. WHEN an instance's newest current usage-limit failure is newer than its
+   newest completed run, THE SYSTEM SHALL exclude it until the known reset or,
+   for an unknown reset, at most one hour after the failure.
+6. WHEN no eligible account has room, THE SYSTEM SHALL leave the thread for
+   T3's native recovery. Reserved accounts SHALL never be targets.
+7. WHEN a pass retries or overlaps another pass, THE SYSTEM SHALL select at
+   most one target per failed run and avoid duplicate continuations. Each pass
+   SHALL move at most two threads (one during ramp), and
+   each target SHALL receive at most three moves per rolling hour, across
+   process restarts.
+8. WHEN the operator requests a dry run, THE SYSTEM SHALL list proposed moves
+   and each candidate's reason without dispatching commands or writing pool state.
+9. WHEN commands finish or fail, THE SYSTEM SHALL revoke its short-lived RPC
+   session, keep credentials out of output, and log each move once.
+   Rejected moves SHALL be recorded and skipped without blocking other moves,
+   and abandoned after three rejected attempts.
+10. WHEN a harness installs pooling, THE SYSTEM SHALL preserve foreign units
+    and existing activation state, leave initial activation opt-in, and skip
+    pooling gracefully on hosts without a systemd user manager.
+11. WHEN pooling plans or executes any recovery, THE SYSTEM SHALL permit only
+    the explicitly maintained WIP roots from the same roster as Heartbeat,
+    and their transitive children with verified parent/task ownership. An absent
+    or invalid roster SHALL authorize no recovery. Missing, ambiguous, cyclic or inactive
+    ancestry SHALL fail closed. Home and Heartbeat SHALL remain excluded, as
+    SHALL unnamed roots including Verify. Home SHALL size the named active set
+    to budget without a fixed global lane cap; named draining lanes remain
+    eligible. Succession titles SHALL NOT confer eligibility; Home SHALL
+    intentionally update the maintained root IDs.
+
+Evidence: `agent-config/bin/t3-pool.test.ts`, `agent-config/bin/install.test.ts`,
+`agent-config/bin/t3-runtime-mode.test.ts`, and `scripts/verify-installers`.
+
+
+## US-054 Publish private notes with concurrent agents
+
+Statement: When authorized agents share a private note repository, I want each
+agent to publish small selected changes from its own workspace, so concurrent
+writers preserve each other's work and the human's dirty checkout.
+
+Criteria:
+1. WHEN an agent prepares work, THE SYSTEM SHALL fetch private remote master
+   into a new isolated workspace without changing the selected checkout's files,
+   index or branch, including unpublished local commits.
+2. WHEN publishing, THE SYSTEM SHALL commit only explicitly named regular files
+   with the agent identity, scan secrets, and immediately push without force.
+3. WHEN remote writers advance master, THE SYSTEM SHALL fetch and rebase with
+   at most three publication attempts. Conflicts and failures SHALL preserve
+   the local commit and remote history for explicit recovery.
+4. THE SYSTEM SHALL reject journal changes including rename and delete,
+   symlinks, traversal, unrelated changes, pre-existing staged work and foreign HEADs.
+5. WHEN Claude or Codex configuration is installed, THE SYSTEM SHALL provide
+   the command on shared PATH and a canonical skill reachable by every T3
+   provider through repository instructions, including providers without native skills.
+
+No-gos: no vault contents in harness, global writer lock, force push, root
+stash/rebase, new credentials, timer replacement or agent journal bypass.
+
+Evidence: `agent-config/lib/test_daybook_sync.py`,
+`verify-harness daybook`, `scripts/verify-installers`.
+
+
+## US-051 Drive T3 from any authorized agent
+
+Statement: As an operator of agents inside and outside T3, I want every agent
+to use the same documented, scriptable interface to my T3 servers, so it can
+choose an account, complete work, and recover from access failures without
+manual intervention.
+
+Acceptance:
+
+1. Agents can discover configured servers and live tool/provider/model catalogs,
+   then list, launch, read, send to and settle threads through T3's own MCP.
+2. The shell entry point uses existing endpoint and credential references, never
+   prints credentials, never creates credentials, and does not retry writes.
+3. A read-only access check reports each server's result; its optional watcher
+   delivers new failures and recoveries to Home with a review link.
+4. Inside-T3 and outside-agent instructions explain explicit project selection,
+   account selection, uncertain write outcomes and common access failures.
+
+Evidence: `agent-config/bin/test_t3_agent.py` and
+`.agents/skills/verify-harness/features/t3-access.md`.

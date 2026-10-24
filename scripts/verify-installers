@@ -26,6 +26,13 @@ check() {
     failures=$((failures + 1))
   fi
 }
+# The workstation guard decides from its stdin only; run the installed copy under a fake workstation name.
+guard_status() {
+  status=0
+  python3 -c 'import json, sys; print(json.dumps({"tool_name": "Bash", "tool_input": {"command": sys.argv[1]}}))' "$2" |
+    env -i PATH="$PATH" WORKSTATION_GUARD_HOSTS="$(python3 -c 'import socket; print(socket.gethostname().split(".")[0])')" "$1" >/dev/null 2>&1 || status=$?
+  echo "$status"
+}
 for consumer in pi omp; do
   home="$work/$consumer-home"
   agent="$home/agent"
@@ -36,12 +43,20 @@ for consumer in pi omp; do
   cp "$work/expected-auth" "$agent/auth.json"
   mkdir -p "$agent/skills/foundation" "$home/.local/bin"
   printf 'retired foundation package\n' > "$agent/skills/foundation/SKILL.md"
+  mkdir -p "$agent/skills/dev-exec"
+  printf 'retired dev-exec package\n' > "$agent/skills/dev-exec/SKILL.md"
   printf '#!/usr/bin/env bun\n// review-check: owned standalone launcher (misty-step/harness).\n' > "$home/.local/bin/review-check"
   mkdir -p "$agent/extensions/diff-review" "$agent/extensions/continuation-nudge"
   printf 'retired review\n' > "$agent/extensions/diff-review/index.ts"
   printf 'retired nudge\n' > "$agent/extensions/continuation-nudge/index.ts"
   mkdir -p "$agent/extensions/loc"
   printf 'old owned LOC warming hook\n' > "$agent/extensions/loc/git-hook.sh"
+  if [ "$consumer" = pi ]; then
+    mkdir -p "$agent/extensions/accounts" "$agent/extensions/failover"
+    printf 'retired pool package\n' > "$agent/extensions/accounts/index.ts"
+    printf 'retired chain package\n' > "$agent/extensions/failover/index.ts"
+    printf '{"openai":{"lastUsed":1}}\n' > "$agent/account-pool.json"
+  fi
   # Claude Code settings carry foreign keys the audio sandbox must preserve.
   mkdir -p "$home/.claude"
   printf '{"env":{"OTEL_LOGS_EXPORTER":"otlp"},"hooks":{"SessionStart":[]}}\n' > "$home/.claude/settings.json"
@@ -53,6 +68,8 @@ for consumer in pi omp; do
     mkdir -p "$agent/extensions/cwd"
     printf 'retired extension\n' > "$agent/extensions/cwd/index.ts"
     printf 'retired extension\n' > "$agent/extensions/loc/index.ts"
+    mkdir -p "$agent/extensions/kaylee-pane-guard"
+    printf 'retired extension\n' > "$agent/extensions/kaylee-pane-guard/index.ts"
     mkdir -p "$agent/extensions/subagent-inheritance" "$agent/bin"
     printf 'retired routing hook\n' > "$agent/extensions/subagent-inheritance/index.ts"
     printf 'retired routing tests\n' > "$agent/extensions/subagent-inheritance/index.test.ts"
@@ -78,9 +95,6 @@ for consumer in pi omp; do
     done
     printf 'foreign presentation owner\n' > "$home/.config/systemd/user/forest-view.service"
     printf 'retired watchdog\n' > "$agent/WATCHDOG.md"
-    mkdir -p "$home/.hermes/profiles/kaylee/journal"
-    printf '# Experiments\n\n## E-018 Preserved runtime journal sentinel\n' > "$work/expected-experiments"
-    cp "$work/expected-experiments" "$home/.hermes/profiles/kaylee/journal/experiments.md"
     printf '{"runtime":{"sentinel":true},"mcpServers":{"mobbin":{"type":"http","url":"https://example.invalid/old-mobbin","auth":{"synthetic":"mobbin-auth"},"oauth":{"synthetic":"mobbin-oauth"}},"foreign":{"type":"http","url":"https://example.invalid/foreign","auth":{"synthetic":"foreign-auth"}}},"disabledServers":["foreign"]}\n' > "$agent/mcp.json"
     printf '{"mcpServers":{"fastmail":{"type":"http","url":"https://example.invalid/fastmail"}}}\n' > "$work/expected-scope"
     printf '{"mcpServers":{"project-native":{"type":"http","url":"https://example.invalid/project"}}}\n' > "$work/expected-project-mcp"
@@ -130,6 +144,7 @@ for consumer in pi omp; do
   check "$consumer launcher executable" test -x "$home/.local/bin/pass-env"
   check "$consumer OpenRouter launcher executable" test -x "$home/.local/bin/openrouter-key"
   check "$consumer removes installed foundation package" test ! -e "$agent/skills/foundation"
+  check "$consumer removes installed dev-exec package" test ! -e "$agent/skills/dev-exec"
   check "$consumer removes installed review-check" test ! -e "$home/.local/bin/review-check"
   check "$consumer removes automatic review" test ! -e "$agent/extensions/diff-review"
   check "$consumer removes automatic nudge" test ! -e "$agent/extensions/continuation-nudge"
@@ -139,8 +154,13 @@ for consumer in pi omp; do
     done
   fi
   check "$consumer foreign skill" cmp -s "$work/expected-skill" "$agent/skills/foreign/SKILL.md"
+  check "$consumer security-audit skill" test -f "$agent/skills/security-audit/SKILL.md"
   if [ "$consumer" = pi ]; then
     check "pi retires installed LOC warming hook" test ! -e "$agent/extensions/loc/git-hook.sh"
+    check "pi retires account pools" test ! -e "$agent/extensions/accounts"
+    check "pi retires failover chain" test ! -e "$agent/extensions/failover"
+    check "pi removes pool state" test ! -e "$agent/account-pool.json"
+    check "pi default model" jq -e '.defaultProvider == "openrouter" and .defaultModel == "deepseek/deepseek-v4.1-flash-1017" and .defaultThinkingLevel == "max"' "$agent/settings.json"
     # US-028: Pi replaces only its OpenRouter mapping, retaining foreign auth.
     check "pi OpenRouter auth mapping and foreign credential" \
       jq -e '.synthetic == "auth sentinel" and .anthropic == {type:"api_key",key:"synthetic-foreign"} and .openrouter == {type:"api_key",key:"!openrouter-key --personal workstation/OPENROUTER_MISTY_STEP_HARNESS_WORKSTATION_RECOVERY_API_KEY"}' "$agent/auth.json"
@@ -181,7 +201,6 @@ for consumer in pi omp; do
     check "omp engineer launcher bytes" cmp -s "$work/source/omp-config/bin/omp-engineer.py" "$home/.local/bin/omp-engineer"
     check "omp engineer launcher executable" test -x "$home/.local/bin/omp-engineer"
     check "omp engineer launcher installed load" "$home/.local/bin/omp-engineer" --help
-    check "omp CLI preserves the sole runtime experiment ledger" cmp -s "$work/expected-experiments" "$home/.hermes/profiles/kaylee/journal/experiments.md"
     check "omp OpenRouter personal billing entry" \
       env -i PATH="$home/.local/bin:$PATH" HOME="$home" AGENT="$agent" bun -e '
         const doc = Bun.YAML.parse(await Bun.file(`${process.env.AGENT}/models.yml`).text());
@@ -250,14 +269,436 @@ for consumer in pi omp; do
     check "omp diff-review retired" test ! -e "$agent/extensions/diff-review"
     check "omp cwd retired" test ! -e "$agent/extensions/cwd"
     check "omp loc retired" test ! -e "$agent/extensions/loc"
+    check "omp kaylee-pane-guard retired" test ! -e "$agent/extensions/kaylee-pane-guard"
     check "omp inheritance hook retired" test ! -e "$agent/extensions/subagent-inheritance/index.ts"
     check "omp inheritance tests retired" test ! -e "$agent/extensions/subagent-inheritance/index.test.ts"
     check "omp model validator retired" test ! -e "$agent/bin/omp-model-policy.ts"
     check "omp foreign routing sibling preserved" cmp -s "$work/expected-routing-sibling" "$agent/extensions/subagent-inheritance/foreign.ts"
+  fi
+
+  if [ "$consumer" = pi ]; then
+    # Partial deployments keep settings and packages paired: a shared-only
+    # install must not retire the route it does not migrate, and config-only
+    # must not migrate the default while leaving pool providers installed.
+    seed_pool_route() {
+      mkdir -p "$agent/extensions/accounts" "$agent/extensions/failover"
+      printf 'pool\n' > "$agent/extensions/accounts/index.ts"
+      printf 'chain\n' > "$agent/extensions/failover/index.ts"
+      printf '{"openai":{}}\n' > "$agent/account-pool.json"
+      jq '.defaultProvider = "openai-pool" | .defaultModel = "gpt-6.1-sol" | .modelThinkingLevels = {"openai-pool/gpt-6.1-sol":"xhigh","foreign/m":"high"}' \
+        "$agent/settings.json" > "$work/pi-pool-settings" && mv "$work/pi-pool-settings" "$agent/settings.json"
+    }
+    seed_pool_route
+    if env -i PATH="$PATH" HOME="$home" TMPDIR="$work" PI_CODING_AGENT_DIR="$agent" PI_CONFIG_COMPONENTS=guidance \
+      "$work/source/pi-config/install" >"$work/pi-guidance-only.log" 2>&1; then
+      check "pi guidance-only keeps pool extension" test -f "$agent/extensions/accounts/index.ts"
+      check "pi guidance-only keeps failover" test -f "$agent/extensions/failover/index.ts"
+      check "pi guidance-only keeps pool state" test -f "$agent/account-pool.json"
+      check "pi guidance-only keeps configured route" jq -e '.defaultProvider == "openai-pool" and .defaultModel == "gpt-6.1-sol"' "$agent/settings.json"
+    else
+      printf 'FAIL pi guidance-only installer exit\n' >&2
+      cat "$work/pi-guidance-only.log" >&2
+      failures=$((failures + 1))
+    fi
+    if env -i PATH="$PATH" HOME="$home" TMPDIR="$work" PI_CODING_AGENT_DIR="$agent" PI_CONFIG_COMPONENTS=config \
+      "$work/source/pi-config/install" >"$work/pi-config-only.log" 2>&1; then
+      check "pi config-only retires account pools" test ! -e "$agent/extensions/accounts"
+      check "pi config-only retires failover" test ! -e "$agent/extensions/failover"
+      check "pi config-only removes pool state" test ! -e "$agent/account-pool.json"
+      check "pi config-only migrates default and foreign pin" \
+        jq -e '.defaultProvider == "openrouter" and .defaultModel == "deepseek/deepseek-v4.1-flash-1017" and .modelThinkingLevels["foreign/m"] == "high" and (.modelThinkingLevels | has("openai-pool/gpt-6.1-sol") | not)' "$agent/settings.json"
+    else
+      printf 'FAIL pi config-only installer exit\n' >&2
+      cat "$work/pi-config-only.log" >&2
+      failures=$((failures + 1))
+    fi
+    # A machine-local pooled default would keep a provider the migration removes;
+    # preflight must refuse it before any read or write of the installed route.
+    seed_pool_route
+    mkdir -p "$home/.config/harness"
+    printf '{"defaultProvider":"openai-pool","defaultModel":"gpt-6.1-sol"}\n' > "$home/.config/harness/pi.json"
+    cp "$agent/settings.json" "$work/pi-local-default-before"
+    if env -i PATH="$PATH" HOME="$home" TMPDIR="$work" PI_CODING_AGENT_DIR="$agent" PI_CONFIG_COMPONENTS=config \
+      "$work/source/pi-config/install" >"$work/pi-local-default.log" 2>&1; then
+      printf 'FAIL pi refuses a retired local default (install succeeded)\n' >&2
+      failures=$((failures + 1))
+    else
+      check "pi refuses a retired local default" grep -q 'Refusing retired pooled default provider' "$work/pi-local-default.log"
+      check "pi keeps the route after a refused local default" test -f "$agent/extensions/accounts/index.ts"
+      check "pi keeps settings after a refused local default" cmp -s "$work/pi-local-default-before" "$agent/settings.json"
+    fi
+    rm -rf "$home/.config/harness" "$agent/extensions/accounts" "$agent/extensions/failover"
+    rm -f "$agent/account-pool.json"
+  fi
+done
+# Claude Code: selected skills land beside foreign and CLI-linked skills, and
+# composed guidance lands in native user-scope AGENTS.md alone.
+claude_home="$work/claude-home"
+claude="$claude_home/.claude"
+mkdir -p "$claude/skills/foreign" "$claude/skills/lage" "$claude_home/.fixture-bin"
+# A private HOME has no systemd user manager. Record only this timer's control.
+printf '#!/bin/sh\n[ "$*" != "--user show-environment" ] || exit 0\nprintf "%%s\\n" "$*" >> "$HOME/systemctl-calls"\n' > "$claude_home/.fixture-bin/systemctl"
+chmod 700 "$claude_home/.fixture-bin/systemctl"
+printf 'foreign skill sentinel\n' > "$claude/skills/foreign/SKILL.md"
+printf 'stale owned lage\n' > "$claude/skills/lage/obsolete.md"
+mkdir -p "$claude/skills/foundation" "$claude/skills/dev-exec"
+printf 'foreign foundation skill\n' > "$claude/skills/foundation/SKILL.md"
+printf 'foreign dev-exec skill\n' > "$claude/skills/dev-exec/SKILL.md"
+ln -s ../../.agents/skills/code-review "$claude/skills/code-review"
+printf '{"foreign":"keep","hooks":{"PreToolUse":[{"matcher":"Edit","hooks":[{"type":"command","command":"foreign-pre"}]}]}}\n' > "$claude/settings.json"
+cp "$claude/settings.json" "$work/expected-claude-settings"
+if env -i PATH="$claude_home/.fixture-bin:$PATH" HOME="$claude_home" TMPDIR="$work" \
+  "$work/source/claude-config/install" >"$work/claude.log" 2>&1; then
+  printf 'PASS claude installer exit\n'
+else
+  printf 'FAIL claude installer exit\n' >&2
+  cat "$work/claude.log" >&2
+  failures=$((failures + 1))
+fi
+check "claude canonical shared daybook skill" cmp -s "$work/source/agent-config/skills/daybook-sync/SKILL.md" "$claude_home/.agents/skills/daybook-sync/SKILL.md"
+check "claude daybook-sync executable" test -x "$claude_home/.local/bin/daybook-sync"
+check "claude daybook-sync bytes" cmp -s "$work/source/agent-config/bin/daybook-sync" "$claude_home/.local/bin/daybook-sync"
+check "claude daybook-sync CLI" "$claude_home/.local/bin/daybook-sync" --help
+check "claude remote-run executable" test -x "$claude_home/.local/bin/remote-run"
+check "claude remote-run CLI" "$claude_home/.local/bin/remote-run" --help
+for skill in lage ship-loop judge release-watch heartbeat lane-succession story-qa pokayoke user-stories authenticated-commands daybook-sync remote-execution; do
+  check "claude $skill skill bytes" cmp -s "$work/source/agent-config/skills/$skill/SKILL.md" "$claude/skills/$skill/SKILL.md"
+done
+check "claude release-watch package bytes" diff -r "$work/source/agent-config/skills/release-watch" "$claude/skills/release-watch"
+check "claude ship-loop role briefs" cmp -s "$work/source/agent-config/skills/ship-loop/roles.md" "$claude/skills/ship-loop/roles.md"
+check "claude clean-replaces owned skill" test ! -e "$claude/skills/lage/obsolete.md"
+check "claude foreign skill" cmp -s "$work/expected-skill" "$claude/skills/foreign/SKILL.md"
+check "claude keeps a foreign foundation skill" grep -Fxq 'foreign foundation skill' "$claude/skills/foundation/SKILL.md"
+check "claude keeps a foreign dev-exec skill" grep -Fxq 'foreign dev-exec skill' "$claude/skills/dev-exec/SKILL.md"
+check "claude CLI-linked skill" test "$(readlink "$claude/skills/code-review")" = ../../.agents/skills/code-review
+python3 - "$work/expected-claude-settings" "$claude/settings.json" "$claude_home/.local/bin/workstation-guard" <<'PYCODE'
+import json,sys
+before=json.load(open(sys.argv[1]));after=json.load(open(sys.argv[2]))
+assert {k:v for k,v in after.items() if k != 'hooks'} == {k:v for k,v in before.items() if k != 'hooks'}
+assert after['hooks']['SessionStart']
+pre=after['hooks']['PreToolUse']
+assert pre[0] == before['hooks']['PreToolUse'][0]
+assert pre[1:] == [{'matcher':'Bash','hooks':[{'type':'command','command':sys.argv[3],'timeout':10}]}]
+perm=after['hooks']['PermissionRequest']
+assert len(perm) == 1 and set(perm[0]) == {'hooks'} and perm[0]['hooks'][0]['command'].endswith('hooks/harness-agents.py permission')
+PYCODE
+check "claude foreign settings preserved, native startup and guard hooks added" test "$?" = 0
+check "claude permission hook refuses an unanswerable full-access request" sh -c "echo '{\"permission_mode\":\"bypassPermissions\",\"tool_name\":\"Bash\"}' | CLAUDE_CODE_ENTRYPOINT=sdk-ts python3 '$claude/hooks/harness-agents.py' permission | grep -q '\"behavior\": \"deny\"'"
+check "claude workstation-guard bytes" cmp -s "$work/source/agent-config/bin/workstation-guard" "$claude_home/.local/bin/workstation-guard"
+check "claude guard refuses a privileged container" test "$(guard_status "$claude_home/.local/bin/workstation-guard" 'docker run --privileged hello-world')" = 2
+check "claude guard allows docker ps" test "$(guard_status "$claude_home/.local/bin/workstation-guard" 'docker ps')" = 0
+expected="$work/claude-guidance"
+: > "$expected"
+while IFS= read -r line || [ -n "$line" ]; do
+  if [ "$line" = '<!-- shared guidance: agent-config -->' ]; then
+    for section in engineering workstation autonomy; do
+      cat "$work/source/agent-config/guidance/$section.md" >> "$expected"
+      printf '\n' >> "$expected"
+    done
+  else
+    printf '%s\n' "$line" >> "$expected"
+  fi
+done < "$work/source/claude-config/global/AGENTS.md"
+check "claude composition" cmp -s "$expected" "$claude/AGENTS.md"
+check "claude canonical content" test ! -L "$claude/AGENTS.md"
+check "claude has no legacy instruction entry" test ! -e "$claude/CLAUDE.md"
+check "claude has no legacy instruction symlink" test ! -L "$claude/CLAUDE.md"
+check "claude pool executable" test -x "$claude_home/.local/bin/t3-pool"
+for pair in pools.json:.config/t3-pool.json t3-pool.service:.config/systemd/user/t3-pool.service t3-pool.timer:.config/systemd/user/t3-pool.timer; do
+  check "claude pool ${pair%%:*} bytes" cmp -s "$work/source/agent-config/t3-pool/${pair%%:*}" "$claude_home/${pair#*:}"
+done
+check "claude reloads user units" grep -Fxq -- '--user daemon-reload' "$claude_home/systemctl-calls"
+check "claude leaves pool activation opt-in" test "$(cat "$claude_home/systemctl-calls")" = '--user daemon-reload'
+if env -i PATH="$PATH" HOME="$claude_home" "$claude_home/.local/bin/t3-pool" --dry-run > "$work/claude-pool-dry-run"; then
+  check "claude bundled pool needs no source or live database" grep -Fq '"planned":0' "$work/claude-pool-dry-run"
+else
+  printf 'FAIL claude bundled pool dry run\n' >&2
+  failures=$((failures + 1))
+fi
+# A rerun replaces canonical AGENTS.md and leaves no legacy alias.
+cp "$claude/settings.json" "$work/claude-settings-before-rerun"
+if env -i PATH="$claude_home/.fixture-bin:$PATH" HOME="$claude_home" TMPDIR="$work" \
+  "$work/source/claude-config/install" >"$work/claude-rerun.log" 2>&1 && cmp -s "$expected" "$claude/AGENTS.md"; then
+  printf 'PASS claude rerun replaces its own AGENTS.md\n'
+else
+  printf 'FAIL claude rerun replaces its own AGENTS.md\n' >&2
+  failures=$((failures + 1))
+fi
+check "claude rerun leaves settings byte-identical" cmp -s "$work/claude-settings-before-rerun" "$claude/settings.json"
+foreign_home="$work/claude-foreign-home"
+mkdir -p "$foreign_home/.claude"
+printf '# my own notes\n' > "$foreign_home/.claude/AGENTS.md"
+if env -i PATH="$PATH" HOME="$foreign_home" TMPDIR="$work" \
+  "$work/source/claude-config/install" >"$work/claude-foreign.log" 2>&1; then
+  printf 'FAIL claude refuses a foreign AGENTS.md (install succeeded)\n' >&2
+  failures=$((failures + 1))
+else
+  check "claude refuses a foreign AGENTS.md before any write" \
+    test "$(ls -A "$foreign_home/.claude")" = AGENTS.md
+  check "claude keeps the foreign AGENTS.md" grep -Fxq '# my own notes' "$foreign_home/.claude/AGENTS.md"
+fi
+# The ownership marker counts only as the file's first line.
+marker_home="$work/claude-marker-home"
+mkdir -p "$marker_home/.claude"
+printf '# my own notes\n\n<!-- owned by misty-step/harness claude-config -->\n' > "$marker_home/.claude/AGENTS.md"
+cp "$marker_home/.claude/AGENTS.md" "$work/expected-marker-claude"
+if env -i PATH="$PATH" HOME="$marker_home" TMPDIR="$work" \
+  "$work/source/claude-config/install" >"$work/claude-marker.log" 2>&1; then
+  printf 'FAIL claude refuses an AGENTS.md with the marker on a later line (install succeeded)\n' >&2
+  failures=$((failures + 1))
+else
+  check "claude refuses an AGENTS.md with the marker on a later line before any write" \
+    test "$(ls -A "$marker_home/.claude")" = AGENTS.md
+  check "claude keeps an AGENTS.md with the marker on a later line" \
+    cmp -s "$work/expected-marker-claude" "$marker_home/.claude/AGENTS.md"
+fi
+# Native settings must be checked before any selected shared component writes.
+bad_settings="$work/claude-bad-settings-home"
+mkdir -p "$bad_settings/.claude"
+printf '{invalid JSON\n' > "$bad_settings/.claude/settings.json"
+if env -i PATH="$PATH" HOME="$bad_settings" TMPDIR="$work" \
+  "$work/source/claude-config/install" >"$work/claude-bad-settings.log" 2>&1; then
+  printf 'FAIL claude refuses malformed settings before writes\n' >&2
+  failures=$((failures + 1))
+else
+  check "claude malformed settings leave instruction directory untouched" test "$(ls -A "$bad_settings/.claude")" = settings.json
+  check "claude malformed settings write no launchers" test ! -e "$bad_settings/.local/bin"
+fi
+# An unowned script at the reserved hook path must stop the whole installer.
+collision_home="$work/claude-hook-collision-home"
+mkdir -p "$collision_home/.claude/hooks"
+printf '# foreign hook\n' > "$collision_home/.claude/hooks/harness-agents.py"
+if env -i PATH="$PATH" HOME="$collision_home" TMPDIR="$work" \
+  "$work/source/claude-config/install" >"$work/claude-hook-collision.log" 2>&1; then
+  printf 'FAIL claude refuses an unowned native hook before writes\n' >&2
+  failures=$((failures + 1))
+else
+  check "claude unowned native hook remains unchanged" grep -Fxq '# foreign hook' "$collision_home/.claude/hooks/harness-agents.py"
+  check "claude unowned native hook leaves instruction directory untouched" test "$(ls -A "$collision_home/.claude")" = hooks
+  check "claude unowned native hook writes no launchers" test ! -e "$collision_home/.local/bin"
+fi
+# Codex: selected skills land beside its bundled .system skills and foreign
+# links, composed guidance lands in $CODEX_HOME/AGENTS.md, and config.toml,
+# credentials and runtime state stay untouched.
+codex_home="$work/codex-home"
+codex="$codex_home/.codex"
+mkdir -p "$codex/skills/foreign" "$codex/skills/.system/imagegen"
+printf 'foreign skill sentinel\n' > "$codex/skills/foreign/SKILL.md"
+for skill in check-cadence verification-infrastructure; do
+  mkdir -p "$codex/skills/$skill"
+  printf 'foreign retired skill\n' > "$codex/skills/$skill/SKILL.md"
+  printf 'foreign extra file\n' > "$codex/skills/$skill/foreign-only.txt"
+done
+printf 'bundled system skill\n' > "$codex/skills/.system/imagegen/SKILL.md"
+ln -s /usr/share/omarchy/default/agents/skills/omarchy "$codex/skills/omarchy"
+printf 'model = "synthetic"\n[projects."/synthetic"]\ntrust_level = "trusted"\n[hooks.state."/foreign/hooks.json:session_start:0:0"]\ntrusted_hash = "sha256:foreign"\n' > "$codex/config.toml"
+printf '{"hooks":{"SessionStart":[{"hooks":[{"type":"command","command":"foreign-start"}]}],"PreToolUse":[{"matcher":"Edit","hooks":[{"type":"command","command":"foreign-pre"}]}]}}\n' > "$codex/hooks.json"
+printf '{"synthetic":"codex auth sentinel"}\n' > "$codex/auth.json"
+cp "$codex/config.toml" "$work/expected-codex-config"
+cp "$codex/auth.json" "$work/expected-codex-auth"
+if env -i PATH="$PATH" HOME="$codex_home" TMPDIR="$work" \
+  "$work/source/codex-config/install" >"$work/codex.log" 2>&1; then
+  printf 'PASS codex installer exit\n'
+else
+  printf 'FAIL codex installer exit\n' >&2
+  cat "$work/codex.log" >&2
+  failures=$((failures + 1))
+fi
+check "codex canonical shared daybook skill" cmp -s "$work/source/agent-config/skills/daybook-sync/SKILL.md" "$codex_home/.agents/skills/daybook-sync/SKILL.md"
+check "codex daybook-sync executable" test -x "$codex_home/.local/bin/daybook-sync"
+check "codex daybook-sync bytes" cmp -s "$work/source/agent-config/bin/daybook-sync" "$codex_home/.local/bin/daybook-sync"
+check "codex daybook-sync CLI" "$codex_home/.local/bin/daybook-sync" --help
+check "codex remote-run executable" test -x "$codex_home/.local/bin/remote-run"
+check "codex remote-run CLI" "$codex_home/.local/bin/remote-run" --help
+for skill in lage ship-loop judge release-watch heartbeat lane-succession story-qa pokayoke user-stories authenticated-commands daybook-sync remote-execution; do
+  check "codex $skill skill package" diff -r --exclude=.harness-owned "$work/source/agent-config/skills/$skill" "$codex/skills/$skill"
+  check "codex $skill ownership marker" grep -Fxq 'owned by misty-step/harness agent-config' "$codex/skills/$skill/.harness-owned"
+done
+for skill in check-cadence verification-infrastructure; do
+  check "codex preserves unowned retired $skill package" grep -Fxq 'foreign retired skill' "$codex/skills/$skill/SKILL.md"
+  check "codex preserves unowned retired $skill extra files" grep -Fxq 'foreign extra file' "$codex/skills/$skill/foreign-only.txt"
+done
+check "codex foreign skill" cmp -s "$work/expected-skill" "$codex/skills/foreign/SKILL.md"
+# Codex's own app-server (used to trust the guard hook) reconciles its bundled skills, so only their presence is ours to check.
+check "codex keeps bundled system skills" test -d "$codex/skills/.system"
+check "codex keeps linked skill" test "$(readlink "$codex/skills/omarchy")" = /usr/share/omarchy/default/agents/skills/omarchy
+python3 - "$work/expected-codex-config" "$codex" "$codex_home/.local/bin/workstation-guard" "$(command -v codex || true)" <<'PYCODE'
+import json,sys,tomllib
+config,codex,guard,native=sys.argv[1:]
+before=tomllib.load(open(config,'rb'));after=tomllib.load(open(codex+'/config.toml','rb'))
+hooks=json.load(open(codex+'/hooks.json'))['hooks']
+assert hooks['SessionStart'] == [{'hooks':[{'type':'command','command':'foreign-start'}]}]
+assert hooks['PreToolUse'][0] == {'matcher':'Edit','hooks':[{'type':'command','command':'foreign-pre'}]}
+assert hooks['PreToolUse'][1:] == [{'matcher':'Bash','hooks':[{'type':'command','command':guard,'timeout':10}]}]
+if native:  # Codex's own RPC records trust beside the foreign state; without Codex, trust is a documented manual step.
+    assert after['hooks']['state']['/foreign/hooks.json:session_start:0:0'] == before['hooks']['state']['/foreign/hooks.json:session_start:0:0']
+    assert after['hooks']['state'][codex+'/hooks.json:pre_tool_use:1:0']['trusted_hash'].startswith('sha256:')
+    assert {k:v for k,v in after.items() if k != 'hooks'} == {k:v for k,v in before.items() if k != 'hooks'}
+else:
+    assert after == before
+PYCODE
+check "codex foreign hooks and state preserved, guard hook installed and trusted" test "$?" = 0
+check "codex workstation-guard bytes" cmp -s "$work/source/agent-config/bin/workstation-guard" "$codex_home/.local/bin/workstation-guard"
+check "codex guard refuses a privileged container" test "$(guard_status "$codex_home/.local/bin/workstation-guard" 'docker run --privileged hello-world')" = 2
+check "codex guard allows docker ps" test "$(guard_status "$codex_home/.local/bin/workstation-guard" 'docker ps')" = 0
+cp "$codex/hooks.json" "$work/codex-hooks-before-rerun"
+cp "$codex/config.toml" "$work/codex-config-before-rerun"
+check "codex auth untouched" cmp -s "$work/expected-codex-auth" "$codex/auth.json"
+expected="$work/codex-guidance"
+: > "$expected"
+while IFS= read -r line || [ -n "$line" ]; do
+  if [ "$line" = '<!-- shared guidance: agent-config -->' ]; then
+    for section in engineering workstation autonomy; do
+      cat "$work/source/agent-config/guidance/$section.md" >> "$expected"
+      printf '\n' >> "$expected"
+    done
+  else
+    printf '%s\n' "$line" >> "$expected"
+  fi
+done < "$work/source/codex-config/global/AGENTS.md"
+check "codex composition" cmp -s "$expected" "$codex/AGENTS.md"
+check "codex AGENTS.md permissions" test "$(stat -c %a "$codex/AGENTS.md")" = 600
+check "codex writes no CLAUDE.md" test ! -e "$codex/CLAUDE.md"
+check "codex writes no CLAUDE.md symlink" test ! -L "$codex/CLAUDE.md"
+# CODEX_HOME relocates the whole deployment, as it does for Codex itself.
+relocated="$work/codex-relocated"
+mkdir -p "$work/codex-unused-home"  # the hook installer runs python3, which needs an existing HOME
+if env -i PATH="$PATH" HOME="$work/codex-unused-home" CODEX_HOME="$relocated" TMPDIR="$work" \
+  "$work/source/codex-config/install" >"$work/codex-relocated.log" 2>&1 \
+  && cmp -s "$expected" "$relocated/AGENTS.md" && test -f "$relocated/skills/lage/SKILL.md" \
+  && test ! -e "$work/codex-unused-home/.codex"; then
+  printf 'PASS codex honors CODEX_HOME\n'
+else
+  printf 'FAIL codex honors CODEX_HOME\n' >&2
+  failures=$((failures + 1))
+fi
+# A rerun replaces its own AGENTS.md; a foreign one stops the install before any write.
+printf 'stale owned lage\n' > "$codex/skills/lage/obsolete.md"
+if env -i PATH="$PATH" HOME="$codex_home" TMPDIR="$work" \
+  "$work/source/codex-config/install" >"$work/codex-rerun.log" 2>&1 && cmp -s "$expected" "$codex/AGENTS.md"; then
+  printf 'PASS codex rerun replaces its own AGENTS.md\n'
+else
+  printf 'FAIL codex rerun replaces its own AGENTS.md\n' >&2
+  failures=$((failures + 1))
+fi
+check "codex clean-replaces owned skill" test ! -e "$codex/skills/lage/obsolete.md"
+check "codex rerun leaves hooks.json byte-identical" cmp -s "$work/codex-hooks-before-rerun" "$codex/hooks.json"
+check "codex rerun leaves config.toml byte-identical" cmp -s "$work/codex-config-before-rerun" "$codex/config.toml"
+
+# Compare the entire fixture, including extra files, link targets and modes.
+snapshot_home() {
+  python3 - "$1" <<'PY'
+import hashlib
+import json
+import os
+from pathlib import Path
+import stat
+import sys
+
+root = Path(sys.argv[1])
+entries = {}
+for directory, dirs, files in os.walk(root, followlinks=False):
+    for name in sorted(dirs + files):
+        path = Path(directory) / name
+        mode = path.lstat().st_mode
+        value = os.readlink(path) if stat.S_ISLNK(mode) else (
+            hashlib.sha256(path.read_bytes()).hexdigest() if stat.S_ISREG(mode) else None
+        )
+        entries[str(path.relative_to(root))] = [mode, value]
+print(json.dumps(entries, sort_keys=True))
+PY
+}
+
+for variant in directory symlink dangling-symlink; do
+  collision_home="$work/codex-skill-$variant-home"
+  mkdir -p "$collision_home/.codex/skills" "$collision_home/foreign-skill"
+  printf 'foreign skill\n' > "$collision_home/foreign-skill/SKILL.md"
+  printf 'foreign extra file\n' > "$collision_home/foreign-skill/foreign-only.txt"
+  case "$variant" in
+    directory) cp -R "$collision_home/foreign-skill" "$collision_home/.codex/skills/lage" ;;
+    symlink) ln -s ../../foreign-skill "$collision_home/.codex/skills/lage" ;;
+    dangling-symlink) ln -s ../../missing-skill "$collision_home/.codex/skills/lage" ;;
+  esac
+  snapshot_home "$collision_home" > "$work/before-skill-$variant"
+  if env -i PATH="$PATH" HOME="$collision_home" TMPDIR="$work" \
+    "$work/source/codex-config/install" >"$work/codex-skill-$variant.log" 2>&1; then
+    printf 'FAIL codex refuses foreign skill %s (install succeeded)\n' "$variant" >&2
+    failures=$((failures + 1))
+  else
+    check "codex warns on foreign skill $variant" grep -Fq 'warning: refusing unowned skill destination:' "$work/codex-skill-$variant.log"
+  fi
+  snapshot_home "$collision_home" > "$work/after-skill-$variant"
+  check "codex preserves foreign skill $variant before any write" cmp -s "$work/before-skill-$variant" "$work/after-skill-$variant"
+done
+
+for variant in symlink dangling-symlink owned; do
+  retirement_home="$work/codex-retirement-$variant-home"
+  mkdir -p "$retirement_home/.codex/skills" "$retirement_home/foreign-skill"
+  printf 'foreign retired skill\n' > "$retirement_home/foreign-skill/SKILL.md"
+  for skill in check-cadence verification-infrastructure; do
+    case "$variant" in
+      symlink) ln -s ../../foreign-skill "$retirement_home/.codex/skills/$skill" ;;
+      dangling-symlink) ln -s ../../missing-skill "$retirement_home/.codex/skills/$skill" ;;
+      owned)
+        mkdir -p "$retirement_home/.codex/skills/$skill"
+        printf 'owned by misty-step/harness agent-config\n' > "$retirement_home/.codex/skills/$skill/.harness-owned"
+        ;;
+    esac
+  done
+  retirement_exit=0
+  env -i PATH="$PATH" HOME="$retirement_home" TMPDIR="$work" \
+    "$work/source/codex-config/install" >"$work/codex-retirement-$variant.log" 2>&1 || retirement_exit=$?
+  check "codex $variant retirement installer exit" test "$retirement_exit" -eq 0
+  for skill in check-cadence verification-infrastructure; do
+    if [ "$variant" = owned ]; then
+      check "codex retires owned $skill" test ! -e "$retirement_home/.codex/skills/$skill"
+    else
+      check "codex preserves unowned retired $skill $variant" test -L "$retirement_home/.codex/skills/$skill"
+    fi
+  done
+  check "codex preserves $variant retirement external target" grep -Fxq 'foreign retired skill' "$retirement_home/foreign-skill/SKILL.md"
+done
+
+for variant in dangling-symlink marked-symlink; do
+  link_home="$work/codex-guidance-$variant-home"
+  mkdir -p "$link_home/.codex"
+  if [ "$variant" = marked-symlink ]; then
+    printf '<!-- owned by misty-step/harness codex-config -->\n# external guidance\n' > "$link_home/personal-guidance.md"
+  fi
+  ln -s ../personal-guidance.md "$link_home/.codex/AGENTS.md"
+  snapshot_home "$link_home" > "$work/before-guidance-$variant"
+  if env -i PATH="$PATH" HOME="$link_home" TMPDIR="$work" \
+    "$work/source/codex-config/install" >"$work/codex-guidance-$variant.log" 2>&1; then
+    printf 'FAIL codex refuses %s AGENTS.md (install succeeded)\n' "$variant" >&2
+    failures=$((failures + 1))
+  else
+    check "codex refuses $variant AGENTS.md" grep -Fq 'is not ours' "$work/codex-guidance-$variant.log"
+  fi
+  snapshot_home "$link_home" > "$work/after-guidance-$variant"
+  check "codex preserves $variant AGENTS.md before any write" cmp -s "$work/before-guidance-$variant" "$work/after-guidance-$variant"
+done
+for variant in foreign marker; do
+  variant_home="$work/codex-$variant-home"
+  mkdir -p "$variant_home/.codex"
+  if [ "$variant" = foreign ]; then
+    printf '# my own notes\n' > "$variant_home/.codex/AGENTS.md"
+  else
+    # The ownership marker counts only as the file's first line.
+    printf '# my own notes\n\n<!-- owned by misty-step/harness codex-config -->\n' > "$variant_home/.codex/AGENTS.md"
+  fi
+  cp "$variant_home/.codex/AGENTS.md" "$work/expected-codex-$variant"
+  if env -i PATH="$PATH" HOME="$variant_home" TMPDIR="$work" \
+    "$work/source/codex-config/install" >"$work/codex-$variant.log" 2>&1; then
+    printf 'FAIL codex refuses a %s AGENTS.md (install succeeded)\n' "$variant" >&2
+    failures=$((failures + 1))
+  else
+    check "codex refuses a $variant AGENTS.md before any write" \
+      test "$(ls -A "$variant_home/.codex")" = AGENTS.md
+    check "codex keeps the $variant AGENTS.md" cmp -s "$work/expected-codex-$variant" "$variant_home/.codex/AGENTS.md"
   fi
 done
 if [ "$failures" -ne 0 ]; then
   printf 'FAIL: %s invariant(s); disposable clone removed on exit\n' "$failures" >&2
   exit 1
 fi
-printf 'PASS: both installers; disposable clone removed on exit\n'
+printf 'PASS: all installers; disposable clone removed on exit\n'

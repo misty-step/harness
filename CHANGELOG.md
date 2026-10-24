@@ -1,3 +1,288 @@
+# [0.2.40](https://github.com/misty-step/harness/compare/v0.2.39...v0.2.40) (2026-10-24)
+<!-- landmark:protected-release previous=v0.2.39 source=ec3443b0608182d497e4972d00c7e581d19d4d70ca6270a6aac27878893027b2 -->
+
+### Features
+
+* **pi:** default to DeepSeek V4.1 Flash 1017 and retire account pools (#520) ([f4c3bbf](https://github.com/misty-step/harness/commit/f4c3bbfc245d96985020b1c527e98f6799093f65))
+# [0.2.39](https://github.com/misty-step/harness/compare/v0.2.38...v0.2.39) (2026-10-23)
+<!-- landmark:protected-release previous=v0.2.38 source=b869e702d3bd8d631448e40d50a2a545fc0b6e99f7d47605998108ad02eadd11 -->
+
+### Features
+
+* **accounts:** plain and pull hosts, reader-payload/pull-report, restore keepalive (#507) ([f02875d](https://github.com/misty-step/harness/commit/f02875d41cba9346e37ceb3346b0d18bab2c5e5b))
+# [0.2.38](https://github.com/misty-step/harness/compare/v0.2.37...v0.2.38) (2026-10-23)
+<!-- landmark:protected-release previous=v0.2.37 source=0de2faf54d7bb45a00e4c361e4613335651a602e642e0688775a0e9dc1c84c97 -->
+
+### Features
+
+* **accounts:** report fresh room transitions to Home (#496) ([e2c61af](https://github.com/misty-step/harness/commit/e2c61af7fab2e02cc449c740ad0d84b6c1720068))
+# [0.2.37](https://github.com/misty-step/harness/compare/v0.2.36...v0.2.37) (2026-10-23)
+<!-- landmark:protected-release previous=v0.2.36 source=8a04e2ae94907acb88ba1dbb45303d5acad6fe02dfb0fc985f4c8cd16074c25c -->
+
+### Features
+
+* route T3 commands through existing SSH hops (#505) ([7925e0e](https://github.com/misty-step/harness/commit/7925e0ee03179dc50fc01fc8cf1a244208a52ed4))
+# [0.2.36](https://github.com/misty-step/harness/compare/v0.2.35...v0.2.36) (2026-10-23)
+<!-- landmark:protected-release previous=v0.2.35 source=b826c4907976158f940d840a7a020b2eb31ce566d08001085f1a3a145e85f0d6 -->
+
+### Features
+
+* add scriptable T3 access and health notifications (#498) ([f834c2b](https://github.com/misty-step/harness/commit/f834c2b7e7e702f2ddf0e9b662bf0f4e7315c7d0))
+* use existing native MCP profiles and SOCKS transport (#502) ([2e7cc0c](https://github.com/misty-step/harness/commit/2e7cc0c3ad1d2f71834ffdfab8bdcfa8016b643a))
+# [0.2.35](https://github.com/misty-step/harness/compare/v0.2.34...v0.2.35) (2026-10-23)
+<!-- landmark:protected-release previous=v0.2.34 source=e1166171c54420e7611968eb0434362a7e6938f8e3300b862df3a5a0bf2ff6a8 -->
+
+### Features
+
+* **accounts:** expose canonical T3 roster and credential references (#494) ([4feea8c](https://github.com/misty-step/harness/commit/4feea8c3c91a26ec68aebf496ad4c2e01136cb1e))
+
+### Bug Fixes
+
+* **guidance:** route accounts from fresh Upkeep evidence (#493) ([3c12e11](https://github.com/misty-step/harness/commit/3c12e1178e8bb45bab4fa25e5adbb827e9e70dfc))
+# [0.2.34](https://github.com/misty-step/harness/compare/v0.2.33...v0.2.34) (2026-10-22)
+<!-- landmark:protected-release previous=v0.2.33 source=d2de1b35cadd84cf41d05cf869e0e91f1e389e5c51c1ee784dca5dadd0550557 -->
+
+### Features
+
+* **agent-config:** remote-run CLI for exe.dev VMs and Hetzner builds (#476) ([4e076de](https://github.com/misty-step/harness/commit/4e076de397ad8526c982d6a15c90c0ac51d41c08))
+# [0.2.33](https://github.com/misty-step/harness/compare/v0.2.32...v0.2.33) (2026-10-22)
+<!-- landmark:protected-release previous=v0.2.32 source=1b4a0d12095bbedbab1384e8821e6447536d9e93bbbc98fb8a1a5814dada02f0 -->
+
+### Bug Fixes
+
+* **claude:** leave AskUserQuestion and ExitPlanMode to the harness (#480) ([bf8e8dc](https://github.com/misty-step/harness/commit/bf8e8dc36929101e8d872149e0d8cb94c7049344))
+# [0.2.32](https://github.com/misty-step/harness/compare/v0.2.31...v0.2.32) (2026-10-22)
+<!-- landmark:protected-release previous=v0.2.31 source=b832f151db47e06068edd22fcb26ffe01e676aa863a00c26628a52a15911f3e6 -->
+
+### Bug Fixes
+
+* **claude:** refuse unanswerable approval requests instead of stalling delegated runs (#477) ([da2da73](https://github.com/misty-step/harness/commit/da2da736f5ae0d4e167485f048baef41dfae25f2))
+# [0.2.31](https://github.com/misty-step/harness/compare/v0.2.30...v0.2.31) (2026-10-22)
+<!-- landmark:protected-release previous=v0.2.30 source=d256619231c455e1b9835efb189a951250b61307cb637248d3ef8c7de46a3b20 -->
+
+### Features
+
+* **guard:** refuse host-affecting shell commands on workstations (#474) ([06cc127](https://github.com/misty-step/harness/commit/06cc12724ead0a096bec7592cfaf0ba813789f8d))
+# [0.2.30](https://github.com/misty-step/harness/compare/v0.2.29...v0.2.30) (2026-10-22)
+<!-- landmark:protected-release previous=v0.2.29 source=ef360057bca06138151be749457bd5ade976232ec56570f9274c47f9fbc9a182 -->
+
+### Features
+
+* **guidance:** run development, QA and builds remotely first (#471) ([3c9e199](https://github.com/misty-step/harness/commit/3c9e199e9e56ed26d6c871b930d1828eae000aaa))
+# [0.2.29](https://github.com/misty-step/harness/compare/v0.2.28...v0.2.29) (2026-10-22)
+<!-- landmark:protected-release previous=v0.2.28 source=aa757cad9099ff6e859559c439388980374c72cfac0d83213de23bfd0d4239ff -->
+
+### Bug Fixes
+
+* **lage:** return a compact result for inline rendering (#464) ([d50d76d](https://github.com/misty-step/harness/commit/d50d76d6660e905685bd705b0ff6fc1bf447ca23))
+# [0.2.28](https://github.com/misty-step/harness/compare/v0.2.27...v0.2.28) (2026-10-21)
+<!-- landmark:protected-release previous=v0.2.27 source=5d71dd6ddd9332ac200907d5d5e2014fc32ed1387b5db8a9ca74311cbecc0c22 -->
+
+### Features
+
+* **daybook:** publish isolated concurrent note changes (#461) ([1226661](https://github.com/misty-step/harness/commit/1226661f4897f0003c4f73c569d2391117a0a29b))
+# [0.2.27](https://github.com/misty-step/harness/compare/v0.2.26...v0.2.27) (2026-10-21)
+<!-- landmark:protected-release previous=v0.2.26 source=f59d1f07678b80a7906b71f432a7a8fd899434ada8f8f16effeb0741435953c2 -->
+
+### Features
+
+* **ship-loop:** keep PR review rounds in a comment ledger (#454) ([75063ec](https://github.com/misty-step/harness/commit/75063ec9023016a63210170cf363e20f70c34990))
+# [0.2.26](https://github.com/misty-step/harness/compare/v0.2.25...v0.2.26) (2026-10-21)
+<!-- landmark:protected-release previous=v0.2.25 source=8e67f2d4ba86e1efffa54f6cee2ac52da6893d1200641fd8d2d491fae62440f9 -->
+
+### Bug Fixes
+
+* **qa:** scope verification to the changed user path (#455) ([0e7f455](https://github.com/misty-step/harness/commit/0e7f455f4a178e408f484fb35e385343897ae39e))
+# [0.2.25](https://github.com/misty-step/harness/compare/v0.2.24...v0.2.25) (2026-10-21)
+<!-- landmark:protected-release previous=v0.2.24 source=50d5cbf2fbc9fe2a2c46ca62fdb890fcd464570b52566cd8779ec27e1ac43732 -->
+
+### Bug Fixes
+
+* **review:** bound fix rounds behind judge rulings (#450) ([ae3d68d](https://github.com/misty-step/harness/commit/ae3d68dbb0a9866dae6c2ee517107dd1691bb776))
+# [0.2.24](https://github.com/misty-step/harness/compare/v0.2.23...v0.2.24) (2026-10-21)
+<!-- landmark:protected-release previous=v0.2.23 source=5c99739dd17ef85fe73a4ac4d4fe2cdd7de60957837a587ddf4940f78c850c7b -->
+
+### Features
+
+* **heartbeat:** dispatch named roster successions automatically (#441) ([67c95b3](https://github.com/misty-step/harness/commit/67c95b3b294ad903531393442875d9aa8d05a3ff))
+# [0.2.23](https://github.com/misty-step/harness/compare/v0.2.22...v0.2.23) (2026-10-21)
+<!-- landmark:protected-release previous=v0.2.22 source=939212e181770bca37de0d61b42aff6089eae871f3a6e6b3c1c3b08362363d0b -->
+
+### Bug Fixes
+
+* **verify:** request raw native guidance heading (#438) ([3a8b528](https://github.com/misty-step/harness/commit/3a8b528d67bd7a145c8f9917407701ddaab5237e))
+# [0.2.22](https://github.com/misty-step/harness/compare/v0.2.21...v0.2.22) (2026-10-21)
+<!-- landmark:protected-release previous=v0.2.21 source=edcee4e0598a8f0354cdf02d7f77c8cb7028af2f7b2d3d57b5694037fbf9e955 -->
+
+### Features
+
+* **t3:** hand oversized lanes to a successor thread (#419) ([50f26c3](https://github.com/misty-step/harness/commit/50f26c3b0ad5fb29c943137e3714d1a8e12b9752))
+# [0.2.21](https://github.com/misty-step/harness/compare/v0.2.20...v0.2.21) (2026-10-21)
+<!-- landmark:protected-release previous=v0.2.20 source=994e88247f8b05ff611f487ab3cacc67b10861c4a5aa53ae2a43a2301b7230cc -->
+
+### Features
+
+* **t3-pool:** restrict recovery to Home-named lanes and children (#420) ([2e64595](https://github.com/misty-step/harness/commit/2e64595c802c20b1dcf288c35c3de4576422bbdc))
+# [0.2.20](https://github.com/misty-step/harness/compare/v0.2.19...v0.2.20) (2026-10-21)
+<!-- landmark:protected-release previous=v0.2.19 source=c393b64b2ed0656f35c9defb447fdf89f377a6d4547fe464b99d808a863a9f28 -->
+
+### Features
+
+* **agents:** lead full initiatives through small shippable PRs (#427) ([738a3c2](https://github.com/misty-step/harness/commit/738a3c2efce4c958f27c9c5568b5ebc9d4f4cf14))
+# [0.2.19](https://github.com/misty-step/harness/compare/v0.2.18...v0.2.19) (2026-10-21)
+<!-- landmark:protected-release previous=v0.2.18 source=4894464aadbf39088f237a6ea76974b65ebd46fcbb4d22be236e991cc9e9dd1e -->
+
+### Features
+
+* canonicalize agent instructions and QA account policy (#426) ([a12f6df](https://github.com/misty-step/harness/commit/a12f6dfd9bc4ee5fd2773782e270747f1e363769))
+# [0.2.18](https://github.com/misty-step/harness/compare/v0.2.17...v0.2.18) (2026-10-21)
+<!-- landmark:protected-release previous=v0.2.17 source=c8600aac5112d0912d6f0f16b2a1bba1ac99fb4f015e93c271277973f46fb57b -->
+
+### Bug Fixes
+
+* require clickable review links and neutral professional design (#410) ([ec4229b](https://github.com/misty-step/harness/commit/ec4229babb201bb5180844ae1bb3a45c9d89fb2a))
+# [0.2.17](https://github.com/misty-step/harness/compare/v0.2.16...v0.2.17) (2026-10-21)
+<!-- landmark:protected-release previous=v0.2.16 source=cecf0d254cad18ffa6e215dc078a69980b8ab399d92af756d128c98dc8462f72 -->
+
+### Features
+
+* **guidance:** require real journeys and budget-sized WIP (#413) ([848f51a](https://github.com/misty-step/harness/commit/848f51aa74ca9da920827e923403e1edd105db76))
+# [0.2.16](https://github.com/misty-step/harness/compare/v0.2.15...v0.2.16) (2026-10-21)
+<!-- landmark:protected-release previous=v0.2.15 source=f3ac304b422f10cdc20a2593a60eb44d162a2b14eb0f1bf44a2c0902d60dfe7f -->
+
+### Features
+
+* **verify:** add verify-harness operator verification skill (#414) ([9dc76ee](https://github.com/misty-step/harness/commit/9dc76ee89eb41828f30563d201e4e1bc77a48cc9))
+# [0.2.15](https://github.com/misty-step/harness/compare/v0.2.14...v0.2.15) (2026-10-20)
+<!-- landmark:protected-release previous=v0.2.14 source=e01b292698a950955adbd94394ffe77c2ea109976527b9fa99543bb6abb076ca -->
+
+### Features
+
+* **t3:** pool accounts after usage limits (#402) ([fcb87f2](https://github.com/misty-step/harness/commit/fcb87f2a69170e2a9ff50441facd33d75e940a2f))
+# [0.2.14](https://github.com/misty-step/harness/compare/v0.2.13...v0.2.14) (2026-10-20)
+<!-- landmark:protected-release previous=v0.2.13 source=dcff4130a706200555ed215a5a0e569cf47966c281226b11565c00f5abb313e4 -->
+
+### Features
+
+* **ship-loop:** scale rigor by risk and link PRs to stories (#397) ([ef4f261](https://github.com/misty-step/harness/commit/ef4f261671f954e049d766d609c1da672a43023c))
+
+### Bug Fixes
+
+* **heartbeat:** preserve native agent liveness before restart (#404) ([26c306f](https://github.com/misty-step/harness/commit/26c306f163cb0e02afff3d86db136e76dcd75fbc))
+# [0.2.13](https://github.com/misty-step/harness/compare/v0.2.12...v0.2.13) (2026-10-20)
+<!-- landmark:protected-release previous=v0.2.12 source=ae94e6e510f09c75265da846bc0b6b074c266eaaa6088599170e2d0481a91e56 -->
+
+### Features
+
+* **claude-config:** install t3-runtime-mode on PATH (#400) ([57217a0](https://github.com/misty-step/harness/commit/57217a0efc18c5a83c4d92fe8cf522aca257bd58))
+* **codex-config:** compose ~/.codex/AGENTS.md and deploy shared skills (#396) ([c3dd6bd](https://github.com/misty-step/harness/commit/c3dd6bd0a7488e521567564fd799c601185b484b))
+# [0.2.12](https://github.com/misty-step/harness/compare/v0.2.11...v0.2.12) (2026-10-20)
+<!-- landmark:protected-release previous=v0.2.11 source=91052456d4a60c96f0e32a6395bf821aa2f14eb44c656cdfd1197ab0ae032798 -->
+
+### Features
+
+* **agent-config:** set T3 thread runtime modes over local RPC (#393) ([c9ad1b7](https://github.com/misty-step/harness/commit/c9ad1b76b2b0334da572b83f50484000a49b9831))
+# [0.2.11](https://github.com/misty-step/harness/compare/v0.2.10...v0.2.11) (2026-10-20)
+<!-- landmark:protected-release previous=v0.2.10 source=83b0a4f6900d47ca885e92a33f7ee8daf442d4924f3fa0a3c6ad8596d4d6c087 -->
+
+### Bug Fixes
+
+* **omp-display:** make signal routing and setup race-free so its test cannot hang (#367) ([ce37e2a](https://github.com/misty-step/harness/commit/ce37e2a5829e8484e23bdce4f19411bfe9e01445))
+# [0.2.10](https://github.com/misty-step/harness/compare/v0.2.9...v0.2.10) (2026-10-20)
+<!-- landmark:protected-release previous=v0.2.9 source=24c371134f795f333435797b6489117b74bbecc45682e421b2be64b1d8aa1596 -->
+
+### Bug Fixes
+
+* **release-watch:** complete installer and recovery paths (#372) ([d08adc0](https://github.com/misty-step/harness/commit/d08adc0920894b32eb209407342b1b8e595f1bc3))
+# [0.2.9](https://github.com/misty-step/harness/compare/v0.2.8...v0.2.9) (2026-10-20)
+<!-- landmark:protected-release previous=v0.2.8 source=4b13b872ca1feb4f253974a90d6bdb209ec9174372ea0275fd0a52f2a2da2dc2 -->
+
+### Bug Fixes
+
+* apply autonomy gate everywhere and route reports to Home inbox (#377) ([350161d](https://github.com/misty-step/harness/commit/350161d8e9ac8f873a7399c5c4b8e21281f35df8))
+* **ship-loop:** close the routing, stack, report and watch gaps from #350 (#376) ([d668200](https://github.com/misty-step/harness/commit/d6682008f03501fc5e736f0c2bccda2a80860630))
+# [0.2.8](https://github.com/misty-step/harness/compare/v0.2.7...v0.2.8) (2026-10-20)
+<!-- landmark:protected-release previous=v0.2.7 source=22e6032ee27d4952a3891912951074959286c20deda4ae4317335863abc44254 -->
+
+### Bug Fixes
+
+* **heartbeat:** cover live lane states and preserve principal asks (#349) ([b8decd8](https://github.com/misty-step/harness/commit/b8decd8d6c899a3ef66a092a657aed1e376d6612))
+# [0.2.7](https://github.com/misty-step/harness/compare/v0.2.6...v0.2.7) (2026-10-20)
+<!-- landmark:protected-release previous=v0.2.6 source=d26dbe884fa7a58e5c8550cf47d603719b7bc7fd01d41d50695d55c8c039579e -->
+
+### Bug Fixes
+
+* **release-watch:** watch installer-from-source releases, honor r90group review, trigger after the window (#346) ([0d1a510](https://github.com/misty-step/harness/commit/0d1a510dcfc2e3ede542fed5ade740ba12a6fd95))
+# [0.2.6](https://github.com/misty-step/harness/compare/v0.2.5...v0.2.6) (2026-10-20)
+<!-- landmark:protected-release previous=v0.2.5 source=65d79f0d3b5d4708987f620230655f873672a846809b0a5457421ccbbce75437 -->
+
+### Bug Fixes
+
+* **lage:** fit the brief to a phone, bound roster reads, and rank lane states truthfully ([fb2d78a](https://github.com/misty-step/harness/commit/fb2d78ab690a8780b5a3eb8ac7ab69b89c209d2b))
+# [0.2.5](https://github.com/misty-step/harness/compare/v0.2.4...v0.2.5) (2026-10-20)
+<!-- landmark:protected-release previous=v0.2.4 source=e9e2bb48ec7ae9d0a68e2ef95bc80d4cc3a843bc25de89440b730e0d26558898 -->
+
+### Bug Fixes
+
+* **ship-loop:** route, stack and file follow-ups as the pilot and judges found ([178c07f](https://github.com/misty-step/harness/commit/178c07ffa20368d4c48400679602ffe0484f3525))
+# [0.2.4](https://github.com/misty-step/harness/compare/v0.2.3...v0.2.4) (2026-10-20)
+<!-- landmark:protected-release previous=v0.2.3 source=a7bb90a2665511e3cd6fed0dd223de6a575612be31c9fba9056006926b8d4035 -->
+
+### Features
+
+* **claude:** add lage, an executive brief across every lane ([f0b6257](https://github.com/misty-step/harness/commit/f0b6257ffa54db6997d8cc81fcc71764a40b2f30))
+* **claude:** add the ship loop, judge, release watch, heartbeat and autonomy policy ([ce354e7](https://github.com/misty-step/harness/commit/ce354e78fb3f25bf6cf1eb9e36e8f644e13f9419))
+
+### Bug Fixes
+
+* **session-backup:** don't fail when retired glass is absent (#306) ([3a9e254](https://github.com/misty-step/harness/commit/3a9e254ce3b2d0e0f101574c66a5859508b7ecd6))
+* **session-backup:** retire Kaylee from the nightly backup (#308) ([b152bd9](https://github.com/misty-step/harness/commit/b152bd91f3e9839e450882025e3135cf1f903d5e))
+* **lage:** hand off through a scratch launch when the coordinator's checkout has its own CLAUDE.md ([54908fc](https://github.com/misty-step/harness/commit/54908fc35b783fb655b2b0b2a3769e06ba7cad09))
+* **ship-loop:** fold in the Team Rocket pilot: stacks, routing, deploy-gated watches ([b6c9779](https://github.com/misty-step/harness/commit/b6c9779eeaf7439075a3a17f1d8922543e3a8904))
+* **installers:** never delete or overwrite what the installer doesn't own ([7b64584](https://github.com/misty-step/harness/commit/7b6458458c7d0e851f0462c0f83cc5df69dc4f5c))
+* **release:** withdraw the stranded 0.2.4 changelog entry so releases resume ([ae016ff](https://github.com/misty-step/harness/commit/ae016ff5c28770e105b5d6d61f067f97d6ded700))
+# [0.2.3](https://github.com/misty-step/harness/compare/v0.2.2...v0.2.3) (2026-10-16)
+<!-- landmark:protected-release previous=v0.2.2 source=5283e0a9306c830631315966b620d59cbc37dac716da4885cc88ac1225ff24b8 -->
+
+### Bug Fixes
+
+* **omp:** allow Cantrip management without desktop access ([ddd51d9](https://github.com/misty-step/harness/commit/ddd51d96fc17cd524aa1dc8d123771e5e6de9c14))
+# [0.2.2](https://github.com/misty-step/harness/compare/v0.2.1...v0.2.2) (2026-10-15)
+<!-- landmark:protected-release previous=v0.2.1 source=468a92a5fac1303289ab4cd3b10c6dcf640f121a7b752ecefccacccfdd55b28d -->
+
+### Bug Fixes
+
+* **release:** merge verified generated release notes promptly (#300) ([dd60cff](https://github.com/misty-step/harness/commit/dd60cff18880da6d7ea636eb457e2993a267d768))
+# [0.2.1](https://github.com/misty-step/harness/compare/v0.2.0...v0.2.1) (2026-10-15)
+<!-- landmark:protected-release previous=v0.2.0 source=b693083bf594a74ce770d3ff77cb2c951fe2e4f6ffa6b39f043410a911bb66d9 -->
+
+### Features
+
+* **video:** screen, fit and listen before film music ships (#254) ([aea379b](https://github.com/misty-step/harness/commit/aea379b35d56dfcef899e8ac8cb714bf76720ccd))
+* **video:** brief the job, prompt each model its way, fit music to the cuts (#255) ([4f0b168](https://github.com/misty-step/harness/commit/4f0b168c34f0ce694890cc002bd3096d957cb655))
+* **harness:** sync portable preferences and native OpenAI logins (#261) ([17f36d3](https://github.com/misty-step/harness/commit/17f36d399ab79fc419b8cc46725d7dc830325095))
+* default native agents to Sol xhigh fast (#264) ([501b47a](https://github.com/misty-step/harness/commit/501b47aa691fc2a73bf83a2a2f4c96b9562047d3))
+* **omp:** request exact merged repository installs (#265) ([f98968e](https://github.com/misty-step/harness/commit/f98968e371c29dc69e7224af7de4f63ad234ebf1))
+* **omp:** address Powder evidence notes explicitly (#266) ([ca7064b](https://github.com/misty-step/harness/commit/ca7064b2d2c2630753e4e1b9fd5c259c4fc3efc7))
+* **omp:** admit fixed Iron Forest repository installs ([a0747d8](https://github.com/misty-step/harness/commit/a0747d88dbbd553b87f6a82f9c354deb90247c55))
+* **scripts:** show module code-line change from Glass ledger ([e16e6c8](https://github.com/misty-step/harness/commit/e16e6c8cc74380fde48353c2f6f5ce33a681fee7))
+* **foundation:** decision 0012 — docs/decisions + primitives.yaml in Foundation Standard 1.9.0 (#281) ([86580d1](https://github.com/misty-step/harness/commit/86580d135e29ce668c74fcfab0707c6029ba242f))
+* **shippr:** scaffold risk-gated PR ship loop CLI (#280) ([afbaf33](https://github.com/misty-step/harness/commit/afbaf33b3f940108ccaf06c74841c9fbfa812bd0))
+* **shippr:** System recap blocks in PR bodies (KAF-05) (#286) ([f3cd603](https://github.com/misty-step/harness/commit/f3cd603565c389480424e33ed195b649aefeaf11))
+* **omp:** load applicable taste skills for visual tasks ([3b43342](https://github.com/misty-step/harness/commit/3b4334225874b7c007e95a42b3689564ae417833))
+* **pi:** share the existing native OMP Codex pool ([498797a](https://github.com/misty-step/harness/commit/498797aad7897dc51f93e9c59051ad0e9a877571))
+* **session-backup:** bounded recoverable source snapshots (#293) ([692a985](https://github.com/misty-step/harness/commit/692a985dbec446bbf93798580f4cfd435494790f))
+
+### Bug Fixes
+
+* **skills:** name Phaedrus's GitHub token for what it is (#256) ([bb3af18](https://github.com/misty-step/harness/commit/bb3af186e90772bacd20536a0bfd48501b3923e4))
+* **omp:** no engineer launch requires one account; drop the r90.dev pin (#257) ([b00a655](https://github.com/misty-step/harness/commit/b00a65531b23bcf8968336bf3d80baf7ef96b75a))
+* **omp:** route cage evidence notes through canonical Glass writer (#260) ([911c950](https://github.com/misty-step/harness/commit/911c950d76717026475a2dfd1df5117f4645208a))
+* **omp:** preserve usage-aware specialist roles and gated fallback (#270) ([48f3c45](https://github.com/misty-step/harness/commit/48f3c45458a9755dbf0052394208e99731a93218))
+* **scripts:** refuse LOC change across different scopes ([fdb2435](https://github.com/misty-step/harness/commit/fdb2435bd094f1ccf9fd3c8b570e9b0c366dcedf))
+* **scripts:** require comparable scc and scope for LOC change ([175a163](https://github.com/misty-step/harness/commit/175a163e7049f4badd0e4383e850bb970fbf7c9d))
+* **scripts:** treat a receipt without a commit as unknown ([ade3c08](https://github.com/misty-step/harness/commit/ade3c08f5c12a8382896f1a5fa33d06e78a01332))
+* **omp:** wait for active tools before steering (#290) ([99987b3](https://github.com/misty-step/harness/commit/99987b375528fd7790e9a525fb0254a52c93f9c0))
 # [0.2.0](https://github.com/misty-step/harness/compare/v0.1.79...v0.2.0) (2026-10-06)
 <!-- landmark:protected-release previous=v0.1.79 source=337965cb6979ab0a438b9b1b6c056be7de762b29a905f86a409290dbc0c6ab9c -->
 

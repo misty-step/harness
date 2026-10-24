@@ -1,13 +1,15 @@
 # Harness
 
-Misty Step's agent configuration: one shared base, two thin harness adapters,
+Misty Step's agent configuration: one shared base, four thin harness adapters,
 and native Codex model defaults. One clone records a compatible combination;
 one PR can change the contract and consumers. Runtime state and credentials
 are not source.
 
 ```text
-agent-config/ ── shared install contract ──┬── pi-config/  → pi runtime
-                                         └── omp-config/ → OMP runtime
+agent-config/ ── shared install contract ──┬── pi-config/     → pi runtime
+                                         ├── omp-config/    → OMP runtime
+                                         ├── claude-config/ → Claude Code (T3 lanes)
+                                         └── codex-config/  → Codex
 ```
 
 | Component | Owns | Guide |
@@ -15,13 +17,15 @@ agent-config/ ── shared install contract ──┬── pi-config/  → pi 
 | `agent-config/` | Portable skills, shared global guidance, `pass-env`, shared deployment | [README](agent-config/README.md) |
 | `pi-config/` | pi settings, extensions, chrome, guidance intro | [README](pi-config/README.md) |
 | `omp-config/` | OMP routing, config/MCP, extensions, themes, guidance | [README](omp-config/README.md) |
-| `codex-config/` | Native Codex model, effort and service-tier defaults only | [Deployment](#codex-defaults-native-installation) |
+| `claude-config/` | Shared skills and guidance Claude Code sessions select, such as `lage`; composes `~/.claude/AGENTS.md` with no legacy alias | [README](claude-config/README.md) |
+| `codex-config/` | Shared skills and guidance Codex sessions select; composes `~/.codex/AGENTS.md`; native model, effort and service-tier defaults | [README](codex-config/README.md) |
+| `t3-accounts/` | Maintained native account helper and canonical read-only roster producer | [README](t3-accounts/README.md) |
 
 Foundations: [FOUNDATIONS.md](FOUNDATIONS.md). Intent: [USER_STORIES.md](USER_STORIES.md). Vocabulary, boundaries and
 invariants: [DOMAIN.md](DOMAIN.md). Decisions: [docs/decisions/](docs/decisions/index.md). Agent
 rules: [AGENTS.md](AGENTS.md).
 
-Runtime scope is native Pi/OMP configuration, native Codex model defaults,
+Runtime scope is native Pi, OMP, Claude Code and Codex configuration, native Codex model defaults,
 installation, engineering skills, and necessary credential/audio/workstation isolation. Custom ticket dispatch,
 fleet rosters, experiment scheduling, automated audits and session-close control
 are retired. Native Herdr and OMP/Pi launch own coordination. Installers remove
@@ -66,8 +70,8 @@ automation owns `CHANGELOG.md`, so do not manually edit it.
 ./scripts/verify             # all checks, sequential
 ./scripts/verify pi          # pi logic and isolated pi install
 ./scripts/verify omp         # OMP logic and isolated OMP install
-./scripts/verify shared      # shared unit tests and both isolated installs
-./scripts/verify workspace   # shell syntax and both isolated installs
+./scripts/verify shared      # shared unit tests and the isolated installs
+./scripts/verify workspace   # shell syntax and the isolated installs
 ```
 
 `./scripts/check` is the fixed gate entry point (ADR-004); it runs
@@ -77,10 +81,9 @@ CI, hooks, and releases; component directories retain their focused tests.
 
 ## Foundations
 
-[FOUNDATIONS.md](FOUNDATIONS.md) is the operating rubric. Foundation adoption,
-story-deletion judgments, prose-density checks, and semantic review gates are
-retired. Check the real affected user path; shipped code gets one independent
-review, with another round only for real bugs.
+[Foundations](https://foundations.mistystep.io/) is the sole operating reference,
+including verification and review policy. `FOUNDATIONS.md` is a pointer, not a
+second rubric.
 
 
 ## Token-cost evidence (US-018, US-019)
@@ -94,27 +97,48 @@ settings: Sol xhigh with native fast processing; Claude design and Grok scouting
 
 ## Deploy (explicit live writes)
 
-Install both harnesses, or invoke only the intended component:
+Install every harness, or invoke only the intended component:
 
 ```sh
 ./install
 pi-config/install
 omp-config/install
+claude-config/install
+codex-config/install
 ```
 
 - pi: `$PI_CODING_AGENT_DIR`, default `~/.pi/agent`.
 - OMP: `$PI_CODING_AGENT_DIR` when set, otherwise `$(omp config path)`.
   OMP also stages declared workstation safety helpers; see its component guide.
+- Claude Code: `$CLAUDE_CONFIG_DIR`, default `~/.claude`.
+- Codex: `$CODEX_HOME`, default `~/.codex` (skills, `AGENTS.md` and the guard hook in `hooks.json`; `config.toml` only for that hook's trust, written by Codex's own RPC).
 - Shared launchers: `$HOME/.local/bin`. Foreign destinations fail closed.
 - Selections: `PI_CONFIG_COMPONENTS` and `OMP_INSTALL_COMPONENTS`, documented in
-  the component guides. Harness installers accept no positional arguments:
+  the component guides; claude-config and codex-config declare its skills and guidance in their
+  installers and take no selection variable. Harness installers accept no positional arguments:
   `install --check` is rejected rather than accidentally deploying. The base
   `agent-config/install --check` is an inert preflight with explicit arguments.
 
-Restart the relevant harness to load changed extensions, guidance and OpenRouter
-credentials. Only Pi's `auth.json.openrouter` mapping is source-owned; other
-credentials, sessions, foreign packages, and generated desktop themes are not.
-See [US-028](USER_STORIES.md) for project-aware billing and failure behavior.
+Installation does not prove an active runtime loaded changed code or guidance.
+Use a fresh native harness session to load changed extensions, guidance and
+OpenRouter credentials; do not restart unrelated consumers. Only Pi's
+`auth.json.openrouter` mapping is source-owned; other credentials, sessions,
+foreign packages, and generated desktop themes are not. See
+[US-028](USER_STORIES.md) for project-aware billing and failure behavior.
+
+### Application management is not desktop control
+
+Desktop isolation protects the operator's live screen, cursor and capture
+surfaces; it is not a ban on authorized application installation, configuration
+or service activation. Use the application's native owner paths. When host
+context is required, Workbench's fixed host-install recipes provide it without
+exposing a host shell, display/input socket or session bus. Installation and
+live activation require separate readback.
+
+The [OMP application-management runbook](omp-config/README.md#authorized-application-management)
+documents the explicit Cantrip install/readback commands and the existing-broker
+refresh bootstrap. See [decision 0013](docs/decisions/0013-application-management-not-desktop-control.md)
+for the boundary and rejected alternatives.
 
 
 
@@ -130,7 +154,7 @@ so no redundant feature override is stored. See the
 [speed guide](https://developers.openai.com/codex/speed), and
 [Plan preset source](https://github.com/openai/codex/blob/main/codex-rs/models-manager/src/collaboration_mode_presets.rs).
 
-There is no Codex installer adapter: `./install` still installs only Pi and OMP.
+`codex-config/install` deploys skills, guidance and the workstation guard hook; its only `config.toml` write is that hook's trust, made through Codex's own RPC.
 Do not replace or symlink `~/.codex/config.toml` with this four-key source;
 preserve unrelated settings, credentials, plugins, approvals and runtime state.
 After merge/review, an authorized host operator applies only these keys through
@@ -190,7 +214,7 @@ an issue; link a relevant existing issue when one exists, but never create one
 merely to satisfy naming. Cite user stories for behavioral changes. Labels
 `area:shared`, `area:pi`, `area:omp`, and `area:workspace` identify ownership,
 not separate release units. CI runs all components sequentially in one check
-job, including both consumers. Pull requests use the same commands as local
+job, including every consumer. Pull requests use the same commands as local
 verification.
 
 Landmark prepares one release stream from `master`: a generated root
@@ -202,6 +226,9 @@ started at `v0.1.0`; old component tags remain under
 `legacy/<component>/<tag>` so their versions cannot collide. Historical
 component changelogs remain in place; new release notes belong at the root.
 Optional LLM synthesis is disabled, so publishing requires no model credential.
+Native GitHub auto-merge closes generated release PRs after required checks;
+the [release ADR](docs/decisions/0012-native-release-promotion.md) records the
+existing version policy and host-install boundary.
 
 ## Migration and related tools
 

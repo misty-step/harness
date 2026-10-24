@@ -17,6 +17,7 @@ import time
 MAX_REQUEST = 64 * 1024
 MAX_REPLY = 8 * 1024 * 1024
 TIMEOUT = 900
+CANTRIP_INSTALL_TIMEOUT = 2100
 REPLY_FIELDS = {"schema_version", "ok", "receipt", "error", "capabilities"}
 
 
@@ -56,19 +57,16 @@ def arguments(argv):
                          choices=("harness-cli", "shared-skill", "shared-bin"))
     install.add_argument("--revision", required=True, type=revision)
     install.add_argument("--selection", required=True, type=safe_name)
-    install.add_argument("--profile", choices=("omp", "kaylee"), default="omp")
     for operation in ("readback", "rollback"):
         action = actions.add_parser(operation, allow_abbrev=False)
         action.add_argument("receipt_id", type=safe_name)
     for operation in ("install-repository", "readback-repository"):
         action = actions.add_parser(operation, allow_abbrev=False)
-        action.add_argument("--repository", required=True, choices=("harness", "ai-usage", "iron-forest"))
+        action.add_argument("--repository", required=True, choices=("harness", "ai-usage", "iron-forest", "cantrip"))
         if operation == "install-repository":
             action.add_argument("--revision", required=True, type=revision)
     args = parser.parse_args(argv)
     if args.operation == "install":
-        if args.profile != "omp" and args.recipe != "shared-skill":
-            parser.error("only shared-skill may target the kaylee profile")
         if args.recipe == "harness-cli" and args.selection != "cli":
             parser.error("harness-cli requires --selection cli")
     return args
@@ -78,7 +76,7 @@ def request_for(args):
     request = {"schema_version": 1, "operation": args.operation}
     if args.operation == "install":
         request.update({key: getattr(args, key)
-                        for key in ("item", "recipe", "revision", "selection", "profile")})
+                        for key in ("item", "recipe", "revision", "selection")}, profile="omp")
     elif args.operation in ("readback", "rollback"):
         request["receipt_id"] = args.receipt_id
     elif args.operation in ("install-repository", "readback-repository"):
@@ -136,9 +134,12 @@ def exchange(path, request):
     wire = json.dumps(request, separators=(",", ":"), allow_nan=False).encode() + b"\n"
     if len(wire) > MAX_REQUEST:
         raise InstallError("host install request exceeds 64 KiB")
-    deadline = time.monotonic() + TIMEOUT
+    timeout = (CANTRIP_INSTALL_TIMEOUT
+               if request["operation"] == "install-repository" and request.get("repository") == "cantrip"
+               else TIMEOUT)
+    deadline = time.monotonic() + timeout
     with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as connection:
-        connection.settimeout(TIMEOUT)
+        connection.settimeout(timeout)
         connection.connect(str(path))
         peer = connection.getsockopt(socket.SOL_SOCKET, socket.SO_PEERCRED, struct.calcsize("3i"))
         if struct.unpack("3i", peer)[1] != os.getuid():
