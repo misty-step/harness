@@ -1,0 +1,56 @@
+#!/usr/bin/env python3
+"""Run the committed harness gate and retain a compact evidence receipt."""
+import hashlib
+import os
+from pathlib import Path
+import subprocess
+import sys
+import tempfile
+
+root = Path(__file__).resolve().parents[4]
+parent = Path(os.environ.get("VH_EXPERIMENT_EVIDENCE", Path.home() / ".cache/tmp/verify-harness-experiment")).resolve()
+if parent == root or root in parent.parents:
+    sys.exit("FAIL evidence must be outside the checkout")
+parent.mkdir(parents=True, exist_ok=True)
+evidence = Path(tempfile.mkdtemp(prefix="run-", dir=parent))
+lines = []
+
+
+def report(message):
+    lines.append(message)
+    print(message, flush=True)
+    (evidence / "summary.txt").write_text("\n".join(lines) + "\n")
+
+
+def git(*args):
+    return subprocess.check_output(["git", "-C", str(root), *args], text=True).strip()
+
+
+report(f"Evidence: {evidence}")
+report(f"Revision: {git('rev-parse', 'HEAD')}")
+report("Command: ./scripts/check all")
+if git("status", "--porcelain", "--untracked-files=all"):
+    report("FAIL clean checkout required; commit changes so tests and installers read the same revision")
+    sys.exit(1)
+report("PASS clean checkout")
+log = evidence / "check.log"
+try:
+    with log.open("w") as output:
+        result = subprocess.run(["./scripts/check", "all"], cwd=root, stdout=output, stderr=subprocess.STDOUT)
+except OSError as error:
+    report(f"FAIL gate could not start: {error}")
+    sys.exit(1)
+text = log.read_text(errors="replace")
+report(f"Gate exit: {result.returncode}")
+report(f"check.log sha256: {hashlib.sha256(log.read_bytes()).hexdigest()}")
+# The canonical gate builds the launchers in its tests and ends by driving all
+# installers in disposable, credential-free homes. Require both completion markers.
+complete = result.returncode == 0 and "Verification complete: all" in text
+smoke = "PASS: all installers; disposable clone removed on exit" in text
+report(f"{'PASS' if complete else 'FAIL'} canonical build and test gate")
+report(f"{'PASS' if smoke else 'FAIL'} end-to-end isolated installer smoke")
+clean = not git("status", "--porcelain", "--untracked-files=all")
+report(f"{'PASS' if clean else 'FAIL'} checkout remains clean")
+passed = complete and smoke and clean
+report(f"{'PASS' if passed else 'FAIL'} harness experiment")
+sys.exit(0 if passed else 1)
