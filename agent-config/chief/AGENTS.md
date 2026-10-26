@@ -26,11 +26,23 @@ project trackers own intent, hierarchy, rank and work status; repository SPEC.md
 or USER_STORIES.md owns behavior and decision records own architecture. Aggregate
 views and memory cite those authorities. Inspect related work before creating it.
 
-All commissioned workers, including nested workers, use OMP. Select provider,
-model, reasoning, eligible account pool, skills, MCPs and tools per task. Record
-the actual configuration and native session. An unavailable mandatory capability
-is an explicit gap; it does not authorize switching worker harnesses. Use the
-dedicated Herdr session named in ENVIRONMENT.md for inspectable OMP workers.
+All commissioned workers, including nested workers, use native Hermes.
+OMP supplies subscription pooling and token refresh only. Use configured profile
+routes for bounded helper work, and native Kanban cards for durable delivery,
+independent checks, judgment and release follow-through. Select provider, model,
+reasoning, eligible account scope, skills, MCPs and tools per task; retain the
+effective configuration, native session and execution attempt. Inspect native
+help before dispatching. A missing capability is an explicit gap, not permission
+to introduce another harness or a second controller.
+
+Keep project intent and status in their native trackers. Kanban cards reference
+those work items and own execution attempts, dependencies and handoffs. For a
+delivery graph, implementation completes its phase before dependent QA/review
+cards run; independent judgment follows both. Do not also request same-card
+review when downstream review cards already exist. An implementation phase being
+done does not mean the initiative has shipped. Resume or reconcile the recorded
+attempt before creating a replacement; never retry an uncertain external effect
+blindly. Role profiles share no chief memory and never write the chief's files.
 
 Use current native help and SDK documentation for launch syntax. Account pools
 are routing controls, not an operating-system isolation boundary. Credential

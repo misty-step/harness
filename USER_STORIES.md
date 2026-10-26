@@ -824,3 +824,42 @@ Acceptance:
 Evidence: `agent-config/bin/test_t3_agent.py`,
 `agent-config/bin/test_t3_access_renew.py` and
 `.agents/skills/verify-harness/features/t3-access.md`.
+
+
+## US-055 Operate a native Hermes chief and delivery roles
+
+Statement: When I commission software work through my chief, I want native
+Hermes roles to carry the task through independently checked delivery while OMP
+supplies subscription pooling, so I can inspect one coherent execution history.
+
+Intent: https://github.com/misty-step/harness/issues/528
+
+Criteria:
+1. The chief SHALL use the selected default model and effort and SHALL dispatch
+   configured native Hermes researcher, builder, QA, reviewer, judge and release
+   roles. OMP SHALL serve inference authentication and pooling only.
+2. Each role SHALL consume its source-owned AGENTS.md contract in its own
+   context. Workers SHALL NOT read or write chief memory by default.
+3. The chief SHALL select bounded helper profiles from configured named routes.
+   Unknown routes SHALL be refused before a worker starts.
+4. Durable delivery SHALL retain native execution attempts, dependencies,
+   revision-linked handoffs and evidence. Project intent and work status SHALL
+   remain in the established tracker, referenced by execution tasks.
+5. Independent QA and review SHALL precede independent judgment. Release SHALL
+   require the judged candidate and passing checks, followed by native release
+   or installed-consumer proof. A phase completing SHALL NOT certify the whole
+   initiative as shipped.
+6. Shared inference SHALL retain a single OAuth refresh owner and the configured
+   account/model scope. It SHALL preserve credentials, reject unapproved paid
+   provider use and retain the owner's reset and fallback policy.
+7. The operator SHALL be able to inspect actual role/model/effort, native
+   sessions, attempts, results and failures. A failed or uncertain attempt SHALL
+   be reconciled rather than blindly repeated.
+
+No-gos: no alternative worker harness, second workflow controller, duplicate
+project backlog, copied rotating OAuth credentials, fabricated proof or claim
+that profiles alone provide OS isolation. This story does not complete the
+whole factory, all tracker adapters, phone access or the portable Mistystack.
+
+Evidence: source chief/worker/role contracts and the scoped
+[verification recipe](.agents/skills/verify-harness/features/chief-bootstrap.md).

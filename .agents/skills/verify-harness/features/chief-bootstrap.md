@@ -1,75 +1,57 @@
-# Chief and OMP bootstrap
+# Native Hermes chief and role profiles
 
-Use this scoped recipe for `agent-config/chief/` guidance. It exercises the
-installed native chief and worker; legacy Claude/Codex `doctor` prerequisites
-and the legacy `all` helper are not prerequisites for this path.
+Use this scoped recipe for `agent-config/chief/` guidance. Native execution
+authentication is not product sign-in; AgentMail and owner-role proof are n/a.
+Legacy Claude/Codex doctor prerequisites do not apply to this consumer.
 
-Set `VH_CHIEF_CWD` to the approved chief workspace, `VH_WORKER_CWD` to a separate
-repository checkout, and `VH_HERDR_SESSION` to an explicitly authorized dedicated
-session. Set `HERMES_BIN` to the installed native Hermes command. Retain the
-checked source revision and secret-free results outside the checkout. Use native
-execution logins; product QA account/owner-role proof is n/a.
+Set the native Hermes command, chief workspace, separate worker repository and
+dedicated Kanban board from the approved deployment. Keep source revision and
+secret-free results outside Git. Installation changes the live environment;
+perform it only under existing deployment authorization, never as a test.
 
-## Installation and loading
+## Installed guidance and routes
 
-1. Inspect the source revision, installed AGENTS.md targets and native versions.
-   Read back the composed/linked files and confirm chief context is outside the
-   worker repository's ancestor chain. Install only under the commissioning
-   owner's deployment authorization; do not run an installer as a test.
-2. Run a fresh native chief readback, bounded and without tool execution:
+1. Read the source revision and installed guidance links. The chief's context
+   stays outside worker checkouts. Each role profile points through native
+   `agent.coding_instructions` to its source AGENTS.md and shared worker contract.
+   Inspect only safe model/provider/effort, memory, toolset and delegation keys.
+   Never dump resolved providers, headers, .env or credential exports.
+2. Inspect native profile and delegation listings. Confirm named routes resolve
+   to the intended profiles, including each effective model and reasoning level.
+   Query live account metadata before routing; registration does not prove
+   inference availability. OMP is the single subscription refresh owner, with
+   authenticated loopback broker/gateway endpoints and protected token files.
+3. Through a fresh chief conversation, delegate a bounded read-only helper to
+   a configured profile. Observe the child's actual file/tool use, result,
+   reported route and separate native session. Reject an unlisted profile before
+   spawning. A route schema or a self-report alone is insufficient proof.
 
-       "$HERMES_BIN" chat --in "$VH_CHIEF_CWD" -Q --max-turns 1 --run-budget 90 \
-         -q 'Without tools, identify your role, required worker harness, handoff references and completion-evidence rule from the loaded guidance.'
+## Durable delivery
 
-3. Run a fresh native worker readback in the separate repository:
+4. Use one real, scoped tracker ticket. The chief creates native Kanban phases
+   for implementation, independent QA and review, judgment and release. Record
+   returned IDs and dependencies; do not predict IDs or request duplicate
+   same-card review alongside downstream review cards. Check that a downstream
+   phase cannot run before its prerequisites complete.
+5. Check actual managed worker sessions, role loading, worktree paths, immutable
+   candidate revision, native tool results and GitHub reports. Automated builds
+   and tests run on configured CI capacity. The repository's own verification
+   skill drives the changed consumer; retain links to real observations.
+6. Confirm the judge's revision-specific verdict and checks before merge.
+   Follow native release/installation and read back the merged artifact's actual
+   consumer. Preserve exact failure and recovery records. A task marked done,
+   idle worker, successful spawn, merged PR or green compile is not full proof.
+7. Inspect Kanban run history and diagnostics, the saved chief conversation and
+   surviving handoffs. Check restart recovery only on a disposable recorded
+   attempt, reconciling effects before retry. Stop only exact probe processes
+   and temporary workspaces created by this drive. Preserve the chief, credentials
+   and unrelated work.
 
-       omp --cwd "$VH_WORKER_CWD" -p --no-tools --no-title --no-session \
-         --no-extensions --no-skills --thinking low --max-time 90 \
-         'Identify your role, required nested-worker harness, work authority and completion-evidence rule from the loaded guidance.'
+## Reporting
 
-Inspect the native results: the chief identifies its chief role and local handoff;
-the worker identifies its commissioned worker role, including OMP-only nested
-workers. Both require real consumer proof. A listed skill, matching bytes or a
-model's success claim alone does not prove this whole factory. These readbacks
-prove delivery and consumption, not a blind skill-quality experiment.
-
-## Actual execution and access
-
-4. Through the existing authenticated chief web client, create a new conversation
-   and request a read-only orientation from the installed handoff. Observe actual
-   file/tool use and the resulting answer, then reopen the saved conversation.
-   Verify the handoff distinguishes working access from unfinished architecture.
-5. Inspect `herdr --session "$VH_HERDR_SESSION" status server`. Create a disposable
-   workspace with `workspace create --cwd "$VH_WORKER_CWD" --label verify --no-focus`.
-   Parse returned pane/workspace IDs rather than predicting them. Start an OMP
-   agent in that pane with an explicitly supported model and reasoning setting.
-   Prompt it to run `pwd` and `omp --version`, wait for real activity and read its
-   native response with `agent read --source recent-unwrapped`. An idle state or
-   successful prompt submission alone is not proof. If startup opens OMP's
-   first-run wizard, finish native setup before commissioning work; a prompt in
-   its provider-search field is a failed drive, not a model response.
-6. Verify authorized GitHub access through `gh api` against a required private
-   repository and native issue reads. Confirm clone remotes contain no tokens.
-   Use `omp usage accounts --json` for registered identities and `omp usage --json`
-   for fresh provider observations. A registration list does not prove an account
-   currently serves inference: retain a bounded native provider response for each
-   route claimed as exercised, and name unavailable or untested routes precisely.
-   Check OpenRouter key validity through its native authenticated key endpoint
-   without printing the key; distinguish key authorization from inference proof.
-7. Read only safe native configuration keys for reset redemption, recovery chains,
-   model roles and delegation. Inspect file permissions without reading credential
-   values. Provider browser refusals remain account-specific setup gaps, not proof
-   that the entire environment is broken or that setup is complete.
-
-## Evidence and cleanup
-
-Keep private account/provider details and handoff content outside public reports.
-Publish a concise generic source-revision, command/journey and result summary on
-the PR; use the approved private evidence route for private captures. Never dump
-auth exports, token commands, secret configuration, environment values or raw
-provider error bodies into evidence. Record requested versus configured accounts
-and unfinished access separately from source guidance verification.
-
-Close only the disposable Herdr workspace created for this drive after its worker
-finishes. Stop only exact probe processes you started. Preserve the owner's chief
-conversation, persistent worker service, credentials and unrelated sessions.
+Publish a concise checked-revision, command/journey and observed-result summary
+on the PR. Keep private identities, account configuration, tokens, raw provider
+errors and transcripts with private context outside public evidence. Name
+unavailable or unexercised routes accurately. Native profiles and account pools
+are not an OS security boundary. These checks prove this delivery path, not a
+complete factory, a blind skill-quality experiment or every project integration.
