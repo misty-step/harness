@@ -11,9 +11,13 @@ perform it only under existing deployment authorization, never as a test.
 
 ## Installed guidance and routes
 
-1. Read the source revision and installed guidance links. The chief's context
-   stays outside worker checkouts. Each role profile points through native
-   `agent.coding_instructions` to its source AGENTS.md and shared worker contract.
+1. Read the source revision and installed guidance links. The chief contract
+   loads only through the chief home's `SOUL.md` link to the source
+   `agent-config/chief/AGENTS.md`, never from the chief workspace or a worker
+   checkout ([layout](../../../../agent-config/chief/README.md)). The chief
+   workspace holds no `.hermes.md`, `HERMES.md`, `AGENTS*.md`, `agents.md`,
+   `CLAUDE.md`, `.cursorrules` or `.cursor/`. Each role profile points through
+   native `agent.coding_instructions` to its source AGENTS.md and shared worker contract.
    Inspect only safe model/provider/effort, memory, toolset and delegation keys.
    Never dump resolved providers, headers, .env or credential exports.
 2. Inspect native profile and delegation listings. Confirm named routes resolve
@@ -25,6 +29,17 @@ perform it only under existing deployment authorization, never as a test.
    a configured profile. Observe the child's actual file/tool use, result,
    reported route and separate native session. Reject an unlisted profile before
    spawning. A route schema or a self-report alone is insufficient proof.
+   Check that the chief context stays out of the helper. With the installed
+   Hermes interpreter, under each target profile's home, run native
+   `agent.prompt_builder.build_context_files_prompt(cwd=W, skip_soul=True)`,
+   where `W` is `tools.delegate_tool_progress._resolve_workspace_hint` for the
+   chief's terminal cwd: the result must not contain `# Hermes chief` or the
+   chief contract text. Then read the actual child's recorded native session:
+   its stored system prompt, plus `_build_child_system_prompt` replayed from the
+   recorded `delegate_task` payload and that workspace, composed with
+   `agent.turn_context.build_api_messages`, contains the role instruction and
+   no chief contract. The fresh chief's own prompt still contains the chief
+   contract. Record booleans only, never prompt bodies.
 
 ## Durable delivery
 
