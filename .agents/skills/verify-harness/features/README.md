@@ -5,6 +5,10 @@ This directory is the maintained source for verifying harness as its operator us
 The [T3 accounts roster](./t3-accounts.md) is a standalone CLI journey. Its
 recipe uses disposable configuration and needs no session or login preconditions.
 
+The [chief and OMP bootstrap](./chief-bootstrap.md) is a separate native-consumer
+journey with its own scoped prerequisites; the legacy doctor/all path below does
+not apply to that recipe.
+
 ## Baseline preconditions
 
 - Run from the root of a harness checkout or worktree on the revision under test, with the change committed. Installers read committed HEAD.
