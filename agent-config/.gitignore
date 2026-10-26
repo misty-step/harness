@@ -32,3 +32,6 @@
 !/.github/
 !/.github/**
 !/.landmark.yml
+
+!/chief/
+!/chief/**

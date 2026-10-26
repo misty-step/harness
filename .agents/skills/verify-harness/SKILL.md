@@ -5,6 +5,10 @@ description: "Verify misty-step/harness the way its operator uses it: native log
 
 # Verify harness
 
+For source-owned cloud chief and OMP bootstrap guidance, use the scoped
+[chief and OMP recipe](features/chief-bootstrap.md). Its native execution logins
+and consumer paths do not require the legacy Claude/Codex doctor or all helper.
+
 Harness has no app to sign in to. Its user is an agent operator, and the journey is: native CLI execution logins work, `./scripts/check` passes, an installer deploys guidance and skills, and a fresh Claude Code or Codex session actually loads them. Every step runs from a shell through one helper:
 
 ```sh
