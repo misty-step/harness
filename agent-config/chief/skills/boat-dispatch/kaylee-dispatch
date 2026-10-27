@@ -1,0 +1,298 @@
+#!/usr/bin/env bash
+set +x
+set -Eeuo pipefail
+umask 077
+export PATH="$HOME/.local/bin:/usr/local/bin:/usr/bin:/bin:$PATH"
+export BOAT_NO_UPDATE=1
+export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
+help() {
+  cat <<'HELP'
+Usage: kaylee-dispatch COMMAND
+  start --repo OWNER/REPO --brief FILE [--model PROVIDER/ID]
+        [--thinking LEVEL] [--size small|default|large] [--name SLUG] [--hours N]
+  list
+  result ID
+  finish ID [--force]
+  logs ID [-n N]
+
+One fresh omp-worker Boat VM per ticket; no engineering runs on factory.
+Default: anthropic/claude-sonnet-5-5, high thinking, default size, 12 hours.
+Models: anthropic/claude-sonnet-5-5, anthropic/claude-opus-5-5,
+        openai-codex/gpt-6.1-sol (factory-workers gateway grants).
+Thinking: off|minimal|low|medium|high|xhigh|max|auto (model must support it).
+start prints ID and name. Its auto-stop backstop is 1..720 integer hours.
+list reads Boat and each VM, not a second attempt ledger. Stopped runs are
+read from their last snapshot, marked as such; they may be interrupted.
+result requires an exit-code and prints final assistant text plus PR URLs.
+logs shows JSONL and stderr tails (default 30 lines).
+finish collects ~/run into ~/.local/state/kaylee/runs/ID, disables its tunnel,
+and deletes the VM. --force stops an unfinished VM before collecting it.
+A failed collection retains the VM; resolve the error and finish again.
+
+Factory prerequisites: native gh login, ~/.config/hermes/keys/WORKER_GATEWAY_KEY,
+Boat scoped login, boat-tunnel@.service, and the omp-worker saved snapshot.
+Re-bake: run worker/boat/build-snapshot.sh in the current source tree on factory.
+The builder reads adjacent worker/AGENTS.md and factory's shared OMP skills.
+KAYLEE_GIT_IDENTITY_REPO selects the identity checkout (~/workspace/harness).
+Tunnels restart with the lingering factory user manager after a reboot, but
+in-flight requests can fail. An auto-stopped VM must be resumed explicitly
+(boat resume ID --no-env), or collected/deleted with finish ID --force.
+HELP
+}
+die() { printf 'kaylee-dispatch: %s\n' "$*" >&2; exit 1; }
+[[ $# -gt 0 ]] || { help; exit 1; }
+case "$1" in --help|-h|help) help; exit 0 ;; esac
+for command in boat jq systemctl; do command -v "$command" >/dev/null || die "Missing command: $command"; done
+scratch=$(mktemp -d)
+created_id=
+start_pending=false
+cleanup() {
+  local code=$?
+  trap - EXIT
+  if [[ "$start_pending" == true && -z "$created_id" && -f "$scratch/create.jsonl" ]]; then
+    created_id=$(jq -Rrs '[split("\n")[] | fromjson? | .id? |
+      select(type == "string" and test("^bx_[a-z0-9]{8}$"))] | last // empty' "$scratch/create.jsonl")
+  fi
+  if [[ -n "$created_id" ]]; then
+    printf 'Start failed; tearing down %s\n' "$created_id" >&2
+    systemctl --user disable --now "boat-tunnel@$created_id.service" >/dev/null 2>&1 || true
+    boat delete "$created_id" --yes --json >/dev/null || {
+      printf 'CLEANUP FAILED: run boat delete %s --yes\n' "$created_id" >&2
+      code=1
+    }
+  fi
+  rm -rf -- "$scratch"
+  exit "$code"
+}
+trap cleanup EXIT
+trap 'printf "kaylee-dispatch: command failed at line %s\n" "$LINENO" >&2' ERR
+trap 'exit 130' INT
+trap 'exit 143' TERM
+require_worker() {
+  id=$1
+  [[ "$id" =~ ^bx_[a-z0-9]{8}$ ]] || die 'Use an explicit Boat sandbox ID (bx_...)'
+  boat info "$id" --json > "$scratch/info.json"
+  jq -e '.sandbox.name | startswith("kaylee-")' "$scratch/info.json" >/dev/null \
+    || die "Refusing non-kaylee sandbox $id"
+  state=$(jq -er '.sandbox.state' "$scratch/info.json")
+}
+is_up() { [[ "$state" == ready || "$state" == running || "$state" == idle ]]; }
+wait_stopped() {
+  for ((attempt=0; attempt<180; attempt++)); do
+    boat info "$id" --json > "$scratch/info.json"
+    state=$(jq -er '.sandbox.state' "$scratch/info.json")
+    case "$state" in
+      stopped|archived) return ;;
+      stopping|archiving) sleep 2 ;;
+      *) die "Stop did not complete for $id (state: $state); VM retained" ;;
+    esac
+  done
+  die "Timed out waiting for $id to stop; VM retained"
+}
+collect_run() {
+  local destination=$1
+  mkdir -p "$destination"
+  if is_up; then
+    if ! boat scp -r "$id:/home/user/run" "$destination/" > "$scratch/copy-$id.json"; then
+      cat "$scratch/copy-$id.json" >&2
+      die "Could not collect $id over SSH; VM retained"
+    fi
+    run_dir="$destination/run"
+  else
+    [[ "$state" != stopping && "$state" != archiving ]] || wait_stopped
+    printf 'Reading %s from its last disk snapshot (state: %s)\n' "$id" "$state" >&2
+    if ! boat snapshot pull "$id" --path /home/user/run --out "$destination" --json > "$scratch/pull-$id.json"; then
+      cat "$scratch/pull-$id.json" >&2
+      die "Could not collect $id from its snapshot; VM retained"
+    fi
+    run_dir="$(jq -er '.homeDir' "$scratch/pull-$id.json")/run"
+    [[ -d "$run_dir" ]] || die "Snapshot has no /home/user/run for $id"
+  fi
+  [[ -s "$run_dir/metadata.json" ]] || die "No worker metadata found for $id"
+}
+status_live() {
+  boat ssh "$id" 'bash -s' <<'STATUS'
+set -euo pipefail
+run="$HOME/run"
+[[ -s "$run/metadata.json" ]]
+finished=false
+code=null
+if [[ -s "$run/exit-code" ]]; then finished=true; code=$(cat "$run/exit-code"); fi
+jq --argjson finished "$finished" --argjson code "$code" \
+  '{repo,finished:$finished,exit:$code}' "$run/metadata.json"
+STATUS
+}
+command=$1
+shift
+case "$command" in
+  start)
+    repo= brief= slug= model=anthropic/claude-sonnet-5-5 thinking=high size=default hours=12
+    while [[ $# -gt 0 ]]; do
+      [[ $# -ge 2 ]] || die "Missing value for $1"
+      case "$1" in
+        --repo) repo=$2 ;; --brief) brief=$2 ;; --model) model=$2 ;; --thinking) thinking=$2 ;;
+        --size) size=$2 ;; --name) slug=$2 ;; --hours) hours=$2 ;;
+        *) die "Unknown start option: $1" ;;
+      esac
+      shift 2
+    done
+    [[ "$repo" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]] || die '--repo must be OWNER/REPO'
+    [[ -f "$brief" && -s "$brief" ]] || die '--brief must name a nonempty file'
+    case "$model" in anthropic/claude-sonnet-5-5|anthropic/claude-opus-5-5|openai-codex/gpt-6.1-sol) ;; *) die "Model is outside factory-workers grants: $model" ;; esac
+    case "$thinking" in off|minimal|low|medium|high|xhigh|max|auto) ;; *) die "Unknown thinking level: $thinking" ;; esac
+    case "$size" in small|default|large) ;; *) die "Unknown size: $size" ;; esac
+    [[ "$hours" =~ ^[1-9][0-9]{0,2}$ && "$hours" -le 720 ]] || die '--hours must be 1..720'
+    if [[ -z "$slug" ]]; then
+      slug="$(printf '%s' "${repo##*/}" | tr '[:upper:]_.' '[:lower:]--')-$(date +%Y%m%d%H%M%S)-$RANDOM"
+    fi
+    [[ "$slug" =~ ^[a-z0-9][a-z0-9-]{0,100}$ ]] || die '--name must be a lowercase alphanumeric/hyphen slug (max 101 characters)'
+    name="kaylee-$slug"
+    command -v gh >/dev/null || die 'Missing native gh login/CLI'
+    gateway_key="$HOME/.config/hermes/keys/WORKER_GATEWAY_KEY"
+    [[ -s "$gateway_key" ]] || die "Missing gateway client key file: $gateway_key"
+    [[ "$(stat -c %a "$gateway_key")" == 600 ]] || die 'WORKER_GATEWAY_KEY must have mode 0600'
+    [[ -f "$HOME/.config/systemd/user/boat-tunnel@.service" ]] || die 'Run install-factory.sh first'
+    boat list --all --json > "$scratch/list.json"
+    jq -e --arg name "$name" 'all(.sandboxes[]; .name != $name)' "$scratch/list.json" >/dev/null \
+      || die "Sandbox name already exists: $name"
+    start_pending=true
+    if ! boat new --from omp-worker --no-env --no-monitoring --type "$size" --ttl "$((hours * 3600))" --name "$name" --json > "$scratch/create.jsonl"; then
+      created_id=$(jq -rs '[.[] | .id? | select(type == "string" and startswith("bx_"))] | last // empty' "$scratch/create.jsonl")
+      cat "$scratch/create.jsonl" >&2
+      die 'Boat creation failed'
+    fi
+    created_id=$(jq -ers '[.[] | select(.event == "ready") | .id] | last | select(type == "string" and length > 0)' "$scratch/create.jsonl")
+    id=$created_id
+    systemctl --user enable --now "boat-tunnel@$id.service" >/dev/null
+    ready=false
+    for ((attempt=0; attempt<30; attempt++)); do
+      if boat ssh "$id" 'curl -fsS --max-time 3 http://127.0.0.1:4000/healthz >/dev/null' >/dev/null 2>&1; then ready=true; break; fi
+      sleep 2
+    done
+    [[ "$ready" == true ]] || die "Gateway tunnel did not become ready; journalctl --user -u boat-tunnel@$id.service"
+    boat ssh "$id" 'umask 077; mkdir -p "$HOME/run" "$HOME/.config/kaylee" "$HOME/work"' >/dev/null
+    # Monitoring is off; secrets cross SSH stdin, never command arguments.
+    cat "$gateway_key" | boat ssh "$id" 'umask 077; cat > "$HOME/.config/kaylee/gateway-token"; test -s "$HOME/.config/kaylee/gateway-token"' >/dev/null
+    gh auth token --hostname github.com | boat ssh "$id" 'umask 077; cat > "$HOME/.config/kaylee/github-token"; test -s "$HOME/.config/kaylee/github-token"' >/dev/null
+    jq -n --arg id "$id" --arg name "$name" --arg repo "$repo" --arg model "$model" \
+      --arg thinking "$thinking" --arg createdAt "$(date -u +%FT%TZ)" \
+      '{id:$id,name:$name,repo:$repo,model:$model,thinking:$thinking,createdAt:$createdAt}' \
+      | boat ssh "$id" 'cat > "$HOME/run/metadata.json"' >/dev/null
+    boat scp "$brief" "$id:/home/user/run/brief.md" >/dev/null
+    boat ssh "$id" 'bash -s' <<'CLONE'
+set +x
+set -euo pipefail
+export PATH="$HOME/.local/bin:/usr/local/bin:/usr/bin:/bin:$PATH"
+export GH_TOKEN
+GH_TOKEN=$(< "$HOME/.config/kaylee/github-token")
+repo=$(jq -er '.repo' "$HOME/run/metadata.json")
+if ! gh repo clone "$repo" "$HOME/work/repo" > "$HOME/run/clone.stdout" 2> "$HOME/run/clone.stderr"; then
+  cat "$HOME/run/clone.stderr" >&2
+  exit 1
+fi
+CLONE
+    boat exec "$id" --detach --json -- /home/user/.local/bin/kaylee-worker-run > "$scratch/launch.json"
+    cat "$scratch/launch.json" | boat ssh "$id" 'cat > "$HOME/run/launch.json"' >/dev/null
+    printf '%s\t%s\n' "$id" "$name"
+    start_pending=false
+    created_id=
+    ;;
+  list)
+    [[ $# -eq 0 ]] || die 'list takes no arguments'
+    boat list --all --json > "$scratch/list.json"
+    [[ "$(jq -r '.pageInfo.hasMore' "$scratch/list.json")" == false ]] || die 'Boat list was paginated; refusing to omit workers'
+    printf 'ID\tNAME\tSTATE\tAGE\tREPO\tFINISHED\tEXIT\n'
+    failed=false
+    while IFS=$'\t' read -r id name state created; do
+      age=$(( $(date +%s) - $(date -d "$created" +%s) ))
+      printf -v age_label '%dh%02dm' "$((age / 3600))" "$((age / 60 % 60))"
+      if is_up; then
+        if ! status_live > "$scratch/status.json"; then
+          printf '%s\t%s\t%s\t%s\tUNAVAILABLE\tunknown\t-\n' "$id" "$name" "$state" "$age_label"
+          printf 'Could not read worker %s\n' "$id" >&2; failed=true; continue
+        fi
+      else
+        if ! (collect_run "$scratch/$id"; code=null; finished=false
+          if [[ -s "$run_dir/exit-code" ]]; then code=$(cat "$run_dir/exit-code"); finished=true; fi
+          jq --argjson code "$code" --argjson finished "$finished" \
+            '{repo,finished:$finished,exit:$code}' "$run_dir/metadata.json") > "$scratch/status.json"; then
+          printf '%s\t%s\t%s\t%s\tUNAVAILABLE\tunknown\t-\n' "$id" "$name" "$state" "$age_label"
+          printf 'Could not read stopped worker %s\n' "$id" >&2; failed=true; continue
+        fi
+      fi
+      printf '%s\t%s\t%s\t%s\t%s\n' "$id" "$name" "$state" "$age_label" \
+        "$(jq -r '[.repo,.finished,(.exit // "-")] | @tsv' "$scratch/status.json")"
+    done < <(jq -r '.sandboxes[] | select(.name | startswith("kaylee-")) | [.id,.name,.state,.createdAt] | @tsv' "$scratch/list.json")
+    [[ "$failed" == false ]] || die 'Some workers were unreadable (shown above)'
+    ;;
+  result)
+    [[ $# -eq 1 ]] || die 'Usage: kaylee-dispatch result ID'
+    require_worker "$1"
+    collect_run "$scratch/result"
+    [[ -s "$run_dir/exit-code" ]] || die 'Run has no exit-code yet; inspect logs or finish --force if interrupted'
+    printf 'Exit code: %s\n\n' "$(cat "$run_dir/exit-code")"
+    jq -nr 'reduce inputs as $event (null;
+      if $event.type == "message_end" and $event.message.role == "assistant" then
+        ([$event.message.content[]? | select(.type == "text") | .text] | join("\n")) as $text |
+        if $text != "" then $text else . end
+      else . end) // error("No assistant report; inspect worker.stderr with logs")' \
+      "$run_dir/worker.jsonl" | tee "$scratch/final.txt"
+    printf '\nPR URLs:\n'
+    jq -nr '[inputs | select(.type == "message_end" and .message.role == "assistant") |
+      .message.content[]? | select(.type == "text") | .text |
+      scan("https://github\\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/pull/[0-9]+")]
+      | unique | if length == 0 then "none" else .[] end' "$run_dir/worker.jsonl"
+    ;;
+  logs)
+    [[ $# -ge 1 ]] || die 'Usage: kaylee-dispatch logs ID [-n N]'
+    require_worker "$1"; shift
+    lines=30
+    if [[ $# -gt 0 ]]; then
+      [[ $# -eq 2 && "$1" == -n && "$2" =~ ^[1-9][0-9]{0,4}$ ]] || die 'Usage: logs ID [-n N], 1..99999 lines'
+      lines=$2
+    fi
+    if is_up; then
+      boat ssh "$id" "tail -n $lines /home/user/run/worker.jsonl /home/user/run/worker.stderr"
+    else
+      collect_run "$scratch/logs"
+      tail -n "$lines" "$run_dir/worker.jsonl" "$run_dir/worker.stderr"
+    fi
+    ;;
+  finish)
+    [[ $# -ge 1 && $# -le 2 ]] || die 'Usage: kaylee-dispatch finish ID [--force]'
+    require_worker "$1"
+    force=false
+    if [[ $# -eq 2 ]]; then [[ "$2" == --force ]] || die 'Unknown finish option'; force=true; fi
+    if is_up; then
+      status_live > "$scratch/status.json"
+      if [[ "$(jq -r '.finished' "$scratch/status.json")" != true ]]; then
+        [[ "$force" == true ]] || die 'Worker is still running; use --force to stop it and collect interrupted work'
+        boat stop "$id" --json > "$scratch/stop.json"
+        wait_stopped
+      fi
+    fi
+    collect_run "$scratch/finish"
+    [[ -s "$run_dir/exit-code" || "$force" == true ]] || die 'Interrupted run has no exit-code; use --force to collect/delete it'
+    destination="$HOME/.local/state/kaylee/runs/$id"
+    mkdir -p "$destination"
+    cp -a "$run_dir/." "$destination/"
+    chmod -R go-rwx "$destination"
+    teardown_failed=false
+    printf 'Collected: %s\n' "$destination"
+    if systemctl --user disable --now "boat-tunnel@$id.service" >/dev/null; then
+      printf 'Tunnel stopped and disabled: boat-tunnel@%s.service\n' "$id"
+    else
+      printf 'kaylee-dispatch: tunnel shutdown failed for %s; still attempting VM deletion\n' "$id" >&2
+      teardown_failed=true
+    fi
+    if boat delete "$id" --yes --json > "$destination/deletion.json"; then
+      printf 'Deleted sandbox: %s\n' "$id"
+    else
+      cat "$destination/deletion.json" >&2
+      printf 'kaylee-dispatch: VM deletion failed for %s; collected artifacts retained at %s\n' "$id" "$destination" >&2
+      teardown_failed=true
+    fi
+    [[ "$teardown_failed" == false ]] || exit 1
+    ;;
+  *) die "Unknown command: $command (see --help)" ;;
+esac

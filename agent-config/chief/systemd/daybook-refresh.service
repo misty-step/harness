@@ -1,0 +1,16 @@
+[Unit]
+Description=Refresh Kaylee's Daybook read checkouts and BM25 index
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=@USER@
+Environment=HOME=@HOME@
+Environment=PATH=@HOME@/.local/bin:@HOME@/.bun/bin:/usr/local/bin:/usr/bin:/bin
+# exocortex never fetches on reads; note/put rebase before writing. This keeps
+# reads current: fast-forward the registered checkout, then pull and reindex the
+# publisher clone that QMD indexes. A non-fast-forward fails loudly in the journal.
+ExecStart=/usr/bin/git -C @HOME@/.local/share/exocortex/daybook pull --ff-only --quiet
+ExecStart=@HOME@/.local/bin/qmd update --pull
+Nice=10
