@@ -1,0 +1,192 @@
+#!/usr/bin/env python3
+"""Read-only cached fleet inventory. Configure hosts in ~/.config/fleet/hosts.json."""
+import concurrent.futures as futures
+import datetime as dt
+import json
+import os
+import re
+import shutil
+import subprocess
+import sys
+import tempfile
+import time
+from pathlib import Path
+
+STATE = Path.home() / ".local/state/fleet"
+SNAPSHOT, PREVIOUS = STATE / "snapshot.json", STATE / "snapshot.prev.json"
+CONFIG = Path(os.environ.get("FLEET_HOSTS_CONFIG", Path.home() / ".config/fleet/hosts.json"))
+AGENT = re.compile(r"(?i)(?:^|[^a-z0-9_])(omp|claude|codex|agy|pi-coding-agent)(?:$|[^a-z0-9_])")
+SECRET = re.compile(r"(?i)((?:[a-z_]*?(?:token|secret|password|api[_-]?key)[a-z_]*)=)[^\s]+")
+FLAG_SECRET = re.compile(r"(?i)((?:--?)(?:token|secret|password|api[-_]?key)(?:=|\s+))\S+")
+
+
+def now():
+    return dt.datetime.now(dt.timezone.utc)
+
+
+def iso(value=None):
+    return (value or now()).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+
+
+def scrub(value):
+    return FLAG_SECRET.sub(r"\1<redacted>", SECRET.sub(r"\1<redacted>", value or ""))
+
+
+def slug(value):
+    return re.sub(r"[^a-z0-9]+", "-", (value or "").lower()).strip("-")
+
+
+def elapsed(value):
+    days, separator, clock = value.partition("-")
+    if not separator:
+        clock, days = days, "0"
+    hours, minutes, seconds = (int(part) for part in clock.split(":"))
+    return int(days) * 86400 + hours * 3600 + minutes * 60 + seconds
+
+
+def load_hosts():
+    try:
+        config = json.loads(CONFIG.read_text())
+    except (OSError, json.JSONDecodeError) as error:
+        raise SystemExit(f"fleet-snapshot: cannot read {CONFIG}: {error}")
+    hosts = config.get("hosts") if isinstance(config, dict) else None
+    if not isinstance(hosts, dict) or not hosts:
+        raise SystemExit(f"fleet-snapshot: {CONFIG} must contain a non-empty hosts object")
+    if any(not isinstance(name, str) or not isinstance(command, list) or
+           not command or not all(isinstance(part, str) for part in command)
+           for name, command in hosts.items()):
+        raise SystemExit(f"fleet-snapshot: {CONFIG} hosts must map names to non-empty command arrays")
+    return hosts
+
+
+def run(command):
+    try:
+        process = subprocess.run(command, stdin=subprocess.DEVNULL, capture_output=True,
+                                 text=True, timeout=6)
+    except subprocess.TimeoutExpired:
+        return None, "timed out after 5s"
+    except OSError as error:
+        return None, error.__class__.__name__
+    if process.returncode:
+        error = (process.stderr or process.stdout).strip().replace("\n", " ")
+        return None, (error or f"command exited {process.returncode}")[:300]
+    return process.stdout, None
+
+
+def parse(output):
+    tern, marker, rest = output.partition("\n__FLEET_PS__\n")
+    ps, marker2, logs = rest.partition("__FLEET_LOGS__\n")
+    if not marker or not marker2:
+        raise ValueError("collector markers missing")
+    data = json.loads(tern)
+    mtimes = {}
+    for line in logs.splitlines():
+        try:
+            stamp, path = line.split(" ", 1)
+            session = Path(path).parent.name
+            mtimes[slug(session)] = max(float(stamp), mtimes.get(slug(session), 0))
+        except ValueError:
+            pass
+    processes = []
+    for line in ps.splitlines():
+        fields = line.strip().split(None, 2)
+        if len(fields) == 3 and AGENT.search(fields[2]):
+            try:
+                processes.append({"pid": int(fields[0]), "age_s": elapsed(fields[1]), "cmd": scrub(fields[2])})
+            except ValueError:
+                continue
+    panes = []
+    for session in data.get("sessions", []):
+        for tab in session.get("tabs", []):
+            for block in tab.get("blocks", []):
+                cwd = block.get("cwd") or ""
+                output_at = mtimes.get(slug(cwd))
+                age = max(0, int(time.time() - output_at)) if output_at else None
+                command = scrub(block.get("command") or " ".join(block.get("args") or []))
+                matches = [p for p in processes if cwd and cwd != "/tmp" and cwd in p["cmd"]]
+                agent = bool(AGENT.search(command) or matches)
+                state = None
+                if agent:
+                    if block.get("exited") is not None or not matches:
+                        state = "finished"
+                    elif age is None or age < 120:
+                        state = "active"
+                    elif age <= 1800:
+                        state = "idle"
+                    else:
+                        state = "stalled"
+                panes.append({"id": block.get("id"), "session_id": session.get("id"),
+                    "session_title": session.get("name"), "tab_id": tab.get("id"), "cwd": cwd,
+                    "program": scrub(block.get("program") or ""), "exited": block.get("exited"),
+                    "keep_open": block.get("keep_open"), "last_output_age_s": age,
+                    "agent_state": state, "process_pids": [p["pid"] for p in matches]})
+    agents = [{"pane_id": p["id"], "state": p["agent_state"], "last_output_age_s": p["last_output_age_s"],
+               "process_pids": p["process_pids"]} for p in panes if p["agent_state"]]
+    return {"sessions": [{"id": s.get("id"), "title": s.get("name")} for s in data.get("sessions", [])],
+            "panes": panes, "processes": processes, "agents": agents}
+
+
+def collect(host, command, old):
+    output, error = run(command)
+    if error:
+        carried = dict(old.get("hosts", {}).get(host, {}))
+        carried.update({"status": "stale" if carried.get("last_ok_at") else "unreachable", "reason": scrub(error)})
+        return host, carried
+    try:
+        data = parse(output)
+    except (ValueError, json.JSONDecodeError) as error:
+        carried = dict(old.get("hosts", {}).get(host, {}))
+        carried.update({"status": "stale" if carried.get("last_ok_at") else "unreachable", "reason": str(error)})
+        return host, carried
+    data.update({"status": "ok", "last_ok_at": iso()})
+    return host, data
+
+
+def load(path):
+    try:
+        return json.loads(path.read_text())
+    except (OSError, json.JSONDecodeError):
+        return {}
+
+
+def save(data):
+    STATE.mkdir(parents=True, exist_ok=True)
+    with tempfile.NamedTemporaryFile("w", dir=STATE, delete=False) as file:
+        json.dump(data, file, separators=(",", ":"), sort_keys=True)
+        file.write("\n")
+        name = file.name
+    if SNAPSHOT.exists():
+        shutil.copy2(SNAPSHOT, PREVIOUS)
+    os.replace(name, SNAPSHOT)
+
+
+def show():
+    data = load(SNAPSHOT)
+    if not data:
+        raise SystemExit("no fleet snapshot")
+    generated = dt.datetime.fromisoformat(data["generated_at"].replace("Z", "+00:00"))
+    print(f"fleet snapshot: {int((now() - generated).total_seconds())}s old ({data['generated_at']})")
+    for host, data in data["hosts"].items():
+        counts = {state: 0 for state in ("active", "idle", "stalled", "finished")}
+        for agent in data.get("agents", []):
+            counts[agent["state"]] += 1
+        print(f"{host:10} {data['status']:11} sessions={len(data.get('sessions', []))} agents="
+              f"active:{counts['active']} idle:{counts['idle']} stalled:{counts['stalled']} finished:{counts['finished']}")
+
+
+def main():
+    if sys.argv[1:] == ["--show"]:
+        show()
+        return
+    if sys.argv[1:]:
+        raise SystemExit("usage: fleet-snapshot [--show]")
+    hosts = load_hosts()
+    old = load(SNAPSHOT)
+    with futures.ThreadPoolExecutor(max_workers=len(hosts)) as pool:
+        results = pool.map(lambda item: collect(item[0], item[1], old), hosts.items())
+        collected = dict(results)
+    save({"schema": "fleet-snapshot.v1", "generated_at": iso(), "age_s": 0, "hosts": collected})
+
+
+if __name__ == "__main__":
+    main()

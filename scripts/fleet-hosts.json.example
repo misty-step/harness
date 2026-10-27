@@ -1,0 +1,9 @@
+{
+  "hosts": {
+    "host-a": [
+      "timeout", "5", "ssh", "-o", "ConnectTimeout=3", "-o", "BatchMode=yes",
+      "-o", "StrictHostKeyChecking=yes", "host-a.example.ts.net",
+      "LC_ALL=C tern ls --json || exit 40; printf '\n__FLEET_PS__\n'; ps -axo pid=,etime=,command=; printf '__FLEET_LOGS__\n'; find \"$HOME/.omp/agent/sessions\" -type f -name '*.jsonl' -printf '%T@ %p\n' 2>/dev/null || :"
+    ]
+  }
+}

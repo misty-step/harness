@@ -1,0 +1,124 @@
+#!/usr/bin/env bash
+# Configuration: ~/.config/daybook/publish.env. Copy the committed example, then set local values.
+set -uo pipefail
+export PATH="$HOME/.local/bin:/usr/local/bin:/usr/bin:/bin"
+CONFIG=${DAYBOOK_CONFIG:-$HOME/.config/daybook/publish.env}
+[ -r "$CONFIG" ] || { echo "daybook-publish: cannot read $CONFIG" >&2; exit 1; }
+. "$CONFIG"
+REPOSITORY=${DAYBOOK_REPOSITORY:-${DAYBOOK_CONFIG_REPOSITORY:?daybook-publish: DAYBOOK_CONFIG_REPOSITORY is required}}
+REF=${DAYBOOK_REF:-${DAYBOOK_CONFIG_REF:?daybook-publish: DAYBOOK_CONFIG_REF is required}}
+STATE=${DAYBOOK_STATE_DIR:-${DAYBOOK_CONFIG_STATE_DIR:?daybook-publish: DAYBOOK_CONFIG_STATE_DIR is required}}
+HOST_DIR=${DAYBOOK_HOST_DIR:-${DAYBOOK_CONFIG_HOST_DIR:?daybook-publish: DAYBOOK_CONFIG_HOST_DIR is required}}
+LIVE_URL=${DAYBOOK_LIVE_URL:-${DAYBOOK_CONFIG_LIVE_URL:?daybook-publish: DAYBOOK_CONFIG_LIVE_URL is required}}
+READER_ENV=${DAYBOOK_READER_ENV:-${DAYBOOK_CONFIG_READER_ENV:?daybook-publish: DAYBOOK_CONFIG_READER_ENV is required}}
+FRESH_MIN=${DAYBOOK_FRESH_MIN:-${DAYBOOK_CONFIG_FRESH_MIN:?daybook-publish: DAYBOOK_CONFIG_FRESH_MIN is required}}
+VERIFY_TRIES=${DAYBOOK_VERIFY_TRIES:-${DAYBOOK_CONFIG_VERIFY_TRIES:?daybook-publish: DAYBOOK_CONFIG_VERIFY_TRIES is required}}
+VERIFY_SLEEP=${DAYBOOK_VERIFY_SLEEP:-${DAYBOOK_CONFIG_VERIFY_SLEEP:?daybook-publish: DAYBOOK_CONFIG_VERIFY_SLEEP is required}}
+DRY=0; [ "${1:-}" = "--dry-run" ] && DRY=1
+mkdir -p "$STATE"; LOG="$STATE/publish.log"
+host=$(hostname -s 2>/dev/null || hostname)
+log(){ echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) $host $*" >>"$LOG"; }
+die(){ log "ERROR $*"; echo "daybook-publish: $*" >&2; rm -rf "${STAGE:-}"; exit 1; }
+exec 9>"$STATE/lock"; flock -n 9 || { echo "daybook-publish: another run holds the lock" >&2; exit 0; }
+
+remote_builder(){ cat <<'REMOTE'
+set -euo pipefail
+export PATH="$HOME/.local/bin:/usr/local/bin:/usr/bin:/bin"
+W="$(mktemp -d /tmp/daybook-pub.XXXXXX)"; trap 'rm -rf "$W"' EXIT
+exec 3>&1 1>&2
+gh repo clone "$DAYBOOK_REPOSITORY" "$W/src" -- -q
+cd "$W/src"; git checkout -q "$DAYBOOK_REF"; SHA="$(git rev-parse --short HEAD)"
+npm ci --no-audit --no-fund --silent
+KB_DIST_DIR="$W/dist" npm run build
+OUT="$W/dist"; [ -f "$OUT/index.html" ] || OUT="$W/src/dist"
+[ -f "$OUT/index.html" ] || { echo "build produced no index.html" >&2; exit 1; }
+mkdir -p "$OUT/data"; cp "$W/src/data/priorities.json" "$OUT/data/priorities.json"
+{ git ls-files README.md CONTRIBUTING.md INDEX.md CATALOG.md AGENTS.md redactions.md triage-manifest.md excluded.md; \
+  git ls-files 'evidence/*.md' 'facts/*.md' 'summaries/*.md' 'ingest/*.md' 'classify/*.md' 'candidates/*.md' 'reports/*.md'; } 2>/dev/null | sort -u | while IFS= read -r f; do
+  mkdir -p "$OUT/md/$(dirname "$f")"; cp "$f" "$OUT/md/$f"; done
+cp INDEX.md AGENTS.md "$OUT/"
+name=${DAYBOOK_REPOSITORY##*/}
+printf '%s\n' '# Daybook — Misty Step knowledge base (private)' \
+  "Source: github.com/$DAYBOOK_REPOSITORY @ $SHA. Layers: evidence/ (immutable snapshots), facts/ (atomic owned facts), summaries/ (generated views; never cite as evidence)." \
+  'Agents: read /INDEX.md (catalog), /AGENTS.md (rules), then raw markdown at /md/<repo-path> (e.g. /md/facts/README.md). HTML reader at /.' \
+  'Auth: Cloudflare Access service token headers CF-Access-Client-Id / CF-Access-Client-Secret.' > "$OUT/llms.txt"
+printf '%s\n' '/*' '  X-Robots-Tag: noindex, nofollow' '/md/*' '  Content-Type: text/markdown; charset=utf-8' '/INDEX.md' '  Content-Type: text/markdown; charset=utf-8' '/AGENTS.md' '  Content-Type: text/markdown; charset=utf-8' > "$OUT/_headers"
+echo "built $name@$SHA files=$(find "$OUT" -type f | wc -l)"
+tar -C "$OUT" -czf - . >&3
+REMOTE
+}
+build(){
+  if [ -n "${DAYBOOK_BUILD_CMD:-}" ]; then bash -c "$DAYBOOK_BUILD_CMD"
+  else remote_builder | DAYBOOK_REF="$REF" DAYBOOK_REPOSITORY="$REPOSITORY" bash -s
+  fi
+}
+check_data(){ python3 - "$1" "$FRESH_MIN" <<'PY'
+import json, sys, datetime as dt
+d = json.load(open(sys.argv[1])); limit = float(sys.argv[2]) * 60
+now = dt.datetime.now(dt.timezone.utc); stamps = []
+for name in ("github", "habitat"):
+    s = d.get(name) or {}
+    if s.get("connected") and s.get("fetched_at"):
+        stamps.append(s["fetched_at"])
+    else:
+        print("WARN %s not connected: %s" % (name, str(s.get("error"))[:200]), file=sys.stderr)
+if not stamps:
+    print("no tracker source connected", file=sys.stderr); sys.exit(1)
+oldest = min(stamps, key=lambda t: dt.datetime.fromisoformat(t.replace("Z", "+00:00")))
+age = (now - dt.datetime.fromisoformat(oldest.replace("Z", "+00:00"))).total_seconds()
+if age > limit:
+    print("tracker data was collected %d min ago (limit %s)" % (age // 60, sys.argv[2]), file=sys.stderr); sys.exit(1)
+print(oldest)
+PY
+}
+live_fetched(){
+  local tmp; tmp=$(mktemp "$STATE/live.XXXXXX") || return 1
+  if [ -f "$READER_ENV" ]; then
+    ( set -a; . "$READER_ENV"; set +a
+      printf 'header = "CF-Access-Client-Id: %s"\nheader = "CF-Access-Client-Secret: %s"\n' "${CF_ACCESS_CLIENT_ID:-}" "${CF_ACCESS_CLIENT_SECRET:-}" \
+        | curl -sS -m 30 -K - -o "$tmp" -w '%{http_code}' "$LIVE_URL" >"$tmp.code" 2>/dev/null )
+  else curl -sS -m 30 -o "$tmp" -w '%{http_code}' "$LIVE_URL" >"$tmp.code" 2>/dev/null; fi
+  local code; code=$(cat "$tmp.code" 2>/dev/null); local out=""
+  case "$LIVE_URL" in file://*) [ -s "$tmp" ] && code=200;; esac
+  [ "$code" = 200 ] && out=$(FRESH_MIN=100000000 check_data "$tmp" 2>/dev/null)
+  rm -f "$tmp" "$tmp.code"; [ -n "$out" ] && echo "$out"
+}
+
+STAGE=$(mktemp -d "$STATE/stage.XXXXXX") || die "cannot create stage dir"
+log "start ref=$REF build_host=local dry_run=$DRY"
+build >"$STAGE/out.tgz" 2>>"$LOG" || die "build on box failed (see $LOG)"
+mkdir "$STAGE/public" && tar -xzf "$STAGE/out.tgz" -C "$STAGE/public" || die "build output is not a tarball"
+rm -f "$STAGE/out.tgz"
+P="$STAGE/public"
+[ "$(find "$P" -type f | wc -l)" -ge 200 ] || die "stage has fewer than 200 files"
+[ -f "$P/index.html" ] && grep -q 'Misty Step Knowledge' "$P/index.html" || die "stage index.html has no 'Misty Step Knowledge' title"
+[ -f "$P/data/priorities.json" ] || die "stage has no data/priorities.json"
+FETCHED=$(check_data "$P/data/priorities.json" 2>>"$LOG") || die "tracker data check failed (see $LOG)"
+log "staged ok files=$(find "$P" -type f | wc -l) data_fetched=$FETCHED"
+if [ "$DRY" = 1 ]; then rm -rf "$STAGE"; log "ok dry-run $FETCHED"; echo "dry-run ok: data_fetched=$FETCHED"; exit 0; fi
+
+[ -d "$HOST_DIR" ] || die "no host dir $HOST_DIR"
+rm -rf "$HOST_DIR/public.prev"; mv "$HOST_DIR/public" "$HOST_DIR/public.prev" 2>/dev/null
+mv "$P" "$HOST_DIR/public" || { mv "$HOST_DIR/public.prev" "$HOST_DIR/public" 2>/dev/null; die "swap failed"; }
+rm -rf "$STAGE"
+if [ -n "${DAYBOOK_DEPLOY_CMD:-}" ]; then ( cd "$HOST_DIR" && bash -c "$DAYBOOK_DEPLOY_CMD" ) >>"$LOG" 2>&1; rc=$?
+else
+  [ -n "${CLOUDFLARE_API_TOKEN:-}" ] || { rm -rf "$HOST_DIR/public"; mv "$HOST_DIR/public.prev" "$HOST_DIR/public"; die "CLOUDFLARE_API_TOKEN is not set in this environment; restored previous public/"; }
+  ( cd "$HOST_DIR" && timeout 300 wrangler deploy ) >>"$LOG" 2>&1; rc=$?
+fi
+if [ $rc -ne 0 ]; then rm -rf "$HOST_DIR/public"; mv "$HOST_DIR/public.prev" "$HOST_DIR/public" 2>/dev/null; die "wrangler deploy failed rc=$rc; previous public/ restored (live site unchanged)"; fi
+log "deployed data_fetched=$FETCHED"
+ok=0
+for i in $(seq 1 "$VERIFY_TRIES"); do
+  got=$(live_fetched) && [ "$got" = "$FETCHED" ] && { ok=1; break; }
+  sleep "$VERIFY_SLEEP"
+done
+[ $ok = 1 ] || die "deployed, but the live artifact does not show data_fetched=$FETCHED (last read: ${got:-unreadable})"
+python3 - "$STATE/published.json" "$FETCHED" "$REF" <<'PY'
+import json, sys, os, datetime as dt
+p, fetched, ref = sys.argv[1:4]
+doc = {"published_at": dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"), "data_fetched_at": fetched, "ref": ref, "live_verified": True}
+open(p + ".tmp", "w").write(json.dumps(doc) + "\n"); os.replace(p + ".tmp", p)
+PY
+log "ok publish ref=$REF data_fetched=$FETCHED live_verified"
+echo "published: data_fetched=$FETCHED"
