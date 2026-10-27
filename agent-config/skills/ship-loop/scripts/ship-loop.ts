@@ -436,7 +436,7 @@ export function prompt(s: State, prUrl: string, role: PromptRole): string {
 // ---- native boundary: gh for reads and writes, git for patch-ids ----
 
 export type Gh = {
-  prAuthor(repo: string, n: number): Promise<string>;
+  pullRequest(repo: string, n: number): Promise<{ author: string; baseRef: string | null }>;
   listComments(repo: string, n: number): Promise<Comment[]>;
   postComment(repo: string, n: number, body: string): Promise<number>;
 };
@@ -450,10 +450,10 @@ async function runCmd(cmd: string[], stdin?: string): Promise<string> {
 
 export function ghBoundary(bin: string): Gh {
   return {
-    async prAuthor(repo, n) {
-      const author = (await runCmd([bin, "api", `repos/${repo}/pulls/${n}`, "--jq", ".user.login // empty"])).trim();
-      if (!/^[a-z0-9][a-z0-9-]*$/i.test(author)) throw new LedgerError("PR author is unknown");
-      return author;
+    async pullRequest(repo, n) {
+      const pr = JSON.parse(await runCmd([bin, "api", `repos/${repo}/pulls/${n}`, "--jq", "{author: .user.login, baseRef: .base.ref}"]));
+      if (typeof pr.author !== "string" || !/^[a-z0-9][a-z0-9-]*$/i.test(pr.author)) throw new LedgerError("PR author is unknown");
+      return pr;
     },
     async listComments(repo, n) {
       const out = await runCmd([bin, "api", "--paginate", `repos/${repo}/issues/${n}/comments`, "--jq", ".[] | [.id, .body, .user.login] | @json"]);
@@ -504,6 +504,8 @@ const HELP = `ship-loop: the one entry point for a PR's review-round state. Only
             {"reason":"fix","sha":<new head>,"thread_id":<builder thread>}   after a judge's FIX
             {"reason":"carry","from":<judged head>,"from_base":<its base>,"sha":<new head>,"to_base":<its base>}
               judge, final-judge or shipped; carries only if both stable patch-ids match
+              from_base must resolve to the ledger's recorded base; to_base must resolve to origin/<GitHub PR base ref>
+              fetch origin first; retarget a stacked PR on GitHub before carrying onto its new target
             {"reason":"refresh","from":<head>,"sha":<new head>,"base":<its base>}   verify only, before any report
           Bases may be refs; the event records their full commit SHAs.
 
@@ -560,7 +562,8 @@ function target(pr: unknown): { url: string; repo: string; n: number } {
 async function dispatch(cmd: string, f: Record<string, string | true>, d: Deps): Promise<number> {
   const { url, repo, n } = target(f.pr);
   // Any read failure throws before a write can be attempted.
-  const writer = await d.gh.prAuthor(repo, n);
+  const pr = await d.gh.pullRequest(repo, n);
+  const writer = pr.author;
   const comments = await d.gh.listComments(repo, n);
   const ledger = replay(comments, writer);
 
@@ -613,8 +616,19 @@ async function dispatch(cmd: string, f: Record<string, string | true>, d: Deps):
     const [from, sha] = [await exact(payload.from, "from"), await exact(payload.sha, "sha")];
     body.from_base = await commit(payload.from_base, "from_base");
     body.to_base = await commit(payload.to_base, "to_base");
-    body.patch_id_from = await d.patchId(body.from_base as string, from);
-    body.patch_id_to = await d.patchId(body.to_base as string, sha);
+    // An exact accepted carry is still a no-op after it has moved the ledger's base.
+    const retry = ledger.accepted.find(({ event }) => event.kind === "head" && event.reason === "carry" &&
+      keyOf({ ...body, patch_id_from: event.patch_id_from, patch_id_to: event.patch_id_to }) === event.key);
+    if (retry) return await write(ledger, repo, n, writer, {
+      ...body, patch_id_from: retry.event.patch_id_from, patch_id_to: retry.event.patch_id_to,
+    }, d);
+    const recordedBase = await commit(ledger.state.base, "recorded base");
+    need(body.from_base === recordedBase, "from_base must resolve to the ledger's recorded base");
+    need(typeof pr.baseRef === "string" && pr.baseRef !== "", "GitHub PR base ref is unknown");
+    const targetBase = await commit(`origin/${pr.baseRef}`, "PR target base");
+    need(body.to_base === targetBase, `to_base must resolve to the PR target origin/${pr.baseRef}; retarget the PR on GitHub before carrying`);
+    body.patch_id_from = await d.patchId(recordedBase, from);
+    body.patch_id_to = await d.patchId(targetBase, sha);
   }
   if (kind === "head" && payload.reason === "refresh") {
     await exact(payload.sha, "sha");
