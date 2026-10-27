@@ -1,3 +1,13 @@
+# [0.2.43](https://github.com/misty-step/mistystack/compare/v0.2.42...v0.2.43) (2026-10-27)
+<!-- landmark:protected-release previous=v0.2.42 source=58a152cd4383bfdb3fb6c26e5794a1127ccf12b5bb6bf10ecdccae14f8c9d3af -->
+
+### Features
+
+* **chief:** Kaylee dispatches every engineering task as OMP on its own Boat VM (#534) ([c768b84](https://github.com/misty-step/mistystack/commit/c768b848e4b2a9a1d5fa206e64fff6eeb667c4c1))
+
+### Bug Fixes
+
+* **release:** follow the harness to mistystack rename in the protected release check (#538) ([eb94af4](https://github.com/misty-step/mistystack/commit/eb94af41d254a5c7d168ea94886461511b3c4b02))
 # [0.2.42](https://github.com/misty-step/mistystack/compare/v0.2.41...v0.2.42) (2026-10-26)
 <!-- landmark:protected-release previous=v0.2.41 source=97d5dd52bbebe0a1273fc2ff7fea58b8a6e70b5f97c95a717daacbcb6ecc63cf -->
 
