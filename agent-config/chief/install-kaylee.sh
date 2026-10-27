@@ -97,7 +97,9 @@ hset approvals.mode manual
 hset approvals.cron_mode deny
 hset approvals.single_query_mode deny
 hset approvals.unattended_mode deny
-hset command_allowlist '["kaylee-dispatch *","exocortex *","kaylee-retire-legacy-access"]'
+# "script execution via heredoc": Phaedrus approved it (always) on 2026-10-27 for
+# Daybook writes through `exocortex put --from -`.
+hset command_allowlist '["kaylee-dispatch *","exocortex *","kaylee-retire-legacy-access","script execution via heredoc"]'
 say "config cutover applied"
 
 # Daybook read freshness (system unit; the user bus is not reliable here).
