@@ -260,10 +260,13 @@ Criteria:
    shared context and Hermes memory as her working memory.
 5. WHEN installed on a fresh host, THE SYSTEM SHALL seed Kaylee's SOUL, copied
    operating manual, skills and identity/learning config with memory and learning
-   enabled. WHEN rerun, THE SYSTEM SHALL preserve her existing files, skills,
-   routines and seeded config while enforcing Phaedrus's boundaries and supplying
-   missing tooling and jobs. Kaylee owns and evolves the seeded state
-   ([#543](https://github.com/misty-step/mistystack/issues/543)).
+   enabled, and clone the private Daybook vault to
+   `~/development/moomooskycow/daybook` as Kaylee when that directory is absent.
+   WHEN rerun, THE SYSTEM SHALL preserve her existing files, skills, routines,
+   seeded config and Daybook clone while enforcing Phaedrus's boundaries and
+   supplying missing tooling and jobs. Kaylee owns and evolves the seeded state
+   ([#543](https://github.com/misty-step/mistystack/issues/543),
+   [#545](https://github.com/misty-step/mistystack/issues/545)).
 
 No-gos: no engineering agents on the factory host; no paid fallback; no
 credential values in briefs, transcripts, snapshots or Git.

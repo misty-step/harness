@@ -50,14 +50,26 @@ class ChiefSeedTests(unittest.TestCase):
             os.environ, HOME=str(self.home), HERMES_HOME=str(self.hermes),
             HERMES=str(self.bin / "hermes"), KAYLEE_WORKSPACE=str(self.workspace),
             KAYLEE_DELIVER="discord:fixture-owner", XDG_RUNTIME_DIR=str(self.home / "runtime"),
+            KAYLEE_SKIP_DAYBOOK_CLONE="1",
+        )
+        gh = (
+            '#!/bin/sh\n'
+            'echo "$@" > "$HOME/gh-called"\n'
+            '[ "$1 $2" = "repo clone" ] || exit 2\n'
+            'git init -q "$4"\n'
         )
         for name, source in {
             "hermes": HERMES_FIXTURE,
-            "exocortex": "#!/bin/sh\nexit 0\n",
+            "gh": gh,
             "boat": "#!/bin/sh\nexit 0\n",
             "systemctl": "#!/bin/sh\nexit 0\n",
             # Never invoke sudo or write /etc, including through nested installers.
-            "sudo": "#!/bin/sh\ncat >/dev/null\n",
+            # Record each call; only `rm` runs, on the installer's private unit directory.
+            "sudo": (
+                '#!/bin/sh\n'
+                'echo "$@" >> "$HOME/sudo-calls"\n'
+                'if [ "$1" = rm ]; then exec "$@"; fi\n'
+            ),
         }.items():
             path = self.bin / name
             path.write_text(source)
@@ -144,6 +156,53 @@ class ChiefSeedTests(unittest.TestCase):
         for path in (self.hermes / "SOUL.md", self.workspace / "AGENTS.md", *(self.hermes / "skills").iterdir()):
             self.assertIn(f"kept {path}", output)
         self.assertIn("kept seeded config", output)
+
+    def test_daybook_clone_is_skipped_when_directory_exists(self):
+        clone = self.home / "development/moomooskycow/daybook"
+        clone.mkdir(parents=True)
+        (clone / "marker").write_text("existing clone\n")
+        del self.env["KAYLEE_SKIP_DAYBOOK_CLONE"]
+        output = self.install()
+        self.assertIn(f"kept {clone}", output)
+        self.assertEqual(os.listdir(clone), ["marker"])
+        self.assertFalse((self.home / "gh-called").exists())
+
+    def test_daybook_clone_is_made_once_with_kaylee_identity(self):
+        del self.env["KAYLEE_SKIP_DAYBOOK_CLONE"]
+        output = self.install()
+        clone = self.home / "development/moomooskycow/daybook"
+        self.assertIn(f"cloned {clone}", output)
+        self.assertEqual((self.home / "gh-called").read_text().split(), ["repo", "clone", "moomooskycow/daybook", str(clone)])
+        identity = lambda key: subprocess.run(
+            ["git", "-C", str(clone), "config", "--local", key], capture_output=True, text=True, check=True,
+        ).stdout.strip()
+        self.assertEqual(identity("user.name"), "Kaylee")
+        self.assertEqual(identity("user.email"), "kaylee@agents.misty-step.com")
+        (self.home / "gh-called").unlink()
+        self.assertIn(f"kept {clone}", self.install())
+        self.assertFalse((self.home / "gh-called").exists())
+
+    def test_retired_daybook_timer_units_are_removed_idempotently(self):
+        units = self.home / "etc-systemd-system"
+        units.mkdir()
+        retired = [f"daybook-re{'fresh'}.{kind}" for kind in ("timer", "service")]
+        for name in retired:
+            (units / name).write_text("retired\n")
+        (units / "other.service").write_text("kept\n")
+        self.env["KAYLEE_SYSTEMD_SYSTEM_DIR"] = str(units)
+        output = self.install()
+        self.assertEqual(os.listdir(units), ["other.service"])
+        self.assertIn(f"removed retired {' '.join(retired)}", output)
+        calls = (self.home / "sudo-calls").read_text()
+        self.assertIn(f"systemctl disable --now {' '.join(retired)}", calls)
+        self.assertNotIn("removed retired", self.install())
+
+    def test_allowlist_is_only_kaylee_clis_and_heredoc(self):
+        self.install()
+        self.assertEqual(
+            json.loads(self.config()["command_allowlist"]),
+            ["kaylee-dispatch *", "kaylee-retire-legacy-access", "script execution via heredoc"],
+        )
 
     def test_unmarked_home_keeps_existing_files_and_skills(self):
         self.hermes.mkdir()

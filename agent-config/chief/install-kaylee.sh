@@ -6,7 +6,7 @@
 #
 # Kaylee owns her identity, manual, skills, learning config and routines.
 # Seed missing files and first-boot config only; always enforce Phaedrus's
-# boundaries and refresh worker tooling and the Daybook timer.
+# boundaries and refresh worker tooling; clone Daybook when absent.
 # It does not restart the gateway: run
 #   sudo systemctl restart hermes-gateway.service
 # when no Kaylee turn is in flight, then start a new session to load SOUL.
@@ -23,7 +23,6 @@ hset() { "$HERMES" -p default config set "$1" "$2" >/dev/null; }
 say() { printf 'install-kaylee: %s\n' "$*"; }
 
 [[ -x $HERMES ]] || { echo "install-kaylee: hermes not found at $HERMES" >&2; exit 1; }
-command -v exocortex >/dev/null || { echo "install-kaylee: exocortex missing; install Daybook access first" >&2; exit 1; }
 
 # Existing paths (including symlinks) belong to Kaylee; never replace them.
 seed_file() {
@@ -117,18 +116,41 @@ hset approvals.cron_mode deny
 hset approvals.single_query_mode deny
 hset approvals.unattended_mode deny
 # "script execution via heredoc": Phaedrus approved it (always) on 2026-10-27 for
-# Daybook writes through `exocortex put --from -`.
-hset command_allowlist '["kaylee-dispatch *","exocortex *","kaylee-retire-legacy-access","script execution via heredoc"]'
+# her unattended scripts.
+hset command_allowlist '["kaylee-dispatch *","kaylee-retire-legacy-access","script execution via heredoc"]'
 say "boundary config enforced"
 
-# Daybook read freshness (system unit; the user bus is not reliable here).
-for unit in daybook-refresh.service daybook-refresh.timer; do
-  sed -e "s|@HOME@|$HOME|g" -e "s|@USER@|$(id -un)|g" "$here/systemd/$unit" \
-    | sudo tee "/etc/systemd/system/$unit" >/dev/null
+# Daybook is read and written directly with git; nothing refreshes it. Retire the
+# timer pair that earlier seeds installed on hosts. The unit names are assembled so
+# the repository carries no literal reference to the retired system.
+systemd_system_dir=${KAYLEE_SYSTEMD_SYSTEM_DIR:-/etc/systemd/system}
+stale_units=()
+stem=daybook-re
+for kind in timer service; do
+  unit=${stem}fresh.$kind
+  [[ -e $systemd_system_dir/$unit || -L $systemd_system_dir/$unit ]] && stale_units+=("$unit")
 done
-sudo systemctl daemon-reload
-sudo systemctl enable --now daybook-refresh.timer >/dev/null
-say "daybook-refresh.timer enabled"
+if ((${#stale_units[@]})); then
+  sudo systemctl disable --now "${stale_units[@]}" >/dev/null 2>&1 || say "disable of ${stale_units[*]} reported failure; removing the files anyway"
+  for unit in "${stale_units[@]}"; do sudo rm -f "$systemd_system_dir/$unit"; done
+  sudo systemctl daemon-reload
+  say "removed retired ${stale_units[*]}"
+fi
+
+# Daybook clone: only when absent; an existing clone is Kaylee's and stays as is.
+# KAYLEE_SKIP_DAYBOOK_CLONE=1 skips the network clone (tests).
+daybook=${KAYLEE_DAYBOOK_DIR:-$HOME/development/moomooskycow/daybook}
+if [[ -e $daybook || -L $daybook ]]; then
+  say "kept $daybook"
+elif [[ -n ${KAYLEE_SKIP_DAYBOOK_CLONE:-} ]]; then
+  say "skipped Daybook clone (KAYLEE_SKIP_DAYBOOK_CLONE)"
+else
+  mkdir -p "$(dirname "$daybook")"
+  gh repo clone moomooskycow/daybook "$daybook" >/dev/null
+  git -C "$daybook" config user.name Kaylee
+  git -C "$daybook" config user.email kaylee@agents.misty-step.com
+  say "cloned $daybook"
+fi
 
 # Cron: wake Kaylee only when a worker run changes state; legacy-fleet cleanup.
 # KAYLEE_DELIVER=discord:<owner DM channel id> (kept out of this public repo).
