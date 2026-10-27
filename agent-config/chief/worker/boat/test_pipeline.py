@@ -16,27 +16,46 @@ WORKER = BOAT_DIR / "worker-run.sh"
 SANDBOX = "bx_23456789"
 
 BOAT_FIXTURE = r'''#!/usr/bin/env python3
-import json, os, pathlib, signal, sys, time
+import json, os, pathlib, shutil, signal, subprocess, sys, time
 args = sys.argv[1:]
 with open(os.environ["CALLS"], "a") as calls:
     calls.write(json.dumps(["boat", *args]) + "\n")
+home = pathlib.Path(os.environ["HOME"])
 if args[0] == "list":
-    print(json.dumps({"sandboxes": []}))
+    sandboxes = []
+    if os.environ.get("LIST_WORKER") == "1":
+        sandboxes = [{"id": "bx_23456789", "name": "kaylee-test", "createdAt": "2026-01-01T00:00:00Z",
+                      "state": os.environ.get("STATE", "idle")}]
+    print(json.dumps({"sandboxes": sandboxes, "pageInfo": {"hasMore": False}}))
 elif args[0] == "new":
     print(json.dumps({"event": "accepted", "id": "bx_23456789"}), flush=True)
     os.kill(os.getppid(), signal.SIGTERM)
     time.sleep(0.05)
     sys.exit(143)
 elif args[0] == "info":
-    print(json.dumps({"sandbox": {"name": "kaylee-test", "state": "idle"}}))
+    print(json.dumps({"sandbox": {"name": "kaylee-test", "state": os.environ.get("STATE", "idle")}}))
 elif args[0] == "ssh":
-    sys.stdin.read()
-    print(json.dumps({"repo": "owner/repo", "finished": True, "exit": 0}))
-elif args[0] == "scp":
-    run = pathlib.Path(args[-1]) / "run"
-    run.mkdir()
-    (run / "metadata.json").write_text('{"repo":"owner/repo"}')
-    (run / "exit-code").write_text("0\n")
+    # The fixture VM is this HOME: run the remote command for real, record what crosses back.
+    done = subprocess.run(["bash", "-c", " ".join(args[2:])], capture_output=True)
+    with open(os.environ["CALLS"] + ".ssh-bytes", "a") as sizes:
+        sizes.write(f"{len(done.stdout)}\n")
+    sys.stdout.buffer.write(done.stdout)
+    sys.stderr.buffer.write(done.stderr)
+    sys.exit(done.returncode)
+elif args[0] == "snapshot" and args[1] == "pull":
+    # Strict like a missing snapshot path: absent files fail the pull.
+    out = pathlib.Path(args[args.index("--out") + 1]) / "home/user"
+    source = home / pathlib.Path(args[args.index("--path") + 1]).relative_to("/home/user")
+    if not source.exists():
+        print('{"event":"error","error":"path not in snapshot"}')
+        sys.exit(1)
+    target = out / source.relative_to(home)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    if source.is_dir():
+        shutil.copytree(source, target, symlinks=True)
+    else:
+        shutil.copy2(source, target)
+    print(json.dumps({"homeDir": str(out)}))
 elif args[0] == "delete":
     if os.environ.get("DELETE_FAIL") == "1":
         print('{"event":"error","error":"fixture deletion failure"}')
@@ -111,7 +130,116 @@ class PipelineLifecycleTests(unittest.TestCase):
         self.assertIn("--no-monitoring", create)
         self.assertIn(["boat", "delete", SANDBOX, "--yes", "--json"], calls)
 
+    def make_run(self, files=None, exit_code="0\n"):
+        """Populate the fixture VM's ~/run (the fixture HOME is the VM)."""
+        run = self.home / "run"
+        run.mkdir(exist_ok=True)
+        files = {"metadata.json": '{"repo":"owner/repo"}', **(files or {})}
+        if exit_code is not None:
+            files["exit-code"] = exit_code
+        for name, content in files.items():
+            path = run / name
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(content)
+        return run
+
+    def add_junk(self, run):
+        (run / "gitleaks").write_bytes(b"\0" * 2_000_000)
+        (run / "tools.tar.gz").write_bytes(b"\1" * 500_000)
+        (run / "repo-copy/.git").mkdir(parents=True)
+        (run / "repo-copy/.git/config").write_text("copy")
+        (run / "sessions/nested").mkdir(parents=True, exist_ok=True)
+        (run / "sessions/nested/subagent.jsonl").write_text("nested")
+        (run / "sessions/artifact.bin").write_text("artifact")
+        (run / "clone.stdout").symlink_to("/etc/hostname")
+
+    ALLOWED = {
+        "metadata.json", "brief.md", "launch.json", "started-at", "runner.pid", "exit-code",
+        "worker.jsonl", "worker.stderr", "clone.stderr", "sessions/session.jsonl",
+    }
+
+    def collected(self):
+        root = self.home / f".local/state/kaylee/runs/{SANDBOX}"
+        return {str(p.relative_to(root)) for p in root.rglob("*") if p.is_file() and p.name != "deletion.json"}
+
+    def full_run(self):
+        run = self.make_run({name: name for name in self.ALLOWED - {"metadata.json", "exit-code"}})
+        self.add_junk(run)
+        return run
+
+    def test_finish_collects_only_allowlisted_files_from_live_vm(self):
+        self.full_run()  # clone.stdout is a symlink and must be refused
+        (self.home / "run/launch.json").unlink()
+        result = self.run_dispatch("finish", SANDBOX)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(self.collected(), self.ALLOWED - {"launch.json"})
+        calls = self.recorded_calls()
+        self.assertFalse([call for call in calls if call[:2] in (["boat", "scp"], ["boat", "snapshot"])])
+        self.assertIn(["boat", "delete", SANDBOX, "--yes", "--json"], calls)
+
+    def test_finish_collects_only_allowlisted_paths_from_snapshot(self):
+        run = self.full_run()
+        (run / "clone.stdout").unlink()
+        result = self.run_dispatch("finish", SANDBOX, STATE="stopped")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(self.collected(), self.ALLOWED)
+        pulled = {call[call.index("--path") + 1] for call in self.recorded_calls() if call[:3] == ["boat", "snapshot", "pull"]}
+        self.assertEqual(pulled, {f"/home/user/run/{name}" for name in (
+            "metadata.json", "brief.md", "launch.json", "started-at", "runner.pid", "exit-code",
+            "worker.jsonl", "worker.stderr", "clone.stdout", "clone.stderr", "sessions")})
+
+    def test_list_of_stopped_worker_pulls_only_metadata_and_exit_code(self):
+        self.full_run()
+        result = self.run_dispatch("list", STATE="stopped", LIST_WORKER="1")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("owner/repo\ttrue\t0", result.stdout)
+        pulled = [call[call.index("--path") + 1] for call in self.recorded_calls() if call[:3] == ["boat", "snapshot", "pull"]]
+        self.assertEqual(sorted(pulled), ["/home/user/run/exit-code", "/home/user/run/metadata.json"])
+
+    def test_result_on_live_vm_transfers_report_not_worker_jsonl(self):
+        run = self.make_run()
+        event = {"type": "message_end", "message": {"role": "assistant", "content": [
+            {"type": "text", "text": "done https://github.com/owner/repo/pull/7"}]}}
+        noise = json.dumps({"type": "tool", "payload": "x" * 4000})
+        (run / "worker.jsonl").write_text("\n".join([noise] * 500 + [json.dumps(event)]) + "\n")
+        result = self.run_dispatch("result", SANDBOX)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("Exit code: 0", result.stdout)
+        self.assertIn("done https://github.com/owner/repo/pull/7", result.stdout)
+        self.assertTrue(result.stdout.rstrip().endswith("https://github.com/owner/repo/pull/7"))
+        calls = self.recorded_calls()
+        self.assertFalse([call for call in calls if call[:2] in (["boat", "scp"], ["boat", "snapshot"])])
+        sizes = [int(n) for n in (self.calls.parent / "calls.jsonl.ssh-bytes").read_text().split()]
+        self.assertLess((run / "worker.jsonl").stat().st_size, 3_000_000)
+        self.assertGreater((run / "worker.jsonl").stat().st_size, 1_000_000)
+        self.assertLess(max(sizes), 1000)
+
+    def test_result_without_exit_code_fails_on_live_vm(self):
+        self.make_run(exit_code=None)
+        result = self.run_dispatch("result", SANDBOX)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("no exit-code", result.stderr)
+
+    def test_finish_retains_vm_when_required_files_are_missing(self):
+        for state in ("idle", "stopped"):
+            with self.subTest(state=state):
+                self.calls.write_text("")
+                run = self.make_run()
+                (run / "metadata.json").unlink()
+                result = self.run_dispatch("finish", SANDBOX, STATE=state)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertNotIn(["boat", "delete", SANDBOX, "--yes", "--json"], self.recorded_calls())
+        (self.make_run() / "exit-code").unlink()
+        self.calls.write_text("")
+        refused = self.run_dispatch("finish", SANDBOX, STATE="stopped")
+        self.assertNotEqual(refused.returncode, 0)
+        self.assertNotIn(["boat", "delete", SANDBOX, "--yes", "--json"], self.recorded_calls())
+        forced = self.run_dispatch("finish", SANDBOX, "--force", STATE="stopped")
+        self.assertEqual(forced.returncode, 0, forced.stderr)
+        self.assertIn(["boat", "delete", SANDBOX, "--yes", "--json"], self.recorded_calls())
+
     def test_finish_attempts_both_teardowns_and_reports_each_failure(self):
+        self.make_run()
         for tunnel_fail, delete_fail in (("1", "0"), ("0", "1"), ("1", "1")):
             with self.subTest(tunnel_fail=tunnel_fail, delete_fail=delete_fail):
                 self.calls.write_text("")

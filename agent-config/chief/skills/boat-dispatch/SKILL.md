@@ -34,9 +34,12 @@ Kaylee never edits product code or runs an engineering agent on factory.
    do not implement the repair yourself. Credentials stay out of briefs and
    reports; workers receive only runtime gateway/GitHub tokens, never broker
    snapshots or subscription refresh credentials.
-5. Run `finish ID` after collecting the result. It retains the run under
-   `~/.local/state/kaylee/runs/ID/`, stops/disables its tunnel and deletes the VM.
-   Use `--force` only to intentionally terminate and collect interrupted work.
+5. Run `finish ID` after collecting the result. It retains the report files
+   (metadata, exit code, worker JSONL/stderr, session JSONL; nothing else from
+   the worker's `~/run`) under `~/.local/state/kaylee/runs/ID/`, stops/disables
+   its tunnel and deletes the VM. `result` on a live VM computes the final text
+   on the VM and transfers only that. Use `--force` only to intentionally
+   terminate and collect interrupted work.
    Confirm `list` has no abandoned `kaylee-` VM. Auto-stop is an orphan cost
    backstop, not teardown: stopped disks and credentials remain until deletion.
 

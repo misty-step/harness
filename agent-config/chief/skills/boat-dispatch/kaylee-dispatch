@@ -23,10 +23,14 @@ Thinking: off|minimal|low|medium|high|xhigh|max|auto (model must support it).
 start prints ID and name. Its auto-stop backstop is 1..720 integer hours.
 list reads Boat and each VM, not a second attempt ledger. Stopped runs are
 read from their last snapshot, marked as such; they may be interrupted.
-result requires an exit-code and prints final assistant text plus PR URLs.
+result requires an exit-code and prints final assistant text plus PR URLs; on a
+live VM they are computed there over one ssh call, so worker.jsonl is not copied.
 logs shows JSONL and stderr tails (default 30 lines).
-finish collects ~/run into ~/.local/state/kaylee/runs/ID, disables its tunnel,
-and deletes the VM. --force stops an unfinished VM before collecting it.
+finish collects only the report files (metadata.json, brief.md, launch.json,
+started-at, runner.pid, exit-code, worker.jsonl, worker.stderr, clone.stdout,
+clone.stderr, top-level sessions/*.jsonl) into ~/.local/state/kaylee/runs/ID,
+disables its tunnel, and deletes the VM. Nothing else in ~/run is copied.
+--force stops an unfinished VM before collecting it.
 A failed collection retains the VM; resolve the error and finish again.
 
 Factory prerequisites: native gh login, ~/.config/hermes/keys/WORKER_GATEWAY_KEY,
@@ -89,26 +93,74 @@ wait_stopped() {
   done
   die "Timed out waiting for $id to stop; VM retained"
 }
+# Collection is an allowlist, never ~/run wholesale: workers may leave tools,
+# tarballs or repo copies there. "sessions" means top-level sessions/*.jsonl.
+all_files=(brief.md launch.json started-at runner.pid exit-code worker.jsonl worker.stderr clone.stdout clone.stderr sessions)
 collect_run() {
-  local destination=$1
+  local destination=$1 name n=0 home_dir=
+  shift
+  local names=(metadata.json "$@")
   mkdir -p "$destination"
   if is_up; then
-    if ! boat scp -r "$id:/home/user/run" "$destination/" > "$scratch/copy-$id.json"; then
-      cat "$scratch/copy-$id.json" >&2
+    run_dir="$destination/run"
+    mkdir -p "$run_dir"
+    if ! {
+      printf 'set -euo pipefail\nnames=(%s)\n' "$(printf '%q ' "${names[@]}")"
+      cat <<'PACK'
+cd "$HOME/run"
+shopt -s nullglob
+files=()
+for name in "${names[@]}"; do
+  if [[ "$name" == sessions ]]; then candidates=(sessions/*.jsonl); else candidates=("$name"); fi
+  for file in "${candidates[@]}"; do
+    if [[ -f "$file" && ! -L "$file" ]]; then files+=("$file"); fi
+  done
+done
+if (( ${#files[@]} > 0 )); then tar -c -- "${files[@]}"; fi
+PACK
+    } | boat ssh "$id" 'bash -s' | tar -x --no-same-owner --no-same-permissions -C "$run_dir"; then
       die "Could not collect $id over SSH; VM retained"
     fi
-    run_dir="$destination/run"
   else
     [[ "$state" != stopping && "$state" != archiving ]] || wait_stopped
     printf 'Reading %s from its last disk snapshot (state: %s)\n' "$id" "$state" >&2
-    if ! boat snapshot pull "$id" --path /home/user/run --out "$destination" --json > "$scratch/pull-$id.json"; then
-      cat "$scratch/pull-$id.json" >&2
-      die "Could not collect $id from its snapshot; VM retained"
-    fi
-    run_dir="$(jq -er '.homeDir' "$scratch/pull-$id.json")/run"
+    for name in "${names[@]}"; do
+      n=$((n + 1))
+      if boat snapshot pull "$id" --path "/home/user/run/$name" --out "$destination" --json > "$scratch/pull-$id-$n.json"; then
+        [[ -n "$home_dir" ]] || home_dir=$(jq -er '.homeDir' "$scratch/pull-$id-$n.json")
+      elif [[ "$name" == metadata.json ]]; then
+        cat "$scratch/pull-$id-$n.json" >&2
+        die "Could not collect $id from its snapshot; VM retained"
+      else
+        printf 'kaylee-dispatch: %s not pulled from snapshot of %s\n' "$name" "$id" >&2
+      fi
+    done
+    run_dir="$home_dir/run"
     [[ -d "$run_dir" ]] || die "Snapshot has no /home/user/run for $id"
+    if [[ -d "$run_dir/sessions" ]]; then
+      # A snapshot pull takes a folder whole; keep only top-level session JSONL.
+      find "$run_dir/sessions" -mindepth 1 -maxdepth 1 \( ! -type f -o ! -name '*.jsonl' \) -exec rm -rf -- {} +
+    fi
   fi
   [[ -s "$run_dir/metadata.json" ]] || die "No worker metadata found for $id"
+}
+# Runs on the worker VM for a live result (sent via `declare -f`), and locally
+# on collected files for a stopped one, so worker.jsonl never crosses to factory.
+render_report() {
+  local run=$1
+  [[ -s "$run/exit-code" ]] || { printf 'Run has no exit-code yet; inspect logs or finish --force if interrupted\n' >&2; return 3; }
+  printf 'Exit code: %s\n\n' "$(cat "$run/exit-code")"
+  jq -nr 'reduce inputs as $event (null;
+    if $event.type == "message_end" and $event.message.role == "assistant" then
+      ([$event.message.content[]? | select(.type == "text") | .text] | join("\n")) as $text |
+      if $text != "" then $text else . end
+    else . end) // error("No assistant report; inspect worker.stderr with logs")' \
+    "$run/worker.jsonl" || return 1
+  printf '\nPR URLs:\n'
+  jq -nr '[inputs | select(.type == "message_end" and .message.role == "assistant") |
+    .message.content[]? | select(.type == "text") | .text |
+    scan("https://github\\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/pull/[0-9]+")]
+    | unique | if length == 0 then "none" else .[] end' "$run/worker.jsonl"
 }
 status_live() {
   boat ssh "$id" 'bash -s' <<'STATUS'
@@ -212,7 +264,7 @@ CLONE
           printf 'Could not read worker %s\n' "$id" >&2; failed=true; continue
         fi
       else
-        if ! (collect_run "$scratch/$id"; code=null; finished=false
+        if ! (collect_run "$scratch/$id" exit-code; code=null; finished=false
           if [[ -s "$run_dir/exit-code" ]]; then code=$(cat "$run_dir/exit-code"); finished=true; fi
           jq --argjson code "$code" --argjson finished "$finished" \
             '{repo,finished:$finished,exit:$code}' "$run_dir/metadata.json") > "$scratch/status.json"; then
@@ -228,20 +280,13 @@ CLONE
   result)
     [[ $# -eq 1 ]] || die 'Usage: kaylee-dispatch result ID'
     require_worker "$1"
-    collect_run "$scratch/result"
-    [[ -s "$run_dir/exit-code" ]] || die 'Run has no exit-code yet; inspect logs or finish --force if interrupted'
-    printf 'Exit code: %s\n\n' "$(cat "$run_dir/exit-code")"
-    jq -nr 'reduce inputs as $event (null;
-      if $event.type == "message_end" and $event.message.role == "assistant" then
-        ([$event.message.content[]? | select(.type == "text") | .text] | join("\n")) as $text |
-        if $text != "" then $text else . end
-      else . end) // error("No assistant report; inspect worker.stderr with logs")' \
-      "$run_dir/worker.jsonl" | tee "$scratch/final.txt"
-    printf '\nPR URLs:\n'
-    jq -nr '[inputs | select(.type == "message_end" and .message.role == "assistant") |
-      .message.content[]? | select(.type == "text") | .text |
-      scan("https://github\\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/pull/[0-9]+")]
-      | unique | if length == 0 then "none" else .[] end' "$run_dir/worker.jsonl"
+    if is_up; then
+      { printf 'set -euo pipefail\n'; declare -f render_report; printf 'render_report "$HOME/run"\n'; } \
+        | boat ssh "$id" 'bash -s' || die "No result for $id"
+    else
+      collect_run "$scratch/result" exit-code worker.jsonl
+      render_report "$run_dir" || die "No result for $id"
+    fi
     ;;
   logs)
     [[ $# -ge 1 ]] || die 'Usage: kaylee-dispatch logs ID [-n N]'
@@ -254,7 +299,7 @@ CLONE
     if is_up; then
       boat ssh "$id" "tail -n $lines /home/user/run/worker.jsonl /home/user/run/worker.stderr"
     else
-      collect_run "$scratch/logs"
+      collect_run "$scratch/logs" worker.jsonl worker.stderr
       tail -n "$lines" "$run_dir/worker.jsonl" "$run_dir/worker.stderr"
     fi
     ;;
@@ -271,7 +316,7 @@ CLONE
         wait_stopped
       fi
     fi
-    collect_run "$scratch/finish"
+    collect_run "$scratch/finish" "${all_files[@]}"
     [[ -s "$run_dir/exit-code" || "$force" == true ]] || die 'Interrupted run has no exit-code; use --force to collect/delete it'
     destination="$HOME/.local/state/kaylee/runs/$id"
     mkdir -p "$destination"
