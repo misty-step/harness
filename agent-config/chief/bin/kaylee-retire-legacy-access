@@ -6,12 +6,19 @@
 # Idempotent.
 set -euo pipefail
 
-if [[ $(sudo -n tailscale debug prefs | jq -r .RunSSH) == true ]]; then
-  sudo -n tailscale set --ssh=false
-  echo "tailscale ssh disabled on this host"
-else
-  echo "tailscale ssh already disabled"
-fi
+# Standalone assignments so an unreadable preference fails loudly instead of
+# reading as "already disabled".
+prefs=$(sudo -n tailscale debug prefs)
+run_ssh=$(jq -r .RunSSH <<<"$prefs")
+case $run_ssh in
+  true)
+    sudo -n tailscale set --ssh=false
+    [[ $(sudo -n tailscale debug prefs | jq -r .RunSSH) == false ]] \
+      || { echo "tailscale ssh still enabled after set --ssh=false" >&2; exit 1; }
+    echo "tailscale ssh disabled on this host" ;;
+  false) echo "tailscale ssh already disabled" ;;
+  *) echo "cannot read tailscale RunSSH (got: $run_ssh)" >&2; exit 1 ;;
+esac
 
 marker_file=$HOME/.config/kaylee/legacy-ssh-key-marker
 keys=$HOME/.ssh/authorized_keys
