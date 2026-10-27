@@ -226,7 +226,9 @@ export function apply(s: State | null, e: Event): State {
   }
 
   if (e.kind === "head") {
-    fieldsOnly(e, ["v", "kind", "seq", "key", "reason", "sha", "thread_id", "from", "patch_id_from", "patch_id_to"], "head");
+    // v1 carries have no bases; bases and refresh were added without changing old events' meaning.
+    const added = e.reason === "carry" ? ["from_base", "to_base"] : e.reason === "refresh" ? ["base"] : [];
+    fieldsOnly(e, ["v", "kind", "seq", "key", "reason", "sha", "thread_id", "from", "patch_id_from", "patch_id_to", ...added], "head");
     need(/^[0-9a-f]{40}$/.test(e.sha), "sha must be a full commit SHA");
     need(e.sha !== next.head, "head is already this SHA");
     if (e.reason === "fix") {
@@ -238,11 +240,24 @@ export function apply(s: State | null, e: Event): State {
       next.phase = "recheck";
       return next;
     }
-    need(e.reason === "carry", "head reason must be fix or carry");
+    if (e.reason === "refresh") {
+      // Only an unreviewed head may move without a patch-id; any report, ruling or fix keeps its head.
+      need(next.phase === "verify" && Object.keys(next.reports).length === 0, `a refresh applies only before any report; this PR is in ${next.phase} with ${Object.keys(next.reports).length} report(s)`);
+      need(e.from === next.head, `refresh is from ${e.from}, but head is ${next.head}`);
+      need(/^[0-9a-f]{40}$/.test(e.base), "refresh base must be a full commit SHA");
+      next.base = e.base;
+      next.head = e.sha;
+      return next;
+    }
+    need(e.reason === "carry", "head reason must be fix, carry or refresh");
     need(["judge", "final-judge", "shipped"].includes(next.phase), `a patch-identical carry applies before a ruling; this PR is in ${next.phase}`);
     need(e.from === next.head, `carry is from ${e.from}, but head is ${next.head}`);
     need(typeof e.patch_id_from === "string" && e.patch_id_from !== "", "carry needs the judged patch-id");
     need(e.patch_id_from === e.patch_id_to, "carry needs an unchanged patch-id; otherwise run a fix or re-verify");
+    if ("from_base" in e || "to_base" in e) {
+      need(/^[0-9a-f]{40}$/.test(e.from_base) && /^[0-9a-f]{40}$/.test(e.to_base), "carry bases must both be full commit SHAs");
+      next.base = e.to_base;
+    }
     next.carried.push(next.head);
     next.head = e.sha;
     return next;
@@ -463,6 +478,15 @@ export async function patchId(base: string, sha: string): Promise<string> {
   return id;
 }
 
+// A ref the reader can name, resolved to the full commit SHA recorded in the ledger.
+export async function commitOf(ref: string): Promise<string> {
+  try {
+    return (await runCmd(["git", "rev-parse", "--verify", "--end-of-options", `${ref}^{commit}`])).trim();
+  } catch {
+    throw new Refused(`${ref} is not a commit in this checkout; fetch it first`);
+  }
+}
+
 // ---- command line ----
 
 const HELP = `ship-loop: the one entry point for a PR's review-round state. Only the PR author's comments can write the ledger; other commenters' markers are ignored.
@@ -476,6 +500,12 @@ const HELP = `ship-loop: the one entry point for a PR's review-round state. Only
   record  --pr <url> --kind report|verdict|recheck|head [--file <payload.json>]
           Payload JSON comes from --file or stdin. Records only what the user supplied: native thread IDs and report links.
           A repeated identical write is a no-op.
+          head payloads, run inside a checkout holding every named commit:
+            {"reason":"fix","sha":<new head>,"thread_id":<builder thread>}   after a judge's FIX
+            {"reason":"carry","from":<judged head>,"from_base":<its base>,"sha":<new head>,"to_base":<its base>}
+              judge, final-judge or shipped; carries only if both stable patch-ids match
+            {"reason":"refresh","from":<head>,"sha":<new head>,"base":<its base>}   verify only, before any report
+          Bases may be refs; the event records their full commit SHAs.
 
 Exit codes: 0 recorded or already recorded; 1 refused by the workflow; 2 ledger unreadable or write outcome unknown (never treat as round 0); 3 lost a concurrent write, run status and retry.
 `;
@@ -487,7 +517,14 @@ const COMMANDS: Record<string, string[]> = {
   record: ["pr", "kind", "file"],
 };
 
-export type Deps = { gh: Gh; patchId: (base: string, sha: string) => Promise<string>; out: (s: string) => void; err: (s: string) => void; stdin: () => Promise<string> };
+export type Deps = {
+  gh: Gh;
+  commit: (ref: string) => Promise<string>;
+  patchId: (base: string, sha: string) => Promise<string>;
+  out: (s: string) => void;
+  err: (s: string) => void;
+  stdin: () => Promise<string>;
+};
 
 export async function run(argv: string[], deps: Deps): Promise<number> {
   const [cmd, ...rest] = argv;
@@ -563,10 +600,25 @@ async function dispatch(cmd: string, f: Record<string, string | true>, d: Deps):
   if (!["report", "verdict", "recheck", "head"].includes(kind)) throw new Refused("kind must be report, verdict, recheck or head");
   // The flag sets the kind; a payload cannot override it.
   const body: Record<string, unknown> = { ...payload, v: 1, kind };
+  // Each named revision must exist here; bases are recorded as the full SHAs the helper resolved.
+  const commit = async (ref: unknown, field: string) => {
+    need(typeof ref === "string" && ref.trim() !== "", `${field} is required`);
+    return await d.commit(ref);
+  };
+  const exact = async (sha: unknown, field: string) => {
+    need(/^[0-9a-f]{40}$/.test(String(sha)) && (await commit(sha, field)) === sha, `${field} must be the full SHA of a commit in this checkout`);
+    return sha as string;
+  };
   if (kind === "head" && payload.reason === "carry") {
-    need(/^[0-9a-f]{40}$/.test(String(payload.from)) && /^[0-9a-f]{40}$/.test(String(payload.sha)), "carry needs full from and sha SHAs");
-    body.patch_id_from = await d.patchId(ledger.state.base, String(payload.from));
-    body.patch_id_to = await d.patchId(ledger.state.base, String(payload.sha));
+    const [from, sha] = [await exact(payload.from, "from"), await exact(payload.sha, "sha")];
+    body.from_base = await commit(payload.from_base, "from_base");
+    body.to_base = await commit(payload.to_base, "to_base");
+    body.patch_id_from = await d.patchId(body.from_base as string, from);
+    body.patch_id_to = await d.patchId(body.to_base as string, sha);
+  }
+  if (kind === "head" && payload.reason === "refresh") {
+    await exact(payload.sha, "sha");
+    body.base = await commit(payload.base, "base");
   }
   return await write(ledger, repo, n, writer, body, d);
 }
@@ -601,6 +653,7 @@ if (import.meta.main) {
   const ghBin = process.env.SHIP_LOOP_GH ?? "gh";
   const code = await run(process.argv.slice(2), {
     gh: ghBoundary(ghBin),
+    commit: commitOf,
     patchId,
     out: (s) => process.stdout.write(s),
     err: (s) => process.stderr.write(s),
