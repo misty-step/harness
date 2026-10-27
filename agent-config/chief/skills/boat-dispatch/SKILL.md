@@ -16,7 +16,10 @@ Kaylee never edits product code or runs an engineering agent on factory.
    read-only exception. A capable worker needs context and a completion bar,
    not a tool-by-tool script. Workers cannot spawn more agents on their VM;
    commission independent work on additional VMs.
-2. Use `kaylee-dispatch start`. Sonnet 5.5 is the default for bounded work;
+2. Before starting, check `kaylee-dispatch list` and the ticket's latest
+   comment: another of your sessions (a cron wake or a chat) may already have
+   dispatched this role, and a duplicate worker posts conflicting reports.
+   Then use `kaylee-dispatch start`. Sonnet 5.5 is the default for bounded work;
    Opus 5.5 for ambiguous design/review; GPT-6.1 Sol for implementation or
    difficult reasoning. Use the exact provider/model selectors in `--help`
    and an explicitly supported thinking level. The `factory-workers` gateway
