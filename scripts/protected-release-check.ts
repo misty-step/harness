@@ -220,7 +220,7 @@ if (import.meta.main) {
 	const result = await checkProtectedRelease({
 		landmark,
 		repoRoot,
-		repository: process.env.GITHUB_REPOSITORY ?? "misty-step/harness",
+		repository: process.env.GITHUB_REPOSITORY ?? "misty-step/mistystack",
 		upstream: process.env.GITHUB_API_URL ?? "https://api.github.com",
 		token: process.env.GITHUB_TOKEN || undefined,
 		base: process.env.GITHUB_BASE_REF ? `origin/${process.env.GITHUB_BASE_REF}` : undefined,

@@ -1,9 +1,9 @@
-# [0.2.42](https://github.com/misty-step/harness/compare/v0.2.41...v0.2.42) (2026-10-26)
+# [0.2.42](https://github.com/misty-step/mistystack/compare/v0.2.41...v0.2.42) (2026-10-26)
 <!-- landmark:protected-release previous=v0.2.41 source=97d5dd52bbebe0a1273fc2ff7fea58b8a6e70b5f97c95a717daacbcb6ecc63cf -->
 
 ### Features
 
-* add chief and OMP bootstrap guidance (#526) ([8a10c73](https://github.com/misty-step/harness/commit/8a10c73c96d011c250a0cdcdef1ef4ca27ee883c))
+* add chief and OMP bootstrap guidance (#526) ([8a10c73](https://github.com/misty-step/mistystack/commit/8a10c73c96d011c250a0cdcdef1ef4ca27ee883c))
 # [0.2.41](https://github.com/misty-step/harness/compare/v0.2.40...v0.2.41) (2026-10-24)
 <!-- landmark:protected-release previous=v0.2.40 source=8fb049f710aa9fff597e462ba2fc1bec41d04dcb24a812f76b5dff8119177f42 -->
 
