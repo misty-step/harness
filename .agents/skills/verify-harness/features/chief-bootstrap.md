@@ -1,8 +1,8 @@
 # Kaylee chief and Boat OMP workers
 
-Use this scoped recipe for `agent-config/chief/`: Kaylee's identity and operating
-manual, her skills and config cutover, and OMP workers that each run on their own
-Boat VM. Legacy Claude/Codex `doctor` prerequisites and the `all` helper are not
+Use this scoped recipe for `agent-config/chief/`: Kaylee's first-boot identity,
+manual, skills and config seed, and OMP workers that each run on their own Boat
+VM. Legacy Claude/Codex `doctor` prerequisites and the `all` helper are not
 prerequisites for this path.
 
 Run on the chief's exe.dev host from the installed source worktree
@@ -10,25 +10,63 @@ Run on the chief's exe.dev host from the installed source worktree
 results outside the checkout. Never print gateway, Boat, GitHub or Discord tokens,
 `.env` files or resolved provider configuration.
 
+## Isolated first-boot and rerun proof
+
+From the candidate checkout, run:
+
+```sh
+PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s agent-config/chief -p 'test_install_kaylee.py' -v
+./scripts/check
+```
+
+The regression drive runs the real installer and its worker/cron installers in
+temporary HOME and HERMES_HOME directories, with stub Hermes, Boat, Daybook,
+sudo and systemctl commands. No real Hermes home, credentials or services are
+touched. Expect three passing cases:
+
+- An absent HERMES_HOME gets SOUL, a regular copied AGENTS.md, every skill,
+  memory/profile enabled, both nudges at 10, memory tools on CLI/Discord, skill
+  authoring enabled, the seed marker, tooling and both cron jobs.
+- A populated rerun preserves edited SOUL, manual and all skill bytes (including
+  learned files), every seeded config value and an edited routine. It restores
+  every boundary config value, parks a legacy profile even if gateway stop
+  fails, and supplies a missing job without replacing the existing one.
+- An unmarked home preserves existing files, skills and symlinks, logging each
+  kept path, while supplying absent seeds.
+
+`$HERMES_HOME/.kaylee-seeded` records completed identity/learning config seeding;
+without it, the next install seeds that config once, even on an existing host.
+Existing files/skills are always kept independently of the marker. Toolsets,
+personality, prompts, memory and skill-learning settings belong to Kaylee after
+seeding. Delegation, plugins, Kanban dispatch, approvals, command allowlisting
+and Discord access stay enforced on every run. Do not remove the marker to
+refresh defaults.
+
 ## Installation and loading
 
 1. Inspect the source revision and native versions (`hermes --version`,
    `omp --version`, `boat --version`). Install only under the owner's deployment
    authorization: `KAYLEE_DELIVER=discord:<owner DM> agent-config/chief/install-kaylee.sh`,
-   then restart `hermes-gateway.service` at an idle moment. Do not run an
-   installer as a test.
-2. Read back the installed state: `~/.hermes/SOUL.md` matches source, the chief
-   workspace `AGENTS.md` links to source, `hermes -p default config get` shows
-   memory off, delegation/Kanban dispatch off, the legacy role profiles carry
-   `gateway.parked`, and `hermes -p default cron list` shows `kaylee-workers` and
-   `kaylee-legacy-fleet`. `journalctl -u hermes-gateway` shows
-   `[Discord] Connected as kaylee` after the restart.
+   then restart `hermes-gateway.service` at an idle moment. Never test against
+   the live home; use the isolated proof above.
+2. On a fresh install, read back SOUL and the workspace's regular copied
+   AGENTS.md against the seed, and confirm `.kaylee-seeded`. Native
+   `hermes -p default config get` shows memory/profile on, memory and skill
+   creation nudges at 10, memory tools on CLI/Discord, native delegation/Kanban
+   dispatch off and owner-only Discord. On a rerun, Kaylee's files and learning
+   config may differ from source and must stay unchanged; do not call that
+   drift. Existing symlinks are kept rather than migrated. Legacy role profiles
+   carry `gateway.parked`, and `hermes -p default cron list` shows
+   `kaylee-workers` and `kaylee-legacy-fleet` (existing routines keep her edits).
+   `journalctl -u hermes-gateway` shows `[Discord] Connected as kaylee` after the
+   restart.
 3. Fresh chief readback, bounded:
 
        hermes -p default chat -Q --max-turns 1 -q 'Without tools: who are you, who do you serve, how does engineering work get done, and where does shared context live?'
 
    Kaylee answers in her own voice: chief engineering officer, OMP workers on
-   their own Boat VMs, Daybook. A generic Hermes identity fails.
+   their own Boat VMs, Hermes working memory and shared context in Daybook. A
+   generic Hermes identity fails.
 
 ## Actual dispatch
 
