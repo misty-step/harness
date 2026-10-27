@@ -1,0 +1,35 @@
+#!/usr/bin/env bash
+# Cut the retired legacy fleet's engineering access to this host once its last
+# sessions finish. That fleet reached the host only through Tailscale SSH; the
+# owner's own access uses the VM provider's SSH proxy, which this does not touch.
+# An optional private marker file names an authorized_keys entry to drop too.
+# Idempotent.
+set -euo pipefail
+
+# Standalone assignments so an unreadable preference fails loudly instead of
+# reading as "already disabled".
+prefs=$(sudo -n tailscale debug prefs)
+run_ssh=$(jq -r .RunSSH <<<"$prefs")
+case $run_ssh in
+  true)
+    sudo -n tailscale set --ssh=false
+    [[ $(sudo -n tailscale debug prefs | jq -r .RunSSH) == false ]] \
+      || { echo "tailscale ssh still enabled after set --ssh=false" >&2; exit 1; }
+    echo "tailscale ssh disabled on this host" ;;
+  false) echo "tailscale ssh already disabled" ;;
+  *) echo "cannot read tailscale RunSSH (got: $run_ssh)" >&2; exit 1 ;;
+esac
+
+marker_file=$HOME/.config/kaylee/legacy-ssh-key-marker
+keys=$HOME/.ssh/authorized_keys
+[[ -s $marker_file && -f $keys ]] || exit 0
+marker=$(<"$marker_file")
+if grep -qF -- "$marker" "$keys"; then
+  tmp=$(mktemp "$keys.XXXXXX")
+  grep -vF -- "$marker" "$keys" >"$tmp" || true
+  chmod 0600 "$tmp"
+  mv "$tmp" "$keys"
+  echo "removed the legacy key from $keys"
+else
+  echo "legacy key already absent from $keys"
+fi

@@ -1,0 +1,15 @@
+[Unit]
+Description=Kaylee Boat gateway tunnel for %i
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+Environment=BOAT_NO_UPDATE=1
+Environment=PATH=%h/.local/bin:/usr/local/bin:/usr/bin:/bin
+ExecStart=%h/.local/bin/boat forward %i --reverse --local 4000 --bind 127.0.0.1
+Restart=always
+RestartSec=5
+TimeoutStopSec=15
+
+[Install]
+WantedBy=default.target

@@ -1,75 +1,52 @@
-# Chief and OMP bootstrap
+# Kaylee chief and Boat OMP workers
 
-Use this scoped recipe for `agent-config/chief/` guidance. It exercises the
-installed native chief and worker; legacy Claude/Codex `doctor` prerequisites
-and the legacy `all` helper are not prerequisites for this path.
+Use this scoped recipe for `agent-config/chief/`: Kaylee's identity and operating
+manual, her skills and config cutover, and OMP workers that each run on their own
+Boat VM. Legacy Claude/Codex `doctor` prerequisites and the `all` helper are not
+prerequisites for this path.
 
-Set `VH_CHIEF_CWD` to the approved chief workspace, `VH_WORKER_CWD` to a separate
-repository checkout, and `VH_HERDR_SESSION` to an explicitly authorized dedicated
-session. Set `HERMES_BIN` to the installed native Hermes command. Retain the
-checked source revision and secret-free results outside the checkout. Use native
-execution logins; product QA account/owner-role proof is n/a.
+Run on the chief's exe.dev host from the installed source worktree
+`~/workspace/kaylee-src`. Retain the checked source revision and secret-free
+results outside the checkout. Never print gateway, Boat, GitHub or Discord tokens,
+`.env` files or resolved provider configuration.
 
 ## Installation and loading
 
-1. Inspect the source revision, installed AGENTS.md targets and native versions.
-   Read back the composed/linked files and confirm chief context is outside the
-   worker repository's ancestor chain. Install only under the commissioning
-   owner's deployment authorization; do not run an installer as a test.
-2. Run a fresh native chief readback, bounded and without tool execution:
+1. Inspect the source revision and native versions (`hermes --version`,
+   `omp --version`, `boat --version`). Install only under the owner's deployment
+   authorization: `KAYLEE_DELIVER=discord:<owner DM> agent-config/chief/install-kaylee.sh`,
+   then restart `hermes-gateway.service` at an idle moment. Do not run an
+   installer as a test.
+2. Read back the installed state: `~/.hermes/SOUL.md` matches source, the chief
+   workspace `AGENTS.md` links to source, `hermes -p default config get` shows
+   memory off, delegation/Kanban dispatch off, the legacy role profiles carry
+   `gateway.parked`, and `hermes -p default cron list` shows `kaylee-workers` and
+   `kaylee-legacy-fleet`. `journalctl -u hermes-gateway` shows
+   `[Discord] Connected as kaylee` after the restart.
+3. Fresh chief readback, bounded:
 
-       "$HERMES_BIN" chat --in "$VH_CHIEF_CWD" -Q --max-turns 1 --run-budget 90 \
-         -q 'Without tools, identify your role, required worker harness, handoff references and completion-evidence rule from the loaded guidance.'
+       hermes -p default chat -Q --max-turns 1 -q 'Without tools: who are you, who do you serve, how does engineering work get done, and where does shared context live?'
 
-3. Run a fresh native worker readback in the separate repository:
+   Kaylee answers in her own voice: chief engineering officer, OMP workers on
+   their own Boat VMs, Daybook. A generic Hermes identity fails.
 
-       omp --cwd "$VH_WORKER_CWD" -p --no-tools --no-title --no-session \
-         --no-extensions --no-skills --thinking low --max-time 90 \
-         'Identify your role, required nested-worker harness, work authority and completion-evidence rule from the loaded guidance.'
+## Actual dispatch
 
-Inspect the native results: the chief identifies its chief role and local handoff;
-the worker identifies its commissioned worker role, including OMP-only nested
-workers. Both require real consumer proof. A listed skill, matching bytes or a
-model's success claim alone does not prove this whole factory. These readbacks
-prove delivery and consumption, not a blind skill-quality experiment.
-
-## Actual execution and access
-
-4. Through the existing authenticated chief web client, create a new conversation
-   and request a read-only orientation from the installed handoff. Observe actual
-   file/tool use and the resulting answer, then reopen the saved conversation.
-   Verify the handoff distinguishes working access from unfinished architecture.
-5. Inspect `herdr --session "$VH_HERDR_SESSION" status server`. Create a disposable
-   workspace with `workspace create --cwd "$VH_WORKER_CWD" --label verify --no-focus`.
-   Parse returned pane/workspace IDs rather than predicting them. Start an OMP
-   agent in that pane with an explicitly supported model and reasoning setting.
-   Prompt it to run `pwd` and `omp --version`, wait for real activity and read its
-   native response with `agent read --source recent-unwrapped`. An idle state or
-   successful prompt submission alone is not proof. If startup opens OMP's
-   first-run wizard, finish native setup before commissioning work; a prompt in
-   its provider-search field is a failed drive, not a model response.
-6. Verify authorized GitHub access through `gh api` against a required private
-   repository and native issue reads. Confirm clone remotes contain no tokens.
-   Use `omp usage accounts --json` for registered identities and `omp usage --json`
-   for fresh provider observations. A registration list does not prove an account
-   currently serves inference: retain a bounded native provider response for each
-   route claimed as exercised, and name unavailable or untested routes precisely.
-   Check OpenRouter key validity through its native authenticated key endpoint
-   without printing the key; distinguish key authorization from inference proof.
-7. Read only safe native configuration keys for reset redemption, recovery chains,
-   model roles and delegation. Inspect file permissions without reading credential
-   values. Provider browser refusals remain account-specific setup gaps, not proof
-   that the entire environment is broken or that setup is complete.
+4. Rebake only when worker guidance or tooling changed:
+   `agent-config/chief/worker/boat/build-snapshot.sh`, then
+   `check-snapshot.sh` proves no credential files are baked in.
+5. `kaylee-dispatch start` a bounded read-only brief on a private repository.
+   Wait for `kaylee-dispatch list` to show it finished, read `result`, confirm the
+   gateway journal attributes the inference to the worker client, then `finish`
+   and confirm the VM and its tunnel unit are gone. A launch or exit code alone is
+   not proof.
+6. Through Discord or the web workspace, ask Kaylee to commission a real ticket.
+   Observe her own `kaylee-dispatch` use, its Boat VM, and her follow-through to a
+   reviewed PR. Her claim alone is not proof.
 
 ## Evidence and cleanup
 
-Keep private account/provider details and handoff content outside public reports.
-Publish a concise generic source-revision, command/journey and result summary on
-the PR; use the approved private evidence route for private captures. Never dump
-auth exports, token commands, secret configuration, environment values or raw
-provider error bodies into evidence. Record requested versus configured accounts
-and unfinished access separately from source guidance verification.
-
-Close only the disposable Herdr workspace created for this drive after its worker
-finishes. Stop only exact probe processes you started. Preserve the owner's chief
-conversation, persistent worker service, credentials and unrelated sessions.
+Publish a concise source-revision, command and result summary on the PR; keep
+private account, channel and conversation details out of public reports. Delete
+only sandboxes you created; preserve Kaylee's sessions, cron jobs, credentials and
+the owner's other sandboxes.

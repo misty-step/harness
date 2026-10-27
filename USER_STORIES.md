@@ -239,6 +239,30 @@ and the `remote-execution` skill retain off-host execution guidance. Automatic
 snapshot transfer, receipt hashes and evidence-gated teardown are no longer
 harness capabilities. Preserve standing VMs and existing task data.
 
+## US-056 Commission every engineering task on its own Boat VM through Kaylee
+
+Statement: When I hand engineering to Kaylee, my Hermes chief engineering
+officer, I want every task to run as one OMP worker on its own fresh Boat VM
+using my subscriptions, so no host accumulates agents and I talk to one contact.
+
+Criteria:
+1. WHEN Kaylee commissions engineering, THE SYSTEM SHALL start one OMP worker on
+   a new Boat VM from the credential-free `omp-worker` snapshot, with OMP
+   subagents off, and SHALL refuse a second agent on that VM.
+2. WHILE a worker runs, THE SYSTEM SHALL serve its inference only through the
+   factory OMP gateway's scoped worker client over a per-VM reverse tunnel; no
+   OAuth refresh token or broker snapshot SHALL reach the VM.
+3. WHEN a worker's run changes state, THE SYSTEM SHALL wake Kaylee without
+   polling, and `kaylee-dispatch finish` SHALL collect the run, stop its tunnel
+   and delete the VM.
+4. WHILE Kaylee runs, THE SYSTEM SHALL keep Hermes private memory, native
+   delegation and Kanban dispatch off, with Daybook as her shared context.
+
+No-gos: no engineering agents on the factory host; no paid fallback; no
+credential values in briefs, transcripts, snapshots or Git.
+
+Evidence: `agent-config/chief/`, `.agents/skills/verify-harness/features/chief-bootstrap.md`
+
 ## Capability: Session close
 
 ## US-004 Close owned landing work and session resources — retired automation
