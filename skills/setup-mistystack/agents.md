@@ -1,26 +1,6 @@
-# Role-backed OMP agents
+# Isolated config proof
 
-Source: OMP 18.13.3 [task agent discovery](omp://task-agent-discovery.md). The role inventory and responsibilities live in `skill://ship-loop/roles.md`.
-
-For each required role, write `<agent-dir>/agents/<role-name>.md`, where `<agent-dir>` is the output of `omp config path`. Substitute the actual role name in all three places:
-
-```markdown
----
-name: <role-name>
-description: Perform the mistystack <role-name> assignment.
-model: "@<role-name>"
----
-
-Read skill://ship-loop/roles.md and perform only this role's assigned work.
-Use its evidence and completion requirements. Return observed evidence and
-specific blockers; label claims measured, inferred or guess.
-```
-
-The agent's `model` is a role alias, never a concrete model. Leave tools unspecified so OMP supplies the normal toolset; the assigned role's contract determines what it may change. Reconcile existing same-name definitions instead of overwriting user work. Check project agents too: a project definition with the same name takes precedence over the user definition. Check `task.agentModelOverrides`, which takes precedence over agent frontmatter; preserve unrelated entries and make any entry for these agents point to the same role alias.
-
-After updating files, open OMP's `/agents` hub in the intended project and profile. Dispatch a worker with the role name as its `agent`, for example `agent: light-judge`. OMP resolves the agent's `@light-judge` alias through `modelRoles`. Ordinary task workers have no per-call model override; the `model` argument exposed for historical-session consults is not worker routing.
-
-## Isolated config proof
+Source: OMP 18.13.3 [configuration](omp://config-usage.md). Setup writes the `rigor-light`, `rigor-standard` and `rigor-critical` model roles; the plugin supplies their task agents.
 
 Run this recipe from a scratch working directory, outside a project. It changes no live OMP state. `MERGED_MODEL_ROLES_JSON` contains the complete chosen mapping, serialized as JSON during setup; these are user choices, not method defaults.
 
