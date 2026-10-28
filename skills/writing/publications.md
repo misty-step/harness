@@ -42,4 +42,4 @@ Link large logs and retained artifacts. Keep proof outside the checkout under th
 
 Lead with the controlling conclusion and its effect on the consumer. Support it with current primary records. Explain the cause and consequence only where they change the decision. End with the decision, recommendation or exact blocker.
 
-Follow `skill://misty` for claim precision and readable links. Label each claim measured, inferred or guess in the sentence; keep source observation distinct from your conclusion. Link what the report names and what you actually read or produced. Describe an unexercised path as unproven, not as working. For a human-only action, link the exact page instead of handing over a local path or command.
+Follow the core's claim rule and `skill://misty` for report links and owner-only actions. Keep source observation distinct from your conclusion; describe an unexercised path as unproven, not as working.

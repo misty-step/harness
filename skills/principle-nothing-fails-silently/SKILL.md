@@ -21,4 +21,4 @@ An explicitly chosen, logged operating alternative is a new action, not a hidden
 
 Emit one terminal outcome per run, with enough attribution to distinguish success, rejection and failure. Exercise the failing path, not merely the installed telemetry SDK.
 
-Done when a consumer can observe the failure and the owner can trace its cause. Label the observed outcome measured, inferred or guess.
+Done when a consumer can observe the failure and the owner can trace its cause.

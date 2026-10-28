@@ -3,13 +3,29 @@
 set -eu
 root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 cd "$root"
-usage() { echo 'Usage: scripts/verify [all|plugin [--strict] [--lint-only]]' >&2; exit 1; }
+usage() {
+  printf '%s\n' \
+    'Usage: scripts/verify [all]' \
+    '       scripts/verify plugin [--strict] [--lint-only] [--model SELECTOR]' \
+    '' \
+    'all: maintained tests and structural lint; no OMP installation.' \
+    'plugin: maintained tests and isolated OMP install/discovery proof.' \
+    '' \
+    'Plugin-only options:' \
+    '  --strict       Fail on dangling skill references.' \
+    '  --lint-only    Skip OMP installation explicitly (CI structural proof only).' \
+    '  --model VALUE  RPC model selector; defaults to the configured OMP smol role.' \
+    '' \
+    '-h, --help: show this help. The RPC proof makes no model inference request.'
+}
+bad_usage() { usage >&2; exit 1; }
 selection=${1:-all}
 if [ "$#" -gt 0 ]; then shift; fi
 case "$selection" in
-  all) [ "$#" -eq 0 ] || usage; set -- --lint-only ;;
+  all) [ "$#" -eq 0 ] || bad_usage; set -- --lint-only ;;
   plugin) ;;
-  *) usage ;;
+  -h|--help) [ "$#" -eq 0 ] || bad_usage; usage; exit 0 ;;
+  *) bad_usage ;;
 esac
 for tool in git bun python3; do
   command -v "$tool" >/dev/null 2>&1 || { echo "$tool is required" >&2; exit 1; }

@@ -21,4 +21,4 @@ Measure depth by hidden complexity relative to interface cost. A one-caller wrap
 
 Keep clear local code when an abstraction would add indirection without removing repeated rules, branches or invalid states.
 
-Done when callers express their intent with fewer concepts and the consumer contract still passes. Label claimed improvements measured, inferred or guess.
+Done when callers express their intent with fewer concepts and the consumer contract still passes.

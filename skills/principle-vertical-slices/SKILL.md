@@ -15,10 +15,10 @@ Shape the whole initiative's value before splitting it. A small unit improves it
 
 Give each unit an outside Oracle, a bounded diff and a concrete risk check. Carry its independent review through `skill://ship-loop`.
 
-Sequence actual dependencies. Dispatch independent artifacts through OMP's `task` tool with isolated worktrees and one writer per branch.
+Sequence actual dependencies. Dispatch independent artifacts through misty's delegation boundary.
 
 Order commits so the argument can be replayed: behavior pin before reshape, failing check before repair, proven shared primitive before its consumers.
 
 Start with one complete useful path, prove it and then scale the demonstrated method. Infrastructure alone earns a slice only when it provides a usable consumer contract.
 
-Done when every proposed unit is worth merging alone and has its own proof. Label claimed value measured, inferred or guess.
+Done when every proposed unit is worth merging alone and has its own proof.

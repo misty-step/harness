@@ -21,4 +21,4 @@ For a replacement, inventory code, strings, tests, links and generated inputs; m
 
 Preserve an external compatibility contract only when it is genuinely promised; name that contract rather than keeping an accidental internal alias.
 
-Done when a fact can change in one owned place and all consumers use it. Prove the migrated consumer path; label the result measured, inferred or guess.
+Done when a fact can change in one owned place and all consumers use it, and the migrated consumer path passes.

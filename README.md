@@ -52,12 +52,16 @@ live in [USER_STORIES.md](USER_STORIES.md). Maintainers start at
 ```sh
 ./scripts/bootstrap
 ./scripts/check
-./scripts/check plugin
+./scripts/check plugin --strict
 ```
 
-`check` runs the maintained test suites and plugin lint sequentially. The
-`plugin` selection also installs into an isolated OMP home and observes a fresh
-session; it requires OMP. Follow
+`check` runs the maintained test suites and plugin lint sequentially. CI runs
+`./scripts/check plugin --strict --lint-only`: dangling `skill://` references
+fail, and installation is explicitly unproved. The full `plugin --strict`
+selection also installs into an isolated OMP home and observes a fresh session;
+it requires OMP. Its inference-free RPC proof resolves the configured OMP `smol`
+model role; use the plugin-only `--model SELECTOR` option to override it. Run
+`./scripts/check --help` for the plugin-only flags and
 [verify-mistystack](.agents/skills/verify-mistystack/SKILL.md) for the real consumer
 proof. No check installs into the operator's live profile.
 

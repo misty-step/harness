@@ -25,17 +25,23 @@ not proof that the plugin loaded.
    ```
    Require exit 0 for plugin structure, skill behavior, protected-release and
    trufflehog-gate tests. Confirm ship-loop's behavioral tests ran, including its
-   native PR-ledger and bounded-fix-round contracts. CI runs this same bounded
-   gate; lint-only output explicitly leaves installation unproved. When
+   native PR-ledger and bounded-fix-round contracts. CI runs
+   `./scripts/check plugin --strict --lint-only` for strict references and the same
+   maintained tests; its explicit install skip is structural evidence only. When
    `LANDMARK_BIN` is available, retain the real release-replay result separately
-   from any skipped optional replay.
+   from any skipped optional replay. `./scripts/check --help` identifies the
+   plugin-only flags.
 3. **Install and load.** With native OMP available, run:
    ```sh
-   ./scripts/check plugin
+   ./scripts/check plugin --strict
    ```
    The maintained helper creates a disposable home and project, checks that
    `omp config path` resolves inside that home, installs the candidate through
    its native marketplace, and starts a fresh RPC session without inference.
+   The model selector comes from the existing OMP `smol` role, read before
+   isolation; plugin-only `--model SELECTOR` supplies an explicit override.
+   A missing OMP executable, strict lint failure or escaping config path fails
+   the command; isolation refusal occurs before marketplace or install commands.
    Require the observed system prompt to contain the installed always-on core
    and list `misty`. Require `skill://misty` to read the candidate body and an
    indexed principle leaf to remain readable while hidden from the model's

@@ -21,4 +21,4 @@ Use the frontmatter convention in `skill://misty/playbooks/authoring-a-skill.md`
 
 Follow `skill://misty/playbooks/eval.md`: old/current, slimmer candidate and none, blind grading from transcripts. Keep the slimmer version only when it beats both alternatives; response length is not a score.
 
-Done when evidence supports keeping the instruction; otherwise consolidate or delete it. Label the decision measured, inferred or guess.
+Done when evidence supports keeping the instruction; otherwise consolidate or delete it.

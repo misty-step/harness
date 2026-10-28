@@ -15,10 +15,12 @@ Keep the assigned outcome active until its Oracle passes or the exact external b
 
 A phase boundary, plan or delegated result is intermediate state. Integrate it and continue to the user's deliverable.
 
+Leave the owner no manual execution steps. Use direct automation, then computer use when it falls short; reserve genuinely owner-only decisions or access for the core's ask-first boundary.
+
 Keep work in progress within capacity. Finish the current assignment before opening unrelated work; keep children inside their briefs.
 
 When blocked, exhaust available sources, ask one precise question for the blocked part and finish everything else. Carry settled authorization forward under misty's autonomy rules.
 
 Converge on the target architecture instead of preserving throwaway compatibility paths. Declare reversible migration boundaries and prove the complete result.
 
-Done when every named acceptance criterion is met or explicitly unproven with its missing prerequisite. Report measured, inferred or guess claims, not a promise to resume.
+Done when every named acceptance criterion is met or explicitly unproven with its missing prerequisite, not a promise to resume.

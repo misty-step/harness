@@ -32,6 +32,9 @@ export function lintPlugin(root: string, strict = false) {
 			const name = basename(dirname(file));
 			if (frontmatter.name !== name) errors.push(`${file}: name must equal directory ${name}`);
 			if (!nonempty(frontmatter.description)) errors.push(`${file}: description must be non-empty`);
+			if (name.startsWith("principle-") && frontmatter["disable-model-invocation"] !== true) {
+				errors.push(`${file}: disable-model-invocation must be true`);
+			}
 			const metadata = isRecord(frontmatter.metadata) ? frontmatter.metadata : {};
 			for (const key of ["owner", "prevents", "source", "sunset"]) {
 				if (!nonempty(metadata[key])) errors.push(`${file}: metadata.${key} must be non-empty`);
@@ -52,7 +55,7 @@ export function lintPlugin(root: string, strict = false) {
 
 	if (!existsSync(join(root, "skills/misty/SKILL.md"))) errors.push("skills/misty/SKILL.md: missing router");
 	const references = new Map<string, string>();
-	for (const file of new Bun.Glob("skills/misty/**/*.md").scanSync({ cwd: root })) {
+	for (const file of new Bun.Glob("skills/**/*.md").scanSync({ cwd: root })) {
 		const text = readFileSync(join(root, file), "utf8");
 		for (const match of text.matchAll(/skill:\/\/([a-z0-9-]+)(\/[^\s`)<>#]+)?/g)) {
 			const target = join("skills", match[1], match[2]?.slice(1) || "SKILL.md");
@@ -89,7 +92,7 @@ function checked(command: string[], cwd: string, env: NodeJS.ProcessEnv, input?:
 	return result.stdout.toString();
 }
 
-export function verifyInstall(root: string, omp: string) {
+export function verifyInstall(root: string, omp: string, model: string) {
 	const scratchRoot = join(homedir(), ".cache/tmp");
 	mkdirSync(scratchRoot, { recursive: true });
 	const scratch = mkdtempSync(join(scratchRoot, "mistystack-plugin-"));
@@ -120,7 +123,7 @@ export function verifyInstall(root: string, omp: string) {
 		console.log(checked([omp, "plugin", "install", "--scope", "user", "mistystack@mistystack"], project, env).trim());
 		const output = checked([
 			omp, "launch", "--mode", "rpc", "--no-session", "--no-title", "--no-lsp", "--no-extensions",
-			"--no-context-files", "--tools", "read", "--model", "openrouter/google/gemini-2.5-flash-lite",
+			"--no-context-files", "--tools", "read", "--model", model,
 		], project, env, '{"id":"plugin-proof","type":"get_state"}\n');
 		const frames = output.split("\n").filter(line => line.startsWith("{")).map(line => JSON.parse(line));
 		const response = frames.find(frame => frame.type === "response" && frame.id === "plugin-proof");
@@ -162,14 +165,29 @@ export function verifyInstall(root: string, omp: string) {
 if (import.meta.main) {
 	try {
 		const flags = process.argv.slice(2);
-		if (flags.some(flag => !["--strict", "--lint-only"].includes(flag))) {
-			throw new Error("Usage: scripts/verify plugin [--strict] [--lint-only]");
+		const usage = "Usage: scripts/verify plugin [--strict] [--lint-only] [--model SELECTOR]";
+		let strict = false;
+		let lintOnly = false;
+		let model: string | undefined;
+		for (let index = 0; index < flags.length; index++) {
+			switch (flags[index]) {
+				case "--strict": strict = true; break;
+				case "--lint-only": lintOnly = true; break;
+				case "--model":
+					model = flags[++index];
+					if (!model || model.startsWith("--")) throw new Error(usage);
+					break;
+				case "--help":
+				case "-h":
+					console.log(`${usage}\nAll options are plugin-only; --lint-only skips installation. The RPC model defaults to OMP's smol role; --model overrides it without inference.`);
+					process.exit(0);
+				default: throw new Error(usage);
+			}
 		}
 		const root = resolve(import.meta.dir, "..");
-		const lintOnly = flags.includes("--lint-only");
 		const omp = lintOnly ? undefined : Bun.which("omp");
 		if (!lintOnly && !omp) throw new Error("omp is required for plugin verification; --lint-only explicitly skips the isolated install");
-		const report = lintPlugin(root, flags.includes("--strict"));
+		const report = lintPlugin(root, strict);
 		for (const warning of report.warnings) console.warn(`WARNING: ${warning}`);
 		for (const error of report.errors) console.error(`ERROR: ${error}`);
 		console.log(`Plugin structure: ${report.skillCount} skills, ${report.errors.length} errors, ${report.warnings.length} warnings`);
@@ -179,7 +197,16 @@ if (import.meta.main) {
 		});
 		if (!tests.success) process.exit(tests.exitCode || 1);
 		if (lintOnly) console.log("Isolated install: skipped explicitly (--lint-only)");
-		else verifyInstall(root, omp!);
+		else {
+			if (model === undefined) {
+				const config: unknown = JSON.parse(checked([omp!, "config", "get", "modelRoles", "--json"], root, process.env));
+				const roles = isRecord(config) && isRecord(config.value) ? config.value : {};
+				if (!nonempty(roles.smol)) throw new Error("Configure OMP's modelRoles.smol or pass plugin --model SELECTOR for the inference-free RPC proof");
+				model = roles.smol;
+				console.log("RPC model: resolved from OMP's smol role (no inference)");
+			}
+			verifyInstall(root, omp!, model);
+		}
 		console.log("Verification complete: plugin");
 	} catch (error) {
 		console.error(error instanceof Error ? error.message : String(error));

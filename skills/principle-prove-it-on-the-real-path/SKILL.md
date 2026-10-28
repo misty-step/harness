@@ -21,4 +21,4 @@ Exercise affected success, rejection and recovery. Retain one primary proof per 
 
 A missing required check leaves the result unproven. Report the exact limit rather than replacing the Oracle with an easier check.
 
-Done when the original real path passes and the linked observation identifies the checked revision. Label the result measured, inferred or guess.
+Done when the original real path passes and the linked observation identifies the checked revision.
