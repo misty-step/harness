@@ -20,29 +20,6 @@ legacy_profiles=(builder judge qa release researcher reviewer)
 export PATH="$HOME/.local/bin:$PATH"
 
 hset() { "$HERMES" -p default config set "$1" "$2" >/dev/null; }
-# First-boot list defaults add missing entries; existing choices are not reset.
-hseed_list() {
-  local merged
-  merged=$(python3 - "$HERMES" "$1" "$2" <<'PY'
-import json
-import subprocess
-import sys
-
-hermes, key, defaults = sys.argv[1:]
-result = subprocess.run([hermes, "-p", "default", "config", "get", key, "--json"],
-                        capture_output=True, text=True)
-if result.returncode == 1 and result.stderr.strip() == f"Config key not set: {key}":
-    current = []  # A fresh Hermes home need not have per-platform lists yet.
-else:
-    if result.returncode:
-        sys.stderr.write(result.stderr)
-        result.check_returncode()
-    current = json.loads(result.stdout)
-print(json.dumps(current + [item for item in json.loads(defaults) if item not in current]))
-PY
-)
-  hset "$1" "$merged"
-}
 say() { printf 'install-kaylee: %s\n' "$*"; }
 
 [[ -x $HERMES ]] || { echo "install-kaylee: hermes not found at $HERMES" >&2; exit 1; }
@@ -116,12 +93,38 @@ else
   hset skills.creation_nudge_interval 10
   hset skills.disabled '["codebase-inspection","dogfood","github","inspecting-hermes-desktop-dom","node-inspect-debugger","python-debugpy","requesting-code-review","simplify-code","spike","systematic-debugging","test-driven-development"]'
 
-  # Tool selection is Kaylee's to evolve, except native delegation, which the
-  # boundary merge below removes on every run.
-  hseed_list agent.disabled_toolsets '["delegation","code_execution","file","computer_use","browser","discord_admin","kanban"]'
-  hseed_list platform_toolsets.cli '["terminal","skills","session_search","todo","web","clarify","cronjob","memory"]'
-  hseed_list platform_toolsets.discord '["terminal","skills","session_search","todo","web","clarify","cronjob","discord","memory"]'
-  hseed_list platform_toolsets.cron '["terminal","skills","session_search","todo","web"]'
+  # Merge first-boot choices, but enable the seeded tools even on a base-built
+  # host whose disabled list still contains memory. Marked homes skip this.
+  python3 - "$HERMES" <<'PY'
+import json
+import subprocess
+import sys
+
+hermes = [sys.argv[1], "-p", "default", "config"]
+platform_seeds = {
+    "cli": ["terminal", "skills", "session_search", "todo", "web", "clarify", "cronjob", "memory"],
+    "discord": ["terminal", "skills", "session_search", "todo", "web", "clarify", "cronjob", "discord", "memory"],
+    "cron": ["terminal", "skills", "session_search", "todo", "web"],
+}
+enabled = {toolset for toolsets in platform_seeds.values() for toolset in toolsets}
+seeds = {
+    "agent.disabled_toolsets": ["delegation", "code_execution", "file", "computer_use", "browser", "discord_admin", "kanban"],
+    **{f"platform_toolsets.{platform}": toolsets for platform, toolsets in platform_seeds.items()},
+}
+for key, defaults in seeds.items():
+    result = subprocess.run([*hermes, "get", key, "--json"], capture_output=True, text=True)
+    if result.returncode == 1 and result.stderr.strip() == f"Config key not set: {key}":
+        current = []  # Fresh homes need not have per-platform lists yet.
+    else:
+        if result.returncode:
+            sys.stderr.write(result.stderr)
+            result.check_returncode()
+        current = json.loads(result.stdout)
+    merged = current + [item for item in defaults if item not in current]
+    if key == "agent.disabled_toolsets":
+        merged = [item for item in merged if item not in enabled]
+    subprocess.run([*hermes, "set", key, json.dumps(merged)], check=True, stdout=subprocess.DEVNULL)
+PY
   touch "$seed_marker"
   say "seeded identity and learning config"
 fi

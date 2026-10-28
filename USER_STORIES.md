@@ -258,12 +258,14 @@ Criteria:
 4. WHILE Kaylee runs, THE SYSTEM SHALL keep native Hermes delegation and Kanban
    dispatch off, approvals enforced and Discord owner-only, with Daybook as her
    shared context and Hermes memory as her working memory.
-5. WHEN installed on a fresh host, THE SYSTEM SHALL seed Kaylee's SOUL, copied
-   operating manual, skills and identity/learning config with memory and learning
-   enabled. WHEN rerun, THE SYSTEM SHALL preserve her existing files, skills,
-   routines and seeded config while enforcing Phaedrus's boundaries and supplying
-   missing tooling and jobs. Kaylee owns and evolves the seeded state
-   ([#543](https://github.com/misty-step/mistystack/issues/543)).
+5. WHEN installed on a fresh host or an unseeded base-built host, THE SYSTEM SHALL
+   seed Kaylee's SOUL, copied operating manual, skills and identity/learning
+   config with memory and learning enabled, removing seeded-enabled toolsets
+   from the disabled list. WHEN rerun, THE SYSTEM SHALL preserve her existing
+   files, skills, routines and seeded config while enforcing Phaedrus's boundaries
+   and supplying missing tooling and jobs. Kaylee owns and evolves the seeded
+   state ([#543](https://github.com/misty-step/mistystack/issues/543),
+   [#554](https://github.com/misty-step/mistystack/issues/554)).
 
 No-gos: no engineering agents on the factory host; no paid fallback; no
 credential values in briefs, transcripts, snapshots or Git.

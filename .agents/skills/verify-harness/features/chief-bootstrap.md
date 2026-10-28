@@ -22,7 +22,7 @@ PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s agent-config/chief -p 
 The regression drive runs the real installer and its worker/cron installers in
 temporary HOME and HERMES_HOME directories, with stub Hermes, Boat, Daybook,
 sudo and systemctl commands. No real Hermes home, credentials or services are
-touched. Expect eight passing cases:
+touched. Expect ten passing cases:
 
 - An absent HERMES_HOME gets SOUL, a regular copied AGENTS.md, every skill,
   memory/profile enabled, both nudges at 10, memory tools on CLI/Discord, skill
@@ -40,6 +40,10 @@ touched. Expect eight passing cases:
   boundary merge. On rerun, an emptied disabled list gains `delegation`; CLI,
   Discord, cron and a custom platform lose only `delegation`, retaining other
   entries in their original order.
+- A home with the exact base installer's (`c7041c1`) toolset config and no marker
+  gains memory on CLI/Discord and loses `memory` from `agent.disabled_toolsets`.
+  Conflicts with every other seeded-enabled toolset are removed too; unrelated
+  disabled entries retain their order and duplicates.
 
 `$HERMES_HOME/.kaylee-seeded` records completed identity/learning config seeding;
 without it, the next install seeds that config once, even on an existing host.
@@ -51,11 +55,15 @@ matches that installed Hermes; older or otherwise differing text is kept
 conservatively. SOUL symlinks are never followed by this comparison.
 
 Personality, prompts, memory and skill-learning settings belong to Kaylee after
-seeding. First-boot toolset defaults merge into existing lists. Every run adds
-`delegation` to `agent.disabled_toolsets` if absent and removes it from every
-`platform_toolsets.*` list, preserving all other entries, including custom
-platform choices. Other toolsets, including `file` and `code_execution`, are
-Kaylee-owned after seeding. The always-enforced keys remain
+seeding. First-boot toolset defaults merge into existing lists, then every
+toolset enabled by the platform seeds is removed from `agent.disabled_toolsets`.
+On a base-built, unmarked host this removes the old `memory` disable and makes
+the memory tool usable, rather than only enabling its config. Unrelated choices
+and their order survive. Once marked, even Kaylee's decision to disable memory
+is preserved. Every run adds `delegation` to `agent.disabled_toolsets` if absent
+and removes it from every `platform_toolsets.*` list, preserving all other
+entries, including custom platform choices. Other toolsets, including `file`
+and `code_execution`, are Kaylee-owned after seeding. The always-enforced keys remain
 `delegation.backend`, `delegation.backends`, `plugins.enabled`, `plugins.disabled`,
 `kanban.dispatch_in_gateway`, `kanban.review_dispatch`, `kanban.auto_decompose`,
 `kanban.dispatch_profiles`, `gateway.allow_all_users`,
@@ -66,14 +74,25 @@ refresh defaults.
 
 Also drive a real installed Hermes in a throwaway HOME/HERMES_HOME, with Boat,
 Daybook, sudo and systemctl stubbed as in the regression fixture. Leave live
-homes, services and credentials untouched. Run `hermes -p default config set
-display.personality ''` first; confirm it creates the Hermes-default SOUL, then
-run the installer and compare SOUL with Kaylee's seed. Run `hermes -p default
+homes, services and credentials untouched. Use Hermes v0.22.5 for the base-built
+cutover: initialise config, run the `c7041c1` base installer from a disposable
+source checkout, confirm no `.kaylee-seeded`, then run the candidate installer.
+Retain actual output from `hermes -p default tools list --platform discord`
+(memory enabled) and `hermes -p default config get agent.disabled_toolsets
+--json` (no memory, delegation present).
+
+In another throwaway home, run `hermes -p default config set display.personality
+''`; confirm it creates the Hermes-default SOUL, then run the installer and
+compare SOUL with Kaylee's seed. Repeat with a customised SOUL and working/dangling
+SOUL symlinks; expect unchanged bytes/targets and `kept`. Run `hermes -p default
 tools enable --platform discord delegation`, add another platform choice such
 as `browser`, clear `agent.disabled_toolsets`, and rerun the installer. Native
 `hermes -p default config get agent.disabled_toolsets --json` must contain
 `delegation`; `hermes -p default config get platform_toolsets --json` must show
-no delegation on any platform and retain the other choice. No model call or
+no delegation on any platform and retain the other choice and its order. Repeat
+without the marker, allowing only the documented first-boot merges/conflict
+removals. Tamper approvals, allowlist, owner-only gateway, delegation backend and
+Kanban dispatch; rerun and read back their enforced values. No model call or
 gateway restart is needed.
 
 ## Installation and loading

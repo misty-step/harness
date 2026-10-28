@@ -175,7 +175,7 @@ class ChiefSeedTests(unittest.TestCase):
 
     def test_rerun_disables_delegation_without_resetting_tool_choices(self):
         self.install()
-        for disabled in ([], ["file", "kanban"]):
+        for disabled in ([], ["file", "memory", "terminal", "kanban", "memory"]):
             with self.subTest(disabled=disabled):
                 config = self.config()
                 config["agent.disabled_toolsets"] = json.dumps(disabled)
@@ -194,6 +194,50 @@ class ChiefSeedTests(unittest.TestCase):
                 for platform, toolsets in platforms.items():
                     self.assertEqual(json.loads(after[f"platform_toolsets.{platform}"]),
                                      [toolset for toolset in toolsets if toolset != "delegation"])
+
+    def test_base_built_home_enables_seeded_toolsets(self):
+        self.hermes.mkdir()
+        # Exact toolset/learning shape written by c7041c1 install-kaylee.sh.
+        config = {
+            "agent.disabled_toolsets": '["delegation","code_execution","file","computer_use","browser","discord_admin","kanban","memory"]',
+            "platform_toolsets.cli": '["terminal","skills","session_search","todo","web","clarify","cronjob"]',
+            "platform_toolsets.discord": '["terminal","skills","session_search","todo","web","clarify","cronjob","discord"]',
+            "platform_toolsets.cron": '["terminal","skills","session_search","todo","web"]',
+            "memory.memory_enabled": "false",
+            "memory.user_profile_enabled": "false",
+            "memory.nudge_interval": "0",
+            "skills.creation_nudge_interval": "0",
+        }
+        (self.hermes / "config.json").write_text(json.dumps(config))
+        self.assertFalse((self.hermes / ".kaylee-seeded").exists())
+        self.install()
+        after = self.config()
+        disabled = json.loads(after["agent.disabled_toolsets"])
+        self.assertEqual(disabled, [
+            "delegation", "code_execution", "file", "computer_use",
+            "browser", "discord_admin", "kanban",
+        ])
+        for platform in ("cli", "discord"):
+            enabled = json.loads(after[f"platform_toolsets.{platform}"])
+            self.assertIn("memory", enabled)
+            self.assertTrue(set(enabled).isdisjoint(disabled))
+        self.assertEqual(after["memory.memory_enabled"], "true")
+        self.assertEqual(after["memory.user_profile_enabled"], "true")
+
+    def test_first_boot_resolves_all_seeded_enable_disable_conflicts(self):
+        self.hermes.mkdir()
+        disabled = [
+            "custom", "memory", "terminal", "skills", "session_search", "todo",
+            "web", "clarify", "cronjob", "discord", "custom",
+        ]
+        (self.hermes / "config.json").write_text(json.dumps({
+            "agent.disabled_toolsets": json.dumps(disabled),
+        }))
+        self.install()
+        self.assertEqual(json.loads(self.config()["agent.disabled_toolsets"]), [
+            "custom", "custom", "delegation", "code_execution", "file",
+            "computer_use", "browser", "discord_admin", "kanban",
+        ])
 
     def test_unmarked_home_merges_tool_choices_and_disables_delegation(self):
         self.hermes.mkdir()
