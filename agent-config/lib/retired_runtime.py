@@ -142,7 +142,7 @@ def retire(home, check=False):
             fragment = info.get("FragmentPath", "")
             if info.get("DropInPaths"):
                 raise RuntimeError(f"foreign loaded drop-ins for {name}; runtime files preserved")
-            if fragment and Path(fragment).resolve() not in unit_paths and fragment != "/dev/null":
+            if fragment and Path(fragment).resolve() not in unit_paths | {Path("/dev/null")}:
                 raise RuntimeError(f"foreign loaded unit for {name}; runtime files preserved")
             if name in timer_names and not fragment:
                 raise RuntimeError(f"cannot prove loaded timer ownership for {name}; runtime files preserved")
