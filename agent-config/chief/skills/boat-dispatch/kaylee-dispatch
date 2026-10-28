@@ -25,6 +25,9 @@ list reads Boat and each VM, not a second attempt ledger. Stopped runs are
 read from their last snapshot, marked as such; they may be interrupted.
 result requires an exit-code and prints final assistant text plus PR URLs; on a
 live VM they are computed there over one ssh call, so worker.jsonl is not copied.
+Live result prints only after SSH succeeds; failures leave stdout empty and retain
+the VM. Remote render errors keep their diagnostic and status (1: no exit-code,
+2: missing worker.jsonl, 5: jq render error); SSH transport failures exit 255.
 logs shows JSONL and stderr tails (default 30 lines).
 finish collects into ~/.local/state/kaylee/runs/ID, disables its tunnel, and
 deletes the VM. Live collection copies only regular report files: metadata.json,
@@ -318,8 +321,16 @@ CLONE
     [[ $# -eq 1 ]] || die 'Usage: kaylee-dispatch result ID'
     require_worker "$1"
     if is_up; then
-      { printf 'set -euo pipefail\n'; declare -f die render_report; printf 'render_report "$HOME/run"\n'; } \
-        | boat ssh "$id" 'bash -s' || die "No result for $id"
+      if { printf 'set -euo pipefail\n'; declare -f die render_report; printf 'render_report "$HOME/run"\n'; } \
+        | boat ssh "$id" 'bash -s' > "$scratch/report"; then
+        cat "$scratch/report"
+      else
+        code=$?
+        if [[ "$code" -eq 255 ]]; then
+          printf 'kaylee-dispatch: Could not read result for %s over SSH; VM retained\n' "$id" >&2
+        fi
+        exit "$code"
+      fi
     else
       collect_run "$scratch/result"
       render_report "$run_dir"

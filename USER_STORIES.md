@@ -257,6 +257,10 @@ Criteria:
    and delete the VM.
 4. WHILE Kaylee runs, THE SYSTEM SHALL keep Hermes private memory, native
    delegation and Kanban dispatch off, with Daybook as her shared context.
+5. WHEN Kaylee reads a live worker result, THE SYSTEM SHALL publish the report
+   only after successful SSH rendering; on failure it SHALL leave stdout empty,
+   surface the diagnostic with a nonzero exit and retain the VM
+   ([#557](https://github.com/misty-step/mistystack/issues/557)).
 
 No-gos: no engineering agents on the factory host; no paid fallback; no
 credential values in briefs, transcripts, snapshots or Git.

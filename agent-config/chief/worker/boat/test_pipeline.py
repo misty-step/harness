@@ -42,7 +42,7 @@ elif args[0] == "ssh":
     done = subprocess.run(["bash", "-c", remote], cwd=home, input=payload,
                           env=dict(os.environ, HOME=str(home)), capture_output=True)
     output, code = done.stdout, done.returncode
-    if "SSH_DROP_AFTER" in os.environ and b"tar -c" in payload:
+    if "SSH_DROP_AFTER" in os.environ and (b"tar -c" in payload or b"render_report" in payload):
         output, code = output[:int(os.environ["SSH_DROP_AFTER"])], 255
         sys.stderr.write("Connection closed by remote host\n")
     with open(os.environ["CALLS"] + ".transfers", "a") as transfers:
@@ -261,11 +261,58 @@ class PipelineLifecycleTests(unittest.TestCase):
         transfers = [json.loads(line) for line in Path(str(self.calls) + ".transfers").read_text().splitlines()]
         self.assertEqual(transfers, [{"kind": "ssh", "bytes": len(result.stdout.encode())}])
 
+    def test_live_result_discards_output_when_ssh_drops(self):
+        self.make_run({"worker.jsonl": json.dumps({"type": "message_end", "message": {
+            "role": "assistant", "content": [{"type": "text",
+                "text": "final https://github.com/o/r/pull/7"}]}}) + "\n"}, exit_code="143\n")
+        for cut in ("40", "999999"):
+            with self.subTest(cut=cut):
+                self.calls.write_text("")
+                result = self.run_dispatch("result", SANDBOX, SSH_DROP_AFTER=cut)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertEqual(result.stdout, "")
+                self.assertIn("SSH", result.stderr)
+                self.assertIn("Connection closed by remote host", result.stderr)
+                self.assertEqual(self.recorded_calls(),
+                                 [["boat", "info", SANDBOX, "--json"],
+                                  ["boat", "ssh", SANDBOX, "bash -s"]])
+
+    def test_live_result_discards_output_and_reports_render_failure_once(self):
+        report = json.dumps({"type": "message_end", "message": {
+            "role": "assistant", "content": [{"type": "text", "text": "final"}]}}).encode()
+        run = self.make_run()
+        cases = [
+            ("no assistant report", b"", 5),
+            ("malformed JSONL", report + b"\nnot-json\n", 5),
+            ("truncated JSONL", report + b'\n{"type":', 5),
+            ("invalid UTF-8 JSONL", report + b"\n\xff\n", 5),
+            ("non-string text", report.replace(b'"final"', b'{}'), 5),
+            ("missing worker.jsonl", None, 2),
+        ]
+        for case, content, code in cases:
+            with self.subTest(case=case):
+                worker = run / "worker.jsonl"
+                if content is None:
+                    worker.unlink()
+                else:
+                    worker.write_bytes(content)
+                self.calls.write_text("")
+                result = self.run_dispatch("result", SANDBOX)
+                self.assertEqual(result.returncode, code, result.stderr)
+                self.assertEqual(result.stdout, "")
+                self.assertIn("jq:", result.stderr)
+                self.assertNotIn("kaylee-dispatch:", result.stderr)
+                self.assertEqual(self.recorded_calls(),
+                                 [["boat", "info", SANDBOX, "--json"],
+                                  ["boat", "ssh", SANDBOX, "bash -s"]])
+
     def test_live_result_requires_exit_code(self):
         self.make_run(exit_code=None)
         result = self.run_dispatch("result", SANDBOX)
-        self.assertNotEqual(result.returncode, 0)
-        self.assertIn("no exit-code", result.stderr)
+        self.assertEqual(result.returncode, 1, result.stderr)
+        self.assertEqual(result.stdout, "")
+        self.assertEqual(result.stderr.count("no exit-code"), 1, result.stderr)
+        self.assertEqual(result.stderr.count("kaylee-dispatch:"), 1, result.stderr)
 
     def snapshot_paths(self):
         pulls = [c for c in self.recorded_calls() if c[:3] == ["boat", "snapshot", "pull"]]
