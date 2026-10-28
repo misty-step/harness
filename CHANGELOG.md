@@ -1,3 +1,9 @@
+# [0.2.48](https://github.com/misty-step/mistystack/compare/v0.2.47...v0.2.48) (2026-10-28)
+<!-- landmark:protected-release previous=v0.2.47 source=9d8b39db99f1d7627a92b381554b7cf8b8881e032b07212e8ac209832f712740 -->
+
+### Bug Fixes
+
+* **chief:** publish live results only after successful SSH render (#564) ([51c79d2](https://github.com/misty-step/mistystack/commit/51c79d20ef3a560784fefe3ab78682e6daecd204))
 # [0.2.47](https://github.com/misty-step/mistystack/compare/v0.2.46...v0.2.47) (2026-10-28)
 <!-- landmark:protected-release previous=v0.2.46 source=b86ba0215b6b0b3e8281acf897aa3827f39e6074c50eb3f592bb3a5dcd3595e0 -->
 
