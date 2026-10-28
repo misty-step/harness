@@ -336,7 +336,7 @@ done
 claude_home="$work/claude-home"
 claude="$claude_home/.claude"
 mkdir -p "$claude/skills/foreign" "$claude/skills/lage" "$claude_home/.fixture-bin"
-# A private HOME has no systemd user manager. Record only this timer's control.
+# A private HOME has no systemd user manager. Record any unexpected unit calls.
 printf '#!/bin/sh\n[ "$*" != "--user show-environment" ] || exit 0\nprintf "%%s\\n" "$*" >> "$HOME/systemctl-calls"\n' > "$claude_home/.fixture-bin/systemctl"
 chmod 700 "$claude_home/.fixture-bin/systemctl"
 printf 'foreign skill sentinel\n' > "$claude/skills/foreign/SKILL.md"
@@ -355,13 +355,15 @@ else
   cat "$work/claude.log" >&2
   failures=$((failures + 1))
 fi
-check "claude canonical shared daybook skill" cmp -s "$work/source/agent-config/skills/daybook-sync/SKILL.md" "$claude_home/.agents/skills/daybook-sync/SKILL.md"
+for skill in daybook-sync heartbeat lage; do
+  check "claude canonical shared $skill skill" cmp -s "$work/source/agent-config/skills/$skill/SKILL.md" "$claude_home/.agents/skills/$skill/SKILL.md"
+done
 check "claude daybook-sync executable" test -x "$claude_home/.local/bin/daybook-sync"
 check "claude daybook-sync bytes" cmp -s "$work/source/agent-config/bin/daybook-sync" "$claude_home/.local/bin/daybook-sync"
 check "claude daybook-sync CLI" "$claude_home/.local/bin/daybook-sync" --help
 check "claude remote-run executable" test -x "$claude_home/.local/bin/remote-run"
 check "claude remote-run CLI" "$claude_home/.local/bin/remote-run" --help
-for skill in lage ship-loop judge release-watch heartbeat lane-succession story-qa pokayoke user-stories authenticated-commands daybook-sync remote-execution; do
+for skill in lage ship-loop judge release-watch heartbeat story-qa pokayoke user-stories authenticated-commands daybook-sync remote-execution; do
   check "claude $skill skill bytes" cmp -s "$work/source/agent-config/skills/$skill/SKILL.md" "$claude/skills/$skill/SKILL.md"
 done
 check "claude release-watch package bytes" diff -r "$work/source/agent-config/skills/release-watch" "$claude/skills/release-watch"
@@ -403,18 +405,6 @@ check "claude composition" cmp -s "$expected" "$claude/AGENTS.md"
 check "claude canonical content" test ! -L "$claude/AGENTS.md"
 check "claude has no legacy instruction entry" test ! -e "$claude/CLAUDE.md"
 check "claude has no legacy instruction symlink" test ! -L "$claude/CLAUDE.md"
-check "claude pool executable" test -x "$claude_home/.local/bin/t3-pool"
-for pair in pools.json:.config/t3-pool.json t3-pool.service:.config/systemd/user/t3-pool.service t3-pool.timer:.config/systemd/user/t3-pool.timer; do
-  check "claude pool ${pair%%:*} bytes" cmp -s "$work/source/agent-config/t3-pool/${pair%%:*}" "$claude_home/${pair#*:}"
-done
-check "claude reloads user units" grep -Fxq -- '--user daemon-reload' "$claude_home/systemctl-calls"
-check "claude leaves pool activation opt-in" test "$(cat "$claude_home/systemctl-calls")" = '--user daemon-reload'
-if env -i PATH="$PATH" HOME="$claude_home" "$claude_home/.local/bin/t3-pool" --dry-run > "$work/claude-pool-dry-run"; then
-  check "claude bundled pool needs no source or live database" grep -Fq '"planned":0' "$work/claude-pool-dry-run"
-else
-  printf 'FAIL claude bundled pool dry run\n' >&2
-  failures=$((failures + 1))
-fi
 # A rerun replaces canonical AGENTS.md and leaves no legacy alias.
 cp "$claude/settings.json" "$work/claude-settings-before-rerun"
 if env -i PATH="$claude_home/.fixture-bin:$PATH" HOME="$claude_home" TMPDIR="$work" \
@@ -504,13 +494,15 @@ else
   cat "$work/codex.log" >&2
   failures=$((failures + 1))
 fi
-check "codex canonical shared daybook skill" cmp -s "$work/source/agent-config/skills/daybook-sync/SKILL.md" "$codex_home/.agents/skills/daybook-sync/SKILL.md"
+for skill in daybook-sync heartbeat lage; do
+  check "codex canonical shared $skill skill" cmp -s "$work/source/agent-config/skills/$skill/SKILL.md" "$codex_home/.agents/skills/$skill/SKILL.md"
+done
 check "codex daybook-sync executable" test -x "$codex_home/.local/bin/daybook-sync"
 check "codex daybook-sync bytes" cmp -s "$work/source/agent-config/bin/daybook-sync" "$codex_home/.local/bin/daybook-sync"
 check "codex daybook-sync CLI" "$codex_home/.local/bin/daybook-sync" --help
 check "codex remote-run executable" test -x "$codex_home/.local/bin/remote-run"
 check "codex remote-run CLI" "$codex_home/.local/bin/remote-run" --help
-for skill in lage ship-loop judge release-watch heartbeat lane-succession story-qa pokayoke user-stories authenticated-commands daybook-sync remote-execution; do
+for skill in lage ship-loop judge release-watch heartbeat story-qa pokayoke user-stories authenticated-commands daybook-sync remote-execution; do
   check "codex $skill skill package" diff -r --exclude=.harness-owned "$work/source/agent-config/skills/$skill" "$codex/skills/$skill"
   check "codex $skill ownership marker" grep -Fxq 'owned by misty-step/harness agent-config' "$codex/skills/$skill/.harness-owned"
 done

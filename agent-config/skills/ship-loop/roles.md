@@ -10,7 +10,7 @@ The helper fills the PR, head SHA, ticket, rigor, findings and eligibility from 
 
 ## Rigor
 
-Classify the changed path, not the repository or initiative. Prefer light rigor for small, reversible, focused PRs; record `Rigor: <light|standard|critical> — <concrete reason>` and the diff size in the PR body. The judge may raise the tier only with a concrete risk. Size is a prompt to check the choice, not permission to ignore a real risk. Global **Merge** and `lane-succession` define the checks-only exceptions for generator-only releases and exact-ID roster-only successions.
+Classify the changed path, not the repository or initiative. Prefer light rigor for small, reversible, focused PRs; record `Rigor: <light|standard|critical> — <concrete reason>` and the diff size in the PR body. The judge may raise the tier only with a concrete risk. Size is a prompt to check the choice, not permission to ignore a real risk. Global **Merge** defines the checks-only exception for generator-only releases.
 
 | Tier | Changed path | Review shape and model class |
 | --- | --- | --- |
@@ -18,11 +18,11 @@ Classify the changed path, not the repository or initiative. Prefer light rigor 
 | standard | Runtime behavior or operational rules with consequences beyond a bounded light change | Separate independent QA and review, then an independent judge; Opus 5.5 high or Sol high. |
 | critical | Concrete changes to authentication, authorization, money, persisted-data integrity, migrations, security controls, deploy behavior, shared-infrastructure runtime or irreversible operations | Separate independent QA and review, then an independent judge; Opus 5.5 high or Sol high. State the actual risk, even for a one-line diff. |
 
-Take an account in the model class that has room by a live `upkeep room` reading (or one tiny probe call), never by a written or relayed claim: an "out" needs a reading under 15 minutes old with its source, and unknown is not zero. Never wait for one route or start reroute-only threads when another has room. Never use claude-hello (reserved for Home), Fable or Astra. Standard speed is the default. Fast mode or xhigh requires a named bottleneck and a reason; critical alone does not require xhigh. All subagents consume the lane's model/effort/speed/reset-sized budget.
+Use a supported native collaboration route in the model class. Read current account limits through the host's native tool or `upkeep room --json` when available; missing or stale quota is unknown. Never wait for an ideal route when another supported route has room. Standard speed is the default. Fast mode or xhigh requires a named bottleneck and a reason; critical alone does not require xhigh. Subagents consume the assigned task's budget.
 
 Use one QA owner per SHA. Extra cross-family QA is only for a stated critical uncertainty, not an automatic duplicate. Light combines QA and review but keeps the judge independent. Only a judge's FIX naming exact eligible blockers authorizes the one fix round, and the helper records that authorization before the builder runs. Only the blocking reporter rechecks those fixes; retain unchanged evidence. New findings become tickets unless the fix introduced them. The final judge rules SHIP with tickets or REVERT / SPLIT; the helper refuses another FIX. Already on main is never a blocker. Ship heuristic features labeled approximate; accuracy is follow-up.
 
-When context gets heavy, prepare a handoff and request a replacement through Home’s inbox for the established Heartbeat executor within Home’s named set.
+When context gets heavy, leave a compact handoff with the current goal, checked revision, evidence, decisions and next step. Continue through the host's native context and collaboration facilities within the assigned scope.
 
 ## Builder
 

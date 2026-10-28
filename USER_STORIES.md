@@ -544,7 +544,7 @@ Criteria:
 3. WHERE speech is explicitly requested, THE SYSTEM SHALL attempt speech and
    report its output or error while retaining the written brief. Ordinary status
    SHALL remain in chat without mandatory/default audio.
-4. WHEN I request lage across agent lanes, THE SYSTEM SHALL give Home a complete
+4. WHEN I request lage across current work, THE SYSTEM SHALL give a complete
    structured result for one compact inline page: decision questions with
    recommendations and waiting costs first, one state/now/next row per lane,
    short shipped outcomes and stuck owners, with supporting detail folded.
@@ -555,7 +555,7 @@ Criteria:
 No-gos: no unrequested project mutations or decisions during a status brief.
 
 Evidence: `agent-config/skills/lage/SKILL.md`,
-`agent-config/skills/lage/result-format.md`, `agent-config/skills/sachstand/SKILL.md`,
+`agent-config/skills/sachstand/SKILL.md`,
 `agent-config/skills/sachstand/scripts/speak.ts`; native online synthesis smoke
 produced a two-second WAV with `--no-play` on 2026-09-24.
 
@@ -683,27 +683,9 @@ Criteria:
    contracts.
 5. WHEN verifying changed guidance, THE ENGINEER SHALL inspect the composed
    instructions and exercise the affected actual consumer.
-6. WHEN new work appears, THE SYSTEM SHALL record a backlog issue. Home
-   SHALL open top-level threads: backlog lanes from groomed, specced items,
-   and its own scratch runners. Home SHALL route roster-succession requests to
-   the existing hourly task’s bound Heartbeat thread. That single native executor
-   SHALL dispatch exact roster-lane successors under `lane-succession` without
-   fresh Home approval, recovering tracked
-   partial dispatches and reporting completion or a blocker once to Home. It
-   SHALL preserve claim, dedupe, route, adoption, abandonment and source/installed
-   readback guards, consume the newest handoff and leave children, parked and
-   unnamed lanes untouched. Machine-generated PRs replacing only the tracked
-   predecessor ID with its claimed successor in `pools.json` `wipRoots`, preserving
-   every other value and roster length/order, SHALL merge on passing checks;
-   authored policy, tests and other config changes SHALL retain ordinary review. Home
-   SHALL explicitly name the active lanes and size that set to model cost,
-   reasoning, speed, remaining allowance and time until reset, with no fixed
-   lane cap. Resume and account pooling SHALL continue only lanes Home names
-   and their children, including named draining lanes; unnamed and backlogged
-   lanes SHALL remain untouched. Process's existing coverage-table verification rollout
-   SHALL run at most three workers concurrently and settle merged or parked
-   workers before starting the next; it SHALL add no repositories or threads
-   beyond that table.
+6. WHEN new work appears, THE SYSTEM SHALL record a backlog issue. Agents SHALL
+   continue the operator's authorized current work through their native client's
+   collaboration and scheduling tools, preserving existing sessions and schedules.
 
 7. WHEN an agent reports or posts to Home, THE PRINCIPAL SHALL receive
    self-contained summaries and clickable, accessible links to everything needed
@@ -737,60 +719,10 @@ and native GitHub evidence remain application capabilities, not harness-managed
 lifecycle. `story-qa` still guides actual affected-path verification; no replacement
 preview service, scheduler or upload credential is introduced.
 
-## US-050 Continue T3 threads across pooled accounts
+## US-050 Account continuation — retired
 
-Statement: When a T3 account reaches its usage limit, I want only maintained
-WIP lanes and their children to continue on another account without switching
-them myself; Home owns any new thread.
-
-Criteria:
-1. WHEN an eligible WIP thread's latest executed run fails at a usage limit within
-   the last 30 minutes, THE SYSTEM SHALL continue it on the least-loaded
-   eligible instance in its Claude or Codex pool, preserving model, options and
-   runtime mode. Superseded work SHALL remain untouched.
-2. WHEN that thread is a delegated child, THE SYSTEM SHALL continue it only
-   through T3's follow-up task, so its result still reaches its parent. A child
-   whose parent has newer work SHALL remain under its parent's recovery.
-3. WHEN every other account in its pool is limited or reserved, THE SYSTEM
-   SHALL move it to another pool with the configured model and effort mapping,
-   preserving runtime mode.
-4. WHEN T3 refuses a named top-level WIP root's transcript handoff, THE SYSTEM SHALL
-   request succession from Home once per failed run with its handoff context,
-   model, runtime and workspace. Only Home SHALL open threads from groomed and
-   specced backlog; pooling SHALL NOT launch or settle a successor. A delegated
-   child's handoff refusal SHALL request recovery through its owning parent,
-   without a succession marker or a top-level replacement for the child.
-5. WHEN an instance's newest current usage-limit failure is newer than its
-   newest completed run, THE SYSTEM SHALL exclude it until the known reset or,
-   for an unknown reset, at most one hour after the failure.
-6. WHEN no eligible account has room, THE SYSTEM SHALL leave the thread for
-   T3's native recovery. Reserved accounts SHALL never be targets.
-7. WHEN a pass retries or overlaps another pass, THE SYSTEM SHALL select at
-   most one target per failed run and avoid duplicate continuations. Each pass
-   SHALL move at most two threads (one during ramp), and
-   each target SHALL receive at most three moves per rolling hour, across
-   process restarts.
-8. WHEN the operator requests a dry run, THE SYSTEM SHALL list proposed moves
-   and each candidate's reason without dispatching commands or writing pool state.
-9. WHEN commands finish or fail, THE SYSTEM SHALL revoke its short-lived RPC
-   session, keep credentials out of output, and log each move once.
-   Rejected moves SHALL be recorded and skipped without blocking other moves,
-   and abandoned after three rejected attempts.
-10. WHEN a harness installs pooling, THE SYSTEM SHALL preserve foreign units
-    and existing activation state, leave initial activation opt-in, and skip
-    pooling gracefully on hosts without a systemd user manager.
-11. WHEN pooling plans or executes any recovery, THE SYSTEM SHALL permit only
-    the explicitly maintained WIP roots from the same roster as Heartbeat,
-    and their transitive children with verified parent/task ownership. An absent
-    or invalid roster SHALL authorize no recovery. Missing, ambiguous, cyclic or inactive
-    ancestry SHALL fail closed. Home and Heartbeat SHALL remain excluded, as
-    SHALL unnamed roots including Verify. Home SHALL size the named active set
-    to budget without a fixed global lane cap; named draining lanes remain
-    eligible. Succession titles SHALL NOT confer eligibility; Home SHALL
-    intentionally update the maintained root IDs.
-
-Evidence: `agent-config/bin/t3-pool.test.ts`, `agent-config/bin/install.test.ts`,
-`agent-config/bin/t3-runtime-mode.test.ts`, and `scripts/verify-installers`.
+Retired by the operator. Native clients own their sessions and account selection.
+No shared account pooling, roster recovery or succession controller is installed.
 
 
 ## US-054 Publish private notes with concurrent agents
@@ -811,8 +743,8 @@ Criteria:
 4. THE SYSTEM SHALL reject journal changes including rename and delete,
    symlinks, traversal, unrelated changes, pre-existing staged work and foreign HEADs.
 5. WHEN Claude or Codex configuration is installed, THE SYSTEM SHALL provide
-   the command on shared PATH and a canonical skill reachable by every T3
-   provider through repository instructions, including providers without native skills.
+   the command on shared PATH and a canonical skill reachable by every authorized
+   agent through repository instructions, including providers without native skills.
 
 No-gos: no vault contents in harness, global writer lock, force push, root
 stash/rebase, new credentials, timer replacement or agent journal bypass.
@@ -821,30 +753,7 @@ Evidence: `agent-config/lib/test_daybook_sync.py`,
 `verify-harness daybook`, `scripts/verify-installers`.
 
 
-## US-051 Drive T3 from any authorized agent
+## US-051 Cross-client orchestration access — retired
 
-Statement: As an operator of agents inside and outside T3, I want every agent
-to use the same documented, scriptable interface to my T3 servers, so it can
-choose an account, complete work, and recover from access failures without
-manual intervention.
-
-Acceptance:
-
-1. Agents can discover configured servers and live tool/provider/model catalogs,
-   then list, launch, read, send to and settle threads through T3's own MCP.
-2. The `t3-agent` shell entry point uses existing endpoint and credential
-   references, never prints or creates credentials, and does not retry writes.
-3. A read-only access check reports each server's result; its optional watcher
-   delivers new failures and recoveries to Home with a review link.
-4. Inside-T3 and outside-agent instructions explain explicit project selection,
-   account selection, uncertain write outcomes and common access failures.
-5. A separate daily renewal command keeps explicitly approved read-only watcher
-   access working before expiry through existing owner SSH. It preserves the
-   exact `mcp-client` subject, `orchestration:read` scope and 30-day lifetime;
-   validates encrypted candidates through the real consumer before promotion;
-   holds ambiguous issuance without duplicate minting; and reports failures and
-   recovery to Home. Unrelated grants and provider logins remain untouched.
-
-Evidence: `agent-config/bin/test_t3_agent.py`,
-`agent-config/bin/test_t3_access_renew.py` and
-`.agents/skills/verify-harness/features/t3-access.md`.
+Retired by the operator. Agents use their current client's native collaboration
+capabilities; the harness installs no external orchestration access or renewal tools.

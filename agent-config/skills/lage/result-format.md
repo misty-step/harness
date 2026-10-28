@@ -27,7 +27,7 @@ can make the recommended call from that line; alternatives and supporting reason
 
 ## Lanes
 
-One entry per in-scope lane: `name`, `url` (its exact T3 thread URL), `state`, `now`, `next`,
+One entry per in-scope lane: `name`, `url` (its native chat URL), `state`, `now`, `next`,
 `links`, `details`. Use the state names from step 3. `now` names the latest verified outcome;
 `next` names the next outcome and its owner, each in one short phrase. Home renders `state`
 as a pill. Details retain goal, done criterion, observation time, evidence, children,
@@ -48,7 +48,7 @@ again as stuck.
 
 Use `links: [{"label": "clear source description", "url": "accessible URL"}]` alongside
 the fact supported. Primary strings are plain text; Home makes the source labels clickable.
-Use HTTPS or exact `t3-thread://v1/<threadId>` URLs under the global review-link rule.
+Use HTTPS or the host's native clickable chat URLs under the global review-link rule.
 
 `details.coverage` accounts for every thread within the investigation's paging bounds,
 including closed lanes, excluded work, children, standing and scratch threads. Preserve the

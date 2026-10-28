@@ -1,6 +1,6 @@
 ---
 name: daybook-sync
-description: Read or publish authorized notes in private Daybook from any T3 provider. Use before agent note edits or to recover a failed note push.
+description: Read or publish authorized notes in private Daybook from an authorized agent. Use before agent note edits or to recover a failed note push.
 ---
 
 # Daybook sync
@@ -33,7 +33,7 @@ permission to read personal records or disclose them to another provider.
 
 The command is on the shared `~/.local/bin` PATH. This canonical skill is
 `~/.agents/skills/daybook-sync/SKILL.md`, available to Claude, Codex, Gemini and
-other T3 providers without a native skill loader. Claude and Codex also receive
+other clients without a native skill loader. Claude and Codex also receive
 native skill packages. A provider can read this file directly through the
 Daybook `AGENTS.md` pointer. Installed files alone do not prove provider loading.
 

@@ -8,7 +8,7 @@ are not source.
 ```text
 agent-config/ ── shared install contract ──┬── pi-config/     → pi runtime
                                          ├── omp-config/    → OMP runtime
-                                         ├── claude-config/ → Claude Code (T3 lanes)
+                                         ├── claude-config/ → Claude Code
                                          └── codex-config/  → Codex
 ```
 
@@ -19,7 +19,6 @@ agent-config/ ── shared install contract ──┬── pi-config/     → 
 | `omp-config/` | OMP routing, config/MCP, extensions, themes, guidance | [README](omp-config/README.md) |
 | `claude-config/` | Shared skills and guidance Claude Code sessions select, such as `lage`; composes `~/.claude/AGENTS.md` with no legacy alias | [README](claude-config/README.md) |
 | `codex-config/` | Shared skills and guidance Codex sessions select; composes `~/.codex/AGENTS.md`; native model, effort and service-tier defaults | [README](codex-config/README.md) |
-| `t3-accounts/` | Maintained native account helper and canonical read-only roster producer | [README](t3-accounts/README.md) |
 
 Foundations: [FOUNDATIONS.md](FOUNDATIONS.md). Intent: [USER_STORIES.md](USER_STORIES.md). Vocabulary, boundaries and
 invariants: [DOMAIN.md](DOMAIN.md). Decisions: [docs/decisions/](docs/decisions/index.md). Agent
