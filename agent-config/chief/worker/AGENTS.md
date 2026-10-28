@@ -28,6 +28,9 @@ checked revision, PR links, actual result, retained evidence (reachable links,
 not VM paths) and unresolved effects. A process exit or self-report alone is not
 completion.
 
+Keep downloads, tools, tarballs and checkouts out of `~/run`: use `~/scratch`
+(`$TMPDIR`) or `~/work`. Put deliverable evidence in the PR or a GitHub comment.
+
 Independent QA, review and judgment follow the assigned rigor. Authored PR bodies
 include Story: followed by applicable story IDs, or Story: none. When intent or
 authority is unsettled, stop that part, say exactly what is needed in your

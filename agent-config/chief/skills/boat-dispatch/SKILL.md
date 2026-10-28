@@ -34,9 +34,19 @@ Kaylee never edits product code or runs an engineering agent on factory.
    do not implement the repair yourself. Credentials stay out of briefs and
    reports; workers receive only runtime gateway/GitHub tokens, never broker
    snapshots or subscription refresh credentials.
-5. Run `finish ID` after collecting the result. It retains the run under
+5. Run `finish ID` after collecting the result. It retains report files under
    `~/.local/state/kaylee/runs/ID/`, stops/disables its tunnel and deletes the VM.
-   Use `--force` only to intentionally terminate and collect interrupted work.
+   Live collection transfers only regular metadata.json, brief.md, launch.json,
+   started-at, runner.pid, exit-code, worker.jsonl, worker.stderr, clone.stdout,
+   clone.stderr and top-level `sessions/*.jsonl`; symlinks are not collected.
+   Live `result` renders final assistant text and PR URLs on the VM over one SSH
+   call, without copying worker.jsonl. Stopped/archived commands still pull all
+   of `~/run` from the last snapshot; they do not enumerate a snapshot tree.
+   A collection failure retains the VM and tunnel.
+   Use `--force` only to intentionally terminate and collect interrupted work;
+   an unfinished live VM is stopped first and then uses snapshot collection.
+   Workers use `~/scratch` (`$TMPDIR`) or `~/work` for tools and downloads, not
+   `~/run`; deliverable evidence belongs in the PR or a GitHub comment.
    Confirm `list` has no abandoned `kaylee-` VM. Auto-stop is an orphan cost
    backstop, not teardown: stopped disks and credentials remain until deletion.
 
