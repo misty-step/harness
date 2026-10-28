@@ -20,6 +20,29 @@ legacy_profiles=(builder judge qa release researcher reviewer)
 export PATH="$HOME/.local/bin:$PATH"
 
 hset() { "$HERMES" -p default config set "$1" "$2" >/dev/null; }
+# First-boot list defaults add missing entries; existing choices are not reset.
+hseed_list() {
+  local merged
+  merged=$(python3 - "$HERMES" "$1" "$2" <<'PY'
+import json
+import subprocess
+import sys
+
+hermes, key, defaults = sys.argv[1:]
+result = subprocess.run([hermes, "-p", "default", "config", "get", key, "--json"],
+                        capture_output=True, text=True)
+if result.returncode == 1 and result.stderr.strip() == f"Config key not set: {key}":
+    current = []  # A fresh Hermes home need not have per-platform lists yet.
+else:
+    if result.returncode:
+        sys.stderr.write(result.stderr)
+        result.check_returncode()
+    current = json.loads(result.stdout)
+print(json.dumps(current + [item for item in json.loads(defaults) if item not in current]))
+PY
+)
+  hset "$1" "$merged"
+}
 say() { printf 'install-kaylee: %s\n' "$*"; }
 
 [[ -x $HERMES ]] || { echo "install-kaylee: hermes not found at $HERMES" >&2; exit 1; }
@@ -36,7 +59,23 @@ seed_file() {
   fi
 }
 mkdir -p "$HERMES_HOME/skills" "$workspace"
-seed_file "$here/SOUL.md" "$HERMES_HOME/SOUL.md"
+# Compare against a pristine home made by this Hermes, not a prefix or a copied
+# template: even a one-byte customization is owned. Never follow SOUL symlinks.
+if [[ -f $HERMES_HOME/SOUL.md && ! -L $HERMES_HOME/SOUL.md ]]; then
+  default_home=$(mktemp -d)
+  trap 'rm -rf -- "$default_home"' EXIT
+  HERMES_HOME="$default_home" "$HERMES" -p default config set display.personality '' >/dev/null
+  if cmp -s "$default_home/SOUL.md" "$HERMES_HOME/SOUL.md"; then
+    install -m 0644 "$here/SOUL.md" "$HERMES_HOME/SOUL.md"
+    say "seeded $HERMES_HOME/SOUL.md (replaced Hermes default)"
+  else
+    say "kept $HERMES_HOME/SOUL.md"
+  fi
+  rm -rf -- "$default_home"
+  trap - EXIT
+else
+  seed_file "$here/SOUL.md" "$HERMES_HOME/SOUL.md"
+fi
 seed_file "$here/AGENTS.md" "$workspace/AGENTS.md"
 
 # Worker tooling: Boat CLI key check, kaylee-dispatch and tunnel unit.
@@ -77,17 +116,37 @@ else
   hset skills.creation_nudge_interval 10
   hset skills.disabled '["codebase-inspection","dogfood","github","inspecting-hermes-desktop-dom","node-inspect-debugger","python-debugpy","requesting-code-review","simplify-code","spike","systematic-debugging","test-driven-development"]'
 
-  # Tool selection is Kaylee's to evolve; dispatch and approval boundaries below
-  # remain enforced independently of these seeded toolsets.
-  hset agent.disabled_toolsets '["delegation","code_execution","file","computer_use","browser","discord_admin","kanban"]'
-  hset platform_toolsets.cli '["terminal","skills","session_search","todo","web","clarify","cronjob","memory"]'
-  hset platform_toolsets.discord '["terminal","skills","session_search","todo","web","clarify","cronjob","discord","memory"]'
-  hset platform_toolsets.cron '["terminal","skills","session_search","todo","web"]'
+  # Tool selection is Kaylee's to evolve, except native delegation, which the
+  # boundary merge below removes on every run.
+  hseed_list agent.disabled_toolsets '["delegation","code_execution","file","computer_use","browser","discord_admin","kanban"]'
+  hseed_list platform_toolsets.cli '["terminal","skills","session_search","todo","web","clarify","cronjob","memory"]'
+  hseed_list platform_toolsets.discord '["terminal","skills","session_search","todo","web","clarify","cronjob","discord","memory"]'
+  hseed_list platform_toolsets.cron '["terminal","skills","session_search","todo","web"]'
   touch "$seed_marker"
   say "seeded identity and learning config"
 fi
 
 # No native Hermes workers: engineering only runs as OMP on its own Boat VM.
+python3 - "$HERMES" <<'PY'
+import json
+import subprocess
+import sys
+
+hermes = [sys.argv[1], "-p", "default", "config"]
+
+def get(key):
+    return json.loads(subprocess.check_output([*hermes, "get", key, "--json"], text=True))
+
+def set_list(key, value):
+    subprocess.run([*hermes, "set", key, json.dumps(value)], check=True, stdout=subprocess.DEVNULL)
+
+disabled = get("agent.disabled_toolsets")
+if "delegation" not in disabled:
+    set_list("agent.disabled_toolsets", [*disabled, "delegation"])
+for platform, toolsets in get("platform_toolsets").items():
+    if isinstance(toolsets, list) and "delegation" in toolsets:
+        set_list(f"platform_toolsets.{platform}", [toolset for toolset in toolsets if toolset != "delegation"])
+PY
 hset delegation.backend default
 hset delegation.backends '{}'
 hset plugins.enabled '["platforms/discord"]'
