@@ -18,7 +18,7 @@ function fixture() {
 		mkdirSync(dirname(join(root, path)), { recursive: true });
 		writeFileSync(join(root, path), content);
 	};
-	const skill = (name: string, body = "Run the owned check.") => `---\nname: ${name}\ndescription: "When changing the consumer path."\n${name.startsWith("principle-") ? "disable-model-invocation: true\n" : ""}metadata:\n  owner: phaedrus\n  prevents: "A recorded consumer failure."\n  source: "owner/repo@0123456789abcdef/source"\n  sunset: 2026-11-27\n---\n${body}\n`;
+	const skill = (name: string, body = "Run the owned check.") => `---\nname: ${name}\ndescription: "When changing the consumer path."\n${name.startsWith("principle-") ? "disable-model-invocation: true\n" : ""}metadata:\n  owner: phaedrus\n  prevents: "A recorded consumer failure."\n  source: "owner/repo@0123456789abcdef/source"\n  sunset: "2026-11-27"\n---\n${body}\n`;
 	put("skills/misty/SKILL.md", skill("misty"));
 	put("rules/core.md", "---\nalwaysApply: true\n---\n# Core\n\n- Load misty.\n");
 	return { root, put, skill };
@@ -54,9 +54,31 @@ test("reports every missing metadata field and a mismatched directory name", () 
 		"skills/misty/SKILL.md: metadata.owner must be non-empty",
 		"skills/misty/SKILL.md: metadata.prevents must be non-empty",
 		"skills/misty/SKILL.md: metadata.source must be non-empty",
-		"skills/misty/SKILL.md: metadata.sunset must be non-empty",
+		"skills/misty/SKILL.md: metadata.sunset must be a non-empty string",
 	]);
 });
+
+test.each(["2026-11-27", "2026-11-27 # YAML 1.1 timestamp", "2026-11-27T00:00:00Z", "!!timestamp 2026-11-27"])(
+	"rejects a plain YAML date that Hermes cannot serialize (%s)",
+	value => {
+		const { root, put, skill } = fixture();
+		put("skills/misty/SKILL.md", skill("misty").replace('sunset: "2026-11-27"', `sunset: ${value}`));
+		expect(lintPlugin(root).errors).toEqual([
+			"skills/misty/SKILL.md: quote YAML date values for JSON-compatible metadata",
+		]);
+	},
+);
+
+test.each(["42", "[2026, 11, 27]", "{year: 2026}", "false", "null"])(
+	"requires metadata.sunset to parse as a non-empty string (%s)",
+	value => {
+		const { root, put, skill } = fixture();
+		put("skills/misty/SKILL.md", skill("misty").replace('sunset: "2026-11-27"', `sunset: ${value}`));
+		expect(lintPlugin(root).errors).toEqual([
+			"skills/misty/SKILL.md: metadata.sunset must be a non-empty string",
+		]);
+	},
+);
 
 test("rejects invalid frontmatter rather than recovering a malformed skill", () => {
 	const { root, put } = fixture();

@@ -5,7 +5,7 @@ metadata:
   owner: phaedrus
   prevents: "Model choices duplicated in method prose and setup written to the wrong harness; OMP-only decision #533 Q2/Q14."
   source: "cursor/plugins@c742dd61706fbacc1b95f1a20b7b988cf096ce6c/pstack/skills/setup-pstack/SKILL.md; OMP 18.13.3 config-usage.md, models.md, task-agent-discovery.md; #533"
-  sunset: 2026-11-27
+  sunset: "2026-11-27"
 ---
 
 # Setup mistystack

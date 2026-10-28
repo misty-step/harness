@@ -16,6 +16,10 @@ function document(path: string) {
 	const text = readFileSync(path, "utf8").replace(/\r\n/g, "\n");
 	const match = /^---\n([\s\S]*?)\n---(?:\n|$)/.exec(text);
 	if (!match) throw new Error("missing YAML frontmatter");
+	// YAML 1.1 readers (Hermes/PyYAML) turn plain dates into non-JSON date objects.
+	if (/^[ \t]*[\w-]+:[ \t]*(?:!!timestamp[ \t]+)?\d{4}-\d{2}-\d{2}(?=$|[Tt \t#])/m.test(match[1])) {
+		throw new Error("quote YAML date values for JSON-compatible metadata");
+	}
 	const frontmatter: unknown = YAML.parse(match[1]);
 	if (!isRecord(frontmatter)) throw new Error("frontmatter must be a mapping");
 	return { frontmatter, body: text.slice(match[0].length).trim() };
@@ -36,9 +40,10 @@ export function lintPlugin(root: string, strict = false) {
 				errors.push(`${file}: disable-model-invocation must be true`);
 			}
 			const metadata = isRecord(frontmatter.metadata) ? frontmatter.metadata : {};
-			for (const key of ["owner", "prevents", "source", "sunset"]) {
+			for (const key of ["owner", "prevents", "source"]) {
 				if (!nonempty(metadata[key])) errors.push(`${file}: metadata.${key} must be non-empty`);
 			}
+			if (!nonempty(metadata.sunset)) errors.push(`${file}: metadata.sunset must be a non-empty string`);
 		} catch (error) {
 			errors.push(`${file}: ${error instanceof Error ? error.message : String(error)}`);
 		}

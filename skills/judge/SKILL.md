@@ -5,7 +5,7 @@ metadata:
   owner: phaedrus
   prevents: "Reviewer-driven fix loops and renewed rounds after retries: bounded behind judge rulings in mistystack PRs #450 and #454."
   source: "misty-step/mistystack@0ccc1a308cdeefa29e991d3b7c1dbab016cfea03/agent-config/skills/judge"
-  sunset: 2026-11-27
+  sunset: "2026-11-27"
 ---
 
 # Judge

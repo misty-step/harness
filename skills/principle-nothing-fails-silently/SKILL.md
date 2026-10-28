@@ -6,7 +6,7 @@ metadata:
   owner: phaedrus
   prevents: "Silent failure; Foundations article 8 and mistystack docs/principles/009 evidence."
   source: "misty-step/mistystack#533; misty-step/foundations@d96c99ce1152ab1d6ae4a0eed0b22cbac93897b7/way-of-working.md#fail-loudly"
-  sunset: 2026-11-27
+  sunset: "2026-11-27"
 ---
 
 # Nothing fails silently

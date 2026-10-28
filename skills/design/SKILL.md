@@ -5,7 +5,7 @@ metadata:
   owner: phaedrus
   prevents: "Design defaults drifting and state-specific defects escaping review: design-studio loaded only 4 times in the usage audit; Foundations article 10 requires a finished face."
   source: "Foundations article 10 and way-of-working#design; misty-step/mistystack@0ccc1a3/agent-config/skills/{design-studio,visual-state-review}; emilkowalski/skills@2d228630ba1446365f614a108cb8252f1feda202; pbakaus/impeccable@5adaee704634e9031ec8943721c4ffa1a3c22221; see sources.md"
-  sunset: 2026-11-27
+  sunset: "2026-11-27"
 ---
 
 # Design

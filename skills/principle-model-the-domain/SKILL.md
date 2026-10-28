@@ -6,7 +6,7 @@ metadata:
   owner: phaedrus
   prevents: "Invalid-state and interleaving gaps covered by Foundations article 11, initiative #533."
   source: "misty-step/mistystack#533; misty-step/foundations@d96c99ce1152ab1d6ae4a0eed0b22cbac93897b7/way-of-working.md#build; cursor/plugins@c742dd61706fbacc1b95f1a20b7b988cf096ce6c/pstack/skills/principle-model-the-domain"
-  sunset: 2026-11-27
+  sunset: "2026-11-27"
 ---
 
 # Model the domain

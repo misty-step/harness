@@ -6,7 +6,7 @@ metadata:
   owner: phaedrus
   prevents: "Overengineering and special-case growth; inferred from 16 operator corrections, initiative #533."
   source: "misty-step/mistystack#533; John Ousterhout, A Philosophy of Software Design; Linus Torvalds, good taste; cursor/plugins@c742dd61706fbacc1b95f1a20b7b988cf096ce6c/pstack/skills/principle-boundary-discipline"
-  sunset: 2026-11-27
+  sunset: "2026-11-27"
 ---
 
 # Deep modules

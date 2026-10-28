@@ -5,7 +5,7 @@ metadata:
   owner: phaedrus
   prevents: "Builders inventing owner intent or shrinking initiative value; inferred use: grill-me 11 and grilling 2 session families in the 90-day scan on 2026-10-28."
   source: "Daybook projects/mistystack.md decisions 16-18; mattpocock/skills@59db609eb1e18aaf59b63284d0e52255aff0c63c/skills/{productivity/{grill-me,grilling},engineering/{grill-with-docs,to-spec,to-tickets,domain-modeling}}; misty-step/mistystack@0ccc1a3/agent-config/{chief/AGENTS.md,skills/user-stories}; local Misty shape, groom, brief; Foundations way-of-working Scope."
-  sunset: 2026-11-27
+  sunset: "2026-11-27"
 ---
 
 # Grill

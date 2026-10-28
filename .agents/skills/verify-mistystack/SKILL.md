@@ -5,7 +5,7 @@ metadata:
   owner: phaedrus
   prevents: "Installer and file-byte checks reported as loaded method proof; method-plugin cutover #533."
   source: "misty-step/mistystack #533, docs/decisions/0015-omp-method-plugin.md; scripts/verify-plugin.ts owns the native proof."
-  sunset: 2026-11-27
+  sunset: "2026-11-27"
 ---
 
 # Verify mistystack

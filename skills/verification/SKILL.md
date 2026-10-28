@@ -5,7 +5,7 @@ metadata:
   owner: phaedrus
   prevents: "'Fix still fails / regression' (36 corrections); evidence-packet loaded in 12 audited sessions; changed-path scope repaired in mistystack PR #455."
   source: "misty-step/mistystack@0ccc1a308cdeefa29e991d3b7c1dbab016cfea03/agent-config/{skills/story-qa,guidance/engineering.md}; cursor/plugins@c742dd61706fbacc1b95f1a20b7b988cf096ce6c/pstack/skills/{create-verification-skill,maintain-verification-skill}; installed Misty ~/.omp/agent/skills/evidence-packet (SKILL.md sha256:08fb52a436fbc663c59648b9b07b87a9c3d3f782c5fd7f55a5568be886f78923); misty-step/foundations@d96c99ce1152ab1d6ae4a0eed0b22cbac93897b7/way-of-working.md#prove"
-  sunset: 2026-11-27
+  sunset: "2026-11-27"
 ---
 
 # Verification
