@@ -1,3 +1,9 @@
+# [0.2.49](https://github.com/misty-step/mistystack/compare/v0.2.48...v0.2.49) (2026-10-28)
+<!-- landmark:protected-release previous=v0.2.48 source=979d3ead165eae73a2a1e5307abec51e9098dbb913a07502fdd5040a1e1ee01b -->
+
+### Bug Fixes
+
+* **chief:** fetch stopped worker reports without whole snapshots (#571) ([97fd421](https://github.com/misty-step/mistystack/commit/97fd421dbbe7145678b08195c7c0ec8b552925c0))
 # [0.2.48](https://github.com/misty-step/mistystack/compare/v0.2.47...v0.2.48) (2026-10-28)
 <!-- landmark:protected-release previous=v0.2.47 source=9d8b39db99f1d7627a92b381554b7cf8b8881e032b07212e8ac209832f712740 -->
 
