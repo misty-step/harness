@@ -40,6 +40,17 @@ Kaylee never edits product code or runs an engineering agent on factory.
    its tunnel and deletes the VM. `result` on a live VM computes the final text
    on the VM and transfers only that. Use `--force` only to intentionally
    terminate and collect interrupted work.
+   Failed collection retains both VM and tunnel, even with `--force`. Stopped
+   collection first calls `boat snapshot tree ID --json`; it assumes one complete
+   JSON object of exactly `{"paths":["/home/user/run/metadata.json", "..."]}`,
+   with unique, canonical absolute file/directory paths (no `.` or `..` segments,
+   duplicate separators or trailing slashes except `/`). Only a recognised
+   listing can confirm optional-file absence. Listed report paths are transferred
+   in one pull with repeated `--path`; `sessions` is still pulled whole and then
+   pruned locally. A failed/unrecognised tree or failed pull aborts collection;
+   stopped `list` reports `UNAVAILABLE` and exits 1 instead of claiming unfinished.
+   The tree JSON shape and `--json` support are unproven against real Boat; a
+   mismatch deliberately retains the VM rather than risking report loss.
    Confirm `list` has no abandoned `kaylee-` VM. Auto-stop is an orphan cost
    backstop, not teardown: stopped disks and credentials remain until deletion.
 

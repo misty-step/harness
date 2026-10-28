@@ -31,7 +31,9 @@ started-at, runner.pid, exit-code, worker.jsonl, worker.stderr, clone.stdout,
 clone.stderr, top-level sessions/*.jsonl) into ~/.local/state/kaylee/runs/ID,
 disables its tunnel, and deletes the VM. Nothing else in ~/run is copied.
 --force stops an unfinished VM before collecting it.
-A failed collection retains the VM; resolve the error and finish again.
+A failed collection retains the VM and tunnel, even with --force. Stopped runs
+skip optional files only after a strict snapshot tree confirms their absence;
+unrecognised listings or failed transfers abort collection.
 
 Factory prerequisites: native gh login, ~/.config/hermes/keys/WORKER_GATEWAY_KEY,
 Boat scoped login, boat-tunnel@.service, and the omp-worker saved snapshot.
@@ -97,9 +99,10 @@ wait_stopped() {
 # tarballs or repo copies there. "sessions" means top-level sessions/*.jsonl.
 all_files=(brief.md launch.json started-at runner.pid exit-code worker.jsonl worker.stderr clone.stdout clone.stderr sessions)
 collect_run() {
-  local destination=$1 name n=0 home_dir=
+  local destination=$1 name home_dir
   shift
   local names=(metadata.json "$@")
+  local present=() pull_paths=()
   mkdir -p "$destination"
   if is_up; then
     run_dir="$destination/run"
@@ -124,19 +127,46 @@ PACK
   else
     [[ "$state" != stopping && "$state" != archiving ]] || wait_stopped
     printf 'Reading %s from its last disk snapshot (state: %s)\n' "$id" "$state" >&2
+    # Absence must come from a complete, independent listing, never a failed
+    # transfer. Unknown Boat tree formats fail closed, including under --force.
+    if ! boat snapshot tree "$id" --json > "$scratch/tree-$id.json"; then
+      cat "$scratch/tree-$id.json" >&2
+      die "Could not enumerate snapshot for $id; VM retained"
+    fi
+    if ! jq -es '
+      select(length == 1) | .[0] |
+      select(type == "object" and keys == ["paths"]) |
+      select(.paths | type == "array") |
+      select(all(.paths[]; type == "string" and
+        test("^/([^/]+(/[^/]+)*)?$") and
+        (split("/") | all(. != "." and . != "..")))) |
+      select((.paths | length) == (.paths | unique | length))
+    ' "$scratch/tree-$id.json" > "$scratch/paths-$id.json"; then
+      cat "$scratch/tree-$id.json" >&2
+      die "Unrecognised snapshot tree for $id; VM retained"
+    fi
     for name in "${names[@]}"; do
-      n=$((n + 1))
-      if boat snapshot pull "$id" --path "/home/user/run/$name" --out "$destination" --json > "$scratch/pull-$id-$n.json"; then
-        [[ -n "$home_dir" ]] || home_dir=$(jq -er '.homeDir' "$scratch/pull-$id-$n.json")
+      if jq -e --arg path "/home/user/run/$name" \
+        'any(.paths[]; . == $path or startswith($path + "/"))' "$scratch/paths-$id.json" >/dev/null; then
+        present+=("$name")
+        pull_paths+=(--path "/home/user/run/$name")
       elif [[ "$name" == metadata.json ]]; then
-        cat "$scratch/pull-$id-$n.json" >&2
-        die "Could not collect $id from its snapshot; VM retained"
-      else
-        printf 'kaylee-dispatch: %s not pulled from snapshot of %s\n' "$name" "$id" >&2
+        die "No worker metadata in snapshot for $id; VM retained"
       fi
     done
+    if ! boat snapshot pull "$id" "${pull_paths[@]}" --out "$destination" --json > "$scratch/pull-$id.json"; then
+      cat "$scratch/pull-$id.json" >&2
+      die "Could not collect $id from its snapshot; VM retained"
+    fi
+    if ! home_dir=$(jq -er '.homeDir | select(type == "string" and length > 0)' "$scratch/pull-$id.json"); then
+      cat "$scratch/pull-$id.json" >&2
+      die "Unrecognised snapshot pull for $id; VM retained"
+    fi
     run_dir="$home_dir/run"
-    [[ -d "$run_dir" ]] || die "Snapshot has no /home/user/run for $id"
+    for name in "${present[@]}"; do
+      [[ -e "$run_dir/$name" || -L "$run_dir/$name" ]] \
+        || die "Snapshot did not deliver $name for $id; VM retained"
+    done
     if [[ -d "$run_dir/sessions" ]]; then
       # A snapshot pull takes a folder whole; keep only top-level session JSONL.
       find "$run_dir/sessions" -mindepth 1 -maxdepth 1 \( ! -type f -o ! -name '*.jsonl' \) -exec rm -rf -- {} +
