@@ -1,3 +1,9 @@
+# [0.2.44](https://github.com/misty-step/mistystack/compare/v0.2.43...v0.2.44) (2026-10-28)
+<!-- landmark:protected-release previous=v0.2.43 source=c480dbd6928bb1c5df02632031421fd794ff9698eea464a46afece694b21ac0b -->
+
+### Bug Fixes
+
+* **ship-loop:** carry against corresponding bases and refresh unreviewed heads (#535) ([c543c08](https://github.com/misty-step/mistystack/commit/c543c082bf272d167b910a277c53558ba05614ce))
 # [0.2.43](https://github.com/misty-step/mistystack/compare/v0.2.42...v0.2.43) (2026-10-27)
 <!-- landmark:protected-release previous=v0.2.42 source=58a152cd4383bfdb3fb6c26e5794a1127ccf12b5bb6bf10ecdccae14f8c9d3af -->
 
