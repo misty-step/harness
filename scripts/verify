@@ -1,44 +1,31 @@
 #!/bin/sh
-# Canonical checks. Suites are sequential; installers test committed HEAD.
+# Canonical method checks. Suites are sequential; native proof stays isolated.
 set -eu
 root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 cd "$root"
+usage() { echo 'Usage: scripts/verify [all|plugin [--strict] [--lint-only]]' >&2; exit 1; }
 selection=${1:-all}
-if [ "$selection" = plugin ]; then
-  shift
-  command -v bun >/dev/null 2>&1 || { echo 'bun is required' >&2; exit 1; }
-  exec bun "$root/scripts/verify-plugin.ts" "$@"
-fi
-[ "$#" -le 1 ] || { echo 'Usage: scripts/verify [all|shared|pi|omp|workspace|plugin] [--strict] [--lint-only]' >&2; exit 1; }
-case "$selection" in all|shared|pi|omp|workspace) ;; *) echo "Unknown selection: $selection" >&2; exit 1 ;; esac
-for tool in git bun jq python3; do
+if [ "$#" -gt 0 ]; then shift; fi
+case "$selection" in
+  all) [ "$#" -eq 0 ] || usage; set -- --lint-only ;;
+  plugin) ;;
+  *) usage ;;
+esac
+for tool in git bun python3; do
   command -v "$tool" >/dev/null 2>&1 || { echo "$tool is required" >&2; exit 1; }
 done
 mkdir -p "$HOME/.cache/tmp"
-work=$(mktemp -d "$HOME/.cache/tmp/harness-verify.XXXXXX")
+work=$(mktemp -d "$HOME/.cache/tmp/mistystack-verify.XXXXXX")
 trap 'rm -rf -- "$work"' 0
 trap 'exit 130' 2
 trap 'exit 143' 15
 export TMPDIR="$work"
 printf 'Source: %s (%s)\n' "$(git rev-parse HEAD)" "$selection"
 if [ -n "$(git status --porcelain)" ]; then
-  printf 'Note: unit tests read working files; isolated installer checks read committed HEAD.\n'
+  printf 'Note: plugin proof and tests read working files.\n'
 fi
-for script in install scripts/bootstrap scripts/check scripts/verify scripts/verify-installers .githooks/pre-push agent-config/install pi-config/install omp-config/install claude-config/install codex-config/install .agents/skills/verify-harness/bin/verify-harness; do
+for script in scripts/bootstrap scripts/check scripts/verify .githooks/pre-commit .githooks/pre-push; do
   sh -n "$script"
 done
-./scripts/probe-agent-policy
-PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s scripts -p 'test_agent_policy.py'
-bun test --max-concurrency=1 scripts/workspace-inventory.test.ts scripts/protected-release.test.ts scripts/protected-release-check.test.ts scripts/trufflehog-gate.test.ts
-case "$selection" in all|shared) (cd agent-config && bun test --max-concurrency=1 bin/ skills/ audio-sandbox/);; esac
-case "$selection" in all|shared) PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s agent-config/lib -p 'test_*.py';; esac
-case "$selection" in all|shared) PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s agent-config/chief -p 'test_*.py';; esac
-case "$selection" in all|shared) PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s agent-config/chief/worker/boat -p 'test_*.py';; esac
-case "$selection" in all|shared) PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s claude-config -p 'test_*.py';; esac
-case "$selection" in all|shared) PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s codex-config -p 'test_*.py';; esac
-case "$selection" in all|shared) PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s agent-config/session-backup -p 'test_*.py';; esac
-case "$selection" in all|pi) (cd pi-config && bun test --max-concurrency=1 bin/ extensions/);; esac
-case "$selection" in all|omp) (cd omp-config && bun test --max-concurrency=1 bin/ extensions/);; esac
-case "$selection" in all|omp) PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s omp-config/bin -p 'test_*.py';; esac
-./scripts/verify-installers
+bun scripts/verify-plugin.ts "$@"
 printf 'Verification complete: %s\n' "$selection"

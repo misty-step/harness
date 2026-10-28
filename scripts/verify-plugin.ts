@@ -174,7 +174,7 @@ if (import.meta.main) {
 		for (const error of report.errors) console.error(`ERROR: ${error}`);
 		console.log(`Plugin structure: ${report.skillCount} skills, ${report.errors.length} errors, ${report.warnings.length} warnings`);
 		if (report.errors.length > 0) process.exit(1);
-		const tests = Bun.spawnSync([process.execPath, "test", "--max-concurrency=1", "scripts/verify-plugin.test.ts", "./skills/"], {
+		const tests = Bun.spawnSync([process.execPath, "test", "--max-concurrency=1"], {
 			cwd: root, stdout: "inherit", stderr: "inherit",
 		});
 		if (!tests.success) process.exit(tests.exitCode || 1);

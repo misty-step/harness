@@ -20,7 +20,7 @@ function finding(changes: Record<string, unknown> = {}) {
 }
 
 function run(rows: unknown[], exit = rows.length ? 183 : 0, changelog = `* release (${commitLink})\n`, scanError = false) {
-	const root = mkdtempSync(join(tmpdir(), "harness-trufflehog-gate-"));
+	const root = mkdtempSync(join(tmpdir(), "mistystack-trufflehog-gate-"));
 	roots.push(root);
 	const bin = join(root, "bin");
 	mkdirSync(bin);

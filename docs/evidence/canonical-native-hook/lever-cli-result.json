@@ -1,9 +1,0 @@
-{
-  "native_version": "2.1.303 (Claude Code)",
-  "cwd_outside_home": true,
-  "expected_marker": "0bef08337937481e9b72e7686025816c",
-  "result": "0bef08337937481e9b72e7686025816c",
-  "no_instruction_flags": true,
-  "source_characters": 11421,
-  "hook_handlers": 3
-}

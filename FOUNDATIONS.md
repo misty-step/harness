@@ -1,4 +1,4 @@
 # Foundations
 
-Read the [living reference](https://foundations.mistystep.io/).
-This compatibility pointer contains no separate rules. Git history retains the retired rubric.
+The rubric lives in [skills/foundation/checklist.md](skills/foundation/checklist.md).
+Read [docs/guide/](docs/guide/) for the method. This pointer owns no separate rules.

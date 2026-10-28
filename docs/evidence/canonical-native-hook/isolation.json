@@ -1,9 +1,0 @@
-{
-  "no_legacy_file_or_symlink_in_private_home": true,
-  "canonical_regular_AGENTS": true,
-  "native_credential_copy_removed": true,
-  "native_cwds_outside_private_and_real_HOME": true,
-  "published_native_hook_events_revalidate_complete_context": true,
-  "private_run_removed": true,
-  "private_native_comparison_install_removed": true
-}

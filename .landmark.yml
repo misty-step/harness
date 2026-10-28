@@ -1,6 +1,6 @@
 product:
-  name: harness
-  description: Misty Step agent configuration. Shared primitives and thin pi, OMP and Claude Code adapters in one versioned workspace.
+  name: mistystack
+  description: Misty Step's OMP method plugin. A small always-on core, routed principles, task playbooks and risk-scaled engineering skills.
 audience: general
 voice: clear, specific, user-facing
 changelog:

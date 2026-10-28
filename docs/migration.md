@@ -1,5 +1,8 @@
 # Migration record
 
+Historical record of the original component import. The current boundary is
+[0015: OMP method plugin](decisions/0015-omp-method-plugin.md).
+
 ## Source identity
 
 The monorepo imports the original histories without rewriting commits:
