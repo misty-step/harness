@@ -1,3 +1,9 @@
+# [0.2.47](https://github.com/misty-step/mistystack/compare/v0.2.46...v0.2.47) (2026-10-28)
+<!-- landmark:protected-release previous=v0.2.46 source=b86ba0215b6b0b3e8281acf897aa3827f39e6074c50eb3f592bb3a5dcd3595e0 -->
+
+### Bug Fixes
+
+* **chief:** re-land first-boot seed with base-built tool migration ([9762175](https://github.com/misty-step/mistystack/commit/97621751bd12bfab1a06a26c7d67936c2b320706))
 # [0.2.46](https://github.com/misty-step/mistystack/compare/v0.2.45...v0.2.46) (2026-10-28)
 <!-- landmark:protected-release previous=v0.2.45 source=a920feacb3de53c639a3442daf1f2477af733a801867f942dbb0e3f2c85b626a -->
 
