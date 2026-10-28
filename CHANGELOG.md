@@ -1,3 +1,9 @@
+# [0.3.4](https://github.com/misty-step/mistystack/compare/v0.3.3...v0.3.4) (2026-10-28)
+<!-- landmark:protected-release previous=v0.3.3 source=c5ff4de48694f3a19b082082618c84f9b90d010b8f43b374bf245c4744b30b0e -->
+
+### Bug Fixes
+
+* **skills:** preserve JSON string dates in metadata (#589) ([1334c55](https://github.com/misty-step/mistystack/commit/1334c553deb0b75a00e4529b5f4e1eeab6f4e9da))
 # [0.3.3](https://github.com/misty-step/mistystack/compare/v0.3.2...v0.3.3) (2026-10-28)
 <!-- landmark:protected-release previous=v0.3.2 source=e1146cf6eb411d110d30cf23dc2625092f0673e66c15ec2ba41c514a5ecdd22e -->
 
