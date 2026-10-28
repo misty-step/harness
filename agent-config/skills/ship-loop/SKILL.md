@@ -11,7 +11,7 @@ Start with build, then independent QA and review (combined for light changes, pa
 
 No human reviews or merges, in any organization: the independent judge's SHIP plus passing checks is the whole gate.
 
-Machine-generated, generator-only release PRs merge on passing checks alone, without a review round or `Story:` line. Exact-ID roster-only succession PRs also merge on passing checks under global **Merge** and `lane-succession` dispatcher step 3; authored policy, tests and other config changes keep ordinary review.
+Machine-generated, generator-only release PRs merge on passing checks alone, without a review round or `Story:` line. Authored policy, tests and other config changes keep ordinary review.
 
 Many skills named here are user-invoked, so the Skill tool refuses them. For those, you and every agent you brief read `~/.claude/skills/<name>/SKILL.md` and follow it.
 
@@ -38,17 +38,11 @@ A ticket with one open blocker PR **stacks** on it: its branch starts from that 
 Classify each atomic PR using the [rigor table](roles.md#rigor), with its recorded reason and size; an initiative’s broad risk does not impose a floor on unrelated small slices.
 Every authored change gets review and verification, including documents, briefs and measurements.
 Use the tier's models for builders, QA, review and judges until Upkeep routing ships.
-Upkeep owns model choice; ship-loop owns review shape and rigor.
-Upkeep's route command does not exist yet ([Upkeep #75](https://github.com/misty-step/upkeep/issues/75)); when it ships, ask Upkeep:
+Use the host's native collaboration tools and supported model/effort settings to dispatch the completed [role briefs](roles.md). Take an available route in the tier's model class instead of waiting for an ideal route. Treat unknown account room as unknown; native usage-limit readings or `upkeep room --json`, when available, provide current evidence.
 
-- `upkeep route --kind <review|build|…> --difficulty <routine|hard|critical> --json`, optionally `--task "..."`, `--exclude-vendor <vendor>` and `--urgent`. Map light to routine, standard to hard, critical to critical. QA, review and judge all use `--kind review`; builders use `--kind build`.
-- Try `choices` in order: pick first, then fallbacks. Empty `choices` means no room: wait until `no_room.next_room_at`, or use the rigor table if it is null.
-- Map `choice.instance` to `target.providerInstanceId` and `choice.model` to `target.model`. Pass `choice.reasoning` in `target.options` as `{"id":"reasoningEffort","value":"<low|medium|high|xhigh>"}` for Sol or `{"id":"effort","value":"<low|medium|high|xhigh>"}` for Claude. Always pass effort explicitly, including table routes.
-- Standard speed sets Codex `target.options.serviceTier: "default"` or Claude `target.options.fastMode: false`. Fast speed requires `--urgent`.
+Use one QA owner per SHA; extra cross-family QA needs a stated critical uncertainty. Carry the original goal, findings and resolutions into fix briefs; reuse working context where supported. When replacing a child with a retry, stop the old child through the native tool first so it cannot act on superseded instructions.
 
-Dispatch roles with `delegate_task` and completed [role briefs](roles.md). Confirm routed providers/models against `orchestrator_capabilities`. Take an available account in the tier’s model class instead of waiting for an ideal route. Use one QA owner per SHA; extra cross-family QA needs a stated critical uncertainty. Carry the original goal, findings and resolutions into fix briefs; reuse working context where supported. When replacing a delegated child with a retry, `task_cancel` the old task first: usage-limited threads auto-resume and could act on superseded instructions.
-
-**The round helper is the path for every step below.** `scripts/ship-loop.ts` in this skill (`bun ~/.claude/skills/ship-loop/scripts/ship-loop.ts --help`) keeps each PR's round state in the PR's own comments. A new conductor, thread, succession, retry or new head reads the same state, so no round is tracked anywhere else:
+**The round helper is the path for every step below.** `scripts/ship-loop.ts` in this skill (`bun ~/.claude/skills/ship-loop/scripts/ship-loop.ts --help`) keeps each PR's round state in the PR's own comments. A new conductor, chat, retry or new head reads the same state, so no round is tracked anywhere else:
 
 The PR author is the ledger's sole writer, identified through GitHub's native PR and comment metadata. Use that native GitHub identity when recording events; markers from other commenters are ignored, including malformed ones. Unknown author or unreadable trusted events stop the command without resetting the round.
 
@@ -57,7 +51,7 @@ The PR author is the ledger's sole writer, identified through GitHub's native PR
 - `prompt --pr <url> --role <qa|review|qa-review|judge|recheck|fix-builder|final-judge>`: the only brief a role gets. It refuses a role out of phase.
 - `record --pr <url> --kind <report|verdict|recheck|head> --file <payload.json>`: writes only what the user supplied, such as native thread IDs and report links. It refuses any write the workflow forbids.
 
-1. **Build.** One builder, `isolation: "worktree"`, which starts from your local commit: first detach your checkout at the builder's start (`git switch --detach origin/<default branch>`, or the PR head it starts from). It returns a PR and its head SHA. Run `init` with that PR.
+1. **Build.** One builder in an isolated worktree, which starts from your local commit: first detach your checkout at the builder's start (`git switch --detach origin/<default branch>`, or the PR head it starts from). It returns a PR and its head SHA. Run `init` with that PR.
 2. **Verify.** `prompt --role qa-review` for light changes, or `qa` and `review` otherwise. Record each report with `record --kind report`. If the head changes before any report exists, such as a rebase or base update, record it with `record --kind head` and `{"reason": "refresh", "from": "<recorded head>", "sha": "<new head>", "base": "<its base>"}`; after any report, only a FIX or a carry moves the head.
 3. **Judge.** `prompt --role judge` gives the independent judge the eligible findings. Resolve missing proof before SHIP. A user-facing change without linked verification-skill evidence of the real journey is missing proof. Record the ruling with `record --kind verdict`.
 4. **Act on the verdict.**
@@ -91,7 +85,7 @@ For a service with no automatic deploy, the watch reports `unwatched` and names 
 
 ## Report
 
-When a ticket ships or the frontier needs a principal decision, post one short report in the lane and send it through `home post --from <Lane>` under global autonomy's delivery rule.
+When a ticket ships or the frontier needs a principal decision, post one short report in the current chat under global autonomy's delivery rule.
 
 The report says what shipped, what is in flight (with the step each item is on), and every question for the principal, numbered. He reads it without opening anything:
 

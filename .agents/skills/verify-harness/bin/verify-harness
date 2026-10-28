@@ -1,6 +1,6 @@
 #!/bin/sh
 # Drive harness the way its operator does: native logins, the gate, isolated
-# deploys, fresh Claude Code and Codex sessions, live drift, home post, t3-pool.
+# deploys, fresh Claude Code and Codex sessions, live drift, Home reports and private note sync.
 # Never deploys to the live HOME. Evidence survives cleanup.
 set -u
 umask 077
@@ -25,7 +25,7 @@ owner_claude=phaedrus@mistystep.io
 owner_codex_mode=chatgpt
 
 fails=0
-case "${1:-}" in doctor|check|install|session|session-auth|session-sdk|live|home|pool|daybook|cleanup|all) ;; *) usage_needed=1 ;; esac
+case "${1:-}" in doctor|check|install|session|session-auth|live|home|daybook|cleanup|all) ;; *) usage_needed=1 ;; esac
 if [ -z "${usage_needed:-}" ]; then
   mkdir -p "$evidence" && evidence=$(CDPATH= cd -- "$evidence" && pwd) ||
     { echo "cannot create evidence directory $evidence" >&2; exit 1; }
@@ -117,18 +117,11 @@ EOF
     *) fail "codex login: $codex_login" ;;
   esac
 
-  # Home and T3 endpoints the guidance relies on.
+  # Independent Home reporting endpoint the guidance relies on.
   command -v home >/dev/null 2>&1 && pass "home on PATH" || fail "home missing from PATH"
   route="$HOME/.local/state/home/primary.json"
   [ -f "$route" ] && say "home routes over SSH to its cloud primary; the local ~/.local/state/home/inbox.md is not forwarded (#418)" ||
     say "home is local (no primary route)"
-  runtime="${T3CODE_HOME:-$HOME/.t3}/userdata/server-runtime.json"
-  origin=$(jq -r '.origin // empty' "$runtime" 2>/dev/null)
-  case "$origin" in
-    http://127.0.0.1:*|http://localhost:*|http://\[::1\]:*) pass "t3 server is loopback ($origin)" ;;
-    *) fail "t3 server runtime '$origin' at $runtime" ;;
-  esac
-  say "t3-pool.timer $(systemctl --user is-enabled t3-pool.timer 2>&1)/$(systemctl --user is-active t3-pool.timer 2>&1)"
 }
 
 cmd_check() {
@@ -187,8 +180,6 @@ cmd_install() {
     done
   done
   [ "$fails" = "$before" ] && pass "claude skills ($(list_of claude skills)) and codex skills ($(list_of codex skills)) byte-identical to source"
-  [ -x "$h/.local/bin/t3-pool" ] && [ -x "$h/.local/bin/t3-runtime-mode" ] && pass "t3-pool and t3-runtime-mode launchers" || fail "launchers"
-  [ "$(cat "$h/systemctl-calls" 2>/dev/null)" = "$(printf '%s\n' '--user daemon-reload' '--user daemon-reload')" ] && pass "pool timer left opt-in (only daemon-reload across both installs)" || fail "systemctl calls: $(cat "$h/systemctl-calls" 2>/dev/null)"
   (cd "$h" && find . -path ./.fixture-bin -prune -o -type f -print | grep -v '/skills/' | sort) > "$evidence/install-tree.txt"
 
   # Broken state: a foreign global file must stop the install before any write.
@@ -304,44 +295,6 @@ cmd_session_auth() {
   codex_session "$h/.codex" "$h" codex-candidate
 }
 
-cmd_session_sdk() {
-  need_run || return
-  [ -f "${VH_CLAUDE_SDK:-}" ] || { fail "set VH_CLAUDE_SDK to T3's SDK module"; return; }
-  step "session-sdk: native SDK launch shape used by T3, no instruction-file launch argument"
-  h="$run/claude-home"
-  target="$h/.claude/.credentials.json"
-  [ ! -e "$target" ] && [ ! -L "$target" ] || { fail "isolated credential destination already exists"; return; }
-  install -m 600 "$HOME/.claude/.credentials.json" "$target" || { fail "stage native CLI authentication"; return; }
-  trap 'rm -f -- "$target"' 0
-  trap 'exit 130' 2
-  trap 'exit 143' 15
-  cwd=$(fresh_cwd)
-  printf '%s\n' "$cwd" >> "$base/cwds"
-  executable=$(command -v claude)
-  env -i PATH="$PATH" HOME="$h" TMPDIR="$run" \
-    timeout 180 bun "$skill_dir/bin/claude-sdk-session.mjs" "$VH_CLAUDE_SDK" "$executable" "$cwd" "$run/claude-sdk.jsonl" \
-    'From the loaded harness global AGENTS.md, return JSON with keys heading, lastLine and sharedAuthWriter. Copy the first Markdown heading source line verbatim, including its leading # and space. Copy the final nonempty line verbatim, and name the sole writer of shared HOUSEHOLD_MEMBERS. No tools.'
-  rm -f -- "$target"
-  trap - 0 2 15
-  jq -c 'select(.subtype == "init") | {cwd, model, skills}' "$run/claude-sdk.jsonl" > "$evidence/claude-sdk-init.json"
-  jq -c 'select(.subtype == "hook_response" and .hook_event == "SessionStart") | {subtype, hook_event, stdout, exit_code, outcome}' "$run/claude-sdk.jsonl" > "$evidence/claude-sdk-hooks.jsonl"
-  python3 "$skill_dir/bin/claude-context.py" "$run/claude-sdk.jsonl" "$h/.claude/AGENTS.md" > "$evidence/claude-sdk-context.json" &&
-    pass "T3 SDK native session received every canonical guidance part" || fail "T3 SDK native context"
-  jq -e 'select(.subtype == "hook_response" and .stdout == "foreign-startup-sentinel" and .outcome == "success")' "$run/claude-sdk.jsonl" >/dev/null &&
-    pass "T3 SDK also ran the preserved foreign startup hook" || fail "T3 SDK foreign startup hook"
-  jq -c 'select(.type == "result") | {is_error, result}' "$run/claude-sdk.jsonl" > "$evidence/claude-sdk-result.json"
-  python3 - "$evidence/claude-sdk-result.json" "$h/.claude/AGENTS.md" <<'PYCODE'
-import json,sys
-from pathlib import Path
-result=json.loads(Path(sys.argv[1]).read_text());assert not result['is_error']
-text=result['result'].strip()
-if text.startswith('```'): text='\n'.join(text.splitlines()[1:-1])
-answer=json.loads(text);lines=[s for s in Path(sys.argv[2]).read_text().splitlines() if s.strip()]
-assert answer == {'heading': next(s for s in lines if s.startswith('# ')), 'lastLine': lines[-1], 'sharedAuthWriter': 'Process'}, answer
-PYCODE
-  [ "$?" -eq 0 ] && pass "authenticated T3 SDK model read global AGENTS.md and the shared-auth writer policy" || fail "T3 SDK model guidance readback"
-}
-
 cmd_registration() {
   need_run || return
   step "registration: the revision's verify-harness skill in fresh sessions at a copy of its .claude and .agents"
@@ -420,31 +373,6 @@ cmd_home() {
   fi
 }
 
-cmd_pool() {
-  need_run || return
-  step "pool: t3-pool dry runs and opt-in state (read-only)"
-  state="${XDG_STATE_HOME:-$HOME/.local/state}/t3-pool"
-  snap() { find "$state" -type f -exec stat -c '%n %s %Y' {} + 2>/dev/null | sort; }
-  # The live timer can run a real pass in the window; attribute writes to it, not the dry run.
-  passes() { systemctl --user show t3-pool.service -p NRestarts -p ExecMainStartTimestampMonotonic -p ActiveState 2>/dev/null | tr '\n' ' '; }
-  before=$(snap) passes_before=$(passes)
-  if out=$(cd "$root" && timeout 60 bun agent-config/bin/t3-pool.ts --dry-run 2>&1); then
-    printf '%s\n' "$out" > "$evidence/pool-live-dry-run.json"
-    printf '%s\n' "$out" | tail -n 1 | jq -e '.dryRun == true and (.planned | type == "number")' >/dev/null &&
-      pass "live dry run: $(printf '%s\n' "$out" | tail -n 1 | jq -c '{planned, limited}')" || fail "live dry run output"
-  else fail "live dry run: $out"; fi
-  if [ "$(snap)" = "$before" ]; then pass "dry run wrote no pool state"
-  # A running pass reports activating, not active; any state but inactive counts.
-  elif [ "$(passes)" != "$passes_before" ] || ! case "$passes_before $(passes)" in *ActiveState=inactive*ActiveState=inactive*) true ;; *) false ;; esac; then
-    say "NOTE a live t3-pool.service pass ran during the dry run; inert check inconclusive, rerun pool"
-  else fail "dry run changed $state"; fi
-  out=$(env -i PATH="$PATH" HOME="$run/claude-home" "$run/claude-home/.local/bin/t3-pool" --dry-run 2>&1)
-  printf '%s\n' "$out" | grep -Fq '"planned":0' && pass "installed bundle runs with no source or T3 database" || fail "installed bundle: $out"
-  cmp -s "$run/source/agent-config/t3-pool/pools.json" "${XDG_CONFIG_HOME:-$HOME/.config}/t3-pool.json" &&
-    pass "live ~/.config/t3-pool.json matches source" || fail "DRIFT live t3-pool.json"
-  say "t3-pool.timer is $(systemctl --user is-enabled t3-pool.timer 2>&1) (activation is an explicit operator choice)"
-}
-
 cmd_cleanup() {
   step "cleanup: remove run state and scratch cwds; keep evidence"
   if [ -f "$base/cwds" ]; then
@@ -486,18 +414,16 @@ cmd_daybook() {
 usage() {
   cat <<'EOF'
 Usage: verify-harness <command>
-  doctor            read-only workstation, login and endpoint check
+  doctor            read-only workstation and native login check
   check [selection] ./scripts/check (all|shared|pi|omp|workspace)
   install [rev]     deploy claude-config and codex-config from rev (default HEAD) into private HOMEs
   session [claude|codex|both]  fresh sessions on the isolated install; both also checks this skill registers
   session-auth      isolated candidate model readback using native CLI subscription authentication
-  session-sdk       authenticated T3 SDK launch; requires VH_CLAUDE_SDK module path
-  live              compare live ~/.claude, ~/.codex and t3-pool config with the installed rev; fresh live sessions
+  live              compare live ~/.claude and ~/.codex with the installed rev; fresh live sessions
   home              home post into a private inbox, bad posts, routed probe
   daybook           isolated installed note CLI against local Git remotes
-  pool              t3-pool dry runs and opt-in state
   cleanup           remove run state; keep evidence
-  all               doctor, check, install, session, live, home, pool, daybook, cleanup
+  all               doctor, check, install, session, live, home, daybook, cleanup
 Env: VH_EVIDENCE=<dir> (default $VH_DIR/evidence/<UTC stamp>)
      VH_DIR=<absolute dir owned by this run> (default ~/.cache/tmp/verify-harness)
 EOF
@@ -511,13 +437,11 @@ case "$command" in
   install) cmd_install "$@" ;;
   session) cmd_session "$@" ;;
   session-auth) cmd_session_auth ;;
-  session-sdk) cmd_session_sdk ;;
   live) cmd_live ;;
   home) cmd_home ;;
-  pool) cmd_pool ;;
   daybook) cmd_daybook ;;
   cleanup) cmd_cleanup ;;
-  all) cmd_doctor; cmd_check; cmd_install "${1:-HEAD}"; cmd_session; cmd_live; cmd_home; cmd_pool; cmd_daybook; cmd_cleanup ;;
+  all) cmd_doctor; cmd_check; cmd_install "${1:-HEAD}"; cmd_session; cmd_live; cmd_home; cmd_daybook; cmd_cleanup ;;
   *) usage; exit 1 ;;
 esac
 say ""

@@ -1,12 +1,11 @@
 # Isolated deploy
 
-`claude-config/install` and `codex-config/install` compose the global guidance (`~/.claude/AGENTS.md`, `~/.codex/AGENTS.md`). They also deploy the shared skills each installer selects, and claude-config installs the `t3-pool` and `t3-runtime-mode` launchers. This feature runs them as the operator would, but into a private HOME.
+`claude-config/install` and `codex-config/install` compose the global guidance (`~/.claude/AGENTS.md`, `~/.codex/AGENTS.md`). They also deploy the shared skills each installer selects. This feature runs them as the operator would, but into a private HOME.
 
 ## Sub-features
 
 - `deploy-claude`: AGENTS.md is the harness intro with the engineering, workstation and autonomy sections spliced at the marker; the native SessionStart adapter, skills and launchers are in place, with no legacy entry.
 - `deploy-codex`: AGENTS.md is composed the same way, and the skills are in place.
-- `deploy-pool-opt-in`: install only reloads user units and never enables `t3-pool.timer`.
 - `deploy-foreign-refusal`: an AGENTS.md or legacy entry without the harness ownership marker stops the install before any write.
 
 ## How to get to it (user POV)
@@ -24,7 +23,6 @@ Preconditions:
 - **Check composition.** In the same output, expect `PASS ~/.claude/AGENTS.md is the composed guidance`, `PASS ~/.codex/AGENTS.md is the composed guidance` and `PASS claude skills (...) and codex skills (...) byte-identical to source`.
 - **Canonical adapter.** Expect `PASS Claude uses AGENTS.md alone with no legacy alias`. Content is a regular AGENTS.md, with no legacy file or symlink. Shared checks exercise owned legacy upgrades, preserved backups, reruns and foreign/broken-link refusals. All fixtures author content as AGENTS.md.
 - **Native settings.** Expect `PASS repeated native adapter install leaves settings byte-identical` and `PASS foreign native settings and startup hook preserved`. Fresh-session drives prove the preserved hook also runs.
-- **Check the pool stays opt-in.** Expect `PASS t3-pool and t3-runtime-mode launchers` and `PASS pool timer left opt-in (only daemon-reload across both installs)`.
 - **Refuse foreign files.** Expect `PASS claude install refuses a foreign AGENTS.md, nothing written` and `PASS codex install refuses a foreign AGENTS.md, nothing written`.
 - **Proof.** Keep the install section of `transcript.txt` and `install-tree.txt`.
 

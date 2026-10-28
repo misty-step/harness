@@ -11,7 +11,7 @@ Edit maintained source and use the affected component's native tools.
 | `agent-config/` | Harness-neutral skills, guidance sections, `pass-env`, the agent audio sandbox, and their shared deployment contract |
 | `pi-config/` | pi settings, extensions, composer chrome, guidance intro, and shared-primitive selection |
 | `omp-config/` | OMP routing, config/models/MCP, extensions, themes, guidance, and shared-primitive selection |
-| `claude-config/` | Shared-primitive selection and guidance intro for Claude Code, which runs every T3 lane |
+| `claude-config/` | Shared-primitive selection and guidance intro for Claude Code |
 | `codex-config/` | Native Codex defaults, plus shared-primitive selection and guidance intro for Codex |
 | Root | Workspace setup, verification, Git hooks, CI/releases, and cross-component architecture decisions |
 
