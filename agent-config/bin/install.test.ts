@@ -29,9 +29,7 @@ function fixture(): Fixture {
 	copyFileSync(join(repo, "install"), join(source, "install"));
 	copyFileSync(join(repo, "bin/pass-env.ts"), join(source, "bin/pass-env.ts"));
 	copyFileSync(join(repo, "bin/launcher-build.ts"), join(source, "bin/launcher-build.ts"));
-	copyFileSync(join(repo, "bin/t3-pool.ts"), join(source, "bin/t3-pool.ts"));
 	cpSync(join(repo, "lib"), join(source, "lib"), { recursive: true });
-	cpSync(join(repo, "t3-pool"), join(source, "t3-pool"), { recursive: true });
 	copyFileSync(join(repo, "guidance/engineering.md"), join(source, "guidance/engineering.md"));
 	copyFileSync(
 		join(repo, "skills/authenticated-commands/SKILL.md"),
@@ -94,85 +92,31 @@ afterEach(() => {
 });
 
 describe("install", () => {
-	test("pool preflight is inert; deployment bundles its CLI, copies owned config and units, and leaves activation opt-in", () => {
+	test("retires only marked obsolete orchestration skills", () => {
 		const files = fixture();
-		const before = snapshot(files.home);
-		expect(invoke(files, ["--t3-pool", "--check"]).exitCode).toBe(0);
-		expect(snapshot(files.home)).toEqual(before);
-		const deployed = invoke(files, ["--t3-pool"]);
-		expect(deployed.stderr.toString()).toBe("");
-		expect(deployed.exitCode).toBe(0);
-		expect(readFileSync(join(files.home, "systemctl-calls"), "utf8")).toBe("--user daemon-reload\n");
-		expect(readFileSync(join(files.home, ".config/t3-pool.json"), "utf8")).toBe(readFileSync(join(repo, "t3-pool/pools.json"), "utf8"));
-		expect(readFileSync(join(files.home, ".config/systemd/user/t3-pool.timer"), "utf8")).toContain("OnUnitInactiveSec=90s");
-		expect(readFileSync(join(files.target, "AGENTS.md"), "utf8")).toContain(readFileSync(join(repo, "guidance/engineering.md"), "utf8"));
-		rmSync(files.source, { recursive: true });
-		const smoke = Bun.spawnSync(["bun", join(files.home, ".local/bin/t3-pool"), "--help"]);
-		expect(smoke.exitCode).toBe(0);
-		expect(smoke.stdout.toString()).toContain("Usage: t3-pool");
-	});
-
-	test.each(["disabled", "enabled", "masked"])("pool reinstall preserves %s activation", (activation) => {
-		const files = fixture();
-		expect(invoke(files, ["--t3-pool"]).exitCode).toBe(0);
-		if (activation === "masked") {
-			rmSync(join(files.home, ".config/systemd/user/t3-pool.timer"));
-			symlinkSync("/dev/null", join(files.home, ".config/systemd/user/t3-pool.timer"));
+		for (const name of ["t3-access", "lane-succession"]) {
+			put(files.target, `skills/${name}/SKILL.md`, "obsolete skill\n");
+			put(files.target, `skills/${name}/.harness-owned`, "owned by misty-step/harness agent-config\n");
 		}
-		put(files.home, ".fixture-bin/systemctl", `#!/bin/sh
-[ "$*" != "--user show-environment" ] || exit 0
-[ "$*" != "--user is-enabled t3-pool.timer" ] || { echo ${activation}; exit 0; }
-printf '%s\\n' "$*" >> "$HOME/systemctl-calls"
-`);
-		expect(invoke(files, ["--t3-pool"]).exitCode).toBe(0);
-		expect(readFileSync(join(files.home, "systemctl-calls"), "utf8")).toBe("--user daemon-reload\n--user daemon-reload\n");
-		if (activation === "masked") expect(readlinkSync(join(files.home, ".config/systemd/user/t3-pool.timer"))).toBe("/dev/null");
+		const before = snapshot(files.target);
+		expect(invoke(files, ["--check"]).exitCode).toBe(0);
+		expect(snapshot(files.target)).toEqual(before);
+		expect(invoke(files).exitCode).toBe(0);
+		for (const name of ["t3-access", "lane-succession"]) {
+			expect(existsSync(join(files.target, "skills", name))).toBe(false);
+		}
 	});
 
-	test("pool skips gracefully without a systemd user manager and still installs other primitives", () => {
+	test("preserves foreign obsolete skill names and links", () => {
 		const files = fixture();
-		put(files.home, ".fixture-bin/systemctl", "#!/bin/sh\nexit 1\n");
-		const installed = invoke(files, ["--t3-pool"]);
-		expect(installed.exitCode).toBe(0);
-		expect(installed.stdout.toString()).toContain("Skipping T3 pool");
-		expect(existsSync(join(files.home, ".local/bin/pass-env"))).toBe(true);
-		expect(existsSync(join(files.home, ".local/bin/t3-pool"))).toBe(false);
-		expect(existsSync(join(files.home, ".config/systemd/user/t3-pool.timer"))).toBe(false);
+		put(files.target, "skills/t3-access/SKILL.md", "foreign skill\n");
+		put(files.home, "foreign-successor/SKILL.md", "foreign successor\n");
+		symlinkSync(join(files.home, "foreign-successor"), join(files.target, "skills/lane-succession"));
+		expect(invoke(files).exitCode).toBe(0);
+		expect(readFileSync(join(files.target, "skills/t3-access/SKILL.md"), "utf8")).toBe("foreign skill\n");
+		expect(readlinkSync(join(files.target, "skills/lane-succession"))).toBe(join(files.home, "foreign-successor"));
 	});
 
-	test.each(["systemctl", "flock"])("pool skips a standalone install without %s", (missing) => {
-		const files = fixture();
-		const minimal = join(files.root, "minimal-bin");
-		mkdirSync(minimal);
-		const dirnameTool = Bun.which("dirname");
-		if (!dirnameTool) throw new Error("dirname missing");
-		symlinkSync(dirnameTool, join(minimal, "dirname"));
-		if (missing === "flock") symlinkSync(join(files.home, ".fixture-bin/systemctl"), join(minimal, "systemctl"));
-		const installed = Bun.spawnSync({
-			cmd: ["/bin/sh", join(files.source, "install"), "--home", files.home, "--t3-pool"],
-			env: { HOME: files.home, PATH: minimal },
-		});
-		expect(installed.exitCode).toBe(0);
-		expect(installed.stdout.toString()).toContain("Skipping T3 pool");
-		expect(existsSync(join(files.home, ".local/bin/t3-pool"))).toBe(false);
-	});
-
-	test.each([".local/bin/t3-pool", ".config/t3-pool.json", ".config/systemd/user/t3-pool.service", ".config/systemd/user/t3-pool.timer"])("pool refuses foreign %s before any write", (path) => {
-		const files = fixture();
-		put(files.home, path, "foreign owner\n");
-		const before = snapshot(files.home);
-		expect(invoke(files, ["--t3-pool"]).exitCode).not.toBe(0);
-		expect(snapshot(files.home)).toEqual(before);
-	});
-
-	test("pool refuses symlinked owned config before any write", () => {
-		const files = fixture();
-		mkdirSync(join(files.home, ".config"));
-		symlinkSync(join(files.source, "t3-pool/pools.json"), join(files.home, ".config/t3-pool.json"));
-		const before = snapshot(files.home);
-		expect(invoke(files, ["--t3-pool"]).exitCode).not.toBe(0);
-		expect(snapshot(files.home)).toEqual(before);
-	});
 	test("deploys the launcher, owned skill, and guidance without needing credentials", () => {
 		const files = fixture();
 		const beforeAgent = snapshot(files.target);

@@ -14,8 +14,7 @@ and records each source in `~/.local/state/skills/.skill-lock.json`.
 | Emil Kowalski | [emilkowalski/skills](https://github.com/emilkowalski/skills) | none | UI polish and motion |
 
 pstack's workflow assumes Cursor: cloud agents, `/loop`, Bugbot and `.cursor/`
-paths. On T3 we keep its method and use `delegate_task`, `t3_thread_*` and
-`schedule_task` instead. Most Pocock and pstack skills are user-invoked, so an
+paths. Use the current client's native collaboration and automation tools. Most Pocock and pstack skills are user-invoked, so an
 agent reads `~/.claude/skills/<name>/SKILL.md` rather than calling the Skill tool.
 
 ## The loop
@@ -28,7 +27,7 @@ round      builder ─────────── implement (tdd, code-review
            judge ───────────── judge: blocker | file | skip  →  SHIP | FIX | REVERT | SPLIT
 merge      gate at the judged SHA; self-merge (misty-step, moomooskycow) or team review (r90group)
 release    release-watch: deploy, live identity, smoke, 30 min of signals → restore, incident, pokayoke
-oversight  heartbeat (hourly sweep, unsticks lanes) · lage (Home's executive brief)
+oversight  heartbeat (hourly sweep, unsticks lanes) · lage (executive brief)
 ```
 
 `ship-loop` conducts all of it; its `roles.md` holds the four role briefs.
@@ -40,6 +39,6 @@ Global guidance `autonomy` holds the policy every step runs under.
 | --- | --- | --- |
 | `lage` | `ketchup`, `recall` (one chat each) | One brief across every lane, initiative and agent |
 | `judge` | `interrogate`'s lead judgment | An independent product owner that files follow-ups and rules SHIP |
-| `ship-loop` | Pocock main flow, pstack `autopilot-full` | The T3-native conductor with self-merge gated on the judge |
+| `ship-loop` | Pocock main flow, pstack `autopilot-full` | The conductor with self-merge gated on the judge |
 | `release-watch` | none | Watch after merge, with restore, incident and postmortem triggers |
-| `heartbeat` | pstack `orchestrate` audit tick | A T3 sweep that discovers lanes rather than listing them |
+| `heartbeat` | pstack `orchestrate` audit tick | A sweep across authorized current work |

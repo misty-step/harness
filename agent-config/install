@@ -16,7 +16,7 @@ Usage: install [--agent-dir DIR] [--check] [--home DIR]
                [--skill NAME|all]... [--preserve-foreign-skills]
                [--bin NAME]...
                [--guidance NAME]... --guidance-source FILE [--guidance-file NAME]
-               [--audio-sandbox] [--session-backup] [--t3-pool] [--t3-access-renew]
+               [--audio-sandbox] [--session-backup]
 
   --agent-dir DIR        Harness agent directory (required for agent primitives).
   --home DIR             Home for ~/.local/bin tools (default $HOME).
@@ -29,8 +29,6 @@ Usage: install [--agent-dir DIR] [--check] [--home DIR]
                          (only supported value).
   --audio-sandbox        Silent agent sink, Claude Code env, and live proof.
   --session-backup       Install session backup CLI, credential references and inactive user timer.
-  --t3-pool              Install account pools and inactive 90-second user timer (opt-in).
-  --t3-access-renew      Install watcher renewal CLI and inactive daily user timer.
   --check                Validate the selection; write nothing.
 EOF
 }
@@ -46,9 +44,6 @@ bins=
 guidance=
 audio_sandbox=0
 session_backup=0
-t3_pool=0
-t3_pool_requested=0
-t3_access_renew=0
 
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -62,24 +57,11 @@ while [ $# -gt 0 ]; do
     --guidance-file) guidance_file=${2-}; shift 2 ;;
     --audio-sandbox) audio_sandbox=1; shift ;;
     --session-backup) session_backup=1; shift ;;
-    --t3-pool) t3_pool=1; t3_pool_requested=1; shift ;;
-    --t3-access-renew) t3_access_renew=1; bins="$bins t3-access-renew t3-agent"; shift ;;
     --check) check=1; shift ;;
     -h|--help) usage; exit 0 ;;
     *) printf 'Unknown argument: %s\n' "$1" >&2; usage >&2; exit 1 ;;
   esac
 done
-
-# Pooling requires a user manager; other primitives work on macOS/containers.
-if [ "$t3_pool" = 1 ]; then
-  if command -v systemctl >/dev/null 2>&1 && command -v flock >/dev/null 2>&1 &&
-    systemctl --user show-environment >/dev/null 2>&1; then
-    bins="$bins t3-pool.ts"
-  else
-    printf 'Skipping T3 pool: systemd user manager and flock are required\n'
-    t3_pool=0
-  fi
-fi
 
 require_nonempty() {
   [ -s "$1" ] || {
@@ -94,7 +76,7 @@ require_bun() {
 
 agent_selection=0
 if [ -n "$skills$bins$guidance$guidance_source" ] || [ "$audio_sandbox" = 1 ]; then agent_selection=1; fi
-if [ -z "$agent_dir" ] && { [ "$session_backup" = 0 ] && [ "$t3_pool_requested" = 0 ] || [ "$agent_selection" = 1 ]; }; then
+if [ -z "$agent_dir" ] && { [ "$session_backup" = 0 ] || [ "$agent_selection" = 1 ]; }; then
   echo "--agent-dir is required for agent primitives" >&2; usage >&2; exit 1
 fi
 
@@ -112,9 +94,12 @@ for name in $skills; do
 done
 
 owns_skill() {
-  [ -d "$1" ] && [ ! -L "$1" ] &&
-    [ -f "$1/.harness-owned" ] && [ ! -L "$1/.harness-owned" ] &&
-    [ "$(cat "$1/.harness-owned")" = "$skill_marker" ]
+  [ -d "$1" ] && [ ! -L "$1" ] || return 1
+  if [ -f "$1/.harness-owned" ] && [ ! -L "$1/.harness-owned" ] &&
+    [ "$(cat "$1/.harness-owned")" = "$skill_marker" ]; then
+    return 0
+  fi
+  python3 "$repo_dir/lib/legacy_skill.py" "$1"
 }
 
 validate_skills() {
@@ -250,48 +235,6 @@ install_session_backup() {
   done
 }
 
-t3_pool_files() {
-  printf '%s\n' \
-    "pools.json:.config/t3-pool.json" \
-    "t3-pool.service:.config/systemd/user/t3-pool.service" \
-    "t3-pool.timer:.config/systemd/user/t3-pool.timer"
-}
-
-validate_t3_pool() {
-  [ "$t3_pool" = 1 ] || return 0
-  for pair in $(t3_pool_files); do
-    source="$repo_dir/t3-pool/${pair%%:*}"
-    destination="$home_dir/${pair#*:}"
-    require_nonempty "$source"
-    # A native systemd mask is an explicit off switch, never an install target.
-    case "${pair%%:*}" in
-      *.service|*.timer) [ ! -L "$destination" ] || [ "$(readlink "$destination")" != /dev/null ] || continue ;;
-    esac
-    if [ -e "$destination" ] || [ -L "$destination" ]; then
-      pool_marker='# owned by misty-step/harness t3-pool'
-      [ "${pair%%:*}" != pools.json ] || pool_marker='  "ownedBy": "misty-step/harness t3-pool",'
-      if [ ! -f "$destination" ] || [ -L "$destination" ] || ! grep -Fqx "$pool_marker" "$destination"; then
-        printf 'Refusing foreign T3 pool destination: %s\n' "$destination" >&2
-        exit 1
-      fi
-    fi
-  done
-}
-
-install_t3_pool() {
-  for pair in $(t3_pool_files); do
-    destination="$home_dir/${pair#*:}"
-    case "${pair%%:*}" in
-      *.service|*.timer) [ ! -L "$destination" ] || [ "$(readlink "$destination")" != /dev/null ] || continue ;;
-    esac
-    install -d -m 700 "$(dirname -- "$destination")"
-    install -m 600 "$repo_dir/t3-pool/${pair%%:*}" "$destination"
-  done
-  systemctl --user daemon-reload
-  # Activation is explicit. Reinstall preserves enabled, disabled and masked.
-  printf 'T3 pool units installed; opt in with systemctl --user enable --now t3-pool.timer\n'
-}
-
 install_skill() {
   name=$1
   install -d -m 700 "$agent_dir/skills"
@@ -359,31 +302,27 @@ install_guidance() {
   trap - 0 1 2 15
 }
 
-validate_t3_access_renew() {
-  [ "$t3_access_renew" = 1 ] || return 0
-  for name in t3-access-renew.service t3-access-renew.timer; do
-    require_nonempty "$repo_dir/t3-access/$name"
-    destination="$home_dir/.config/systemd/user/$name"
-    if [ -e "$destination" ] || [ -L "$destination" ]; then
-      if [ ! -f "$destination" ] || [ -L "$destination" ] ||
-        ! grep -Fqx '# owned by misty-step/harness t3-access' "$destination"; then
-        printf 'Refusing foreign T3 renewal destination: %s\n' "$destination" >&2
-        exit 1
-      fi
-    fi
-  done
-}
 
 validate_skills
 validate_guidance
 validate_bins
 validate_audio_sandbox
 validate_session_backup
-validate_t3_pool
-validate_t3_access_renew
+python3 "$repo_dir/lib/retired_runtime.py" --home "$home_dir" --check
 
 if [ "$check" = 1 ]; then
   exit 0
+fi
+
+# Retire owned runtime schedules before their executable files disappear.
+python3 "$repo_dir/lib/retired_runtime.py" --home "$home_dir"
+
+# Exact historical or marked packages are ours; foreign packages and links survive.
+if [ -n "$agent_dir" ]; then
+  for name in t3-access lane-succession; do
+    destination="$agent_dir/skills/$name"
+    if owns_skill "$destination"; then rm -rf -- "$destination"; fi
+  done
 fi
 
 for name in design-check review-check foundation-check story-deletion-check semantic-check; do
@@ -434,11 +373,3 @@ for name in $bins; do install_bin "$name"; done
 if [ -n "$guidance" ]; then install_guidance; fi
 if [ "$audio_sandbox" = 1 ]; then bun "$repo_dir/audio-sandbox/install.ts" host --home "$home_dir"; fi
 if [ "$session_backup" = 1 ]; then install_session_backup; fi
-if [ "$t3_pool" = 1 ]; then install_t3_pool; fi
-
-if [ "$t3_access_renew" = 1 ]; then
-  install -d -m 700 "$home_dir/.config/systemd/user"
-  for name in t3-access-renew.service t3-access-renew.timer; do
-    install -m 600 "$repo_dir/t3-access/$name" "$home_dir/.config/systemd/user/$name"
-  done
-fi

@@ -1,39 +1,29 @@
 ---
 name: heartbeat
-description: Sweep lanes for stalls, dropped decisions, and failed native recovery. Use for /heartbeat or "Heartbeat sweep".
+description: Check assigned work for stalls, dropped decisions and failed recovery. Use for /heartbeat or "Heartbeat sweep".
 ---
 
 # Heartbeat
 
-Follow global guidance's **Autonomy** section.
+Follow global guidance's **Autonomy** section. Inspect the work named by the user or by this automation's saved prompt. Discovery does not expand that scope.
 
 ## Sweep
 
-Read `~/home/AGENTS.md`. Exclude its out-of-scope work from the roster and every brief; name none of it here.
+Use the host's native chat tools to list the assigned chats, read their latest status and inspect older context only when a blocker or question remains unclear. Use native collaboration status for children of the current task. Prefer compact wait/status snapshots to repeated full-history reads. Preserve existing schedules and bindings.
 
-Resolve the established hourly task and its native `boundThreadId` under `lane-succession` **Dispatcher ownership**. Only that existing thread executes the sweep and succession effects. A different caller queues its request to that thread; unknown or duplicate ownership blocks effects. Preserve the existing task and binding; create no replacement schedule during discovery.
+For each assigned item:
 
-Build the discovery list using `lage` step 1. Act only on lanes in the installed roster (`lane-succession` **Scope**: `wipRoots`, draining lanes included) and their descendants, which reach a listed root by following `parentThreadId`. Discovery grants no authorization. If the roster check fails, report that once to Home and do no recovery: no nudges, restarts or succession requests. Pin roster lanes with `t3_thread_organize`, `action: "pin"`. Read `~/home/NOW.md`, both inbox stores under `lane-succession` **Inbox evidence**, and your previous sweep. Check lane status, pending requests and activity tails. Expand truncated questions; read older history to resolve asks, blockers or uncertain liveness.
+- Read its goal, latest verified outcome, next step and pending questions. Confirm referenced PR states with GitHub.
+- Relay an existing decision with its source. Leave technical choices with the task doing the work.
+- Distinguish a provider limit from authentication, infrastructure or context failures. Native usage-limit readings or `upkeep room --json`, when available, establish current account room; missing readings are unknown. Leave native automatic recovery running.
+- Continue authorized unblocked work. For a demonstrably lost child of the current task, stop that child before replacing it through native collaboration tools. Keep the replacement within the same scope and carry its context and evidence forward.
+- Follow up with another chat only when the user authorized messaging it. Read its current state before sending and avoid duplicate nudges. A failed read is unknown, not evidence of a stall.
+- Report a persistent blocker with its exact error, last useful progress and the owner who can resolve it. A lack of recent pushes alone does not prove a stall.
 
-- Relay policy or recorded answers with citations. Leave technical choices with the lane.
-- For the latest failed run, read `t3_thread_read`, `view: "activity"`: an `error` titled "Usage limit reached" identifies a usage limit; reset text is in that run's notices. Leave recovery to T3. If no reset is advertised, or still failed next sweep after the advertised reset, report once to Process; suggest a provider with room, read live with `upkeep room`; a run's reset text is a dated reading, not a current one.
-- An `error` reading "Insufficient context allowance for the provider handoff" means the lane can take no more turns; restarting fails the same way. For a roster lane, draining or not, run `lane-succession`'s reporter steps: write the handoff and request a successor from Home once, in a post of its own. Then consume that request through the dispatcher steps below.
-- Consume exact `Lane succession requested: <id>` entries from both inbox stores for valid installed `wipRoots`. Run `lane-succession` **Dispatcher steps 0–4** yourself, one lane at a time in this bound native thread, with the newest handoff. The roster is Home's naming; ask for no fresh approval. Reconcile tracked partial dispatches first, including legacy Home attempts with known inactive prior runs, successors not yet listed, lost launch responses, and source/installed swaps awaiting readback. A claim or candidate means recover that successor, never launch another. Preserve all scope, route, duplicate, adoption and abandonment guards; parked, unnamed and child threads are forbidden. Report BLOCKED once or completion once to Home as that contract requires.
-- Nudge a roster lane once to run `lane-succession` at its next boundary when the skill's **When** query shows any of its provider threads at 60% or more. First apply the skill's scope, successor and inbox duplicate checks; an existing request or unknown read means no repeated nudge or request. Child context failures stay with their parent, never a top-level replacement.
-- For `BLOCKED-ALLOWED`, send Process the blocker and guard. Nudge the lane once to continue unblocked work, unless usage-limited. Route recurring blocks and tooling causes to Process.
-- Leave usage-limited, progressing, held, finished and live-agent waits alone. Nudge an idle lane once for its named unblocked step. If liveness is uncertain, ask once for status. For other failed or demonstrably lost runs, confirm no live agents remain from lane reports and `t3_thread_list` with `includeSubagents: true`; T3 may omit native agents, so absence proves nothing. Restart once with `t3_thread_send`, `mode: "restart"`, naming the error or step.
-- If a nudge, status request or restart leaves the stall unresolved next sweep, report it once to Process, then stop.
+Do not open independent chats or create new schedules as part of a sweep. Those are separate user requests.
 
-Send Process reports via `t3_thread_send` to the Process lane: the roster entry whose title starts with `Process`. To deliver to it, follow its title chain: while a title ends `(succeeded by <id>)`, send to `<id>` instead. Delivering a report grants no roster membership. With no Process entry, or an invalid roster, report to Home instead.
+## Report
 
-## Digest
+Compare with the previous sweep and avoid repeating unchanged findings. Notify only on a meaningful change, completion, failure or required user action unless the saved prompt explicitly asks for periodic reports. With no news, stay quiet.
 
-Use lane and Process history, both inbox stores under `lane-succession` **Inbox evidence**, and `~/home/NOW.md` to dedupe nudges and unchanged reports. A failed primary or fallback read is unknown, not permission to repost. Bring Home blocked dispatches and genuine principal decisions. Changed stakes, recommendations or deadlines are news.
-
-Write every question in full with options, recommendation and consequence of waiting. Link every referenced PR, issue and thread with a one-line summary.
-
-Post at most one digest per UTC sweep hour. Include `<!-- heartbeat: YYYY-MM-DDTHH -->`; check the inbox before posting or retrying. With no news, post nothing.
-
-Deliver Markdown on stdin to `home post --from Heartbeat`. Never `t3_thread_send` to Home.
-
-Reply here with actions and next run.
+Deliver a changed digest through `home post --from Heartbeat`, Markdown on stdin, and report completed actions in the current chat. Deduplicate against the prior sweep and inbox before posting. Link each referenced PR, issue and chat with a one-line summary. Questions state the options, recommendation and consequence of waiting. Report actions actually completed and the next check when one is scheduled.

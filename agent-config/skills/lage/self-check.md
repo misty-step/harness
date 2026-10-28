@@ -34,7 +34,7 @@ for key, fields in {
         assert isinstance(item['details'], dict)
         assert item['links']
         for link in item['links']:
-            assert link['label'] and link['url'].startswith(('https://', 't3-thread://v1/'))
+            assert link['label'] and link['url'].startswith(('https://', 'codex://'))
 assert len({d['id'] for d in r['decisions']}) == len(r['decisions'])
 assert len({lane['url'] for lane in r['lanes']}) == len(r['lanes'])
 assert f"{len(r['decisions'])} decisions; {len(r['stuck'])} stuck" in p

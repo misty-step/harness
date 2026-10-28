@@ -5,15 +5,15 @@ The deploy only matters if a fresh session loads it. A new Claude Code session m
 ## Sub-features
 
 - `session-claude-guidance`: Claude Code emits native SessionStart responses whose complete text equals deployed AGENTS.md. No other instruction file leaks in.
-- `session-claude-skills`: the Claude Code init event lists every skill `claude-config/install` selects (on 2026-10-21: `lage`, `ship-loop`, `judge`, `release-watch`, `heartbeat`, `lane-succession`, `story-qa`, `pokayoke`, `user-stories` and `authenticated-commands`).
+- `session-claude-skills`: the Claude Code init event lists every skill `claude-config/install` selects.
 - `session-codex-guidance`: Codex's rendered prompt contains `<!-- owned by misty-step/harness codex-config -->` and the composed sections.
 - `session-codex-skills`: the prompt's skill root `r0` is the deployed `skills` directory, and it lists every skill `codex-config/install` selects.
 - `session-repo-skill`: sessions started in a `/tmp` copy of the revision's `.claude` and `.agents` list this `verify-harness` skill: Claude Code from the `.claude/skills` symlink, and Codex from the copy's `.agents/skills` root.
 
 ## How to get to it (user POV)
 
-- Start a new Claude Code session, or a new T3 lane on a Claude instance.
-- Start a new Codex session, or a new T3 lane on a Codex instance.
+- Start a new Claude Code session.
+- Start a new Codex session.
 
 ## Driving it with verify-harness
 
@@ -27,7 +27,6 @@ Preconditions:
 - **Codex.** Run `verify-harness session codex`. Expect `PASS fresh Codex session prompt carries the composed AGENTS.md`, `PASS Codex skill root is <run>/claude-home/.codex/skills` and `PASS Codex session lists every codex-config skill`.
 - **Repository skill.** Run `verify-harness session` (both). Expect `PASS Claude Code lists verify-harness from the project .claude/skills symlink` and `PASS Codex lists verify-harness from the project .agents/skills`. A revision older than this skill fails here.
 - **Authenticated candidate.** Run `verify-harness session-auth` to prove the model reads the newly installed canonical and QA policy using native CLI subscription authentication in the isolated HOME. Expect `PASS authenticated fresh Claude model read canonical instructions and QA policy`. The private credential copy is removed; no product account or live deployment changes.
-- **T3 SDK.** Run `VH_CLAUDE_SDK=<T3 SDK module> verify-harness session-sdk`. Expect complete native context, a preserved foreign hook, and an authenticated readback of the first heading, final nonempty line and shared-auth writer. The SDK preset append contains only runtime information, with no canonical guidance; HOME selects user settings without a config-directory override.
 - **Proof.** Keep `claude-isolated-init.json`, `claude-isolated-instructions.jsonl`, `codex-isolated-summary.txt` and `registration-*`.
 
 ## Gotchas
