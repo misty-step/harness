@@ -27,6 +27,9 @@ model=$(jq -er '.model' "$run/metadata.json")
 thinking=$(jq -er '.thinking' "$run/metadata.json")
 printf '%s\n' "$$" > "$run/runner.pid"
 printf '%s\n' "$(date -u +%FT%TZ)" > "$run/started-at"
+# Scratch lives outside ~/run: live collection retains only report files.
+mkdir -p "$HOME/scratch"
+export TMPDIR="$HOME/scratch"
 cd "$HOME/work/repo"
 # A worker cannot fan out more agents on its VM. Kaylee commissions other VMs.
 omp -p --mode json --model "$model" --smol "$model" --slow "$model" --plan "$model" \
