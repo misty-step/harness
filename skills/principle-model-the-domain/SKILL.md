@@ -21,4 +21,4 @@ Before actors share state, ask what another writer can change concurrently. Isol
 
 Where bad orders hide in interleavings, run the model check and show it rejects a broken variant; reading a chart is not that check.
 
-Done when the shape owns the rules, transitions have one home and the real consumer Oracle passes. Label the result measured, inferred or guess.
+Done when the shape owns the rules, transitions have one home and the real consumer Oracle passes.

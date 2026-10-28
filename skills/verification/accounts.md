@@ -5,8 +5,8 @@ references under `workstation/<PROJECT>_QA_*`. Within the assigned app scope,
 creating that QA account, storing its credentials in pass, granting its required
 QA owner/admin role and adding its address to allowlists or Cloudflare Access
 are authorized verification setup. This narrow exception permits no unrelated
-credential, access or customer-data changes. Use `skill://authenticated-commands`
-from the workstation plugin for credential discovery and injection.
+credential, access or customer-data changes. Use the private workstation plugin's
+`authenticated-commands` procedure for credential discovery and injection.
 
 Prove a successful production login and the required owner/admin role through the
 actual app. A sent email, HTTP 200, login without the required role or native CLI
@@ -15,10 +15,10 @@ subscription is not that proof. Missing access after setup is
 name the blocked criterion. The human owner's password or a profile they must
 sign into is not a QA prerequisite.
 
-## One writer
+## Shared state
 
-One writer owns each shared account/resource at a time. Others read or request
-its writer. Pass secret references, never values, in logs, messages or proof.
+Apply misty's delegation boundary to shared accounts and resources.
+Pass secret references, never values, in logs, messages or proof.
 Worktrees, tabs and contexts do not isolate shared backend state.
 
 Process owns shared auth `HOUSEHOLD_MEMBERS` in GitHub Actions and the Worker

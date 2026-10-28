@@ -53,7 +53,7 @@ Do not use Mobbin.
    browser tool, capture and inspect every named affected state, and test existing
    behavior for regressions. Record **UX**, **DX** and **AX** outcomes separately;
    pass only when all three improve together and existing behavior still works.
-   Label each claim **measured**, **inferred** or **guess** beside its evidence;
-   an inaccessible or unexercised state remains unverified.
+   Follow the core's claim rule; an inaccessible or unexercised state remains
+   unverified.
 
 [Sources and cut decisions](sources.md) disclose the rewritten upstream material.

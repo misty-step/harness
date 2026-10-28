@@ -57,7 +57,7 @@ test("the default and all gates select plugin lint and the maintained test suite
 });
 
 test("plugin proof remains explicit and forwards its native proof options", () => {
-	for (const flags of [[], ["--strict"], ["--strict", "--lint-only"]]) {
+	for (const flags of [[], ["--strict"], ["--strict", "--lint-only"], ["--model", "fixture/model"]]) {
 		const result = run(["plugin", ...flags]);
 		expect(result.code).toBe(0);
 		expect(result.args).toEqual(["scripts/verify-plugin.ts", ...flags]);
@@ -65,12 +65,23 @@ test("plugin proof remains explicit and forwards its native proof options", () =
 });
 
 test("retired selections and unsupported all arguments fail before invoking proof", () => {
-	for (const args of [["shared"], ["pi"], ["omp"], ["workspace"], ["unknown"], ["all", "--strict"]]) {
+	for (const args of [["shared"], ["pi"], ["omp"], ["workspace"], ["unknown"], ["all", "--strict"], ["all", "--lint-only"], ["all", "--model", "fixture/model"]]) {
 		const result = run(args);
 		expect(result.code).not.toBe(0);
 		expect(result.args).toBeUndefined();
 		expect(result.err).toContain("Usage:");
 	}
+});
+
+test("help succeeds without proof and identifies plugin-only options", () => {
+	const result = run(["--help"]);
+	expect(result.code).toBe(0);
+	expect(result.args).toBeUndefined();
+	expect(result.out).toContain("scripts/verify [all]\n");
+	expect(result.out).toContain("scripts/verify plugin [--strict] [--lint-only] [--model SELECTOR]");
+	expect(result.out).toContain("Plugin-only options:");
+	expect(result.out).toContain("CI structural proof only");
+	expect(result.out).toContain("no model inference request");
 });
 
 test("a failed maintained suite is the canonical gate's failure", () => {

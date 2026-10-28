@@ -44,5 +44,5 @@ source fix and regression case; it does not change the target.
 
 Done when all reports exist and both validators pass, or run metadata records
 `incomplete` with exact unresolved candidates/coverage. A partial profile/budget
-never implies whole-target safety. Label report claims measured, inferred or guess
-in the same sentence. [LICENSE](LICENSE) preserves Cloudflare's MIT notice.
+never implies whole-target safety. Follow the core's claim rule.
+[LICENSE](LICENSE) preserves Cloudflare's MIT notice.

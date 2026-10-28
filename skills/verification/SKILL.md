@@ -37,15 +37,14 @@ in this change or stack on the PR adding it. A documents-only change does not
 inherit missing product infrastructure. Production sign-in uses the [QA account
 contract](accounts.md), including proof of the required role.
 
-Keep one driver per shared instance; a worktree or browser context does not
-isolate server-side state. Use authorized disposable data and clean only what the
-run created. Capture action and result, inspect each artifact, and publish proof
+Apply misty's delegation boundary. Use authorized disposable data and clean only
+what the run created. Capture action and result, inspect each artifact, and publish proof
 by [evidence.md](evidence.md). After a fix, recheck only the judge's named blockers
 and fix-introduced regressions; link unchanged proof rather than rerun it.
 
 Done when each criterion has an observed result at the named revision, linked
 proof and owned cleanup, or an exact unproved claim and missing prerequisite.
-Label every reported claim measured, inferred or guess in the same sentence.
+Follow the core's claim rule.
 
 ## Commissioned upkeep
 

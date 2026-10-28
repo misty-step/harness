@@ -43,7 +43,7 @@ Effort: <bounded depth and the uncertainty that deserves it>.
 
 Read skill://misty for the briefing contract, the ticket/spec and repo AGENTS.md.
 A missing Oracle returns to shaping. Make the acceptance criteria true within
-Scope; length never overrides Keep. Use one isolated worktree.
+Scope; length never overrides Keep. Follow misty's delegation boundary.
 
 Run the Oracle and affected checks, then use skill://verification for the changed
 consumer path. Its generator owns a missing .agents/skills/verify-<app>/ skill,
@@ -55,7 +55,7 @@ Rigor: <tier> — <reason>, diff size, and observed verification results.
 The conductor owns merge; preserve other writers' commits.
 
 Return PR URL, head SHA, check results, proof links, native thread ID and blockers.
-Label each claim measured, inferred or guess in the same sentence.
+Follow the core's claim rule.
 ```
 
 ## After the builder

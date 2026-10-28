@@ -17,6 +17,7 @@ Each derived skill names its upstream `owner/repo@full-commit/path` in `SKILL.md
 | [openclaw/openclaw@80930af448ebabc84174146b56bc106d37fab3b4](https://github.com/openclaw/openclaw/tree/80930af448ebabc84174146b56bc106d37fab3b4/.agents/skills/test-audit) | `skills/test-audit`, previously adapted by Misty Step; local licence retained. | MIT, OpenClaw Foundation |
 | [misty-step/foundations@d96c99ce1152ab1d6ae4a0eed0b22cbac93897b7](https://github.com/misty-step/foundations/tree/d96c99ce1152ab1d6ae4a0eed0b22cbac93897b7) | Constitution and way of working in core, principles, method skills and Foundation. The canonical checklist was copied from the live production `index.md`, with stable anchors and the approved vocabulary sentence added. | MIT, Misty Step |
 | [misty-step/omp-config@1c6c749e70dfe11975a8622b2d5fd45104ba74e1](https://github.com/misty-step/omp-config/tree/1c6c749e70dfe11975a8622b2d5fd45104ba74e1) and [misty-step/mistystack@0ccc1a308cdeefa29e991d3b7c1dbab016cfea03](https://github.com/misty-step/mistystack/tree/0ccc1a308cdeefa29e991d3b7c1dbab016cfea03) | Misty Step's existing foundation reasoning, method skills, evidence and shipping procedures, moved or rewritten into this plugin. | Misty Step material; this repository's licence governs its contributions. |
+| Installed Misty Step `evidence-packet/SKILL.md`, SHA-256 `08fb52a436fbc663c59648b9b07b87a9c3d3f782c5fd7f55a5568be886f78923` | Evidence method folded into `skills/verification`; this local source is not attributed to a repository revision that does not contain it. | Misty Step material; no third-party notice. |
 
 Kody is FSL-1.1 reference material only: no Kody text or implementation is copied. Taste, Hallmark, TypeSafe, and the linked essays are references, not bundled upstream material.
 
@@ -209,7 +210,7 @@ SOFTWARE.
 
 ## Apache-2.0 — Impeccable
 
-Copyright 2025 Paul Bakaus. Adapted by Misty Step as described above. The pinned upstream tree contains no separate NOTICE file. The complete upstream licence follows.
+Copyright 2025 Paul Bakaus. Adapted by Misty Step as described above. The pinned upstream [NOTICE.md](https://github.com/pbakaus/impeccable/blob/5adaee704634e9031ec8943721c4ffa1a3c22221/NOTICE.md) credits ehmo's MIT-licensed platform-design-skills for its iOS and Android platform references. Those references are not incorporated here; the adapted critique, polish and audit material is listed in `skills/design/sources.md`. The complete upstream licence follows.
 
 ```text
                                  Apache License

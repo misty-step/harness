@@ -84,7 +84,7 @@ test("US-015 master publication does not wait on the live PR check", () => {
 	expect(release).toMatch(/verify:\n\s+uses: \.\/\.github\/workflows\/ci\.yml/);
 	const step = ci.split("\n      - ").find((block) => block.includes("protected-release-check.ts"));
 	expect(step?.match(/^\s+if: (.*)$/m)?.[1]).toBe("github.event_name == 'pull_request'");
-	const replays = ci.split("\n      - ").filter((block) => /Install the pinned Landmark|scripts\/check all/.test(block));
+	const replays = ci.split("\n      - ").filter((block) => /Install the pinned Landmark|scripts\/check plugin --strict --lint-only/.test(block));
 	expect(replays.length).toBe(2);
 	for (const block of replays) expect(block).not.toContain("if:");
 });

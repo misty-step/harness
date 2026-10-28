@@ -6,7 +6,7 @@
 
 ## Impact
 
-Who was harmed and what changed for them. Label claims measured, inferred or guess.
+Who was harmed and what changed for them, under the core's claim rule.
 
 ## Timeline and mechanism
 

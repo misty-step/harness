@@ -17,10 +17,10 @@ Ask what the top practitioner would do, what raw material they would inspect, wh
 
 Configure before coding; reuse before building; delete before adding. Preserve raw data instead of replacing it with a convenient summary.
 
-Use Git's commits, branches, refs and notes for work state before creating a second ledger.
+Use Git's commits, branches, refs and notes for work state before forge ledgers or a second tracking mechanism.
 
-Give each new mechanism one owner. Keep a step, gate or abstraction only when its concrete prevented failure earns its cost; otherwise cut it.
+Give each new mechanism one owner. Remove the cause instead of adding a gate; retire a check once its replacement is proven. Keep an abstraction only when its concrete prevented failure earns its cost.
 
 Return independent new work to scope, not the current diff. A plausible improvement can be skipped rather than becoming a ticket.
 
-Done when the same outcome has a stronger Oracle and less unnecessary machinery. Label claimed gains measured, inferred or guess.
+Done when the same outcome has a stronger Oracle and less unnecessary machinery.

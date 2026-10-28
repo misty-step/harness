@@ -50,5 +50,5 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: bun scripts/protected-release-check.ts
-      - name: Check method plugin and all maintained tests sequentially
-        run: ./scripts/check all
+      - name: Check strict plugin structure and all maintained tests (no runtime install)
+        run: ./scripts/check plugin --strict --lint-only

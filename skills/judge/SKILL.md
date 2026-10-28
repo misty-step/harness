@@ -44,8 +44,7 @@ changed-path risk. Record `no deploy` when no deployed artifact changes.
 
 Post `Verdict at <head SHA>` with linked QA/review, one outcome and its reason,
 exact blockers with owner and observable fix, useful follow-ups, consequential
-skips and intent calls. Label each claim measured, inferred or guess in the same
-sentence. Omit empty sections.
+skips and intent calls under the core's claim rule. Omit empty sections.
 
 - **SHIP:** independent completed QA/review cover this SHA; all blockers resolved.
   `skill://verification` defines the required real-path proof, including sign-in

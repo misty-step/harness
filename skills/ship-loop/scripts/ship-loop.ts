@@ -367,7 +367,7 @@ export function prompt(s: State, prUrl: string, role: PromptRole): string {
   const head = s.head;
   const header = `PR ${prUrl} at head ${head}. Ticket ${s.ticket}. Rigor ${s.rigor} (${s.rigor_reason}). Base ${s.base}.`;
   const reportJson = `{"role": "${role}", "sha": "${head}", "thread_id": "<your native thread id>", "report_url": "<link to your posted report>", "outcome": "PASS|ISSUES|BLOCKED", "findings": [{"id": "F1", "evidence": "file:line, concrete failure, evidence link", "introduced_by_diff": true, "already_on_main": false, "blocker_class": "broken_journey|wrong_data|security_privacy|data_loss|broken_build|irreversible|none"}]}`;
-  const submit = (kind: string) => `Save the JSON payload to a file, then the conductor records it: \`${COMMAND} record --pr ${prUrl} --kind ${kind} --file <payload.json>\`. Use only the thread and report links you actually have. Label each claim measured, inferred or guess in the same sentence.`;
+  const submit = (kind: string) => `Save the JSON payload to a file, then the conductor records it: \`${COMMAND} record --pr ${prUrl} --kind ${kind} --file <payload.json>\`. Use only the thread and report links you actually have. Follow the always-on core's claim rule.`;
 
   if (role in QA_ROLE) {
     const who = QA_ROLE[role as keyof typeof QA_ROLE];
@@ -376,7 +376,7 @@ export function prompt(s: State, prUrl: string, role: PromptRole): string {
       : "Read skill://verification and use the repository's verification skill for the changed real consumer path. Follow its account, evidence and cleanup contract; documents/internal changes need their own composition proof, not an unrelated product journey.";
     return [
       `You are the ${who} for ${header}`,
-      "You did not build this change or rule on it. Check out the head in your own worktree.",
+      "You did not build this change or rule on it. Check out the assigned head under misty's delegation boundary.",
       scope,
       "Report every finding with evidence. Classify each one honestly: introduced_by_diff, already_on_main, and a blocker_class. Anything already on main, or not introduced by this diff, can never block.",
       "You cannot authorize a fix round, and you cannot issue a verdict. Only the judge rules.",
@@ -405,7 +405,7 @@ export function prompt(s: State, prUrl: string, role: PromptRole): string {
       `You are the builder for the single fix round on ${header}`,
       `Fix only these blockers, named by the judge's ruling:\n${named}`,
       "Do not fix anything else, and do not reopen review. New findings are follow-up tickets. Check out the PR branch, push one commit set, and keep the existing PR.",
-      `When pushed, record the new head: \`${COMMAND} record --pr ${prUrl} --kind head\` with payload \`{"reason": "fix", "sha": "<new head sha>", "thread_id": "<your native thread id>"}\`. Label each claim measured, inferred or guess in the same sentence.`,
+      `When pushed, record the new head: \`${COMMAND} record --pr ${prUrl} --kind head\` with payload \`{"reason": "fix", "sha": "<new head sha>", "thread_id": "<your native thread id>"}\`. Follow the always-on core's claim rule.`,
     ].join("\n\n");
   }
 
