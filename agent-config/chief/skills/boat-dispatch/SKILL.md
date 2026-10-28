@@ -40,9 +40,17 @@ Kaylee never edits product code or runs an engineering agent on factory.
    started-at, runner.pid, exit-code, worker.jsonl, worker.stderr, clone.stdout,
    clone.stderr and top-level `sessions/*.jsonl`; symlinks are not collected.
    Live `result` renders final assistant text and PR URLs on the VM over one SSH
-   call, without copying worker.jsonl. Stopped/archived commands still pull all
-   of `~/run` from the last snapshot; they do not enumerate a snapshot tree.
-   A collection failure retains the VM and tunnel.
+   call, without copying worker.jsonl. Stopped/archived `finish` enumerates the
+   last snapshot's complete Boat tree (`entries` with home-relative paths and
+   file/dir/symlink kinds), then makes one pull with repeated `--path` for only
+   the same allowlisted regular files. Each top-level session JSONL is requested
+   individually; neither symlinks nor nested session artifacts are pulled.
+   Stopped `list` pulls only metadata.json and a present exit-code; `result`
+   pulls metadata.json, exit-code and worker.jsonl; `logs` pulls metadata.json,
+   worker.jsonl and worker.stderr. Optional absence comes only from a complete
+   tree. Failed/unparseable/unavailable/truncated trees, failed pulls, missing
+   homeDir or undelivered listed files abort collection and retain the VM and
+   tunnel, even with `--force`; stopped `list` shows UNAVAILABLE, not unfinished.
    Use `--force` only to intentionally terminate and collect interrupted work;
    an unfinished live VM is stopped first and then uses snapshot collection.
    Workers use `~/scratch` (`$TMPDIR`) or `~/work` for tools and downloads, not
