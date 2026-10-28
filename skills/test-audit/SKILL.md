@@ -5,7 +5,7 @@ metadata:
   owner: phaedrus
   prevents: "Redundant test layers and lost independent coverage: US-021, introduced by mistystack commit 3b94e77 (MIS-166); lean proof refined in PR #279."
   source: "misty-step/mistystack@0ccc1a308cdeefa29e991d3b7c1dbab016cfea03/agent-config/skills/test-audit; openclaw/openclaw@80930af448ebabc84174146b56bc106d37fab3b4/.agents/skills/test-audit"
-  sunset: 2026-11-27
+  sunset: "2026-11-27"
 ---
 
 # Test audit

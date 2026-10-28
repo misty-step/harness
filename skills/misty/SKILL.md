@@ -5,7 +5,7 @@ metadata:
   owner: phaedrus
   prevents: "Fragmented method and half-finished work; initiative #533 and 11 finish-the-work corrections."
   source: "misty-step/mistystack#533 Q10-Q12; cursor/plugins@c742dd61706fbacc1b95f1a20b7b988cf096ce6c/pstack/skills/poteto-mode; misty-step/foundations@d96c99ce1152ab1d6ae4a0eed0b22cbac93897b7/way-of-working.md"
-  sunset: 2026-11-27
+  sunset: "2026-11-27"
 ---
 
 # Misty

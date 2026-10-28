@@ -5,7 +5,7 @@ metadata:
   owner: phaedrus
   prevents: "Unexamined project foundations and SDK-only proof; the owner requires every article checked (2026-10-27 ruling)."
   source: "misty-step/foundations@d96c99ce1152ab1d6ae4a0eed0b22cbac93897b7/{index.md,way-of-working.md}; misty-step/omp-config@1c6c749e70dfe11975a8622b2d5fd45104ba74e1/skills/foundation/SKILL.md; #533 Q6"
-  sunset: 2026-11-27
+  sunset: "2026-11-27"
 ---
 
 # Foundation

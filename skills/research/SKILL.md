@@ -5,7 +5,7 @@ metadata:
   owner: phaedrus
   prevents: "Code depending on recalled rather than verified interfaces; inferred 90-day use on 2026-10-28: research 8 plus agents/research 7 session-family read-path hits."
   source: "Local Misty ~/.omp/agent/skills/research; mattpocock/skills@59db609eb1e18aaf59b63284d0e52255aff0c63c/skills/engineering/research; installed agents/research resolves to the same Pocock research skill; Daybook projects/mistystack.md decision 16."
-  sunset: 2026-11-27
+  sunset: "2026-11-27"
 ---
 
 # Research

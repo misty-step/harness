@@ -5,7 +5,7 @@ metadata:
   owner: phaedrus
   prevents: "Unsupported vulnerability claims and unsafe target execution: Cloudflare's source/local-only candidate gates and validator regression suite, retained from mistystack PR #520."
   source: "cloudflare/security-audit-skill@c1c8a8c1471069fb0e188eeaff69b8e8db6564a8/skills/security-audit; misty-step/mistystack@0ccc1a308cdeefa29e991d3b7c1dbab016cfea03/agent-config/skills/security-audit"
-  sunset: 2026-11-27
+  sunset: "2026-11-27"
 ---
 
 # Security audit

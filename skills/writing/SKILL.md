@@ -5,7 +5,7 @@ metadata:
   owner: phaedrus
   prevents: "Q10 (Daybook decision 16): vague, mannered or ungrounded operator prose; inferred 90-day use on 2026-10-28: unslop 1, technical-writing 1, pr 1 session family each."
   source: "Daybook projects/mistystack.md decision 16; cursor/plugins@c742dd61706fbacc1b95f1a20b7b988cf096ce6c/pstack/skills/{unslop,technical-writing}; mattpocock/skills@59db609eb1e18aaf59b63284d0e52255aff0c63c/skills/engineering/pr; humanlayer/skills@653b6411c1f70c275a18e37673b042ff99f67ceb/plugins/show-me/skills/show-me; Foundations way-of-working Claim precisely and Review."
-  sunset: 2026-11-27
+  sunset: "2026-11-27"
 ---
 
 # Writing

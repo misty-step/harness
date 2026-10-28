@@ -6,7 +6,7 @@ metadata:
   owner: phaedrus
   prevents: "Unused or harmful instructions; 102 of 153 installed skills never loaded in the initiative #533 audit."
   source: "misty-step/mistystack#533 Q6 and Q8, Nico Bailon skill-diet ruling; misty-step/foundations@d96c99ce1152ab1d6ae4a0eed0b22cbac93897b7/way-of-working.md#keep-it-living"
-  sunset: 2026-11-27
+  sunset: "2026-11-27"
 ---
 
 # Skill diet

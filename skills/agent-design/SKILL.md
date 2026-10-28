@@ -5,7 +5,7 @@ metadata:
   owner: phaedrus
   prevents: "Q10 (Daybook decision 16): persona prose and duplicated guidance instead of exact instructions; inferred 90-day use on 2026-10-28: agent-design 5 and writing-for-agents 3 session families."
   source: "Daybook projects/mistystack.md decisions 6, 16-18; misty-step/mistystack@0ccc1a3/agent-config/skills/agent-design; mattpocock/skills@59db609eb1e18aaf59b63284d0e52255aff0c63c/skills/productivity/writing-for-agents; Foundations way-of-working Agent instructions; Nico Bailon skill-diet principle (reference)."
-  sunset: 2026-11-27
+  sunset: "2026-11-27"
 ---
 
 # Agent design

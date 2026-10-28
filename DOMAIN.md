@@ -55,9 +55,13 @@ metadata:
   owner: phaedrus
   prevents: "The observed failure this skill prevents."
   source: "Ruling or upstream repo@commit/path; covers the directory."
-  sunset: 2026-11-27
+  sunset: "2026-11-27"
 ---
 ```
+
+Metadata dates remain quoted strings so YAML 1.1 readers, including Hermes, can
+serialize the skill as JSON. The plugin lint rejects plain date/timestamp values
+and requires a non-empty string for `metadata.sunset`.
 
 Principle leaves use `disable-model-invocation: true` so the mode's index owns
 their routing. Model selectors and reasoning budgets belong only to OMP config,

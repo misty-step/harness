@@ -6,7 +6,7 @@ metadata:
   owner: phaedrus
   prevents: "Half-finished work handed back or parked; 11 operator corrections in initiative #533."
   source: "misty-step/mistystack#533; misty-step/foundations@d96c99ce1152ab1d6ae4a0eed0b22cbac93897b7/way-of-working.md; cursor/plugins@c742dd61706fbacc1b95f1a20b7b988cf096ce6c/pstack/skills/principle-outcome-oriented-execution"
-  sunset: 2026-11-27
+  sunset: "2026-11-27"
 ---
 
 # Finish the work

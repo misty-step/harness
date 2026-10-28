@@ -5,7 +5,7 @@ metadata:
   owner: phaedrus
   prevents: "Delivery drift and repeated review rounds: loaded in 15 audited sessions; real-path verification counters 'fix still fails' corrections (36)."
   source: "misty-step/mistystack@0ccc1a308cdeefa29e991d3b7c1dbab016cfea03/agent-config/skills/ship-loop; misty-step/foundations@d96c99ce1152ab1d6ae4a0eed0b22cbac93897b7/way-of-working.md#review"
-  sunset: 2026-11-27
+  sunset: "2026-11-27"
 ---
 
 # Ship loop
