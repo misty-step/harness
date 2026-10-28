@@ -1,8 +1,3 @@
----
-metadata:
-  source: "mattpocock/skills@59db609eb1e18aaf59b63284d0e52255aff0c63c/skills/engineering/{domain-modeling,to-spec,to-tickets}; misty-step/mistystack@0ccc1a3/agent-config/skills/user-stories; local Misty groom and shape; Foundations way-of-working Scope."
----
-
 # Shaping records
 
 ## Domain terms
