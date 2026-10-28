@@ -1,3 +1,9 @@
+# [0.2.45](https://github.com/misty-step/mistystack/compare/v0.2.44...v0.2.45) (2026-10-28)
+<!-- landmark:protected-release previous=v0.2.44 source=397dfdbaa856a0d4231bcbb658c7aa2e7e5a8641d5327fee2e2fb0dfc726a950 -->
+
+### Bug Fixes
+
+* **chief:** bound live worker collection without changing snapshots (#556) ([5bafc54](https://github.com/misty-step/mistystack/commit/5bafc5411143ea73fefebbac7daacfc5806e1d1b))
 # [0.2.44](https://github.com/misty-step/mistystack/compare/v0.2.43...v0.2.44) (2026-10-28)
 <!-- landmark:protected-release previous=v0.2.43 source=c480dbd6928bb1c5df02632031421fd794ff9698eea464a46afece694b21ac0b -->
 
