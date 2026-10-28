@@ -1,5 +1,5 @@
 #!/bin/sh
-# Pre-push secret scanning for the whole monorepo.
+# Pre-push secret scanning for mistystack.
 set -eu
 cd "$(git rev-parse --show-toplevel)"
 

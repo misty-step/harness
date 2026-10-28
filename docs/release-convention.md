@@ -2,7 +2,7 @@
 
 Status: accepted 2026-10-14. This is the one implementation convention for
 versions, changelogs and release notes in every repository we ship, client work
-included. The [foundations reference](https://foundations.mistystep.io/) says
+included. The [foundation checklist](../skills/foundation/checklist.md) records
 why we deploy continuously and keep useful notes and maintained versions; this
 page says how. A repository's ADR records its local choices (release units,
 baseline, any existing pre-1.0 policy) and links here instead of restating it.

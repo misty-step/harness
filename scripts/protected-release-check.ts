@@ -78,7 +78,7 @@ async function runLandmark(options: CheckOptions, repoRoot: string): Promise<Run
 			if (!pathname.startsWith(scope)) return Response.json({ message: "Not Found" }, { status: 404 });
 			const headers: Record<string, string> = {
 				Accept: "application/vnd.github+json",
-				"User-Agent": "harness-protected-release-check",
+				"User-Agent": "mistystack-protected-release-check",
 			};
 			if (options.token) headers.Authorization = `Bearer ${options.token}`;
 			const read = `${request.method} ${pathname}`;

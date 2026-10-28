@@ -1,3 +1,4 @@
+# Exact exclusions still apply to imported history after source paths are deleted.
 # Historical false positive: SHA-256 of the owned retired omp-secrets launcher,
 # compared with Bun.CryptoHasher("sha256") before removal; not a credential.
 # Exact imported finding only; do not exclude the file, rule, or commit broadly.
