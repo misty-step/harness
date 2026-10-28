@@ -1,3 +1,9 @@
+# [0.2.46](https://github.com/misty-step/mistystack/compare/v0.2.45...v0.2.46) (2026-10-28)
+<!-- landmark:protected-release previous=v0.2.45 source=a920feacb3de53c639a3442daf1f2477af733a801867f942dbb0e3f2c85b626a -->
+
+### Bug Fixes
+
+* **chief:** allowlist stopped worker snapshot collection (#559) ([7823152](https://github.com/misty-step/mistystack/commit/782315219661539f593c521ed9afb0aff6159be1))
 # [0.2.45](https://github.com/misty-step/mistystack/compare/v0.2.44...v0.2.45) (2026-10-28)
 <!-- landmark:protected-release previous=v0.2.44 source=397dfdbaa856a0d4231bcbb658c7aa2e7e5a8641d5327fee2e2fb0dfc726a950 -->
 
