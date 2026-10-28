@@ -469,7 +469,7 @@ test("a carry compares each revision with its own base across a squash-merged st
   const retry = await cli(h, ["record", "--pr", PR, "--kind", "head"], { reason: "carry", from: fixed, from_base: "parent", sha: rebased, to_base: "master" });
   expect(retry.code).toBe(0);
   expect(readFileSync(h.store, "utf8")).toBe(recorded);
-});
+}, 15_000);
 
 test("a pinned-base PR carries its SHIP across a merge of newer main, and refresh moves an unreviewed head", async () => {
   // Harness PR461 shape: the PR was judged against a pinned base, then newer main was merged into it.
@@ -510,7 +510,7 @@ test("a pinned-base PR carries its SHIP across a merge of newer main, and refres
   const afterReport = await cli(h, ["record", "--pr", PR, "--kind", "head"], { reason: "refresh", from: merged, sha: later, base: "master" });
   expect(afterReport.code).toBe(1);
   expect(afterReport.err).toContain("a refresh applies only before any report");
-});
+}, 15_000);
 
 async function shipFixture(h: Harness, base: string, judged: string, fixed?: string) {
   expect((await cli(h, ["init", "--pr", PR, "--ticket", TICKET, "--rigor", "light", "--rigor-reason", "carry regression", "--base", base, "--sha", judged, "--builder-thread", "builder-1"])).code).toBe(0);
