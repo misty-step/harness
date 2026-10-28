@@ -44,17 +44,22 @@ Kaylee never edits product code or runs an engineering agent on factory.
    success. Any remote or Boat failure exits 1 with empty stdout and retains the
    VM; use stderr, not the exit code, to identify the cause. Stderr carries the
    renderer diagnostic and/or Boat's trailing error object, never the partial
-   report. Stopped/archived `finish` enumerates the
-   last snapshot's complete Boat tree (`entries` with home-relative paths and
-   file/dir/symlink kinds), then makes one pull with repeated `--path` for only
-   the same allowlisted regular files. Each top-level session JSONL is requested
-   individually; neither symlinks nor nested session artifacts are pulled.
-   Stopped `list` pulls only metadata.json and a present exit-code; `result`
-   pulls metadata.json, exit-code and worker.jsonl; `logs` pulls metadata.json,
-   worker.jsonl and worker.stderr. Optional absence comes only from a complete
-   tree. Failed/unparseable/unavailable/truncated trees, failed pulls, missing
-   homeDir or undelivered listed files abort collection and retain the VM and
-   tunnel, even with `--force`; stopped `list` shows UNAVAILABLE, not unfinished.
+   report. Stopped/archived reads enumerate the last snapshot's complete Boat
+   tree (`entries` with home-relative paths and file/dir/symlink kinds), then
+   fetch each selected regular file from that exact snapshot ID through Boat's
+   [file endpoint](https://docs.boat.dev/api/reference/snapshots/get-snapshot-file).
+   This transfers only selected file bytes, unlike `snapshot pull --path`, which
+   downloads the whole snapshot. The fetch reads factory's existing scoped
+   `boat login` config at point of use; no new credential or key copy is needed.
+   `finish` uses the live allowlist, requesting each top-level session JSONL
+   individually; symlinks and nested session artifacts are never fetched.
+   Stopped `list` selects metadata.json and a present exit-code; `result` adds
+   worker.jsonl; `logs` selects metadata.json, worker.jsonl and worker.stderr.
+   Optional absence comes only from a complete tree. Failed/unparseable/
+   unavailable/truncated trees and failed, wrong-kind or size-mismatched file
+   responses abort collection and retain the VM and tunnel, even with `--force`;
+   stopped `list` shows UNAVAILABLE, not unfinished. Legacy/unindexed snapshots
+   fail visibly; there is no whole-snapshot fallback.
    Use `--force` only to intentionally terminate and collect interrupted work;
    an unfinished live VM is stopped first and then uses snapshot collection.
    Workers use `~/scratch` (`$TMPDIR`) or `~/work` for tools and downloads, not

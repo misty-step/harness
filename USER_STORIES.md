@@ -270,6 +270,12 @@ Criteria:
    only after successful SSH rendering; on failure it SHALL leave stdout empty,
    surface the diagnostic with a nonzero exit and retain the VM
    ([#557](https://github.com/misty-step/mistystack/issues/557)).
+7. WHEN Kaylee reads a stopped or archived worker with `list`, `result`, `logs`
+   or `finish`, THE SYSTEM SHALL transfer only the selected regular report
+   files, not the whole snapshot. Only a complete snapshot tree SHALL confirm
+   optional absence; failed or partial reads SHALL surface the error, exit
+   nonzero and retain the VM and tunnel, even under `--force`
+   ([#561](https://github.com/misty-step/mistystack/issues/561)).
 
 No-gos: no engineering agents on the factory host; no paid fallback; no
 credential values in briefs, transcripts, snapshots or Git.

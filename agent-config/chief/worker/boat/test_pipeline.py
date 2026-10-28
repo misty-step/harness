@@ -4,9 +4,12 @@ import json
 import os
 from pathlib import Path
 import subprocess
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import sys
 import tempfile
 import time
+import threading
+from urllib.parse import parse_qs, urlsplit
 import unittest
 
 
@@ -80,16 +83,10 @@ elif args[:2] == ["snapshot", "tree"]:
     print(json.dumps(tree))
 elif args[:2] == ["snapshot", "pull"]:
     paths = [args[i + 1] for i, arg in enumerate(args) if arg == "--path"]
-    failed = os.environ.get("PULL_FAIL_PATH")
-    if os.environ.get("PULL_FAIL") == "1" or any(failed and failed in p for p in paths):
-        print('{"event":"error","error":"snapshot chunk download failed: connection reset by peer"}')
-        sys.exit(1)
     out = pathlib.Path(args[args.index("--out") + 1]) / "home/user"
     delivered = []
     for path in paths:
         source = home / pathlib.Path(path).relative_to("/home/user")
-        if os.environ.get("MISSING_PATH") == str(source.relative_to(home)):
-            continue
         target = out / source.relative_to(home)
         target.parent.mkdir(parents=True, exist_ok=True)
         if source.is_dir():
@@ -100,8 +97,11 @@ elif args[:2] == ["snapshot", "pull"]:
             delivered.append(source)
     with open(os.environ["CALLS"] + ".transfers", "a") as transfers:
         transfers.write(json.dumps({"kind": "snapshot", "files": [str(p.relative_to(home)) for p in delivered],
-                                    "bytes": sum(p.stat().st_size for p in delivered)}) + "\n")
-    print(os.environ.get("PULL_RESPONSE", json.dumps({"homeDir": str(out)})))
+                                    # --path filters extraction, not the downloaded snapshot.
+                                    "bytes": sum(p.stat().st_size for p in home.rglob("*")
+                                                 if p.is_file() and not p.is_symlink()),
+                                    "extractedBytes": sum(p.stat().st_size for p in delivered)}) + "\n")
+    print(json.dumps({"homeDir": str(out)}))
 elif args[0] == "stop":
     state_file.write_text("stopped")
     print('{"stopped":true}')
@@ -132,6 +132,55 @@ while not pathlib.Path(os.environ["OMP_RELEASE"]).exists():
     time.sleep(0.01)
 '''
 
+class SnapshotFilesHandler(BaseHTTPRequestHandler):
+    """Real local HTTP boundary for Boat's documented single-file response."""
+    def log_message(self, *args):
+        pass
+
+    def do_GET(self):
+        fixture = self.server.fixture
+        settings = fixture.http_settings
+        url = urlsplit(self.path)
+        path = parse_qs(url.query).get("path", [""])[0]
+        with fixture.calls.open("a") as calls:
+            calls.write(json.dumps(["GET", self.path]) + "\n")
+        status, kind = 200, "file"
+        source = fixture.vm / path
+        if self.headers.get("Authorization") != "Bearer boat_fixture_only":
+            status, body = 401, b'{"error":"unauthorized"}'
+        elif url.path != "/api/v1/snapshots/snap_fixture/files":
+            status, body = 404, b'{"error":"snapshot not found"}'
+        elif settings.get("FILE_FAIL") == "1" or settings.get("FILE_FAIL_PATH") == path:
+            status, body = 409, b'{"error":"snapshot_not_indexed"}'
+        elif settings.get("FILE_STATUS"):
+            status, body = int(settings["FILE_STATUS"]), b'{"error":"fixture file fetch rejected"}'
+        elif not path or source.is_dir() or source.is_symlink() or not source.is_file():
+            status, body = 404, b'{"error":"file not found"}'
+        else:
+            body = source.read_bytes()
+        size = len(body)
+        if settings.get("FILE_SHORT_PATH", settings.get("FILE_SHORT_DECLARED_PATH")) == path:
+            body = body[:max(0, size - 1)]
+        if settings.get("FILE_SHORT_DECLARED_PATH") == path:
+            size = len(body)
+        if settings.get("FILE_EXCESS_PATH") == path:
+            body += b"x"
+            size = len(body)
+        if settings.get("FILE_KIND"):
+            kind = settings["FILE_KIND"]
+        if settings.get("FILE_REDIRECT"):
+            status = 302
+        self.send_response(status)
+        self.send_header("X-Snapshot-Entry-Kind", kind)
+        self.send_header("Content-Length", str(size))
+        if status == 302:
+            self.send_header("Location", settings["FILE_REDIRECT"])
+        self.end_headers()
+        self.wfile.write(body)
+        with Path(str(fixture.calls) + ".transfers").open("a") as transfers:
+            transfers.write(json.dumps({"kind": "file", "files": [path], "bytes": len(body)}) + "\n")
+
+
 
 @unittest.skipUnless(sys.platform.startswith("linux"), "dispatcher targets the Linux chief host (GNU stat/date)")
 class PipelineLifecycleTests(unittest.TestCase):
@@ -145,6 +194,19 @@ class PipelineLifecycleTests(unittest.TestCase):
         self.bin.mkdir(parents=True)
         self.calls = self.home / "calls.jsonl"
         self.env = dict(os.environ, HOME=str(self.home), CALLS=str(self.calls), VM_HOME=str(self.vm))
+        self.http_settings = {}
+        server = ThreadingHTTPServer(("127.0.0.1", 0), SnapshotFilesHandler)
+        server.fixture = self
+        threading.Thread(target=server.serve_forever, daemon=True).start()
+        self.addCleanup(server.server_close)
+        self.addCleanup(server.shutdown)
+        config_home = self.home / ".config"
+        self.env["XDG_CONFIG_HOME"] = str(config_home)
+        self.env.pop("BOAT_API_URL", None)
+        config = config_home / "ascii/boat/config.json"
+        config.parent.mkdir(parents=True)
+        config.write_text(json.dumps({"token": "boat_fixture_only",
+                                     "api_url": f"http://127.0.0.1:{server.server_port}"}))
         self.install("boat", BOAT_FIXTURE)
         self.install("systemctl", SYSTEMCTL_FIXTURE)
         keys = self.home / ".config/hermes/keys"
@@ -164,6 +226,7 @@ class PipelineLifecycleTests(unittest.TestCase):
         path.chmod(0o755)
 
     def run_dispatch(self, *arguments, **extra_env):
+        self.http_settings = extra_env
         return subprocess.run(
             ["bash", str(DISPATCH), *arguments],
             env=dict(self.env, **extra_env), capture_output=True, text=True, timeout=10,
@@ -348,9 +411,9 @@ class PipelineLifecycleTests(unittest.TestCase):
                          "kaylee-dispatch: Run has no exit-code yet; inspect logs or finish --force if interrupted\n")
 
     def snapshot_paths(self):
-        pulls = [c for c in self.recorded_calls() if c[:3] == ["boat", "snapshot", "pull"]]
-        self.assertEqual(len(pulls), 1)
-        return [pulls[0][i + 1] for i, arg in enumerate(pulls[0]) if arg == "--path"]
+        requests = [c[1] for c in self.recorded_calls() if c[0] == "GET"]
+        self.assertFalse([c for c in self.recorded_calls() if c[:3] == ["boat", "snapshot", "pull"]])
+        return ["/home/user/" + parse_qs(urlsplit(url).query)["path"][0] for url in requests]
 
     def test_stopped_finish_collects_only_allowlisted_regular_files(self):
         allowed = {"metadata.json", "brief.md", "launch.json", "started-at", "runner.pid",
@@ -380,13 +443,14 @@ class PipelineLifecycleTests(unittest.TestCase):
                 for name in expected:
                     self.assertEqual((run / name).read_bytes(), (retained / name).read_bytes())
                 calls = self.recorded_calls()
-                pull = next(i for i, c in enumerate(calls) if c[:3] == ["boat", "snapshot", "pull"])
+                fetch = max(i for i, c in enumerate(calls) if c[0] == "GET")
                 teardown = next(i for i, c in enumerate(calls) if c[0] == "systemctl")
-                self.assertLess(pull, teardown)
+                self.assertLess(fetch, teardown)
                 self.assertIn(["boat", "delete", SANDBOX, "--yes", "--json"], calls)
         transfers = [json.loads(line) for line in Path(str(self.calls) + ".transfers").read_text().splitlines()]
-        self.assertTrue(all(t["kind"] == "snapshot" and set(t["files"]) == {f"run/{n}" for n in expected}
-                            and t["bytes"] == sum((run / n).stat().st_size for n in expected) for t in transfers))
+        self.assertTrue(all(t["kind"] == "file" and set(t["files"]) <= {f"run/{n}" for n in expected}
+                            and t["bytes"] == sum((self.vm / n).stat().st_size for n in t["files"])
+                            for t in transfers))
 
     def test_stopped_list_distinguishes_finished_from_confirmed_absent_exit_code(self):
         run = self.make_run()
@@ -428,32 +492,62 @@ class PipelineLifecycleTests(unittest.TestCase):
                     else:
                         self.assertIn("stderr\n", result.stdout)
 
+    def test_stopped_commands_fetch_selected_bytes_not_whole_snapshot(self):
+        run = self.make_run({
+            "worker.jsonl": json.dumps({"type": "message_end", "message": {
+                "role": "assistant", "content": [{"type": "text", "text": "bounded report"}]}}) + "\n",
+            "worker.stderr": "stderr\n", "sessions/space #?λ.jsonl": "session\n",
+        })
+        (self.vm / "checkout").mkdir()
+        (self.vm / "checkout/dependencies.bin").write_bytes(b"x" * 28_000_000)
+        selected = {
+            "list": {"metadata.json", "exit-code"},
+            "result": {"metadata.json", "exit-code", "worker.jsonl"},
+            "logs": {"metadata.json", "worker.jsonl", "worker.stderr"},
+            "finish": {"metadata.json", "exit-code", "worker.jsonl", "worker.stderr", "sessions/space #?λ.jsonl"},
+        }
+        for state in ("stopped", "archived"):
+            for command, names in selected.items():
+                with self.subTest(state=state, command=command):
+                    self.calls.write_text("")
+                    Path(str(self.calls) + ".transfers").unlink(missing_ok=True)
+                    args = () if command == "list" else (SANDBOX,)
+                    result = self.run_dispatch(command, *args, STATE=state, LIST_WORKER="1")
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    transfers = [json.loads(line) for line in
+                                 Path(str(self.calls) + ".transfers").read_text().splitlines()]
+                    expected = sum((run / name).stat().st_size for name in names)
+                    self.assertEqual(sum(t["bytes"] for t in transfers), expected)
+                    self.assertEqual(set(self.snapshot_paths()), {f"/home/user/run/{name}" for name in names})
+                    self.assertIn("owner/repo" if command == "list" else
+                                  "Collected:" if command == "finish" else "bounded report", result.stdout)
+
     def test_stopped_finish_retains_vm_on_worker_jsonl_transfer_failure(self):
         self.make_run({"worker.jsonl": "report"})
-        result = self.run_dispatch("finish", SANDBOX, STATE="stopped", PULL_FAIL_PATH="run/worker.jsonl")
+        result = self.run_dispatch("finish", SANDBOX, STATE="stopped", FILE_FAIL_PATH="run/worker.jsonl")
         self.assert_vm_retained(result)
-        self.assertIn("connection reset by peer", result.stderr)
+        self.assertIn("snapshot_not_indexed", result.stderr)
 
     def test_force_finish_retains_vm_on_exit_code_transfer_failure(self):
         self.make_run()
-        result = self.run_dispatch("finish", SANDBOX, "--force", STATE="stopped", PULL_FAIL_PATH="run/exit-code")
+        result = self.run_dispatch("finish", SANDBOX, "--force", STATE="stopped", FILE_FAIL_PATH="run/exit-code")
         self.assert_vm_retained(result)
-        self.assertIn("connection reset by peer", result.stderr)
+        self.assertIn("snapshot_not_indexed", result.stderr)
 
     def test_stopped_finish_retains_vm_on_sessions_transfer_failure(self):
         self.make_run({"sessions/session.jsonl": "session"})
-        result = self.run_dispatch("finish", SANDBOX, STATE="stopped", PULL_FAIL_PATH="run/sessions/session.jsonl")
+        result = self.run_dispatch("finish", SANDBOX, STATE="stopped", FILE_FAIL_PATH="run/sessions/session.jsonl")
         self.assert_vm_retained(result)
-        self.assertIn("connection reset by peer", result.stderr)
+        self.assertIn("snapshot_not_indexed", result.stderr)
 
     def test_stopped_list_is_unavailable_on_exit_code_transfer_failure(self):
         self.make_run()
-        result = self.run_dispatch("list", STATE="stopped", LIST_WORKER="1", PULL_FAIL_PATH="run/exit-code")
+        result = self.run_dispatch("list", STATE="stopped", LIST_WORKER="1", FILE_FAIL_PATH="run/exit-code")
         self.assert_vm_retained(result)
         self.assertIn("UNAVAILABLE\tunknown\t-", result.stdout)
         self.assertNotIn("false\t-", result.stdout)
         self.assertIn("Could not read stopped worker", result.stderr)
-        self.assertIn("connection reset by peer", result.stderr)
+        self.assertIn("snapshot_not_indexed", result.stderr)
 
     def test_stopped_finish_succeeds_with_confirmed_absent_optional_files(self):
         self.make_run()
@@ -465,43 +559,50 @@ class PipelineLifecycleTests(unittest.TestCase):
     def test_stopped_collection_rejects_incomplete_or_unparseable_tree_with_bounded_error(self):
         self.make_run()
         cases = [{"TREE_OVERRIDE": json.dumps({flag: value})}
-                 for flag, value in (("truncated", True), ("treeAvailable", False))]
+                 for flag, value in (("truncated", True), ("treeAvailable", False),
+                                     ("snapshotId", None), ("snapshotId", "../invalid"))]
         cases += [{"TREE_RESPONSE": value} for value in (
             "not JSON", '{"paths":["/home/user/run/metadata.json"]}', "{}\n{}",
-            json.dumps({"treeAvailable": True, "truncated": False, "entries": [
-                {"kind": "file", "path": "run/metadata.json"}, {"kind": "file", "path": "run/../exit-code"}]}))]
+            json.dumps({"snapshotId": "snap_fixture", "treeAvailable": True, "truncated": False, "entries": [
+                {"kind": "file", "path": "run/metadata.json", "size": 21},
+                {"kind": "file", "path": "run/../exit-code", "size": 2}]}))]
         large_tree = self.home / "large-tree.json"
         large_tree.write_text(json.dumps({"treeAvailable": True, "truncated": True, "entries": [
             {"kind": "file", "path": f"run/junk-{i}"} for i in range(4000)]}))
         cases += [{"TREE_RESPONSE_FILE": str(large_tree)}]
         cases += [{"TREE_RESPONSE": '{"event":"error","error":"tree connection reset"}', "TREE_FAIL": "1"}]
         for settings in cases:
-            for command in (("finish", SANDBOX, "--force"), ("list",)):
+            for command in (("finish", SANDBOX, "--force"), ("list",), ("result", SANDBOX), ("logs", SANDBOX)):
                 with self.subTest(settings=str(settings)[:100], command=command):
                     self.calls.write_text("")
                     result = self.run_dispatch(*command, STATE="stopped", LIST_WORKER="1", **settings)
                     self.assert_vm_retained(result)
                     self.assertLess(len(result.stderr.encode()), 2500)
                     self.assertFalse([c for c in self.recorded_calls() if c[:3] == ["boat", "snapshot", "pull"]])
+                    self.assertFalse([c for c in self.recorded_calls() if c[0] == "GET"])
                     if command == ("list",):
                         self.assertIn("UNAVAILABLE\tunknown\t-", result.stdout)
                     if settings.get("TREE_FAIL"):
                         self.assertIn("tree connection reset", result.stderr)
 
-    def test_stopped_collection_retains_vm_on_invalid_or_incomplete_pull(self):
+    def test_stopped_collection_retains_vm_on_failed_or_partial_file_fetch(self):
         run = self.make_run({"worker.jsonl": "report", "sessions/session.jsonl": "session"})
-        cases = [{"PULL_RESPONSE": value} for value in ("{}", "not JSON", '{"homeDir":null}', '{"homeDir":""}')]
-        cases += [{"MISSING_PATH": f"run/{name}"} for name in ("metadata.json", "exit-code", "worker.jsonl", "sessions/session.jsonl")]
-        cases += [{"PULL_FAIL": "1"}]
+        cases = [{flag: f"run/{name}"}
+                 for flag in ("FILE_SHORT_PATH", "FILE_SHORT_DECLARED_PATH", "FILE_EXCESS_PATH", "FILE_FAIL_PATH")
+                 for name in ("metadata.json", "exit-code", "worker.jsonl", "sessions/session.jsonl")]
+        cases += [{"FILE_FAIL": "1"}, {"FILE_KIND": "dir"},
+                  {"FILE_REDIRECT": "http://127.0.0.1:1/must-not-follow"}]
+        cases += [{"FILE_STATUS": status} for status in ("401", "403", "404", "500")]
         for settings in cases:
             for command in (("finish", SANDBOX), ("finish", SANDBOX, "--force"), ("list",),
                             ("result", SANDBOX), ("logs", SANDBOX)):
                 # Only a path the command requested is required to be delivered.
-                if settings.get("MISSING_PATH") == "run/sessions/session.jsonl" and command[0] != "finish":
+                failed_path = next((value for key, value in settings.items() if key.endswith("_PATH")), None)
+                if failed_path == "run/sessions/session.jsonl" and command[0] != "finish":
                     continue
-                if settings.get("MISSING_PATH") == "run/worker.jsonl" and command[0] == "list":
+                if failed_path == "run/worker.jsonl" and command[0] == "list":
                     continue
-                if settings.get("MISSING_PATH") == "run/exit-code" and command[0] == "logs":
+                if failed_path == "run/exit-code" and command[0] == "logs":
                     continue
                 with self.subTest(settings=settings, command=command):
                     self.calls.write_text("")
@@ -514,19 +615,46 @@ class PipelineLifecycleTests(unittest.TestCase):
         self.assert_vm_retained(self.run_dispatch("finish", SANDBOX, "--force", STATE="stopped"))
         self.assertFalse([c for c in self.recorded_calls() if c[:3] == ["boat", "snapshot", "pull"]])
 
+    def test_stopped_reads_require_existing_login_and_never_disclose_it(self):
+        self.make_run()
+        config = self.home / ".config/ascii/boat/config.json"
+        original = json.loads(config.read_text())
+        for token in (None, "", "boat_wrong_fixture_key"):
+            with self.subTest(token=token):
+                self.calls.write_text("")
+                config.write_text(json.dumps({**original, "token": token}))
+                result = self.run_dispatch("finish", SANDBOX, "--force", STATE="stopped")
+                self.assert_vm_retained(result)
+                for secret in ("boat_fixture_only", "boat_wrong_fixture_key"):
+                    self.assertNotIn(secret, result.stdout + result.stderr + self.calls.read_text())
+        config.unlink()
+        self.calls.write_text("")
+        self.assert_vm_retained(self.run_dispatch("finish", SANDBOX, "--force", STATE="stopped"))
+
+    def test_stopped_collection_rejects_selected_file_without_exact_size(self):
+        self.make_run()
+        for size in (None, -1, 1.5, "21"):
+            with self.subTest(size=size):
+                self.calls.write_text("")
+                tree = {"snapshotId": "snap_fixture", "treeAvailable": True, "truncated": False,
+                        "entries": [{"kind": "file", "path": "run/metadata.json", "size": size}]}
+                result = self.run_dispatch("finish", SANDBOX, "--force", STATE="stopped", TREE_RESPONSE=json.dumps(tree))
+                self.assert_vm_retained(result)
+                self.assertFalse([c for c in self.recorded_calls() if c[0] == "GET"])
+
     def test_force_finish_stops_unfinished_live_vm_then_collects_snapshot(self):
         self.make_run({"worker.jsonl": "partial report"}, exit_code=None)
         for fail in ("0", "1"):
             with self.subTest(fail=fail):
                 self.calls.write_text("")
                 Path(str(self.calls) + ".state").unlink(missing_ok=True)
-                result = self.run_dispatch("finish", SANDBOX, "--force", PULL_FAIL=fail)
+                result = self.run_dispatch("finish", SANDBOX, "--force", FILE_FAIL=fail)
                 if fail == "1":
                     self.assert_vm_retained(result)
                 else:
                     self.assertEqual(result.returncode, 0, result.stderr)
                     self.assertIn(["boat", "delete", SANDBOX, "--yes", "--json"], self.recorded_calls())
-                self.assertEqual(set(self.snapshot_paths()), {"/home/user/run/metadata.json", "/home/user/run/worker.jsonl"})
+                    self.assertEqual(set(self.snapshot_paths()), {"/home/user/run/metadata.json", "/home/user/run/worker.jsonl"})
                 calls = self.recorded_calls()
                 self.assertLess(calls.index(["boat", "stop", SANDBOX, "--json"]),
                                 calls.index(["boat", "snapshot", "tree", SANDBOX, "--json"]))
