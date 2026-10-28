@@ -1,3 +1,8 @@
+---
+metadata:
+  source: "cursor/plugins@c742dd61706fbacc1b95f1a20b7b988cf096ce6c/pstack/skills/{unslop,technical-writing}; Daybook projects/mistystack.md decision 16."
+---
+
 # Prose editing
 
 ## Operator prose

@@ -1,3 +1,8 @@
+---
+metadata:
+  source: "mattpocock/skills@59db609eb1e18aaf59b63284d0e52255aff0c63c/skills/productivity/writing-for-agents; misty-step/mistystack@0ccc1a3/agent-config/skills/agent-design; Anthropic prompt-caching documentation (reference only)."
+---
+
 # Context and document boundaries
 
 ## Two loads

@@ -1,3 +1,8 @@
+---
+metadata:
+  source: "mattpocock/skills@59db609eb1e18aaf59b63284d0e52255aff0c63c/skills/engineering/pr; humanlayer/skills@653b6411c1f70c275a18e37673b042ff99f67ceb/plugins/show-me/skills/show-me; cursor/plugins@c742dd61706fbacc1b95f1a20b7b988cf096ce6c/pstack/skills/technical-writing; local Misty brief; Foundations way-of-working Claim precisely and Review."
+---
+
 # Commits, PRs and reports
 
 ## Titles
