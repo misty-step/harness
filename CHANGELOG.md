@@ -1,3 +1,14 @@
+# [0.3.0](https://github.com/misty-step/mistystack/compare/v0.2.49...v0.3.0) (2026-10-28)
+<!-- landmark:protected-release previous=v0.2.49 source=2e509d4bb894de23d1ddad1b2d0f41f5487f6ec2dbda59806055f191abc6d14a -->
+
+### BREAKING CHANGES
+
+* make mistystack an OMP-only method plugin (#580) ([26f4a5c](https://github.com/misty-step/mistystack/commit/26f4a5cae47d184dbee150005f3990379e0e01b7))
+
+### Features
+
+* add the OMP method plugin kernel (#579) ([0c2fca0](https://github.com/misty-step/mistystack/commit/0c2fca0b79283fba2d63bdf3191827b4b0583ba2))
+* **skills:** unify shaping, writing, agent design, and research (#576) ([d61f40c](https://github.com/misty-step/mistystack/commit/d61f40c849a4fed66347bf060c8e4333ce1bcc91))
 # [0.2.49](https://github.com/misty-step/mistystack/compare/v0.2.48...v0.2.49) (2026-10-28)
 <!-- landmark:protected-release previous=v0.2.48 source=979d3ead165eae73a2a1e5307abec51e9098dbb913a07502fdd5040a1e1ee01b -->
 
