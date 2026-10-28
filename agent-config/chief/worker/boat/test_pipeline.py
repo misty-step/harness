@@ -56,21 +56,47 @@ elif args[0] == "scp":
     with open(os.environ["CALLS"] + ".transfers", "a") as transfers:
         transfers.write(json.dumps({"kind": "scp", "files": [str(p.relative_to(home)) for p in source.rglob("*") if p.is_file()]}) + "\n")
 elif args[:2] == ["snapshot", "tree"]:
+    if "TREE_RESPONSE_FILE" in os.environ:
+        print(pathlib.Path(os.environ["TREE_RESPONSE_FILE"]).read_text())
+        sys.exit(int(os.environ.get("TREE_FAIL", "0")))
+    if "TREE_RESPONSE" in os.environ:
+        print(os.environ["TREE_RESPONSE"])
+        sys.exit(int(os.environ.get("TREE_FAIL", "0")))
+    # boat 1.0.81's factory-observed shape, not the old {"paths": [...]}.
     entries = [{"kind": "symlink" if p.is_symlink() else "dir" if p.is_dir() else "file",
-                "path": str(p.relative_to(home))} for p in home.rglob("*")]
-    print(json.dumps({"entries": entries, "fileCount": sum(e["kind"] == "file" for e in entries),
-                      "generation": 1, "sandboxId": "bx_23456789", "snapshotId": "snap_fixture",
-                      "totalSizeBytes": 0, "treeAvailable": True, "truncated": False}))
+                "path": str(p.relative_to(home)),
+                **({"size": p.stat().st_size} if p.is_file() and not p.is_symlink() else {})}
+               for p in home.rglob("*")]
+    tree = {"entries": entries, "fileCount": sum(e["kind"] == "file" for e in entries),
+            "generation": 1, "sandboxId": "bx_23456789", "snapshotId": "snap_fixture",
+            "totalSizeBytes": sum(e.get("size", 0) for e in entries),
+            "treeAvailable": True, "truncated": False}
+    tree.update(json.loads(os.environ.get("TREE_OVERRIDE", "{}")))
+    print(json.dumps(tree))
 elif args[:2] == ["snapshot", "pull"]:
-    if os.environ.get("PULL_FAIL") == "1":
+    paths = [args[i + 1] for i, arg in enumerate(args) if arg == "--path"]
+    failed = os.environ.get("PULL_FAIL_PATH")
+    if os.environ.get("PULL_FAIL") == "1" or any(failed and failed in p for p in paths):
         print('{"event":"error","error":"snapshot chunk download failed: connection reset by peer"}')
         sys.exit(1)
     out = pathlib.Path(args[args.index("--out") + 1]) / "home/user"
-    source = home / pathlib.Path(args[args.index("--path") + 1]).relative_to("/home/user")
-    target = out / source.relative_to(home)
-    target.parent.mkdir(parents=True, exist_ok=True)
-    shutil.copytree(source, target, symlinks=True)
-    print(json.dumps({"homeDir": str(out)}))
+    delivered = []
+    for path in paths:
+        source = home / pathlib.Path(path).relative_to("/home/user")
+        if os.environ.get("MISSING_PATH") == str(source.relative_to(home)):
+            continue
+        target = out / source.relative_to(home)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        if source.is_dir():
+            shutil.copytree(source, target, symlinks=True)
+            delivered.extend(p for p in source.rglob("*") if p.is_file())
+        else:
+            shutil.copy2(source, target, follow_symlinks=False)
+            delivered.append(source)
+    with open(os.environ["CALLS"] + ".transfers", "a") as transfers:
+        transfers.write(json.dumps({"kind": "snapshot", "files": [str(p.relative_to(home)) for p in delivered],
+                                    "bytes": sum(p.stat().st_size for p in delivered)}) + "\n")
+    print(os.environ.get("PULL_RESPONSE", json.dumps({"homeDir": str(out)})))
 elif args[0] == "stop":
     state_file.write_text("stopped")
     print('{"stopped":true}')
@@ -241,31 +267,189 @@ class PipelineLifecycleTests(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("no exit-code", result.stderr)
 
-    def test_stopped_commands_keep_whole_run_pull_and_fail_closed(self):
-        self.make_run({"worker.jsonl": json.dumps({"type": "message_end", "message": {
-            "role": "assistant", "content": [{"type": "text", "text": "report"}]}}) + "\n",
-            "worker.stderr": "stderr\n", "sessions/id/nested.jsonl": "nested"})
-        commands = [("finish", SANDBOX), ("finish", SANDBOX, "--force"), ("list",),
-                    ("result", SANDBOX), ("logs", SANDBOX, "-n", "1")]
+    def snapshot_paths(self):
+        pulls = [c for c in self.recorded_calls() if c[:3] == ["boat", "snapshot", "pull"]]
+        self.assertEqual(len(pulls), 1)
+        return [pulls[0][i + 1] for i, arg in enumerate(pulls[0]) if arg == "--path"]
+
+    def test_stopped_finish_collects_only_allowlisted_regular_files(self):
+        allowed = {"metadata.json", "brief.md", "launch.json", "started-at", "runner.pid",
+                   "exit-code", "worker.jsonl", "worker.stderr", "clone.stdout", "clone.stderr",
+                   "sessions/session.jsonl", "sessions/space name.jsonl", "sessions/-dash.jsonl"}
+        run = self.make_run({name: name for name in allowed - {"metadata.json", "exit-code"}})
+        (run / "gitleaks").write_bytes(b"\0" * 22_000_000)
+        (run / "sessions/id").mkdir()
+        (run / "sessions/id/artifact.bin").write_bytes(b"\1" * 6_000_000)
+        (run / "sessions/id/subagent.jsonl").write_text("nested")
+        (run / "sessions/artifact.bin").write_text("artifact")
+        (run / "sessions/dir.jsonl").mkdir()
+        (run / "clone.stdout").unlink()
+        (run / "clone.stdout").symlink_to(self.brief)
+        (run / "sessions/link.jsonl").symlink_to(self.brief)
+        (run / "worker.stderr").write_bytes(bytes(range(256)))
+        expected = allowed - {"clone.stdout"}
         for state in ("stopped", "archived"):
-            for fail in ("0", "1"):
-                for command in commands:
-                    with self.subTest(state=state, fail=fail, command=command):
-                        self.calls.write_text("")
-                        result = self.run_dispatch(*command, STATE=state, LIST_WORKER="1", PULL_FAIL=fail)
-                        self.assertEqual(result.returncode, int(fail), result.stderr)
-                        snapshots = [call for call in self.recorded_calls() if call[:2] == ["boat", "snapshot"]]
-                        self.assertEqual(len(snapshots), 1)
-                        self.assertEqual(snapshots[0][2:6], ["pull", SANDBOX, "--path", "/home/user/run"])
-                        if fail == "1":
-                            self.assert_vm_retained(result)
-                            if command == ("list",):
-                                self.assertIn("UNAVAILABLE\tunknown\t-", result.stdout)
-                        elif command == ("list",):
-                            self.assertIn("owner/repo\ttrue\t0", result.stdout)
-                        elif command[0] == "finish":
-                            retained = self.home / f".local/state/kaylee/runs/{SANDBOX}"
-                            self.assertEqual((retained / "sessions/id/nested.jsonl").read_text(), "nested")
+            with self.subTest(state=state):
+                self.calls.write_text("")
+                result = self.run_dispatch("finish", SANDBOX, STATE=state)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual(set(self.snapshot_paths()), {f"/home/user/run/{n}" for n in expected})
+                retained = self.home / f".local/state/kaylee/runs/{SANDBOX}"
+                self.assertEqual({str(p.relative_to(retained)) for p in retained.rglob("*") if p.is_file()},
+                                 expected | {"deletion.json"})
+                for name in expected:
+                    self.assertEqual((run / name).read_bytes(), (retained / name).read_bytes())
+                calls = self.recorded_calls()
+                pull = next(i for i, c in enumerate(calls) if c[:3] == ["boat", "snapshot", "pull"])
+                teardown = next(i for i, c in enumerate(calls) if c[0] == "systemctl")
+                self.assertLess(pull, teardown)
+                self.assertIn(["boat", "delete", SANDBOX, "--yes", "--json"], calls)
+        transfers = [json.loads(line) for line in Path(str(self.calls) + ".transfers").read_text().splitlines()]
+        self.assertTrue(all(t["kind"] == "snapshot" and set(t["files"]) == {f"run/{n}" for n in expected}
+                            and t["bytes"] == sum((run / n).stat().st_size for n in expected) for t in transfers))
+
+    def test_stopped_list_distinguishes_finished_from_confirmed_absent_exit_code(self):
+        run = self.make_run()
+        for code, expected in (("0\n", "true\t0"), (None, "false\t-")):
+            if code is None:
+                (run / "exit-code").unlink()
+            for state in ("stopped", "archived"):
+                with self.subTest(code=code, state=state):
+                    self.calls.write_text("")
+                    result = self.run_dispatch("list", STATE=state, LIST_WORKER="1")
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    self.assertIn(f"owner/repo\t{expected}", result.stdout)
+                    self.assertEqual(set(self.snapshot_paths()), {"/home/user/run/metadata.json"} |
+                                     ({"/home/user/run/exit-code"} if code else set()))
+
+    def test_stopped_list_rejects_empty_listed_exit_code(self):
+        self.make_run(exit_code="")
+        result = self.run_dispatch("list", STATE="stopped", LIST_WORKER="1")
+        self.assert_vm_retained(result)
+        self.assertIn("UNAVAILABLE\tunknown\t-", result.stdout)
+        self.assertNotIn("false\t-", result.stdout)
+
+    def test_stopped_result_and_logs(self):
+        self.make_run({"worker.jsonl": json.dumps({"type": "message_end", "message": {
+            "role": "assistant", "content": [{"type": "text", "text": "report https://github.com/o/r/pull/1"}]}}) + "\n",
+            "worker.stderr": "stderr\n", "sessions/id/nested.jsonl": "nested"})
+        for state in ("stopped", "archived"):
+            for command in ("result", "logs"):
+                with self.subTest(state=state, command=command):
+                    self.calls.write_text("")
+                    result = self.run_dispatch(command, SANDBOX, STATE=state)
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    self.assertIn("report https://github.com/o/r/pull/1", result.stdout)
+                    names = {"metadata.json", "worker.jsonl", "exit-code" if command == "result" else "worker.stderr"}
+                    self.assertEqual(set(self.snapshot_paths()), {f"/home/user/run/{n}" for n in names})
+                    if command == "result":
+                        self.assertEqual(result.stdout, "Exit code: 0\n\nreport https://github.com/o/r/pull/1\n\n"
+                                         "PR URLs:\nhttps://github.com/o/r/pull/1\n")
+                    else:
+                        self.assertIn("stderr\n", result.stdout)
+
+    def test_stopped_finish_retains_vm_on_worker_jsonl_transfer_failure(self):
+        self.make_run({"worker.jsonl": "report"})
+        result = self.run_dispatch("finish", SANDBOX, STATE="stopped", PULL_FAIL_PATH="run/worker.jsonl")
+        self.assert_vm_retained(result)
+        self.assertIn("connection reset by peer", result.stderr)
+
+    def test_force_finish_retains_vm_on_exit_code_transfer_failure(self):
+        self.make_run()
+        result = self.run_dispatch("finish", SANDBOX, "--force", STATE="stopped", PULL_FAIL_PATH="run/exit-code")
+        self.assert_vm_retained(result)
+        self.assertIn("connection reset by peer", result.stderr)
+
+    def test_stopped_finish_retains_vm_on_sessions_transfer_failure(self):
+        self.make_run({"sessions/session.jsonl": "session"})
+        result = self.run_dispatch("finish", SANDBOX, STATE="stopped", PULL_FAIL_PATH="run/sessions/session.jsonl")
+        self.assert_vm_retained(result)
+        self.assertIn("connection reset by peer", result.stderr)
+
+    def test_stopped_list_is_unavailable_on_exit_code_transfer_failure(self):
+        self.make_run()
+        result = self.run_dispatch("list", STATE="stopped", LIST_WORKER="1", PULL_FAIL_PATH="run/exit-code")
+        self.assert_vm_retained(result)
+        self.assertIn("UNAVAILABLE\tunknown\t-", result.stdout)
+        self.assertNotIn("false\t-", result.stdout)
+        self.assertIn("Could not read stopped worker", result.stderr)
+        self.assertIn("connection reset by peer", result.stderr)
+
+    def test_stopped_finish_succeeds_with_confirmed_absent_optional_files(self):
+        self.make_run()
+        result = self.run_dispatch("finish", SANDBOX, STATE="stopped")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(set(self.snapshot_paths()), {"/home/user/run/metadata.json", "/home/user/run/exit-code"})
+        self.assertIn(["boat", "delete", SANDBOX, "--yes", "--json"], self.recorded_calls())
+
+    def test_stopped_collection_rejects_incomplete_or_unparseable_tree_with_bounded_error(self):
+        self.make_run()
+        cases = [{"TREE_OVERRIDE": json.dumps({flag: value})}
+                 for flag, value in (("truncated", True), ("treeAvailable", False))]
+        cases += [{"TREE_RESPONSE": value} for value in (
+            "not JSON", '{"paths":["/home/user/run/metadata.json"]}', "{}\n{}",
+            json.dumps({"treeAvailable": True, "truncated": False, "entries": [
+                {"kind": "file", "path": "run/metadata.json"}, {"kind": "file", "path": "run/../exit-code"}]}))]
+        large_tree = self.home / "large-tree.json"
+        large_tree.write_text(json.dumps({"treeAvailable": True, "truncated": True, "entries": [
+            {"kind": "file", "path": f"run/junk-{i}"} for i in range(4000)]}))
+        cases += [{"TREE_RESPONSE_FILE": str(large_tree)}]
+        cases += [{"TREE_RESPONSE": '{"event":"error","error":"tree connection reset"}', "TREE_FAIL": "1"}]
+        for settings in cases:
+            for command in (("finish", SANDBOX, "--force"), ("list",)):
+                with self.subTest(settings=str(settings)[:100], command=command):
+                    self.calls.write_text("")
+                    result = self.run_dispatch(*command, STATE="stopped", LIST_WORKER="1", **settings)
+                    self.assert_vm_retained(result)
+                    self.assertLess(len(result.stderr.encode()), 2500)
+                    self.assertFalse([c for c in self.recorded_calls() if c[:3] == ["boat", "snapshot", "pull"]])
+                    if command == ("list",):
+                        self.assertIn("UNAVAILABLE\tunknown\t-", result.stdout)
+                    if settings.get("TREE_FAIL"):
+                        self.assertIn("tree connection reset", result.stderr)
+
+    def test_stopped_collection_retains_vm_on_invalid_or_incomplete_pull(self):
+        run = self.make_run({"worker.jsonl": "report", "sessions/session.jsonl": "session"})
+        cases = [{"PULL_RESPONSE": value} for value in ("{}", "not JSON", '{"homeDir":null}', '{"homeDir":""}')]
+        cases += [{"MISSING_PATH": f"run/{name}"} for name in ("metadata.json", "exit-code", "worker.jsonl", "sessions/session.jsonl")]
+        cases += [{"PULL_FAIL": "1"}]
+        for settings in cases:
+            for command in (("finish", SANDBOX), ("finish", SANDBOX, "--force"), ("list",),
+                            ("result", SANDBOX), ("logs", SANDBOX)):
+                # Only a path the command requested is required to be delivered.
+                if settings.get("MISSING_PATH") == "run/sessions/session.jsonl" and command[0] != "finish":
+                    continue
+                if settings.get("MISSING_PATH") == "run/worker.jsonl" and command[0] == "list":
+                    continue
+                if settings.get("MISSING_PATH") == "run/exit-code" and command[0] == "logs":
+                    continue
+                with self.subTest(settings=settings, command=command):
+                    self.calls.write_text("")
+                    result = self.run_dispatch(*command, STATE="stopped", LIST_WORKER="1", **settings)
+                    self.assert_vm_retained(result)
+                    if command == ("list",):
+                        self.assertIn("UNAVAILABLE\tunknown\t-", result.stdout)
+        (run / "metadata.json").unlink()
+        self.calls.write_text("")
+        self.assert_vm_retained(self.run_dispatch("finish", SANDBOX, "--force", STATE="stopped"))
+        self.assertFalse([c for c in self.recorded_calls() if c[:3] == ["boat", "snapshot", "pull"]])
+
+    def test_force_finish_stops_unfinished_live_vm_then_collects_snapshot(self):
+        self.make_run({"worker.jsonl": "partial report"}, exit_code=None)
+        for fail in ("0", "1"):
+            with self.subTest(fail=fail):
+                self.calls.write_text("")
+                Path(str(self.calls) + ".state").unlink(missing_ok=True)
+                result = self.run_dispatch("finish", SANDBOX, "--force", PULL_FAIL=fail)
+                if fail == "1":
+                    self.assert_vm_retained(result)
+                else:
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    self.assertIn(["boat", "delete", SANDBOX, "--yes", "--json"], self.recorded_calls())
+                self.assertEqual(set(self.snapshot_paths()), {"/home/user/run/metadata.json", "/home/user/run/worker.jsonl"})
+                calls = self.recorded_calls()
+                self.assertLess(calls.index(["boat", "stop", SANDBOX, "--json"]),
+                                calls.index(["boat", "snapshot", "tree", SANDBOX, "--json"]))
 
     def test_finish_attempts_both_teardowns_and_reports_each_failure(self):
         self.make_run()
