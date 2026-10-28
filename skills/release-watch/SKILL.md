@@ -51,8 +51,7 @@ names one change that removes the error class, not another reminder.
 ## Report
 
 Post once in the owning lane/PR with merge and checked live identity, evidence,
-consumer impact and exact gaps. Label every claim measured, inferred or guess in
-the same sentence; link named incidents, releases and mechanism tickets.
+consumer impact and exact gaps under the core's claim rule; follow misty's report-link duty.
 
 | Outcome | Required observation |
 | --- | --- |

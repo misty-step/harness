@@ -55,8 +55,8 @@ not proof that the plugin loaded.
    retain the affected behavioral test output. The gate alone does not prove
    provider access, model quality or a completed shipping journey.
 5. **Publish.** Put the checked source and runtime identities, command, exit
-   status, observed postcondition and reviewer-open output on the PR. Label each
-   claim measured, inferred or guess; list every skipped or unproved criterion.
+   status, observed postcondition and reviewer-open output on the PR.
+   Follow the core's claim rule; list every skipped or unproved criterion.
    Preserve output outside Git. The private workstation repository owns host,
    audio, credentials, backups and Kaylee proof.
 

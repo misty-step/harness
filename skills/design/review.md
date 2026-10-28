@@ -57,8 +57,8 @@ then visual inconsistency. Preserve the incumbent identity during polish.
 ## Review result
 
 For each finding: consumer impact, named state, observed evidence, location and
-smallest repair. Mark each claim **measured**, **inferred** or **guess**; separate
-code-derived concerns from defects observed on the surface. Link the checked
+smallest repair. Follow the core's claim rule; separate code-derived concerns
+from defects observed on the surface. Link the checked
 revision and captures/recordings in the repository's existing evidence channel.
 
 Record these outcomes separately, each with its own check and result:

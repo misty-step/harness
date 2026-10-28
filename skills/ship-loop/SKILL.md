@@ -25,7 +25,7 @@ Record `Story: <IDs>` from SPEC.md or USER_STORIES.md, or `Story: none`, and
 also omits the Story line.
 
 The frontier contains tickets whose blockers are closed or have one open PR.
-Dispatch disjoint writers with OMP `task`; one writer owns each branch. A child
+Apply misty's delegation boundary to disjoint OMP `task` writers. A child
 with one open blocker starts at that PR's head and targets its branch; QA/review
 use that base and exclude its owned diff. Fix a blocker in the PR that owns it.
 With two open blocker PRs, wait for one to land.
@@ -41,7 +41,7 @@ It authenticates the PR author as the sole ledger writer, ignores other authors'
 markers, and stops on unknown authors or unreadable trusted events. A new session,
 retry, rebase or changed SHA resumes the same round, never a fresh allowance.
 
-1. **Build.** One isolated worktree from the recorded base. The builder returns
+1. **Build.** Start from the recorded base under misty's delegation boundary. The builder returns
    PR, head SHA, native thread ID and proof. `init --pr <url> ...` records them;
    existing state resumes. Verification follows `skill://verification`.
 2. **Verify.** `prompt --role qa-review` for light; `qa` and `review` otherwise.
@@ -82,6 +82,6 @@ A service without a release mechanism stays `merged, not live`; use one
 stories accumulated since the gap began.
 
 Report the outcome, in-flight step and any decision needed, with links and a
-one-line consumer impact. Label each claim measured, inferred or guess in the
-same sentence. Write each principal question in full with options, recommendation
+one-line consumer impact under the core's claim rule. Write each principal
+question in full with options, recommendation
 and the consequence of no answer.
