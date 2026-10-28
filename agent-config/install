@@ -308,13 +308,16 @@ validate_guidance
 validate_bins
 validate_audio_sandbox
 validate_session_backup
+python3 "$repo_dir/lib/retired_runtime.py" --home "$home_dir" --check
 
 if [ "$check" = 1 ]; then
   exit 0
 fi
 
-# These packages belonged to the retired orchestration client. Only marked
-# harness packages are ours to remove; native clients and foreign links survive.
+# Retire owned runtime schedules before their executable files disappear.
+python3 "$repo_dir/lib/retired_runtime.py" --home "$home_dir"
+
+# Exact historical or marked packages are ours; foreign packages and links survive.
 if [ -n "$agent_dir" ]; then
   for name in t3-access lane-succession; do
     destination="$agent_dir/skills/$name"

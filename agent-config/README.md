@@ -31,6 +31,14 @@ Codex also refresh canonical shared heartbeat and status skills. Retired marked
 access and succession skills are removed; credentials and session data are
 preserved.
 
+Upgrades also retire proved-owned runtime executables and user jobs. Ownership
+comes from the installed marker or exact maintained historical bytes. Native
+timers are stopped and disabled before removal; masks, foreign replacements,
+drop-ins and their callers survive. A still-running service keeps its files
+available and reports a retry after it completes. Native retirement failures
+are reported before executable removal. No credential or runtime-history
+directory is removed.
+
 ```sh
 ./install --check --agent-dir DIR \
   --skill all \
