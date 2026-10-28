@@ -15,7 +15,7 @@ install the candidate in an isolated home and inspect a fresh session's loaded
 core and discovered skills. Missing OMP fails that proof; lint alone does not
 prove loading.
 
-Use Git, Bun, jq and Python 3 for the maintained checks; full plugin proof also
+Use Git, Bun and Python 3 for the maintained checks; full plugin proof also
 requires OMP. `LANDMARK_BIN` enables the existing real Landmark release replay.
 Secret scanning remains in repository hooks. All proof writes stay outside the
 checkout and the operator's live OMP profile.
