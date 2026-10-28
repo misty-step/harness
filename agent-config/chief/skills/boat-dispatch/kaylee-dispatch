@@ -25,6 +25,10 @@ list reads Boat and each VM, not a second attempt ledger. Stopped runs are
 read from their last snapshot, marked as such; they may be interrupted.
 result requires an exit-code and prints final assistant text plus PR URLs; on a
 live VM they are computed there over one ssh call, so worker.jsonl is not copied.
+Live result prints the report only after boat ssh succeeds. On failure stdout is
+empty, the VM is untouched and the exit is 1. boat ssh returns 1 for every remote
+or Boat failure, so the exit code does not identify the cause; stderr does, with
+the renderer's diagnostic (e.g. no exit-code yet, jq error) and/or Boat's error.
 logs shows JSONL and stderr tails (default 30 lines).
 finish collects into ~/.local/state/kaylee/runs/ID, disables its tunnel, and
 deletes the VM. Live collection copies only regular report files: metadata.json,
@@ -318,8 +322,22 @@ CLONE
     [[ $# -eq 1 ]] || die 'Usage: kaylee-dispatch result ID'
     require_worker "$1"
     if is_up; then
-      { printf 'set -euo pipefail\n'; declare -f die render_report; printf 'render_report "$HOME/run"\n'; } \
-        | boat ssh "$id" 'bash -s' || die "No result for $id"
+      if { printf 'set -euo pipefail\n'; declare -f die render_report; printf 'render_report "$HOME/run"\n'; } \
+        | boat ssh "$id" 'bash -s' > "$scratch/report" 2> "$scratch/report.stderr"; then
+        cat "$scratch/report.stderr" >&2
+        cat "$scratch/report"
+      else
+        cat "$scratch/report.stderr" >&2
+        # Boat appends JSON to stdout, possibly glued to an unfinished report line.
+        # Parse only a complete trailing error object; never relay report text.
+        if ! jq -eRsc 'first(indices("{")[] as $start | .[$start:] | fromjson? |
+          select(type == "object" and .event == "error")) // empty' "$scratch/report" >&2; then
+          if ! jq -eRs 'test("(?m)^kaylee-dispatch:")' "$scratch/report.stderr" >/dev/null; then
+            printf 'kaylee-dispatch: Could not read result for %s; VM retained\n' "$id" >&2
+          fi
+        fi
+        exit 1
+      fi
     else
       collect_run "$scratch/result"
       render_report "$run_dir"

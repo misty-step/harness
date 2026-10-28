@@ -266,6 +266,10 @@ Criteria:
    and supplying missing tooling and jobs. Kaylee owns and evolves the seeded
    state ([#543](https://github.com/misty-step/mistystack/issues/543),
    [#554](https://github.com/misty-step/mistystack/issues/554)).
+6. WHEN Kaylee reads a live worker result, THE SYSTEM SHALL publish the report
+   only after successful SSH rendering; on failure it SHALL leave stdout empty,
+   surface the diagnostic with a nonzero exit and retain the VM
+   ([#557](https://github.com/misty-step/mistystack/issues/557)).
 
 No-gos: no engineering agents on the factory host; no paid fallback; no
 credential values in briefs, transcripts, snapshots or Git.

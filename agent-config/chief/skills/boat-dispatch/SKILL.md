@@ -40,7 +40,11 @@ Kaylee never edits product code or runs an engineering agent on factory.
    started-at, runner.pid, exit-code, worker.jsonl, worker.stderr, clone.stdout,
    clone.stderr and top-level `sessions/*.jsonl`; symlinks are not collected.
    Live `result` renders final assistant text and PR URLs on the VM over one SSH
-   call, without copying worker.jsonl. Stopped/archived `finish` enumerates the
+   call, without copying worker.jsonl. Live `result` publishes stdout only on
+   success. Any remote or Boat failure exits 1 with empty stdout and retains the
+   VM; use stderr, not the exit code, to identify the cause. Stderr carries the
+   renderer diagnostic and/or Boat's trailing error object, never the partial
+   report. Stopped/archived `finish` enumerates the
    last snapshot's complete Boat tree (`entries` with home-relative paths and
    file/dir/symlink kinds), then makes one pull with repeated `--path` for only
    the same allowlisted regular files. Each top-level session JSONL is requested
