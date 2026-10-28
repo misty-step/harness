@@ -356,6 +356,8 @@ else
   failures=$((failures + 1))
 fi
 check "claude canonical shared daybook skill" cmp -s "$work/source/agent-config/skills/daybook-sync/SKILL.md" "$claude_home/.agents/skills/daybook-sync/SKILL.md"
+check "claude agent-accounts executable" test -x "$claude_home/.local/bin/agent-accounts"
+check "claude agent-accounts bytes" cmp -s "$work/source/agent-config/bin/agent-accounts" "$claude_home/.local/bin/agent-accounts"
 check "claude daybook-sync executable" test -x "$claude_home/.local/bin/daybook-sync"
 check "claude daybook-sync bytes" cmp -s "$work/source/agent-config/bin/daybook-sync" "$claude_home/.local/bin/daybook-sync"
 check "claude daybook-sync CLI" "$claude_home/.local/bin/daybook-sync" --help
@@ -505,6 +507,8 @@ else
   failures=$((failures + 1))
 fi
 check "codex canonical shared daybook skill" cmp -s "$work/source/agent-config/skills/daybook-sync/SKILL.md" "$codex_home/.agents/skills/daybook-sync/SKILL.md"
+check "codex agent-accounts executable" test -x "$codex_home/.local/bin/agent-accounts"
+check "codex agent-accounts bytes" cmp -s "$work/source/agent-config/bin/agent-accounts" "$codex_home/.local/bin/agent-accounts"
 check "codex daybook-sync executable" test -x "$codex_home/.local/bin/daybook-sync"
 check "codex daybook-sync bytes" cmp -s "$work/source/agent-config/bin/daybook-sync" "$codex_home/.local/bin/daybook-sync"
 check "codex daybook-sync CLI" "$codex_home/.local/bin/daybook-sync" --help

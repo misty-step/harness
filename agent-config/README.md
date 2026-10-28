@@ -9,6 +9,7 @@ harness installer declares which primitives it selects.
 | `install` | The single deploy contract: skills, guidance, launchers, opt-in host components |
 | `skills/` | Portable skill packages, clean-replaced when selected |
 | `guidance/*.md` | Global-guidance sections spliced at the harness marker |
+| `bin/agent-accounts` | `agent-accounts roster --json`: read-only canonical account inventory and credential references |
 | `bin/daybook-sync` | Isolated private-note prepare, selected commit/push, bounded rebase and safe cleanup (US-054) |
 | `bin/workstation-guard` | PreToolUse hook for Claude Code and Codex: on mirrodin, serenity and nassau it refuses privileged or host-device containers and VMs, reboot/power-off, `pkill`/`killall` and display or session restarts, and points to exe.dev or `ssh hetzner-ci` (US-003) |
 | `bin/pass-env.ts` | pass-backed environment launcher |
@@ -47,6 +48,16 @@ and preflight never executes candidate source. Both harness installs select
 Each guidance file is one complete `##` section. The installer replaces the
 harness file's `<!-- shared guidance: agent-config -->` line with the selected
 sections in order; a missing marker aborts the deploy.
+
+## Account inventory
+
+Claude Code and Codex install `agent-accounts roster --json`. It projects the
+existing private `~/.config/t3-accounts/accounts.json` registry as schema 1,
+preserving account order, managed and watch-only rows, host placements and
+credential references. That historical storage path remains the reported
+provenance; installation does not move or alter the registry. The command
+never resolves credentials, starts subprocesses, contacts a service or writes
+state. Missing or invalid configuration fails without exposing its values.
 
 ## Workstation guard
 
