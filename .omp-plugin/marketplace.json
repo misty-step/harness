@@ -1,0 +1,21 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "mistystack",
+  "owner": {
+    "name": "Misty Step"
+  },
+  "metadata": {
+    "description": "Misty Step's method for OMP agents."
+  },
+  "plugins": [
+    {
+      "name": "mistystack",
+      "source": "./",
+      "version": "0.2.49",
+      "description": "One home for how Misty Step agents work.",
+      "homepage": "https://github.com/misty-step/mistystack",
+      "repository": "https://github.com/misty-step/mistystack",
+      "license": "MIT"
+    }
+  ]
+}

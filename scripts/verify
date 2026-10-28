@@ -3,8 +3,13 @@
 set -eu
 root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 cd "$root"
-[ "$#" -le 1 ] || { echo 'Usage: scripts/verify [all|shared|pi|omp|workspace]' >&2; exit 1; }
 selection=${1:-all}
+if [ "$selection" = plugin ]; then
+  shift
+  command -v bun >/dev/null 2>&1 || { echo 'bun is required' >&2; exit 1; }
+  exec bun "$root/scripts/verify-plugin.ts" "$@"
+fi
+[ "$#" -le 1 ] || { echo 'Usage: scripts/verify [all|shared|pi|omp|workspace|plugin] [--strict] [--lint-only]' >&2; exit 1; }
 case "$selection" in all|shared|pi|omp|workspace) ;; *) echo "Unknown selection: $selection" >&2; exit 1 ;; esac
 for tool in git bun jq python3; do
   command -v "$tool" >/dev/null 2>&1 || { echo "$tool is required" >&2; exit 1; }

@@ -17,6 +17,9 @@ jobs:
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: '1.4.2'
+      - name: Lint the method plugin and run its skill tests
+        # OMP install/discovery proof runs locally; CI keeps the no-model structural gate.
+        run: ./scripts/verify plugin --lint-only
       - name: Install the pinned gitleaks
         env:
           GITLEAKS_VERSION: '8.30.1'

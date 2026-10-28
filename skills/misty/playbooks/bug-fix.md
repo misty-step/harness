@@ -1,0 +1,9 @@
+# Bug fix
+
+1. **Reproduce.** Preserve the failing run and drive the reported consumer path. Use `skill://verification` for the surface and `skill://research` for unfamiliar behavior. Treat the user's observed failure as evidence, not a claim to reconfirm. **Complete when:** the exact trigger, actual result, expected result and outside check are recorded; any unreachable part is named.
+2. **Isolate.** Split competing causes with runtime evidence; instrument where state is unclear. Check history only to settle a regression question. Read `skill://principle-prove-it-on-the-real-path`. **Complete when:** one mechanism explains the failure and an observation distinguishes it from the rejected causes.
+3. **Repair the class.** Choose the highest layer that can make the failure impossible. Scope OMP `task` workers through misty's briefing contract when independent work merits them. Keep only changes supported by the mechanism. **Complete when:** the cause is removed, affected callers are migrated and speculative changes are absent.
+4. **Prove.** Apply `skill://test-audit`; preserve a regression check that fails for the defect and passes for the repair. Exercise success, rejection and recovery through the original consumer boundary. **Complete when:** the original path passes on the changed artifact and the affected checks have recorded results.
+5. **Deliver.** Use `skill://ship-loop` and `skill://writing`. **Complete when:** the reviewable unit links the failing and passing evidence, root cause, fix and any remaining unproven behavior; every claim is measured, inferred or guess.
+
+Source: cursor/plugins@c742dd61706fbacc1b95f1a20b7b988cf096ce6c/pstack/skills/poteto-mode/playbooks/bug-fix.md; misty-step/foundations@d96c99ce1152ab1d6ae4a0eed0b22cbac93897b7/way-of-working.md (Build, Prove).
