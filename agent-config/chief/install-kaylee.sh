@@ -138,7 +138,13 @@ import sys
 hermes = [sys.argv[1], "-p", "default", "config"]
 
 def get(key):
-    return json.loads(subprocess.check_output([*hermes, "get", key, "--json"], text=True))
+    result = subprocess.run([*hermes, "get", key, "--json"], capture_output=True, text=True)
+    if key == "platform_toolsets" and result.returncode == 1 and result.stderr.strip() == "Config key not set: platform_toolsets":
+        return {}  # Kaylee may remove all platform overrides after seeding.
+    if result.returncode:
+        sys.stderr.write(result.stderr)
+        result.check_returncode()
+    return json.loads(result.stdout)
 
 def set_list(key, value):
     subprocess.run([*hermes, "set", key, json.dumps(value)], check=True, stdout=subprocess.DEVNULL)

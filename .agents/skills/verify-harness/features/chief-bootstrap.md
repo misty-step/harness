@@ -22,7 +22,7 @@ PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s agent-config/chief -p 
 The regression drive runs the real installer and its worker/cron installers in
 temporary HOME and HERMES_HOME directories, with stub Hermes, Boat, Daybook,
 sudo and systemctl commands. No real Hermes home, credentials or services are
-touched. Expect ten passing cases:
+touched. Expect eleven passing cases:
 
 - An absent HERMES_HOME gets SOUL, a regular copied AGENTS.md, every skill,
   memory/profile enabled, both nudges at 10, memory tools on CLI/Discord, skill
@@ -44,6 +44,10 @@ touched. Expect ten passing cases:
   gains memory on CLI/Discord and loses `memory` from `agent.disabled_toolsets`.
   Conflicts with every other seeded-enabled toolset are removed too; unrelated
   disabled entries retain their order and duplicates.
+- A marked home with `platform_toolsets` removed still restores boundaries and
+  disables delegation without recreating the removed key. Only exit 1 with
+  `Config key not set: platform_toolsets` counts as absent; other read failures
+  must abort.
 
 `$HERMES_HOME/.kaylee-seeded` records completed identity/learning config seeding;
 without it, the next install seeds that config once, even on an existing host.
@@ -94,6 +98,12 @@ without the marker, allowing only the documented first-boot merges/conflict
 removals. Tamper approvals, allowlist, owner-only gateway, delegation backend and
 Kanban dispatch; rerun and read back their enforced values. No model call or
 gateway restart is needed.
+
+On a marked home, `config unset platform_toolsets`, tamper approvals, owner-only
+gateway, command allowlist and the disabled list, then rerun once. Verify every
+boundary above, `delegation` disabled on native CLI/Discord tool listings, legacy
+parking, the Daybook timer and cron. The removed key must remain absent. Inject
+a different `config get platform_toolsets` failure and confirm nonzero exit.
 
 ## Installation and loading
 

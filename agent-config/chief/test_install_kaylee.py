@@ -43,6 +43,9 @@ elif args[:2] == ["config", "get"]:
     if args[2] == "platform_toolsets":
         value = {key.removeprefix("platform_toolsets."): json.loads(value)
                  for key, value in config.items() if key.startswith("platform_toolsets.")}
+        if not value:
+            print("Config key not set: platform_toolsets", file=sys.stderr)
+            sys.exit(1)
     elif args[2] in config:
         value = json.loads(config[args[2]])
     else:
@@ -194,6 +197,26 @@ class ChiefSeedTests(unittest.TestCase):
                 for platform, toolsets in platforms.items():
                     self.assertEqual(json.loads(after[f"platform_toolsets.{platform}"]),
                                      [toolset for toolset in toolsets if toolset != "delegation"])
+
+    def test_marked_home_without_platform_toolsets_restores_boundaries(self):
+        self.install()
+        original = self.config()
+        config = {key: value for key, value in original.items()
+                  if not key.startswith("platform_toolsets.")}
+        config.update({
+            "approvals.mode": "off",
+            "gateway.allow_all_users": "true",
+            "command_allowlist": '["*"]',
+            "agent.disabled_toolsets": "[]",
+        })
+        (self.hermes / "config.json").write_text(json.dumps(config))
+        self.install()
+        after = self.config()
+        for key in ("approvals.mode", "gateway.allow_all_users", "command_allowlist"):
+            self.assertEqual(after[key], original[key])
+        self.assertEqual(json.loads(after["agent.disabled_toolsets"]), ["delegation"])
+        self.assertFalse(any(key == "platform_toolsets" or key.startswith("platform_toolsets.")
+                             for key in after))
 
     def test_base_built_home_enables_seeded_toolsets(self):
         self.hermes.mkdir()
