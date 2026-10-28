@@ -34,12 +34,14 @@ finish collects into ~/.local/state/kaylee/runs/ID, disables its tunnel, and
 deletes the VM. Live collection copies only regular report files: metadata.json,
 brief.md, launch.json, started-at, runner.pid, exit-code, worker.jsonl,
 worker.stderr, clone.stdout, clone.stderr, and top-level sessions/*.jsonl.
-Stopped/archived finish uses the same allowlist, enumerating the snapshot tree
-first and pulling only present regular files in one pull with repeated --path.
-Stopped list pulls metadata/exit-code; result adds worker.jsonl; logs pulls
-metadata/worker.jsonl/worker.stderr. Symlinks and nested session files never cross.
-Only a complete tree confirms optional absence; rejected trees, failed pulls or
-undelivered listed files fail collection, including under --force.
+Stopped/archived reads enumerate a complete snapshot tree, then fetch each
+selected regular file via GET /snapshots/{snapshotId}/files?path=...; no whole
+snapshot pull. finish uses the live allowlist; list selects metadata/exit-code;
+result adds worker.jsonl; logs selects metadata/worker.jsonl/worker.stderr.
+The HTTP fetch reads the existing scoped Boat login at point of use.
+Symlinks and nested session files never cross. Only a complete tree confirms
+optional absence; rejected trees or failed/partial file fetches fail collection,
+including under --force. Legacy/unindexed snapshots fail, never fall back to pull.
 --force stops an unfinished VM before collecting it.
 A failed collection retains the VM and tunnel; resolve the error and finish again.
 
@@ -56,7 +58,7 @@ HELP
 die() { printf 'kaylee-dispatch: %s\n' "$*" >&2; exit 1; }
 [[ $# -gt 0 ]] || { help; exit 1; }
 case "$1" in --help|-h|help) help; exit 0 ;; esac
-for command in boat jq systemctl; do command -v "$command" >/dev/null || die "Missing command: $command"; done
+for command in boat jq systemctl python3; do command -v "$command" >/dev/null || die "Missing command: $command"; done
 scratch=$(mktemp -d)
 created_id=
 start_pending=false
@@ -134,6 +136,7 @@ PACK
     if ! jq -es --arg command "$command" '
       select(length == 1) | .[0] |
       select(type == "object" and .treeAvailable == true and .truncated == false) |
+      select(.snapshotId | type == "string" and test("^[A-Za-z0-9_-]+\\z")) |
       select(.entries | type == "array") |
       select(all(.entries[]; type == "object" and
         (.kind == "file" or .kind == "dir" or .kind == "symlink") and
@@ -148,30 +151,78 @@ PACK
         else ["brief.md", "launch.json", "started-at", "runner.pid", "exit-code",
           "worker.jsonl", "worker.stderr", "clone.stdout", "clone.stderr"] end
       ) | map("run/" + .)) as $names |
-      [.entries[] | select(.kind == "file") | .path |
-        select(. as $path | ($names | index($path)) != null or
-          ($command == "finish" and test("^run/sessions/[^/]+\\.jsonl\\z")))]
+      [.entries[] | select(.kind == "file") |
+        select(.path as $path | ($names | index($path)) != null or
+          ($command == "finish" and ($path | test("^run/sessions/[^/]+\\.jsonl\\z"))))] |
+      select(all(.[]; .size | type == "number" and . >= 0 and floor == .)) |
+      map(.path)
     ' "$scratch/tree-$id.json" > "$scratch/paths-$id.json" 2>/dev/null; then
       jq -Rrs '.[0:1024]' "$scratch/tree-$id.json" >&2
       die "Unrecognised or incomplete snapshot tree for $id; VM retained"
     fi
     jq -e 'index("run/metadata.json") != null' "$scratch/paths-$id.json" >/dev/null \
       || die "No worker metadata in snapshot for $id; VM retained"
-    local path home_dir
-    local present=() pull_paths=()
+    local path home_dir="$destination/home_user"
+    local present=()
     mapfile -d '' -t present < <(jq -j '.[] | ., "\u0000"' "$scratch/paths-$id.json")
-    for path in "${present[@]}"; do
-      # boat 1.0.81 snapshot pull --help documents absolute /home/user paths.
-      pull_paths+=(--path "/home/user/$path")
-    done
-    if ! boat snapshot pull "$id" "${pull_paths[@]}" --out "$destination" --json > "$scratch/pull-$id.json"; then
-      cat "$scratch/pull-$id.json" >&2
+    # CLI pull downloads the whole snapshot even with --path. The documented
+    # file endpoint streams only this tree's selected bytes, pinned to its ID.
+    if ! python3 - "$scratch/tree-$id.json" "$scratch/paths-$id.json" "$home_dir" <<'FETCH'
+import json
+import os
+from pathlib import Path
+import sys
+from urllib.error import HTTPError
+from urllib.parse import quote, urlencode
+from urllib.request import build_opener, HTTPRedirectHandler, Request
+
+
+class NoRedirect(HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        return None  # Never forward the scoped login to a redirect destination.
+
+
+token = ""
+try:
+    tree = json.loads(Path(sys.argv[1]).read_text())
+    paths = json.loads(Path(sys.argv[2]).read_text())
+    entries = {entry["path"]: entry for entry in tree["entries"]}
+    # boat 1.0.81 login --key-stdin writes this file (also honors XDG_CONFIG_HOME).
+    config_home = Path(os.environ.get("XDG_CONFIG_HOME") or Path.home() / ".config")
+    config = json.loads((config_home / "ascii/boat/config.json").read_text())
+    token = config["token"]
+    if not isinstance(token, str) or not token or not token.isascii() or any(c.isspace() for c in token):
+        raise ValueError("Boat login has no valid token; run boat login on factory")
+    base = (os.environ.get("BOAT_API_URL") or config.get("api_url") or "https://boat.dev").rstrip("/")
+    opener = build_opener(NoRedirect)
+    for path in paths:
+        url = base + "/api/v1/snapshots/" + quote(tree["snapshotId"], safe="") + "/files?" + urlencode({"path": path})
+        request = Request(url, headers={"Authorization": "Bearer " + token})
+        target = Path(sys.argv[3]) / path
+        target.parent.mkdir(parents=True, exist_ok=True)
+        expected = entries[path]["size"]
+        with opener.open(request, timeout=60) as response, target.open("wb") as output:
+            if response.status != 200 or response.headers.get("X-Snapshot-Entry-Kind") != "file":
+                raise ValueError(f"Snapshot did not return a regular file for {path}")
+            received = 0
+            while chunk := response.read(min(65536, expected + 1 - received)):
+                output.write(chunk)
+                received += len(chunk)
+                if received > expected:
+                    break
+            if received != expected:
+                raise ValueError(f"Incomplete snapshot file {path}: expected {expected} bytes, received {received}")
+except Exception as error:
+    diagnostic = str(error)
+    if isinstance(error, HTTPError):
+        diagnostic += ": " + error.read(1024).decode("utf-8", errors="replace")
+    if isinstance(token, str) and token:
+        diagnostic = diagnostic.replace(token, "[redacted]")
+    print("Snapshot file fetch failed: " + diagnostic, file=sys.stderr)
+    sys.exit(1)
+FETCH
+    then
       die "Could not collect $id from its snapshot; VM retained"
-    fi
-    if ! home_dir=$(jq -ers 'select(length == 1) | .[0].homeDir |
-      select(type == "string" and length > 0)' "$scratch/pull-$id.json"); then
-      cat "$scratch/pull-$id.json" >&2
-      die "Unrecognised snapshot pull for $id; VM retained"
     fi
     run_dir="$home_dir/run"
     [[ ! -L "$run_dir" && ! -L "$run_dir/sessions" ]] \
