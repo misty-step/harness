@@ -1,3 +1,9 @@
+# [0.3.1](https://github.com/misty-step/mistystack/compare/v0.3.0...v0.3.1) (2026-10-28)
+<!-- landmark:protected-release previous=v0.3.0 source=bb88a94cb56dcb3249cd147adb921c1cb91590225d3117dd69274c6d647bdb88 -->
+
+### Features
+
+* add foundation audit and OMP setup method (#577) ([3edf06d](https://github.com/misty-step/mistystack/commit/3edf06d7408c74dac229e2cd6247a41ef299a199))
 # [0.3.0](https://github.com/misty-step/mistystack/compare/v0.2.49...v0.3.0) (2026-10-28)
 <!-- landmark:protected-release previous=v0.2.49 source=2e509d4bb894de23d1ddad1b2d0f41f5487f6ec2dbda59806055f191abc6d14a -->
 
