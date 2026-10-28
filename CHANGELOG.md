@@ -1,3 +1,9 @@
+# [0.3.3](https://github.com/misty-step/mistystack/compare/v0.3.2...v0.3.3) (2026-10-28)
+<!-- landmark:protected-release previous=v0.3.2 source=e1146cf6eb411d110d30cf23dc2625092f0673e66c15ec2ba41c514a5ecdd22e -->
+
+### Features
+
+* **design:** unify UI method and real-surface review (#575) ([87cf1fb](https://github.com/misty-step/mistystack/commit/87cf1fbd3c7895d6f11d5efd4a563b68492d079b))
 # [0.3.2](https://github.com/misty-step/mistystack/compare/v0.3.1...v0.3.2) (2026-10-28)
 <!-- landmark:protected-release previous=v0.3.1 source=1a4eb4078d33206cee4e15114d47232d11df009e49aa964719dccd3ca4b6ffd5 -->
 
