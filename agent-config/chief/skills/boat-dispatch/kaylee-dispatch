@@ -30,7 +30,12 @@ finish collects into ~/.local/state/kaylee/runs/ID, disables its tunnel, and
 deletes the VM. Live collection copies only regular report files: metadata.json,
 brief.md, launch.json, started-at, runner.pid, exit-code, worker.jsonl,
 worker.stderr, clone.stdout, clone.stderr, and top-level sessions/*.jsonl.
-Stopped/archived collection still pulls all of ~/run from the last snapshot.
+Stopped/archived finish uses the same allowlist, enumerating the snapshot tree
+first and pulling only present regular files in one pull with repeated --path.
+Stopped list pulls metadata/exit-code; result adds worker.jsonl; logs pulls
+metadata/worker.jsonl/worker.stderr. Symlinks and nested session files never cross.
+Only a complete tree confirms optional absence; rejected trees, failed pulls or
+undelivered listed files fail collection, including under --force.
 --force stops an unfinished VM before collecting it.
 A failed collection retains the VM and tunnel; resolve the error and finish again.
 
@@ -117,12 +122,63 @@ PACK
   else
     [[ "$state" != stopping && "$state" != archiving ]] || wait_stopped
     printf 'Reading %s from its last disk snapshot (state: %s)\n' "$id" "$state" >&2
-    if ! boat snapshot pull "$id" --path /home/user/run --out "$destination" --json > "$scratch/pull-$id.json"; then
+    # A complete tree alone establishes absence; transfer errors never do.
+    if ! boat snapshot tree "$id" --json > "$scratch/tree-$id.json"; then
+      jq -Rrs '.[0:1024]' "$scratch/tree-$id.json" >&2
+      die "Could not enumerate snapshot for $id; VM retained"
+    fi
+    if ! jq -es --arg command "$command" '
+      select(length == 1) | .[0] |
+      select(type == "object" and .treeAvailable == true and .truncated == false) |
+      select(.entries | type == "array") |
+      select(all(.entries[]; type == "object" and
+        (.kind == "file" or .kind == "dir" or .kind == "symlink") and
+        (.path | type == "string" and test("^[^/]+(/[^/]+)*\\z") and
+          (contains("\u0000") | not) and
+          (split("/") | all(. != "." and . != ".."))))) |
+      select((.entries | length) == ([.entries[].path] | unique | length)) |
+      (["metadata.json"] + (
+        if $command == "list" then ["exit-code"]
+        elif $command == "result" then ["exit-code", "worker.jsonl"]
+        elif $command == "logs" then ["worker.jsonl", "worker.stderr"]
+        else ["brief.md", "launch.json", "started-at", "runner.pid", "exit-code",
+          "worker.jsonl", "worker.stderr", "clone.stdout", "clone.stderr"] end
+      ) | map("run/" + .)) as $names |
+      [.entries[] | select(.kind == "file") | .path |
+        select(. as $path | ($names | index($path)) != null or
+          ($command == "finish" and test("^run/sessions/[^/]+\\.jsonl\\z")))]
+    ' "$scratch/tree-$id.json" > "$scratch/paths-$id.json" 2>/dev/null; then
+      jq -Rrs '.[0:1024]' "$scratch/tree-$id.json" >&2
+      die "Unrecognised or incomplete snapshot tree for $id; VM retained"
+    fi
+    jq -e 'index("run/metadata.json") != null' "$scratch/paths-$id.json" >/dev/null \
+      || die "No worker metadata in snapshot for $id; VM retained"
+    local path home_dir
+    local present=() pull_paths=()
+    mapfile -d '' -t present < <(jq -j '.[] | ., "\u0000"' "$scratch/paths-$id.json")
+    for path in "${present[@]}"; do
+      # boat 1.0.81 snapshot pull --help documents absolute /home/user paths.
+      pull_paths+=(--path "/home/user/$path")
+    done
+    if ! boat snapshot pull "$id" "${pull_paths[@]}" --out "$destination" --json > "$scratch/pull-$id.json"; then
       cat "$scratch/pull-$id.json" >&2
       die "Could not collect $id from its snapshot; VM retained"
     fi
-    run_dir="$(jq -er '.homeDir' "$scratch/pull-$id.json")/run"
-    [[ -d "$run_dir" ]] || die "Snapshot has no /home/user/run for $id"
+    if ! home_dir=$(jq -ers 'select(length == 1) | .[0].homeDir |
+      select(type == "string" and length > 0)' "$scratch/pull-$id.json"); then
+      cat "$scratch/pull-$id.json" >&2
+      die "Unrecognised snapshot pull for $id; VM retained"
+    fi
+    run_dir="$home_dir/run"
+    [[ ! -L "$run_dir" && ! -L "$run_dir/sessions" ]] \
+      || die "Snapshot delivered a symlinked run directory for $id; VM retained"
+    for path in "${present[@]}"; do
+      [[ -f "$home_dir/$path" && ! -L "$home_dir/$path" ]] \
+        || die "Snapshot did not deliver $path for $id; VM retained"
+      [[ "$command" != list || "$path" != run/exit-code || -s "$home_dir/$path" ]] \
+        || die "Empty exit-code in snapshot for $id; VM retained"
+    done
+    [[ -s "$run_dir/metadata.json" ]] || die "No worker metadata found for $id; VM retained"
   fi
   [[ -s "$run_dir/metadata.json" ]] || die "No worker metadata found for $id"
 }
