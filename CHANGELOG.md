@@ -1,3 +1,9 @@
+# [0.3.2](https://github.com/misty-step/mistystack/compare/v0.3.1...v0.3.2) (2026-10-28)
+<!-- landmark:protected-release previous=v0.3.1 source=1a4eb4078d33206cee4e15114d47232d11df009e49aa964719dccd3ca4b6ffd5 -->
+
+### Features
+
+* **skills:** rebuild OMP shipping workflows (#578) ([a8c2cc6](https://github.com/misty-step/mistystack/commit/a8c2cc6af2f3810a379dcf56bcdc1e5fc39ee644))
 # [0.3.1](https://github.com/misty-step/mistystack/compare/v0.3.0...v0.3.1) (2026-10-28)
 <!-- landmark:protected-release previous=v0.3.0 source=bb88a94cb56dcb3249cd147adb921c1cb91590225d3117dd69274c6d647bdb88 -->
 
