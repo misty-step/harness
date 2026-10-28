@@ -1,65 +1,72 @@
 # Role briefs
 
-Every role after the builder gets its brief from the round helper, never from a hand-filled template:
+`skill://misty` owns the briefing contract. The builder receives the completed
+brief below. Every later role receives only the helper's phase-checked brief:
 
 ```sh
-bun ~/.claude/skills/ship-loop/scripts/ship-loop.ts prompt --pr <PR URL> --role <role>
+bun <skill-dir>/scripts/ship-loop.ts prompt --pr <PR URL> --role <role>
 ```
 
-The helper fills the PR, head SHA, ticket, rigor, findings and eligibility from the PR's recorded state, and refuses a role that is out of phase. Each role returns its native thread ID and report link; the conductor writes those with `record`. Roles: `qa-review` (light) or `qa` and `review` (standard, critical), `judge`, `fix-builder`, `recheck`, `final-judge`. Use the same brief for a retry or a new thread; the round does not restart.
+`<skill-dir>` is the resolved directory of `skill://ship-loop`. The helper fills
+revision, ticket, rigor, findings and eligibility from the PR ledger. Record the
+native thread ID and report link actually returned; a retry keeps the same round.
 
 ## Rigor
 
-Classify the changed path, not the repository or initiative. Prefer light rigor for small, reversible, focused PRs; record `Rigor: <light|standard|critical> — <concrete reason>` and the diff size in the PR body. The judge may raise the tier only with a concrete risk. Size is a prompt to check the choice, not permission to ignore a real risk. Global **Merge** defines the checks-only exception for generator-only releases.
+Classify the changed path, not the initiative. Record tier, concrete reason and
+diff size in the PR. Size prompts a light-tier check; a concrete risk can raise
+it. Generator-only machine release PRs keep the checks-only exception.
 
-| Tier | Changed path | Review shape and model class |
+| Tier | Changed path | OMP agent and review shape |
 | --- | --- | --- |
-| light | Documents, briefs, config JSON, constants, bounded cosmetic changes and verification tooling without a production runtime path | One combined independent QA/review agent, then an independent judge; Haiku 5.5 or Sol medium. Most small focused PRs should land here in one round. |
-| standard | Runtime behavior or operational rules with consequences beyond a bounded light change | Separate independent QA and review, then an independent judge; Opus 5.5 high or Sol high. |
-| critical | Concrete changes to authentication, authorization, money, persisted-data integrity, migrations, security controls, deploy behavior, shared-infrastructure runtime or irreversible operations | Separate independent QA and review, then an independent judge; Opus 5.5 high or Sol high. State the actual risk, even for a one-line diff. |
+| light | Documents, briefs, config JSON, constants, bounded cosmetics and verification tooling without a production runtime path | `rigor-light`: builder, one independent combined QA/review, then independent judge |
+| standard | Runtime behavior or operational rules beyond a bounded light change | `rigor-standard`: builder, separate independent QA and review, then independent judge |
+| critical | Authentication, authorization, money, persisted-data integrity, migrations, security controls, deploy behavior, shared-infrastructure runtime or irreversible operations | `rigor-critical`: builder, separate independent QA and review, then independent judge; name the changed-path risk |
 
-Use a supported native collaboration route in the model class. Read current account limits through the host's native tool or `upkeep room --json` when available; missing or stale quota is unknown. Never wait for an ideal route when another supported route has room. Standard speed is the default. Fast mode or xhigh requires a named bottleneck and a reason; critical alone does not require xhigh. Subagents consume the assigned task's budget.
-
-Use one QA owner per SHA. Extra cross-family QA is only for a stated critical uncertainty, not an automatic duplicate. Light combines QA and review but keeps the judge independent. Only a judge's FIX naming exact eligible blockers authorizes the one fix round, and the helper records that authorization before the builder runs. Only the blocking reporter rechecks those fixes; retain unchanged evidence. New findings become tickets unless the fix introduced them. The final judge rules SHIP with tickets or REVERT / SPLIT; the helper refuses another FIX. Already on main is never a blocker. Ship heuristic features labeled approximate; accuracy is follow-up.
-
-When context gets heavy, leave a compact handoff with the current goal, checked revision, evidence, decisions and next step. Continue through the host's native context and collaboration facilities within the assigned scope.
+Dispatch with OMP `task`, selecting `rigor-<tier>` in each task's `agent` field.
+`skill://setup-mistystack` assigns the three model roles through OMP configuration;
+the plugin ships the three matching task agents. The brief determines the work:
+builder, QA/review, judge, fix-builder, recheck or final-judge. A recheck uses the
+original reporter's scope in a fresh thread. Judge independence is from both
+implementation and QA/review, even when all use the same tier agent.
 
 ## Builder
 
-The builder is the only brief written by hand. Its fix round is `prompt --role fix-builder`, never a hand-written fix brief.
+```text
+Outcome and why: <consumer change, ticket URL, parent spec URL>.
+Terms: <DOMAIN.md terms involved>.
+Raw material: <failing run, logs, data or source links; not a summary>.
+Oracle: <check outside the worker, exact command and expected result>.
+Scope: <owned paths, acceptance criteria, branch and base SHA, PR target>.
+Keep: <load-bearing behavior or lines to preserve; 'none' when empty>.
+Effort: <bounded depth and the uncertainty that deserves it>.
 
-```
-You are the builder for <repo> ticket <ticket URL>: <title>.
+Read skill://misty for the briefing contract, the ticket/spec and repo AGENTS.md.
+A missing Oracle returns to shaping. Make the acceptance criteria true within
+Scope; length never overrides Keep. Use one isolated worktree.
 
-Goal: make this ticket's acceptance criteria true, and nothing beyond them.
-Read first: the ticket, its parent spec <spec URL>, and the repo's AGENTS.md.
-Work on branch <branch>, starting from <origin/<default branch> at <SHA> | a stacked
-ticket: its blocker PR's head>.
-Keep: <the load-bearing lines and rules the change must leave in place | "nothing listed">.
-Length is a preference, never a reason to remove a Keep item.
+Run the Oracle and affected checks, then use skill://verification for the changed
+consumer path. Its generator owns a missing .agents/skills/verify-<app>/ skill,
+or stack on the PR adding it. Link proof from the PR.
 
-Inspect your diff. Run <check command> and drive the changed path with the repository's
-verification skill <path>. If it has none, add one with create-verification-skill
-(`.agents/skills/verify-<app>/`, `.claude/skills/` symlink), or say which open PR adds it.
-Apply global guidance's mandatory generator override and QA-account contract; run harness's
-`scripts/probe-agent-policy --verification <repo>` after generating. Instruction content is
-always AGENTS.md alone. Create no CLAUDE.md files or symlinks, including fixtures/private proofs. Put evidence in the PR. Push and open it against <base branch>,
-with a Conventional Commit title, the pr skill's body and "Closes #<n>".
-Every authored PR body records its `Rigor:` reason and diff size, and carries `Story: <ID>[, <ID>]` using story IDs from SPEC.md or USER_STORIES.md
-(for example, `Story: US-012` or `Story: US-012, US-015`). Use `Story: none` when no story applies.
-Machine-generated, generator-only release PRs are exempt.
+Push and open against <base branch>; use a Conventional Commit title and
+skill://writing for the body. Include Closes #<ticket>, Story: <IDs|none>,
+Rigor: <tier> — <reason>, diff size, and observed verification results.
+The conductor owns merge; preserve other writers' commits.
 
-Push your branch and open the PR without asking. Never force-push a shared branch or merge.
-Return the PR URL, head SHA, check result, evidence links, your native thread ID and any blocker.
-Then the conductor runs `init` on that PR with the same head SHA and your thread ID.
+Return PR URL, head SHA, check results, proof links, native thread ID and blockers.
+Label each claim measured, inferred or guess in the same sentence.
 ```
 
 ## After the builder
 
-- QA, review or combined QA/review: `prompt --role qa-review|qa|review`. Its payload is recorded with `record --kind report`.
-- Judge: `prompt --role judge`. Its ruling is recorded with `record --kind verdict`.
-- Fix: `prompt --role fix-builder`, then `record --kind head` with `reason: fix`.
-- Recheck: `prompt --role recheck`, recorded with `record --kind recheck`.
-- Final judge: `prompt --role final-judge`, recorded with `record --kind verdict`.
+| Work | Helper role | Recorded event |
+| --- | --- | --- |
+| QA/review | `qa-review` or `qa` and `review` | `report` |
+| Initial judgment | `judge` | `verdict` |
+| Authorized fix | `fix-builder` | `head` with reason `fix` |
+| Named-blocker verification | `recheck` | `recheck` |
+| Final judgment | `final-judge` | `verdict` |
 
-Each payload carries the native thread ID and report link the role actually returned. Never invent either.
+Use `record --kind <event> --file <payload.json>`. The helper owns eligibility,
+one-fix-round enforcement and retained evidence; do not duplicate its state.

@@ -617,6 +617,38 @@ test("prompts name only the current phase's role and carry the head", () => {
   expect(prompt(s, PR, "review")).toContain("independent code reviewer");
 });
 
+test("a relocated prompt records through its own executable path", async () => {
+  const h = harness();
+  expect((await initPr(h)).code).toBe(0);
+  const movedDir = join(h.dir, "an agent's plugin");
+  mkdirSync(movedDir);
+  const movedCli = join(movedDir, "ship-loop.ts");
+  writeFileSync(movedCli, readFileSync(CLI));
+  const env = { ...process.env, HOME: h.dir, SHIP_LOOP_GH: FAKE_GH, SHIP_LOOP_FAKE_STORE: h.store };
+  const generated = Bun.spawn(["bun", movedCli, "prompt", "--pr", PR, "--role", "qa"], {
+    env, stdout: "pipe", stderr: "pipe",
+  });
+  const [brief, error, generatedCode] = await Promise.all([
+    new Response(generated.stdout).text(), new Response(generated.stderr).text(), generated.exited,
+  ]);
+  expect(generatedCode, error).toBe(0);
+  expect(brief).toContain("skill://verification");
+  const command = brief.match(/`(bun .*? record --pr \S+ --kind report --file) <payload.json>`/);
+  if (!command) throw new Error("generated brief has no executable report command");
+  const payload = join(h.dir, "report.json");
+  writeFileSync(payload, JSON.stringify({
+    role: "qa", sha: H1, thread_id: "relocated-qa", report_url: `${PR}#issuecomment-9`, outcome: "PASS", findings: [],
+  }));
+  const recorded = Bun.spawn(["sh", "-c", `${command[1]} '${payload}'`], {
+    env, stdout: "pipe", stderr: "pipe",
+  });
+  const [recordOut, recordError, recordCode] = await Promise.all([
+    new Response(recorded.stdout).text(), new Response(recorded.stderr).text(), recorded.exited,
+  ]);
+  expect(recordCode, recordError || recordOut).toBe(0);
+  expect((await status(h)).doc.review_thread_ids).toContain("relocated-qa");
+});
+
 // Render an event exactly as the CLI would: its content key covers everything except seq.
 function renderWithKey(body: Record<string, unknown>): string {
   const { seq, key: _key, ...rest } = body;

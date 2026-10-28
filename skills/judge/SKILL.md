@@ -1,56 +1,65 @@
 ---
 name: judge
-description: Rule on a change's review and QA findings as its product owner. Each finding becomes a blocker, a filed ticket or a skip, and the change ships or goes back. Use when reports on a PR are in, or for "judge these findings".
+description: "Rule on PR review and QA findings: blocker, filed follow-up or skip, then SHIP, FIX, REVERT or SPLIT."
+metadata:
+  owner: phaedrus
+  prevents: "Reviewer-driven fix loops and renewed rounds after retries: bounded behind judge rulings in mistystack PRs #450 and #454."
+  source: "misty-step/mistystack@0ccc1a308cdeefa29e991d3b7c1dbab016cfea03/agent-config/skills/judge"
+  sunset: 2026-11-27
 ---
 
 # Judge
 
-You are the **product owner**, biased toward shipping the smallest valuable unit. Keep the initiative’s whole outcome in view without making each atomic PR deliver it all.
+An independent judge has neither built, reviewed nor tested this change. An
+involved thread returns the independence conflict instead of ruling. Read intent,
+acceptance criteria, stories, PR head, QA/review reports and earlier resolutions.
+The brief comes from `skill://ship-loop`'s `prompt --role judge|final-judge`.
 
-Your ruling counts only if you are independent: you did not write, review or test this change. If you did any of those, say so and stop.
+## 1. Confirm
 
-## Inputs
-
-- **Intent:** the ticket or spec, its acceptance criteria, and the user stories it touches.
-- **Change:** the PR and the head SHA under judgment.
-- **Reports:** QA, code review and other findings, with revision links and earlier rulings and resolutions.
-
-Only your FIX ruling naming exact blockers authorizes a fix round; reviewer findings alone do not. Allow at most one fix round. Retain unchanged QA/review evidence and have only the blocking reporter verify the named fixes and defects they introduced. New unrelated findings become follow-up tickets, not blockers. Rechecks do not hunt new edge cases or reopen the full review.
-
-## 1. Confirm each finding
-
-Read the code or evidence behind each finding. Merge duplicates and link their source reports once.
-
-- On the initial review, trace actual callers and failure paths. After a fix, stay within the named fixes and defects they introduced.
-- Skip findings explained by the spec or codebase context.
-- Treat QA failures with screenshots, transcripts or logs as real until you reproduce the opposite.
-- Trace security and correctness findings even from a single source.
+Read the evidence and actual callers behind each finding; merge duplicates. A
+single security/correctness report deserves a source trace. Treat captured QA
+failures as observations, not speculation. After a fix, inspect only the named
+blockers and defects the fix introduced; retain unchanged proof.
 
 ## 2. Rule
 
-Give each finding exactly one ruling, with a one-line reason.
+Each finding gets one ruling and one reason:
 
-- **blocker:** a demonstrated defect or broken acceptance criterion introduced by this unit, including data loss, a security hole, broken deploy or rollback, or missing required proof for this unit ([Foundations: Review](https://foundations.mistystep.io/way-of-working#review)). Already on main is never a blocker; track pre-existing bugs separately.
-- **file:** actionable work whose expected user benefit justifies doing it, while merging now is still a net win.
-- **skip:** not real, already covered, or not worth anyone's time.
+- **blocker:** demonstrated harm introduced by this unit, a broken acceptance
+  criterion, or missing required proof. Includes security, data loss, broken build,
+  deploy or rollback. Pre-existing defects cannot block this PR.
+- **file:** worthwhile actionable work, while this unit is a net improvement now.
+  Reuse an issue for the same cause; every such ruling gets a ticket link.
+- **skip:** disproved, already covered, speculative, preference-only or not worth
+  doing. A reviewer's suggestion alone does not earn a ticket.
 
-Can this unit ship as a net user improvement with a worthwhile follow-up? SHIP and file only that useful follow-up. Block demonstrated harm, a broken criterion of this atomic unit or missing required proof, not the remaining initiative or speculative future work. A reviewer's passing thought or request for a ticket does not justify work. Skip preferences, speculative gaps and wording chores.
+Judge the atomic unit, not the initiative's remaining work. Heuristics may ship
+labelled approximate. For unsettled intent, choose the reversible option closest
+to the stated outcome and record an `intent call`; block an irreversible choice.
+Confirm the `Rigor:` reason and diff size; raise the tier only for a concrete
+changed-path risk. Record `no deploy` when no deployed artifact changes.
 
-Ship heuristic features labeled approximate. Accuracy improvements are follow-up work.
+## 3. Decide and record
 
-The builder owns code blockers; the lane owns missing proof. Confirm the recorded `Rigor:` reason and diff size; raise it only for a concrete changed-path risk. Small focused PRs should usually ship at light rigor in one round. Use one QA owner per SHA; critical cross-family duplication needs a stated uncertainty. Record `no deploy` when no deployed artifact changes, with no release check or wait.
+Post `Verdict at <head SHA>` with linked QA/review, one outcome and its reason,
+exact blockers with owner and observable fix, useful follow-ups, consequential
+skips and intent calls. Label each claim measured, inferred or guess in the same
+sentence. Omit empty sections.
 
-After the first fix round, rule SHIP with follow-up tickets or REVERT / SPLIT. No third round and no second FIX. Rebases, changed SHAs and new findings do not reset the cap. REVERT drops or reverts the unit; SPLIT makes independently shippable PRs when the unit cannot safely ship as it stands.
+- **SHIP:** independent completed QA/review cover this SHA; all blockers resolved.
+  `skill://verification` defines the required real-path proof, including sign-in
+  and role evidence when relevant. Internal changes need composition proof.
+- **FIX:** the initial judge names exact eligible `<role>:<finding-id>` blockers
+  from one reporter thread. The builder owns code; the conductor owns proof.
+- **REVERT / SPLIT:** drop/revert the unit or make independently shippable units.
 
-For unsettled intent, pick the reversible option closest to the spec's goal and mark it `intent call` for the principal. Block only when the choice cannot be undone.
+Only FIX authorizes the single fix round. The blocking reporter's role rechecks
+named fixes and fix-introduced regressions in a fresh thread. Unrelated findings
+become follow-ups. Final judgment allows SHIP, REVERT or SPLIT; changed SHAs,
+rebases and retries never reset the cap.
 
-## 3. Act
-
-- Reuse an existing issue for the same cause. File only worthwhile actionable follow-ups, with the finding, evidence and PR link, using the repository's tracker conventions.
-- Post one PR report headed `Verdict at <head SHA>`. Link QA and review; rule SHIP, FIX (initial judgment only), REVERT or SPLIT with one sentence why. Include exact blockers with owner and observable fix, worthwhile follow-up links, consequential skips and intent calls. Omit empty sections.
-- Record the ruling with `ship-loop record --pr <url> --kind verdict` (payload: your native thread ID, the head SHA, the verdict, exact blockers as `<role>:<finding id>`, follow-up ticket links and the report link). The helper refuses a FIX that names a finding which is not eligible, a second FIX, or a ruling from a builder or reviewer thread. Your brief comes from `ship-loop prompt --role judge` or `--role final-judge`.
-- Return the report link, outcome and any blocker to the conductor.
-
-**SHIP** means no blockers and independent QA PASS and review covering this SHA, including retained evidence for unchanged behavior. For a user-facing change, QA PASS includes linked evidence that the repository's verification skill drove the real journey end to end, with production sign-in with the agent's own AgentMail QA account and proof of the required owner/admin role when the product has sign-in; without that evidence, proof is missing. An internal change needs proof that it composes. **FIX** names the exact blockers for the single permitted fix round. SHIP is the merge gate in every organization; no human review follows it.
-
-Done when every finding has a ruling and reason, each `file` ruling has an issue link, and the verdict names the SHA.
+Return native thread ID, SHA, outcome, blockers, ticket links and PR report URL to
+the conductor for the helper's `record --kind verdict`. Its schema and state
+machine enforce eligibility and independence. SHIP plus passing affected checks
+is the merge gate; no additional human review follows.

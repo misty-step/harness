@@ -1,21 +1,28 @@
 ---
 name: test-audit
-description: Write, change, review, or prune tests while preserving independent consumer contracts.
+description: "Write, change, review or prune tests while preserving independent consumer contracts."
+metadata:
+  owner: phaedrus
+  prevents: "Redundant test layers and lost independent coverage: US-021, introduced by mistystack commit 3b94e77 (MIS-166); lean proof refined in PR #279."
+  source: "misty-step/mistystack@0ccc1a308cdeefa29e991d3b7c1dbab016cfea03/agent-config/skills/test-audit; openclaw/openclaw@80930af448ebabc84174146b56bc106d37fab3b4/.agents/skills/test-audit"
+  sunset: 2026-11-27
 ---
 
-# Test audit (US-021)
+# Test audit
 
-Adapted from [OpenClaw test-audit](https://github.com/openclaw/openclaw/blob/80930af448ebabc84174146b56bc106d37fab3b4/.agents/skills/test-audit/SKILL.md);
-[LICENSE](LICENSE) preserves its MIT notice.
+Name the consumer failure before adding or deleting a test. Inspect existing
+proof at its owner boundary: one primary proof per contract; another layer needs
+a distinct consequential failure. Use history only for concrete uncertainty.
 
-Keep the few good tests proving what users rely on. Inspect existing consumer
-boundary proof first: one primary proof per contract, another layer only for a
-distinct consequential failure; history resolves concrete uncertainty.
-Delete implementation/wording pins, inventories, duplicates, mock echoes,
-tautologies and tests costing more than they catch. Preserve independent
-access/data/migration/package/protocol contracts; negative cases reach the guard.
+Keep independent access, data, migration, package and protocol contracts.
+Negative cases reach the guard; behavior through the real path beats assertion
+shape. Remove implementation/wording pins, copied inventories, mock echoes,
+tautologies and duplicate layers, not the contract they accidentally protected.
 
-Make end-user verification easy and lean: run affected checks and the actual
-consumer; show the real thing working, not more checking instead of shipping.
-Report deletions and risk in the PR, not a ledger. Installers read committed HEAD;
-smoke working-source composition in a disposable destination.
+Run affected checks and the actual consumer path through `skill://verification`.
+Report deleted proof, retained contracts and residual risk in the existing PR,
+not a per-test ledger. A subsystem audit groups by contract only when commissioned.
+For installers reading committed HEAD, distinguish that run from working-source
+composition smoked in a disposable destination.
+
+The adapted OpenClaw material retains its [MIT notice](LICENSE).

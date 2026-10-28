@@ -1,51 +1,65 @@
 ---
 name: release-watch
-description: Watch a merged change through deploy and early production life, and restore first when it hurts users. Use after a merge to a deploying branch, for "watch the release", or when a deploy or health check fails.
+description: "Watch a merged change through release and early live behavior; recover a failed deploy, smoke or health check."
+metadata:
+  owner: phaedrus
+  prevents: "Merged mistaken for live; incomplete installer/recovery paths repaired in mistystack PR #372; excessive postmortem/watch ceremony cut in #392."
+  source: "misty-step/mistystack@0ccc1a308cdeefa29e991d3b7c1dbab016cfea03/agent-config/skills/{release-watch,pokayoke}; misty-step/foundations@d96c99ce1152ab1d6ae4a0eed0b22cbac93897b7/way-of-working.md#operate"
+  sunset: 2026-11-27
 ---
 
 # Release watch
 
-Watch one merge SHA through release verification. On harm, **restore first, diagnose second**, through the repository's own pipeline in every organization. No restore waits for a human.
+Watch one merge SHA through the repo's release path. For user harm, restore first
+and attribute second. Compatible recovery follows existing authorization and the
+repo's own pipeline; accepted-data risk stops that mutation and is escalated.
 
-## 1. Find the release path
+## 1. Find the path
 
-Read the repository's AGENTS.md, README and release ADR. If the judge recorded `no deploy`, confirm the diff touches no deployed artifact path and stop without release queries or waiting; report `no deploy`. Otherwise take the matching path:
+Read AGENTS.md, README and the release decision. A recorded `no deploy` plus a
+diff touching no deployed artifact ends here without queries or waiting.
 
-- **Library or tool:** check its release PR or tag. A failed check is a trigger; a pass is `released`. Go to Report.
-- **Automated deploy:** find this SHA's run or deployment (`gh run list --commit <SHA>`, `gh api repos/<owner>/<repo>/deployments?sha=<SHA>`).
-- **Installer:** resolve the default branch and run `git fetch origin && git worktree add --detach <tmp under ~/.cache/tmp> origin/<default>`. In that worktree, run `git merge-base --is-ancestor <merge-SHA> HEAD`, then the documented installer. Record `HEAD` as the source head, plus the destination. Remove the worktree after §2's identity readback. If any step fails, stop and report. Installing the default-branch head keeps later merges live.
-- **No release path or readable health signal:** report `unwatched`. Search `gh issue list -R <owner>/<repo> --state open --label release-mechanism`; comment once on a match, otherwise create the label if missing and file one. Stop.
+- **Library/tool:** find the release PR/tag containing the merge. Passed release
+  checks mean `released`; a failed check is a recovery trigger.
+- **Automated deploy:** follow the run/deployment for this SHA to completion.
+- **Installer/plugin:** use a disposable detached worktree at freshly fetched
+  default-branch HEAD; prove the merge is its ancestor. Run the documented install
+  or update against the authorized destination, recording command, source head,
+  destination and exit status. Stop and report a failed step.
+- **Missing mechanism/signal:** report `unwatched`. Reuse one open
+  `release-mechanism` issue, or create it and its label; no implied live claim.
 
-For misty-step/harness, README's Deploy destinations and selections map paths to installers:
+## 2. Observe
 
-- `pi-config/`, `omp-config/`, `claude-config/` → that component's `install`.
-- `agent-config/` → each consumer selecting the changed primitive, per the component installer declarations; `./install` when all three are affected. The base installer alone deploys no consumer selection.
-- Root changes → trace deployed consumers; documentation or verification changes may install nothing.
+1. **Deploy:** successful run or installer/update exit status.
+2. **Identity:** live version/SHA/tag contains the merge. For installers, compare
+   deployed artifacts with source; for composed instructions, read the changed
+   installed section. Unchanged deployed bytes are `no-op`, not a new release.
+3. **Smoke:** drive touched stories with `skill://verification`. Installed OMP
+   skills/rules/extensions need a fresh OMP session at the destination exercising
+   the change. Artifact readback without that smoke is `artifact verified`, with
+   the exact missing proof named.
+4. **Signals:** observe only health/error signals this change can move, for a
+   risk-proportionate window. Low-risk changes need no arbitrary wait; installers
+   finish at smoke. Remove the disposable source worktree after identity readback.
 
-Install to the live destination; `./scripts/verify` is the isolated check.
-
-## 2. Watch
-
-1. **Deploy.** Follow the run to completion (`gh run watch <id>`). For installers, record command, source head, destination and exit status. Failure is a trigger.
-2. **Identity.** Read the live version, SHA or tag: this merge or a later release containing it. For installers, compare copied artifacts with the source head (`cmp` for files, `diff -r` for skill directories); for composed guidance, read the changed section in the installed file. If no deployed bytes changed, report `no-op: no deployed artifact changed`.
-3. **Smoke.** Walk the touched stories on the deployed surface with the repository's verification skill, read-only or with disposable QA data, including production sign-in with the agent's own AgentMail QA account and proof of the required owner/admin role when the product has sign-in. For installers, start a fresh native harness session at the destination and exercise the changed skill, guidance or extension. When you cannot, report `artifact verified` and name the missing smoke. An observed smoke failure is a trigger.
-4. **Signals.** Watch the health checks, errors and alerts this change could move, for as long as its risk warrants. A low-risk change needs no waiting period; installers end at smoke.
-
-Done when deploy, identity and smoke pass, or installer artifacts are verified with the smoke gap named.
-
-## 3. Act on a trigger
-
-A **trigger** is a failed deploy, failed smoke, newly failing health check or new error. When users are hurt, restore now; attribution comes after. Follow [recovery.md](recovery.md) for every trigger and for any failure found after the window.
+A failed deploy, smoke, newly failing health check or new error is a trigger.
+[recovery.md](recovery.md) owns restore, attribution and incident closure, including
+failures discovered after the watch window. A material incident's postmortem
+names one change that removes the error class, not another reminder.
 
 ## Report
 
-Post in the current lane and through `home post --from <Lane>`, the same Markdown on stdin. Every report stands alone: link every PR, issue, incident and thread with a one-line summary, and write any question in full.
+Post once in the owning lane/PR with merge and checked live identity, evidence,
+consumer impact and exact gaps. Label every claim measured, inferred or guess in
+the same sentence; link named incidents, releases and mechanism tickets.
 
-Start with the outcome:
-
-- `released`: the release PR or tag containing the merge, and the passed release check.
-- `live behavior proven`: deploy run, live identity, smoke and observed signals. For installers: command, source head, destination, exit status, readback and fresh-session smoke.
-- `artifact verified`: the installer evidence, any no-op status, and the missing smoke with its owner.
-- `restored`: trigger, recovery action and its verification, and the incident link if one exists.
-- `escalated`: restore is unsafe; risk, live state, incident, recovery owner and recommended path.
-- `unwatched`: what is missing, and the mechanism ticket.
+| Outcome | Required observation |
+| --- | --- |
+| `no deploy` | No deployed artifact changed |
+| `released` | Containing release/tag and passed release check |
+| `live behavior proven` | Deploy, identity, smoke and relevant signals |
+| `artifact verified` | Installer readback, no-op status if any, missing smoke and owner |
+| `restored` | Trigger, compatible recovery and verified recovered behavior |
+| `escalated` | Unsafe recovery, current live state, incident, owner and recommendation |
+| `unwatched` | Missing mechanism/signal and its ticket |

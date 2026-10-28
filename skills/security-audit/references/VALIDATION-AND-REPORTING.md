@@ -2,9 +2,9 @@
 
 ### Phase 3: Independently validate every candidate
 
-After the clean coverage-critic pass or an explicitly recorded early stop, consolidate Phase 2 candidates and carried same-source prior confirmations by stable fingerprint and root cause. Give every unique proposed `confirmed` and `needs_validation` candidate to a fresh `general` verifier that did not hunt it. A carried prior confirmation follows the same current verification path even though hunters exclude that unchanged root cause. A verifier may read hunter or prior artifacts but must re-read every cited current source location and independently run any decisive check it can reproduce safely.
+After the clean critic pass or recorded early stop, consolidate candidates/carried confirmations by fingerprint and root cause. Dispatch a fresh `security-reviewer` with OMP `task` for each unique candidate, independent of its hunter. It re-reads current source and reproduces decisive checks only within [safety.md](safety.md).
 
-Assign each verifier a canonical lowercase unique ID and `<output-dir>/agents/<verifier-id>/scratch/` plus parent-owned `artifacts/`. The verifier writes only to `scratch/` and never writes retained artifacts. It receives only the candidate, its linked coverage-unit checks and artifact paths, architecture facts needed to interpret the path, exact relevant companion validation blocks, the promotion procedure block below, the source/local execution boundary, the `confirmed`, `needs_validation`, and `rejected` branches of `report-schema.json` copied verbatim, and prior records with the same fingerprint. It must not receive another verifier's conclusion.
+Assign a canonical unique ID and scratch/artifact roots. The verifier writes only scratch. Brief it with the candidate, linked unit checks/artifacts, necessary architecture, relevant companion blocks, complete [artifact-promotion block](safety.md#artifact-promotion-block), source/local boundary and all three branches of [../report-schema.json](../report-schema.json). Include same-fingerprint prior records, not another verifier's conclusion.
 
 #### Candidate-verifier prompt
 
@@ -45,44 +45,8 @@ where record exactly matches the decision's verdict branch of the schema include
 in this prompt. A corrected record replaces the hunter's wording.
 ```
 
-Copy this promotion procedure verbatim into every candidate-verifier prompt:
-
-```text
-Artifact promotion procedure (trusted parent-side code only):
-Reference only for you: the parent performs these steps; you never perform them.
-
-Before execution, the parent opens and retains trusted, non-inheritable directory
-descriptors for the agent's scratch/ and artifacts/ roots, and records an allowlist
-of expected scratch-relative artifact files plus explicit per-file and cumulative
-byte limits. Never pass those descriptors to the agent or sandbox. After the sandbox
-and all its processes terminate, trusted parent-side code promotes each allowlisted
-file separately:
-
-1. Validate the declared relative path: reject absolute, empty, `.`, `..`, or
-   symlinked components.
-2. Walk each parent component from the retained scratch-root descriptor with
-   no-follow directory-relative operations; never reopen by path.
-3. Open the leaf no-follow and nonblocking.
-4. Verify with `fstat` that it is a regular file with link count exactly one and
-   within the recorded per-file and cumulative byte limits.
-5. Enforce those limits again while reading from that descriptor.
-6. Copy exactly the verified size, repeat `fstat`, and reject a changed identity,
-   type, link count, or size.
-7. For the destination, walk every parent component from the retained
-   artifacts-root descriptor with no-follow directory-relative operations; require
-   each existing component to be a real directory, and create any missing directory
-   exclusively before reopening and verifying it no-follow.
-8. Create the leaf exclusively without following links, verify that the opened
-   destination is a regular file with link count exactly one, and copy from the
-   verified source descriptor without reopening either path.
-9. Use equivalent race-safe APIs on non-POSIX systems.
-10. Never recursively copy or glob scratch, extract an archive into artifacts, or
-    open or promote a symlink, FIFO, socket, device, directory, hard-linked file,
-    changing file, or file that exceeds its bound.
-11. If any check is unavailable, cannot be enforced, or fails, discard the scratch
-    entry; if it is decisive evidence, retain `needs_validation` with the exact
-    promotion blocker.
-```
+Include the complete [artifact-promotion block](safety.md#artifact-promotion-block)
+verbatim in every candidate-verifier brief. The parent performs it.
 
 A verifier can promote `needs_validation` to `confirmed` only after independently establishing the complete path and bounded observed result. Demote proposed confirmation to `needs_validation` when a specific deployment or runtime fact remains unknown. Use `rejected` when source, local behavior, a visible control, missing meaningful impact, or an impossible prerequisite refutes the claim. `needs_validation` is never a parking place for a speculative idea.
 
@@ -90,7 +54,7 @@ The parent checks that each verifier returned the same fingerprint unless it ide
 
 When verifier evidence updates a ledger check, set that check's `agent_id` to the verifier's canonical ID and list its nonempty repository-relative `reviewed_paths`. Keep the unit-level `reviewed_paths` equal to the union across checks. Use `method: "source"` with `artifact: null` for source-only review. Use `method: "local"` only with a file successfully promoted by trusted parent-side code below `agents/<check.agent_id>/artifacts/`. The unit retains its original assignment owner, so independently owned hunter and verifier checks can coexist. For a carried prior record's seeded `planned` unit there is no prior owner: the verifier that re-checks it becomes the unit's assignment owner, and its re-check is the unit's first check, moving the unit to `candidate` with the carried fingerprint.
 
-If a strict total-agent budget cannot cover every candidate, set the run status to incomplete and follow the deterministic budget rule in `SKILL.md`. An unvalidated candidate remains only in the ledger. It does not enter `findings.json` under any verdict.
+An exhausted strict budget follows [workflow.md](workflow.md#invocation-budget): incomplete run, unvalidated candidates in the ledger only.
 
 ### Phase 4: Write and validate `findings.json`
 
@@ -119,7 +83,7 @@ Fix every structural and semantic error before continuing. The findings validato
 
 ### Phase 5: Verify the final records with fresh eyes
 
-Launch one fresh `research` verifier per final `confirmed` and `needs_validation` record, in parallel. This verifier checks the structured record, not the hunter write-up, and remains inside source/local boundaries.
+Dispatch one fresh read-only `scout` with OMP `task` per final `confirmed` and `needs_validation` record. It verifies the structured record, not the hunter's write-up, within the source/local boundary.
 
 In a `quick` run, Phase 3 and Phase 5 merge: the Phase 3 verifier also performs these record checks and returns the final schema-shaped record, so each candidate gets one fresh independent reviewer instead of two. Every other profile keeps the two passes separate. Never skip independent review of a `confirmed` record in any profile.
 

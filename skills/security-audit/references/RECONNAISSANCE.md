@@ -2,9 +2,9 @@
 
 ### Phase 1: Map the source and plan coverage
 
-The parent initializes `run-metadata.json`, applies the strict pre-reconnaissance budget gate in `SKILL.md`, then creates agent scratch roots and the shared ledger before hunting. If the gate fails, record the incomplete status in metadata and launch no reconnaissance agent. Reconnaissance reads the target and locally available build/configuration state only. It does not contact deployed endpoints, external identity providers, registries, brokers, cloud APIs, or other shared services.
+Initialize metadata and apply [workflow.md's budget gate](workflow.md#invocation-budget) before reconnaissance; a failed gate starts no workers. Read local source/build/config only, not deployed endpoints, identity providers, registries, brokers, provider APIs or shared services.
 
-Launch several `research` agents in parallel. They return structured facts to the parent and do not write files.
+Dispatch the four read-only source slices below through OMP `task` with `agent: scout`. They return source facts, not file edits or target execution.
 
 **Agent 1a: Product, stack, and local operation**
 
@@ -54,7 +54,7 @@ Read tests, build definitions, manifests, packaging, and maintained environment 
 7. Whether trusted parent-side code can promote predeclared scratch files with path-confined no-follow descriptor traversal, nonblocking regular-file checks, no-follow traversal of every destination parent, exclusive regular-file destination creation, and explicit per-file and cumulative size bounds. Missing promotion controls block use of scratch files as evidence.
 ```
 
-Add focused reconnaissance agents for materially distinct deployment modes or subsystems that these four do not map. Do not silently omit them: if the budget gate in `SKILL.md` blocks a focused agent, launch nothing for it, seed the unmapped area as a `deferred` ledger unit with reason `budget_cannot_reserve_critics_and_validation`, and disclose the gap in the report.
+Add source readers for materially distinct modes/subsystems only after repeating the budget gate. Otherwise seed the gap as `deferred` with reason `budget_cannot_reserve_critics_and_validation` and disclose it.
 
 ## Prior-run input
 
