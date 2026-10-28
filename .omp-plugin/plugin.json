@@ -1,0 +1,12 @@
+{
+  "name": "mistystack",
+  "version": "0.2.49",
+  "description": "Misty Step's method for OMP agents.",
+  "author": {
+    "name": "Misty Step"
+  },
+  "homepage": "https://github.com/misty-step/mistystack",
+  "repository": "https://github.com/misty-step/mistystack",
+  "license": "MIT",
+  "skills": "./skills"
+}
