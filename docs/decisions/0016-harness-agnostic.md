@@ -28,11 +28,14 @@ installer and no duplicated method content per harness. Harness-specific
 mechanics live in a disclosed reference for that harness, not shared procedures.
 Model and runtime choices belong in harness-native configuration.
 
-OMP shipped first. Its current mechanics have one home in the
-[OMP reference](../../skills/misty/harnesses/omp.md). Claude Code, Codex, pi,
-Grok Build and Hermes integration work and consumer proofs remain tracked by
-[#591](https://github.com/misty-step/mistystack/issues/591); this decision does
-not claim those native adapters or their proofs have shipped.
+OMP, Claude Code, Codex and pi use native adapters; their mechanics and proof
+boundaries live in the [harness references](../../skills/misty/SKILL.md). The Grok
+target is the [Grok Bot runtime](../../skills/misty/harnesses/grok-bot.md): Maren
+and Shipwright install Mistystack themselves from a brief and establish the
+runtime's loading contract. Phaedrus, 2026-10-28: "i don't think we'll ever use
+grok build". Grok Build CLI is not supported and no `.grok-plugin` is shipped.
+Kaylee's Hermes already consumes the shared tree; its private runtime does not
+need a second method copy.
 
 ## Consequences
 
@@ -43,9 +46,10 @@ not claim those native adapters or their proofs have shipped.
 - ADR 0015's references-not-packs and Foundations-redirect decisions remain
   accepted. Its body stays unchanged as the historical record of the earlier
   OMP-only decision.
-- Strict lint checks relative link resolution, named skills and URI isolation.
-  The current full consumer gate proves only OMP; another harness needs its own
-  native loading and consumer evidence, not an inferred pass from OMP.
+- Strict lint checks relative links, named skills, URI isolation and native
+  manifests. The full gate reports isolated native installs per available
+  harness and OMP's inference-free loaded-session proof. Hook registration is
+  not live core loading: each runtime needs its own fresh-session evidence.
 - Revisit this boundary if a real harness cannot consume the shared Agent Skills
   tree through a thin native adapter. That failure calls for an explicit
   decision, not a silent content fork or replacement installer.

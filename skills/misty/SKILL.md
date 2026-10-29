@@ -12,7 +12,9 @@ metadata:
 
 Choose the method for the user's outcome, then finish against its outside check.
 
-For harness mechanics, read `harnesses/<your harness>.md` (currently [OMP](harnesses/omp.md)).
+For harness mechanics, read the matching note: [OMP](harnesses/omp.md),
+[Claude Code](harnesses/claude.md), [Codex](harnesses/codex.md),
+[pi](harnesses/pi.md) or [Grok Bot](harnesses/grok-bot.md).
 
 ## Routing
 

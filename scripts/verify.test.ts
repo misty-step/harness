@@ -47,7 +47,7 @@ function run(args: string[], code = 0) {
 	};
 }
 
-test("the default and all gates select plugin lint and the maintained test suites", () => {
+test("the default and all gates skip native installs while selecting maintained tests and lint", () => {
 	for (const selection of [[], ["all"]]) {
 		const result = run(selection);
 		expect(result.code).toBe(0);
@@ -56,7 +56,7 @@ test("the default and all gates select plugin lint and the maintained test suite
 	}
 });
 
-test("plugin proof remains explicit and forwards its native proof options", () => {
+test("native install checks remain explicit and forward the no-inference OMP model override", () => {
 	for (const flags of [[], ["--strict"], ["--strict", "--lint-only"], ["--model", "fixture/model"]]) {
 		const result = run(["plugin", ...flags]);
 		expect(result.code).toBe(0);
@@ -84,6 +84,8 @@ test("help succeeds without proof and identifies plugin-only options", () => {
 	expect(result.out).toContain("allowed only in skills/misty/harnesses/");
 	expect(result.out).toContain("CI structural proof only");
 	expect(result.out).toContain("no model inference request");
+	expect(result.out).toContain("isolated Claude, Codex, OMP and pi install checks");
+	expect(result.out).toContain("Missing harness CLIs report SKIP, never PASS");
 });
 
 test("a failed maintained suite is the canonical gate's failure", () => {

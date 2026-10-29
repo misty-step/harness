@@ -1,0 +1,22 @@
+{
+  "name": "mistystack",
+  "version": "0.2.49",
+  "description": "Misty Step's harness-neutral engineering method.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/misty-step/mistystack.git"
+  },
+  "keywords": [
+    "pi-package"
+  ],
+  "omp": {},
+  "pi": {
+    "skills": [
+      "./skills"
+    ],
+    "extensions": [
+      "./adapters/pi/core.ts"
+    ]
+  }
+}
