@@ -9,6 +9,8 @@ export default defineConfig({
   vite: {
     // import.meta.url changes when build-time modules become prerender chunks.
     define: { 'process.env.STACK_REPO_ROOT': JSON.stringify(fileURLToPath(new URL('../', import.meta.url))) },
+    // Keep even small processed scripts external under script-src 'self'.
+    build: { assetsInlineLimit: 0 },
   },
   redirects: {
     '/guide/install-and-setup/': '/install/',

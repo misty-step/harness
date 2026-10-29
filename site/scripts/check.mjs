@@ -242,6 +242,11 @@ async function main() {
   for (const [from] of redirects) checkLink(from, '/', `_redirects ${from}`);
   for (const [file, page] of pages) {
     const base = route(file);
+    for (const { name, attributes } of page.tags) {
+      if (name === 'script' && (!attributes.has('type') || ['module', 'text/javascript', 'application/javascript'].includes(attributes.get('type')))) {
+        expect(attributes.has('src'), `${file}: executable inline script violates the self-only CSP`);
+      }
+    }
     for (const link of page.links) checkLink(link.value, base, link.label);
   }
   for (const [file, bytes] of files) {
