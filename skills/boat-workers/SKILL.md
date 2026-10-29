@@ -1,10 +1,10 @@
 ---
 name: boat-workers
-description: "Before running builds, test suites, browser QA, untrusted code or long jobs: place them on a fresh Boat worker, or keep native-platform and quick trusted work local."
+description: "Before running builds, test suites, browser QA, untrusted code or long jobs: place them on a fresh Boat worker, or keep platform-specific and quick trusted work in your own environment."
 metadata:
   owner: phaedrus
-  prevents: "Heavy and untrusted execution on the operator's machine or a shared coordinator host, and agents waiting on the retiring Kaylee dispatcher; Phaedrus, 2026-10-28, docs/decisions/0017-tern-omp-and-boat-workers.md."
-  source: "Phaedrus, 2026-10-28: consolidate onto Tern+OMP for local development and lean into Boat-dispatched workers; misty-step/workstation@e82812ec29cbef7814db697b6a7b190d8ecf6b8d/skills/remote-execution/SKILL.md; https://docs.boat.dev/cli-reference; https://docs.boat.dev/security; https://docs.boat.dev/billing; https://docs.boat.dev/hosting/firewall; review of misty-step/mistystack#602"
+  prevents: "Heavy and untrusted execution on the operator's machine, a shared coordinator host or a shared bot computer, and agents waiting on the retiring Kaylee dispatcher; Phaedrus, 2026-10-28, docs/decisions/0017-tern-omp-and-boat-workers.md."
+  source: "Phaedrus, 2026-10-28: consolidate onto Tern+OMP for local development and lean into Boat-dispatched workers; Phaedrus, 2026-10-29: Grok Bots use Boat but not Tern+OMP; misty-step/workstation@e82812ec29cbef7814db697b6a7b190d8ecf6b8d/skills/remote-execution/SKILL.md; https://docs.boat.dev/cli-reference; https://docs.boat.dev/security; https://docs.boat.dev/billing; https://docs.boat.dev/hosting/firewall; review of misty-step/mistystack#602"
   sunset: "2026-11-27"
 ---
 
@@ -32,10 +32,11 @@ internet: run it as a separate account without sudo under Boat's
 A worker alone does not meet the security audit's
 [sandbox contract](../security-audit/references/safety.md).
 
-Run natively when the acceptance check needs the native platform, a local
+Run in your own environment when the acceptance check needs its platform, a
 device, an existing signed-in session or a private network; when the data may
-not leave the machine; or for quick, trusted inspection, edits and targeted
-inner-loop checks. A Linux worker cannot prove macOS, device or GPU behavior.
+not leave it; or for quick, trusted inspection, edits and targeted inner-loop
+checks. Your [harness note](../misty/SKILL.md) names that environment and its
+limits. A Linux worker cannot prove macOS, device or GPU behavior.
 
 Inside a Boat worker, run the assigned checks there. Do not create nested
 workers or start child agents; return independent work to the dispatcher.
@@ -47,18 +48,18 @@ decision shows a measured need Boat cannot meet.
 ## 2. Check access and allowance
 
 Read `boat --no-update status --json`, `boat limits --json` and
-`boat list --all --json`. Use the existing native login. Proceed when
+`boat list --all --json`. Use the Boat credential your environment already has. Proceed when
 `canStart` is true, `nextStartDollars` is 0 and `planIncluded.vmHoursRemaining`
 covers the whole batch: parallel writers share one allowance. Bound each
 worker's lifetime to the job (`boat new --ttl`, `boat run --timeout`), because a
 running worker keeps billing after included time ends. Wallet charges (VM time
 past the included hours, paid starts, extra saved snapshots, the AI credentials
 proxy), disabled auto-stop, `--keep`, public hosting, purchases, plan changes,
-provider connections and new keys need Phaedrus. Without a working login,
+provider connections and new keys need Phaedrus. Without a working credential,
 report the missing prerequisite; do not run the job somewhere less isolated.
 Live limits, not this skill, own sizes, prices and quotas.
-**Complete when:** login, included capacity, lifetime bound and authorization
-are observed.
+**Complete when:** credential, included capacity, lifetime bound and
+authorization are observed.
 
 ## 3. Dispatch
 

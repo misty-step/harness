@@ -14,10 +14,27 @@ that must point to Mistystack's core and Misty skill. The repository supplies
 
 The bots must establish the actual runtime version, repository location,
 instruction-loading mechanism, refresh/restart operation, model authority,
-subagent capability, available browser integration and whether an authorized
-Boat CLI login exists for [Boat workers](../../boat-workers/SKILL.md). None of those mechanisms
+subagent capability, available browser integration and whether a Boat credential
+is provisioned on the bot computer. None of those mechanisms
 is established by the existence of this brief. Do not invent a CLI, manifest,
 loader API or dispatch tool to fill the gaps.
+
+## Working environment
+
+Your working environment is your hosted bot computer. Tern+OMP is the operator's
+local setup; do not install or adopt it. Read, edit, coordinate and run quick
+trusted checks on the bot computer. Every Bot on the account shares its files,
+browser sessions and command-line credentials, so it isolates nothing: run
+builds, test suites, browser QA against running services, untrusted code and long
+jobs on [Boat workers](../../boat-workers/SKILL.md).
+
+Boat access needs a credential Phaedrus provisions on the bot computer, which
+every Bot there can use. Without one, report that prerequisite and do not run
+the work on the bot computer instead.
+
+Reach Phaedrus's Mac through Grok Bot local execution only for checks that need
+macOS or its devices, one approved command at a time; never for portable builds,
+suites or untrusted code.
 
 ## Install and refresh brief
 

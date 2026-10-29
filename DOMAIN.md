@@ -32,9 +32,10 @@ through [AGENTS.md](AGENTS.md), and boundary decisions live in
 - **Oracle:** a check outside the worker that can disprove completion, named in
   the brief with the exact command or real user path. A brief without an Oracle
   returns to shaping rather than dispatch.
-- **Local development environment:** OMP running in Tern on the operator's
-  machine; Misty Step's default for interactive work
-  ([ADR 0017](docs/decisions/0017-tern-omp-and-boat-workers.md)).
+- **Local development environment:** the operator's: OMP running in Tern on
+  their machine ([ADR 0017](docs/decisions/0017-tern-omp-and-boat-workers.md)).
+  Other harnesses keep their own working environment, named in their harness
+  note; Grok Bots work from their hosted bot computer.
 - **Boat worker:** a fresh Boat sandbox one agent dispatches for one unit's
   execution. The dispatcher keeps its loop and credentials and deletes the
   worker after collecting results; [boat-workers](skills/boat-workers/SKILL.md)
@@ -51,9 +52,8 @@ through [AGENTS.md](AGENTS.md), and boundary decisions live in
    `metadata.source` covers its whole directory, including supporting files;
    preserve required license notices alongside derived material.
 3. **Harness-neutral method.** One content tree owns the method. Harness-specific
-   tools, configuration and loading behavior live in disclosed native-adapter
-   references, not shared procedures. Naming Misty Step's operating default, as
-   the core does for Tern+OMP (ADR 0017), is not a harness mechanism.
+   tools, configuration, loading behavior and working environments live in
+   disclosed native-adapter references, not shared procedures or the core.
 4. **One home per fact.** Core rules, principles, procedures, model assignments,
    consumer stories and historical decisions each have one authority. References
    point there; cutovers migrate callers and remove the old home.

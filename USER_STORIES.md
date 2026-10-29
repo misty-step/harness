@@ -255,24 +255,28 @@ consumer evidence.
 ## US-061 Run isolated work on Boat workers
 
 When an agent builds, tests, runs browser QA or executes untrusted code, I want
-it placed on a fresh Boat worker dispatched from Tern+OMP, so the operator's
-machine stays responsive and isolated work does not depend on a retiring
-coordinator.
+it placed on a fresh Boat worker dispatched from the agent's own environment, so
+the operator's machine and shared bot computers stay responsive and isolated work
+does not depend on a retiring coordinator.
 
 Criteria:
-1. The core names Tern+OMP as the local development environment and routes
-   execution placement to the [boat-workers](skills/boat-workers/SKILL.md) skill,
-   which owns the list of worker and native cases.
-2. Native-platform, device, signed-in-session, private-network and
-   non-transferable-data checks stay native. An agent inside a worker runs its
-   checks there without nesting workers.
+1. The core routes execution placement to the
+   [boat-workers](skills/boat-workers/SKILL.md) skill for every harness without
+   naming one; that skill owns the list of worker cases. Each harness note names
+   its working environment: Tern+OMP for the operator's local OMP, the hosted bot
+   computer for Grok Bots, which do not adopt Tern+OMP.
+2. Platform, device, signed-in-session, private-network and
+   non-transferable-data checks stay in the agent's own environment. A Grok Bot
+   reaches the operator's Mac only for macOS or device checks, one approved
+   command at a time. An agent inside a worker runs its checks there without
+   nesting workers.
 3. Workers withhold stored account secrets by default, carry an explicit size
    and timeout, and keep exit status and output as evidence.
 4. Cleanup retains the deletion result and confirms each owned ID is absent
    from all-state inventory; a stopped worker is not deleted.
 5. Workers stay inside the plan's included time. Wallet charges, purchases,
    plan changes, provider connections and new keys need Phaedrus; a missing
-   login is a reported prerequisite, not a reason to run less isolated.
+   Boat credential is a reported prerequisite, not a reason to run less isolated.
 
 Proof: `rules/core.md`, `skills/boat-workers/SKILL.md`,
 [ADR 0017](docs/decisions/0017-tern-omp-and-boat-workers.md) and a fresh-session
