@@ -1,3 +1,9 @@
+# [0.3.6](https://github.com/misty-step/mistystack/compare/v0.3.5...v0.3.6) (2026-10-29)
+<!-- landmark:protected-release previous=v0.3.5 source=f2a9f04610d0249d8b33afef741d1412e18f5f46d668734b0a32355de459ee80 -->
+
+### Bug Fixes
+
+* **codex:** current rigor model defaults and native hook trust steps (#597) ([7ea333b](https://github.com/misty-step/mistystack/commit/7ea333bb6bb4cbac60efecf51997115775de58cd))
 # [0.3.5](https://github.com/misty-step/mistystack/compare/v0.3.4...v0.3.5) (2026-10-29)
 <!-- landmark:protected-release previous=v0.3.4 source=149abeafa5010727adec2bf50e8b7a9dcfffbf606f2f0d63aa16cc41f58eb849 -->
 
