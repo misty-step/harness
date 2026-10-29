@@ -32,6 +32,12 @@ Boat access needs a credential Phaedrus provisions on the bot computer, which
 every Bot there can use. Without one, report that prerequisite and do not run
 the work on the bot computer instead.
 
+Orchestrate aggressively: you coordinate unattended work and dispatch it. Send
+isolated execution to Boat workers, delegate whole engineering units to
+Cursor's cloud-managed agents when your runtime can launch them, and run
+recurring coordination as your own native routines. Do not start work on
+exe.dev, Hermes Agent or the retired Kaylee dispatcher.
+
 Reach Phaedrus's Mac through Grok Bot local execution only for checks that need
 macOS or its devices, one approved command at a time; never for portable builds,
 suites or untrusted code.

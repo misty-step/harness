@@ -77,3 +77,37 @@ OMP and mistystack on the operator's Mac through approval-gated local execution.
 Every session still sent heavy tests to Boat. The core now carries only Boat
 placement. Tern+OMP lives in the OMP note, and the Grok Bot note names the bot
 computer, its shared credentials and the Boat credential prerequisite.
+
+## Amendment, 2026-10-29: exit exe.dev and Hermes; Grok Bots orchestrate
+
+Phaedrus:
+
+> Kaylee should be decommissioned.
+>
+> Migrations and deprecations:
+> - Migrate off exe.dev.
+> - Migrate off Hermes Agent.
+>
+> Target operating model:
+> - **Local machines:** Turn and OMP as the standard agent tooling.
+> - **Cloud agents:** Boat.
+> - **Grokbot:** Used aggressively. It orchestrates work across Boat, Cursor's
+>   cloud-managed agents, and its own native routines.
+
+"Turn" is Tern. The original decision already placed local work in Tern+OMP and
+isolated execution on Boat. This amendment changes three things:
+
+- **exe.dev is exited, not merely demoted.** No new work starts on exe.dev, and
+  every remaining host, VM and scheduled job moves off it before the account
+  closes. Retained data moves before any deletion.
+- **Hermes Agent is exited.** No agent runs on Hermes Agent; each remaining
+  Hermes deployment is migrated to the model below or retired by its owner.
+- **Grok Bots orchestrate aggressively.** They coordinate unattended work and
+  dispatch it to Boat workers, to Cursor's cloud-managed agents, or to their own
+  native routines. Boat stays the isolated execution default for builds, suites,
+  browser QA and untrusted code; Cursor cloud agents are a sanctioned execution
+  target that a Grok Bot dispatches, not a new sandbox default for other
+  harnesses.
+
+The Grok Bot harness note names these dispatch targets. Live cutovers of the
+private machinery stay in `misty-step/workstation`.

@@ -7,7 +7,9 @@ Records explain trade-offs; current method guidance lives in the
 
 - [0017](0017-tern-omp-and-boat-workers.md): the operator develops in Tern+OMP;
   every harness runs isolated execution on Boat workers and keeps any other
-  environment rule in its harness note; Kaylee and Hermes being decommissioned.
+  environment rule in its harness note; Grok Bots orchestrate Boat, Cursor cloud
+  agents and their native routines; Kaylee, Hermes Agent and exe.dev are being
+  exited.
 - [0016](0016-harness-agnostic.md): one harness-neutral Agent Skills content tree
   with thin native adapters; OMP shipped first, remaining integrations in #591.
   Its Kaylee/Hermes consumer statement is superseded by
