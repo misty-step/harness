@@ -5,8 +5,11 @@ Records explain trade-offs; current method guidance lives in the
 
 ## Current
 
-- [0015](0015-omp-method-plugin.md): OMP-only method plugin, references instead of
-  packs, private workstation machinery and the Foundations redirect.
+- [0016](0016-harness-agnostic.md): one harness-neutral Agent Skills content tree
+  with thin native adapters; OMP shipped first, remaining integrations in #591.
+- [0015](0015-omp-method-plugin.md): references instead of packs, private
+  workstation machinery and the Foundations redirect remain accepted; its
+  OMP-only clause is superseded by [0016](0016-harness-agnostic.md).
 - [0012](0012-native-release-promotion.md): retain Landmark and native GitHub
   release promotion.
 

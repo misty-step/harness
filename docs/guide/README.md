@@ -1,6 +1,11 @@
 # Mistystack guide
 
-Misty Step's method for OMP. Install one plugin, choose your models in OMP, then work through `misty`. The plugin supplies the method; each project keeps its own intent, decisions and proof.
+Misty Step's harness-neutral method: one content tree in Agent Skills format
+(`skills/<name>/SKILL.md`), exposed through thin native adapters from this
+repository. OMP shipped first; other adapters and their proofs are tracked by
+[#591](https://github.com/misty-step/mistystack/issues/591), not claimed as shipped
+here. Work through [misty](../../skills/misty/SKILL.md); each project keeps its own
+intent, decisions and proof.
 
 1. [Install and setup](01-install-and-setup.md)
 2. [Misty](02-misty.md)

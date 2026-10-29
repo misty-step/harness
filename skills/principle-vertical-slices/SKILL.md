@@ -13,7 +13,7 @@ metadata:
 
 Shape the whole initiative's value before splitting it. A small unit improves its consumer's path and keeps main working; breaking an existing path is reckless, not small.
 
-Give each unit an outside Oracle, a bounded diff and a concrete risk check. Carry its independent review through `skill://ship-loop`.
+Give each unit an outside Oracle, a bounded diff and a concrete risk check. Carry its independent review through the `ship-loop` skill.
 
 Sequence actual dependencies. Dispatch independent artifacts through misty's delegation boundary.
 

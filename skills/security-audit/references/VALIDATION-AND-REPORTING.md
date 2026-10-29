@@ -2,7 +2,7 @@
 
 ### Phase 3: Independently validate every candidate
 
-After the clean critic pass or recorded early stop, consolidate candidates/carried confirmations by fingerprint and root cause. Dispatch a fresh `security-reviewer` with OMP `task` for each unique candidate, independent of its hunter. It re-reads current source and reproduces decisive checks only within [safety.md](safety.md).
+After the clean critic pass or recorded early stop, consolidate candidates/carried confirmations by fingerprint and root cause. Dispatch a fresh security-specialist subagent through your harness's mechanism for each unique candidate, independent of its hunter. It re-reads current source and reproduces decisive checks only within [safety.md](safety.md).
 
 Assign a canonical unique ID and scratch/artifact roots. The verifier writes only scratch. Brief it with the candidate, linked unit checks/artifacts, necessary architecture, relevant companion blocks, complete [artifact-promotion block](safety.md#artifact-promotion-block), source/local boundary and all three branches of [../report-schema.json](../report-schema.json). Include same-fingerprint prior records, not another verifier's conclusion.
 
@@ -83,7 +83,7 @@ Fix every structural and semantic error before continuing. The findings validato
 
 ### Phase 5: Verify the final records with fresh eyes
 
-Dispatch one fresh read-only `scout` with OMP `task` per final `confirmed` and `needs_validation` record. It verifies the structured record, not the hunter's write-up, within the source/local boundary.
+Dispatch one fresh read-only subagent through your harness's mechanism per final `confirmed` and `needs_validation` record. It verifies the structured record, not the hunter's write-up, within the source/local boundary.
 
 In a `quick` run, Phase 3 and Phase 5 merge: the Phase 3 verifier also performs these record checks and returns the final schema-shaped record, so each candidate gets one fresh independent reviewer instead of two. Every other profile keeps the two passes separate. Never skip independent review of a `confirmed` record in any profile.
 

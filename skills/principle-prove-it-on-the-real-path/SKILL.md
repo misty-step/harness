@@ -13,11 +13,11 @@ metadata:
 
 Name the outside Oracle before changing the artifact: exact command, journey or measurement, and its expected observation.
 
-Drive the consumer boundary with `skill://verification`. Prove the relevant defect fails and the changed artifact passes; a mock, self-report or green unit suite alone is not that boundary.
+Drive the consumer boundary with the `verification` skill. Prove the relevant defect fails and the changed artifact passes; a mock, self-report or green unit suite alone is not that boundary.
 
 Trace a defect to its mechanism. Fix the failure class at the highest layer that can hold it: structure, automated check, guidance, then human review.
 
-Exercise affected success, rejection and recovery. Retain one primary proof per consumer contract through `skill://test-audit`.
+Exercise affected success, rejection and recovery. Retain one primary proof per consumer contract through the `test-audit` skill.
 
 A missing required check leaves the result unproven. Report the exact limit rather than replacing the Oracle with an easier check.
 

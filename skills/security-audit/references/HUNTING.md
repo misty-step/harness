@@ -2,17 +2,17 @@
 
 ### Phase 2: Run coverage-led hunting waves
 
-Assign `planned` units through OMP `task` with `agent: security-reviewer`. Group related boundaries under one hunter; units beyond the budget remain explicitly `deferred` with reason `budget_cannot_reserve_critics_and_validation`.
+Assign `planned` units to security-specialist subagents through your harness's mechanism. Group related boundaries under one hunter; units beyond the budget remain explicitly `deferred` with reason `budget_cannot_reserve_critics_and_validation`.
 
 When a budget or profile caps hunter count, assign units in priority order and record the ordering rationale in the ledger. Rank by: (1) unauthenticated or lowest-trust entry surfaces before authenticated ones; (2) boundaries protecting the most valuable resources (credentials, cross-tenant data, code execution, release authority); (3) prior-run gaps, revalidation targets, and changed source before same-source re-passes; (4) units whose class historically yields confirmed findings for this target type over speculative ones. Ties break lexicographically by `coverage_id` so runs stay deterministic.
 
-Before dispatch, mark units `in_progress`, assign a canonical lowercase `agent_id` and unique scratch/artifact roots. Hunters write only scratch and return structured results through OMP `task`; the parent owns source-independent shared state and retained artifacts.
+Before dispatch, mark units `in_progress`, assign a canonical lowercase `agent_id` and unique scratch/artifact roots. Hunters write only scratch and return structured results through your harness's subagent mechanism; the parent owns source-independent shared state and retained artifacts.
 
 ## Required hunter prompt
 
 Every hunter prompt contains these parts in this order:
 
-1. Outcome, Terms, Raw material, Oracle, Scope/Keep and Effort from `skill://misty`'s briefing contract; require the structured result below.
+1. Outcome, Terms, Raw material, Oracle, Scope/Keep and Effort from the `misty` skill's briefing contract; require the structured result below.
 2. `architecture.md` verbatim.
 3. Assigned coverage IDs, subsystem, boundary, repository-relative starting paths, and each unit's assignment block map from `coverage-ledger.json`.
 4. The exact selected blocks, copied verbatim: each selected ordinary attack-class block from `ATTACK-CLASSES.md`, and from each selected companion its `Core discipline`, each chosen attack-class subsection, `Universal moves`, and `Validation rules`. Ordinary blocks are self-contained and carry no companion-style `Core discipline`, `Universal moves`, or `Validation rules` sections. Do not send block or companion names alone.
@@ -186,7 +186,7 @@ Consolidate candidate entries by fingerprint and then by root cause. One root ca
 
 ## Coverage-critic waves
 
-Immediately after each hunter wave, dispatch one fresh read-only `scout` coverage critic with OMP `task`. Give it architecture, ledger/block maps, candidate fingerprints/states and prior gaps; it returns exactly this JSON:
+Immediately after each hunter wave, dispatch one fresh read-only coverage critic through your harness's subagent mechanism. Give it architecture, ledger/block maps, candidate fingerprints/states and prior gaps; it returns exactly this JSON:
 
 ```json
 {

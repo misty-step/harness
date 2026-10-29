@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 import { YAML } from "bun";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync } from "node:fs";
 import { homedir } from "node:os";
 import { basename, dirname, join, relative, resolve } from "node:path";
 
@@ -23,6 +23,15 @@ function document(path: string) {
 	const frontmatter: unknown = YAML.parse(match[1]);
 	if (!isRecord(frontmatter)) throw new Error("frontmatter must be a mapping");
 	return { frontmatter, body: text.slice(match[0].length).trim() };
+}
+
+function markdownLinks(text: string) {
+	const links = new Set<string>();
+	Bun.markdown.render(text, {
+		link: (children, { href }) => { links.add(href); return children; },
+		image: (_children, { src }) => { links.add(src); return ""; },
+	});
+	return links;
 }
 
 export function lintPlugin(root: string, strict = false) {
@@ -59,25 +68,39 @@ export function lintPlugin(root: string, strict = false) {
 	}
 
 	if (!existsSync(join(root, "skills/misty/SKILL.md"))) errors.push("skills/misty/SKILL.md: missing router");
-	const references = new Map<string, string>();
-	for (const file of new Bun.Glob("skills/**/*.md").scanSync({ cwd: root })) {
-		const text = readFileSync(join(root, file), "utf8");
-		for (const match of text.matchAll(/skill:\/\/([a-z0-9-]+)(\/[^\s`)<>#]+)?/g)) {
-			const target = join("skills", match[1], match[2]?.slice(1) || "SKILL.md");
-			if (!existsSync(join(root, target))) references.set(target, file);
+	const names = new Set(skills.map(file => basename(dirname(file))));
+	const references = new Set<string>();
+	for (const file of [...new Bun.Glob("{skills,rules}/**/*").scanSync({ cwd: root, dot: true })].sort()) {
+		const bytes = readFileSync(join(root, file));
+		if (bytes.includes(0)) continue;
+		const text = bytes.toString("utf8");
+		if (!file.startsWith("skills/misty/harnesses/")) {
+			for (const scheme of new Set(text.match(/(?:skill|xd):\/\//g))) {
+				references.add(`${file}: harness-specific URI ${scheme} is only allowed in skills/misty/harnesses/`);
+			}
 		}
-		for (const match of text.matchAll(/`(principle-[a-z0-9-]+)`/g)) {
-			const target = join("skills", match[1], "SKILL.md");
-			if (!existsSync(join(root, target))) references.set(target, file);
+		const links = /\.md$/i.test(file) ? markdownLinks(text) : [];
+		for (const destination of links) {
+			const path = destination.split(/[?#]/, 1)[0];
+			if (!path || /^(?:[a-z][a-z\d+.-]*:|[/\\])/i.test(path)) continue;
+			let decoded: string;
+			try {
+				decoded = decodeURIComponent(path);
+			} catch {
+				references.add(`${file}: invalid relative link ${destination} (malformed percent encoding)`);
+				continue;
+			}
+			if (/^[/\\]/.test(decoded)) continue;
+			const target = resolve(dirname(join(root, file)), decoded);
+			if (!existsSync(target) || !statSync(target).isFile()) {
+				references.add(`${file}: missing reference ${relative(root, target)}`);
+			}
 		}
-		for (const match of text.matchAll(/(?:\]\(|`)((?:\.\/)?playbooks\/[^\s`)]+\.md)/g)) {
-			const target = resolve(dirname(join(root, file)), match[1]);
-			if (!existsSync(target)) references.set(relative(root, target), file);
+		for (const [, name] of text.matchAll(/\bthe\s+`([a-z0-9-]+)`\s+skill\b/gi)) {
+			if (!names.has(name)) references.add(`${file}: unknown skill ${name} (missing skills/${name}/SKILL.md)`);
 		}
 	}
-	for (const [target, file] of [...references].sort(([a], [b]) => a.localeCompare(b))) {
-		(strict ? errors : warnings).push(`${file}: missing reference ${target}`);
-	}
+	(strict ? errors : warnings).push(...[...references].sort((a, b) => a.localeCompare(b)));
 	return { skillCount: skills.length, errors, warnings };
 }
 
@@ -184,7 +207,7 @@ if (import.meta.main) {
 					break;
 				case "--help":
 				case "-h":
-					console.log(`${usage}\nAll options are plugin-only; --lint-only skips installation. The RPC model defaults to OMP's smol role; --model overrides it without inference.`);
+					console.log(`${usage}\nAll options are plugin-only; --strict fails on broken relative Markdown links, unknown skill names and harness-specific URIs outside skills/misty/harnesses/. --lint-only skips installation. The RPC model defaults to OMP's smol role; --model overrides it without inference.`);
 					process.exit(0);
 				default: throw new Error(usage);
 			}

@@ -7,9 +7,9 @@
    a concrete blocker, not a recipe to preserve. Disposable launch scaffolding is
    named and removed in cleanup.
 2. **Write `.agents/skills/verify-<app>/SKILL.md`.** Include `name: verify-<app>`,
-   a trigger-first description and the project-grounded sections below. This is
-   OMP's canonical skill directory, with no second tool's alias. Repository
-   instructions remain in AGENTS.md. Fill every command, prerequisite and check
+   a trigger-first description and the project-grounded sections below. Keep one
+   canonical source and expose it through the active harness's native mechanism.
+   Repository instructions remain in AGENTS.md. Fill every command, prerequisite and check
    from source; the result must run cold without placeholders.
 3. **Map features.** Write `features/README.md` and one file per discovered primary
    feature, initially the top three to five. Index each file once. Each describes

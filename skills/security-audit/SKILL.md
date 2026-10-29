@@ -24,9 +24,9 @@ controls produce an exact `needs_validation` blocker, not an unsafe live probe.
 ## Full audit
 
 1. [Plan](references/workflow.md): target/revision, scope/profile, external output,
-   prior evidence, invocation budget and one parent-owned ledger. Dispatch with
-   OMP `task`; use `scout` for read-only reconnaissance/critics and
-   `security-reviewer` for source/local candidate investigation and verification.
+   prior evidence, invocation budget and one parent-owned ledger. Use your harness's
+   subagent mechanism for read-only reconnaissance/critics and security specialists
+   for source/local candidate investigation and verification.
 2. [Reconnaissance](references/RECONNAISSANCE.md): map principals, source-to-sink
    paths and deterministic coverage units; select [attack classes](references/ATTACK-CLASSES.md)
    and companions from observed boundaries, not dependency names.

@@ -13,7 +13,7 @@ metadata:
 An independent judge has neither built, reviewed nor tested this change. An
 involved thread returns the independence conflict instead of ruling. Read intent,
 acceptance criteria, stories, PR head, QA/review reports and earlier resolutions.
-The brief comes from `skill://ship-loop`'s `prompt --role judge|final-judge`.
+The brief comes from the `ship-loop` skill's `prompt --role judge|final-judge`.
 
 ## 1. Confirm
 
@@ -47,7 +47,7 @@ exact blockers with owner and observable fix, useful follow-ups, consequential
 skips and intent calls under the core's claim rule. Omit empty sections.
 
 - **SHIP:** independent completed QA/review cover this SHA; all blockers resolved.
-  `skill://verification` defines the required real-path proof, including sign-in
+  The `verification` skill defines the required real-path proof, including sign-in
   and role evidence when relevant. Internal changes need composition proof.
 - **FIX:** the initial judge names exact eligible `<role>:<finding-id>` blockers
   from one reporter thread. The builder owns code; the conductor owns proof.

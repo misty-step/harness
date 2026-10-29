@@ -1,7 +1,7 @@
 # Real-surface review
 
 Misty Step adaptation of [Impeccable's critique, polish and audit checks](https://github.com/pbakaus/impeccable/tree/5adaee704634e9031ec8943721c4ffa1a3c22221/.agents/skills/impeccable/reference)
-and our visual-state-review method. Rewritten for OMP; no upstream launcher or
+and our visual-state-review method. No upstream launcher or
 detector is required. [Sources and licenses](sources.md).
 
 ## Capture named states
@@ -12,8 +12,8 @@ detector is required. [Sources and licenses](sources.md).
    and overlays. Use stable names such as `settings-error-narrow-dark-top` and
    record the URL, revision, viewport, theme, data/role and steps to reach each.
    Cover behavior touched by shared components, not just the edited route.
-2. **Drive the product.** Use OMP's browser tool through `eval`; read its API
-   instructions at `xd://eval/browser` before first use. Open a dedicated tab,
+2. **Drive the product.** Use your harness's browser automation; read its API
+   instructions before first use. Open a dedicated tab,
    observe, interact and wait for the expected state, then screenshot it. Test
    through the real login and controls rather than injecting DOM to manufacture
    success. Emulation proves the emulated condition, not a physical-device test.

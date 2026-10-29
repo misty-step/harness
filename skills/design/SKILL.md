@@ -49,9 +49,9 @@ Do not use Mobbin.
    direction, not evidence of working UI. Any paid generation needs authorization;
    keep private data out of external prompts and generated media out of Git.
    Done: the requested change or review covers the whole affected path.
-4. **Prove.** Follow [review.md](review.md): drive the real surface with OMP's
-   browser tool, capture and inspect every named affected state, and test existing
-   behavior for regressions. Record **UX**, **DX** and **AX** outcomes separately;
+4. **Prove.** Follow [review.md](review.md): drive the real surface with your
+   harness's browser automation, capture and inspect every named affected state,
+   and test existing behavior for regressions. Record **UX**, **DX** and **AX** outcomes separately;
    pass only when all three improve together and existing behavior still works.
    Follow the core's claim rule; an inaccessible or unexercised state remains
    unverified.

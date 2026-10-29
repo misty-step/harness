@@ -1,21 +1,18 @@
 # 1. Install and setup
 
-Install [OMP](https://github.com/can1357/oh-my-pi), then add the public plugin:
+Use a harness's native adapter to load the shared method from this repository;
+there is no custom installer and no separate content tree per harness.
 
-```sh
-omp plugin marketplace add misty-step/mistystack
-omp plugin install --scope user mistystack@mistystack
-```
+OMP is the first shipped adapter. Follow the
+[OMP reference](../../skills/misty/harnesses/omp.md) for installation, refresh,
+configuration and consumer proof. Its current
+[setup skill](../../skills/setup-mistystack/SKILL.md) is OMP-specific, not proof of
+setup support elsewhere.
 
-Start a new OMP session and ask it to use `setup-mistystack`. [Setup](../../skills/setup-mistystack/SKILL.md) finds your accessible models, asks for your budget, and writes one model choice for each rigor tier to OMP's own config. The plugin already supplies the three matching task agents. Credentials stay in OMP's credential system.
-
-To update:
-
-```sh
-omp plugin marketplace update mistystack
-omp plugin install --force --scope user mistystack@mistystack
-```
-
-Start a new session after upgrading. Re-run setup when changing models or budgets. A catalog refresh alone does not upgrade an installed plugin; the forced install refreshes content even when its version is unchanged.
+Claude Code, Codex, pi, Grok Build and Hermes integration work is tracked by
+[#591](https://github.com/misty-step/mistystack/issues/591). Their native loading,
+configuration and proof must be established separately; an OMP installation
+does not establish support for another harness. Fleet machinery remains in
+private `misty-step/workstation`.
 
 Next: [Misty](02-misty.md).

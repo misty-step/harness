@@ -22,7 +22,7 @@ test alone does not show the current runtime.
 Capture only the changed path with sanitized fixtures; wait for observed states,
 not arbitrary delays. Preserve stderr when it explains failure. Screenshots prove
 appearance, not persistence or delivery. Visual acceptance also needs an
-independent design review through `skill://design`; give a fresh critic the
+independent design review through the `design` skill; give a fresh critic the
 artifact/surface without the implementer's explanation when priming could hide
 the defect.
 

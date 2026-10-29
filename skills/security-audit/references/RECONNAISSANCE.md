@@ -4,7 +4,7 @@
 
 Initialize metadata and apply [workflow.md's budget gate](workflow.md#invocation-budget) before reconnaissance; a failed gate starts no workers. Read local source/build/config only, not deployed endpoints, identity providers, registries, brokers, provider APIs or shared services.
 
-Dispatch the four read-only source slices below through OMP `task` with `agent: scout`. They return source facts, not file edits or target execution.
+Dispatch the four read-only source slices below through your harness's subagent mechanism. They return source facts, not file edits or target execution.
 
 **Agent 1a: Product, stack, and local operation**
 

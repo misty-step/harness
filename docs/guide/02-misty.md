@@ -1,6 +1,6 @@
 # 2. Misty
 
-Give OMP the outcome you want and the source material you already have. The installed core points nontrivial work to [misty](../../skills/misty/SKILL.md); you can also ask for it by name.
+Give your agent the outcome you want and the source material you already have. The installed core points nontrivial work to [misty](../../skills/misty/SKILL.md); you can also ask for it by name.
 
 Misty chooses the relevant playbook and skills. Its briefing contract keeps the desired outcome, project terms, raw evidence and outside check together. You need not choose a playbook before asking for work.
 
