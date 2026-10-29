@@ -1,0 +1,43 @@
+---
+import SiteLayout from './SiteLayout.astro';
+import DocNavigation from '../components/DocNavigation.astro';
+import SkillMetadata from '../components/SkillMetadata.astro';
+import HarnessChooser from '../components/HarnessChooser.astro';
+import { release, repositoryUrl, encodePath } from '../lib/release.mjs';
+const { document, graph } = Astro.props;
+const titleHeading = document.headings.find((heading) => heading.depth === 1);
+const siblings = graph.documents.filter((item) => document.id.startsWith('docs/guide/') ? item.id.startsWith('docs/guide/') : document.parentId ? item.parentId === document.parentId : item.kind === document.kind).sort((a, b) => a.order - b.order || a.title.localeCompare(b.title));
+const index = siblings.findIndex((item) => item.id === document.id);
+const previous = siblings[index - 1];
+const next = siblings[index + 1];
+const children = graph.documents.filter((item) => item.parentId === document.id);
+const backlinks = [...document.backlinks].map((id) => graph.byId.get(id));
+const articles = document.articles ?? [];
+---
+<SiteLayout title={document.title} description={document.skill?.description} section={document.kind} path={document.url}>
+  <div class="docs-shell">
+    <aside class="docs-sidebar" data-pagefind-ignore><DocNavigation {document} {graph} /></aside>
+    <article class="docs-content">
+      <nav class="breadcrumb" aria-label="Breadcrumb" data-pagefind-ignore><a href="/">Home</a> / <a href={document.kind === 'Decisions' ? '/decisions/' : document.kind === 'Guide' ? '/guide/' : '/library/'}>{document.kind}</a>{document.parent && <> / <a href={document.parent.url}>{document.parent.title}</a></>}</nav>
+      <details class="browse-mobile" data-pagefind-ignore><summary>Browse documentation</summary><DocNavigation {document} {graph} /></details>
+      <header class="doc-header">
+        <h1 id={titleHeading.id}>{document.title}<a class="heading-anchor" href={`#${titleHeading.id}`} aria-label={`Link to ${document.title}`}>#</a></h1>
+        {document.skill && <p>{document.skill.prevents}</p>}
+        {document.lineCounts && <p>{document.lineCounts.total} source lines, {document.lineCounts.body} after frontmatter. This count is derived from this revision.</p>}
+        {document.lineCounts && <p>Always applied: <code>{String(document.data.alwaysApply)}</code>.</p>}
+        {document.decision && <p class="badge">{document.decision.group} · {document.decision.status}</p>}
+      </header>
+      {document.supersession.map((relationship) => <aside class="callout" aria-label="Decision context"><p><a href={graph.byId.get(relationship.id).url}>{graph.byId.get(relationship.id).title}</a> records this explicit relationship. The original text below is preserved.</p><blockquote>{relationship.context}</blockquote></aside>)}
+      <SkillMetadata {document} />
+      <div class="source-provenance" data-pagefind-ignore><p><code>{document.id}</code></p><a href={document.source.blobUrl}>Source at <code>{release.commit.slice(0, 7)}</code></a> · <a href={`${repositoryUrl}/edit/master/${encodePath(document.id)}`}>Edit on GitHub</a> · <a href={`/source/${encodePath(document.id)}`}>Raw Markdown</a></div>
+      {document.url === '/install/' && <HarnessChooser {graph} />}
+      {document.headings.some((heading) => heading.depth > 1) && <details class="toc-mobile" data-pagefind-ignore><summary>On this page</summary><DocNavigation {document} {graph} toc /></details>}
+      {articles.length > 0 && <nav class="foundation-nav" aria-label="Foundation articles"><ol role="list">{articles.map((article) => <li value={article.number}><a href={`#article-${article.number}`}>{article.label}</a></li>)}</ol></nav>}
+      <div class="doc-body" set:html={document.html} />
+      {children.length > 0 && <section class="related-content" data-pagefind-ignore><h2>Supporting documents</h2><ul>{children.map((item) => <li><a href={item.url}>{item.title}</a></li>)}</ul></section>}
+      {(previous || next) && <nav class="doc-pagination" aria-label="Reading order" data-pagefind-ignore>{previous && <a rel="prev" href={previous.url}>Previous: {previous.title}</a>}{next && <a rel="next" href={next.url}>Next: {next.title}</a>}</nav>}
+      {backlinks.length > 0 && <section class="related-content" data-pagefind-ignore><h2>Linked from</h2><ul>{backlinks.map((item) => <li><a href={item.url}>{item.title}</a></li>)}</ul></section>}
+    </article>
+    <aside class="docs-toc" data-pagefind-ignore>{document.headings.some((heading) => heading.depth > 1) && <><p>On this page</p><DocNavigation {document} {graph} toc /></>}</aside>
+  </div>
+</SiteLayout>

@@ -1,0 +1,49 @@
+---
+import '../styles/tokens.css';
+import '../styles/base.css';
+import { canonical, release, repositoryUrl } from '../lib/release.mjs';
+const { title, description = 'A small always-on core, task-shaped playbooks and outside proof for your coding agent.', section = 'About', path = Astro.url.pathname, noindex = false } = Astro.props;
+const links = [{ href: '/guide/', label: 'Guide' }, { href: '/library/', label: 'Library' }, { href: '/evals/', label: 'Evals' }];
+const selected = (href) => path.startsWith(href);
+---
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light dark" />
+    <title>{title === 'mistystack' ? title : `${title} | mistystack`}</title>
+    <meta name="description" content={description} />
+    <meta data-pagefind-filter="section[content]" content={section} />
+    <meta data-pagefind-meta="title[content]" content={title} />
+    <link rel="canonical" href={new URL(path, canonical)} />
+    {noindex && <meta name="robots" content="noindex" />}
+    <script is:inline src="/theme-init.js"></script>
+  </head>
+  <body>
+    <a class="skip-link" href="#main-content">Skip to content</a>
+    <header class="site-header" data-pagefind-ignore>
+      <div class="header-inner">
+        <a class="brand" href="/" aria-label="mistystack home">mistystack</a>
+        <nav class="primary-nav" aria-label="Main navigation"><ul role="list">{links.map((link) => <li><a href={link.href} aria-current={selected(link.href) ? 'page' : undefined}>{link.label}</a></li>)}</ul></nav>
+        <div class="header-tools">
+          <a href="/search/">Search</a>
+          <a class="button" href="/install/">Install</a>
+          <button class="theme-toggle" type="button" data-theme-toggle hidden>Theme: system</button>
+        </div>
+        <details class="mobile-menu">
+          <summary>Menu</summary>
+          <nav aria-label="Mobile navigation"><ul role="list">{links.map((link) => <li><a href={link.href} aria-current={selected(link.href) ? 'page' : undefined}>{link.label}</a></li>)}<li><a href="/search/">Search</a></li><li><a href="/install/">Install</a></li><li><a href="/foundation/">Foundation</a></li><li><a href="/decisions/">Decisions</a></li><li><a href={repositoryUrl}>GitHub</a></li><li><button class="theme-toggle" type="button" data-theme-toggle hidden>Theme: system</button></li></ul></nav>
+        </details>
+      </div>
+    </header>
+    <main id="main-content" class="site-main" tabindex="-1" data-pagefind-body={!noindex || undefined} data-pagefind-ignore={noindex ? 'all' : undefined}><slot /></main>
+    <footer class="site-footer" data-pagefind-ignore>
+      <div class="footer-inner">
+        <nav aria-label="Footer navigation"><a href="/foundation/">Foundation</a><a href="/decisions/">Decisions</a><a href="/stories/">Stories</a><a href="/domain/">Domain</a><a href="/references/">References</a><a href="/attribution/">Attribution</a><a href="/changelog/">Changelog</a><a href={repositoryUrl}>GitHub</a></nav>
+        <p>Site source <a href={`${repositoryUrl}/tree/${release.commit}`}><code>{release.commit.slice(0, 7)}</code></a> · Method package {release.version} · <a href="/release.json">Release record</a></p>
+      </div>
+    </footer>
+    <script>import '../scripts/site.mjs';</script>
+  </body>
+</html>

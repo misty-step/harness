@@ -1,0 +1,16 @@
+---
+const { document } = Astro.props;
+const skill = document.skill ?? (document.kind === 'Playbooks' ? undefined : document.parent?.skill);
+const inherited = !document.skill && skill;
+---
+{skill && <section class="skill-metadata" aria-label={inherited ? 'Inherited skill provenance' : 'Skill metadata'}>
+  {inherited && <p>Provenance inherited from <a href={document.parent.url}>{skill.name}</a>. This document has no independent review date.</p>}
+  <dl>
+    <dt>{inherited ? 'Installed parent' : 'Installed name'}</dt><dd><code>{skill.name}</code></dd>
+    {!inherited && <><dt>When to use</dt><dd>{skill.description}</dd><dt>Prevents</dt><dd>{skill.prevents}</dd></>}
+    <dt>Owner</dt><dd>{skill.owner}</dd>
+    <dt>Source</dt><dd>{skill.source}</dd>
+    <dt>Review date</dt><dd><time datetime={skill.sunset}>{skill.sunset}</time>. The source calls this sunset; it is a review date, not automatic expiry.</dd>
+    {!inherited && <><dt>Invocation</dt><dd>{skill.disableModelInvocation ? 'Explicit invocation only. Hidden from automatic model discovery where the native harness enforces disable-model-invocation.' : 'Available for automatic model discovery. The native harness owns invocation behavior.'}</dd></>}
+  </dl>
+</section>}

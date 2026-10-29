@@ -20,7 +20,7 @@ Neutral, professional, plain words. Standard product design at Linear, Vercel
 and GitHub quality; no decorative theme or metaphor unless authorized product
 intent requires it. Support light and dark; default to the system setting.
 
-[Foundations article 10](https://foundations.mistystep.io/#10) is the bar:
+[Foundation article 10](../foundation/checklist.md#article-10) is the bar:
 primary information and action first; every element serves the task or required
 information. No gratuitous text, eyebrow labels, or secondary label repeating
 the primary. Fix hierarchy and layout before adding copy; cut taglines and

@@ -1,0 +1,66 @@
+---
+import SiteLayout from '../layouts/SiteLayout.astro';
+import HeroBackgroundSlot from '../components/HeroBackgroundSlot.astro';
+import HarnessChooser from '../components/HarnessChooser.astro';
+import SourceCommand from '../components/SourceCommand.astro';
+import EvalSummary from '../components/EvalSummary.astro';
+import { getGraph } from '../lib/content.mjs';
+import { catalogKinds } from '../lib/graph.mjs';
+const graph = await getGraph();
+const core = graph.byId.get('rules/core.md');
+const misty = graph.byId.get('skills/misty/SKILL.md');
+const bugFix = graph.byUrl.get('/library/playbooks/bug-fix/');
+const verification = graph.byId.get('skills/verification/SKILL.md');
+const ship = graph.byId.get('skills/ship-loop/SKILL.md');
+const principles = ['principle-prove-it-on-the-real-path', 'principle-deeper-not-bigger', 'principle-finish-the-work'].map((name) => graph.byId.get(`skills/${name}/SKILL.md`));
+const rounds = graph.documents.filter((document) => document.kind === 'Evals').sort((a, b) => b.data.date.localeCompare(a.data.date));
+---
+<SiteLayout title="mistystack">
+  <div class="container">
+    <section class="hero" aria-labelledby="pitch">
+      <HeroBackgroundSlot />
+      <div class="hero-copy">
+        <h1 id="pitch">Give your coding agent a method, not another harness.</h1>
+        <p>A small always-on core routes work to the right playbook and skills. An outside check defines done before the agent starts.</p>
+        <div class="hero-actions"><a class="button" href="/install/">Install for your harness</a><a class="button secondary" href="/guide/">Read the method</a></div>
+      </div>
+    </section>
+    <section class="section" aria-labelledby="failure-modes">
+      <h2 id="failure-modes">When the fix still fails, the scope grows or done has no proof.<a class="heading-anchor" href="#failure-modes" aria-label="Link to failure modes">#</a></h2>
+      <p>mistystack addresses concrete failures in agent-led work. Each principle names the failure it is maintained to prevent.</p>
+      <ul class="catalog-list" role="list">{principles.map((document) => <li class="catalog-item"><h3><a href={document.url}>{document.title}</a></h3><p>{document.skill.prevents}</p></li>)}</ul>
+    </section>
+    <section id="how-it-works" class="section" aria-labelledby="method">
+      <h2 id="method">One method, loaded when the work needs it.<a class="heading-anchor" href="#method" aria-label="Link to method">#</a></h2>
+      <ol class="method-flow" role="list">
+        <li><a href={core.url}>Core</a><p>The always-on entry point routes nontrivial work.</p></li>
+        <li><a href={misty.url}>misty</a><p>Choose the task's playbook and brief the work.</p></li>
+        <li><a href={bugFix.url}>Relevant playbook</a> + <a href="/library/?section=Principles">principles</a> + <a href="/library/?section=Skills">skills</a><p>Load the procedures the task calls for, not the entire library.</p></li>
+        <li><a href={verification.url}>Outside proof</a><p>Drive the named check on the real consumer path.</p></li>
+      </ol>
+      <div class="adapter-rail"><p>Native adapters wrap this same content tree. They are not a separate method or a final step.</p><HarnessChooser {graph} /></div>
+    </section>
+    <section id="reported-defect" class="section walkthrough" aria-labelledby="walkthrough">
+      <h2 id="walkthrough">A reported defect, from failure to outside proof.<a class="heading-anchor" href="#walkthrough" aria-label="Link to reported defect walkthrough">#</a></h2>
+      <ol>
+        <li><a href={bugFix.url}>Follow the bug-fix playbook.</a> Start with the reported failure and reproduce it on the user's path. Keep the intended behavior fixed.</li>
+        <li><a href={verification.url}>Name the check that can disprove the fix.</a> A passing syntax check or the worker's own claim is not proof that the defect is gone.</li>
+        <li><a href={ship.url}>Carry the confirmed unit through ship-loop.</a> Review the change and its evidence without turning a defect into an unrelated project.</li>
+      </ol>
+    </section>
+    {rounds[0] && <section class="section" aria-label="Directional evaluation"><EvalSummary document={rounds[0]} compact /></section>}
+    <section class="section" aria-labelledby="library">
+      <h2 id="library">Read the whole method.<a class="heading-anchor" href="#library" aria-label="Link to library">#</a></h2>
+      <ul>{catalogKinds.map((kind) => <li><a href={`/library/?section=${encodeURIComponent(kind)}`}>{kind} ({graph.documents.filter((document) => document.kind === kind).length})</a></li>)}</ul>
+      <p><a href="/library/">Browse the library</a> or <a href="/search/">search names, phrases and prevented failures</a>.</p>
+    </section>
+    <section id="install-for-your-harness" class="section" aria-labelledby="install">
+      <h2 id="install">Use your harness's native install.<a class="heading-anchor" href="#install" aria-label="Link to installation">#</a></h2>
+      <p>No custom installer. No second method tree. Installation and fresh-session loading are separate checks for each harness.</p>
+      <HarnessChooser {graph} />
+      <h3>OMP</h3>
+      <SourceCommand document={graph.byUrl.get('/install/omp/')} />
+      <p><a class="button" href="/install/">Choose your harness</a></p>
+    </section>
+  </div>
+</SiteLayout>

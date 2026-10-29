@@ -1,0 +1,30 @@
+{
+  "name": "@misty-step/stack-site",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=22.23.4" },
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro build && pagefind --site dist",
+    "check": "node scripts/check.mjs",
+    "preview": "astro preview",
+    "serve": "wrangler dev --local"
+  },
+  "dependencies": {
+    "astro": "7.4.4",
+    "github-slugger": "2.0.0",
+    "rehype-raw": "7.0.0",
+    "rehype-stringify": "10.0.1",
+    "remark-gfm": "4.0.1",
+    "remark-parse": "11.0.0",
+    "remark-rehype": "11.1.2",
+    "unified": "11.0.5",
+    "unist-util-visit": "5.2.0",
+    "yaml": "2.9.1"
+  },
+  "devDependencies": {
+    "pagefind": "1.5.2",
+    "wrangler": "4.155.0"
+  }
+}

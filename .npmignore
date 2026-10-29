@@ -1,0 +1,14 @@
+# Keep the native pi package independent of all website tooling and output.
+/site/
+
+# npm uses this file instead of .gitignore; retain its runtime exclusions.
+.omp/
+/.worktrees/
+node_modules/
+__pycache__/
+*.pyc
+.env
+.env.*
+!.env.example
+.landmark/
+coverage/

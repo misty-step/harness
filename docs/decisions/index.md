@@ -5,13 +5,18 @@ Records explain trade-offs; current method guidance lives in the
 
 ## Current
 
+- [0018](0018-static-publishing-stack.md): Astro static publishing, Pagefind and
+  Workers Static Assets as a recorded stack exception; not deployed, with
+  preview/deployment/telemetry uncommissioned and no production Foundation pass.
 - [0017](0017-tern-omp-and-boat-workers.md): the operator develops in Tern+OMP;
   every harness runs isolated execution on Boat workers and keeps any other
   environment rule in its harness note; Grok Bots orchestrate Boat, Cursor cloud
   agents and their native routines; Kaylee, Hermes Agent and exe.dev are being
   exited.
 - [0016](0016-harness-agnostic.md): one harness-neutral Agent Skills content tree
-  with thin native adapters; OMP shipped first, remaining integrations in #591.
+  with native adapters for OMP, Claude Code, Codex and pi; the
+  [install guide](../guide/01-install-and-setup.md) distinguishes Grok Bot and
+  Hermes status and each integration's separate loading-proof boundary.
   Its Kaylee/Hermes consumer statement is superseded by
   [0017](0017-tern-omp-and-boat-workers.md).
 - [0015](0015-omp-method-plugin.md): references instead of packs, private

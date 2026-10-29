@@ -1,0 +1,15 @@
+---
+import SiteLayout from '../../layouts/SiteLayout.astro';
+import EvalSummary from '../../components/EvalSummary.astro';
+import { getGraph } from '../../lib/content.mjs';
+const graph = await getGraph();
+const rounds = graph.documents.filter((document) => document.kind === 'Evals').sort((a, b) => b.data.date.localeCompare(a.data.date));
+---
+<SiteLayout title="Evals" section="Evals">
+  <div class="container section">
+    <h1>Evals</h1>
+    <p>Measured rounds with their task denominators, method and evidence boundaries. Directional results are not a claim of statistically conclusive superiority.</p>
+    {rounds.map((document) => <><p><time datetime={document.data.date}>{document.data.date}</time> · {document.data.status}</p><p>Harness: {document.data.harness}. Evidence: {document.data.evidence.map((item) => `${item.label} (${item.visibility})`).join('; ')}.</p><EvalSummary {document} /></>)}
+    <p><a href="/library/playbooks/eval/">Read the maintained evaluation playbook</a>.</p>
+  </div>
+</SiteLayout>

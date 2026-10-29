@@ -85,6 +85,37 @@ landed commit. Keep [CHANGELOG.md](CHANGELOG.md) generated. The shared
 [release convention](docs/release-convention.md) stays at its existing path for
 external callers.
 
+## Public site
+
+The static pitch and handbook live in `site/`, with isolated tooling. The root
+package remains the native pi package. With Node 22.23.4 or later:
+
+```sh
+npm --prefix site ci
+npm --prefix site run build
+npm --prefix site run check
+npm --prefix site run serve
+```
+
+`build` reads the canonical repository Markdown in place, validates the content
+graph and source-relative links, emits static routes and raw projections, then
+indexes the artifact with Pagefind. `check` crawls those emitted routes,
+fragments, assets and search indexes. `serve` uses local Wrangler static-asset
+routing, including trailing slashes, redirects and a true 404. It does not deploy.
+
+Presentation is replaceable in `site/src/styles/tokens.css`,
+`site/src/styles/base.css` and the semantic layouts/components. Role tokens own
+the visual values. `HeroBackgroundSlot.astro` renders nothing until an optional
+decorative background is commissioned. None of these boundaries requires moving
+or duplicating method content; route and link normalization lives in
+`site/src/lib/graph.mjs`. Historical record links to removed sources use a small,
+explicit archive map, labelled with their immutable revision.
+
+The [publishing decision](docs/decisions/0018-static-publishing-stack.md) records the
+stack exception and production boundaries. The
+[kernel trial](docs/evals/2026-10-28-kernel-trial.md) owns the reported results,
+task table and limitations. The Workers config is not a deployed service.
+
 ## Read
 
 - [Guide](docs/guide/): installation and the working method.
