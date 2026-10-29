@@ -47,27 +47,23 @@ supply the method to every adapter.
    responsibilities. Inspect the active harness's accessible models, supported
    reasoning levels and existing assignments without exposing credentials. A
    catalog entry or shipped template is not proof of provider entitlement. Keep
-   usable existing choices; review template model and reasoning fields against
-   the destination account, especially Codex's separately installed TOML agents.
-   Carry settled budget choices forward; ask for missing budget or provider
-   choices together. pi has no subagents or per-tier agent mappings: choose only
-   its main-session model/reasoning settings and perform rigor inline. Grok Bots
-   must first establish their native capability and model authority.
+   usable existing choices; carry settled budget choices forward; ask for missing
+   budget or provider choices together. The matching note's dispatch and rigor
+   section says what is assignable in that harness, including harnesses that run
+   rigor inline. Grok Bots must first establish their native capability and model
+   authority.
    **Complete when:** every applicable native assignment uses an accessible model
    and supported reasoning setting, and the required independent execution path
    is identified rather than simulated with an inline self-review.
 
 4. **Persist through native authority.** Apply and read back only the selected
-   harness's owned assignments:
-
-   | Harness | Model/reasoning authority |
-   | --- | --- |
-   | OMP | Merge `rigor-light`, `rigor-standard` and `rigor-critical` into `modelRoles`; the plugin supplies task agents. Setup writes roles, not agent files. Follow the note's native config commands and check project overrides, same-name agents and `task.agentModelOverrides`. For a new config mechanism, first use the [isolated OMP recipe](agents.md). |
-   | Claude Code | Use the native `model` fields of the plugin's `rigor-*` agent definitions. Read back the supplied mappings and any supported native overrides; do not create OMP roles or treat edits to plugin-cache copies as durable configuration. |
-   | Codex | Install/reconcile the supplied `rigor-*.toml` definitions in the target `$CODEX_HOME/agents/`, with chosen `model` and `model_reasoning_effort` fields. Preserve `developer_instructions` and unrelated files. Plugin installation alone does not deliver these native custom agents. |
-   | pi | Use pi's native main-session model/reasoning configuration; create no rigor-agent files, subagent mappings or OMP roles. |
-   | Grok Bot | Use only the model/reasoning authority each bot establishes in its actual runtime; retain the exact native configuration and capability evidence. |
-
+   harness's owned assignments, exactly as its note's dispatch and rigor section
+   describes: [OMP](../misty/harnesses/omp.md#dispatch-and-rigor),
+   [Claude Code](../misty/harnesses/claude.md#dispatch-and-rigor),
+   [Codex](../misty/harnesses/codex.md#dispatch-and-rigor),
+   [pi](../misty/harnesses/pi.md#rigor-inline-without-subagents),
+   [Grok Bot](../misty/harnesses/grok-bot.md). Prove an unfamiliar config
+   mechanism in an isolated home first ([OMP recipe](agents.md)).
    **Complete when:** native readback matches the chosen assignments and any
    shadowing is resolved explicitly. Readback proves persistence, not provider
    access or successful inference.
