@@ -14,7 +14,8 @@ that must point to Mistystack's core and Misty skill. The repository supplies
 
 The bots must establish the actual runtime version, repository location,
 instruction-loading mechanism, refresh/restart operation, model authority,
-subagent capability and available browser integration. None of those mechanisms
+subagent capability, available browser integration and whether an authorized
+Boat CLI login exists for [Boat workers](../../boat-workers/SKILL.md). None of those mechanisms
 is established by the existence of this brief. Do not invent a CLI, manifest,
 loader API or dispatch tool to fill the gaps.
 

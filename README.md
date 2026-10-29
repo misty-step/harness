@@ -20,9 +20,16 @@ Install and refresh through the matching native reference:
 - [pi](skills/misty/harnesses/pi.md): Git package and core extension; rigor runs inline.
 - [Grok Bot runtime](skills/misty/harnesses/grok-bot.md): each bot installs from a brief and establishes its loading proof.
 
-Kaylee's Hermes already consumes the shared tree. Grok Build CLI is not a target;
-there is no `.grok-plugin` adapter. Runtime and credential setup remain in the
-private workstation repository.
+Grok Build CLI is not a target; there is no `.grok-plugin` adapter. Runtime and
+credential setup remain in the private workstation repository.
+
+## Operating default
+
+Misty Step develops locally in Tern+OMP and runs portable builds, test suites,
+browser QA, untrusted code and long jobs on Boat workers through the
+[boat-workers](skills/boat-workers/SKILL.md) skill. Cloud coordination is moving
+to Grok Bots; Kaylee and Hermes are retired. The adapters above keep the method
+portable ([ADR 0017](docs/decisions/0017-tern-omp-and-boat-workers.md)).
 
 ## Layout
 

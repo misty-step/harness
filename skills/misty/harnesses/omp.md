@@ -27,6 +27,15 @@ user-scope install with `omp plugin list`, then start a fresh OMP session. Use t
 reasoning budgets; credentials stay in OMP's credential system. Preserve foreign
 plugins, configuration, credentials and runtime data.
 
+## Local environment
+
+Misty Step runs OMP inside Tern, a multiplexing terminal whose daemon keeps
+sessions alive between windows
+([ADR 0017](../../../docs/decisions/0017-tern-omp-and-boat-workers.md)). For an
+explicit request to open, split or drive panes, read `tern help` and the
+command's `--help`, target blocks by the IDs Tern returns, and leave the
+operator's focused block and sessions you did not create intact.
+
 ## Read skills and relative links
 
 OMP's `read` tool accepts `skill://misty` and `skill://<name>` for installed skills.

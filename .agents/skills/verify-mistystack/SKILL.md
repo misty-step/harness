@@ -66,7 +66,7 @@ not evidence that the method loaded.
    status, observed postcondition and reviewer-open output on the PR.
    Follow the core's claim rule; list every skipped or unproved criterion.
    Preserve output outside Git. The private workstation repository owns host,
-   audio, credentials, backups and Kaylee proof.
+   audio, credential and backup proof.
 
 Completion means the relevant consumer path passed on the stated candidate,
 with its evidence accessible. An explicit lint-only run is useful CI evidence,

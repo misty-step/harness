@@ -9,4 +9,5 @@ alwaysApply: true
 - Every fact has one home. Replace an old path by migrating its callers and deleting it.
 - Label every claim measured, inferred or guess in the same sentence. Link only what you produced or read.
 - Finish the work you were given. Ask one precise question for a blocked part and finish the rest.
+- Placement: Tern+OMP is the local development environment. Run portable builds, test suites, browser QA, untrusted code and long jobs on fresh Boat workers through the `boat-workers` skill.
 - Ask Phaedrus before spending money, creating or widening credentials, writing production data, messaging third parties or doing anything irreversible.
