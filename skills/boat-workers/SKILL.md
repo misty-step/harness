@@ -3,7 +3,7 @@ name: boat-workers
 description: "Before running builds, test suites, browser QA, untrusted code or long jobs: place them on a fresh Boat worker, or keep platform-specific and quick trusted work where you run."
 metadata:
   owner: phaedrus
-  prevents: "Heavy and untrusted execution on the operator's machine, a shared coordinator host or a shared bot computer, and agents waiting on the retiring Kaylee dispatcher; Phaedrus, 2026-10-28, docs/decisions/0017-tern-omp-and-boat-workers.md."
+  prevents: "Heavy and untrusted execution on the operator's machine, a shared coordinator host or a shared bot computer; Phaedrus, 2026-10-28, docs/decisions/0017-tern-omp-and-boat-workers.md."
   source: "Phaedrus, 2026-10-28: consolidate onto Tern+OMP for local development and lean into Boat-dispatched workers; Phaedrus, 2026-10-29: Grok Bots use Boat but not Tern+OMP; misty-step/workstation@e82812ec29cbef7814db697b6a7b190d8ecf6b8d/skills/remote-execution/SKILL.md; https://docs.boat.dev/cli-reference; https://docs.boat.dev/security; https://docs.boat.dev/billing; https://docs.boat.dev/hosting/firewall; review of misty-step/mistystack#602"
   sunset: "2026-11-27"
 ---

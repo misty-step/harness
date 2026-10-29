@@ -30,8 +30,8 @@ jobs on Boat workers through the [boat-workers](skills/boat-workers/SKILL.md)
 skill; everything else stays where the agent runs unless its harness note says
 otherwise. The [OMP note](skills/misty/harnesses/omp.md) names the operator's
 local Tern+OMP setup and the [Grok Bot note](skills/misty/harnesses/grok-bot.md)
-covers Bots' shared computer. Kaylee and Hermes are being decommissioned
-([ADR 0017](docs/decisions/0017-tern-omp-and-boat-workers.md)).
+covers Bots' shared computer and orchestration across Boat workers, Cursor cloud
+agents and native routines ([ADR 0017](docs/decisions/0017-tern-omp-and-boat-workers.md)).
 
 ## Layout
 
