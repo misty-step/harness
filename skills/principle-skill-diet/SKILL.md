@@ -5,7 +5,7 @@ disable-model-invocation: true
 metadata:
   owner: phaedrus
   prevents: "Unused or harmful instructions; 102 of 153 installed skills never loaded in the initiative #533 audit."
-  source: "misty-step/mistystack#533 Q6 and Q8, Nico Bailon skill-diet ruling; misty-step/foundations@d96c99ce1152ab1d6ae4a0eed0b22cbac93897b7/way-of-working.md#keep-it-living"
+  source: "misty-step/mistystack#533 Q6 and Q8, Nico Bailon skill-diet ruling; misty-step/foundations@d96c99ce1152ab1d6ae4a0eed0b22cbac93897b7/way-of-working.md#keep-it-living; cursor/plugins@c742dd61706fbacc1b95f1a20b7b988cf096ce6c/pstack/skills/principle-encode-lessons-in-structure; cursor/plugins@c742dd61706fbacc1b95f1a20b7b988cf096ce6c/pstack/skills/correct"
   sunset: "2026-11-27"
 ---
 
@@ -15,7 +15,7 @@ Start from the observed failure the instruction prevents. Cut a sentence that do
 
 Keep common steps close; disclose rare branches behind trigger-first pointers. Reference structural sources instead of restating commands, settings or inventories.
 
-Give each fact one home. Replace persona, role-play and repeated exhortations with exact terms and checkable completion criteria.
+When a mistake repeats, make it impossible in structure (architecture, then types, then a lint) before adding prose, but only for a measured failure. Give each fact one home. Replace persona, role-play and repeated exhortations with exact terms and checkable completion criteria.
 
 Use the frontmatter convention in [authoring-a-skill.md](../misty/playbooks/authoring-a-skill.md); the owner and sunset make drift review explicit.
 

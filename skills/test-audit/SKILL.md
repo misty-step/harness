@@ -4,7 +4,7 @@ description: "Write, change, review or prune tests while preserving independent 
 metadata:
   owner: phaedrus
   prevents: "Redundant test layers and lost independent coverage: US-021, introduced by mistystack commit 3b94e77 (MIS-166); lean proof refined in PR #279."
-  source: "misty-step/mistystack@0ccc1a308cdeefa29e991d3b7c1dbab016cfea03/agent-config/skills/test-audit; openclaw/openclaw@80930af448ebabc84174146b56bc106d37fab3b4/.agents/skills/test-audit"
+  source: "misty-step/mistystack@0ccc1a308cdeefa29e991d3b7c1dbab016cfea03/agent-config/skills/test-audit; openclaw/openclaw@80930af448ebabc84174146b56bc106d37fab3b4/.agents/skills/test-audit; cursor/plugins@c742dd61706fbacc1b95f1a20b7b988cf096ce6c/pstack/skills/principle-test-behavior-not-implementation"
   sunset: "2026-11-27"
 ---
 
@@ -16,7 +16,7 @@ a distinct consequential failure. Use history only for concrete uncertainty.
 
 Keep independent access, data, migration, package and protocol contracts.
 Negative cases reach the guard; behavior through the real path beats assertion
-shape. Remove implementation/wording pins, copied inventories, mock echoes,
+shape; a test that survives a behavior-preserving refactor tests behavior. Remove implementation/wording pins, copied inventories, mock echoes,
 tautologies and duplicate layers, not the contract they accidentally protected.
 
 Run affected checks and the actual consumer path through the `verification` skill.

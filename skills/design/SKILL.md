@@ -4,7 +4,7 @@ description: "Use for every UI or visual task: build, fix, redesign, polish, vis
 metadata:
   owner: phaedrus
   prevents: "Design defaults drifting and state-specific defects escaping review: design-studio loaded only 4 times in the usage audit; Foundations article 10 requires a finished face."
-  source: "Foundations article 10 and way-of-working#design; misty-step/mistystack@0ccc1a3/agent-config/skills/{design-studio,visual-state-review}; emilkowalski/skills@2d228630ba1446365f614a108cb8252f1feda202; pbakaus/impeccable@5adaee704634e9031ec8943721c4ffa1a3c22221; see sources.md"
+  source: "Foundations article 10 and way-of-working#design; misty-step/mistystack@0ccc1a3/agent-config/skills/{design-studio,visual-state-review}; emilkowalski/skills@2d228630ba1446365f614a108cb8252f1feda202; pbakaus/impeccable@5adaee704634e9031ec8943721c4ffa1a3c22221; see sources.md; cursor/plugins@c742dd61706fbacc1b95f1a20b7b988cf096ce6c/pstack/skills/principle-experience-first"
   sunset: "2026-11-27"
 ---
 
@@ -13,6 +13,8 @@ metadata:
 Misty Step rewrite of the sources disclosed in [sources.md](sources.md).
 
 ## Defaults
+
+Start from the user's experience of the task and work back to the implementation.
 
 Neutral, professional, plain words. Standard product design at Linear, Vercel
 and GitHub quality; no decorative theme or metaphor unless authorized product
