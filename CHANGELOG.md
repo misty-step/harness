@@ -1,3 +1,9 @@
+# [0.3.8](https://github.com/misty-step/mistystack/compare/v0.3.7...v0.3.8) (2026-10-29)
+<!-- landmark:protected-release previous=v0.3.7 source=8141300c01bdd1b4163bbce555b3356fd844fc25bfce7b543a03110a9e8c2018 -->
+
+### Bug Fixes
+
+* **boat-workers:** bound worker lifetime and clarify browser, egress and CLI steps (#605) ([bdb8435](https://github.com/misty-step/mistystack/commit/bdb84352c7ac2fff6ac174ec677d3ad487914aaf))
 # [0.3.7](https://github.com/misty-step/mistystack/compare/v0.3.6...v0.3.7) (2026-10-29)
 <!-- landmark:protected-release previous=v0.3.6 source=66a504a3d0c363bce81a3204630f27c4749463d921e1c230b018c4a56a4b9961 -->
 
