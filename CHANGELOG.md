@@ -1,3 +1,9 @@
+# [0.3.5](https://github.com/misty-step/mistystack/compare/v0.3.4...v0.3.5) (2026-10-29)
+<!-- landmark:protected-release previous=v0.3.4 source=149abeafa5010727adec2bf50e8b7a9dcfffbf606f2f0d63aa16cc41f58eb849 -->
+
+### Features
+
+* load shared method through native harness adapters (#593) ([c02055e](https://github.com/misty-step/mistystack/commit/c02055e460b572cb38c5a0695b37333559467aed))
 # [0.3.4](https://github.com/misty-step/mistystack/compare/v0.3.3...v0.3.4) (2026-10-28)
 <!-- landmark:protected-release previous=v0.3.3 source=c5ff4de48694f3a19b082082618c84f9b90d010b8f43b374bf245c4744b30b0e -->
 
