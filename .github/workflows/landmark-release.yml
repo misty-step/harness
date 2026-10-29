@@ -14,7 +14,7 @@ jobs:
   publish-landed-release:
     if: github.ref == 'refs/heads/master'
     needs: verify
-    runs-on: [self-hosted, Linux, X64, hetzner]
+    runs-on: [self-hosted, hetzner-ci, mistystack-ci]
     timeout-minutes: 15
     permissions:
       contents: write
@@ -35,12 +35,14 @@ jobs:
   prepare-release-pr:
     if: github.ref == 'refs/heads/master'
     needs: [verify, publish-landed-release]
-    runs-on: [self-hosted, Linux, X64, hetzner]
+    runs-on: [self-hosted, hetzner-ci, mistystack-ci]
     timeout-minutes: 15
     permissions:
       contents: write
       pull-requests: write
     steps:
+      - name: Install GitHub CLI
+        run: sudo apt-get update && sudo apt-get install -y gh
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
