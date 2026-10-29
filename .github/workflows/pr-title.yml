@@ -6,7 +6,7 @@ permissions:
   contents: read
 jobs:
   conventional-title:
-    runs-on: [self-hosted, Linux, X64, hetzner]
+    runs-on: [self-hosted, hetzner-ci, mistystack-ci]
     timeout-minutes: 1
     steps:
       - name: Check the release-note input
