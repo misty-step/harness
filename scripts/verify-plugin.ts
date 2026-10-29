@@ -16,7 +16,7 @@ function document(path: string) {
 	const text = readFileSync(path, "utf8").replace(/\r\n/g, "\n");
 	const match = /^---\n([\s\S]*?)\n---(?:\n|$)/.exec(text);
 	if (!match) throw new Error("missing YAML frontmatter");
-	// YAML 1.1 readers (Hermes/PyYAML) turn plain dates into non-JSON date objects.
+	// YAML 1.1 readers (such as PyYAML) turn plain dates into non-JSON date objects.
 	if (/^[ \t]*[\w-]+:[ \t]*(?:!!timestamp[ \t]+)?\d{4}-\d{2}-\d{2}(?=$|[Tt \t#])/m.test(match[1])) {
 		throw new Error("quote YAML date values for JSON-compatible metadata");
 	}

@@ -245,7 +245,7 @@ test("reports every missing metadata field and a mismatched directory name", () 
 });
 
 test.each(["2026-11-27", "2026-11-27 # YAML 1.1 timestamp", "2026-11-27T00:00:00Z", "!!timestamp 2026-11-27"])(
-	"rejects a plain YAML date that Hermes cannot serialize (%s)",
+	"rejects a plain YAML date that YAML 1.1 readers cannot serialize (%s)",
 	value => {
 		const { root, put, skill } = fixture();
 		put("skills/misty/SKILL.md", skill("misty").replace('sunset: "2026-11-27"', `sunset: ${value}`));

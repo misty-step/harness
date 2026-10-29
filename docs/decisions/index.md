@@ -6,7 +6,8 @@ Records explain trade-offs; current method guidance lives in the
 ## Current
 
 - [0017](0017-tern-omp-and-boat-workers.md): local development in Tern+OMP;
-  portable and isolated execution on Boat workers; Kaylee and Hermes retired.
+  portable and isolated execution on Boat workers; Kaylee and Hermes being
+  decommissioned.
 - [0016](0016-harness-agnostic.md): one harness-neutral Agent Skills content tree
   with thin native adapters; OMP shipped first, remaining integrations in #591.
   Its Kaylee/Hermes consumer statement is superseded by

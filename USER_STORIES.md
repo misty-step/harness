@@ -256,13 +256,13 @@ consumer evidence.
 
 When an agent builds, tests, runs browser QA or executes untrusted code, I want
 it placed on a fresh Boat worker dispatched from Tern+OMP, so the operator's
-machine stays responsive and isolated work does not depend on a retired
+machine stays responsive and isolated work does not depend on a retiring
 coordinator.
 
 Criteria:
 1. The core names Tern+OMP as the local development environment and routes
-   portable builds, suites, browser QA, untrusted code and long jobs to the
-   [boat-workers](skills/boat-workers/SKILL.md) skill.
+   execution placement to the [boat-workers](skills/boat-workers/SKILL.md) skill,
+   which owns the list of worker and native cases.
 2. Native-platform, device, signed-in-session, private-network and
    non-transferable-data checks stay native. An agent inside a worker runs its
    checks there without nesting workers.
