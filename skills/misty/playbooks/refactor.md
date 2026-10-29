@@ -6,4 +6,4 @@
 4. **Prove equivalence.** Run the pinned check against the changed artifact and drive the affected consumer path through the `verification` skill. Route newly discovered behavior changes to a separate bug-fix or feature unit. **Complete when:** old and new observations agree on the promised contract and the changed structure reduces reader load.
 5. **Deliver.** Use the `ship-loop` skill. **Complete when:** the unit links the behavior pin, equivalence result, removed complexity and any excluded behavior change under the core's claim rule.
 
-Source: cursor/plugins@c742dd61706fbacc1b95f1a20b7b988cf096ce6c/pstack/skills/poteto-mode/playbooks/refactoring.md.
+Source: cursor/plugins@c742dd61706fbacc1b95f1a20b7b988cf096ce6c/pstack/skills/principle-redesign-from-first-principles; cursor/plugins@c742dd61706fbacc1b95f1a20b7b988cf096ce6c/pstack/skills/poteto-mode/playbooks/refactoring.md.

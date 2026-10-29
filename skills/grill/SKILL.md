@@ -4,13 +4,13 @@ description: "When shaping an initiative, stress-testing a decision, reconciling
 metadata:
   owner: phaedrus
   prevents: "Builders inventing owner intent or shrinking initiative value; inferred use: grill-me 11 and grilling 2 session families in the 90-day scan on 2026-10-28."
-  source: "Daybook projects/mistystack.md decisions 16-18; mattpocock/skills@59db609eb1e18aaf59b63284d0e52255aff0c63c/skills/{productivity/{grill-me,grilling},engineering/{grill-with-docs,to-spec,to-tickets,domain-modeling}}; misty-step/mistystack@0ccc1a3/agent-config/{chief/AGENTS.md,skills/user-stories}; local Misty shape, groom, brief; Foundations way-of-working Scope."
+  source: "Daybook projects/mistystack.md decisions 16-18; mattpocock/skills@59db609eb1e18aaf59b63284d0e52255aff0c63c/skills/{productivity/{grill-me,grilling},engineering/{grill-with-docs,to-spec,to-tickets,domain-modeling}}; misty-step/mistystack@0ccc1a3/agent-config/{chief/AGENTS.md,skills/user-stories}; local Misty shape, groom, brief; Foundations way-of-working Scope.; cursor/plugins@c742dd61706fbacc1b95f1a20b7b988cf096ce6c/pstack/skills/in-your-own-words"
   sunset: "2026-11-27"
 ---
 
 # Grill
 
-1. **Ground.** Survey inside first: `SPEC.md`, `DOMAIN.md`, stories, backlog, captures, decisions, past and parked work. Then survey outside: primary sources, existing tools, examples and power-user practice. Reuse or adopt before proposing a build. Resolve factual questions with the `research` skill; dispatch a subagent through your harness's mechanism for independent reading legwork. Done when the observed problem, consumer and evidence are named, and existing owners or conflicting records are visible.
+1. **Ground.** Survey inside first: `SPEC.md`, `DOMAIN.md`, stories, backlog, captures, decisions, past and parked work. Then survey outside: primary sources, existing tools, examples and power-user practice. Reuse or adopt before proposing a build. Resolve factual questions with the `research` skill; dispatch a subagent through your harness's mechanism for independent reading legwork. Restate in your own words the user's goal and problem before proposing. Done when the observed problem, consumer and evidence are named, and existing owners or conflicting records are visible.
 
 2. **Frontier.** Map the decisions and their prerequisites. Ask the current frontier in rounds: number each question, show concrete options and tradeoffs, and give a recommended answer. Word each question so **yes accepts the recommendation**. Wait for the owner's answers before asking dependent questions. Facts are the agent's job; consequential intent choices are the owner's. A pending investigation delays only the questions that depend on it. Carry settled answers forward. Done when no material choice is silently assumed.
 

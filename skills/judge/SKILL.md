@@ -4,7 +4,7 @@ description: "Rule on PR review and QA findings: blocker, filed follow-up or ski
 metadata:
   owner: phaedrus
   prevents: "Reviewer-driven fix loops and renewed rounds after retries: bounded behind judge rulings in mistystack PRs #450 and #454."
-  source: "misty-step/mistystack@0ccc1a308cdeefa29e991d3b7c1dbab016cfea03/agent-config/skills/judge"
+  source: "misty-step/mistystack@0ccc1a308cdeefa29e991d3b7c1dbab016cfea03/agent-config/skills/judge; cursor/plugins@c742dd61706fbacc1b95f1a20b7b988cf096ce6c/pstack/skills/blast-radius"
   sunset: "2026-11-27"
 ---
 
@@ -34,7 +34,7 @@ Each finding gets one ruling and one reason:
 - **skip:** disproved, already covered, speculative, preference-only or not worth
   doing. A reviewer's suggestion alone does not earn a ticket.
 
-Judge the atomic unit, not the initiative's remaining work. Heuristics may ship
+Judge the atomic unit, not the initiative's remaining work. A safety claim names the one fact that makes the change safe and its evidence. Heuristics may ship
 labelled approximate. For unsettled intent, choose the reversible option closest
 to the stated outcome and record an `intent call`; block an irreversible choice.
 Confirm the `Rigor:` reason and diff size; raise the tier only for a concrete

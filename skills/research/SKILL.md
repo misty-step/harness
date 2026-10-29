@@ -4,13 +4,13 @@ description: "When investigating a question, gathering docs or API facts, or ver
 metadata:
   owner: phaedrus
   prevents: "Code depending on recalled rather than verified interfaces; inferred 90-day use on 2026-10-28: research 8 plus agents/research 7 session-family read-path hits."
-  source: "Local Misty ~/.omp/agent/skills/research; mattpocock/skills@59db609eb1e18aaf59b63284d0e52255aff0c63c/skills/engineering/research; installed agents/research resolves to the same Pocock research skill; Daybook projects/mistystack.md decision 16."
+  source: "Local Misty ~/.omp/agent/skills/research; mattpocock/skills@59db609eb1e18aaf59b63284d0e52255aff0c63c/skills/engineering/research; installed agents/research resolves to the same Pocock research skill; Daybook projects/mistystack.md decision 16; cursor/plugins@c742dd61706fbacc1b95f1a20b7b988cf096ce6c/pstack/skills/why"
   sunset: "2026-11-27"
 ---
 
 # Research
 
-1. **Question.** Frame the implementation-critical question and identify the installed version, disputed behavior and decision it changes. Memory is not an interface contract. Verify unfamiliar APIs before code depends on them. Done when the question has an answer that source or observation can distinguish from alternatives.
+1. **Question.** Frame the implementation-critical question and identify the installed version, disputed behavior and decision it changes. Memory is not an interface contract. For why code is the way it is, read blame, the introducing PR and its linked issue. Verify unfamiliar APIs before code depends on them. Done when the question has an answer that source or observation can distinguish from alternatives.
 
 2. **Sources.** Start with the source that owns the fact: installed code or types, official docs, first-party APIs, standards, changelogs or original papers. Use secondary writing to locate primary evidence. Match consequential claims to the version in use; a current web page does not prove an older installed version. For a dependency choice, compare the standard library, a maintained package and owned code; check license, maintenance, transitive weight and compatibility. Done when each critical claim has direct evidence or an explicit gap.
 
