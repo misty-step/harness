@@ -17,8 +17,9 @@ Grok Build CLI is not a target. Each harness needs its own native installation
 and loading evidence; an OMP pass does not prove another adapter. Fleet
 machinery remains in private `misty-step/workstation`.
 
-Misty Step's own local development environment is Tern+OMP; isolated execution
-runs on [Boat workers](../../skills/boat-workers/SKILL.md)
+Misty Step's operator develops locally in Tern+OMP and Grok Bots work from their
+bot computer; both run isolated execution on
+[Boat workers](../../skills/boat-workers/SKILL.md)
 ([ADR 0017](../decisions/0017-tern-omp-and-boat-workers.md)).
 
 Next: [Misty](02-misty.md).

@@ -1,6 +1,7 @@
 # 0017: Tern+OMP locally, Boat workers for isolated execution
 
-Status: accepted, 2026-10-28.
+Status: accepted, 2026-10-28; amended 2026-10-29 (working environments per
+harness, below).
 
 ## Context
 
@@ -24,14 +25,15 @@ is neither isolation nor proof.
 ## Decision
 
 - **Local development** runs in Tern+OMP on the operator's machine: Tern hosts
-  the terminal sessions and OMP is the local harness.
+  the terminal sessions and OMP is the local harness. Other harnesses keep their
+  own working environment; Grok Bots work from their hosted bot computer.
 - **Isolated execution** defaults to Boat workers dispatched by the working
   agent. The agent loop and credentials stay with the dispatcher. The
   [boat-workers](../../skills/boat-workers/SKILL.md) skill owns the worker and
-  native cases, lifecycle and cleanup.
-- **Native execution** remains for native-platform, device, signed-in-session,
-  private-network and non-transferable-data checks, and for quick trusted
-  inner-loop work.
+  own-environment cases, lifecycle and cleanup.
+- **Own-environment execution** remains for platform, device,
+  signed-in-session, private-network and non-transferable-data checks, and for
+  quick trusted inner-loop work.
 - **Cloud coordination** for unattended work moves to Grok Bots. Kaylee and
   Hermes are being decommissioned: no adapter, dispatcher or consumer role
   remains for them.
@@ -51,13 +53,27 @@ superseded.
 
 ## Consequences
 
-- The core names the placement default and points to `boat-workers`; DOMAIN
-  invariant 3 treats that operating default as distinct from harness mechanics.
-  The procedure lives in this public tree, so every adapter and Grok Bot
-  receives it; the private workstation plugin keeps machine facts only.
-- Boat workers are x86_64 Linux without GPUs; native acceptance checks stay
-  local.
+- The core names only Boat placement and points to `boat-workers`, so it stays
+  harness-neutral; each harness note names its working environment. The
+  procedure lives in this public tree, so every adapter and Grok Bot receives it;
+  the private workstation plugin keeps machine facts only.
+- Boat workers are x86_64 Linux without GPUs; macOS, device and GPU acceptance
+  checks stay off workers.
 - Herdr pane control and Kaylee machinery in private repositories retire through
   their own live cutovers.
 - Revisit when Boat cannot meet a measured workload need, or when Grok Bots need
   workers their runtime cannot dispatch.
+
+## Amendment, 2026-10-29
+
+Phaedrus:
+
+> grok bot should probably be encourage to use boat but probably not tern+omp
+
+The original core line, "Tern+OMP is the local development environment",
+loaded into every harness. In simulated Grok Bot sessions on v0.3.8, all four
+that chose a working environment adopted Tern+OMP; one planned to install Tern,
+OMP and mistystack on the operator's Mac through approval-gated local execution.
+Every session still sent heavy tests to Boat. The core now carries only Boat
+placement. Tern+OMP lives in the OMP note, and the Grok Bot note names the bot
+computer, its shared credentials and the Boat credential prerequisite.
