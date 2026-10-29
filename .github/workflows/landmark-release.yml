@@ -14,7 +14,7 @@ jobs:
   publish-landed-release:
     if: github.ref == 'refs/heads/master'
     needs: verify
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, X64, hetzner]
     timeout-minutes: 15
     permissions:
       contents: write
@@ -35,7 +35,7 @@ jobs:
   prepare-release-pr:
     if: github.ref == 'refs/heads/master'
     needs: [verify, publish-landed-release]
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, X64, hetzner]
     timeout-minutes: 15
     permissions:
       contents: write
