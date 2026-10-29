@@ -1,3 +1,9 @@
+# [0.3.7](https://github.com/misty-step/mistystack/compare/v0.3.6...v0.3.7) (2026-10-29)
+<!-- landmark:protected-release previous=v0.3.6 source=66a504a3d0c363bce81a3204630f27c4749463d921e1c230b018c4a56a4b9961 -->
+
+### Features
+
+* **execution:** develop in Tern+OMP and run isolated work on Boat workers (#602) ([e0fb2d1](https://github.com/misty-step/mistystack/commit/e0fb2d134996c87c9e8b6dd4e1d7a814240eddf4))
 # [0.3.6](https://github.com/misty-step/mistystack/compare/v0.3.5...v0.3.6) (2026-10-29)
 <!-- landmark:protected-release previous=v0.3.5 source=f2a9f04610d0249d8b33afef741d1412e18f5f46d668734b0a32355de459ee80 -->
 
