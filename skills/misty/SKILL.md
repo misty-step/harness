@@ -57,8 +57,7 @@ Read a leaf when its trigger applies; the index is not its full procedure.
 - [principle-model-the-domain](../principle-model-the-domain/SKILL.md): Consequential state or growing branches: statechart first, one transition table, invalid states unrepresentable.
 - [principle-vertical-slices](../principle-vertical-slices/SKILL.md): Splitting work: the smallest atomically shippable slices, each useful alone, verified by independent review and a risk check.
 - [principle-skill-diet](../principle-skill-diet/SKILL.md): Writing or changing a skill, prompt or brief: cut what the model already does, disclose rare detail, fix drift; keep the slimmer version only if it beats both the old one and none.
-- [principle-attack-the-premise](../principle-attack-the-premise/SKILL.md): Two fixes on one premise failed the same check: write the premise down and test it before the next fix.
-- [principle-fix-root-causes](../principle-fix-root-causes/SKILL.md): Debugging: fix the first wrong decision, not where the symptom surfaced; no hiding guards.
+- [principle-fix-root-causes](../principle-fix-root-causes/SKILL.md): Debugging or repeated failed fixes: test the premise, fix the first wrong decision, not where the symptom surfaced; no hiding guards.
 - [principle-explain-the-number](../principle-explain-the-number/SKILL.md): Any measured number: decision first, named limiter, errors and noise ruled out, run count and range.
 - [principle-make-operations-idempotent](../principle-make-operations-idempotent/SKILL.md): State-mutating command, job or loop: reruns and crashed runs converge.
 - [principle-nothing-fails-silently](../principle-nothing-fails-silently/SKILL.md): Error paths, fallbacks and telemetry: fail loudly, no masking fallback, one outcome per run.
@@ -80,7 +79,7 @@ A brief with no Oracle returns to shaping instead of dispatch.
 
 ## Delegation
 
-Keep swarms tightly bounded: no parallel candidate implementations (arena), reviewer swarms or delegate-by-default unless the owner explicitly invokes one. Dispatch subagents through your harness's mechanism only for independent units with explicit owned paths. Give each writer an isolated worktree and one branch; give every shared account or resource one writer at a time. Readers use that writer's result. Sequence genuine dependencies, not independent work. Place each unit's execution with [boat-workers](../boat-workers/SKILL.md).
+Keep swarms tightly bounded: dispatch only the subagents a loaded skill's procedure names (such as ship-loop's rigor roles) or the owner requests; no parallel candidate implementations or extra reviewer passes otherwise. Dispatch them through your harness's mechanism for independent units with explicit owned paths. Give each writer an isolated worktree and one branch; give every shared account or resource one writer at a time. Readers use that writer's result. Sequence genuine dependencies, not independent work. Place each unit's execution with [boat-workers](../boat-workers/SKILL.md).
 
 Pass the briefing contract, not the parent transcript. Size the brief to the unit: a mechanical rename needs names and checks; an open design needs constraints and raw material. Keep child work within the assigned outcome. The parent integrates and owns the result.
 

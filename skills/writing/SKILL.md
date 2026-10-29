@@ -4,7 +4,7 @@ description: "When writing or editing prose to people: operator replies, reports
 metadata:
   owner: phaedrus
   prevents: "Q10 (Daybook decision 16): vague, mannered or ungrounded operator prose; inferred 90-day use on 2026-10-28: unslop 1, technical-writing 1, pr 1 session family each."
-  source: "Daybook projects/mistystack.md decision 16; cursor/plugins@c742dd61706fbacc1b95f1a20b7b988cf096ce6c/pstack/skills/{unslop,technical-writing}; mattpocock/skills@59db609eb1e18aaf59b63284d0e52255aff0c63c/skills/engineering/pr; humanlayer/skills@653b6411c1f70c275a18e37673b042ff99f67ceb/plugins/show-me/skills/show-me; Foundations way-of-working Claim precisely and Review.; cursor/plugins@c742dd61706fbacc1b95f1a20b7b988cf096ce6c/pstack/skills/{no-comments,bro}"
+  source: "Daybook projects/mistystack.md decision 16; cursor/plugins@c742dd61706fbacc1b95f1a20b7b988cf096ce6c/pstack/skills/{unslop,technical-writing}; mattpocock/skills@59db609eb1e18aaf59b63284d0e52255aff0c63c/skills/engineering/pr; humanlayer/skills@653b6411c1f70c275a18e37673b042ff99f67ceb/plugins/show-me/skills/show-me; Foundations way-of-working Claim precisely and Review; cursor/plugins@c742dd61706fbacc1b95f1a20b7b988cf096ce6c/pstack/skills/{no-comments,bro}"
   sunset: "2026-11-27"
 ---
 
@@ -16,6 +16,6 @@ metadata:
 4. Follow the core's claim rule and the `misty` skill's report-link and delivery-state distinctions.
 5. For a commit or PR, read [publications.md](publications.md). Use a Conventional Commit title. A PR states why, what changed, `Story:`, `Rigor:`, concrete risk and observed verification; link long evidence instead of pasting logs.
 
-Asked to restate (bro), repeat the last message plainly, without jargon, as one person to another.
+When asked to restate plainly, repeat the last message without jargon, as one person to another.
 
 Done when the reader can identify what changed for them, what the evidence supports, and any decision or blocker without decoding jargon or opening a transcript. Preserve uncertainty and meaning through the edit. Use punctuation for clarity; punctuation bans are not part of this skill.

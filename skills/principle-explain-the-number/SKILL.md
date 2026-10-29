@@ -15,9 +15,9 @@ Before running, write the claim you would ship and the result that would change 
 
 Ask why not double: name the limiter (a core, lock, disk, network or the load generator) from a profile or counters taken during a run, not from reading code.
 
-Rule out what else the number could be: errors or fast rejections, cached or skipped work, code that never ran, an untuned side on defaults, noise, or a piece too small to matter end to end. Check arithmetic against hardware limits; removing 10% of a run saves at most about 11%.
+Rule out what else the number could be: errors or fast rejections, cached or skipped work, code that never ran, an untuned side on defaults, noise, or a piece too small to matter end to end. Check arithmetic against hardware limits; removing a piece that takes 10% of a run makes it at most about 11% faster.
 
-For a comparison, run production-tuned sides at least 5 times each, alternating, and report median and range. A gap inside the spread is no measurable difference. Perf or hillclimb loops freeze a harness that prints error and work counts.
+For a comparison, run production-tuned sides at least 5 times each, alternating, and report median and range. A gap inside the spread is no measurable difference. Before a repeated perf loop, freeze a harness that prints error and work counts.
 
 Report the verdict first, then the number with unit, run count, range and limiter. Missing limiter, an untuned side or unchecked errors makes it inconclusive.
 

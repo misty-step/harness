@@ -5,7 +5,7 @@ disable-model-invocation: true
 metadata:
   owner: phaedrus
   prevents: "Silent failure; Foundations article 8 and mistystack docs/principles/009 evidence."
-  source: "misty-step/mistystack#533; misty-step/foundations@d96c99ce1152ab1d6ae4a0eed0b22cbac93897b7/way-of-working.md#fail-loudly; cursor/plugins@c742dd61706fbacc1b95f1a20b7b988cf096ce6c/pstack/skills/principle-boundary-discipline"
+  source: "misty-step/mistystack#533; misty-step/foundations@d96c99ce1152ab1d6ae4a0eed0b22cbac93897b7/way-of-working.md#fail-loudly"
   sunset: "2026-11-27"
 ---
 
@@ -13,7 +13,7 @@ metadata:
 
 Choose one direct path. When it fails, expose the cause to its owner so the defect can be repaired.
 
-Keep authentication, signature and schema guards at their boundaries and fail visibly; inside the boundary trust validated values instead of re-checking them. A masking fallback that turns a defect into apparent success is not recovery.
+Keep authentication, signature and schema guards at their boundaries and fail visibly. A masking fallback that turns a defect into apparent success is not recovery.
 
 A routing or decision system may need a reasonable default for an unknown case; surface that choice loudly for design iteration.
 

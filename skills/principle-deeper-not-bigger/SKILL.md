@@ -15,15 +15,9 @@ Hold the user's outcome fixed. Ambition means a better method, not more features
 
 Ask what the top practitioner would do, what raw material they would inspect, which instruments they would use and what outside observation would prove the result.
 
-Configure before coding; reuse before building; delete before adding. Preserve raw data instead of replacing it with a convenient summary.
+Configure before coding; reuse before building; delete a layer before adding one. Grug lens (questions in core): code is a liability, so get the most outcome from the least code; use tools as shipped, and add a wrapper, gate or check only for a linked, measured failure of the plain tool. Preserve raw data instead of replacing it with a convenient summary.
 
 Use Git's commits, branches, refs and notes for work state before forge ledgers or a second tracking mechanism.
-
-## Grug lens
-
-Before adding anything, ask: Is this over-engineered? Does it add process or indirection? Why not something simpler and more direct?
-
-Code is a liability: get the maximum outcome with the minimum code surface. Use tools as shipped. Add a wrapper, gate or check only for a linked, measured failure of the plain tool. Delete a layer before adding one.
 
 Give each new mechanism one owner. Remove the cause instead of adding a gate; retire a check once its replacement is proven. Keep an abstraction only when its concrete prevented failure earns its cost. Redesign from the current requirements when a new one breaks the design's premise, rather than bolting it on.
 

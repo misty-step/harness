@@ -19,6 +19,6 @@ Keep simple CRUD simple; prefer native transactions to custom coordination. Use 
 
 Before actors share state, ask what another writer can change concurrently. Isolate their targets unless the domain requires shared ownership.
 
-Where bad orders hide in interleavings, run the model check and show it rejects a broken variant; reading a chart is not that check. Reserve a formal (TLA+) model for commissioned high-stakes flows.
+Where bad orders hide in interleavings, run a model check (a TLA+ spec only for a commissioned high-stakes flow) and show it rejects a broken variant; reading a chart is not that check.
 
 Done when the shape owns the rules, transitions have one home and the real consumer Oracle passes.
