@@ -1,0 +1,12 @@
+{
+  "name": "mistystack",
+  "owner": {
+    "name": "Misty Step"
+  },
+  "plugins": [
+    {
+      "name": "mistystack",
+      "source": "./"
+    }
+  ]
+}

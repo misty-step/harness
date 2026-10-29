@@ -1,32 +1,88 @@
 ---
 name: setup-mistystack
-description: "When installing or upgrading mistystack, or changing its models, reasoning budgets or rigor roles in OMP."
+description: "When installing or refreshing mistystack, or assigning native model, reasoning or rigor settings for the active harness."
 metadata:
   owner: phaedrus
-  prevents: "Model choices duplicated in method prose and setup written to the wrong harness; OMP-only decision #533 Q2/Q14."
-  source: "cursor/plugins@c742dd61706fbacc1b95f1a20b7b988cf096ce6c/pstack/skills/setup-pstack/SKILL.md; OMP 18.13.3 config-usage.md, models.md, task-agent-discovery.md; #533"
+  prevents: "Model choices duplicated in method prose, setup written to the wrong harness, and install readback mistaken for live proof; #533 Q2/Q14 and #591."
+  source: "cursor/plugins@c742dd61706fbacc1b95f1a20b7b988cf096ce6c/pstack/skills/setup-pstack/SKILL.md; OMP 18.13.3 config-usage.md, models.md, task-agent-discovery.md; misty-step/mistystack#533 and #591; native adapter notes in skills/misty/harnesses."
   sunset: "2026-11-27"
 ---
 
 # Setup mistystack
 
-Model choices live only in OMP's own `modelRoles` configuration. Method skills refer to roles, never model names. Use [OMP configuration](omp://config-usage.md), [model roles](omp://models.md) and [role-backed agents](omp://task-agent-discovery.md) for the installed version's contract.
+Model and reasoning choices belong in the active harness's native authority, not
+a second roster in method prose. One root `skills/` tree and `rules/core.md`
+supply the method to every adapter.
 
-1. **Locate.** Run `omp --version` and `omp config path` in the intended profile. Read its existing `config.yml` (or existing `config.yaml`), `omp config get modelRoles --json`, and `omp plugin list`. Preserve unrelated settings, roles, agents, credentials and runtime data. A named profile isolates its own configuration; keep using that profile for every setup command.
-2. **Install or upgrade.** For a new install:
-   ```sh
-   omp plugin marketplace add misty-step/mistystack
-   omp plugin install --scope user mistystack@mistystack
-   ```
-   For an existing install:
-   ```sh
-   omp plugin marketplace update mistystack
-   omp plugin install --force --scope user mistystack@mistystack
-   ```
-   Catalog refresh alone does not upgrade installed files; the forced install refreshes content even when the catalog version is unchanged. Confirm `omp plugin list` names the enabled user-scope install.
-3. **Choose.** Read [roles.md](../ship-loop/roles.md) for the rigor tiers and responsibilities. Setup assigns exactly three `modelRoles` keys: `rigor-light`, `rigor-standard`, `rigor-critical`. The plugin ships the matching task agents; their briefs supply each worker's responsibility. Enumerate accessible models with `omp models --json` and inspect current authentication in OMP's provider/account UI without exposing credentials. A catalog entry alone is not proof of entitlement. Keep usable existing assignments. Ask for the desired budget and any missing choices together, then show the three tier/model/reasoning assignments for acceptance. Choose concrete selectors only from models whose access is confirmed; choose reasoning levels the selected model supports. An alias to an existing configured role is valid if it resolves to one such model. Spend changes or new credentials still require owner approval.
-4. **Write config.** Merge the chosen entries into the existing `modelRoles` object, preserving other entries. Run `omp config set modelRoles '<merged JSON object>'`; the CLI schema validates and writes the active profile's global config. Do not replace the config file or write model mappings into rules, agent prompts or this plugin. Use concrete `provider/model` selectors with supported thinking suffixes in config; aliases in YAML must be quoted. Read back with `omp config get modelRoles --json` and inspect `omp config list --scope project --json` for project overrides. Resolve shadowing explicitly rather than claiming the global mapping is effective.
-5. **Check agents.** Start a new OMP session and confirm the plugin's `rigor-light`, `rigor-standard` and `rigor-critical` agents appear in `/agents`. Dispatch uses `task` with `agent: <rigor-tier-name>`; a normal worker's model is not a `task.model` parameter. Setup writes only `modelRoles`, not agent files. Check same-name project/user agents and `task.agentModelOverrides` for shadowing; reconcile conflicts explicitly so the selected tier remains the model authority.
-6. **Prove.** In a scratch directory, repeat the isolation and config round trip in [agents.md](agents.md) before touching a new configuration mechanism. In the target profile, use a short, authorized fresh-session task to demonstrate the configured tier on the consumer path; retain its actual model identity and result. A config readback proves persistence, not provider access or successful inference. Report measured install/config/dispatch results separately; name anything unverified.
+1. **Detect.** Establish the active session's harness, native version and target
+   profile/home from the runtime itself. An installed executable alone does not
+   identify the active harness. If configuring a different destination, name it
+   explicitly and keep every operation in that destination's scope. Read the
+   matching note before writing:
 
-Re-running setup updates the same roles. Retire a role only after its callers have migrated; remove only obsolete mistystack-owned entries, never unrelated configuration.
+   | Harness | Native mechanics |
+   | --- | --- |
+   | OMP | [OMP](../misty/harnesses/omp.md) |
+   | Claude Code | [Claude Code](../misty/harnesses/claude.md) |
+   | Codex | [Codex](../misty/harnesses/codex.md) |
+   | pi | [pi](../misty/harnesses/pi.md) |
+   | Grok Bot: Maren or Shipwright | [Grok Bot self-install brief](../misty/harnesses/grok-bot.md) |
+
+   **Complete when:** the runtime, version, destination scope and matching native
+   contract are known; Grok-specific mechanisms are established by the bots, not
+   inferred from another harness.
+
+2. **Inspect and install.** Read existing native settings, plugin/package state,
+   role definitions and relevant project/user overrides. Follow the note's native
+   install or refresh path, including any required hook trust. Preserve unrelated
+   configuration, agents, plugins, credentials and runtime data; merge owned
+   entries instead of replacing whole files. Never copy live credentials into a
+   scratch proof home. Inspect the installed artifact after refresh rather than
+   assuming the catalog or an unchanged version means the files are current.
+   **Complete when:** the intended artifact is installed in the intended scope,
+   core/skill wiring is configured, and foreign state is preserved. This is not
+   yet live loading proof.
+
+3. **Choose.** Read [roles.md](../ship-loop/roles.md#rigor) for the tier and required
+   responsibilities. Inspect the active harness's accessible models, supported
+   reasoning levels and existing assignments without exposing credentials. A
+   catalog entry or shipped template is not proof of provider entitlement. Keep
+   usable existing choices; review template model and reasoning fields against
+   the destination account, especially Codex's separately installed TOML agents.
+   Carry settled budget choices forward; ask for missing budget or provider
+   choices together. pi has no subagents or per-tier agent mappings: choose only
+   its main-session model/reasoning settings and perform rigor inline. Grok Bots
+   must first establish their native capability and model authority.
+   **Complete when:** every applicable native assignment uses an accessible model
+   and supported reasoning setting, and the required independent execution path
+   is identified rather than simulated with an inline self-review.
+
+4. **Persist through native authority.** Apply and read back only the selected
+   harness's owned assignments:
+
+   | Harness | Model/reasoning authority |
+   | --- | --- |
+   | OMP | Merge `rigor-light`, `rigor-standard` and `rigor-critical` into `modelRoles`; the plugin supplies task agents. Setup writes roles, not agent files. Follow the note's native config commands and check project overrides, same-name agents and `task.agentModelOverrides`. For a new config mechanism, first use the [isolated OMP recipe](agents.md). |
+   | Claude Code | Use the native `model` fields of the plugin's `rigor-*` agent definitions. Read back the supplied mappings and any supported native overrides; do not create OMP roles or treat edits to plugin-cache copies as durable configuration. |
+   | Codex | Install/reconcile the supplied `rigor-*.toml` definitions in the target `$CODEX_HOME/agents/`, with chosen `model` and `model_reasoning_effort` fields. Preserve `developer_instructions` and unrelated files. Plugin installation alone does not deliver these native custom agents. |
+   | pi | Use pi's native main-session model/reasoning configuration; create no rigor-agent files, subagent mappings or OMP roles. |
+   | Grok Bot | Use only the model/reasoning authority each bot establishes in its actual runtime; retain the exact native configuration and capability evidence. |
+
+   **Complete when:** native readback matches the chosen assignments and any
+   shadowing is resolved explicitly. Readback proves persistence, not provider
+   access or successful inference.
+
+5. **Prove a fresh destination session.** Follow the matching note's consumer
+   proof. Retain runtime version, candidate revision, install/config results and
+   actual events showing the core loaded, installed Misty was discovered/read,
+   and its relative bug-fix link reached the installed playbook. Check principle
+   discovery policy and explicit reachability separately. Where native rigor
+   agents exist, prove their discovery and a short authorized dispatch with actual
+   agent/model identity and result. In pi, prove the main-session path instead;
+   for Grok Bot, require separate fresh-runtime proof from Maren and Shipwright.
+   **Complete when:** the claimed consumer path has observed evidence. Report
+   no-model installation and file/config readback as `artifact verified`, not live
+   behavior proven; name missing inference, browser or dispatch proof explicitly.
+
+Re-running setup reconciles the same owned native entries. Retire an entry only
+after its callers migrate; never remove unrelated configuration or credentials.

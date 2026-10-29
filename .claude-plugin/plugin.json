@@ -1,0 +1,28 @@
+{
+  "name": "mistystack",
+  "description": "Misty Step's harness-neutral engineering method.",
+  "author": {
+    "name": "Misty Step"
+  },
+  "homepage": "https://github.com/misty-step/mistystack",
+  "repository": "https://github.com/misty-step/mistystack",
+  "license": "MIT",
+  "skills": "./skills",
+  "agents": [
+    "./adapters/claude/agents/rigor-light.md",
+    "./adapters/claude/agents/rigor-standard.md",
+    "./adapters/claude/agents/rigor-critical.md"
+  ],
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cat \"${CLAUDE_PLUGIN_ROOT}/rules/core.md\""
+          }
+        ]
+      }
+    ]
+  }
+}

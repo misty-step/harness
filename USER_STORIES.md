@@ -1,7 +1,7 @@
 # Stories
 
-Consumer contracts for the OMP method plugin. IDs stay reserved when a capability
-moves; private workstation contracts are owned by `misty-step/workstation`.
+Consumer contracts for the harness-neutral method. IDs stay reserved when a
+capability moves; private workstation contracts belong to `misty-step/workstation`.
 Terms and invariants live in [DOMAIN.md](DOMAIN.md).
 
 ## US-001 Verify the method plugin
@@ -12,10 +12,11 @@ proof, so skill moves do not depend on retired host installers.
 Criteria:
 1. `./scripts/check` runs the maintained release-protection, secret-scanner,
    plugin and skill tests sequentially, with Bun concurrency capped at one.
-2. `./scripts/check plugin` installs the candidate in an isolated OMP home and
-   observes native discovery and a fresh session's core rule.
-3. A failed test, invalid plugin or failed native proof exits nonzero. A
-   lint-only run explicitly reports that installation was not exercised.
+2. `./scripts/check plugin` uses isolated native installs for every available
+   OMP, Claude Code, Codex and pi CLI, checking skills and core registration;
+   OMP also observes a fresh session's loaded core without inference.
+3. A failed test, invalid plugin or failed available-harness proof exits nonzero.
+   Missing CLIs and lint-only installation skips are named, never reported passed.
 4. Verification preserves the live profile, credentials and foreign state.
 
 Proof: `scripts/verify`, `scripts/verify-plugin.ts`,
@@ -33,7 +34,7 @@ Criteria:
 3. Generated proposals do not count as proof of behavior or accessibility.
 4. Capture output stays outside Git by default.
 
-Proof: `skills/design/scripts/gallery.test.ts`, `skill://design`.
+Proof: `skills/design/scripts/gallery.test.ts`, [design](skills/design/SKILL.md).
 
 ## US-011 Explore useful design alternatives
 
@@ -41,7 +42,7 @@ When a task changes a UI, I want evidence-led design choices before production
 code, so the result serves the user's job rather than the first plausible image.
 
 Criteria:
-1. `skill://design` routes design work through the relevant craft guidance.
+1. The [design skill](skills/design/SKILL.md) routes work through relevant craft guidance.
 2. Useful alternatives differ in structure or behavior, not just color; the
    recommendation explains the trade-off against the user's task.
 3. Generated images remain proposals. Exact copy, behavior and accessibility
@@ -58,17 +59,18 @@ rigor roles, so task briefs select risk and responsibility without a second
 model roster in skill prose.
 
 Criteria:
-1. `skill://setup-mistystack` assigns `rigor-light`, `rigor-standard` and
-   `rigor-critical` through OMP's `modelRoles` configuration.
-2. The plugin ships matching task agents. OMP's `task` tool selects their agent
-   names; the brief supplies the worker's responsibility.
-3. Setup preserves unrelated roles, config, credentials and runtime state,
-   checks project/user shadowing and reads the assignments back.
-4. A fresh session proves agent discovery. Successful authorized dispatch and
-   its observed model identity prove the chosen route; config readback alone
-   proves only persistence.
+1. [Setup](skills/setup-mistystack/SKILL.md) assigns `rigor-light`,
+   `rigor-standard` and `rigor-critical` through the active harness's authority:
+   OMP model roles, Claude agent model fields or Codex user-agent TOML.
+2. Native role agents select the tier where subagents exist; the brief supplies
+   responsibility. pi runs rigor inline without inventing subagents or model roles.
+3. Setup preserves unrelated config, credentials and runtime state, resolves
+   native shadowing and reads assignments back.
+4. A fresh session proves discovery and core loading. Successful authorized
+   dispatch and its actual model identity prove a chosen subagent route; config
+   readback alone proves persistence. Grok Bots establish their runtime contract.
 
-Proof: `skills/setup-mistystack/`, `agents/rigor-*.md`, `skill://ship-loop/roles.md`.
+Proof: `skills/setup-mistystack/`, `agents/`, `adapters/`, [rigor roles](skills/ship-loop/roles.md).
 
 ## US-015 Publish verified mistystack releases
 
@@ -92,7 +94,7 @@ When agents write or prune tests, I want each consumer contract defended at its
 useful owner boundary, so refactoring removes noise without losing protection.
 
 Criteria:
-1. `skill://test-audit` directs the engineer to name the real failure and inspect
+1. [Test audit](skills/test-audit/SKILL.md) names the real failure and inspects
    existing proof before adding or deleting coverage.
 2. Pruning preserves independent access, data, migration, package and protocol
    contracts and exercises the affected consumer path.
@@ -108,7 +110,7 @@ user's real interface, so the report distinguishes observed behavior from tests
 and inferred completion.
 
 Criteria:
-1. `skill://verification` guides affected-story walks through the actual product.
+1. [Verification](skills/verification/SKILL.md) guides affected-story walks through the actual product.
 2. Each walk names its story or request criterion, candidate revision, actions,
    observable postconditions and owned cleanup.
 3. A product with sign-in uses the agent-owned QA account and proves the
@@ -147,7 +149,7 @@ When a design is refined, I want unnecessary elements removed, so the primary
 task becomes simpler without hiding required information.
 
 Criteria:
-1. `skill://design` challenges elements against the primary task and required
+1. [Design](skills/design/SKILL.md) challenges elements against the primary task and required
    safety, status and accessibility information.
 2. The affected rendered state is inspected after subtraction and the task and
    required information remain reachable.
@@ -164,7 +166,7 @@ Criteria:
 1. The core routes nontrivial work to `misty`; principles and procedures have
    one home and load through its index or the relevant skill.
 2. Skills follow DOMAIN.md's frontmatter and directory-wide source convention.
-3. `skill://agent-design` guides instruction and tool/context changes; the skill
+3. [Agent design](skills/agent-design/SKILL.md) guides instruction and tool/context changes; the skill
    diet compares a proposed instruction against both the prior version and none.
 4. A cutover migrates current callers and removes obsolete method copies.
    Workstation facts remain with the workstation plugin.
@@ -180,37 +182,37 @@ When I commission an initiative, I want the full useful outcome shaped and split
 into independently shippable slices, so small PRs do not conceal a narrowed goal.
 
 Criteria:
-1. `skill://grill` records the complete outcome, boundaries and acceptance criteria.
+1. [Grill](skills/grill/SKILL.md) records the complete outcome, boundaries and acceptance criteria.
 2. Each dispatched slice has an Oracle and is useful with main still working.
 3. Independent slices run in parallel; true dependencies sequence or stack.
-4. `skill://ship-loop` carries the affected story IDs, risk-scaled proof and an
+4. [Ship-loop](skills/ship-loop/SKILL.md) carries the affected story IDs, risk-scaled proof and an
    independent judge through delivery.
 
 Proof: `skills/grill/SKILL.md`, `skills/misty/SKILL.md`, `skills/ship-loop/`.
 
 ## US-057 Install and refresh the method plugin
 
-When I adopt or update mistystack, I want OMP's native plugin lifecycle, so the
-installed method comes from one named marketplace without a host installer.
+When I adopt or update mistystack, I want the harness's native lifecycle, so one
+content tree serves my runtime without a host installer or method fork.
 
 Criteria:
-1. The setup commands add `misty-step/mistystack` and install
-   `mistystack@mistystack` at user scope.
-2. Refresh updates the marketplace and then force-installs the plugin; a catalog
-   update alone is not reported as an installed-content upgrade.
-3. The enabled install appears in `omp plugin list`, and a fresh session
-   discovers the installed mode and task agents.
+1. Setup detects the harness and follows its native
+   [reference](skills/misty/SKILL.md) to install the shared tree.
+2. Refresh follows that harness's rule and verifies installed content; a catalog
+   update or success message alone is not an installed-content upgrade.
+3. Native inventory lists the enabled install and skills, and a fresh session
+   proves core loading and role discovery where the harness supports subagents.
 4. Setup preserves unrelated plugins and profile state.
 
 Proof: `skills/setup-mistystack/SKILL.md` and isolated native plugin installation.
 
 ## US-058 Load the core in every enabled session
 
-When I start an OMP session with mistystack enabled, I want the core applied
-without remembering a command, so its routing and guardrails are present first.
+When I start a session with mistystack enabled, I want the core applied without
+remembering a command, so its routing and guardrails are present first.
 
 Criteria:
-1. `rules/core.md` declares `alwaysApply: true` and stays at most 20 lines.
+1. `rules/core.md` stays at most 20 lines; native adapters load that same core.
 2. A fresh native session exposes the installed core in its loaded instructions;
    file presence and a model's self-report alone do not prove loading.
 3. Principle leaves remain reachable from the mode rather than expanding the
@@ -225,7 +227,7 @@ When a task needs engineering judgment, I want one mode to select the relevant
 method, so task agents receive a coherent brief instead of duplicated rule sets.
 
 Criteria:
-1. The core routes nontrivial work to `skill://misty`.
+1. The core routes nontrivial work to [misty](skills/misty/SKILL.md).
 2. The mode indexes the principle leaves and selects a task-type playbook and
    relevant shaping, research, design, delivery or verification skills.
 3. A brief carries outcome and why, domain terms, raw material, Oracle, scope

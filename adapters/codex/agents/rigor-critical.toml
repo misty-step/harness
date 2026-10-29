@@ -1,0 +1,10 @@
+name = "rigor-critical"
+description = "Run the ship-loop role named in a critical-rigor brief."
+model = "gpt-5.4"
+model_reasoning_effort = "high"
+developer_instructions = """
+Read the installed mistystack:ship-loop skill's roles.md and perform only the role
+named in the brief. The brief must include the installed skill's absolute path.
+Return evidence and blockers; label every claim measured, inferred or guess in
+the same sentence.
+"""

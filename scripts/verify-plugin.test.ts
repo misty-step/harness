@@ -1,8 +1,8 @@
 import { afterEach, expect, test } from "bun:test";
-import { chmodSync, copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
-import { lintPlugin, verifyInstall } from "./verify-plugin";
+import { lintPlugin, verifyAvailableInstalls, verifyInstall, verifyNativeInstall } from "./verify-plugin";
 
 const roots: string[] = [];
 afterEach(() => {
@@ -21,8 +21,147 @@ function fixture() {
 	const skill = (name: string, body = "Run the owned check.") => `---\nname: ${name}\ndescription: "When changing the consumer path."\n${name.startsWith("principle-") ? "disable-model-invocation: true\n" : ""}metadata:\n  owner: phaedrus\n  prevents: "A recorded consumer failure."\n  source: "owner/repo@0123456789abcdef/source"\n  sunset: "2026-11-27"\n---\n${body}\n`;
 	put("skills/misty/SKILL.md", skill("misty"));
 	put("rules/core.md", "---\nalwaysApply: true\n---\n# Core\n\n- Load misty.\n");
-	return { root, put, skill };
+	const json = (path: string, value: unknown) => put(path, `${JSON.stringify(value)}\n`);
+	const hooks = (variable: string) => ({ SessionStart: [{ hooks: [{ type: "command", command: `cat "$${variable}/rules/core.md"` }] }] });
+	const marketplace = { name: "mistystack", owner: { name: "Fixture owner" }, plugins: [{ name: "mistystack", source: "./" }] };
+	json(".claude-plugin/plugin.json", { name: "mistystack", agents: ["./adapters/claude/agents/fixture.md"], hooks: hooks("CLAUDE_PLUGIN_ROOT") });
+	json(".claude-plugin/marketplace.json", marketplace);
+	json(".codex-plugin/plugin.json", { name: "mistystack", version: "1.0.0", skills: "./skills/", hooks: "./adapters/codex/hooks.json" });
+	json(".agents/plugins/marketplace.json", {
+		name: "mistystack",
+		plugins: [{ name: "mistystack", source: { source: "local", path: "./" }, policy: { installation: "AVAILABLE", authentication: "ON_USE" }, category: "Productivity" }],
+	});
+	json("adapters/codex/hooks.json", { hooks: hooks("PLUGIN_ROOT") });
+	json(".omp-plugin/plugin.json", { name: "mistystack", version: "1.0.0", skills: "./skills" });
+	json(".omp-plugin/marketplace.json", marketplace);
+	json("package.json", { name: "mistystack", version: "1.0.0", keywords: ["pi-package"], omp: {}, pi: { skills: ["./skills"], extensions: ["./adapters/pi/core.ts"] } });
+	put("adapters/claude/agents/fixture.md", "---\nname: fixture\ndescription: Fixture worker.\n---\nComplete the assigned task.\n");
+	put("agents/fixture.md", "---\nname: fixture\ndescription: Fixture worker.\n---\nComplete the assigned task.\n");
+	put("adapters/pi/core.ts", 'import { readFileSync } from "node:fs";\nexport default function core(pi) {\nconst core = readFileSync(new URL("../../rules/core.md", import.meta.url), "utf8");\npi.on("before_agent_start", event => ({ systemPrompt: `${event.systemPrompt}\\n${core}` }));\n}\n');
+	return { root, put, skill, json };
 }
+
+test.each([
+	".claude-plugin/plugin.json", ".claude-plugin/marketplace.json",
+	".codex-plugin/plugin.json", ".agents/plugins/marketplace.json",
+	".omp-plugin/plugin.json", ".omp-plugin/marketplace.json", "package.json",
+])("requires a JSON object at native manifest %s", file => {
+	const { root, put } = fixture();
+	put(file, "{");
+	expect(lintPlugin(root).errors.some(error => error.startsWith(`${file}:`))).toBe(true);
+	put(file, "[]\n");
+	expect(lintPlugin(root).errors).toContain(`${file}: must be a JSON object`);
+	rmSync(join(root, file));
+	expect(lintPlugin(root).errors).toContain(`${file}: missing manifest`);
+});
+
+test.each([
+	[".claude-plugin/plugin.json", "name must be non-empty"],
+	[".codex-plugin/plugin.json", "version must be non-empty"],
+	[".omp-plugin/plugin.json", "version must be non-empty"],
+	[".claude-plugin/marketplace.json", "owner.name must be non-empty"],
+	[".agents/plugins/marketplace.json", "plugins must be a non-empty array"],
+	[".omp-plugin/marketplace.json", "plugins must be a non-empty array"],
+	["package.json", "keywords must include pi-package"],
+])("checks required native manifest fields in %s", (file, error) => {
+	const { root, json } = fixture();
+	json(file, {});
+	expect(lintPlugin(root).errors).toContain(`${file}: ${error}`);
+});
+
+test.each([".claude-plugin/plugin.json", ".codex-plugin/plugin.json", ".omp-plugin/plugin.json", "package.json"])(
+	"rejects a second skills tree registered by %s",
+	file => {
+		const { root, put, skill, json } = fixture();
+		put("other-skills/misty/SKILL.md", skill("misty"));
+		const manifest = JSON.parse(readFileSync(join(root, file), "utf8"));
+		if (file === "package.json") manifest.pi.skills = ["./other-skills"];
+		else manifest.skills = "./other-skills";
+		json(file, manifest);
+		expect(lintPlugin(root).errors).toContain(`${file}: skills must reference the shared root skills/`);
+	},
+);
+
+test.each([
+	"adapters/claude/agents/fixture.md",
+	"adapters/codex/hooks.json", "adapters/pi/core.ts",
+])("rejects a missing declared native component %s", file => {
+	const { root } = fixture();
+	rmSync(join(root, file));
+	expect(lintPlugin(root).errors.some(error => error.includes(`missing file ./${file}`))).toBe(true);
+});
+
+test("requires OMP's native root agents rather than an ignored manifest agents field", () => {
+	const { root, json } = fixture();
+	rmSync(join(root, "agents/fixture.md"));
+	expect(lintPlugin(root).errors).toContain("agents/: no native OMP agents found");
+	const manifest = JSON.parse(readFileSync(join(root, ".omp-plugin/plugin.json"), "utf8"));
+	manifest.agents = ["./adapters/omp/agents/fixture.md"];
+	json(".omp-plugin/plugin.json", manifest);
+	expect(lintPlugin(root).errors).toContain(".omp-plugin/plugin.json: OMP discovers root agents/; manifest agents is unsupported");
+});
+
+test("an explicit OMP package manifest prevents fallback to pi's core extension", () => {
+	const { root, json } = fixture();
+	const manifest = JSON.parse(readFileSync(join(root, "package.json"), "utf8"));
+	delete manifest.omp;
+	json("package.json", manifest);
+	expect(lintPlugin(root).errors).toContain("package.json: omp must be an explicit object to prevent pi adapter fallback");
+	manifest.omp = { extensions: ["./adapters/pi/core.ts"] };
+	json("package.json", manifest);
+	expect(lintPlugin(root).errors).toContain("package.json: omp.extensions must not register pi's core extension");
+});
+
+test("Claude defaults to root skills only when the skills field is omitted", () => {
+	const { root, json } = fixture();
+	expect(lintPlugin(root).errors).toEqual([]);
+	const manifest = JSON.parse(readFileSync(join(root, ".claude-plugin/plugin.json"), "utf8"));
+	manifest.skills = null;
+	json(".claude-plugin/plugin.json", manifest);
+	expect(lintPlugin(root).errors).toContain(".claude-plugin/plugin.json: skills must reference the shared root skills/");
+});
+
+test.each(["claude", "codex"])("requires the %s SessionStart core registration", harness => {
+	const { root, json } = fixture();
+	const file = `.${harness}-plugin/plugin.json`;
+	if (harness === "claude") {
+		const manifest = JSON.parse(readFileSync(join(root, file), "utf8"));
+		manifest.hooks = {};
+		json(file, manifest);
+	} else json("adapters/codex/hooks.json", { hooks: {} });
+	expect(lintPlugin(root).errors.some(error => error.startsWith(`${file}: SessionStart must register`))).toBe(true);
+});
+
+test("requires the core extension, not just any existing pi extension", () => {
+	const { root, put, json } = fixture();
+	put("adapters/pi/unrelated.ts", "export const unrelated = true;\n");
+	const manifest = JSON.parse(readFileSync(join(root, "package.json"), "utf8"));
+	manifest.pi.extensions = ["./adapters/pi/unrelated.ts"];
+	json("package.json", manifest);
+	expect(lintPlugin(root).errors).toContain("package.json: pi.extensions must register adapters/pi/core.ts");
+});
+
+test("rejects native paths escaping the plugin, including symlinks", () => {
+	const { root, json } = fixture();
+	const foreign = fixture().root;
+	const file = ".claude-plugin/plugin.json";
+	const manifest = JSON.parse(readFileSync(join(root, file), "utf8"));
+	manifest.agents = ["../outside.md"];
+	json(file, manifest);
+	expect(lintPlugin(root).errors).toContain(`${file}: agents: path must stay inside the plugin: ../outside.md`);
+	symlinkSync(join(foreign, "skills/misty/SKILL.md"), join(root, "adapters/claude/agents/escape.md"));
+	manifest.agents = ["./adapters/claude/agents/escape.md"];
+	json(file, manifest);
+	expect(lintPlugin(root).errors).toContain(`${file}: agents: path must stay inside the plugin: ./adapters/claude/agents/escape.md`);
+});
+
+test("Codex marketplace policy and local source are required, not just its plugin name", () => {
+	const { root, json } = fixture();
+	json(".agents/plugins/marketplace.json", { name: "mistystack", plugins: [{ name: "mistystack", source: "./" }] });
+	const errors = lintPlugin(root).errors;
+	expect(errors).toContain(".agents/plugins/marketplace.json: plugin source must be local");
+	expect(errors).toContain(".agents/plugins/marketplace.json: plugin policy must use installation AVAILABLE and authentication ON_USE");
+});
 
 function expectStrictWarnings(root: string, warnings: string[]) {
 	const report = lintPlugin(root);
@@ -252,12 +391,12 @@ test("allows both harness URI schemes only inside the disclosed harness director
 	expect(lintPlugin(root, true)).toEqual({ skillCount: 1, errors: [], warnings: [] });
 });
 
-test("the plugin command fails when OMP is missing instead of skipping installation", () => {
+test("missing native CLIs are explicit skips, not successful install proofs", async () => {
 	const { root } = fixture();
-	const result = runPlugin(root, []);
-	expect(result.code).toBe(1);
-	expect(result.err).toContain("omp is required for plugin verification");
-	expect(result.out).not.toContain("Verification complete");
+	const results = await verifyAvailableInstalls(root, undefined, {});
+	expect(results.map(result => result.harness)).toEqual(["claude", "codex", "omp", "pi"]);
+	expect(results.every(result => result.status === "SKIP")).toBe(true);
+	expect(results.some(result => result.status === "PASS")).toBe(false);
 });
 
 test("strict lint failures exit nonzero before tests or installation", () => {
@@ -287,4 +426,23 @@ test("an escaping config path is refused before any install command", () => {
 	chmodSync(omp, 0o700);
 	expect(() => verifyInstall(root, omp, "fixture/model")).toThrow("isolation refused");
 	expect(readFileSync(trace, "utf8")).toBe("config path\n");
+});
+
+test.each(["claude", "codex", "pi"] as const)("refuses leaked %s state before installing and removes its scratch home", async harness => {
+	const { root, put } = fixture();
+	const trace = join(root, "native-commands");
+	const state = join(root, "native-state");
+	const executable = join(root, harness);
+	const response = harness === "claude" ? '[{"id":"foreign","enabled":true}]' : JSON.stringify({ id: 1, result: { codexHome: root } });
+	const leak = harness === "pi" ?
+		`printf '%s\\n' '{"packages":["foreign-package"]}' > "$PI_CODING_AGENT_DIR/settings.json"\nprintf 'Foreign package\\n'` :
+		`${harness === "codex" ? 'IFS= read -r request\n' : ""}printf '%s\\n' ${JSON.stringify(response)}`;
+	put(harness, `#!/bin/sh\nprintf '%s\\n' "$*" >> ${JSON.stringify(trace)}\nprintf '%s\\n' "$HOME" "$CLAUDE_CONFIG_DIR" "$CODEX_HOME" "$PI_CODING_AGENT_DIR" > ${JSON.stringify(state)}\n${leak}\n`);
+	chmodSync(executable, 0o700);
+	await expect(verifyNativeInstall(root, harness, executable)).rejects.toThrow("isolation refused");
+	expect(readFileSync(trace, "utf8")).toBe(harness === "pi" ? "list --no-approve\n" : harness === "codex" ? "app-server --listen stdio://\n" : "plugin list --json\n");
+	const [home, ...configs] = readFileSync(state, "utf8").trim().split("\n");
+	expect(home).not.toBe(process.env.HOME);
+	for (const config of configs) expect(config.startsWith(`${home}/`)).toBe(true);
+	expect(existsSync(home)).toBe(false);
 });

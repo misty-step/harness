@@ -10,14 +10,14 @@ metadata:
 
 # Verify mistystack
 
-The consumer is an OMP operator: install the method plugin, start a fresh session,
-observe its core and skill discovery, then use its delivery procedures. There is
-no product account or QA sign-in. OMP provider authentication is execution access,
-not proof that the plugin loaded.
+The consumer installs the shared method through a native harness, starts a fresh
+session, observes its core and skill discovery, then uses its procedures. There
+is no product account or QA sign-in. Provider authentication is execution access,
+not evidence that the method loaded.
 
-1. **Identify.** Record the candidate commit, any working-tree changes, Bun and
-   OMP versions, affected story IDs and exact commands. The checks read the
-   working tree. Keep run output outside the checkout and state whether that
+1. **Identify.** Record the candidate commit, working-tree changes, Bun and
+   exercised harness versions, affected stories and exact commands. Checks read
+   the working tree. Keep output outside the checkout and state whether that
    source matches the recorded commit.
 2. **Gate.** From the repository root, run:
    ```sh
@@ -31,29 +31,37 @@ not proof that the plugin loaded.
    `LANDMARK_BIN` is available, retain the real release-replay result separately
    from any skipped optional replay. `./scripts/check --help` identifies the
    plugin-only flags.
-3. **Install and load.** With native OMP available, run:
+3. **Install and load.** Run:
    ```sh
    ./scripts/check plugin --strict
    ```
-   The maintained helper creates a disposable home and project, checks that
-   `omp config path` resolves inside that home, installs the candidate through
-   its native marketplace, and starts a fresh RPC session without inference.
-   The model selector comes from the existing OMP `smol` role, read before
-   isolation; plugin-only `--model SELECTOR` supplies an explicit override.
-   A missing OMP executable, strict lint failure or escaping config path fails
-   the command; isolation refusal occurs before marketplace or install commands.
-   Require the observed system prompt to contain the installed always-on core
-   and list `misty`. Require `skill://misty` to read the candidate body and an
-   indexed principle leaf to remain readable while hidden from the model's
-   automatic skill list. File presence or a model's self-report alone is not
-   loading proof. The helper removes only its own scratch tree on exit.
-4. **Walk the changed contract.** For role or setup changes, follow
-   `skill://setup-mistystack` in an isolated profile and distinguish config
-   persistence, fresh-session agent discovery and authorized inference. For
-   routing or playbook changes, inspect an affected real task's brief and its
-   Oracle result. For ship-loop changes, drive its native ledger behavior and
-   retain the affected behavioral test output. The gate alone does not prove
-   provider access, model quality or a completed shipping journey.
+   The helper creates disposable homes and projects for each available OMP,
+   Claude Code, Codex and pi CLI, refuses escaping native configuration paths
+   before installation, and reports missing CLIs by name as skipped. It installs
+   through each native lifecycle and checks installed skills plus core hook or
+   extension registration. An available-harness failure fails the gate; a skip
+   is not a pass. CI's lint-only selection explicitly skips every install.
+
+   OMP additionally starts a fresh RPC session without inference. Its selector
+   comes from the existing `smol` role read before isolation; `--model SELECTOR`
+   supplies an override. Require the observed system prompt to contain the
+   installed core and list Misty, the installed skill body to match the candidate,
+   and a principle leaf to remain readable but hidden from the automatic list.
+   Other adapters' no-model inventory checks prove installation and registration,
+   not that a model received the core. Follow the matching
+   [harness note](../../../skills/misty/SKILL.md) for fresh-session proof: use an
+   existing subscription only if it works without copying credential files;
+   quote the core's first bullet and retain the actual loaded/read events.
+   Otherwise record the no-model result and leave live proof explicitly
+   unverified for the authorized runtime cutover. The helper removes only its
+   own scratch trees; no proof writes to live harness profiles.
+4. **Walk the changed contract.** For roles or setup, follow
+   [setup-mistystack](../../../skills/setup-mistystack/SKILL.md) in an isolated
+   destination; separate native assignment persistence, fresh-session discovery
+   and authorized inference. For routing or playbook changes, inspect an
+   affected real task's brief and Oracle result. For ship-loop changes, drive its
+   native ledger and retain the affected behavioral output. The gate does not
+   prove provider access, model quality or a completed shipping journey.
 5. **Publish.** Put the checked source and runtime identities, command, exit
    status, observed postcondition and reviewer-open output on the PR.
    Follow the core's claim rule; list every skipped or unproved criterion.

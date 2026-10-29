@@ -40,6 +40,10 @@ model-discoverable. Confirm the installed version's invocation behavior before
 relying on a metadata flag. Discovery and explicit leaf reachability are separate
 consumer checks.
 
+OMP loads `rules/core.md` through `alwaysApply: true`. The root package's explicit
+empty `omp` manifest prevents OMP's package loader from falling back to `pi` and
+loading pi's core extension a second time.
+
 ## Dispatch and rigor
 
 Dispatch independent units with OMP's `task` tool. Pass the briefing contract in
@@ -47,6 +51,9 @@ the [misty](../SKILL.md) skill, not the parent transcript. Give writers isolated
 worktrees and one branch each; keep shared resources single-writer. The method's
 [rigor tiers and responsibilities](../../ship-loop/roles.md#rigor) decide the
 review shape, not a model roster in a prompt.
+
+OMP 18.13.3 ignores a manifest `agents` array and scans root `agents/`, so the
+OMP-native agent files must remain at that fixed root.
 
 The plugin supplies [rigor-light](../../../agents/rigor-light.md),
 [rigor-standard](../../../agents/rigor-standard.md) and

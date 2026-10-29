@@ -1,4 +1,8 @@
-# Isolated config proof
+# Isolated OMP config proof
+
+Use this OMP-only recipe for [setup-mistystack](SKILL.md). Other harnesses use
+their matching native-adapter note; this recipe does not prove their configuration
+or runtime loading.
 
 Source: OMP 18.13.3 [configuration](omp://config-usage.md). Setup writes the `rigor-light`, `rigor-standard` and `rigor-critical` model roles; the plugin supplies their task agents.
 
