@@ -142,7 +142,7 @@ function prepareHeadings(doc) {
     const isTitle = node.tagName === 'h1' && !foundTitle;
     if (isTitle) foundTitle = true;
     doc.headings.push({ id, label, depth: Number(node.tagName[1]), sourceLine: (node.position?.start.line ?? 1) + doc.offset });
-    if (!isTitle) node.children.push(element('a', { href: `#${id}`, className: ['heading-anchor'], ariaLabel: `Link to section: ${label}` }, [literal('#')]));
+    if (!isTitle) node.children.push(element('a', { href: `#${id}`, className: ['heading-anchor'], ariaLabel: `Link to section: ${label}`, 'data-pagefind-ignore': '' }, [literal('#')]));
   });
   doc.ids = ids;
   const first = doc.hast.children.findIndex((node) => node.type === 'element' && node.tagName === 'h1');

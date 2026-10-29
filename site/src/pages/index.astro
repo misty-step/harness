@@ -26,12 +26,12 @@ const rounds = graph.documents.filter((document) => document.kind === 'Evals').s
       </div>
     </section>
     <section class="section" aria-labelledby="failure-modes">
-      <h2 id="failure-modes">When the fix still fails, the scope grows or done has no proof.<a class="heading-anchor" href="#failure-modes" aria-label="Link to failure modes">#</a></h2>
+      <h2 id="failure-modes">When the fix still fails, the scope grows or done has no proof.<a class="heading-anchor" href="#failure-modes" aria-label="Link to failure modes" data-pagefind-ignore>#</a></h2>
       <p>mistystack addresses concrete failures in agent-led work. Each principle names the failure it is maintained to prevent.</p>
       <ul class="catalog-list" role="list">{principles.map((document) => <li class="catalog-item"><h3><a href={document.url}>{document.title}</a></h3><p>{document.skill.prevents}</p></li>)}</ul>
     </section>
     <section id="how-it-works" class="section" aria-labelledby="method">
-      <h2 id="method">One method, loaded when the work needs it.<a class="heading-anchor" href="#method" aria-label="Link to method">#</a></h2>
+      <h2 id="method">One method, loaded when the work needs it.<a class="heading-anchor" href="#method" aria-label="Link to method" data-pagefind-ignore>#</a></h2>
       <ol class="method-flow" role="list">
         <li><a href={core.url}>Core</a><p>The always-on entry point routes nontrivial work.</p></li>
         <li><a href={misty.url}>misty</a><p>Choose the task's playbook and brief the work.</p></li>
@@ -41,7 +41,7 @@ const rounds = graph.documents.filter((document) => document.kind === 'Evals').s
       <div class="adapter-rail"><p>Native adapters wrap this same content tree. They are not a separate method or a final step.</p><HarnessChooser {graph} /></div>
     </section>
     <section id="reported-defect" class="section walkthrough" aria-labelledby="walkthrough">
-      <h2 id="walkthrough">A reported defect, from failure to outside proof.<a class="heading-anchor" href="#walkthrough" aria-label="Link to reported defect walkthrough">#</a></h2>
+      <h2 id="walkthrough">A reported defect, from failure to outside proof.<a class="heading-anchor" href="#walkthrough" aria-label="Link to reported defect walkthrough" data-pagefind-ignore>#</a></h2>
       <ol>
         <li><a href={bugFix.url}>Follow the bug-fix playbook.</a> Start with the reported failure and reproduce it on the user's path. Keep the intended behavior fixed.</li>
         <li><a href={verification.url}>Name the check that can disprove the fix.</a> A passing syntax check or the worker's own claim is not proof that the defect is gone.</li>
@@ -50,12 +50,12 @@ const rounds = graph.documents.filter((document) => document.kind === 'Evals').s
     </section>
     {rounds[0] && <section class="section" aria-label="Directional evaluation"><EvalSummary document={rounds[0]} compact /></section>}
     <section class="section" aria-labelledby="library">
-      <h2 id="library">Read the whole method.<a class="heading-anchor" href="#library" aria-label="Link to library">#</a></h2>
+      <h2 id="library">Read the whole method.<a class="heading-anchor" href="#library" aria-label="Link to library" data-pagefind-ignore>#</a></h2>
       <ul>{catalogKinds.map((kind) => <li><a href={`/library/?section=${encodeURIComponent(kind)}`}>{kind} ({graph.documents.filter((document) => document.kind === kind).length})</a></li>)}</ul>
       <p><a href="/library/">Browse the library</a> or <a href="/search/">search names, phrases and prevented failures</a>.</p>
     </section>
     <section id="install-for-your-harness" class="section" aria-labelledby="install">
-      <h2 id="install">Use your harness's native install.<a class="heading-anchor" href="#install" aria-label="Link to installation">#</a></h2>
+      <h2 id="install">Use your harness's native install.<a class="heading-anchor" href="#install" aria-label="Link to installation" data-pagefind-ignore>#</a></h2>
       <p>No custom installer. No second method tree. Installation and fresh-session loading are separate checks for each harness.</p>
       <HarnessChooser {graph} />
       <h3>OMP</h3>

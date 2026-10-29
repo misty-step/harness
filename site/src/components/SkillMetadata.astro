@@ -6,11 +6,11 @@ const inherited = !document.skill && skill;
 {skill && <section class="skill-metadata" aria-label={inherited ? 'Inherited skill provenance' : 'Skill metadata'}>
   {inherited && <p>Provenance inherited from <a href={document.parent.url}>{skill.name}</a>. This document has no independent review date.</p>}
   <dl>
-    <dt>{inherited ? 'Installed parent' : 'Installed name'}</dt><dd><code>{skill.name}</code></dd>
-    {!inherited && <><dt>When to use</dt><dd>{skill.description}</dd><dt>Prevents</dt><dd>{skill.prevents}</dd></>}
-    <dt>Owner</dt><dd>{skill.owner}</dd>
-    <dt>Source</dt><dd>{skill.source}</dd>
-    <dt>Review date</dt><dd><time datetime={skill.sunset}>{skill.sunset}</time>. The source calls this sunset; it is a review date, not automatic expiry.</dd>
-    {!inherited && <><dt>Invocation</dt><dd>{skill.disableModelInvocation ? 'Explicit invocation only. Hidden from automatic model discovery where the native harness enforces disable-model-invocation.' : 'Available for automatic model discovery. The native harness owns invocation behavior.'}</dd></>}
+    <dt data-pagefind-ignore>{inherited ? 'Installed parent' : 'Installed name'}</dt><dd><p><code>{skill.name}</code></p></dd>
+    {!inherited && <><dt data-pagefind-ignore>When to use</dt><dd><p>{skill.description}</p></dd><dt data-pagefind-ignore>Prevents</dt><dd><p>{skill.prevents}</p></dd></>}
+    <dt data-pagefind-ignore>Owner</dt><dd><p>{skill.owner}</p></dd>
+    <dt data-pagefind-ignore>Source</dt><dd><p>{skill.source}</p></dd>
+    <dt data-pagefind-ignore>Review date</dt><dd><p><time datetime={skill.sunset}>{skill.sunset}</time>. The source calls this sunset; it is a review date, not automatic expiry.</p></dd>
+    {!inherited && <><dt data-pagefind-ignore>Invocation</dt><dd><p>{skill.disableModelInvocation ? 'Explicit invocation only. Hidden from automatic model discovery where the native harness enforces disable-model-invocation.' : 'Available for automatic model discovery. The native harness owns invocation behavior.'}</p></dd></>}
   </dl>
 </section>}
