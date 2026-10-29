@@ -73,14 +73,14 @@ test("does not treat illustrative Markdown, external links or same-file anchors 
 	put("skills/misty/SKILL.md", skill("misty", [
 		"[web](https://example.com/missing.md), [mail](mailto:agent@example.com), [host](//example.com/missing.md).",
 		"[absolute](/missing.md), [anchor](#missing), [query](?raw=1#missing) and [empty]().",
-		"Inline examples: `[missing](missing-inline.md)` and ``the `unknown` skill``.",
+		"Inline examples: `[missing](missing-inline.md)` and ``the `misty` skill``.",
 		"Escaped example: \\[missing](missing-escaped.md).",
 		"",
 		"~~~markdown",
 		"[missing](missing-fenced.md)",
 		"[guide][reference]",
 		"[reference]: missing-reference.md",
-		"Use the `unknown` skill.",
+		"Use the `misty` skill.",
 		"~~~",
 		"",
 		"    [missing](missing-indented.md)",
@@ -187,6 +187,15 @@ test.each([
 	const body = "Use the `missing` skill.";
 	put(file, file.endsWith("/SKILL.md") ? skill(file.split("/")[1], body) : body);
 	expectStrictWarnings(root, [`${file}: unknown skill missing (missing skills/missing/SKILL.md)`]);
+});
+
+test.each([
+	"``Use the `missing` skill.``",
+	"```text\nUse the `missing` skill.\n```",
+])("validates named skills even inside quoted instructions (%s)", body => {
+	const { root, put, skill } = fixture();
+	put("skills/misty/SKILL.md", skill("misty", body));
+	expectStrictWarnings(root, ["skills/misty/SKILL.md: unknown skill missing (missing skills/missing/SKILL.md)"]);
 });
 
 test("validates skill names in generated brief source outside Markdown", () => {

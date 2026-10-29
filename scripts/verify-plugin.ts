@@ -25,27 +25,13 @@ function document(path: string) {
 	return { frontmatter, body: text.slice(match[0].length).trim() };
 }
 
-function markdownReferences(text: string) {
+function markdownLinks(text: string) {
 	const links = new Set<string>();
-	const names = new Set<string>();
-	const collectNames = (children: string) => {
-		// Only real code spans delimit skill names; inline examples stay literal.
-		for (const match of children.matchAll(/\bthe\s+\0([^\0\r\n]+)\0\s+skill\b/gi)) names.add(match[1]);
-		return "";
-	};
 	Bun.markdown.render(text, {
 		link: (children, { href }) => { links.add(href); return children; },
 		image: (_children, { src }) => { links.add(src); return ""; },
-		codespan: children => `\0${children}\0`,
-		code: () => "",
-		html: () => "",
-		paragraph: collectNames,
-		heading: collectNames,
-		listItem: collectNames,
-		th: collectNames,
-		td: collectNames,
 	});
-	return { links, names };
+	return links;
 }
 
 export function lintPlugin(root: string, strict = false) {
@@ -93,10 +79,8 @@ export function lintPlugin(root: string, strict = false) {
 				references.add(`${file}: harness-specific URI ${scheme} is only allowed in skills/misty/harnesses/`);
 			}
 		}
-		const markdown = /\.md$/i.test(file)
-			? markdownReferences(text)
-			: { links: [], names: [...text.matchAll(/\bthe\s+`([^`\r\n]+)`\s+skill\b/gi)].map(match => match[1]) };
-		for (const destination of markdown.links) {
+		const links = /\.md$/i.test(file) ? markdownLinks(text) : [];
+		for (const destination of links) {
 			const path = destination.split(/[?#]/, 1)[0];
 			if (!path || /^(?:[a-z][a-z\d+.-]*:|[/\\])/i.test(path)) continue;
 			let decoded: string;
@@ -112,7 +96,7 @@ export function lintPlugin(root: string, strict = false) {
 				references.add(`${file}: missing reference ${relative(root, target)}`);
 			}
 		}
-		for (const name of markdown.names) {
+		for (const [, name] of text.matchAll(/\bthe\s+`([a-z0-9-]+)`\s+skill\b/gi)) {
 			if (!names.has(name)) references.add(`${file}: unknown skill ${name} (missing skills/${name}/SKILL.md)`);
 		}
 	}
