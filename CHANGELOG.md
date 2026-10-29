@@ -1,3 +1,9 @@
+# [0.3.9](https://github.com/misty-step/mistystack/compare/v0.3.8...v0.3.9) (2026-10-29)
+<!-- landmark:protected-release previous=v0.3.8 source=1d91382ee4965fbf60faa34c3c87b8d75baba84e6f3953758a81ab7399aead10 -->
+
+### Bug Fixes
+
+* **placement:** keep working environments in harness notes so Grok Bots use Boat without Tern+OMP (#610) ([7a12f90](https://github.com/misty-step/mistystack/commit/7a12f903f1f21d0ad22bb919978eae5646fab915))
 # [0.3.8](https://github.com/misty-step/mistystack/compare/v0.3.7...v0.3.8) (2026-10-29)
 <!-- landmark:protected-release previous=v0.3.7 source=8141300c01bdd1b4163bbce555b3356fd844fc25bfce7b543a03110a9e8c2018 -->
 
