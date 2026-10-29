@@ -25,11 +25,12 @@ credential setup remain in the private workstation repository.
 
 ## Operating default
 
-Misty Step's operator develops locally in Tern+OMP; Grok Bots work from their
-hosted bot computer. Both place builds, test suites, browser QA, untrusted code
-and long jobs on Boat workers through the
-[boat-workers](skills/boat-workers/SKILL.md) skill. Kaylee and Hermes are being
-decommissioned. Each harness note names its own working environment
+Every harness places builds, test suites, browser QA, untrusted code and long
+jobs on Boat workers through the [boat-workers](skills/boat-workers/SKILL.md)
+skill; everything else stays where the agent runs unless its harness note says
+otherwise. The [OMP note](skills/misty/harnesses/omp.md) names the operator's
+local Tern+OMP setup and the [Grok Bot note](skills/misty/harnesses/grok-bot.md)
+covers Bots' shared computer. Kaylee and Hermes are being decommissioned
 ([ADR 0017](docs/decisions/0017-tern-omp-and-boat-workers.md)).
 
 ## Layout

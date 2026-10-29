@@ -25,8 +25,8 @@ is neither isolation nor proof.
 ## Decision
 
 - **Local development** runs in Tern+OMP on the operator's machine: Tern hosts
-  the terminal sessions and OMP is the local harness. Other harnesses keep their
-  own working environment; Grok Bots work from their hosted bot computer.
+  the terminal sessions and OMP is the local harness. Other harnesses work where
+  they run unless their harness note says otherwise.
 - **Isolated execution** defaults to Boat workers dispatched by the working
   agent. The agent loop and credentials stay with the dispatcher. The
   [boat-workers](../../skills/boat-workers/SKILL.md) skill owns the worker and
@@ -54,9 +54,9 @@ superseded.
 ## Consequences
 
 - The core names only Boat placement and points to `boat-workers`, so it stays
-  harness-neutral; each harness note names its working environment. The
-  procedure lives in this public tree, so every adapter and Grok Bot receives it;
-  the private workstation plugin keeps machine facts only.
+  harness-neutral; a harness note states where its work happens when that
+  differs. The procedure lives in this public tree, so every adapter and Grok
+  Bot receives it; the private workstation plugin keeps machine facts only.
 - Boat workers are x86_64 Linux without GPUs; macOS, device and GPU acceptance
   checks stay off workers.
 - Herdr pane control and Kaylee machinery in private repositories retire through
