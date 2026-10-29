@@ -35,8 +35,13 @@ root `skills/` and `adapters/codex/hooks.json`. A root `plugin.json` suppresses
 these hooks in the exercised runtime; do not add one as an equivalent manifest.
 The `SessionStart` command hook reads `"$PLUGIN_ROOT/rules/core.md"` to supply the
 shared always-on core. Codex requires one-time trust for plugin hooks; complete
-that native trust step before claiming core injection. Do not bypass the prompt
-or replace foreign trust settings.
+that native trust step before claiming core injection: review it with `/hooks` in
+Codex, or through Codex's own app-server RPC by reading `hooks/list` and
+upserting the hook's `key` with its `currentHash` as `trusted_hash` under
+`hooks.state` with `config/batchWrite`. Until trusted, `codex exec` prints
+`hook: SessionStart Failed` and the core is absent. Do not bypass the check or
+replace foreign trust settings. Codex stores a content hash with each trust, so
+check `hooks/list` trust status again after a refresh.
 
 Use Codex's native skill mechanism with `mistystack:misty` or
 `mistystack:<skill-name>`. Follow Misty's [bug-fix link](../playbooks/bug-fix.md)
