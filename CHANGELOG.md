@@ -1,3 +1,9 @@
+# [0.3.11](https://github.com/misty-step/mistystack/compare/v0.3.10...v0.3.11) (2026-10-29)
+<!-- landmark:protected-release previous=v0.3.10 source=cbb2b721356588cd0ada8afdcba263543aeb6dba67ea76fe839a8d02f261fe27 -->
+
+### Features
+
+* **principles:** adopt Scholar's pstack picks and make Grug a core design lens (#619) ([f7e4a8d](https://github.com/misty-step/mistystack/commit/f7e4a8d0985a19bba4c1967810ffb312a8a8aff7))
 # [0.3.10](https://github.com/misty-step/mistystack/compare/v0.3.9...v0.3.10) (2026-10-29)
 <!-- landmark:protected-release previous=v0.3.9 source=7dab980f7d517440ccd06e3b67477bfdb0394f48346be6aff6b18563237314f8 -->
 
