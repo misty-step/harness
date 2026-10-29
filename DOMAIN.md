@@ -32,10 +32,9 @@ through [AGENTS.md](AGENTS.md), and boundary decisions live in
 - **Oracle:** a check outside the worker that can disprove completion, named in
   the brief with the exact command or real user path. A brief without an Oracle
   returns to shaping rather than dispatch.
-- **Local development environment:** the operator's: OMP running in Tern on
-  their machine ([ADR 0017](docs/decisions/0017-tern-omp-and-boat-workers.md)).
-  Other harnesses keep their own working environment, named in their harness
-  note; Grok Bots work from their hosted bot computer.
+- **Local development environment:** the operator's OMP running in Tern, as the
+  [OMP note](skills/misty/harnesses/omp.md) states. Other harnesses work where
+  they run unless their harness note says otherwise.
 - **Boat worker:** a fresh Boat sandbox one agent dispatches for one unit's
   execution. The dispatcher keeps its loop and credentials and deletes the
   worker after collecting results; [boat-workers](skills/boat-workers/SKILL.md)

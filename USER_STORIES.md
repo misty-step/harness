@@ -255,20 +255,21 @@ consumer evidence.
 ## US-061 Run isolated work on Boat workers
 
 When an agent builds, tests, runs browser QA or executes untrusted code, I want
-it placed on a fresh Boat worker dispatched from the agent's own environment, so
-the operator's machine and shared bot computers stay responsive and isolated work
-does not depend on a retiring coordinator.
+it placed on a fresh Boat worker dispatched from wherever the agent runs, so the
+machines agents work from stay responsive and isolated work does not depend on
+a retiring coordinator.
 
 Criteria:
 1. The core routes execution placement to the
    [boat-workers](skills/boat-workers/SKILL.md) skill for every harness without
-   naming one; that skill owns the list of worker cases. Each harness note names
-   its working environment: Tern+OMP for the operator's local OMP, the hosted bot
-   computer for Grok Bots, which do not adopt Tern+OMP.
+   naming one; that skill owns the list of worker cases. Other work stays where
+   the agent runs unless its harness note says otherwise: the
+   [OMP note](skills/misty/harnesses/omp.md) names Tern+OMP, and the
+   [Grok Bot note](skills/misty/harnesses/grok-bot.md) keeps Bots on their own
+   computer without adopting Tern+OMP.
 2. Platform, device, signed-in-session, private-network and
-   non-transferable-data checks stay in the agent's own environment. A Grok Bot
-   reaches the operator's Mac only for macOS or device checks, one approved
-   command at a time. An agent inside a worker runs its checks there without
+   non-transferable-data checks stay where the agent runs, within any limits its
+   harness note states. An agent inside a worker runs its checks there without
    nesting workers.
 3. Workers withhold stored account secrets by default, carry an explicit size
    and timeout, and keep exit status and output as evidence.

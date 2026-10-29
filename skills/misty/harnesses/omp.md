@@ -31,11 +31,11 @@ plugins, configuration, credentials and runtime data.
 
 Misty Step's operator develops locally in OMP inside Tern, a multiplexing
 terminal whose daemon keeps sessions alive between windows
-([ADR 0017](../../../docs/decisions/0017-tern-omp-and-boat-workers.md)). Local OMP
-sessions work there. For an
-explicit request to open, split or drive panes, read `tern help` and the
-command's `--help`, target blocks by the IDs Tern returns, and leave the
-operator's focused block and sessions you did not create intact.
+([ADR 0017](../../../docs/decisions/0017-tern-omp-and-boat-workers.md)); local
+OMP sessions work there. For an explicit request to open, split or drive panes,
+read `tern help` and the command's `--help`, target blocks by the IDs Tern
+returns, and leave the operator's focused block and sessions you did not create
+intact.
 
 ## Read skills and relative links
 
