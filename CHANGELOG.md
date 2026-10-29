@@ -1,3 +1,9 @@
+# [0.3.10](https://github.com/misty-step/mistystack/compare/v0.3.9...v0.3.10) (2026-10-29)
+<!-- landmark:protected-release previous=v0.3.9 source=7dab980f7d517440ccd06e3b67477bfdb0394f48346be6aff6b18563237314f8 -->
+
+### Bug Fixes
+
+* **placement:** name environment differences once in harness notes (#613) ([229d831](https://github.com/misty-step/mistystack/commit/229d831628b9947d9e7324e8292985c332112650))
 # [0.3.9](https://github.com/misty-step/mistystack/compare/v0.3.8...v0.3.9) (2026-10-29)
 <!-- landmark:protected-release previous=v0.3.8 source=1d91382ee4965fbf60faa34c3c87b8d75baba84e6f3953758a81ab7399aead10 -->
 
