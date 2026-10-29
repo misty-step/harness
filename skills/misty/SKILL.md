@@ -38,6 +38,7 @@ Read the matching playbook or skill before acting. Combine rows when the task cr
 | Craft an agent's prompt, skill, tools or context loading | [agent-design](../agent-design/SKILL.md); the briefing contract below stays here |
 | Interface, interaction, visual or accessibility work | [design](../design/SKILL.md) |
 | Write, change, review or prune tests | [test-audit](../test-audit/SKILL.md) |
+| Builds, test suites, browser QA, untrusted code or long jobs | [boat-workers](../boat-workers/SKILL.md) |
 | Security review or audit | [security-audit](../security-audit/SKILL.md) |
 | Project quality audit or stack decision | [foundation](../foundation/SKILL.md) |
 | Deployment, release health or recovery | [release-watch](../release-watch/SKILL.md) |
@@ -74,7 +75,7 @@ A brief with no Oracle returns to shaping instead of dispatch.
 
 ## Delegation
 
-Dispatch subagents through your harness's mechanism for independent units with explicit owned paths. Give each writer an isolated worktree and one branch; give every shared account or resource one writer at a time. Readers use that writer's result. Sequence genuine dependencies, not independent work. Place each unit's execution through the `boat-workers` skill.
+Dispatch subagents through your harness's mechanism for independent units with explicit owned paths. Give each writer an isolated worktree and one branch; give every shared account or resource one writer at a time. Readers use that writer's result. Sequence genuine dependencies, not independent work. Place each unit's execution with [boat-workers](../boat-workers/SKILL.md).
 
 Pass the briefing contract, not the parent transcript. Size the brief to the unit: a mechanical rename needs names and checks; an open design needs constraints and raw material. Keep child work within the assigned outcome. The parent integrates and owns the result.
 

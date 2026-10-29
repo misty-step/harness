@@ -13,26 +13,28 @@ Phaedrus, 2026-10-28:
 > dispatched workers.
 
 Kaylee commissioned engineering from a shared exe.dev coordinator through a
-private dispatcher. Local agents had no direct isolated-execution path, and the
-method named no default for where commands run. A comparison of native
-execution, Boat, Fly.io Sprites and exe.dev found that platform fidelity, data
-and credential boundaries, interaction and environment continuity decide
-placement. Cloud placement alone is neither isolation nor proof.
+private dispatcher. A direct Boat procedure for local OMP agents existed only in
+the private workstation plugin, which other adapters and Grok Bots do not
+install, and the method named no default for where commands run. An assessment
+of native execution, Boat, Fly.io Sprites and exe.dev in Phaedrus's session
+(unpublished) concluded that platform fidelity, data and credential boundaries,
+interaction and environment continuity decide placement. Cloud placement alone
+is neither isolation nor proof.
 
 ## Decision
 
 - **Local development** runs in Tern+OMP on the operator's machine: Tern hosts
   the terminal sessions and OMP is the local harness.
 - **Isolated execution** defaults to Boat workers dispatched by the working
-  agent: portable builds, full suites, browser QA, untrusted code, parallel
-  experiments and long jobs. The agent loop and credentials stay with the
-  dispatcher. The [boat-workers](../../skills/boat-workers/SKILL.md) skill owns
-  placement, lifecycle and cleanup.
+  agent. The agent loop and credentials stay with the dispatcher. The
+  [boat-workers](../../skills/boat-workers/SKILL.md) skill owns the worker and
+  native cases, lifecycle and cleanup.
 - **Native execution** remains for native-platform, device, signed-in-session,
   private-network and non-transferable-data checks, and for quick trusted
   inner-loop work.
 - **Cloud coordination** for unattended work moves to Grok Bots. Kaylee and
-  Hermes are retired: no adapter, dispatcher or consumer role remains for them.
+  Hermes are being decommissioned: no adapter, dispatcher or consumer role
+  remains for them.
 - **Allowance.** Phaedrus's direction to lean into Boat workers authorizes
   workers inside the plan's included VM time. Anything that charges the wallet,
   purchases, plan changes, provider connections and new keys still follow the
@@ -49,9 +51,10 @@ superseded.
 
 ## Consequences
 
-- The core names the placement default and points to `boat-workers`. The
-  procedure lives in this public tree, so every adapter and Grok Bot receives
-  it; the private workstation plugin keeps machine facts only.
+- The core names the placement default and points to `boat-workers`; DOMAIN
+  invariant 3 treats that operating default as distinct from harness mechanics.
+  The procedure lives in this public tree, so every adapter and Grok Bot
+  receives it; the private workstation plugin keeps machine facts only.
 - Boat workers are x86_64 Linux without GPUs; native acceptance checks stay
   local.
 - Herdr pane control and Kaylee machinery in private repositories retire through

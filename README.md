@@ -25,11 +25,11 @@ credential setup remain in the private workstation repository.
 
 ## Operating default
 
-Misty Step develops locally in Tern+OMP and runs portable builds, test suites,
-browser QA, untrusted code and long jobs on Boat workers through the
-[boat-workers](skills/boat-workers/SKILL.md) skill. Cloud coordination is moving
-to Grok Bots; Kaylee and Hermes are retired. The adapters above keep the method
-portable ([ADR 0017](docs/decisions/0017-tern-omp-and-boat-workers.md)).
+Misty Step develops locally in Tern+OMP and places isolated execution on Boat
+workers through the [boat-workers](skills/boat-workers/SKILL.md) skill. Cloud
+coordination is moving to Grok Bots; Kaylee and Hermes are being decommissioned.
+The adapters above keep the method portable
+([ADR 0017](docs/decisions/0017-tern-omp-and-boat-workers.md)).
 
 ## Layout
 

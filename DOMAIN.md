@@ -52,7 +52,8 @@ through [AGENTS.md](AGENTS.md), and boundary decisions live in
    preserve required license notices alongside derived material.
 3. **Harness-neutral method.** One content tree owns the method. Harness-specific
    tools, configuration and loading behavior live in disclosed native-adapter
-   references, not shared procedures.
+   references, not shared procedures. Naming Misty Step's operating default, as
+   the core does for Tern+OMP (ADR 0017), is not a harness mechanism.
 4. **One home per fact.** Core rules, principles, procedures, model assignments,
    consumer stories and historical decisions each have one authority. References
    point there; cutovers migrate callers and remove the old home.
@@ -74,7 +75,7 @@ metadata:
 ---
 ```
 
-Metadata dates remain quoted strings so YAML 1.1 readers, including Hermes, can
+Metadata dates remain quoted strings so YAML 1.1 readers such as PyYAML can
 serialize the skill as JSON. The plugin lint rejects plain date/timestamp values
 and requires a non-empty string for `metadata.sunset`.
 

@@ -90,8 +90,10 @@ Use OMP's browser tool through `eval`. Read its API instructions at
 `xd://eval/browser` before first use. Open a dedicated tab, observe and interact
 through the actual product login and controls, wait for the expected state, then
 capture and inspect it. Do not inject DOM to manufacture success. Emulation proves
-only the emulated condition, not physical-device behavior. The
-[design review procedure](../../design/review.md) owns state selection and review.
+only the emulated condition, not physical-device behavior. When the app's
+services run on a Boat worker, forward the port as the
+[boat-workers](../../boat-workers/SKILL.md) skill describes and drive `localhost`.
+The [design review procedure](../../design/review.md) owns state selection and review.
 
 ## Prove installation and fresh-session loading
 
