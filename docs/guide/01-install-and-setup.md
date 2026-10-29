@@ -13,9 +13,12 @@ roles in native configuration and requires fresh-session proof:
 - [pi](../../skills/misty/harnesses/pi.md)
 - [Grok Bot runtime](../../skills/misty/harnesses/grok-bot.md)
 
-Kaylee's Hermes already consumes the shared tree. Grok Build CLI is not a
-target. Each harness needs its own native installation and loading evidence;
-an OMP pass does not prove another adapter. Fleet machinery remains in private
-`misty-step/workstation`.
+Grok Build CLI is not a target. Each harness needs its own native installation
+and loading evidence; an OMP pass does not prove another adapter. Fleet
+machinery remains in private `misty-step/workstation`.
+
+Misty Step's own local development environment is Tern+OMP; isolated execution
+runs on [Boat workers](../../skills/boat-workers/SKILL.md)
+([ADR 0017](../decisions/0017-tern-omp-and-boat-workers.md)).
 
 Next: [Misty](02-misty.md).

@@ -32,8 +32,15 @@ through [AGENTS.md](AGENTS.md), and boundary decisions live in
 - **Oracle:** a check outside the worker that can disprove completion, named in
   the brief with the exact command or real user path. A brief without an Oracle
   returns to shaping rather than dispatch.
+- **Local development environment:** OMP running in Tern on the operator's
+  machine; Misty Step's default for interactive work
+  ([ADR 0017](docs/decisions/0017-tern-omp-and-boat-workers.md)).
+- **Boat worker:** a fresh Boat sandbox one agent dispatches for one unit's
+  execution. The dispatcher keeps its loop and credentials and deletes the
+  worker after collecting results; [boat-workers](skills/boat-workers/SKILL.md)
+  owns placement and lifecycle.
 - **Workstation plugin:** the separate private `misty-step/workstation` plugin
-  for fleet machinery, host configuration, credentials, audio, backup and Kaylee.
+  for fleet machinery, host configuration, credentials, audio and backup.
   It consumes the method without owning a copy of it.
 
 ## Invariants

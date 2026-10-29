@@ -23,8 +23,8 @@ and pi; Grok Bots install the shared tree through their runtime brief.
 | `docs/decisions/`, `docs/postmortems/` | Decisions and incident records; historical paths remain historical |
 
 Edit maintained source, not installed plugin copies. Keep one home per fact;
-migrate callers before deleting an old path. Fleet runtime, credentials, hosts,
-launchers and Kaylee belong to private `misty-step/workstation`. Adapters use
+migrate callers before deleting an old path. Fleet runtime, credentials, hosts
+and launchers belong to private `misty-step/workstation`. Adapters use
 native harness mechanisms, not a custom installer or duplicated method content.
 
 ## Verify and release

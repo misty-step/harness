@@ -74,7 +74,7 @@ A brief with no Oracle returns to shaping instead of dispatch.
 
 ## Delegation
 
-Dispatch subagents through your harness's mechanism for independent units with explicit owned paths. Give each writer an isolated worktree and one branch; give every shared account or resource one writer at a time. Readers use that writer's result. Sequence genuine dependencies, not independent work.
+Dispatch subagents through your harness's mechanism for independent units with explicit owned paths. Give each writer an isolated worktree and one branch; give every shared account or resource one writer at a time. Readers use that writer's result. Sequence genuine dependencies, not independent work. Place each unit's execution through the `boat-workers` skill.
 
 Pass the briefing contract, not the parent transcript. Size the brief to the unit: a mechanical rename needs names and checks; an open design needs constraints and raw material. Keep child work within the assigned outcome. The parent integrates and owns the result.
 
