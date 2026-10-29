@@ -373,7 +373,7 @@ export function prompt(s: State, prUrl: string, role: PromptRole): string {
     const who = QA_ROLE[role as keyof typeof QA_ROLE];
     const scope = role === "review"
       ? "Change nothing. Trace callers, config, migrations, deploy and rollback outside the diff for consequential effects."
-      : "Read skill://verification and use the repository's verification skill for the changed real consumer path. Follow its account, evidence and cleanup contract; documents/internal changes need their own composition proof, not an unrelated product journey.";
+      : "Read the `verification` skill and use the repository's verification skill for the changed real consumer path. Follow its account, evidence and cleanup contract; documents/internal changes need their own composition proof, not an unrelated product journey.";
     return [
       `You are the ${who} for ${header}`,
       "You did not build this change or rule on it. Check out the assigned head under misty's delegation boundary.",
@@ -390,7 +390,7 @@ export function prompt(s: State, prUrl: string, role: PromptRole): string {
     return [
       `You are the independent judge for ${header}`,
       "You did not build, review or test this change. Your thread must not be any of: builder " + s.builder_threads.join(", ") + "; reviewers " + reviewThreads(s).join(", ") + ".",
-      "Read skill://judge for the ruling and proof contract.",
+      "Read the `judge` skill for the ruling and proof contract.",
       "Findings and eligibility:\n" + blockerLines(s),
       "Rule once. SHIP with no blockers after completed QA (PASS or ISSUES) and review at this head; BLOCKED cannot ship. Rule on the findings and name follow-up tickets for worthwhile work. FIX names the exact eligible blockers above from one reporter thread and is the only fix round this PR gets. REVERT or SPLIT drops or divides the unit.",
       `Post your verdict on the PR, then return this JSON:\n\`\`\`json\n{"thread_id": "<your native thread id>", "sha": "${head}", "verdict": "SHIP|FIX|REVERT|SPLIT", "blockers": ["qa:F1"], "tickets": ["<follow-up links>"], "report_url": "<link to your verdict>"}\n\`\`\``,
@@ -414,7 +414,7 @@ export function prompt(s: State, prUrl: string, role: PromptRole): string {
     const named = s.fix.blockers.map((b) => `- \`${b}\``).join("\n");
     return [
       `You are a new independent recheck thread continuing the blocking reporter's role on ${header}. Original reporter thread: ${s.fix.reporter_thread}.`,
-      "For QA rechecks, read skill://verification. Retain proof for unchanged behavior.",
+      "For QA rechecks, read the `verification` skill. Retain proof for unchanged behavior.",
       `Verify that each blocker below is fixed and that nothing regressed. Do not hunt for new edge cases or reopen the full review. New unrelated findings are not yours to report here.\n${named}`,
       "Record only regressions introduced by the fix, using the same finding fields as the initial report. Use an empty regressions array if none. The final judge rules on them; this does not authorize another fix round.",
       `Return one result per blocker:\n\`\`\`json\n{"thread_id": "<your new native thread id>", "reporter_thread_id": "${s.fix.reporter_thread}", "sha": "${head}", "report_url": "<link>", "results": [{"blocker": "${s.fix.blockers[0]}", "status": "fixed|not-fixed", "evidence": "<link>"}], "regressions": []}\n\`\`\``,
@@ -426,7 +426,7 @@ export function prompt(s: State, prUrl: string, role: PromptRole): string {
   return [
     `You are the final judge for ${header}`,
     `The fix round is spent. Your thread must not be any of: builder ${s.builder_threads.join(", ")}; reviewers ${reviewThreads(s).join(", ")}.`,
-    "Read skill://judge for the ruling and proof contract.",
+    "Read the `judge` skill for the ruling and proof contract.",
     `Recheck report: ${s.recheck?.report_url ?? "missing"}. Recheck results: ${JSON.stringify(s.recheck?.results ?? [])}`,
     `Regressions introduced by the fix: ${JSON.stringify(s.recheck?.regressions ?? [])}`,
     "Rule once on the named fixes and reported regressions. SHIP only if every named blocker is fixed and no demonstrated blocking regression remains; record worthwhile nonblocking findings as follow-up tickets. REVERT or SPLIT otherwise.",

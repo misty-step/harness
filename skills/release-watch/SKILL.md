@@ -35,9 +35,9 @@ diff touching no deployed artifact ends here without queries or waiting.
 2. **Identity:** live version/SHA/tag contains the merge. For installers, compare
    deployed artifacts with source; for composed instructions, read the changed
    installed section. Unchanged deployed bytes are `no-op`, not a new release.
-3. **Smoke:** drive touched stories with `skill://verification`. Installed OMP
-   skills/rules/extensions need a fresh OMP session at the destination exercising
-   the change. Artifact readback without that smoke is `artifact verified`, with
+3. **Smoke:** drive touched stories with the `verification` skill. Installed
+   skills/rules/extensions need a fresh session in the active harness at the destination
+   exercising the change. Artifact readback without that smoke is `artifact verified`, with
    the exact missing proof named.
 4. **Signals:** observe only health/error signals this change can move, for a
    risk-proportionate window. Low-risk changes need no arbitrary wait; installers

@@ -18,4 +18,4 @@ metadata:
 
 4. **Prune.** Use a precise leading word instead of repeating a definition. State the target positively; pair a hard prohibition with the positive action. Cut persona, role-play, no-ops, stale tool facts and copies of facts discoverable from one command or file. Keep tool permissions in tool scope, configuration and credentials; prose is not a security boundary. Prefer native task state to a second ledger. Done when each remaining instruction changes an observed outcome or carries a needed local fact.
 
-5. **Compare.** Apply `skill://principle-skill-diet` through `skill://misty/playbooks/eval.md`; fewer tokens alone is not success. Follow the core's claim rule. Done when the evidence supports the retained guidance, with untested behavior named as unproven.
+5. **Compare.** Apply the `principle-skill-diet` skill through [eval.md](../misty/playbooks/eval.md); fewer tokens alone is not success. Follow the core's claim rule. Done when the evidence supports the retained guidance, with untested behavior named as unproven.

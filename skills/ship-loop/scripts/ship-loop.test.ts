@@ -632,7 +632,7 @@ test("a relocated prompt records through its own executable path", async () => {
     new Response(generated.stdout).text(), new Response(generated.stderr).text(), generated.exited,
   ]);
   expect(generatedCode, error).toBe(0);
-  expect(brief).toContain("skill://verification");
+  expect(brief).toContain("the `verification` skill");
   const command = brief.match(/`(bun .*? record --pr \S+ --kind report --file) <payload.json>`/);
   if (!command) throw new Error("generated brief has no executable report command");
   const payload = join(h.dir, "report.json");

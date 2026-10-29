@@ -19,7 +19,7 @@ Negative cases reach the guard; behavior through the real path beats assertion
 shape. Remove implementation/wording pins, copied inventories, mock echoes,
 tautologies and duplicate layers, not the contract they accidentally protected.
 
-Run affected checks and the actual consumer path through `skill://verification`.
+Run affected checks and the actual consumer path through the `verification` skill.
 Report deleted proof, retained contracts and residual risk in the existing PR,
 not a per-test ledger. A subsystem audit groups by contract only when commissioned.
 For installers reading committed HEAD, distinguish that run from working-source

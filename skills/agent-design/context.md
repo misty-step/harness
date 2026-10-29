@@ -30,12 +30,12 @@ Prune whole no-op instructions rather than shortening them. Whether a sentence c
 
 ## Skill reachability
 
-Skills expose name and description before activation, then body and references on demand. Keep descriptions as trigger-bearing context pointers. Choose model discovery when the agent or another skill must reach the procedure. Reserve user-only invocation for procedures the owner intentionally starts; confirm the installed OMP version's invocation behavior before relying on a metadata flag. Use `skill://<name>` for skill pointers.
+Skills expose name and description before activation, then body and references on demand. Keep descriptions as trigger-bearing context pointers. Choose model discovery when the agent or another skill must reach the procedure. Reserve user-only invocation for procedures the owner intentionally starts; confirm the active harness's invocation behavior before relying on a metadata flag. Name skills in prose and use relative Markdown links to their files.
 
 ## Prompt caching
 
 Put stable instructions, tool definitions and reusable material before volatile task state. Keep tool order and stable prefix bytes unchanged when possible. Moving a timestamp or task state into that prefix can invalidate reuse from the change onward. Treat the serialized provider request, not the document layout alone, as the cache input.
 
-Provider details differ. For example, [Anthropic's prompt-caching documentation](https://platform.claude.com/docs/en/build-with-claude/prompt-caching) describes a prefix ordered as tools, system and messages, with cache controls and provider-specific lifetimes. It does not establish the policy of another provider or prove an OMP session hit a cache.
+Provider details differ. For example, [Anthropic's prompt-caching documentation](https://platform.claude.com/docs/en/build-with-claude/prompt-caching) describes a prefix ordered as tools, system and messages, with cache controls and provider-specific lifetimes. It does not establish the policy of another provider or prove a session hit a cache.
 
-When changing cache behavior, inspect the installed OMP adapter and current provider documentation. Measure request usage, cached-input fields, latency and cost over comparable runs. Record provider, model, versions and cache settings with the result. Claim a cache benefit only from measured usage; a stable-looking prompt is an inference, not a hit receipt.
+When changing cache behavior, inspect the active harness's provider adapter and current provider documentation. Measure request usage, cached-input fields, latency and cost over comparable runs. Record provider, model, versions and cache settings with the result. Claim a cache benefit only from measured usage; a stable-looking prompt is an inference, not a hit receipt.

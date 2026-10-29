@@ -12,7 +12,8 @@ usage() {
     'plugin: maintained tests and isolated OMP install/discovery proof.' \
     '' \
     'Plugin-only options:' \
-    '  --strict       Fail on dangling skill references.' \
+    '  --strict       Fail on broken relative Markdown links, unknown skill names and harness-specific URIs.' \
+    '                 Harness-specific URIs are allowed only in skills/misty/harnesses/.' \
     '  --lint-only    Skip OMP installation explicitly (CI structural proof only).' \
     '  --model VALUE  RPC model selector; defaults to the configured OMP smol role.' \
     '' \

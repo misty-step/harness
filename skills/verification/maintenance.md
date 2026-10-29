@@ -7,8 +7,8 @@ request when several exist; ask only if the repository cannot disambiguate it.
 
 1. **Index.** Reconcile the feature index with its sibling files; remove missing,
    duplicate or dead entries. Keep concise coverage notes outside the checkout.
-2. **Source.** Dispatch independent read-only feature slices with OMP `task` and
-   `scout`. Each returns feature summary, source entry points, confirmed/likely
+2. **Source.** Dispatch independent read-only feature slices through your harness's
+   subagent mechanism. Each returns feature summary, source entry points, confirmed/likely
    drift and one live recipe. Use enough slices to cover the map, combining small
    related features instead of dispatching one agent per sentence.
 3. **Reconcile.** Every feature has a source result. Check cited drift and merge

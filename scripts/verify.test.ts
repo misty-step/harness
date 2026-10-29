@@ -80,6 +80,8 @@ test("help succeeds without proof and identifies plugin-only options", () => {
 	expect(result.out).toContain("scripts/verify [all]\n");
 	expect(result.out).toContain("scripts/verify plugin [--strict] [--lint-only] [--model SELECTOR]");
 	expect(result.out).toContain("Plugin-only options:");
+	expect(result.out).toContain("--strict       Fail on broken relative Markdown links, unknown skill names and harness-specific URIs.");
+	expect(result.out).toContain("allowed only in skills/misty/harnesses/");
 	expect(result.out).toContain("CI structural proof only");
 	expect(result.out).toContain("no model inference request");
 });

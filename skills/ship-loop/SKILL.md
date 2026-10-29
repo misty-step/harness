@@ -17,25 +17,25 @@ including documents and measurements, take the ordinary round.
 
 ## 1. Settle the unit
 
-Carry confirmed intent forward. Unsettled product intent goes to `skill://grill`;
-a builder needs the briefing contract in `skill://misty` and [roles.md](roles.md).
+Carry confirmed intent forward. Unsettled product intent goes to the `grill` skill;
+a builder needs the briefing contract in the `misty` skill and [roles.md](roles.md).
 Split the whole outcome into independently useful PRs, each keeping main working.
 Record `Story: <IDs>` from SPEC.md or USER_STORIES.md, or `Story: none`, and
 `Rigor: <tier> — <changed-path risk>` with diff size. The machine-release exception
 also omits the Story line.
 
 The frontier contains tickets whose blockers are closed or have one open PR.
-Apply misty's delegation boundary to disjoint OMP `task` writers. A child
+Apply misty's delegation boundary to disjoint subagent writers through your harness's mechanism. A child
 with one open blocker starts at that PR's head and targets its branch; QA/review
 use that base and exclude its owned diff. Fix a blocker in the PR that owns it.
 With two open blocker PRs, wait for one to land.
 
 Done when each unit has an Oracle, a base and the [rigor role](roles.md#rigor)
-assigned by `skill://setup-mistystack`.
+assigned by the `setup-mistystack` skill.
 
 ## 2. Run the round
 
-Resolve this skill's directory from `skill://ship-loop`. Run
+Use this skill's installed directory as `<skill-dir>`. Run
 `bun <skill-dir>/scripts/ship-loop.ts --help`; the helper is the only writer path.
 It authenticates the PR author as the sole ledger writer, ignores other authors'
 markers, and stops on unknown authors or unreadable trusted events. A new session,
@@ -43,9 +43,9 @@ retry, rebase or changed SHA resumes the same round, never a fresh allowance.
 
 1. **Build.** Start from the recorded base under misty's delegation boundary. The builder returns
    PR, head SHA, native thread ID and proof. `init --pr <url> ...` records them;
-   existing state resumes. Verification follows `skill://verification`.
+   existing state resumes. Verification follows the `verification` skill.
 2. **Verify.** `prompt --role qa-review` for light; `qa` and `review` otherwise.
-   Dispatch the generated briefs through the tier's OMP agents, then
+   Dispatch the generated briefs through your harness's mechanism for the selected rigor tier, then
    `record --kind report --file <payload.json>`. One QA owner per SHA; an additional
    independent QA pass needs a concrete critical uncertainty.
 3. **Judge.** `prompt --role judge`, then `record --kind verdict`. Only an
@@ -74,7 +74,7 @@ landing; conflict resolution or any changed patch requires renewed judgment unde
 the same round cap.
 
 No deployed artifact changed: the judge records `no deploy`; skip release queries.
-Otherwise dispatch `skill://release-watch` with merge SHA and stories. Report
+Otherwise dispatch the `release-watch` skill with merge SHA and stories. Report
 `merged`, `released`, `artifact verified` or `live behavior proven` only at the
 boundary the watch proved. Reopen the ticket if recovery restores the release.
 A service without a release mechanism stays `merged, not live`; use one
