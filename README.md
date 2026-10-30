@@ -127,6 +127,6 @@ deploy credential is approved.
 - [Guide](docs/guide/): installation and the working method.
 - [Foundation checklist](skills/foundation/checklist.md): the audit rubric;
   [FOUNDATIONS.md](FOUNDATIONS.md) is a pointer, not another standard.
-- [References](docs/references.md): upstream reading, not installed skill packs.
+- [Exemplars](docs/exemplars.md): people, codebases, writing and products whose perspectives we channel, not installed skill packs.
 - [Attribution](ATTRIBUTION.md): sources and license notices.
 - [Decisions](docs/decisions/index.md): boundaries and rejected alternatives.

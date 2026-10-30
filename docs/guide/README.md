@@ -15,4 +15,4 @@ intent, decisions and proof.
 6. [Principles](06-principles.md)
 7. [Make it yours](07-make-it-yours.md)
 
-[Sources we learned from](../references.md) · [Upstream attribution](../../ATTRIBUTION.md)
+[Exemplars we channel](../exemplars.md) · [Upstream attribution](../../ATTRIBUTION.md)

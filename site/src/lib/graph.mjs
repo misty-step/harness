@@ -22,7 +22,7 @@ const rootRoutes = {
   'README.md': '/repository/', 'DOMAIN.md': '/domain/', 'USER_STORIES.md': '/stories/',
   'ATTRIBUTION.md': '/attribution/', 'CHANGELOG.md': '/changelog/',
   'CONTRIBUTING.md': '/contributing/', 'FOUNDATIONS.md': '/foundations/', 'SPEC.md': '/spec/',
-  'rules/core.md': '/library/core/', 'docs/references.md': '/references/',
+  'rules/core.md': '/library/core/', 'docs/exemplars.md': '/exemplars/',
   'docs/decisions/index.md': '/decisions/', 'docs/guide/README.md': '/guide/',
   'docs/guide/01-install-and-setup.md': '/install/',
   'skills/foundation/checklist.md': '/foundation/', 'skills/misty/SKILL.md': '/library/misty/',

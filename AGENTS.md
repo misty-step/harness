@@ -19,7 +19,7 @@ and pi; Grok Bots install the shared tree through their runtime brief.
 | `agents/` | OMP role agents at its fixed native discovery path |
 | `.agents/skills/verify-mistystack/` | This repository's consumer proof |
 | `scripts/`, `.github/`, `.githooks/` | Checks, release protection and secret scanning |
-| `docs/guide/`, `docs/references.md`, `ATTRIBUTION.md` | Human guide, reading and source notices |
+| `docs/guide/`, `docs/exemplars.md`, `ATTRIBUTION.md` | Human guide, exemplars and source notices |
 | `docs/decisions/`, `docs/postmortems/` | Decisions and incident records; historical paths remain historical |
 
 Edit maintained source, not installed plugin copies. Keep one home per fact;

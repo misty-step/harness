@@ -24,6 +24,10 @@ through [AGENTS.md](AGENTS.md), and boundary decisions live in
 - **Skill:** a directory with a `SKILL.md` entry point and optional supporting
   material. References use relative Markdown links or the skill's name; native
   loading mechanics belong to the adapter.
+- **Exemplar:** a person, codebase or piece of writing whose perspective we
+  deliberately channel. The selected lenses, including products that embody
+  them, live in [docs/exemplars.md](docs/exemplars.md); skill provenance remains
+  in `metadata.source`.
 - **Rigor role:** one of `rigor-light`, `rigor-standard` and `rigor-critical`,
   independent of a particular model. Model and reasoning choices belong in
   harness-native configuration.
