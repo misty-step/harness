@@ -14,7 +14,7 @@
     "serve": "wrangler dev --local"
   },
   "dependencies": {
-    "@misty-step/brand": "github:misty-step/brand#2478b59ce43c41aff0e063f9b2e09dd597fa17b4",
+    "@misty-step/brand": "github:misty-step/brand#v0.1.0",
     "astro": "7.4.4",
     "github-slugger": "2.0.0",
     "rehype-raw": "7.0.0",
