@@ -4,9 +4,9 @@ Mistystack gives engineers and coding agents one maintained engineering method:
 a small always-on core, task routing, on-demand procedures and an outside check
 that defines completion. [USER_STORIES.md](USER_STORIES.md) owns the method's
 consumer stories and detailed acceptance criteria; [DOMAIN.md](DOMAIN.md) owns
-its vocabulary. Product intent belongs in the repository's ticket backlog and
-delivery changes in Entire. The [forge procedure](skills/misty/entire.md) owns
-publication and the ticket cutover, not a second website backlog.
+its vocabulary. Product intent and delivery changes belong on the repository's
+Entire trails, not a second website backlog. The
+[forge procedure](skills/misty/entire.md) owns how agents read and publish that work.
 
 ## Method
 

@@ -29,8 +29,10 @@ and independent judgment under the existing fix-round cap.
 
 ## Land a stack bottom-first
 
-1. Record every change's current head once in the bottom change's trail body
-   (`entire trail update --body`) before it lands. These first heads are the
+1. Record every change's current head once in a Stack section of the bottom
+   change's trail body through the
+   [body-update procedure](../misty/entire.md#open-and-describe-a-change), retaining
+   its ticket intent, acceptance and dependencies. These first heads are the
    ancestry cut points for the whole stack.
 2. After each merge, fetch, detach at the next change's recorded head, and move only
    its delta onto the new default branch:

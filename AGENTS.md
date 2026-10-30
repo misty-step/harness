@@ -27,8 +27,8 @@ migrate callers before deleting an old path. Fleet runtime, credentials, hosts
 and launchers belong to private `misty-step/workstation`. Adapters use
 native harness mechanisms, not a custom installer or duplicated method content.
 
-Use the [Entire forge procedure](skills/misty/entire.md) for changes, findings,
-merges and the ticket cutover.
+Use the [Entire forge procedure](skills/misty/entire.md) for tickets, backlog,
+changes, findings and merges. Intent and delivery stay on one trail.
 
 ## Verify and release
 

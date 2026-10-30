@@ -21,6 +21,13 @@ name the recovery owner and recommended path, and keep the incident open. A
 reviewer wait alone is not escalation. Repeat deploy, identity, smoke and relevant
 signals against the recovery release before reporting `restored`.
 
+If recovery removes the delivered behavior, reopen every affected ticket trail:
+`entire trail update <ticket-trail-number> --project <forge>/<project>
+--status open`. Read back `status=open` before reporting recovery complete.
+Preserve intent, acceptance criteria and dependencies when adding the recovery
+record through the [body-update procedure](../misty/entire.md#open-and-describe-a-change).
+Do not leave recovered-away work closed in the backlog.
+
 ## 2. Attribute
 
 Compare the trigger with the previous healthy release in isolation under equal

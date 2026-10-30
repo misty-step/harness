@@ -29,7 +29,7 @@ diff touching no deployed artifact ends here without queries or waiting.
   or update against the authorized destination, recording command, source head,
   destination and exit status. Stop and report a failed step.
 - **Missing mechanism/signal:** report `unwatched`. Reuse one open
-  `release-mechanism` ticket, or create it in the current backlog; no implied live claim.
+  `release-mechanism` ticket, or create an intent-only trail; no implied live claim.
 
 ## 2. Observe
 
@@ -46,9 +46,9 @@ diff touching no deployed artifact ends here without queries or waiting.
    finish at smoke. Remove the disposable source worktree after identity readback.
 
 A failed deploy, smoke, newly failing health check or new error is a trigger.
-[recovery.md](recovery.md) owns restore, attribution and incident closure, including
-failures discovered after the watch window. A material incident's postmortem
-names one change that removes the error class, not another reminder.
+[recovery.md](recovery.md) owns restore, ticket reopening, attribution and incident
+closure, including failures discovered after the watch window. A material
+incident's postmortem names one change that removes the error class, not another reminder.
 
 ## Report
 

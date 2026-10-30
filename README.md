@@ -33,8 +33,8 @@ local Tern+OMP setup and the [Grok Bot note](skills/misty/harnesses/grok-bot.md)
 covers Bots' shared computer and orchestration across Boat workers, Cursor cloud
 agents and native routines ([ADR 0017](docs/decisions/0017-tern-omp-and-boat-workers.md)).
 
-Use the [Entire forge procedure](skills/misty/entire.md) for changes, findings,
-merges, the ticket cutover and backing-forge exceptions.
+Use the [Entire forge procedure](skills/misty/entire.md) for tickets, backlog,
+changes, findings and merges. It also owns the backing-forge exceptions.
 
 ## Layout
 

@@ -14,8 +14,8 @@ Phaedrus, 2026-10-30:
 He chose to migrate ship-loop's ledger now rather than leave it on GitHub.
 The independent ruling on [trail 140](https://entire.com/gh/misty-step/-/trails/140/changes/mistystack/32)
 split delivery into changes/review/merge first (critical rigor), then tickets and
-backlog (standard rigor), stacked on that cutover. Unit A keeps existing tickets
-readable and closable until Unit B replaces their store.
+backlog (standard rigor), stacked on that cutover. Unit B replaces the remaining
+GitHub ticket store with intent-only trails.
 
 Misty Step repositories are mirrored into Entire (`gh/misty-step`,
 `gh/moomooskycow`) or hosted there (`et/mistystep`). The previous method opened,
@@ -50,6 +50,13 @@ Measured on trail 140 and change `workstation/6` with Entire CLI 0.12.2:
 - **Entire owns changes, findings and merge.** The
   [forge procedure](../../skills/misty/entire.md) is the one home for commands,
   backing-forge exceptions, ticket scope and cutover rules. DOMAIN.md owns terms.
+- **Tickets are trails.** Intent-only trails form the backlog; delivery changes
+  link to that same trail. The forge procedure owns repository scope and the
+  authorized issue migration, not a second copy of ticket state.
+- **Delivery closes intent, recovery reopens it.** Ship-loop closes a ticket
+  only after its last change merges and acceptance is delivered. Release-watch
+  reopens intent removed by recovery. Report/body updates retain acceptance
+  and dependency lines.
 - **ship-loop's ledger lives in findings.** Each event is a low-severity finding
   carrying a marker and JSON, keyed by sequence and content, resolved at once.
   Full-history replay and content hashes provide durable retry identity after

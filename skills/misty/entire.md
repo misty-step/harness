@@ -1,7 +1,7 @@
 # Entire forge procedure
 
-Use Entire for changes, review findings and merges. DOMAIN.md owns the terms;
-this file owns the forge commands and exceptions.
+Use Entire for tickets, backlog, changes, review findings and merges. DOMAIN.md
+owns the terms; this file owns the forge commands, scope and exceptions.
 
 ## Prerequisites and selectors
 
@@ -18,27 +18,58 @@ URLs to selectors using `agent-help`; do not pass URLs to the CLI. Add
 `--project <forge>/<project>` outside the origin's namespace. Link the trail or
 current change URL printed by `entire trail show`, not a constructed URL.
 
-## Tickets during the cutover
+## Tickets and backlog
 
-Until the stacked ticket-migration change lands, GitHub issues remain the ticket
-backlog. Read all open issues with `gh issue list -R <owner>/<repo> --state open
---limit 1000`; paginate with `gh api` if the limit is reached. Record the issue URL
-in the change's trail body and the helper's `--ticket`. After its last delivery
-change merges, close that issue with `gh issue close <number> -R <owner>/<repo>
---comment "Delivered by <change URL>"`. A backing PR body belongs to Entire, so
-do not rely on `Closes #N` there. The ticket-migration change replaces this
-transition with intent-only trails and migrates the open backlog.
+Create a ticket with `entire trail create --no-branch --title "<intent>"
+--type <bug|feature|task> --priority <urgent|high|medium|low|none>
+--body "<intent and acceptance>"`. The current repository scopes the ticket.
+For work outside any repository, use `--repo gh/moomooskycow/daybook` and link
+the trail from the Daybook note that holds its context. That note is not a second
+backlog; keep private context in its approved destination.
+
+Read a repository's backlog with:
+
+```sh
+entire trail list --project <forge>/<project> --repo <forge>/<project>/<repo> --status open --limit 100 --json
+```
+
+Follow every `nextPageToken` with `--page-token <token>`, preserving project,
+repository and status filters until the token is absent. Omit `--repo` only for
+an intentional whole-project read. For each candidate, read `entire trail show
+<trail-number> --project <forge>/<project> --json` for its intent, acceptance,
+dependencies and `changes[]`. Intent-only trails are unstarted tickets; trails
+with open changes are delivery in progress. Old mirrored delivery trails with
+only merged changes and no outstanding intent are history, not new tickets.
+Do not bulk-close unrelated historical trails during a backlog read.
+
+Entire has no blocking relation. Record each direct dependency as
+`Blocked by: <trail URL>` in the trail body and read those trails before dispatch.
+Use `trail update` for priority and intent. The
+[ship-loop merge step](../ship-loop/SKILL.md#3-merge-and-watch) owns delivery
+closure; release recovery reopens the ticket.
 
 ## Open and describe a change
 
-Run `entire trail create --title "<Conventional Commit title>" --type <type>
+For an existing ticket, publish the feature branch and run
+`entire trail link <trail-number> --branch <branch>`. Ticket and change share
+one trail; do not use `Closes #N` to connect them. Without a ticket, run
+`entire trail create --title "<Conventional Commit title>" --type <type>
 --body "<change body>"` from the feature branch; this publishes the branch.
 If branch linking fails after creation, retry `trail link` on the created trail
 rather than creating a duplicate.
 
 Use [publications.md](../writing/publications.md) for titles and trail bodies,
-including `Story:` and `Rigor:`. Update the trail body rather than keeping a
-second authored change description on the backing forge.
+including `Story:` and `Rigor:`. Keep one authored description on the trail,
+not another on the backing forge.
+
+**Body updates replace the whole description.** Before `trail update --body`,
+read the full current body with `trail show --json`. Change only the intended
+section, retaining the ticket's intent, acceptance criteria, every `Blocked by:`
+line and migration provenance unchanged. Add evidence or stack-cut points in
+their named sections; do not replace the ticket with a report template.
+Coordinate one body writer; if the body changed since the read, reread and
+reconcile instead of writing the stale copy. Read back the whole result before
+reporting success.
 
 ## Review and status
 
@@ -101,8 +132,8 @@ approvals refuse the merge. Never bypass a refused gate.
 This is the one list of `gh` exceptions: GitHub Actions runs/logs; repository
 settings and the pre-merge settings read above; backing PR discovery, title and
 base edits; Landmark releases and generator-only release PRs; PR media
-attachments until Entire has an attachment command; and the bounded ticket and
-legacy-ledger cutovers in this file. Never use `gh pr merge` for a new Entire
+attachments until Entire has an attachment command; and the bounded issue
+migration and legacy-ledger cutovers in this file. Never use `gh pr merge` for a new Entire
 change. [Evidence](../verification/evidence.md) owns retention and delivery;
 keep its links on the trail. GitHub Actions workflows stay on GitHub. Leave
 historical ADRs, postmortems and provenance citations unchanged.
@@ -140,3 +171,54 @@ the same title and squash-only settings checks above. Stop if those settings do
 not hold; the authorization for `misty-step` settings does not cover `r90group`.
 Record delivery against the original ticket. This exception expires separately
 for each of the six rounds when it closes; it cannot start another v1 round.
+
+## Migrate the open GitHub issues
+
+Phaedrus authorized one intent-only trail per open issue in every non-archived
+`misty-step` repository, plus `moomooskycow/daybook` when it has open issues.
+Use [migrate-issues.ts](scripts/migrate-issues.ts); run only one migration writer.
+It snapshots the complete initial issue set, preserves each title and body,
+maps explicit type/priority labels and records the issue URL as the first
+provenance line. The snapshot and issue-to-trail mapping stay in a private
+run directory under `~/.cache/tmp`, not Git.
+
+From the checkout root, use the same snapshot and mapping for every step:
+
+```sh
+RUN="$HOME/.cache/tmp/entire-issue-migration"
+mkdir -p "$RUN"
+chmod 700 "$RUN"
+bun skills/misty/scripts/migrate-issues.ts --snapshot "$RUN/snapshot.json" --mapping "$RUN/mapping.json" --all --dry-run
+bun skills/misty/scripts/migrate-issues.ts --snapshot "$RUN/snapshot.json" --mapping "$RUN/mapping.json" --repo misty-step/landmark
+bun skills/misty/scripts/migrate-issues.ts --snapshot "$RUN/snapshot.json" --mapping "$RUN/mapping.json" --repo misty-step/landmark --verify
+bun skills/misty/scripts/migrate-issues.ts --snapshot "$RUN/snapshot.json" --mapping "$RUN/mapping.json" --all --max-failures 10
+bun skills/misty/scripts/migrate-issues.ts --snapshot "$RUN/snapshot.json" --mapping "$RUN/mapping.json" --all --verify
+```
+
+Inspect the dry-run plan for every issue before the pilot. Require the pilot's
+verification to show its issue count equals `migrated` and `trails_found`, with
+no open issues, mismatches or duplicates, before running the rest. A failed
+repository remains visible in the plan; never silently narrow the snapshot.
+
+Each create uses a deterministic `--idempotency-key`, and each run searches all
+trail pages and lifecycle states for that issue's exact provenance line.
+Cross-links in copied issue text are mentions, not ownership. Duplicate claims,
+changed intent or a wrong repository scope fail closed. The script saves a
+created trail's mapping immediately, verifies its intent-only shape and full
+intent on `trail show`, then closes the GitHub issue as `not planned` with a
+comment linking the trail. That closure means moved, not delivered.
+
+Rerun the same command and mapping after interruption; never discard the
+mapping or recreate a trail by hand. `--limit` and `--max-failures` bound a run.
+An idempotency-key refusal or an unonboarded repository is a reported failure,
+not permission to omit the key, widen credentials or use another repository.
+Repository onboarding belongs to the owner. Preserve its failed issue open;
+after the prerequisite is fixed, resume with `--repo <owner>/<repo>`.
+
+The final read-only `--verify` compares the original snapshot to live issues,
+mapped trails and closure comments, detects duplicate claims and lists newly
+opened issues outside the snapshot. Complete migration requires every original
+issue mapped to exactly one intent-only trail and closed with its link, with
+zero failures, open issues, mismatches or duplicates. New open issues must be
+accounted for before claiming the live backlog fully migrated. Retain the
+counts and mapping outside Git and link the result from the migration trail.
