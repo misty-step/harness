@@ -11,14 +11,14 @@ metadata:
 
 # Explain the number
 
-Before running, write the claim you would ship and the result that would change a decision. Stop when run-to-run spread exceeds the effect.
+Before running, write the claim you would ship and the result that would change a decision. Measure run-to-run spread before trusting an effect.
 
-Ask why not double: name the limiter (a core, lock, disk, network or the load generator) from a profile or counters taken during a run, not from reading code.
+For performance numbers, ask why not double: name the limiter (a core, lock, disk, network or the load generator) from a profile or counters taken during a run, not from reading code.
 
 Rule out what else the number could be: errors or fast rejections, cached or skipped work, code that never ran, an untuned side on defaults, noise, or a piece too small to matter end to end. Check arithmetic against hardware limits; removing a piece that takes 10% of a run makes it at most about 11% faster.
 
-For a comparison, run production-tuned sides at least 5 times each, alternating, and report median and range. A gap inside the spread is no measurable difference. Before a repeated perf loop, freeze a harness that prints error and work counts.
+For a comparison, run production-tuned sides at least 5 times each, alternating, and report median, range and an uncertainty interval for the difference. Call it no measurable difference only when that interval includes zero. Before a repeated perf loop, freeze a harness that prints error and work counts.
 
-Report the verdict first, then the number with unit, run count, range and limiter. Missing limiter, an untuned side or unchecked errors makes it inconclusive.
+Report the verdict first, then the number with unit, run count, range and limiter. A performance number missing its limiter, an untuned side or unchecked errors makes it inconclusive.
 
-Done when the number carries its run count, spread and named limiter.
+Done when the number carries its run count, spread and, for performance, named limiter.
