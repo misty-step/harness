@@ -85,6 +85,43 @@ landed commit. Keep [CHANGELOG.md](CHANGELOG.md) generated. The shared
 [release convention](docs/release-convention.md) stays at its existing path for
 external callers.
 
+## Public site
+
+The static pitch and handbook live in `site/`, with isolated tooling. The root
+package remains the native pi package. With Node 22.23.4 or later:
+
+```sh
+npm --prefix site ci
+npm --prefix site run build
+npm --prefix site run check
+npm --prefix site run serve
+```
+
+`build` reads the canonical repository Markdown in place, validates the content
+graph and source-relative links, emits static routes and raw projections, then
+indexes the artifact with Pagefind. `check` crawls those emitted routes,
+fragments, assets and search indexes. `serve` uses local Wrangler static-asset
+routing, including trailing slashes, redirects and a true 404. It does not deploy.
+
+Presentation comes from the Misty Step identity package, `@misty-step/brand`,
+pinned in `site/package.json`: its stylesheet, `<html>` attributes, runtime
+(entrances, the hero's Ground fog field, theme and pause), mark, icons and
+social card. `site/src/styles/site.css` adds only the handbook's own parts on
+the brand tokens. The home page's words live in `site/src/copy/home.mjs`;
+`site/src/lib/home.mjs` reads the core lines, install commands, counts and
+trial numbers from this repository and fails the build when the copy and the
+tree disagree. None of these boundaries requires moving or duplicating method
+content; route and link normalization lives in `site/src/lib/graph.mjs`.
+Historical record links to removed sources use a small, explicit archive map,
+labelled with their immutable revision.
+
+The [publishing decision](docs/decisions/0018-static-publishing-stack.md) records the
+stack exception and production boundaries. The
+[kernel trial](docs/evals/2026-10-28-kernel-trial.md) owns the reported results,
+task table and limitations. A maintainer deploys master to
+<https://stack.mistystep.io> with `npx wrangler deploy` from `site/` until a CI
+deploy credential is approved.
+
 ## Read
 
 - [Guide](docs/guide/): installation and the working method.

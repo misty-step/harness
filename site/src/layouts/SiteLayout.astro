@@ -1,0 +1,70 @@
+---
+import '@misty-step/brand/brand.css';
+import '../styles/site.css';
+import { HTML_ATTRS } from '@misty-step/brand/attrs';
+import { lockup } from '@misty-step/brand/mark';
+import faviconSvg from '@misty-step/brand/identity/icons/favicon.svg?url';
+import favicon32 from '@misty-step/brand/identity/icons/favicon-32.png?url';
+import appleTouchIcon from '@misty-step/brand/identity/icons/apple-touch-icon.png?url';
+import ogCard from '@misty-step/brand/identity/og/stack.png?url';
+import { home } from '../copy/home.mjs';
+import { canonical, release, repositoryUrl } from '../lib/release.mjs';
+const links = [{ href: '/guide/', label: 'Guide' }, { href: '/library/', label: 'Library' }, { href: '/evals/', label: 'Evals' }, { href: '/search/', label: 'Search' }];
+const { title, description = 'A small always-on core, task-shaped playbooks and outside proof for your coding agent.', section = 'About', path = Astro.url.pathname, noindex = false, motion = false, nav = links, navCta = { href: '/install/', label: 'Install' } } = Astro.props;
+const more = [{ href: '/install/', label: 'Install' }, { href: '/foundation/', label: 'Foundation' }, { href: '/decisions/', label: 'Decisions' }, { href: repositoryUrl, label: 'GitHub' }];
+const footer = [{ href: 'https://mistystep.io', label: 'Misty Step' }, { href: repositoryUrl, label: 'Source' }, ...links.slice(1), { href: '/foundation/', label: 'Foundation' }, { href: '/decisions/', label: 'Decisions' }, { href: '/stories/', label: 'Stories' }, { href: '/domain/', label: 'Domain' }, { href: '/references/', label: 'References' }, { href: '/attribution/', label: 'Attribution' }, { href: '/changelog/', label: 'Changelog' }];
+const selected = (href) => (path.startsWith(href) ? 'page' : undefined);
+const fullTitle = title === 'mistystack' ? title : `${title} | mistystack`;
+const url = new URL(path, canonical);
+---
+<!doctype html>
+<html lang="en" {...HTML_ATTRS}>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light dark" />
+    <script is:inline src="/theme-init.js"></script>
+    <title>{fullTitle}</title>
+    <meta name="description" content={description} />
+    <meta data-pagefind-filter="section[content]" content={section} />
+    <meta data-pagefind-meta="title[content]" content={title} />
+    <link rel="canonical" href={url} />
+    {noindex && <meta name="robots" content="noindex" />}
+    <link rel="icon" href={faviconSvg} type="image/svg+xml" />
+    <link rel="icon" href={favicon32} type="image/png" sizes="32x32" />
+    <link rel="apple-touch-icon" href={appleTouchIcon} />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="mistystack" />
+    <meta property="og:title" content={fullTitle} />
+    <meta property="og:description" content={description} />
+    <meta property="og:url" content={url} />
+    <meta property="og:image" content={new URL(ogCard, canonical)} />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <slot name="head" />
+  </head>
+  <body id="top">
+    <a class="skip" href="#main">Skip to content</a>
+    <header class="nav" data-pagefind-ignore>
+      <a class="brand" href="/" aria-label="mistystack home"><Fragment set:html={lockup('MISTYSTACK')} /></a>
+      <nav class="nav-links" aria-label="Primary">{nav.map((link) => <a class="link" href={link.href} aria-current={link.href.startsWith('/') ? selected(link.href) : undefined}>{link.label}</a>)}</nav>
+      <div class="nav-actions">
+        <button class="theme-toggle" type="button" aria-label="Switch colour theme"><svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8" fill="none" stroke="currentColor" stroke-width="1.6"></circle><path d="M12 4a8 8 0 0 1 0 16Z" fill="currentColor"></path></svg></button>
+        <a class="btn btn-primary btn-sm" href={navCta.href}>{navCta.label}</a>
+        <details class="nav-menu">
+          <summary>Menu</summary>
+          <nav aria-label="Menu"><ul>{[...links, ...more].map((link) => <li><a href={link.href} aria-current={link.href.startsWith('/') ? selected(link.href) : undefined}>{link.label}</a></li>)}</ul></nav>
+        </details>
+      </div>
+    </header>
+    <main id="main" tabindex="-1" data-pagefind-body={!noindex || undefined} data-pagefind-ignore={noindex ? 'all' : undefined}><slot /></main>
+    <footer class="foot" data-pagefind-ignore>
+      <p class="foot-line">{home.footer.line}</p>
+      <nav class="foot-links" aria-label="Footer">{footer.map((link) => <a class="link" href={link.href}>{link.label}</a>)}</nav>
+      <p class="foot-release">Site source <a class="link" href={`${repositoryUrl}/tree/${release.commit}`}><code>{release.commit.slice(0, 7)}</code></a> · Method package {release.version} · <a class="link" href="/release.json">Release record</a></p>
+    </footer>
+    {motion && <button class="motion-toggle" type="button" aria-pressed="false">Pause motion</button>}
+    <script>import '../scripts/site.mjs';</script>
+  </body>
+</html>

@@ -7,11 +7,12 @@ of this skill. [ATTRIBUTION.md](../../ATTRIBUTION.md) owns third-party notices.
 
 ## Standards
 
-- [Foundations article 10](https://foundations.mistystep.io/#10): finished-face
+- [Foundation article 10](../foundation/checklist.md#article-10): finished-face
   rules in `SKILL.md`; UX/DX/AX outcomes and regression checks in `review.md`.
-- [Way of working — Design](https://foundations.mistystep.io/way-of-working.md):
-  neutral professional defaults, expert-lens debate and the subtraction-first
-  method in `SKILL.md`. These are Misty Step's rules, not upstream endorsements.
+- [Design defaults and method](SKILL.md): current home of the former Foundation
+  Way of working design procedure, including neutral professional defaults,
+  expert-lens debate and subtraction first. These are Misty Step's rules, not
+  upstream endorsements.
 
 ## Emil Kowalski — MIT
 

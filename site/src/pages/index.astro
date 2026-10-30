@@ -1,0 +1,71 @@
+---
+import SiteLayout from '../layouts/SiteLayout.astro';
+import { getGraph } from '../lib/content.mjs';
+import { getHome } from '../lib/home.mjs';
+const page = getHome(await getGraph());
+const { hero, sections: { core, method, brief, evidence, install, read } } = page;
+---
+<SiteLayout title={page.title} description={hero.sub} nav={page.nav} navCta={page.navCta} motion>
+  <link slot="head" rel="stylesheet" href="/home.css" />
+  <section class="hero" data-hero-root>
+    <div class="hero-motion-host" aria-hidden="true"></div>
+    <div class="hz-copy">
+      <h1 class="hero-title" data-enter>{hero.headline}</h1>
+      <div class="hz-row">
+        <p class="hero-sub" data-enter>{hero.sub}</p>
+        <div class="actions" data-enter><a class="btn btn-primary" href={hero.primary.href}>{hero.primary.label}</a><a class="btn btn-quiet" href={hero.secondary.href}>{hero.secondary.label}</a></div>
+      </div>
+    </div>
+    <p class="hero-proof" data-enter>{hero.proof}</p>
+  </section>
+
+  <section class="s s-code" id="core">
+    <div class="s-head" data-enter><h2 class="s-title">{core.title}</h2></div>
+    <figure class="codefig">
+      <pre class="code"><code>{core.lines.join('\n')}</code></pre>
+      <figcaption>{core.caption} <a class="link" href={core.source.href}>{core.source.label}</a> at <a class="link" href={core.commitUrl}><code>{core.commit}</code></a>. {core.trialNote}</figcaption>
+    </figure>
+  </section>
+
+  <section class="s s-diagram" id="method">
+    <div class="s-head" data-enter><h2 class="s-title">{method.title}</h2><p class="s-intro">{method.intro}</p></div>
+    <ol class="diagram">{method.nodes.map((node) => (
+      <li class="node" data-node={node.id} data-enter>{node.count !== undefined && <span class="node-count">{node.count}</span>}<h3 class="node-label"><a class="link" href={node.href}><span class="link-text">{node.label}</span></a></h3><p class="node-body">{node.body}</p></li>
+    ))}</ol>
+  </section>
+
+  <section class="s s-points" id="brief">
+    <div class="s-head" data-enter><h2 class="s-title">{brief.title}</h2><p class="s-intro">{brief.intro}</p></div>
+    <ul class="s-items">{brief.items.map((item) => <li class="item" data-enter><h3 class="item-title">{item.title}</h3><p class="item-body">{item.body}</p></li>)}</ul>
+  </section>
+
+  <section class="s s-evidence" id="evidence">
+    <div class="s-head" data-enter><h2 class="s-title">{evidence.title}</h2><p class="s-intro">{evidence.intro}</p></div>
+    <div class="bars">{evidence.rows.map((row) => (
+      <div class="bar" data-arm={row.id} data-highlight={String(row.highlight)}><span class="bar-label">{row.label}</span><span class="bar-track"><span class="bar-fill"></span></span><span class="bar-value">{row.passed}/{row.total}</span></div>
+    ))}</div>
+    <ul class="limits">{evidence.limits.map((limit) => <li>{limit}</li>)}</ul>
+    <a class="link" href={evidence.href}>{evidence.link}</a>
+  </section>
+
+  <section class="s s-install" id="install">
+    <div class="s-head" data-enter><h2 class="s-title">{install.title}</h2><p class="s-intro">{install.intro.split(install.issue.label)[0]}<a class="link" href={install.issue.href}>{install.issue.label}</a>{install.intro.split(install.issue.label)[1]}</p></div>
+    <div class="tabs" role="tablist" aria-label="Choose your harness">{install.tabs.map((tab, index) => (
+      <button type="button" role="tab" class="tab" id={`install-tab-${tab.id}`} aria-controls={`install-panel-${tab.id}`} aria-selected={String(index === 0)} tabindex={index === 0 ? 0 : -1}>{tab.name}</button>
+    ))}</div>
+    {install.tabs.map((tab, index) => (
+      <div class="tabpanel" role="tabpanel" id={`install-panel-${tab.id}`} aria-labelledby={`install-tab-${tab.id}`} hidden={index !== 0}>
+        {tab.lines.length > 0 && <><pre class="code" tabindex="0" aria-label={`${tab.name} install commands`}><code>{tab.lines.join('\n')}</code></pre><button class="copy" type="button" data-copied={install.copied} data-failed={install.copyFailed}>{install.copy}</button></>}
+        <p class="note">{tab.note} {install.source} <a class="link" href={tab.source.href}>{tab.source.label}</a>.</p>
+      </div>
+    ))}
+    <noscript><p class="note">Each harness has its own page: {install.tabs.map((tab, index) => <>{index > 0 && ', '}<a class="link" href={tab.source.href}>{tab.name}</a></>)}.</p></noscript>
+    <span class="visually-hidden" role="status" data-copy-status></span>
+  </section>
+
+  <section class="s s-cta" id="read">
+    <h2 class="s-title">{read.title}</h2>
+    <p class="s-intro">{read.body}</p>
+    <div class="actions"><a class="btn btn-primary" href={read.primary.href}>{read.primary.label}</a><a class="btn btn-quiet" href={read.secondary.href}>{read.secondary.label}</a></div>
+  </section>
+</SiteLayout>

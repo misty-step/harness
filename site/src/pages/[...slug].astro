@@ -1,0 +1,10 @@
+---
+import DocLayout from '../layouts/DocLayout.astro';
+import { getGraph } from '../lib/content.mjs';
+export async function getStaticPaths() {
+  const graph = await getGraph();
+  return graph.documents.map((document) => ({ params: { slug: document.url.slice(1, -1) }, props: { document, graph } }));
+}
+const { document, graph } = Astro.props;
+---
+<DocLayout {document} {graph} />

@@ -1,6 +1,6 @@
 # 7. Make it yours
 
-Keep model, reasoning and runtime choices in harness-native configuration rather than changing shared method text. The shipped OMP adapter's configuration and setup procedure live in the [OMP reference](../../skills/misty/harnesses/omp.md); other harness integrations remain tracked by [#591](https://github.com/misty-step/mistystack/issues/591).
+Keep model, reasoning and runtime choices in harness-native configuration rather than changing shared method text. Follow the destination's native reference from [Install and setup](01-install-and-setup.md) for its configuration, refresh and loading proof; another harness's commands or pass do not establish that integration.
 
 Keep project terms in `DOMAIN.md`, behavior in `SPEC.md`, consequential decisions beside the code, and local agent constraints in `AGENTS.md`. Link to this method instead of copying it. Use [agent-design](../../skills/agent-design/SKILL.md) when a project needs a new skill or instruction.
 
