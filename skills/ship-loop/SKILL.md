@@ -10,8 +10,8 @@ metadata:
 
 # Ship loop
 
-Entire owns tickets, changes and reports: a ticket is a trail, and its delivery is a
-change on that trail ([entire.md](../misty/entire.md)). The change's findings own its review round.
+Entire owns changes and reports; the ticket backlog follows the cutover in
+[entire.md](../misty/entire.md). The change's findings own its review round.
 An independent judge's SHIP and passing affected checks are the merge gate;
 generator-only machine release PRs use passing checks alone. Authored changes,
 including documents and measurements, take the ordinary round.
@@ -38,9 +38,13 @@ assigned by the `setup-mistystack` skill.
 
 Use this skill's installed directory as `<skill-dir>`. Run
 `bun <skill-dir>/scripts/ship-loop.ts --help`; the helper is the only writer path.
-It trusts only findings written by the trail's author account, ignores other authors'
-markers, and stops on unknown authors or unreadable trusted events. A new session,
-retry, rebase or changed SHA resumes the same round, never a fresh allowance.
+It authenticates the ledger writer under
+[ADR 0019's trust boundary](../../docs/decisions/0019-entire-is-the-forge.md#trust-and-limits),
+ignores other authors' markers, and stops on unknown authors or unreadable
+trusted events. A new session, retry, rebase or changed SHA resumes the same
+round, never a fresh allowance. For an existing v1 PR-comment ledger, follow the
+[bounded completion path](../misty/entire.md#finish-the-six-open-v1-review-rounds)
+instead of starting another round.
 
 1. **Build.** Start from the recorded base under misty's delegation boundary. The builder returns
    the change URL `entire trail show` prints, head SHA, native thread ID and proof.
@@ -71,8 +75,11 @@ or meets the generator-only exception. Missing proof cannot ship.
 
 Confirm fast affected checks at the judged SHA. Resolve the findings the fix closed and
 dismiss the rest with the judge's ruling or follow-up trail link. Then run
-`entire trail merge --dry-run` and `entire trail merge`; never bypass a gate. A
-GitHub-backed change squashes under its backing PR's Conventional Commit title.
+the [forge procedure's merge preflight](../misty/entire.md#merge-and-forge-exceptions):
+discover the backing PR by branch, set its title and require squash-only settings
+with `squash_merge_commit_title=PR_TITLE`. Stop if merge commits are allowed.
+Then run `entire trail merge --dry-run` and `entire trail merge`; never bypass a
+gate. Close the delivered ticket through that procedure after its last change.
 [merging.md](merging.md) owns patch-id carries and bottom-first stack
 landing; conflict resolution or any changed patch requires renewed judgment under
 the same round cap.

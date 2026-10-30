@@ -5,7 +5,8 @@
 // append-only finding carrying one event; `replay` reduces them to state and
 // `apply` refuses any event the workflow does not allow. The file keeps no
 // round count, lock or local cache of its own, so a new thread, a succession
-// or a retry reads the same state.
+// or a retry reads the same state. A round recorded in the backing pull
+// request's comments before the cutover stays there: the helper stops on it.
 
 import { createHash } from "node:crypto";
 
@@ -16,6 +17,8 @@ const BLOCKER_CLASSES = ["broken_journey", "wrong_data", "security_privacy", "da
 const OUTCOMES = ["PASS", "ISSUES", "BLOCKED"];
 const VERDICTS = ["SHIP", "FIX", "REVERT", "SPLIT"];
 const FIX_ROUND_LIMIT = 1;
+// The last helper that kept the ledger in pull request comments (mistystack v0.3.14). A round begun there finishes there.
+const FROZEN_V1 = "924af6c000d84866af2541a015608f9938b0f963";
 
 export type Phase = "verify" | "judge" | "fix" | "recheck" | "final-judge" | "shipped" | "revert-split";
 export type Finding = {
@@ -52,12 +55,20 @@ export type State = {
   verdict: null | { verdict: string; sha: string; thread_id: string };
 };
 export type Event = Record<string, any> & { v: number; kind: string; seq: number; key: string };
-export type Comment = { id: string; body: string; author: string | null };
-export type Ledger = { state: State | null; last_seq: number; accepted: { id: string; event: Event }[]; rejected: string[] };
+export type Comment = { id: string; body: string; author: string | null; status: string };
+export type Ledger = { state: State | null; last_seq: number; accepted: { id: string; event: Event; open: boolean }[]; rejected: string[] };
 
-// Refused: the workflow forbids this write. LedgerError: the ledger cannot be trusted.
+// Refused: the workflow forbids this write. LedgerError: the ledger cannot be trusted; `next` says what to do instead.
+// Unsettled: the event is recorded, but its finding is still open; rerunning the same command resolves it.
 export class Refused extends Error {}
-export class LedgerError extends Error {}
+export class LedgerError extends Error {
+  next: string;
+  constructor(message: string, next = "inspect the change's findings with `entire trail finding list --status any --include-dismissed --freshness any`") {
+    super(message);
+    this.next = next;
+  }
+}
+export class Unsettled extends Error {}
 
 function need(ok: unknown, message: string): asserts ok {
   if (!ok) throw new Refused(message);
@@ -274,12 +285,12 @@ export function replay(comments: Comment[], writer: string): Ledger {
   const parsed = comments
     .filter((c) => c.author === writer && c.body.startsWith(MARKER))
     .sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
-    .map((c) => ({ id: c.id, event: parseEvent(c) }));
+    .map((c) => ({ id: c.id, open: c.status === "open", event: parseEvent(c) }));
   let state: State | null = null;
   let next = 1;
   const accepted: Ledger["accepted"] = [];
   const rejected: string[] = [];
-  for (const { id, event } of parsed) {
+  for (const { id, open, event } of parsed) {
     if (event.seq < next) { rejected.push(id); continue; }
     if (event.seq > next) throw new LedgerError(`ledger gap: seq ${next} is missing before finding ${id}`);
     try {
@@ -288,7 +299,7 @@ export function replay(comments: Comment[], writer: string): Ledger {
       if (err instanceof Refused) throw new LedgerError(`ledger seq ${event.seq} (finding ${id}) is invalid: ${err.message}`);
       throw err;
     }
-    accepted.push({ id, event });
+    accepted.push({ id, event, open });
     next++;
   }
   return { state, last_seq: next - 1, accepted, rejected };
@@ -372,6 +383,7 @@ export function prompt(s: State, changeUrl: string, role: PromptRole): string {
 
   if (role in QA_ROLE) {
     const who = QA_ROLE[role as keyof typeof QA_ROLE];
+    const { selector, project } = target(changeUrl);
     const scope = role === "review"
       ? "Change nothing. Trace callers, config, migrations, deploy and rollback outside the diff for consequential effects."
       : "Read the `verification` skill and use the repository's verification skill for the changed real consumer path. Follow its account, evidence and cleanup contract; documents/internal changes need their own composition proof, not an unrelated product journey.";
@@ -382,7 +394,7 @@ export function prompt(s: State, changeUrl: string, role: PromptRole): string {
       "Report every finding with evidence. Classify each one honestly: introduced_by_diff, already_on_main, and a blocker_class. Anything already on main, or not introduced by this diff, can never block.",
       "You cannot authorize a fix round, and you cannot issue a verdict. Only the judge rules.",
       "Verdict PASS, ISSUES or BLOCKED. Owner sign-in: PROVEN (link), UNPROVEN (access needed) or n/a (why). For each finding: the steps, expected result, actual result and evidence.",
-      "Record each finding on the change with `entire trail finding add`: `--severity high` for an introduced, not-on-main finding with a blocker class, `medium` or `low` otherwise, and `--file`/`--line` when it has a location. The misty skill's entire.md owns the commands.",
+      `Record each finding on the change with \`entire trail finding add --trail ${selector} --project ${project} --severity <high|medium|low> -m "<steps, expected, actual, evidence>"\`: \`high\` for an introduced, not-on-main finding with a blocker class, \`medium\` or \`low\` otherwise; add \`--file\`/\`--line\` when it has a location. The explicit selectors also work from a detached checkout. The misty skill's entire.md owns the commands.`,
       `Then return this JSON with exactly these fields:\n\`\`\`json\n${reportJson}\n\`\`\``,
       submit("report"),
     ].join("\n\n");
@@ -437,20 +449,33 @@ export function prompt(s: State, changeUrl: string, role: PromptRole): string {
   ].join("\n\n");
 }
 
-// ---- native boundary: entire for reads and writes, git for patch-ids ----
+// ---- native boundary: entire for the ledger, gh for pre-cutover v1 ledgers, git for patch-ids ----
 
-/** A change as `entire trail show` prints its URL; `selector` is `<repo>/<number>`. */
-export type Change = { url: string; project: string; selector: string };
+/** A change as its URL names it: `selector` is `<repo>/<number>`; `trail` is the parent trail's number when the URL carries it. */
+export type Change = { project: string; selector: string; trail: number | null };
+
+/** The change as Entire reports it alongside its findings. */
+export type ChangeView = {
+  /** The parent trail's number. */
+  trail: number;
+  /** The account that authored the change: the only ledger writer. Null when Entire names none. */
+  author: string | null;
+  /** The change's branch, kept after merge. */
+  branch: string;
+  findings: Comment[];
+};
 
 export type Forge = {
-  /** The account that authored the change's trail: the only ledger writer. */
-  author(c: Change): Promise<string>;
+  read(c: Change): Promise<ChangeView>;
   /** The branch the change merges into. */
   base(c: Change): Promise<string>;
-  listFindings(c: Change): Promise<Comment[]>;
   /** Records `body` as a low-severity finding and resolves it; a repeated `retryKey` returns the same finding. */
   postFinding(c: Change, body: string, retryKey: string): Promise<string>;
+  resolveFinding(c: Change, id: string): Promise<void>;
 };
+
+/** Pull requests on `branch` of GitHub `repo` (owner/name) whose own author wrote v1 ledger events in their comments. */
+export type LegacyLedgers = (repo: string, branch: string) => Promise<{ url: string; state: string }[]>;
 
 async function runCmd(cmd: string[], stdin?: string, failingOutput = false): Promise<string> {
   const proc = Bun.spawn(cmd, { stdin: stdin === undefined ? "ignore" : new Blob([stdin]), stdout: "pipe", stderr: "pipe" });
@@ -481,13 +506,38 @@ function present(value: unknown): string | undefined {
 }
 
 export function entireBoundary(bin: string): Forge {
+  // Explicit selectors: a detached checkout has no current branch for Entire to infer the change from.
   const at = (c: Change) => ["--trail", c.selector, "--project", c.project];
+  const resolve = async (c: Change, id: string) => {
+    await runCmd([bin, "trail", "finding", "resolve", id, ...at(c), "-m", "ship-loop ledger event"]);
+  };
   return {
-    async author(c) {
-      const trail = parsed(await runCmd([bin, "trail", "show", c.selector, "--project", c.project, "--json"]), "trail show");
-      const author = present(trail.authorAccountId);
-      if (!author) throw new LedgerError("change author is unknown");
-      return author;
+    async read(c) {
+      const findings: Comment[] = [];
+      let change: unknown;
+      let cursor: string | undefined;
+      do {
+        // Every status, dismissed findings and stale ones: a push marks earlier findings stale, and the default list hides them.
+        const args = [bin, "trail", "finding", "list", ...at(c), "--status", "any", "--include-dismissed", "--freshness", "any", "--limit", "100", "--json"];
+        const page = parsed(await runCmd(cursor ? [...args, "--cursor", cursor] : args), "trail finding list");
+        if (!Array.isArray(page.findings)) throw new LedgerError("entire returned no findings list");
+        change ??= page.trail;
+        for (const f of page.findings) {
+          const id = isObject(f) ? present(f.id) : undefined;
+          if (!id || !isObject(f)) throw new LedgerError("entire returned a finding without an id");
+          findings.push({ id, body: typeof f.body === "string" ? f.body : "", author: present(f.actorId) ?? null, status: present(f.status) ?? "" });
+        }
+        cursor = page.has_more === true ? present(page.next_cursor) : undefined;
+        if (page.has_more === true && !cursor) throw new LedgerError("entire reported more findings without a cursor");
+      } while (cursor);
+      // The listing's `trail` is the change itself, numbered as its parent trail (CLI 0.12.2). `trail show` names only the parent's author.
+      if (!isObject(change) || !Number.isInteger(change.number) || (change.number as number) < 1) throw new LedgerError("entire did not name the change's trail");
+      return {
+        trail: change.number as number,
+        author: (isObject(change.author) ? present(change.author.id) : undefined) ?? null,
+        branch: present(change.branch) ?? present(change.originalBranch) ?? "",
+        findings,
+      };
     },
     async base(c) {
       // The dry run exits non-zero while a gate blocks the merge; its JSON still names the base.
@@ -496,31 +546,37 @@ export function entireBoundary(bin: string): Forge {
       if (!base) throw new Refused("the change's base branch is unknown");
       return base;
     },
-    async listFindings(c) {
-      const found: Comment[] = [];
-      let cursor: string | undefined;
-      do {
-        const args = [bin, "trail", "finding", "list", ...at(c), "--status", "any", "--include-dismissed", "--freshness", "any", "--limit", "100", "--json"];
-        const page = parsed(await runCmd(cursor ? [...args, "--cursor", cursor] : args), "trail finding list");
-        if (!Array.isArray(page.findings)) throw new LedgerError("entire returned no findings list");
-        for (const f of page.findings) {
-          const id = isObject(f) ? present(f.id) : undefined;
-          if (!id || !isObject(f)) throw new LedgerError("entire returned a finding without an id");
-          found.push({ id, body: typeof f.body === "string" ? f.body : "", author: present(f.actorId) ?? null });
-        }
-        cursor = page.has_more === true ? present(page.next_cursor) : undefined;
-        if (page.has_more === true && !cursor) throw new LedgerError("entire reported more findings without a cursor");
-      } while (cursor);
-      return found;
-    },
     async postFinding(c, body, retryKey) {
       const added = parsed(await runCmd([bin, "trail", "finding", "add", ...at(c), "--severity", "low", "--client-id", retryKey, "-m", body, "--json"]), "trail finding add");
       const id = present(added.id);
       if (!id) throw new Error("entire did not return a finding id");
       // Resolved, an event stays readable without crowding the change's open review findings.
-      if (added.status === "open") await runCmd([bin, "trail", "finding", "resolve", id, ...at(c), "-m", "ship-loop ledger event"]);
+      if (added.status === "open") await resolve(c, id);
       return id;
     },
+    resolveFinding: resolve,
+  };
+}
+
+export function ghLegacyLedgers(bin: string): LegacyLedgers {
+  return async (repo, branch) => {
+    const listed: unknown = JSON.parse(await runCmd([bin, "pr", "list", "--repo", repo, "--head", branch, "--state", "all", "--limit", "100", "--json", "number,url,state,author,isCrossRepository"]));
+    if (!Array.isArray(listed)) throw new Error("gh pr list did not print a list");
+    const held: { url: string; state: string }[] = [];
+    for (const pr of listed) {
+      if (!isObject(pr) || !Number.isInteger(pr.number)) throw new Error("gh pr list printed a pull request without a number");
+      // A fork's pull request from a same-named branch is not this change's backing pull request.
+      if (pr.isCrossRepository === true) continue;
+      const author = (isObject(pr.author) ? present(pr.author.login) : undefined)?.toLowerCase();
+      const out = await runCmd([bin, "api", "--paginate", `repos/${repo}/issues/${pr.number}/comments?per_page=100`, "--jq", ".[] | [.user.login, .body] | @json"]);
+      // As the v1 helper read it, a pull request's ledger is its own author's marked comments.
+      const v1 = out.split("\n").filter((line) => line.trim() !== "").some((line) => {
+        const [login, body] = JSON.parse(line);
+        return typeof login === "string" && login.toLowerCase() === author && typeof body === "string" && body.startsWith(MARKER);
+      });
+      if (v1) held.push({ url: String(pr.url), state: String(pr.state) });
+    }
+    return held;
   };
 }
 
@@ -542,7 +598,7 @@ export async function commitOf(ref: string): Promise<string> {
 
 // ---- command line ----
 
-const HELP = `ship-loop: the one entry point for an Entire change's review-round state. Only findings by the trail's author can write the ledger; other authors' markers are ignored.
+const HELP = `ship-loop: the one entry point for an Entire change's review-round state. Only findings by the change's author can write the ledger; other authors' markers are ignored.
 
   init    --change <url> --ticket <url> --rigor light|standard|critical --rigor-reason <text> --base <ref> --sha <head> --builder-thread <id>
           Creates the ledger once. On an existing ledger it resumes and never resets.
@@ -552,7 +608,7 @@ const HELP = `ship-loop: the one entry point for an Entire change's review-round
           Prints the role's brief for the current phase. Refuses a role out of phase.
   record  --change <url> --kind report|verdict|recheck|head [--file <payload.json>]
           Payload JSON comes from --file or stdin. Records only what the user supplied: native thread IDs and report links.
-          A repeated identical write is a no-op.
+          A repeated identical write is a no-op, except that it resolves the event's finding if a failed resolve left it open.
           head payloads, run inside a checkout holding every named commit:
             {"reason":"fix","sha":<new head>,"thread_id":<builder thread>}   after a judge's FIX
             {"reason":"carry","from":<judged head>,"from_base":<its base>,"sha":<new head>,"to_base":<its base>}
@@ -562,9 +618,14 @@ const HELP = `ship-loop: the one entry point for an Entire change's review-round
             {"reason":"refresh","from":<head>,"sha":<new head>,"base":<its base>}   verify only, before any report
           Bases may be refs; the event records their full commit SHAs.
 
-<url> is the change URL \`entire trail show\` prints: https://entire.com/<forge>/<project>/-/trails/<trail>/changes/<repo>/<number>.
+<url> is a change URL in any form Entire prints or documents; every form resumes the same ledger:
+  https://entire.com/<forge>/<project>/-/trails/<trail>/changes/<repo>/<number>
+  https://entire.com/<forge>/<project>/<repo>/-/trails/<trail>/changes/<number>
+  https://entire.com/<forge>/<project>/<repo>/trails/<number>
+A URL naming another trail is refused. A round recorded in a pull request's comments before the Entire cutover (a v1 ledger)
+finishes there with the pre-cutover helper at ${FROZEN_V1}; a GitHub-backed change whose pull request holds one exits 2.
 
-Exit codes: 0 recorded or already recorded; 1 refused by the workflow; 2 ledger unreadable or write outcome unknown (never treat as round 0); 3 lost a concurrent write, run status and retry.
+Exit codes: 0 recorded or already recorded; 1 refused by the workflow; 2 ledger unreadable or held by a v1 ledger, write outcome unknown, or recorded with its finding still open (never treat as round 0; rerun the same write to resolve it); 3 lost a concurrent write, run status and retry.
 `;
 
 const COMMANDS: Record<string, string[]> = {
@@ -576,6 +637,7 @@ const COMMANDS: Record<string, string[]> = {
 
 export type Deps = {
   forge: Forge;
+  legacyLedgers: LegacyLedgers;
   commit: (ref: string) => Promise<string>;
   patchId: (base: string, sha: string) => Promise<string>;
   out: (s: string) => void;
@@ -602,24 +664,59 @@ export async function run(argv: string[], deps: Deps): Promise<number> {
     return await dispatch(cmd, flags, deps);
   } catch (err) {
     if (err instanceof Refused) { deps.err(`refused: ${err.message}\n`); return 1; }
-    if (err instanceof LedgerError) { deps.err(`ledger unknown: ${err.message}. Not treated as a fresh round; inspect the change's findings with \`entire trail finding list --status any --include-dismissed --freshness any\`.\n`); return 2; }
+    if (err instanceof LedgerError) { deps.err(`ledger unknown: ${err.message}. Not treated as a fresh round; ${err.next}.\n`); return 2; }
+    if (err instanceof Unsettled) { deps.err(`${err.message}\n`); return 2; }
     deps.err(`ledger unknown: ${(err as Error).message}\n`);
     return 2;
   }
 }
 
+// The forms Entire prints and documents for a change; only the repository form omits the parent trail.
+const CHANGE_FORMS = [
+  /^-\/trails\/(?<trail>\d+)\/changes\/(?<repo>[\w.-]+)\/(?<number>\d+)$/,
+  /^(?<repo>[\w.-]+)\/-\/trails\/(?<trail>\d+)\/changes\/(?<number>\d+)$/,
+  /^(?<repo>[\w.-]+)\/trails\/(?<number>\d+)$/,
+];
+
 function target(url: unknown): Change {
-  const m = typeof url === "string" ? /^https:\/\/entire\.com\/([a-z]+)\/([\w.-]+)\/-\/trails\/\d+\/changes\/([\w.-]+)\/(\d+)$/.exec(url) : null;
-  if (!m) throw new Refused("--change must be a change URL as `entire trail show` prints it");
-  return { url: url as string, project: `${m[1]}/${m[2]}`, selector: `${m[3]}/${m[4]}` };
+  const text = typeof url === "string" ? url : "";
+  if (/^https:\/\/github\.com\/[\w.-]+\/[\w.-]+\/pull\/\d+$/.test(text)) {
+    throw new Refused(`--change takes an Entire change URL, not a pull request. If ${text} holds a v1 ledger from before the Entire cutover, ${v1Path(text)}`);
+  }
+  const m = /^https:\/\/entire\.com\/([a-z]+)\/([\w.-]+)\/(.+)$/.exec(text);
+  const g = m ? CHANGE_FORMS.map((form) => form.exec(m[3])?.groups).find((groups) => groups !== undefined) : undefined;
+  if (!m || !g) throw new Refused("--change must be a change URL in a form Entire prints; see --help");
+  return { project: `${m[1]}/${m[2]}`, selector: `${g.repo}/${Number(g.number)}`, trail: g.trail === undefined ? null : Number(g.trail) };
+}
+
+// One home for the exact path that finishes a round recorded in a pull request's comments; the misty skill's entire.md describes it.
+function v1Path(pr: string): string {
+  return `finish that round on its pull request with the pre-cutover helper, skills/ship-loop/scripts/ship-loop.ts at ${FROZEN_V1}: \`bun <cached-v1-helper> status --pr ${pr} --json\``;
+}
+
+// A round recorded in the backing pull request's comments before the cutover is never read as absent, even beside a v2 init.
+async function refuseV1(change: Change, branch: string, d: Deps): Promise<void> {
+  if (!branch) throw new LedgerError(`Entire names no branch for change ${change.selector}, so its pull requests cannot be checked for a v1 ledger`);
+  const held = await d.legacyLedgers(`${change.project.slice("gh/".length)}/${change.selector.split("/")[0]}`, branch);
+  if (held.length === 0) return;
+  throw new LedgerError(
+    held.map((pr) => `backing pull request ${pr.url} (${pr.state}) holds a v1 ship-loop ledger`).join("; "),
+    v1Path(held.length === 1 ? held[0].url : "<pull request URL>"),
+  );
 }
 
 async function dispatch(cmd: string, f: Record<string, string | true>, d: Deps): Promise<number> {
   const change = target(f.change);
-  const url = change.url;
   // Any read failure throws before a write can be attempted.
-  const writer = await d.forge.author(change);
-  const ledger = replay(await d.forge.listFindings(change), writer);
+  const view = await d.forge.read(change);
+  need(change.trail === null || change.trail === view.trail, `--change names trail ${change.trail}, but change ${change.selector} is on trail ${view.trail}`);
+  // Every form names one ledger, recorded under the change URL Entire lists on its trail.
+  const url = `https://entire.com/${change.project}/-/trails/${view.trail}/changes/${change.selector}`;
+  const writer = view.author;
+  if (!writer) throw new LedgerError(`Entire names no author for change ${change.selector}, and only the change author's findings form its ledger`);
+  // Only a GitHub-backed change has a pull request that may hold a pre-cutover round.
+  if (change.project.startsWith("gh/")) await refuseV1(change, view.branch, d);
+  const ledger = replay(view.findings, writer);
 
   if (cmd === "status") {
     const doc = statusOf(ledger, url);
@@ -641,8 +738,8 @@ async function dispatch(cmd: string, f: Record<string, string | true>, d: Deps):
     };
     if (ledger.state) {
       need(ledger.state.ticket === f.ticket && ledger.state.change_url === url, "the ledger belongs to another ticket or change");
-      d.out(`resumed: ledger exists at seq ${ledger.last_seq}; phase ${ledger.state.phase}; no reset\n`);
-      return 0;
+      // Resuming also resolves an init event a failed resolve left open; it never resets.
+      return await settled(change, ledger.accepted[0], `resumed: ledger exists at seq ${ledger.last_seq}; phase ${ledger.state.phase}; no reset`, d);
     }
     return await write(ledger, change, writer, body, d);
   }
@@ -691,11 +788,11 @@ async function dispatch(cmd: string, f: Record<string, string | true>, d: Deps):
   return await write(ledger, change, writer, body, d);
 }
 
-// Idempotent append: an identical accepted event is a no-op; otherwise validate, post, then read back.
+// Idempotent append: an identical accepted event is a no-op once its finding is resolved; otherwise validate, post, then read back.
 async function write(ledger: Ledger, change: Change, writer: string, body: Record<string, unknown>, d: Deps): Promise<number> {
   const key = keyOf(body);
   const seen = ledger.accepted.find((a) => a.event.key === key);
-  if (seen) { d.out(`already recorded at seq ${seen.event.seq}\n`); return 0; }
+  if (seen) return await settled(change, seen, `already recorded at seq ${seen.event.seq}`, d);
   const seq = ledger.last_seq + 1;
   const event = { ...body, seq, key } as Event;
   apply(ledger.state, event);
@@ -704,13 +801,14 @@ async function write(ledger: Ledger, change: Change, writer: string, body: Recor
     // The retry key carries seq: a retry after a lost concurrent write is a new write, not the rejected one.
     id = await d.forge.postFinding(change, renderEvent(event), `ship-loop-${seq}-${key}`);
   } catch (err) {
-    // The write may have landed. Read back before deciding: rerunning is safe because identical events are no-ops.
-    const after = replay(await d.forge.listFindings(change), writer);
-    if (after.accepted.some((a) => a.event.key === key)) { d.out(`recorded at seq ${seq} (confirmed after a failed response)\n`); return 0; }
+    // The add may have landed while its response or resolve failed. Read back before deciding: rerunning is safe because identical events are no-ops.
+    const landed = replay((await d.forge.read(change)).findings, writer).accepted.find((a) => a.event.key === key);
+    if (landed) return await settled(change, landed, `recorded at seq ${seq} (confirmed after a failed response)`, d);
     throw new Error(`write outcome unknown: ${(err as Error).message}`);
   }
-  const after = replay(await d.forge.listFindings(change), writer);
-  if (after.accepted.some((a) => a.id === id)) { d.out(`recorded at seq ${seq}\n`); return 0; }
+  const after = replay((await d.forge.read(change)).findings, writer);
+  const recorded = after.accepted.find((a) => a.id === id);
+  if (recorded) return await settled(change, recorded, `recorded at seq ${seq}`, d);
   if (after.rejected.includes(id)) {
     d.err(`lost a concurrent write at seq ${seq}; nothing recorded. Run status and retry.\n`);
     return 3;
@@ -718,10 +816,25 @@ async function write(ledger: Ledger, change: Change, writer: string, body: Recor
   throw new Error(`finding ${id} is not in the ledger after write`);
 }
 
+// An event is written once its finding is resolved, so a confirmation or a retry resolves one a failed resolve left open.
+async function settled(change: Change, entry: Ledger["accepted"][number], done: string, d: Deps): Promise<number> {
+  if (entry.open) {
+    try {
+      await d.forge.resolveFinding(change, entry.id);
+    } catch (err) {
+      throw new Unsettled(`${done}; finding ${entry.id} for seq ${entry.event.seq} is still open (${(err as Error).message}); rerun the same command to resolve it`);
+    }
+  }
+  d.out(`${done}\n`);
+  return 0;
+}
+
 if (import.meta.main) {
   const entireBin = process.env.SHIP_LOOP_ENTIRE ?? "entire";
+  const ghBin = process.env.SHIP_LOOP_GH ?? "gh";
   const code = await run(process.argv.slice(2), {
     forge: entireBoundary(entireBin),
+    legacyLedgers: ghLegacyLedgers(ghBin),
     commit: commitOf,
     patchId,
     out: (s) => process.stdout.write(s),

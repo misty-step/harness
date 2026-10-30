@@ -4,9 +4,9 @@ Mistystack gives engineers and coding agents one maintained engineering method:
 a small always-on core, task routing, on-demand procedures and an outside check
 that defines completion. [USER_STORIES.md](USER_STORIES.md) owns the method's
 consumer stories and detailed acceptance criteria; [DOMAIN.md](DOMAIN.md) owns
-its vocabulary. Product intent and changes belong in the repository's Entire
-trails, not a second website backlog. The [forge procedure](skills/misty/entire.md)
-owns how agents read and publish that work.
+its vocabulary. Product intent belongs in the repository's ticket backlog and
+delivery changes in Entire. The [forge procedure](skills/misty/entire.md) owns
+publication and the ticket cutover, not a second website backlog.
 
 ## Method
 
@@ -102,3 +102,5 @@ Architecture and operational status belong in [decision records](docs/decisions/
 not in the behavior contract above. The public site's publishing-stack
 exception, its commissioned deployment and its open telemetry and production
 proof are recorded in [ADR 0018](docs/decisions/0018-static-publishing-stack.md).
+The forge boundary and review-ledger cutover are recorded in
+[ADR 0019](docs/decisions/0019-entire-is-the-forge.md).

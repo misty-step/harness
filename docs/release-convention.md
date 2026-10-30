@@ -24,8 +24,7 @@ and [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html). Use a maintained
 generator; never build a release service.
 
 Authored work follows the [Entire forge procedure](../skills/misty/entire.md),
-including its backing PR title rule. The GitHub Actions, backing PR metadata and
-Landmark release machinery below remain GitHub-specific forge exceptions.
+including its backing PR title rule and forge exceptions.
 
 ## Rules
 

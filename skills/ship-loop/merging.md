@@ -12,10 +12,11 @@ git diff <new-base>...<new-head> | git patch-id --stable
 Fetch origin first. The old base must resolve to the ledger's recorded base,
 including an earlier refresh/carry; the new base must resolve to
 `origin/<the change's base branch>` as `entire trail merge --dry-run --json` reports it,
-not a caller-selected branch or change-internal commit. Retarget a stacked change
-before recording its carry; Entire has no command for that, so a GitHub-backed
-change retargets its backing PR with `gh pr edit <number> --base <branch>`. With
-all four commits available, use the helper's `record --kind head` payload:
+not a caller-selected branch or change-internal commit. Retarget a stacked
+change before recording its carry through the
+[backing PR procedure](../misty/entire.md#merge-and-forge-exceptions), discovering
+the PR by branch rather than using the change number. With all four commits
+available, use the helper's `record --kind head` payload:
 
 ```json
 {"reason":"carry","from":"<judged-SHA>","from_base":"<old-base>","sha":"<new-head>","to_base":"<new-base>"}

@@ -31,7 +31,7 @@ Each finding gets one ruling and one reason:
   criterion, or missing required proof. Includes security, data loss, broken build,
   deploy or rollback. Pre-existing defects cannot block this change.
 - **file:** worthwhile actionable work, while this unit is a net improvement now.
-  Reuse a ticket for the same cause; every such ruling gets its trail link.
+  Reuse a ticket for the same cause; every such ruling gets its ticket link.
 - **skip:** disproved, already covered, speculative, preference-only or not worth
   doing. A reviewer's suggestion alone does not earn a ticket.
 
@@ -43,10 +43,12 @@ changed-path risk. Record `no deploy` when no deployed artifact changes.
 
 ## 3. Decide and record
 
-Record a `Verdict at <head SHA>` finding on the change with linked QA/review,
-one outcome and its reason, exact blockers with owner and observable fix, useful
-follow-ups, consequential skips and intent calls under the core's claim rule.
-Omit empty sections. Apply the forge procedure's finding dispositions to rulings.
+Return the ruling with linked QA/review, one outcome and its reason, exact
+blockers with owner and observable fix, useful follow-ups, consequential skips
+and intent calls under the core's claim rule. Omit empty sections. The conductor
+records it through the helper's `record --kind verdict`; that ledger is the one
+home of the verdict. Do not add a separate verdict finding or trail approval.
+The conductor applies finding dispositions after the ruling.
 
 - **SHIP:** independent completed QA/review cover this SHA; all blockers resolved.
   The `verification` skill defines the required real-path proof, including sign-in

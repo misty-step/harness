@@ -13,8 +13,7 @@ metadata:
 Watch one merge SHA through the repo's release path. For user harm, restore first
 and attribute second. Compatible recovery follows existing authorization and the
 repo's own pipeline; accepted-data risk stops that mutation and is escalated.
-Use the [Entire forge procedure](../misty/entire.md) for work records and its
-GitHub Actions and release-tooling exceptions.
+Use the [Entire forge procedure](../misty/entire.md) for work records and exceptions.
 
 ## 1. Find the path
 
@@ -30,7 +29,7 @@ diff touching no deployed artifact ends here without queries or waiting.
   or update against the authorized destination, recording command, source head,
   destination and exit status. Stop and report a failed step.
 - **Missing mechanism/signal:** report `unwatched`. Reuse one open
-  `release-mechanism` ticket, or create an intent-only trail for it; no implied live claim.
+  `release-mechanism` ticket, or create it in the current backlog; no implied live claim.
 
 ## 2. Observe
 

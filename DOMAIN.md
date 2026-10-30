@@ -10,9 +10,7 @@ through [AGENTS.md](AGENTS.md), and boundary decisions live in
   `skills/<name>/SKILL.md`, with supporting files beside each entry point.
 - **Native adapter:** thin integration from this repository that exposes the
   content tree through a harness's own loading and configuration mechanisms,
-  without a custom installer or a second copy of the method. OMP's plugin is
-  the first shipped adapter; others are tracked by
-  [#591](https://github.com/misty-step/mistystack/issues/591).
+  without a custom installer or a second copy of the method.
 - **Core rule:** `rules/core.md`, the always-applied entry point and guardrails
   for sessions using the method.
 - **Mode:** `misty`, the skill that routes nontrivial work to the relevant
@@ -52,13 +50,10 @@ through [AGENTS.md](AGENTS.md), and boundary decisions live in
 - **Workstation plugin:** the separate private `misty-step/workstation` plugin
   for fleet machinery, host configuration, credentials, audio and backup.
   It consumes the method without owning a copy of it.
-- **Entire:** the forge interface for Misty Step work. Agents open, review,
-  approve, merge and track work with the `entire` CLI, whether a repository is
-  GitHub-backed or hosted on Entire; `gh` remains only for GitHub machinery
-  Entire does not cover, such as Actions, releases and repository settings.
-- **Trail:** Entire's unit of intent. An intent-only trail is a ticket; a trail
-  with changes is the work that delivers it. Work outside any repository gets its
-  trail in the Daybook repository.
+- **Entire:** the forge interface for Misty Step work. Agents open, review and
+  merge changes with the `entire` CLI. The
+  [forge procedure](skills/misty/entire.md) owns command exceptions and scope.
+- **Trail:** Entire's unit of intent, with zero or more delivery changes.
 - **Change:** one repository branch on a trail, addressed as `<repo>/<number>`;
   the counterpart of a pull request. A GitHub-backed change has a backing pull
   request that Entire manages.

@@ -1,16 +1,20 @@
 import { expect, test } from "bun:test";
-import { mkdtempSync, readFileSync, writeFileSync, mkdirSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { apply, keyOf, prompt, renderEvent, replay, statusOf, type Comment, type Event, type State } from "./ship-loop.ts";
 
 const CLI = join(import.meta.dir, "ship-loop.ts");
 const FAKE_ENTIRE = join(import.meta.dir, "fake-entire.ts");
-const CHANGE = "https://entire.com/gh/misty-step/-/trails/7/changes/example/7";
+const FAKE_GH = join(import.meta.dir, "fake-gh.ts");
+// Change example/3 on project trail 7, in the form `entire trail show` lists it.
+const CHANGE = "https://entire.com/gh/misty-step/-/trails/7/changes/example/3";
 const TICKET = "https://entire.com/gh/misty-step/-/trails/3";
 const H1 = "1".repeat(40);
 const H2 = "2".repeat(40);
 const BASE = "origin/master";
+const MARKER = "<!-- ship-loop:event v1 -->";
+const FROZEN_V1 = "924af6c000d84866af2541a015608f9938b0f963";
 
 function scratch(): string {
   const root = join(homedir(), ".cache", "tmp");
@@ -18,7 +22,21 @@ function scratch(): string {
   return mkdtempSync(join(root, "ship-loop-test-"));
 }
 
-type Harness = { dir: string; store: string; repo?: string };
+// The fakes' shared state: the change as Entire reports it, its findings, and its GitHub pull requests.
+type Pull = {
+  number: number; url: string; state: string; headRefName: string; isCrossRepository: boolean; author: string;
+  comments: { login: string; body: string }[];
+};
+type Store = {
+  findings: { id: string; body: string; actorId: string | null; status: string; version: number; clientId?: string }[];
+  next: number;
+  version: number;
+  base_ref: string;
+  change: { project: string; selector: string; trail: number; author: string | null; branch: string; merged?: boolean };
+  trail_author?: string;
+  pulls: Pull[];
+};
+type Harness = { dir: string; store: string; log: string; repo?: string };
 
 // Finding ids are ULIDs; zero-padded numbers keep the same order.
 const fid = (n: number) => String(n).padStart(26, "0");
@@ -26,14 +44,31 @@ const fid = (n: number) => String(n).padStart(26, "0");
 function harness(comments: Comment[] = [], repo?: string, baseRef = "master"): Harness {
   const dir = scratch();
   const store = join(dir, "store.json");
-  const findings = comments.map((c) => ({ id: c.id, body: c.body, actorId: c.author, status: "resolved" }));
-  writeFileSync(store, JSON.stringify({ findings, next: comments.length + 100, base_ref: baseRef }));
-  return { dir, store, repo };
+  const state: Store = {
+    findings: comments.map((c) => ({ id: c.id, body: c.body, actorId: c.author, status: c.status, version: 0 })),
+    next: comments.length + 100, version: 0, base_ref: baseRef,
+    change: { project: "gh/misty-step", selector: "example/3", trail: 7, author: "conductor", branch: "feature" },
+    pulls: [],
+  };
+  writeFileSync(store, JSON.stringify(state));
+  return { dir, store, log: join(dir, "calls.jsonl"), repo };
+}
+
+// Changes the fakes' state as another writer, a push or GitHub would.
+function edit(h: Harness, change: (s: Store) => void) {
+  const s = JSON.parse(readFileSync(h.store, "utf8")) as Store;
+  change(s);
+  writeFileSync(h.store, JSON.stringify(s));
 }
 
 function comments(h: Harness): Comment[] {
-  const store = JSON.parse(readFileSync(h.store, "utf8")) as { findings: { id: string; body: string; actorId: string | null }[] };
-  return store.findings.map((f) => ({ id: f.id, body: f.body, author: f.actorId }));
+  const store = JSON.parse(readFileSync(h.store, "utf8")) as Store;
+  return store.findings.map((f) => ({ id: f.id, body: f.body, author: f.actorId, status: f.status }));
+}
+
+// Every `entire` invocation, in order.
+function calls(h: Harness): string[][] {
+  return existsSync(h.log) ? readFileSync(h.log, "utf8").split("\n").filter((line) => line !== "").map((line) => JSON.parse(line)) : [];
 }
 
 async function cli(h: Harness, args: string[], payload?: unknown, env: Record<string, string> = {}) {
@@ -44,7 +79,7 @@ async function cli(h: Harness, args: string[], payload?: unknown, env: Record<st
   }
   const proc = Bun.spawn(["bun", CLI, ...args, ...(file ? ["--file", file] : [])], {
     cwd: h.repo,
-    env: { ...process.env, SHIP_LOOP_ENTIRE: FAKE_ENTIRE, SHIP_LOOP_FAKE_STORE: h.store, ...env },
+    env: { ...process.env, SHIP_LOOP_ENTIRE: FAKE_ENTIRE, SHIP_LOOP_GH: FAKE_GH, SHIP_LOOP_FAKE_STORE: h.store, SHIP_LOOP_FAKE_CALLS: h.log, ...env },
     stdout: "pipe",
     stderr: "pipe",
   });
@@ -56,20 +91,22 @@ const finding = (id: string, over: Record<string, unknown> = {}) => ({
   id, evidence: `evidence for ${id}`, introduced_by_diff: true, already_on_main: false, blocker_class: "broken_journey", ...over,
 });
 
+const initArgs = (change: string) => ["init", "--change", change, "--ticket", TICKET, "--rigor", "standard", "--rigor-reason", "runtime change", "--base", BASE, "--sha", H1, "--builder-thread", "builder-1"];
+
 async function initPr(h: Harness) {
-  return cli(h, ["init", "--change", CHANGE, "--ticket", TICKET, "--rigor", "standard", "--rigor-reason", "runtime change", "--base", BASE, "--sha", H1, "--builder-thread", "builder-1"]);
+  return cli(h, initArgs(CHANGE));
 }
 
-async function reportQa(h: Harness, findings: unknown[] = [], outcome = "ISSUES") {
+async function reportQa(h: Harness, findings: unknown[] = [], outcome = "ISSUES", env: Record<string, string> = {}) {
   return cli(h, ["record", "--change", CHANGE, "--kind", "report"], {
     role: "qa", sha: H1, thread_id: "qa-1", report_url: "https://github.com/misty-step/example/pull/7#issuecomment-1", outcome, findings,
-  });
+  }, env);
 }
 
-async function reportReview(h: Harness, findings: unknown[] = []) {
+async function reportReview(h: Harness, findings: unknown[] = [], env: Record<string, string> = {}) {
   return cli(h, ["record", "--change", CHANGE, "--kind", "report"], {
     role: "review", sha: H1, thread_id: "review-1", report_url: "https://github.com/misty-step/example/pull/7#issuecomment-2", outcome: "ISSUES", findings,
-  });
+  }, env);
 }
 
 function status(h: Harness) {
@@ -121,7 +158,7 @@ test("an unreadable or malformed ledger is unknown, never a fresh round", async 
   expect(init.code).toBe(2);
   expect(comments(h).length).toBe(1);
 
-  const broken = harness([{ id: fid(5), author: "conductor", body: "<!-- ship-loop:event v1 -->\n```json\n{not json\n```\n" }]);
+  const broken = harness([{ id: fid(5), author: "conductor", status: "resolved", body: "<!-- ship-loop:event v1 -->\n```json\n{not json\n```\n" }]);
   expect((await cli(broken, ["status", "--change", CHANGE, "--json"])).code).toBe(2);
   const write = await cli(broken, ["init", "--change", CHANGE, "--ticket", TICKET, "--rigor", "light", "--rigor-reason", "x", "--base", BASE, "--sha", H1, "--builder-thread", "b"]);
   expect(write.code).toBe(2);
@@ -230,7 +267,7 @@ test("a new thread reads the final state, and a repeated identical write is idem
   expect(JSON.parse(fresh.out).phase).toBe("judge");
 });
 
-test("a write whose response is lost is confirmed on read-back, not repeated", async () => {
+test("a write whose response is lost is confirmed on read-back, resolved, and not repeated", async () => {
   const h = harness();
   await initPr(h);
   const before = comments(h).length;
@@ -239,6 +276,7 @@ test("a write whose response is lost is confirmed on read-back, not repeated", a
   }, { SHIP_LOOP_FAKE_FAIL: "post-after" });
   expect(lost.code).toBe(0);
   expect(comments(h).length).toBe(before + 1);
+  expect(comments(h).at(-1)?.status).toBe("resolved");
 });
 
 test("finding authors keep outsiders from forging or locking the ledger", async () => {
@@ -306,15 +344,15 @@ test("a light rigor PR takes one combined review and a standard PR refuses it", 
 test("replay keeps the earliest finding for a sequence number and rejects a gap", () => {
   const init = (seq: number) => ({ v: 1, kind: "init", seq, key: "", ticket: TICKET, change_url: CHANGE, rigor: "light", rigor_reason: "docs", base: BASE, sha: H1, builder_thread_id: "b" });
   const first = JSON.parse(JSON.stringify(init(1)));
-  const ledger = replay([{ id: fid(1), author: "conductor", body: renderWithKey(first) }], "conductor");
+  const ledger = replay([{ id: fid(1), author: "conductor", status: "resolved", body: renderWithKey(first) }], "conductor");
   expect(ledger.state?.phase).toBe("verify");
   const lostSeq2 = renderWithKey({ v: 1, kind: "report", seq: 2, role: "qa-review", sha: H1, thread_id: "x", report_url: "u", outcome: "PASS", findings: [] });
   const wonSeq2 = renderWithKey({ v: 1, kind: "report", seq: 2, role: "qa-review", sha: H1, thread_id: "qa-1", report_url: "u", outcome: "PASS", findings: [] });
-  const dup = replay([{ id: fid(1), author: "conductor", body: renderWithKey(first) }, { id: fid(5), author: "conductor", body: wonSeq2 }, { id: fid(6), author: "conductor", body: lostSeq2 }], "conductor");
+  const dup = replay([{ id: fid(1), author: "conductor", status: "resolved", body: renderWithKey(first) }, { id: fid(5), author: "conductor", status: "resolved", body: wonSeq2 }, { id: fid(6), author: "conductor", status: "resolved", body: lostSeq2 }], "conductor");
   expect(dup.last_seq).toBe(2);
   expect(dup.rejected).toEqual([fid(6)]);
   expect(dup.state?.phase).toBe("judge");
-  expect(() => replay([{ id: fid(1), author: "conductor", body: renderWithKey(first) }, { id: fid(9), author: "conductor", body: renderWithKey({ v: 1, kind: "report", seq: 3, role: "qa-review", sha: H1, thread_id: "q", report_url: "u", outcome: "PASS", findings: [] }) }], "conductor")).toThrow(/gap/);
+  expect(() => replay([{ id: fid(1), author: "conductor", status: "resolved", body: renderWithKey(first) }, { id: fid(9), author: "conductor", status: "resolved", body: renderWithKey({ v: 1, kind: "report", seq: 3, role: "qa-review", sha: H1, thread_id: "q", report_url: "u", outcome: "PASS", findings: [] }) }], "conductor")).toThrow(/gap/);
 });
 
 test("a carry needs an unchanged patch-id, and only moves head before the ruling", () => {
@@ -345,7 +383,7 @@ test("v1 carry events without bases replay with their original meaning", () => {
     { v: 1, kind: "verdict", seq: 3, thread_id: "judge-1", sha: H1, verdict: "SHIP", blockers: [], tickets: [], report_url: "v" },
     { v: 1, kind: "head", seq: 4, reason: "carry", from: H1, sha: H2, patch_id_from: "p1", patch_id_to: "p1" },
   ];
-  const ledger = replay(events.map((e, i) => ({ id: i + 1, author: "conductor", body: renderWithKey(e) })), "conductor");
+  const ledger = replay(events.map((e, i) => ({ id: fid(i + 1), author: "conductor", status: "resolved", body: renderWithKey(e) })), "conductor");
   expect(ledger.last_seq).toBe(4);
   expect(ledger.state).toMatchObject({ phase: "shipped", head: H2, carried: [H1], base: BASE, fix_round: 0 });
 });
@@ -629,7 +667,7 @@ test("a relocated prompt records through its own executable path", async () => {
   mkdirSync(movedDir);
   const movedCli = join(movedDir, "ship-loop.ts");
   writeFileSync(movedCli, readFileSync(CLI));
-  const env = { ...process.env, HOME: h.dir, SHIP_LOOP_ENTIRE: FAKE_ENTIRE, SHIP_LOOP_FAKE_STORE: h.store };
+  const env = { ...process.env, HOME: h.dir, SHIP_LOOP_ENTIRE: FAKE_ENTIRE, SHIP_LOOP_GH: FAKE_GH, SHIP_LOOP_FAKE_STORE: h.store };
   const generated = Bun.spawn(["bun", movedCli, "prompt", "--change", CHANGE, "--role", "qa"], {
     env, stdout: "pipe", stderr: "pipe",
   });
@@ -653,6 +691,235 @@ test("a relocated prompt records through its own executable path", async () => {
   expect(recordCode, recordError || recordOut).toBe(0);
   expect((await status(h)).doc.review_thread_ids).toContain("relocated-qa");
 });
+
+// ---- the Entire cutover: pre-cutover v1 ledgers, change identity, trust anchor, visibility and resolution ----
+
+// hundred#8's shape: the change's branch backs a pull request whose author's comments hold a v1 round after a
+// bot summary and a written report, so the round starts on the second page of comments.
+const V1_URL = "https://github.com/misty-step/example/pull/12";
+const v1Pull = (over: Partial<Pull> = {}): Pull => ({
+  number: 12, url: V1_URL, state: "OPEN", headRefName: "feature", isCrossRepository: false, author: "moomooskycow",
+  comments: [
+    { login: "coderabbitai[bot]", body: "<!-- coderabbit-ai-generated:v1 -->" },
+    { login: "moomooskycow", body: "## Independent QA/review — PASS" },
+    { login: "moomooskycow", body: `${MARKER}\n\`\`\`json\n{"v": 1, "kind": "init", "seq": 1}\n\`\`\`\n` },
+  ],
+  ...over,
+});
+
+test("a backing pull request's v1 comment ledger stops every command instead of reading as round 0", async () => {
+  const h = harness();
+  edit(h, (s) => s.pulls.push(v1Pull()));
+  for (const args of [["status", "--change", CHANGE, "--json"], ["prompt", "--change", CHANGE, "--role", "qa"], initArgs(CHANGE)]) {
+    const r = await cli(h, args);
+    expect(r.code, r.err).toBe(2);
+    expect(r.out).toBe("");
+    expect(r.err).toContain(`backing pull request ${V1_URL} (OPEN) holds a v1 ship-loop ledger`);
+    expect(r.err).toContain(`at ${FROZEN_V1}: \`bun <cached-v1-helper> status --pr ${V1_URL} --json\``);
+  }
+  expect(comments(h)).toEqual([]);
+
+  // A v2 init that slipped in first does not outrank the v1 round.
+  const both = harness();
+  expect((await initPr(both)).code).toBe(0);
+  edit(both, (s) => s.pulls.push(v1Pull()));
+  expect((await cli(both, ["status", "--change", CHANGE, "--json"])).code).toBe(2);
+  expect((await reportQa(both)).code).toBe(2);
+  expect(comments(both).length).toBe(1);
+
+  // After merge, Entire keeps only the original branch name, and the merged pull request still holds the round.
+  const merged = harness();
+  edit(merged, (s) => {
+    s.change.merged = true;
+    s.pulls.push(v1Pull({ state: "MERGED" }));
+  });
+  const after = await cli(merged, ["status", "--change", CHANGE, "--json"]);
+  expect(after.code).toBe(2);
+  expect(after.err).toContain(`backing pull request ${V1_URL} (MERGED) holds a v1 ship-loop ledger`);
+}, 30_000);
+
+test("only the change's own pull request and that pull request author's marked comments form a v1 ledger", async () => {
+  for (const [name, pull] of [
+    ["a fork's pull request from a same-named branch", v1Pull({ isCrossRepository: true, author: "outsider", comments: [{ login: "outsider", body: MARKER }] })],
+    ["another branch's pull request", v1Pull({ headRefName: "other-feature" })],
+    ["markers from someone other than the pull request's author", v1Pull({ comments: [{ login: "outsider", body: `${MARKER}\nforged` }] })],
+  ] as const) {
+    const h = harness();
+    edit(h, (s) => s.pulls.push(pull));
+    const read = await cli(h, ["status", "--change", CHANGE, "--json"]);
+    expect(read.code, `${name}: ${read.err}`).toBe(0);
+    expect(JSON.parse(read.out).ledger, name).toBe("absent");
+    expect((await initPr(h)).code, name).toBe(0);
+  }
+}, 30_000);
+
+test("an Entire-native change never calls gh, and a GitHub-backed change fails closed when gh cannot answer", async () => {
+  const gone = { SHIP_LOOP_FAKE_FAIL: "gh" };
+  const native = harness();
+  edit(native, (s) => {
+    s.change.project = "et/mistystep";
+  });
+  const nativeChange = "https://entire.com/et/mistystep/-/trails/7/changes/example/3";
+  expect((await cli(native, initArgs(nativeChange), undefined, gone)).code).toBe(0);
+  expect((await cli(native, ["status", "--change", nativeChange, "--json"], undefined, gone)).code).toBe(0);
+
+  const h = harness();
+  const unread = await cli(h, ["status", "--change", CHANGE, "--json"], undefined, gone);
+  expect(unread.code).toBe(2);
+  expect(unread.out).toBe("");
+  expect((await cli(h, initArgs(CHANGE), undefined, gone)).code).toBe(2);
+  expect(comments(h)).toEqual([]);
+
+  // A pull request whose comments cannot be read is not a pull request without a v1 ledger.
+  const unreadComments = harness();
+  edit(unreadComments, (s) => s.pulls.push(v1Pull({ comments: [] })));
+  const partial = await cli(unreadComments, ["status", "--change", CHANGE, "--json"], undefined, { SHIP_LOOP_FAKE_FAIL: "gh-api" });
+  expect(partial.code).toBe(2);
+  expect(partial.out).toBe("");
+}, 15_000);
+
+test("a pull request URL is refused with the exact path that finishes its v1 round, before any read", async () => {
+  // tach#515 has no Entire change; its round finishes where it started.
+  const h = harness();
+  const pr = "https://github.com/r90group/tach/pull/515";
+  const r = await cli(h, ["status", "--change", pr, "--json"]);
+  expect(r.code).toBe(1);
+  expect(r.err).toContain(`at ${FROZEN_V1}: \`bun <cached-v1-helper> status --pr ${pr} --json\``);
+  expect(calls(h)).toEqual([]);
+});
+
+test("every documented change URL form resumes one ledger under the canonical change URL", async () => {
+  const h = harness();
+  const repoForm = "https://entire.com/gh/misty-step/example/-/trails/7/changes/3";
+  const shortForm = "https://entire.com/gh/misty-step/example/trails/3";
+  expect((await cli(h, initArgs(shortForm))).code).toBe(0);
+  for (const form of [CHANGE, repoForm, shortForm]) {
+    const read = await cli(h, ["status", "--change", form, "--json"]);
+    expect(read.code, read.err).toBe(0);
+    expect(JSON.parse(read.out)).toMatchObject({ change: CHANGE, phase: "verify", last_seq: 1 });
+    const resumed = await cli(h, initArgs(form));
+    expect(resumed.code, resumed.err).toBe(0);
+    expect(resumed.out).toContain("no reset");
+  }
+  const report = await cli(h, ["record", "--change", repoForm, "--kind", "report"], { role: "qa", sha: H1, thread_id: "qa-1", report_url: CHANGE, outcome: "PASS", findings: [] });
+  expect(report.code, report.err).toBe(0);
+  expect(comments(h).length).toBe(2);
+  // The brief records through the canonical URL and names the change for findings, so they work from a detached checkout.
+  const brief = await cli(h, ["prompt", "--change", shortForm, "--role", "review"]);
+  expect(brief.code, brief.err).toBe(0);
+  expect(brief.out).toContain("`entire trail finding add --trail example/3 --project gh/misty-step --severity");
+  expect(brief.out).toContain(`record --change ${CHANGE} --kind report`);
+}, 30_000);
+
+test("a change URL naming another parent trail is refused before any write", async () => {
+  const h = harness();
+  for (const wrong of ["https://entire.com/gh/misty-step/-/trails/999/changes/example/3", "https://entire.com/gh/misty-step/example/-/trails/999/changes/3"]) {
+    const read = await cli(h, ["status", "--change", wrong, "--json"]);
+    expect(read.code).toBe(1);
+    expect(read.err).toContain("--change names trail 999, but change example/3 is on trail 7");
+    expect((await cli(h, initArgs(wrong))).code).toBe(1);
+  }
+  expect(comments(h)).toEqual([]);
+}, 15_000);
+
+test("the change's author, not its trail's author, writes the ledger, and an unknown author stops every write", async () => {
+  // review:F8 on 0.12.2: `trail show` names the parent trail's author; the finding listing names the change's own.
+  const h = harness();
+  edit(h, (s) => {
+    s.trail_author = "ticket-author";
+  });
+  expect((await initPr(h)).code).toBe(0);
+  expect((await reportQa(h)).code).toBe(0);
+  expect((await status(h)).doc).toMatchObject({ ledger: "present", last_seq: 2, review_thread_ids: ["qa-1"] });
+
+  // Entire names no author for a bot-published change: nothing is read as a round, and nothing is written.
+  const unknown = harness();
+  edit(unknown, (s) => {
+    s.change.author = null;
+    s.trail_author = "conductor";
+  });
+  for (const args of [["status", "--change", CHANGE, "--json"], initArgs(CHANGE)]) {
+    const r = await cli(unknown, args, undefined, { SHIP_LOOP_FAKE_ACTOR: "conductor" });
+    expect(r.code).toBe(2);
+    expect(r.out).toBe("");
+  }
+  expect(comments(unknown)).toEqual([]);
+}, 15_000);
+
+test("a push that stales earlier events, or a dismissed event, never resets the round", async () => {
+  const h = harness();
+  await initPr(h);
+  await reportQa(h, [finding("F1")]);
+  await reportReview(h);
+  // A new push marks every earlier finding stale, which Entire's default list hides; someone also dismisses the QA event.
+  edit(h, (s) => {
+    s.version++;
+    s.findings.find((f) => f.body.includes('"role": "qa"'))!.status = "dismissed";
+  });
+  expect((await status(h)).doc).toMatchObject({ ledger: "present", phase: "judge", last_seq: 3, review_thread_ids: ["qa-1", "review-1"] });
+  expect((await initPr(h)).out).toContain("no reset");
+  const fix = await cli(h, ["record", "--change", CHANGE, "--kind", "verdict"], { thread_id: "judge-1", sha: H1, verdict: "FIX", blockers: ["qa:F1"], report_url: "https://example.test/v" });
+  expect(fix.code, fix.err).toBe(0);
+  expect((await status(h)).doc).toMatchObject({ phase: "fix", fix_round: 1, last_seq: 4 });
+}, 15_000);
+
+test("every finding call names the change, and every ledger read asks for each status, dismissed and stale findings", async () => {
+  // An explicit CLI contract. On 0.12.2 `--include-dismissed` without `--status` already lists every status, so
+  // dropping only `--status any` changes no behavior; this keeps the documented read explicit.
+  const h = harness();
+  await initPr(h);
+  await reportQa(h);
+  const findingCalls = calls(h).filter((c) => c[1] === "finding");
+  const value = (c: string[], name: string) => (c.includes(name) ? c[c.indexOf(name) + 1] : undefined);
+  expect(findingCalls.map((c) => c[2])).toEqual(expect.arrayContaining(["list", "add", "resolve"]));
+  for (const c of findingCalls) expect([value(c, "--trail"), value(c, "--project")]).toEqual(["example/3", "gh/misty-step"]);
+  for (const c of findingCalls.filter((c) => c[2] === "list")) {
+    expect([value(c, "--status"), c.includes("--include-dismissed"), value(c, "--freshness")]).toEqual(["any", true, "any"]);
+  }
+});
+
+test("a retry after a lost concurrent write is a new write at the next seq, and every event ends resolved", async () => {
+  const h = harness();
+  await initPr(h);
+  // Another conductor's QA report lands at seq 2 just before this review report.
+  const rival = renderWithKey({ v: 1, kind: "report", seq: 2, role: "qa", sha: H1, thread_id: "qa-1", report_url: "https://example.test/qa", outcome: "PASS", findings: [] });
+  const lost = await reportReview(h, [], { SHIP_LOOP_FAKE_RACE: rival });
+  expect(lost.code, lost.err).toBe(3);
+  expect((await status(h)).doc).toMatchObject({ last_seq: 2, rejected_writes: 1, review_thread_ids: ["qa-1"] });
+  const retried = await reportReview(h);
+  expect(retried.code, retried.err).toBe(0);
+  expect(retried.out).toContain("recorded at seq 3");
+  expect((await status(h)).doc).toMatchObject({ phase: "judge", last_seq: 3, rejected_writes: 1, review_thread_ids: ["qa-1", "review-1"] });
+  expect(comments(h).map((c) => c.status)).toEqual(["resolved", "resolved", "resolved", "resolved"]);
+}, 15_000);
+
+test("a failed resolve is never reported as success, and rerunning the same command resolves the event", async () => {
+  const h = harness();
+  const stuck = { SHIP_LOOP_FAKE_FAIL: "resolve" };
+  const firstInit = await cli(h, initArgs(CHANGE), undefined, stuck);
+  expect(firstInit.code).toBe(2);
+  expect(firstInit.out).toBe("");
+  expect(firstInit.err).toContain("is still open");
+  expect(comments(h).map((c) => c.status)).toEqual(["open"]);
+  const resumed = await initPr(h);
+  expect(resumed.code, resumed.err).toBe(0);
+  expect(resumed.out).toContain("no reset");
+  expect(comments(h).map((c) => c.status)).toEqual(["resolved"]);
+
+  expect((await reportQa(h, [], "PASS", stuck)).code).toBe(2);
+  expect((await status(h)).doc.last_seq).toBe(2);
+  const again = await reportQa(h, [], "PASS");
+  expect(again.code, again.err).toBe(0);
+  expect(again.out).toContain("already recorded at seq 2");
+  expect(comments(h).map((c) => c.status)).toEqual(["resolved", "resolved"]);
+
+  // A lost add response is confirmed on read-back, but only a resolved event is success.
+  expect((await reportReview(h, [], { SHIP_LOOP_FAKE_FAIL: "post-after,resolve" })).code).toBe(2);
+  expect(comments(h).map((c) => c.status)).toEqual(["resolved", "resolved", "open"]);
+  const retried = await reportReview(h);
+  expect(retried.code, retried.err).toBe(0);
+  expect(comments(h).map((c) => c.status)).toEqual(["resolved", "resolved", "resolved"]);
+}, 30_000);
 
 // Render an event exactly as the CLI would: its content key covers everything except seq.
 function renderWithKey(body: Record<string, unknown>): string {
