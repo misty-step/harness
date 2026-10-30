@@ -6,23 +6,27 @@ const graph = await getGraph();
 const documents = graph.documents.filter((document) => catalogKinds.includes(document.kind));
 ---
 <SiteLayout title="Library" section="Library">
-  <div class="container section">
-    <h1>Library</h1>
-    <p>The complete method, including principle leaves hidden from automatic model discovery. Supporting documents are linked from each entry.</p>
-    <form class="catalog-controls" action="/library/" method="get" data-catalog-controls hidden>
-      <label>Find an entry<input type="search" name="q" placeholder="Name, trigger or prevented failure" /></label>
-      <label>Section<select name="section"><option value="">All sections ({documents.length})</option>{catalogKinds.map((kind) => <option value={kind}>{kind} ({documents.filter((document) => document.kind === kind).length})</option>)}</select></label>
-      <button type="submit">Filter library</button>
-    </form>
-    <p class="search-status" role="status" aria-live="polite" data-catalog-status>{documents.length} entries</p>
-    <noscript><p>All entries are available below. Filtering and search need JavaScript.</p></noscript>
-    <ul class="catalog-list" role="list">{documents.map((document) => <li class="catalog-item" data-catalog-item data-section={document.kind} data-search={`${document.title} ${document.skill?.name ?? ''} ${document.skill?.description ?? ''} ${document.skill?.prevents ?? ''}`.toLowerCase()}>
-      <div class="catalog-meta"><span class="badge">{document.kind}</span>{document.skill?.disableModelInvocation && <span>Explicit invocation</span>}</div>
-      <h2><a href={document.url}>{document.title}</a></h2>
-      {document.skill && <><p>{document.skill.description}</p><p><strong>Prevents:</strong> {document.skill.prevents}</p></>}
-      {!document.skill && <p><code>{document.id}</code></p>}
-    </li>)}</ul>
-    <p data-catalog-empty hidden>No matching entries. Clear the filters or <a href="/guide/">follow the guide</a>.</p>
+  <div class="page">
+    <section class="s s-index">
+      <div class="s-head">
+        <h1 class="s-title">Library</h1>
+        <p class="s-intro">The complete method, including principle leaves hidden from automatic model discovery. Supporting documents are linked from each entry.</p>
+        <form class="field-row" action="/library/" method="get" data-catalog-controls hidden>
+          <label>Find an entry<input type="search" name="q" placeholder="Name, trigger or prevented failure" /></label>
+          <label>Section<select name="section"><option value="">All sections ({documents.length})</option>{catalogKinds.map((kind) => <option value={kind}>{kind} ({documents.filter((document) => document.kind === kind).length})</option>)}</select></label>
+          <button class="btn btn-primary" type="submit">Filter library</button>
+        </form>
+        <p class="s-status" role="status" aria-live="polite" data-catalog-status>{documents.length} entries</p>
+        <noscript><p class="s-status">All entries are available below. Filtering and search need JavaScript.</p></noscript>
+      </div>
+      <ul class="entries">{documents.map((document) => <li class="entry" data-catalog-item data-section={document.kind} data-search={`${document.title} ${document.skill?.name ?? ''} ${document.skill?.description ?? ''} ${document.skill?.prevents ?? ''}`.toLowerCase()}>
+        <div class="entry-meta"><span class="badge">{document.kind}</span>{document.skill?.disableModelInvocation && <span>Explicit invocation</span>}</div>
+        <h2 class="entry-title"><a href={document.url}>{document.title}</a></h2>
+        {document.skill && <><p class="entry-body">{document.skill.description}</p><p class="entry-body"><strong>Prevents:</strong> {document.skill.prevents}</p></>}
+        {!document.skill && <p class="entry-body"><code>{document.id}</code></p>}
+      </li>)}</ul>
+      <p class="entry-body" data-catalog-empty hidden>No matching entries. Clear the filters or <a href="/guide/">follow the guide</a>.</p>
+    </section>
   </div>
   <script>import '../../scripts/catalog.mjs';</script>
 </SiteLayout>

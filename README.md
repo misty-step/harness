@@ -103,18 +103,24 @@ indexes the artifact with Pagefind. `check` crawls those emitted routes,
 fragments, assets and search indexes. `serve` uses local Wrangler static-asset
 routing, including trailing slashes, redirects and a true 404. It does not deploy.
 
-Presentation is replaceable in `site/src/styles/tokens.css`,
-`site/src/styles/base.css` and the semantic layouts/components. Role tokens own
-the visual values. `HeroBackgroundSlot.astro` renders nothing until an optional
-decorative background is commissioned. None of these boundaries requires moving
-or duplicating method content; route and link normalization lives in
-`site/src/lib/graph.mjs`. Historical record links to removed sources use a small,
-explicit archive map, labelled with their immutable revision.
+Presentation comes from the Misty Step identity package, `@misty-step/brand`,
+pinned in `site/package.json`: its stylesheet, `<html>` attributes, runtime
+(entrances, the hero's Ground fog field, theme and pause), mark, icons and
+social card. `site/src/styles/site.css` adds only the handbook's own parts on
+the brand tokens. The home page's words live in `site/src/copy/home.mjs`;
+`site/src/lib/home.mjs` reads the core lines, install commands, counts and
+trial numbers from this repository and fails the build when the copy and the
+tree disagree. None of these boundaries requires moving or duplicating method
+content; route and link normalization lives in `site/src/lib/graph.mjs`.
+Historical record links to removed sources use a small, explicit archive map,
+labelled with their immutable revision.
 
 The [publishing decision](docs/decisions/0018-static-publishing-stack.md) records the
 stack exception and production boundaries. The
 [kernel trial](docs/evals/2026-10-28-kernel-trial.md) owns the reported results,
-task table and limitations. The Workers config is not a deployed service.
+task table and limitations. A maintainer deploys master to
+<https://stack.mistystep.io> with `npx wrangler deploy` from `site/` until a CI
+deploy credential is approved.
 
 ## Read
 

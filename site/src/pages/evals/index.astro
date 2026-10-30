@@ -6,10 +6,18 @@ const graph = await getGraph();
 const rounds = graph.documents.filter((document) => document.kind === 'Evals').sort((a, b) => b.data.date.localeCompare(a.data.date));
 ---
 <SiteLayout title="Evals" section="Evals">
-  <div class="container section">
-    <h1>Evals</h1>
-    <p>Measured rounds with their task denominators, method and evidence boundaries. Directional results are not a claim of statistically conclusive superiority.</p>
-    {rounds.map((document) => <><p><time datetime={document.data.date}>{document.data.date}</time> · {document.data.status}</p><p>Harness: {document.data.harness}. Evidence: {document.data.evidence.map((item) => `${item.label} (${item.visibility})`).join('; ')}.</p><EvalSummary {document} /></>)}
-    <p><a href="/library/playbooks/eval/">Read the maintained evaluation playbook</a>.</p>
+  <div class="page">
+    <section class="s s-index">
+      <div class="s-head">
+        <h1 class="s-title">Evals</h1>
+        <p class="s-intro">Measured rounds with their task denominators, method and evidence boundaries. Directional results are not a claim of statistically conclusive superiority.</p>
+        <p class="s-status"><a href="/library/playbooks/eval/">Read the maintained evaluation playbook</a>.</p>
+      </div>
+      <ol class="entries">{rounds.map((document) => <li class="entry">
+        <p class="entry-meta"><time datetime={document.data.date}>{document.data.date}</time> · {document.data.status}</p>
+        <p class="entry-body">Harness: {document.data.harness}. Evidence: {document.data.evidence.map((item) => `${item.label} (${item.visibility})`).join('; ')}.</p>
+        <EvalSummary {document} />
+      </li>)}</ol>
+    </section>
   </div>
 </SiteLayout>

@@ -317,7 +317,7 @@ export async function createGraph(entries) {
   documents.sort((a, b) => a.order - b.order || a.title.localeCompare(b.title));
   const graph = {
     documents, byId: new Map(documents.map((doc) => [doc.id, doc])), byUrl: new Map(),
-    specialRoutes: new Map([['/', new Set(['how-it-works', 'reported-defect', 'install-for-your-harness'])], ['/library/', new Set()], ['/evals/', new Set()], ['/search/', new Set()]]),
+    specialRoutes: new Map([['/', new Set(['core', 'method', 'brief', 'evidence', 'install', 'read'])], ['/library/', new Set()], ['/evals/', new Set()], ['/search/', new Set()]]),
   };
   for (const doc of documents) {
     if (graph.byUrl.has(doc.url)) throw new Error(`Duplicate canonical route ${doc.url}: ${doc.id}`);

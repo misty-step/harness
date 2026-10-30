@@ -5,19 +5,23 @@ const graph = await getGraph();
 const sections = [...new Set(graph.documents.map((document) => document.kind))].sort();
 ---
 <SiteLayout title="Search" section="Search" noindex>
-  <div class="container section">
-    <h1>Search the method</h1>
-    <p>Find names, phrases, prevented failures and the heading to share.</p>
-    <form class="search-form" action="/search/" method="get" data-search-form>
-      <label>Search<input name="q" type="search" autocomplete="off" placeholder="Try outside proof or bug fix" /></label>
-      <label>Section<select name="section"><option value="">All sections</option>{sections.map((section) => <option value={section}>{section}</option>)}</select></label>
-      <button type="submit">Search</button>
-    </form>
-    <noscript><p>Search needs JavaScript. All content is readable without it: <a href="/library/">browse the library</a> or <a href="/guide/">follow the guide</a>.</p></noscript>
-    <p class="search-status" role="status" aria-live="polite" data-search-status>Enter a term to search this revision.</p>
-    <ol class="search-results" role="list" data-search-results></ol>
-    <button type="button" data-search-more hidden>Show more results</button>
-    <p><a href="/library/">Browse the full library</a> · <a href="/guide/">Follow the guide</a></p>
+  <div class="page">
+    <section class="s s-index">
+      <div class="s-head">
+        <h1 class="s-title">Search the method</h1>
+        <p class="s-intro">Find names, phrases, prevented failures and the heading to share.</p>
+        <form class="field-row" action="/search/" method="get" data-search-form>
+          <label>Search<input name="q" type="search" autocomplete="off" placeholder="Try outside proof or bug fix" /></label>
+          <label>Section<select name="section"><option value="">All sections</option>{sections.map((section) => <option value={section}>{section}</option>)}</select></label>
+          <button class="btn btn-primary" type="submit">Search</button>
+        </form>
+        <noscript><p class="s-status">Search needs JavaScript. All content is readable without it: <a href="/library/">browse the library</a> or <a href="/guide/">follow the guide</a>.</p></noscript>
+        <p class="s-status" role="status" aria-live="polite" data-search-status>Enter a term to search this revision.</p>
+      </div>
+      <ol class="entries search-results" data-search-results></ol>
+      <button class="btn btn-quiet" type="button" data-search-more hidden>Show more results</button>
+      <p class="entry-body"><a href="/library/">Browse the full library</a> · <a href="/guide/">Follow the guide</a></p>
+    </section>
   </div>
   <script>import '../../scripts/search.mjs';</script>
 </SiteLayout>

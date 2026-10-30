@@ -1,5 +1,5 @@
 ---
-const { document, compact = false } = Astro.props;
+const { document } = Astro.props;
 const round = document.data;
 ---
 <section class="eval-summary" aria-label={round.title}>
@@ -8,10 +8,10 @@ const round = document.data;
   <div class="table-scroll" tabindex="0" role="region" aria-label="Evaluation results, scroll horizontally if needed">
     <table>
       <caption>Reported outside-check passes, not an independent rerun</caption>
-      <thead><tr><th scope="col">Guidance arm</th><th scope="col">Passed / tasks</th>{!compact && <><th scope="col">Mean blind score / 20</th><th scope="col">Tokens</th></>}</tr></thead>
-      <tbody>{round.arms.map((arm) => <tr><th scope="row">{arm.label}</th><td>{arm.oraclePassed}/{arm.oracleTotal}</td>{!compact && <><td>{arm.meanBlindScore.toFixed(2)}</td><td>{arm.tokens.toLocaleString('en-US')}</td></>}</tr>)}</tbody>
+      <thead><tr><th scope="col">Guidance arm</th><th scope="col">Passed / tasks</th><th scope="col">Mean blind score / 20</th><th scope="col">Tokens</th></tr></thead>
+      <tbody>{round.arms.map((arm) => <tr><th scope="row">{arm.label}</th><td>{arm.oraclePassed}/{arm.oracleTotal}</td><td>{arm.meanBlindScore.toFixed(2)}</td><td>{arm.tokens.toLocaleString('en-US')}</td></tr>)}</tbody>
     </table>
   </div>
-  <div class="limits"><h3>Limits on this result</h3><ul>{round.limits.map((limit) => <li>{limit}</li>)}</ul></div>
+  <div><h3>Limits on this result</h3><ul class="limits">{round.limits.map((limit) => <li>{limit}</li>)}</ul></div>
   <p><a href={document.url}>Read the task table, method and evidence boundaries</a></p>
 </section>

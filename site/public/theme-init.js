@@ -1,5 +1,11 @@
-// System is the default. A saved explicit choice is the only override.
-try {
-  const theme = localStorage.getItem('mistystack-theme');
-  if (theme === 'light' || theme === 'dark') document.documentElement.dataset.theme = theme;
-} catch { /* Reading and the system theme still work when storage is disabled. */ }
+// Runs before first paint. The brand stylesheet reads data-theme (light or
+// dark): a saved explicit choice wins, otherwise the system setting applies.
+// The brand runtime owns data-reduced-motion and data-paused. data-js lets
+// the stylesheet show controls that need this site's script.
+(() => {
+  const root = document.documentElement;
+  let saved = null;
+  try { saved = localStorage.getItem('mistystack-theme'); } catch { /* Storage may be disabled; the system theme still applies. */ }
+  root.dataset.theme = saved === 'light' || saved === 'dark' ? saved : matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  root.dataset.js = '';
+})();

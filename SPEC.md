@@ -94,6 +94,6 @@ fleet machinery do not become a second copy of the method.
 ## Decision records
 
 Architecture and operational status belong in [decision records](docs/decisions/index.md),
-not in the behavior contract above. The public site's publishing-stack exception
-and its not-deployed, uncommissioned preview/deployment/telemetry boundary are
-recorded in [ADR 0018](docs/decisions/0018-static-publishing-stack.md).
+not in the behavior contract above. The public site's publishing-stack
+exception, its commissioned deployment and its open telemetry and production
+proof are recorded in [ADR 0018](docs/decisions/0018-static-publishing-stack.md).

@@ -33,7 +33,7 @@ const articles = document.articles ?? [];
       {document.url === '/install/' && <HarnessChooser {graph} />}
       {document.headings.some((heading) => heading.depth > 1) && <details class="toc-mobile" data-pagefind-ignore><summary>On this page</summary><DocNavigation {document} {graph} toc /></details>}
       {articles.length > 0 && <nav class="foundation-nav" aria-label="Foundation articles"><ol role="list">{articles.map((article) => <li value={article.number}><a href={`#article-${article.number}`}>{article.label}</a></li>)}</ol></nav>}
-      <div class="doc-body" set:html={document.html} />
+      <div class="doc-body prose" set:html={document.html} />
       {children.length > 0 && <section class="related-content" data-pagefind-ignore><h2>Supporting documents</h2><ul>{children.map((item) => <li><a href={item.url}>{item.title}</a></li>)}</ul></section>}
       {(previous || next) && <nav class="doc-pagination" aria-label="Reading order" data-pagefind-ignore>{previous && <a rel="prev" href={previous.url}>Previous: {previous.title}</a>}{next && <a rel="next" href={next.url}>Next: {next.title}</a>}</nav>}
       {backlinks.length > 0 && <section class="related-content" data-pagefind-ignore><h2>Linked from</h2><ul>{backlinks.map((item) => <li><a href={item.url}>{item.title}</a></li>)}</ul></section>}

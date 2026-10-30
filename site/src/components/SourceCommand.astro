@@ -1,9 +1,0 @@
----
-const { document } = Astro.props;
----
-{document.command && <div class="command-block">
-  <pre tabindex="0" role="region" aria-label={`${document.title} installation command`}><code>{document.command.value}</code></pre>
-  <button type="button" data-copy-command hidden>Copy command</button>
-  <span data-copy-status role="status" aria-live="polite"></span>
-  <p><a href={`${document.url}#${document.headings.find((heading) => heading.depth === 2)?.id ?? document.headings[0].id}`}>Full installation and loading proof</a> · <a href={`${document.source.blobUrl}#L${document.command.line}`}>Exact maintained command</a></p>
-</div>}

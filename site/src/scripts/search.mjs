@@ -18,13 +18,15 @@ async function appendResults(current) {
   if (current !== request) return;
   for (const result of documents) {
     const item = document.createElement('li');
-    item.className = 'search-result';
+    item.className = 'entry';
     const heading = document.createElement('h2');
+    heading.className = 'entry-title';
     const link = document.createElement('a');
     link.href = result.url;
     link.textContent = result.meta.title;
     heading.append(link);
     const excerpt = document.createElement('p');
+    excerpt.className = 'entry-body';
     // Pagefind documents its excerpt HTML as escaped text plus safe <mark> tags.
     excerpt.innerHTML = result.excerpt;
     item.append(heading, excerpt);

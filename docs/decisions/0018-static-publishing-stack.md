@@ -1,6 +1,6 @@
 # 0018: Static publishing, not a full-stack service
 
-Status: accepted, 2026-10-28.
+Status: accepted, 2026-10-28; deployment commissioned, 2026-10-29.
 
 ## Context
 
@@ -57,17 +57,27 @@ transform; unresolved source links, fragments or required metadata must fail the
 build rather than silently omit material. The site renders original decision
 bodies and identifies known supersession instead of rewriting historical claims.
 
-**Not deployed.** This decision selects the stack; it does not provision or
-attach `stack.mistystep.io`, deploy a Worker, or change Cloudflare/DNS. Public
-preview, production deployment/promotion/rollback and telemetry are
-**uncommissioned**. A local build, browser review or repository gate is not a
-production Foundation pass. Real-path production proof, delivery/recovery and
-PostHog/Sentry receipt/alert evidence remain unverified under
+**Deployment commissioned.** Phaedrus commissioned deployment of
+`stack.mistystep.io` on 2026-10-29. Production serves `master`: a maintainer
+runs `npx wrangler deploy` from `site/` at a checked master commit, which
+publishes `site/dist/` to the Worker and custom domain named in
+`site/wrangler.jsonc`. This hand step stays until a CI deploy credential is
+approved. Its `workers.dev` preview URLs send `X-Robots-Tag: noindex`.
+
+Telemetry is open in
+[#622](https://github.com/misty-step/mistystack/issues/622), and the
+production Foundation proof (real-path verification, the pipeline deploy and a
+rehearsed rollback) is open in
+[#623](https://github.com/misty-step/mistystack/issues/623). A local build,
+browser review or repository gate is not a production Foundation pass.
+Real-path production proof, delivery/recovery and PostHog/Sentry receipt/alert
+evidence remain unverified under
 [articles 4](../../skills/foundation/checklist.md#article-4),
 [6](../../skills/foundation/checklist.md#article-6) and
-[8](../../skills/foundation/checklist.md#article-8). Static output does not
-silently waive these obligations; a later justified deviation needs its own
-record. No preview URL, live release or telemetry success is claimed here.
+[8](../../skills/foundation/checklist.md#article-8) until those issues close.
+Static output does not silently waive these obligations; a later justified
+deviation needs its own record. No live release or telemetry success is
+claimed here.
 
 Revisit this exception if a real consumer story requires server-owned behavior,
 or if the source graph cannot preserve the existing method's loading and linking
