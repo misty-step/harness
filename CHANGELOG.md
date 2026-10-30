@@ -1,3 +1,9 @@
+# [0.3.14](https://github.com/misty-step/mistystack/compare/v0.3.13...v0.3.14) (2026-10-30)
+<!-- landmark:protected-release previous=v0.3.13 source=cb411f388564ef1780837bfeb4c5f488f2d5ece9af0d552561d562ba314f0dec -->
+
+### Features
+
+* **recompile:** monthly rebuild review from the vision (#634) ([3969127](https://github.com/misty-step/mistystack/commit/3969127be6bd9d6d7430c155cad4ccdcc1d96afc))
 # [0.3.13](https://github.com/misty-step/mistystack/compare/v0.3.12...v0.3.13) (2026-10-30)
 <!-- landmark:protected-release previous=v0.3.12 source=89a9a1d9f990450f8ae57c40947f73be2ec7e160e082a15352978907d850f35b -->
 
