@@ -28,11 +28,9 @@ installer and no duplicated method content per harness. Harness-specific
 mechanics live in a disclosed reference for that harness, not shared procedures.
 Model and runtime choices belong in harness-native configuration.
 
-OMP shipped first; the Claude Code, Codex and pi native adapters and their proofs
-are in progress in [#591](https://github.com/misty-step/mistystack/issues/591),
-not claimed as shipped here. Their mechanics and proof boundaries live in the
-[harness references](../../skills/misty/SKILL.md). The Grok target is the
-[Grok Bot runtime](../../skills/misty/harnesses/grok-bot.md): Maren
+OMP, Claude Code, Codex and pi use native adapters; their mechanics and proof
+boundaries live in the [harness references](../../skills/misty/SKILL.md). The Grok
+target is the [Grok Bot runtime](../../skills/misty/harnesses/grok-bot.md): Maren
 and Shipwright install Mistystack themselves from a brief and establish the
 runtime's loading contract. Phaedrus, 2026-10-28: "i don't think we'll ever use
 grok build". Grok Build CLI is not supported and no `.grok-plugin` is shipped.
