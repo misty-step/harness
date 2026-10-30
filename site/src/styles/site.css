@@ -72,10 +72,10 @@ html:not([data-js]) :is(.theme-toggle, .copy) { display: none; }
 /* Ruled entries: library, search results, eval rounds. */
 .entries { border-block-start: var(--rule) solid var(--ink); }
 .entry { display: grid; gap: 8px; padding: var(--row-pad) 0; border-block-end: var(--rule) solid var(--line); }
-.entry > * { max-inline-size: var(--measure); }
+.entry > * { min-inline-size: 0; max-inline-size: var(--measure); }
 .entry-title { font-family: var(--font-display); font-size: var(--step-1); font-weight: var(--display-weight); line-height: 1.2; letter-spacing: var(--display-tracking); }
 .entry-title a { display: inline-flex; align-items: center; min-block-size: 44px; }
-.entry-body { color: var(--ink-2); }
+.entry-body { color: var(--ink-2); overflow-wrap: anywhere; }
 .entry-body mark { background: var(--selection); color: var(--ink); }
 .entry-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; font-family: var(--font-ui); font-size: var(--step--1); color: var(--ink-2); }
 .entry > ul { display: flex; flex-wrap: wrap; gap: 0 20px; }
@@ -89,7 +89,8 @@ html:not([data-js]) :is(.theme-toggle, .copy) { display: none; }
 
 /* Form controls in the identity: ruled fields, the primary button. */
 .field-row { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px 16px; }
-.field-row > label { display: grid; gap: 6px; flex: 1 1 14rem; font-family: var(--font-ui); font-size: var(--step--1); font-weight: 600; color: var(--ink); }
+.field-row > label { display: grid; gap: 6px; flex: 1 1 12rem; font-family: var(--font-ui); font-size: var(--step--1); font-weight: 600; color: var(--ink); }
+.field-row > label:has(input[type="search"]) { flex-basis: 100%; }
 .field-row :is(input, select) {
   inline-size: 100%; min-block-size: 48px; padding: 0 14px;
   border: var(--rule) solid var(--line-2); border-radius: var(--radius); background: var(--bg-2); color: var(--ink);
@@ -104,9 +105,9 @@ html:not([data-js]) :is(.theme-toggle, .copy) { display: none; }
   display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); column-gap: var(--col-gap); align-items: start;
   padding: clamp(32px, 5vw, 72px) var(--edge) var(--section-space);
 }
-.docs-sidebar { grid-column: 1 / span 3; grid-row: 1 / span 2; position: sticky; inset-block-start: 24px; max-block-size: calc(100svh - 48px); overflow-y: auto; padding: 4px; }
+.docs-sidebar { grid-column: 1 / span 3; grid-row: 1 / span 2; position: sticky; inset-block-start: 24px; max-block-size: calc(100svh - 48px); overflow-y: auto; margin-inline-start: -4px; padding: 4px; }
 .docs-content { grid-column: 4 / span 6; min-inline-size: 0; }
-.docs-toc { grid-column: 10 / -1; grid-row: 1 / span 2; position: sticky; inset-block-start: 24px; max-block-size: calc(100svh - 48px); overflow-y: auto; padding: 4px; }
+.docs-toc { grid-column: 10 / -1; grid-row: 1 / span 2; position: sticky; inset-block-start: 24px; max-block-size: calc(100svh - 48px); overflow-y: auto; margin-inline-end: -4px; padding: 4px; }
 .browse-mobile, .toc-mobile { display: none; }
 
 :is(.docs-sidebar, .docs-toc, .browse-mobile, .toc-mobile) nav > p {
@@ -226,6 +227,7 @@ html:not([data-js]) :is(.theme-toggle, .copy) { display: none; }
 .table-scroll :not(pre) > code { overflow-wrap: normal; }
 
 .heading-anchor { margin-inline-start: 0.3em; padding: 0 0.15em; color: var(--ink-3); font-family: var(--font-ui); font-weight: 400; text-decoration: none !important; }
+h1 > .heading-anchor { font-size: 0.42em; vertical-align: 0.5em; }
 
 /* ---- Evaluation summary ---- */
 
