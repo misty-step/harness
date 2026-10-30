@@ -24,6 +24,12 @@ through [AGENTS.md](AGENTS.md), and boundary decisions live in
 - **Skill:** a directory with a `SKILL.md` entry point and optional supporting
   material. References use relative Markdown links or the skill's name; native
   loading mechanics belong to the adapter.
+- **Recompile review:** the monthly and model-capability-triggered reconsideration
+  of a project's implementation from its vision and durable record, owned by
+  [recompile](skills/recompile/SKILL.md). Keeping the system is a valid outcome.
+- **Edition:** an opt-in breaking contract that consumers explicitly select.
+  Existing editions keep working; migration does not silently change a consumer's
+  record or command meaning.
 - **Exemplar:** a person, codebase or piece of writing whose perspective we
   deliberately channel. The selected lenses, including products that embody
   them, live in [docs/exemplars.md](docs/exemplars.md); skill provenance remains

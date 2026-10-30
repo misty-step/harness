@@ -282,3 +282,27 @@ Criteria:
 Proof: `rules/core.md`, `skills/boat-workers/SKILL.md`,
 [ADR 0017](docs/decisions/0017-tern-omp-and-boat-workers.md) and a fresh-session
 worker dispatch with all-state cleanup.
+
+## US-062 Recompile from the vision
+
+When capabilities change or the monthly review is due, I want to reconsider the
+system from the vision and durable record, so obsolete implementation can go
+without sacrificing accepted meaning, history or consumer continuity.
+
+Criteria:
+1. Misty routes the review to [recompile](skills/recompile/SKILL.md).
+2. The review reads intent, artifacts, user evidence, decisions and obligations,
+   then describes the simplest system achievable with today's capabilities
+   before comparing the current implementation.
+3. A keep / rebuild part / rebuild all decision gives reasons per component,
+   including migration and compatibility costs. No rebuild is a valid result.
+4. Rebuilds freeze the record format, command contract and acceptance suite.
+   Breaking changes use opt-in editions; old editions keep working. Migration
+   is explicit, dry-run, refusing on unsafe conversion and reversible.
+5. Cutover requires independent acceptance-suite proof on the real record,
+   preserving accepted data, meaning and history within existing access bounds.
+6. The project's tracker owns the decision, evidence, accountable owner and next
+   monthly review date; a model-capability jump triggers an additional review.
+
+Proof: `skills/recompile/SKILL.md`, Misty's routing and the reviewed project's
+tracker decision with its real-record acceptance evidence.

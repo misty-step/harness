@@ -17,6 +17,10 @@ contract as specified in US-057–US-060 and the other maintained
 [consumer stories](USER_STORIES.md). Runtime/model configuration and private
 fleet machinery do not become a second copy of the method.
 
+Project owners can reconsider their implementation from the vision and durable
+record without committing to a rewrite or breaking existing consumers, as
+specified in [US-062](USER_STORIES.md#us-062-recompile-from-the-vision).
+
 ## Public site
 
 ### Understand and adopt
