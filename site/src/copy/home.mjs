@@ -1,5 +1,5 @@
 // The home page's words: the r2-cut stack copy from the Misty Step brand
-// configurator (misty-step/brand, configurator/options/copy/r2-cut), moved here
+// configurator (misty-step/aesthetic, brand/configurator/options/copy/r2-cut), moved here
 // as this site's single copy home. Facts are not written here. src/lib/home.mjs
 // reads the core lines, install commands, counts and trial numbers from the
 // repository and passes them in as `facts`; spelled counts arrive as words.

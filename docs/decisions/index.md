@@ -7,8 +7,8 @@ Records explain trade-offs; current method guidance lives in the
 
 - [0018](0018-static-publishing-stack.md): Astro static publishing, Pagefind and
   Workers Static Assets as a recorded stack exception; deployment commissioned
-  2026-10-29, by hand from master until a CI deploy credential is approved, with
-  telemetry and the production Foundation proof still open.
+  2026-10-29 and automated on every master push since 2026-10-30, with telemetry
+  and the production Foundation proof still open.
 - [0017](0017-tern-omp-and-boat-workers.md): the operator develops in Tern+OMP;
   every harness runs isolated execution on Boat workers and keeps any other
   environment rule in its harness note; Grok Bots orchestrate Boat, Cursor cloud

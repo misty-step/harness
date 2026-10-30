@@ -58,11 +58,15 @@ build rather than silently omit material. The site renders original decision
 bodies and identifies known supersession instead of rewriting historical claims.
 
 **Deployment commissioned.** Phaedrus commissioned deployment of
-`stack.mistystep.io` on 2026-10-29. Production serves `master`: a maintainer
-runs `npx wrangler deploy` from `site/` at a checked master commit, which
-publishes `site/dist/` to the Worker and custom domain named in
-`site/wrangler.jsonc`. This hand step stays until a CI deploy credential is
-approved. Its `workers.dev` preview URLs send `X-Robots-Tag: noindex`.
+`stack.mistystep.io` on 2026-10-29 and its automation on 2026-10-30. Production
+serves `master`: on every push to `master`,
+[`site-deploy.yml`](../../.github/workflows/site-deploy.yml) builds and checks
+`site/` at the master tip current when the run starts, publishes `site/dist/` to
+the Worker and custom domain named in `site/wrangler.jsonc` with a token scoped
+to Workers scripts and the `mistystep.io` zone's routes, and reads that revision
+back from the live page. A newer run cancels an older one, so the survivor always
+deploys the newest master. Its `workers.dev` preview URLs send
+`X-Robots-Tag: noindex`.
 
 Telemetry is open in
 [#622](https://github.com/misty-step/mistystack/issues/622), and the
