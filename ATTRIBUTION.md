@@ -1,6 +1,6 @@
 # Attribution
 
-Mistystack adapts the material listed below. The adaptations are Misty Step's; upstream authors do not endorse this plugin. Reference-only reading is listed in [docs/references.md](docs/references.md); those packs are not installed.
+Mistystack adapts the material listed below. The adaptations are Misty Step's; upstream authors do not endorse this plugin. Reference-only reading is listed in [docs/exemplars.md](docs/exemplars.md); those packs are not installed.
 
 Each derived skill names its upstream `owner/repo@full-commit/path` in `SKILL.md`'s `metadata.source`. That field covers the skill's whole directory, including references, playbooks and scripts; those files carry no frontmatter. Name all contributing upstreams, retain required copyright and licence notices, and identify modifications. Moving a file does not remove its attribution.
 

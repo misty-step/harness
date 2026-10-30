@@ -37,7 +37,7 @@ fleet machinery do not become a second copy of the method.
 ### Read and find the method
 
 - Guide, Library and Evals are primary reading destinations. Foundation and
-  Decisions are directly discoverable; stories, domain, references, attribution,
+  Decisions are directly discoverable; stories, domain, exemplars, attribution,
   changelog and source links remain reachable.
 - The library exposes every canonical core, mode, principle, playbook and task
   skill, including leaves hidden from automatic model discovery and supporting
