@@ -65,6 +65,7 @@ html:not([data-js]) :is(.theme-toggle, .copy) { display: none; }
 .page > .s-cta:first-child::before { inset-block-start: clamp(32px, 6vw, 88px); }
 .page > .s:last-child { padding-block-end: var(--section-space); }
 .s-head > .s-title:where(h1) { font-size: var(--step-3); line-height: 1.04; }
+.s > .btn { justify-self: start; }
 .s-head > :where(form, p:not(.s-intro), .s-status) { margin-block-start: 20px; }
 .s-status { font-family: var(--font-ui); font-size: var(--step--1); color: var(--ink-2); }
 
