@@ -14,7 +14,7 @@
     "serve": "wrangler dev --local"
   },
   "dependencies": {
-    "@misty-step/brand": "github:misty-step/brand#v0.1.0",
+    "@misty-step/brand": "https://github.com/misty-step/aesthetic/releases/download/brand-v0.1.0/misty-step-brand-0.1.0.tgz",
     "astro": "7.4.4",
     "github-slugger": "2.0.0",
     "rehype-raw": "7.0.0",

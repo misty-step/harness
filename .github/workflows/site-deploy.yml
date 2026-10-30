@@ -1,0 +1,77 @@
+name: Site deploy
+
+# Every push to master deploys https://stack.mistystep.io (ADR 0018). The site renders the
+# whole repository, so any master change can change it.
+#
+# Queue: one group with cancel-in-progress. A newer run cancels an older in-progress or pending
+# one, and every run builds master as it is when the run starts (not the triggering commit), so
+# the surviving run always deploys the newest master. A stale rerun or a dispatch from another
+# branch also builds current master. Proof of this sequence on a disposable repository:
+# https://github.com/moomooskycow/deploy-queue-proof-20261030/actions
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: stack-site-production
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: [self-hosted, hetzner-ci, mistystack-ci]
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: site
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: master
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Record the revision being built
+        id: rev
+        run: |
+          sha="$(git rev-parse HEAD)"
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+          echo "Building master at $sha (triggered by $GITHUB_SHA)" >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: site/package-lock.json
+      - name: Install the pinned site dependencies
+        run: npm ci
+      - name: Build the static site and search index
+        env:
+          SITE_COMMIT: ${{ steps.rev.outputs.sha }}
+        run: npm run build
+      - name: Check the built artifact
+        env:
+          SITE_COMMIT: ${{ steps.rev.outputs.sha }}
+        run: npm run check
+      - name: Deploy mistystack-site
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: npx wrangler deploy
+      - name: Smoke stack.mistystep.io and read back the built revision
+        env:
+          BUILT: ${{ steps.rev.outputs.sha }}
+        run: |
+          for i in $(seq 1 12); do
+            if curl -fsSL "https://stack.mistystep.io/?v=$BUILT" | grep -q "$BUILT"; then
+              for path in /guide/ /library/ /evals/ /search/; do
+                curl -fsS -o /dev/null "https://stack.mistystep.io$path"
+              done
+              echo "stack.mistystep.io serves $BUILT" >> "$GITHUB_STEP_SUMMARY"
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "stack.mistystep.io does not serve $BUILT"; exit 1

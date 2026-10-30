@@ -103,8 +103,9 @@ indexes the artifact with Pagefind. `check` crawls those emitted routes,
 fragments, assets and search indexes. `serve` uses local Wrangler static-asset
 routing, including trailing slashes, redirects and a true 404. It does not deploy.
 
-Presentation comes from the Misty Step identity package, `@misty-step/brand`,
-pinned in `site/package.json`: its stylesheet, `<html>` attributes, runtime
+Presentation comes from the Misty Step identity package, `@misty-step/brand`
+(built in `brand/` of misty-step/aesthetic), pinned to a release tarball in
+`site/package.json`: its stylesheet, `<html>` attributes, runtime
 (entrances, the hero's Ground fog field, theme and pause), mark, icons and
 social card. `site/src/styles/site.css` adds only the handbook's own parts on
 the brand tokens. The home page's words live in `site/src/copy/home.mjs`;
@@ -118,9 +119,9 @@ labelled with their immutable revision.
 The [publishing decision](docs/decisions/0018-static-publishing-stack.md) records the
 stack exception and production boundaries. The
 [kernel trial](docs/evals/2026-10-28-kernel-trial.md) owns the reported results,
-task table and limitations. A maintainer deploys master to
-<https://stack.mistystep.io> with `npx wrangler deploy` from `site/` until a CI
-deploy credential is approved.
+task table and limitations. Every push to `master` deploys
+<https://stack.mistystep.io> through
+[`site-deploy.yml`](.github/workflows/site-deploy.yml).
 
 ## Read
 
