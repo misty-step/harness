@@ -1,3 +1,9 @@
+# [0.3.13](https://github.com/misty-step/mistystack/compare/v0.3.12...v0.3.13) (2026-10-30)
+<!-- landmark:protected-release previous=v0.3.12 source=89a9a1d9f990450f8ae57c40947f73be2ec7e160e082a15352978907d850f35b -->
+
+### Bug Fixes
+
+* **principles:** resolve re-review blockers from f7e4a8d (#624) ([f45c9cb](https://github.com/misty-step/mistystack/commit/f45c9cb23a6abf2a85893b223db08be74923097a))
 # [0.3.12](https://github.com/misty-step/mistystack/compare/v0.3.11...v0.3.12) (2026-10-30)
 <!-- landmark:protected-release previous=v0.3.11 source=47c33b54dbfa64bfeea12f94784ca55f6a40766955fa2a8f195c8fb0bfdc8acb -->
 
