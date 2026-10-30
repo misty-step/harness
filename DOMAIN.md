@@ -10,10 +10,9 @@ through [AGENTS.md](AGENTS.md), and boundary decisions live in
   `skills/<name>/SKILL.md`, with supporting files beside each entry point.
 - **Native adapter:** thin integration from this repository that exposes the
   content tree through a harness's own loading and configuration mechanisms,
-  without a custom installer or a second copy of the method. OMP, Claude Code,
-  Codex and pi have native adapters; the [install guide](docs/guide/01-install-and-setup.md)
-  links their mechanics and separates Grok Bot and Hermes status from native
-  installation and fresh-session proof.
+  without a custom installer or a second copy of the method. OMP's plugin is
+  the first shipped adapter; others are tracked by
+  [#591](https://github.com/misty-step/mistystack/issues/591).
 - **Core rule:** `rules/core.md`, the always-applied entry point and guardrails
   for sessions using the method.
 - **Mode:** `misty`, the skill that routes nontrivial work to the relevant

@@ -2,11 +2,10 @@
 
 Misty Step's harness-neutral method: one content tree in Agent Skills format
 (`skills/<name>/SKILL.md`), exposed through thin native adapters from this
-repository. Native adapters serve OMP, Claude Code, Codex and pi; the
-[install chapter](01-install-and-setup.md) distinguishes their proof boundaries
-from Grok Bot runtime and Hermes status. Work through
-[misty](../../skills/misty/SKILL.md); each project keeps its own intent, decisions
-and proof.
+repository. OMP shipped first; other adapters and their proofs are tracked by
+[#591](https://github.com/misty-step/mistystack/issues/591), not claimed as shipped
+here. Work through [misty](../../skills/misty/SKILL.md); each project keeps its own
+intent, decisions and proof.
 
 1. [Install and setup](01-install-and-setup.md)
 2. [Misty](02-misty.md)

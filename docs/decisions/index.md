@@ -15,9 +15,7 @@ Records explain trade-offs; current method guidance lives in the
   agents and their native routines; Kaylee, Hermes Agent and exe.dev are being
   exited.
 - [0016](0016-harness-agnostic.md): one harness-neutral Agent Skills content tree
-  with native adapters for OMP, Claude Code, Codex and pi; the
-  [install guide](../guide/01-install-and-setup.md) distinguishes Grok Bot and
-  Hermes status and each integration's separate loading-proof boundary.
+  with thin native adapters; OMP shipped first, remaining integrations in #591.
   Its Kaylee/Hermes consumer statement is superseded by
   [0017](0017-tern-omp-and-boat-workers.md).
 - [0015](0015-omp-method-plugin.md): references instead of packs, private
