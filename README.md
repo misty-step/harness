@@ -33,6 +33,9 @@ local Tern+OMP setup and the [Grok Bot note](skills/misty/harnesses/grok-bot.md)
 covers Bots' shared computer and orchestration across Boat workers, Cursor cloud
 agents and native routines ([ADR 0017](docs/decisions/0017-tern-omp-and-boat-workers.md)).
 
+Use the [Entire forge procedure](skills/misty/entire.md) for tickets, backlog,
+changes, findings and merges. It also names the backing-forge exceptions.
+
 ## Layout
 
 ```text
@@ -42,7 +45,7 @@ agents and native routines ([ADR 0017](docs/decisions/0017-tern-omp-and-boat-wor
 .agents/plugins/   Codex marketplace
 package.json       pi package resource declarations
 rules/core.md      always-on routing and guardrails
-skills/misty/      mode, principle index and task playbooks
+skills/misty/      mode, forge procedure, principle index and task playbooks
 skills/misty/harnesses/ disclosed native integration references
 skills/principle-* on-demand principle leaves
 skills/            one Agent Skills content tree

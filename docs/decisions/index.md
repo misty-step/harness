@@ -5,6 +5,9 @@ Records explain trade-offs; current method guidance lives in the
 
 ## Current
 
+- [0019](0019-entire-is-the-forge.md): Entire is the forge interface; tickets
+  are trails, Daybook holds trails for work outside a repository, and ship-loop's
+  ledger lives in the change's findings.
 - [0018](0018-static-publishing-stack.md): Astro static publishing, Pagefind and
   Workers Static Assets as a recorded stack exception; deployment commissioned
   2026-10-29 and automated on every master push since 2026-10-30, with telemetry

@@ -5,6 +5,9 @@ a self-install brief for their actual bot runtime, not a Grok Build CLI adapter.
 The method remains the repository's shared Agent Skills tree and core; there is
 no `.grok-plugin` package or assumed Grok plugin command.
 
+For forge work, use the `entire` CLI under its
+[saved-login and access prerequisites](../entire.md#prerequisites-and-selectors).
+
 ## Established facts and facts to establish
 
 Maren and Shipwright share a box, and each bot has a native runtime `agents.md`

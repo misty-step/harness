@@ -4,6 +4,9 @@ Use this reference when running Mistystack in Codex. The adapter exposes the
 shared Agent Skills tree and core through native plugin loading. These mechanics
 were exercised with Codex 0.164.0.
 
+For forge work, use the `entire` CLI under its
+[saved-login and access prerequisites](../entire.md#prerequisites-and-selectors).
+
 ## Install and refresh
 
 With Codex installed, add the marketplace and install the plugin:
