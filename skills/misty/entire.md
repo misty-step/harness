@@ -169,8 +169,11 @@ Entire mirror's merge gates where available. If a PR still has no mirror, finish
 that named PR only with `gh pr merge <number> -R <owner>/<repo> --squash`, after
 the same title and squash-only settings checks above. Stop if those settings do
 not hold; the authorization for `misty-step` settings does not cover `r90group`.
-Record delivery against the original ticket. This exception expires separately
-for each of the six rounds when it closes; it cannot start another v1 round.
+Record delivery against the original ticket. If its GitHub issue was migrated,
+follow its migration comment to the intent trail and apply ship-loop's closure
+step there; the issue's migration closure is not delivery. This exception
+expires separately for each of the six rounds when it closes; it cannot start
+another v1 round.
 
 ## Migrate the open GitHub issues
 
