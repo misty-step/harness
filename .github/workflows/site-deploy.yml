@@ -48,8 +48,12 @@ jobs:
       - name: Install the pinned site dependencies
         run: npm ci
       - name: Build the static site and search index
+        env:
+          SITE_COMMIT: ${{ steps.rev.outputs.sha }}
         run: npm run build
       - name: Check the built artifact
+        env:
+          SITE_COMMIT: ${{ steps.rev.outputs.sha }}
         run: npm run check
       - name: Deploy mistystack-site
         env:
