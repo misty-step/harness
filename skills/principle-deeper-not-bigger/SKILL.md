@@ -15,7 +15,7 @@ Hold the user's outcome fixed. Ambition means a better method, not more features
 
 Ask what the top practitioner would do, what raw material they would inspect, which instruments they would use and what outside observation would prove the result.
 
-Configure before coding; reuse before building; delete a layer before adding one. Grug lens (questions in core): code is a liability, so get the most outcome from the least code; use tools as shipped, and add a wrapper, gate or check only for a linked, measured failure of the plain tool. Preserve raw data instead of replacing it with a convenient summary.
+Configure before coding; reuse before building; delete a layer before adding one. Grug lens (questions in core): code is a liability, so get the most outcome from the least code; use tools as shipped, and add a wrapper, gate or check only for a linked failure of the plain tool or a concrete contract or risk it does not cover. Preserve raw data instead of replacing it with a convenient summary.
 
 Use Git's commits, branches, refs and notes for work state before forge ledgers or a second tracking mechanism.
 

@@ -13,7 +13,7 @@ metadata:
 
 The symptom is where a wrong state became visible; the root cause is the first place the system did what it should not, or failed to handle a state it should.
 
-Reproduce first. Ask why until the answer is a wrong decision in code, not a consequence of an earlier one. When stuck, instrument and read the actual error and state.
+Ask why until the answer is the evidenced causal fault (code, configuration, deployment or environment), not a consequence of an earlier one.
 
 If the triggering state is legitimate, handle it where it broke. If it should never exist, a check there hides the bug; find what produced it. Guards, retries, swallowed errors, clamped values and discarded state are the usual hiding places.
 
@@ -21,4 +21,4 @@ After two fixes on one premise fail the same check, write the premise down and t
 
 Failing only after a restart points to persisted state: config, caches, lock files. Fix every instance of the pattern, not one. A workaround that needs a paragraph of justification means the code is wrong.
 
-Done when the first wrong decision is removed and the original path passes.
+Done when the causal fault is removed and the original path passes.
