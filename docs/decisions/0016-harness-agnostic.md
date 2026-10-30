@@ -3,6 +3,13 @@
 Status: accepted, 2026-10-28. Part of
 [#591](https://github.com/misty-step/mistystack/issues/591).
 
+Status note, 2026-10-30: only the OMP adapter is shipped. The Claude Code,
+Codex and pi adapters are in this repository, but their proofs are tracked in
+[#591](https://github.com/misty-step/mistystack/issues/591), and they are not
+claimed as shipped until those proofs land. Where the decision below says those
+harnesses use native adapters, read it as the target design. The decision
+itself is unchanged.
+
 ## Context
 
 Phaedrus, 2026-10-28, in
