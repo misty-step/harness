@@ -53,7 +53,7 @@ jobs:
       - name: Check strict plugin structure and all maintained tests (no runtime install)
         run: ./scripts/check plugin --strict --lint-only
   site:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, hetzner-ci, mistystack-ci]
     timeout-minutes: 15
     permissions:
       contents: read
