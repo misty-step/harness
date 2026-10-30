@@ -1,0 +1,15 @@
+---
+const { document, graph, toc = false } = Astro.props;
+const headings = document.headings.filter((heading) => heading.depth > 1 && heading.depth < 4);
+const context = document.kind === 'Guide' || document.id.startsWith('docs/guide/')
+  ? graph.documents.filter((item) => item.id.startsWith('docs/guide/')).sort((a, b) => a.order - b.order)
+  : document.kind === 'Decisions'
+    ? graph.documents.filter((item) => item.decision).sort((a, b) => a.order - b.order)
+    : document.parentId
+      ? [graph.byId.get(document.parentId), ...graph.documents.filter((item) => item.parentId === document.parentId)].filter(Boolean)
+      : graph.documents.filter((item) => item.kind === document.kind);
+---
+{toc ? <nav aria-label="On this page"><ul role="list">{headings.map((heading) => <li data-depth={heading.depth}><a href={`#${heading.id}`}>{heading.label}</a></li>)}</ul></nav> : <nav aria-label="Documentation navigation">
+  <ul role="list"><li><a href="/guide/">Guide</a></li><li><a href="/install/">Install for your harness</a></li><li><a href="/library/">Library</a></li><li><a href="/foundation/">Foundation</a></li><li><a href="/decisions/">Decisions</a></li><li><a href="/evals/">Evals</a></li></ul>
+  {context.length > 0 && <><p>{document.parent?.title ?? document.kind}</p><ul role="list">{context.map((item) => <li><a href={item.url} aria-current={item.id === document.id ? 'page' : undefined}>{item.title}</a></li>)}</ul></>}
+</nav>}

@@ -9,3 +9,10 @@ __pycache__/
 !.env.example
 .landmark/
 coverage/
+
+# The public site is an isolated package; generated output is not source.
+/site/node_modules/
+/site/dist/
+/site/.astro/
+/site/.wrangler/
+/site/screenshots/

@@ -1,0 +1,14 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "mistystack-site",
+  "compatibility_date": "2026-10-28",
+  "assets": {
+    "directory": "./dist",
+    "html_handling": "force-trailing-slash",
+    "not_found_handling": "404-page"
+  },
+  "routes": [
+    { "pattern": "stack.mistystep.io", "custom_domain": true }
+  ],
+  "preview_urls": true
+}
