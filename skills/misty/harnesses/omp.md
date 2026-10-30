@@ -3,6 +3,9 @@
 Use this reference when running Mistystack in OMP. The method lives in the same
 Agent Skills tree used by other harnesses; this file owns OMP's native mechanics.
 
+For forge work, use the `entire` CLI under its
+[saved-login and access prerequisites](../entire.md#prerequisites-and-selectors).
+
 ## Install and refresh
 
 With [OMP](https://github.com/can1357/oh-my-pi) installed, add the marketplace and

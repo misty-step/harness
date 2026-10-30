@@ -28,4 +28,4 @@ scratch=$(mktemp -d "${TMPDIR:-/tmp}/mistystack-setup.XXXXXX")
 )
 ```
 
-Compare the returned roles and the generated `<scratch>/.omp/agent/config.yml` with the supplied JSON. Retain the command, exit status and resulting mapping in the PR or setup report. A successful round trip proves the config mechanism only; test provider access and task dispatch separately under their own authorization. The isolated directory has no live credentials by design.
+Compare the returned roles and the generated `<scratch>/.omp/agent/config.yml` with the supplied JSON. Retain the command, exit status and resulting mapping on the trail or in the setup report, following the [forge procedure](../misty/entire.md). A successful round trip proves the config mechanism only; test provider access and task dispatch separately under their own authorization. The isolated directory has no live credentials by design.

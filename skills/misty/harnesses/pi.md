@@ -4,6 +4,9 @@ Use this reference when running Mistystack in pi. The native package exposes the
 same root Agent Skills tree and core as the other adapters. These mechanics were
 exercised with pi 1.4.0.
 
+For forge work, use the `entire` CLI under its
+[saved-login and access prerequisites](../entire.md#prerequisites-and-selectors).
+
 ## Install and refresh
 
 Install through pi's native Git package mechanism:

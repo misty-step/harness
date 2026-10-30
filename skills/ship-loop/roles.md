@@ -4,17 +4,17 @@ The `misty` skill owns the briefing contract. The builder receives the completed
 brief below. Every later role receives only the helper's phase-checked brief:
 
 ```sh
-bun <skill-dir>/scripts/ship-loop.ts prompt --pr <PR URL> --role <role>
+bun <skill-dir>/scripts/ship-loop.ts prompt --change <change URL> --role <role>
 ```
 
 `<skill-dir>` is the installed directory of the `ship-loop` skill. The helper fills
-revision, ticket, rigor, findings and eligibility from the PR ledger. Record the
+revision, ticket, rigor, findings and eligibility from the change's ledger. Record the
 native thread ID and report link actually returned; a retry keeps the same round.
 
 ## Rigor
 
 Classify the changed path, not the initiative. Record tier, concrete reason and
-diff size in the PR. Size prompts a light-tier check; a concrete risk can raise
+diff size in the trail body. Size prompts a light-tier check; a concrete risk can raise
 it. Generator-only machine release PRs keep the checks-only exception.
 
 | Tier | Changed path | Rigor role and review shape |
@@ -33,11 +33,11 @@ implementation and QA/review, even when all use the same rigor role.
 ## Builder
 
 ```text
-Outcome and why: <consumer change, ticket URL, parent spec URL>.
+Outcome and why: <consumer change, ticket trail URL, parent spec URL>.
 Terms: <DOMAIN.md terms involved>.
 Raw material: <failing run, logs, data or source links; not a summary>.
 Oracle: <check outside the worker, exact command and expected result>.
-Scope: <owned paths, acceptance criteria, branch and base SHA, PR target>.
+Scope: <owned paths, acceptance criteria, branch and base SHA, change target>.
 Keep: <load-bearing behavior or lines to preserve; 'none' when empty>.
 Effort: <bounded depth and the uncertainty that deserves it>.
 
@@ -47,14 +47,16 @@ Scope; length never overrides Keep. Follow misty's delegation boundary.
 
 Run the Oracle and affected checks, then use the `verification` skill for the changed
 consumer path. Its generator owns a missing .agents/skills/verify-<app>/ skill,
-or stack on the PR adding it. Link proof from the PR.
+or stack on the change adding it. Link proof from the trail.
 
-Push and open against <base branch>; use a Conventional Commit title and
-the `writing` skill for the body. Include Closes #<ticket>, Story: <IDs|none>,
+Push and open the change on the ticket's trail with `entire trail link`, or with
+`entire trail create` when there is no ticket trail, against <base branch>; the
+misty skill's entire.md owns the commands. Use a Conventional Commit title and
+the `writing` skill for the trail body. Include Story: <IDs|none>,
 Rigor: <tier> — <reason>, diff size, and observed verification results.
 The conductor owns merge; preserve other writers' commits.
 
-Return PR URL, head SHA, check results, proof links, native thread ID and blockers.
+Return the change URL, head SHA, check results, proof links, native thread ID and blockers.
 Follow the core's claim rule.
 ```
 

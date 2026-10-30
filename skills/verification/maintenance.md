@@ -26,7 +26,7 @@ request when several exist; ask only if the repository cannot disambiguate it.
    named with the route attempted; record it in the map if previously absent.
    A feature not reached stays unverified, not passed.
 6. **Finish.** Teardown after all drives and re-proofs; retain proof. `clean`
-   means every feature has source/live coverage and no worthwhile change (no PR).
-   `changed` means one PR of proved corrections. `blocked` names the exact
+   means every feature has source/live coverage and no worthwhile change.
+   `changed` means one trail of proved corrections. `blocked` names the exact
    incomplete coverage/prerequisite. A doctor failure caused by skill drift is
    repaired in scope and retried once before declaring the pass blocked.

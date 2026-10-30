@@ -4,6 +4,9 @@ Use this reference when running Mistystack in Claude Code. The adapter exposes
 one shared Agent Skills tree; it does not maintain a Claude-only method. These
 mechanics were exercised with Claude Code 2.1.309.
 
+For forge work, use the `entire` CLI under its
+[saved-login and access prerequisites](../entire.md#prerequisites-and-selectors).
+
 ## Install and refresh
 
 With Claude Code installed, add the marketplace and install the plugin:

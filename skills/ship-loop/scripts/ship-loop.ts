@@ -1,15 +1,15 @@
 #!/usr/bin/env bun
-// ship-loop: the one entry point for a PR's review-round state.
+// ship-loop: the one entry point for an Entire change's review-round state.
 //
-// The PR's own comments are the only authority. Each accepted write is an
-// append-only comment carrying one event; `replay` reduces them to state and
+// The change's own findings are the only authority. Each accepted write is an
+// append-only finding carrying one event; `replay` reduces them to state and
 // `apply` refuses any event the workflow does not allow. The file keeps no
 // round count, lock or local cache of its own, so a new thread, a succession
 // or a retry reads the same state.
 
 import { createHash } from "node:crypto";
 
-export const STATUS_SCHEMA = "ship-loop.status.v1";
+export const STATUS_SCHEMA = "ship-loop.status.v2";
 const MARKER = "<!-- ship-loop:event v1 -->";
 const RIGORS = ["light", "standard", "critical"];
 const BLOCKER_CLASSES = ["broken_journey", "wrong_data", "security_privacy", "data_loss", "broken_build", "irreversible", "none"];
@@ -36,7 +36,7 @@ export type Recheck = {
 };
 export type State = {
   ticket: string;
-  pr_url: string;
+  change_url: string;
   rigor: string;
   rigor_reason: string;
   base: string;
@@ -52,8 +52,8 @@ export type State = {
   verdict: null | { verdict: string; sha: string; thread_id: string };
 };
 export type Event = Record<string, any> & { v: number; kind: string; seq: number; key: string };
-export type Comment = { id: number; body: string; author: string | null };
-export type Ledger = { state: State | null; last_seq: number; accepted: { id: number; event: Event }[]; rejected: number[] };
+export type Comment = { id: string; body: string; author: string | null };
+export type Ledger = { state: State | null; last_seq: number; accepted: { id: string; event: Event }[]; rejected: string[] };
 
 // Refused: the workflow forbids this write. LedgerError: the ledger cannot be trusted.
 export class Refused extends Error {}
@@ -124,7 +124,7 @@ function reviewThreads(s: State): string[] {
 export function apply(s: State | null, e: Event): State {
   if (e.kind === "init") {
     need(s === null, "init after the ledger exists would reset it");
-    fieldsOnly(e, ["v", "kind", "seq", "key", "ticket", "pr_url", "rigor", "rigor_reason", "base", "sha", "builder_thread_id"], "init");
+    fieldsOnly(e, ["v", "kind", "seq", "key", "ticket", "change_url", "rigor", "rigor_reason", "base", "sha", "builder_thread_id"], "init");
     need(e.seq === 1, "init must be the first event");
     need(RIGORS.includes(e.rigor), `rigor must be one of ${RIGORS.join(", ")}`);
     text(e, "rigor_reason");
@@ -132,7 +132,7 @@ export function apply(s: State | null, e: Event): State {
     need(/^[0-9a-f]{40}$/.test(e.sha), "sha must be a full commit SHA");
     const builder = text(e, "builder_thread_id");
     return {
-      ticket: text(e, "ticket"), pr_url: text(e, "pr_url"), rigor: e.rigor, rigor_reason: e.rigor_reason,
+      ticket: text(e, "ticket"), change_url: text(e, "change_url"), rigor: e.rigor, rigor_reason: e.rigor_reason,
       base: e.base, head: e.sha, carried: [], phase: "verify", builder_threads: [builder], judge_threads: [],
       reports: {}, recheck: null, fix_round: 0, fix: null, verdict: null,
     };
@@ -142,7 +142,7 @@ export function apply(s: State | null, e: Event): State {
 
   if (e.kind === "report") {
     fieldsOnly(e, ["v", "kind", "seq", "key", "role", "sha", "thread_id", "report_url", "outcome", "findings"], "report");
-    need(next.phase === "verify", `reports are taken only in verify; this PR is in ${next.phase}`);
+    need(next.phase === "verify", `reports are taken only in verify; this change is in ${next.phase}`);
     need(requiredRoles(next.rigor).includes(e.role), `${e.role} is not a required review for ${next.rigor} rigor`);
     need(!next.reports[e.role], `${e.role} already reported at this head`);
     need(e.sha === next.head, `report is for ${e.sha}, but head is ${next.head}`);
@@ -157,7 +157,7 @@ export function apply(s: State | null, e: Event): State {
 
   if (e.kind === "verdict") {
     fieldsOnly(e, ["v", "kind", "seq", "key", "thread_id", "sha", "verdict", "blockers", "tickets", "report_url"], "verdict");
-    need(next.phase === "judge" || next.phase === "final-judge", `verdicts are ruled in judge or final-judge; this PR is in ${next.phase}`);
+    need(next.phase === "judge" || next.phase === "final-judge", `verdicts are ruled in judge or final-judge; this change is in ${next.phase}`);
     checkThread(next, text(e, "thread_id"), reviewThreads(next), "judge");
     text(e, "report_url");
     need(e.sha === next.head, `verdict is for ${e.sha}, but head is ${next.head}`);
@@ -205,7 +205,7 @@ export function apply(s: State | null, e: Event): State {
 
   if (e.kind === "recheck") {
     fieldsOnly(e, ["v", "kind", "seq", "key", "thread_id", "reporter_thread_id", "sha", "report_url", "results", "regressions"], "recheck");
-    need(next.phase === "recheck" && next.fix, `rechecks run only after a fix; this PR is in ${next.phase}`);
+    need(next.phase === "recheck" && next.fix, `rechecks run only after a fix; this change is in ${next.phase}`);
     need(e.sha === next.head, `recheck is for ${e.sha}, but head is ${next.head}`);
     need(e.reporter_thread_id === next.fix.reporter_thread, "recheck must reference the blocking reporter's original thread");
     checkThread(next, text(e, "thread_id"), [...reviewThreads(next), ...next.judge_threads], "recheck");
@@ -232,7 +232,7 @@ export function apply(s: State | null, e: Event): State {
     need(/^[0-9a-f]{40}$/.test(e.sha), "sha must be a full commit SHA");
     need(e.sha !== next.head, "head is already this SHA");
     if (e.reason === "fix") {
-      need(next.phase === "fix", `a fix commit is accepted only in the fix phase; this PR is in ${next.phase}`);
+      need(next.phase === "fix", `a fix commit is accepted only in the fix phase; this change is in ${next.phase}`);
       checkThread(next, text(e, "thread_id"), [...reviewThreads(next), ...next.judge_threads], "builder");
       next.builder_threads.push(e.thread_id);
       next.head = e.sha;
@@ -242,7 +242,7 @@ export function apply(s: State | null, e: Event): State {
     }
     if (e.reason === "refresh") {
       // Only an unreviewed head may move without a patch-id; any report, ruling or fix keeps its head.
-      need(next.phase === "verify" && Object.keys(next.reports).length === 0, `a refresh applies only before any report; this PR is in ${next.phase} with ${Object.keys(next.reports).length} report(s)`);
+      need(next.phase === "verify" && Object.keys(next.reports).length === 0, `a refresh applies only before any report; this change is in ${next.phase} with ${Object.keys(next.reports).length} report(s)`);
       need(e.from === next.head, `refresh is from ${e.from}, but head is ${next.head}`);
       need(/^[0-9a-f]{40}$/.test(e.base), "refresh base must be a full commit SHA");
       next.base = e.base;
@@ -250,7 +250,7 @@ export function apply(s: State | null, e: Event): State {
       return next;
     }
     need(e.reason === "carry", "head reason must be fix, carry or refresh");
-    need(["judge", "final-judge", "shipped"].includes(next.phase), `a patch-identical carry applies before a ruling; this PR is in ${next.phase}`);
+    need(["judge", "final-judge", "shipped"].includes(next.phase), `a patch-identical carry applies before a ruling; this change is in ${next.phase}`);
     need(e.from === next.head, `carry is from ${e.from}, but head is ${next.head}`);
     need(typeof e.patch_id_from === "string" && e.patch_id_from !== "", "carry needs the judged patch-id");
     need(e.patch_id_from === e.patch_id_to, "carry needs an unchanged patch-id; otherwise run a fix or re-verify");
@@ -267,24 +267,25 @@ export function apply(s: State | null, e: Event): State {
 }
 
 // Parse and reduce the ledger. Malformed or gapped chains are LedgerError: unknown, never empty.
-// A duplicate sequence number means a lost concurrent write: the lowest comment id wins, the rest are rejected.
+// A duplicate sequence number means a lost concurrent write: the earliest finding wins, the rest are rejected.
+// Finding ids are ULIDs, so their order is creation order.
 export function replay(comments: Comment[], writer: string): Ledger {
-  if (!writer.trim()) throw new LedgerError("PR author is unknown");
+  if (!writer.trim()) throw new LedgerError("change author is unknown");
   const parsed = comments
-    .filter((c) => c.author?.toLowerCase() === writer.toLowerCase() && c.body.startsWith(MARKER))
-    .sort((a, b) => a.id - b.id)
+    .filter((c) => c.author === writer && c.body.startsWith(MARKER))
+    .sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
     .map((c) => ({ id: c.id, event: parseEvent(c) }));
   let state: State | null = null;
   let next = 1;
   const accepted: Ledger["accepted"] = [];
-  const rejected: number[] = [];
+  const rejected: string[] = [];
   for (const { id, event } of parsed) {
     if (event.seq < next) { rejected.push(id); continue; }
-    if (event.seq > next) throw new LedgerError(`ledger gap: seq ${next} is missing before comment ${id}`);
+    if (event.seq > next) throw new LedgerError(`ledger gap: seq ${next} is missing before finding ${id}`);
     try {
       state = apply(state, event);
     } catch (err) {
-      if (err instanceof Refused) throw new LedgerError(`ledger seq ${event.seq} (comment ${id}) is invalid: ${err.message}`);
+      if (err instanceof Refused) throw new LedgerError(`ledger seq ${event.seq} (finding ${id}) is invalid: ${err.message}`);
       throw err;
     }
     accepted.push({ id, event });
@@ -295,18 +296,18 @@ export function replay(comments: Comment[], writer: string): Ledger {
 
 function parseEvent(c: Comment): Event {
   const match = /^<!-- ship-loop:event v1 -->\n```json\n([\s\S]*)\n```\s*$/.exec(c.body);
-  if (!match) throw new LedgerError(`comment ${c.id} has the ship-loop marker but no event block`);
+  if (!match) throw new LedgerError(`finding ${c.id} has the ship-loop marker but no event block`);
   let event: any;
   try {
     event = JSON.parse(match[1]);
   } catch {
-    throw new LedgerError(`comment ${c.id} holds malformed JSON`);
+    throw new LedgerError(`finding ${c.id} holds malformed JSON`);
   }
   if (!event || typeof event !== "object" || !Number.isInteger(event.seq) || event.seq < 1 || typeof event.kind !== "string") {
-    throw new LedgerError(`comment ${c.id} lacks a valid seq or kind`);
+    throw new LedgerError(`finding ${c.id} lacks a valid seq or kind`);
   }
   const { seq: _seq, key, ...body } = event;
-  if (key !== keyOf(body)) throw new LedgerError(`comment ${c.id} fails its content key`);
+  if (key !== keyOf(body)) throw new LedgerError(`finding ${c.id} fails its content key`);
   return event as Event;
 }
 
@@ -314,14 +315,14 @@ export function renderEvent(event: Event): string {
   return `${MARKER}\n\`\`\`json\n${JSON.stringify(event, null, 2)}\n\`\`\`\n`;
 }
 
-// The status document the Heartbeat and conductors read. Field names are stable within v1.
-export function statusOf(ledger: Ledger, pr: string) {
+// The status document the Heartbeat and conductors read. Field names are stable within v2.
+export function statusOf(ledger: Ledger, change: string) {
   const s = ledger.state;
   const ids = s ? reviewThreads(s) : [];
   return {
     schema: STATUS_SCHEMA,
     ledger: s ? "present" : "absent",
-    pr,
+    change,
     ticket: s?.ticket ?? null,
     rigor: s?.rigor ?? null,
     base: s?.base ?? null,
@@ -361,13 +362,13 @@ function blockerLines(s: State): string {
   return lines.length ? lines.join("\n") : "- none";
 }
 
-export function prompt(s: State, prUrl: string, role: PromptRole): string {
-  need(ROLE_PHASE[role] === s.phase, `role ${role} runs in phase ${ROLE_PHASE[role]}; this PR is in ${s.phase}`);
+export function prompt(s: State, changeUrl: string, role: PromptRole): string {
+  need(ROLE_PHASE[role] === s.phase, `role ${role} runs in phase ${ROLE_PHASE[role]}; this change is in ${s.phase}`);
   if (role in QA_ROLE) need(requiredRoles(s.rigor).includes(role), `${role} is not a required review for ${s.rigor} rigor`);
   const head = s.head;
-  const header = `PR ${prUrl} at head ${head}. Ticket ${s.ticket}. Rigor ${s.rigor} (${s.rigor_reason}). Base ${s.base}.`;
-  const reportJson = `{"role": "${role}", "sha": "${head}", "thread_id": "<your native thread id>", "report_url": "<link to your posted report>", "outcome": "PASS|ISSUES|BLOCKED", "findings": [{"id": "F1", "evidence": "file:line, concrete failure, evidence link", "introduced_by_diff": true, "already_on_main": false, "blocker_class": "broken_journey|wrong_data|security_privacy|data_loss|broken_build|irreversible|none"}]}`;
-  const submit = (kind: string) => `Save the JSON payload to a file, then the conductor records it: \`${COMMAND} record --pr ${prUrl} --kind ${kind} --file <payload.json>\`. Use only the thread and report links you actually have. Follow the always-on core's claim rule.`;
+  const header = `change ${changeUrl} at head ${head}. Ticket ${s.ticket}. Rigor ${s.rigor} (${s.rigor_reason}). Base ${s.base}.`;
+  const reportJson = `{"role": "${role}", "sha": "${head}", "thread_id": "<your native thread id>", "report_url": "<the change URL, or a link to your retained report>", "outcome": "PASS|ISSUES|BLOCKED", "findings": [{"id": "F1", "evidence": "file:line, concrete failure, evidence link", "introduced_by_diff": true, "already_on_main": false, "blocker_class": "broken_journey|wrong_data|security_privacy|data_loss|broken_build|irreversible|none"}]}`;
+  const submit = (kind: string) => `Save the JSON payload to a file, then the conductor records it: \`${COMMAND} record --change ${changeUrl} --kind ${kind} --file <payload.json>\`. Use only the thread and report links you actually have. Follow the always-on core's claim rule.`;
 
   if (role in QA_ROLE) {
     const who = QA_ROLE[role as keyof typeof QA_ROLE];
@@ -381,7 +382,8 @@ export function prompt(s: State, prUrl: string, role: PromptRole): string {
       "Report every finding with evidence. Classify each one honestly: introduced_by_diff, already_on_main, and a blocker_class. Anything already on main, or not introduced by this diff, can never block.",
       "You cannot authorize a fix round, and you cannot issue a verdict. Only the judge rules.",
       "Verdict PASS, ISSUES or BLOCKED. Owner sign-in: PROVEN (link), UNPROVEN (access needed) or n/a (why). For each finding: the steps, expected result, actual result and evidence.",
-      `Post your report on the PR, then return this JSON with exactly these fields:\n\`\`\`json\n${reportJson}\n\`\`\``,
+      "Record each finding on the change with `entire trail finding add`: `--severity high` for an introduced, not-on-main finding with a blocker class, `medium` or `low` otherwise, and `--file`/`--line` when it has a location. The misty skill's entire.md owns the commands.",
+      `Then return this JSON with exactly these fields:\n\`\`\`json\n${reportJson}\n\`\`\``,
       submit("report"),
     ].join("\n\n");
   }
@@ -392,8 +394,8 @@ export function prompt(s: State, prUrl: string, role: PromptRole): string {
       "You did not build, review or test this change. Your thread must not be any of: builder " + s.builder_threads.join(", ") + "; reviewers " + reviewThreads(s).join(", ") + ".",
       "Read the `judge` skill for the ruling and proof contract.",
       "Findings and eligibility:\n" + blockerLines(s),
-      "Rule once. SHIP with no blockers after completed QA (PASS or ISSUES) and review at this head; BLOCKED cannot ship. Rule on the findings and name follow-up tickets for worthwhile work. FIX names the exact eligible blockers above from one reporter thread and is the only fix round this PR gets. REVERT or SPLIT drops or divides the unit.",
-      `Post your verdict on the PR, then return this JSON:\n\`\`\`json\n{"thread_id": "<your native thread id>", "sha": "${head}", "verdict": "SHIP|FIX|REVERT|SPLIT", "blockers": ["qa:F1"], "tickets": ["<follow-up links>"], "report_url": "<link to your verdict>"}\n\`\`\``,
+      "Rule once. SHIP with no blockers after completed QA (PASS or ISSUES) and review at this head; BLOCKED cannot ship. Rule on the findings and name follow-up tickets for worthwhile work. FIX names the exact eligible blockers above from one reporter thread and is the only fix round this change gets. REVERT or SPLIT drops or divides the unit.",
+      `Return this JSON; the ledger records your ruling:\n\`\`\`json\n{"thread_id": "<your native thread id>", "sha": "${head}", "verdict": "SHIP|FIX|REVERT|SPLIT", "blockers": ["qa:F1"], "tickets": ["<follow-up trail links>"], "report_url": "<link to your retained ruling, or the change URL>"}\n\`\`\``,
       submit("verdict"),
     ].join("\n\n");
   }
@@ -404,8 +406,8 @@ export function prompt(s: State, prUrl: string, role: PromptRole): string {
     return [
       `You are the builder for the single fix round on ${header}`,
       `Fix only these blockers, named by the judge's ruling:\n${named}`,
-      "Do not fix anything else, and do not reopen review. New findings are follow-up tickets. Check out the PR branch, push one commit set, and keep the existing PR.",
-      `When pushed, record the new head: \`${COMMAND} record --pr ${prUrl} --kind head\` with payload \`{"reason": "fix", "sha": "<new head sha>", "thread_id": "<your native thread id>"}\`. Follow the always-on core's claim rule.`,
+      "Do not fix anything else, and do not reopen review. New findings are follow-up tickets. Check out the change's branch, push one commit set, and keep the existing change.",
+      `When pushed, record the new head: \`${COMMAND} record --change ${changeUrl} --kind head\` with payload \`{"reason": "fix", "sha": "<new head sha>", "thread_id": "<your native thread id>"}\`. Follow the always-on core's claim rule.`,
     ].join("\n\n");
   }
 
@@ -435,39 +437,88 @@ export function prompt(s: State, prUrl: string, role: PromptRole): string {
   ].join("\n\n");
 }
 
-// ---- native boundary: gh for reads and writes, git for patch-ids ----
+// ---- native boundary: entire for reads and writes, git for patch-ids ----
 
-export type Gh = {
-  pullRequest(repo: string, n: number): Promise<{ author: string; baseRef: string | null }>;
-  listComments(repo: string, n: number): Promise<Comment[]>;
-  postComment(repo: string, n: number, body: string): Promise<number>;
+/** A change as `entire trail show` prints its URL; `selector` is `<repo>/<number>`. */
+export type Change = { url: string; project: string; selector: string };
+
+export type Forge = {
+  /** The account that authored the change's trail: the only ledger writer. */
+  author(c: Change): Promise<string>;
+  /** The branch the change merges into. */
+  base(c: Change): Promise<string>;
+  listFindings(c: Change): Promise<Comment[]>;
+  /** Records `body` as a low-severity finding and resolves it; a repeated `retryKey` returns the same finding. */
+  postFinding(c: Change, body: string, retryKey: string): Promise<string>;
 };
 
-async function runCmd(cmd: string[], stdin?: string): Promise<string> {
+async function runCmd(cmd: string[], stdin?: string, failingOutput = false): Promise<string> {
   const proc = Bun.spawn(cmd, { stdin: stdin === undefined ? "ignore" : new Blob([stdin]), stdout: "pipe", stderr: "pipe" });
   const [out, err, code] = await Promise.all([new Response(proc.stdout).text(), new Response(proc.stderr).text(), proc.exited]);
-  if (code !== 0) throw new Error(`${cmd[0]} exited ${code}: ${err.trim()}`);
+  if (code !== 0 && !(failingOutput && out.trim() !== "")) throw new Error(`${cmd[0]} exited ${code}: ${err.trim()}`);
   return out;
 }
 
-export function ghBoundary(bin: string): Gh {
+type Json = Record<string, unknown>;
+
+function isObject(value: unknown): value is Json {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function parsed(out: string, what: string): Json {
+  let value: unknown;
+  try {
+    value = JSON.parse(out);
+  } catch {
+    throw new Error(`entire ${what} did not print JSON`);
+  }
+  if (!isObject(value)) throw new Error(`entire ${what} did not print a JSON object`);
+  return value;
+}
+
+function present(value: unknown): string | undefined {
+  return typeof value === "string" && value !== "" ? value : undefined;
+}
+
+export function entireBoundary(bin: string): Forge {
+  const at = (c: Change) => ["--trail", c.selector, "--project", c.project];
   return {
-    async pullRequest(repo, n) {
-      const pr = JSON.parse(await runCmd([bin, "api", `repos/${repo}/pulls/${n}`, "--jq", "{author: .user.login, baseRef: .base.ref}"]));
-      if (typeof pr.author !== "string" || !/^[a-z0-9][a-z0-9-]*$/i.test(pr.author)) throw new LedgerError("PR author is unknown");
-      return pr;
+    async author(c) {
+      const trail = parsed(await runCmd([bin, "trail", "show", c.selector, "--project", c.project, "--json"]), "trail show");
+      const author = present(trail.authorAccountId);
+      if (!author) throw new LedgerError("change author is unknown");
+      return author;
     },
-    async listComments(repo, n) {
-      const out = await runCmd([bin, "api", "--paginate", `repos/${repo}/issues/${n}/comments`, "--jq", ".[] | [.id, .body, .user.login] | @json"]);
-      return out.split("\n").filter((l) => l.trim() !== "").map((l) => {
-        const [id, body, author] = JSON.parse(l);
-        return { id, body, author };
-      });
+    async base(c) {
+      // The dry run exits non-zero while a gate blocks the merge; its JSON still names the base.
+      const out = await runCmd([bin, "trail", "merge", c.selector, "--project", c.project, "--dry-run", "--json"], undefined, true);
+      const base = present(parsed(out, "trail merge --dry-run").base);
+      if (!base) throw new Refused("the change's base branch is unknown");
+      return base;
     },
-    async postComment(repo, n, body) {
-      const out = await runCmd([bin, "api", "-X", "POST", `repos/${repo}/issues/${n}/comments`, "--input", "-"], JSON.stringify({ body }));
-      const id = JSON.parse(out).id;
-      if (!Number.isInteger(id)) throw new Error("gh did not return a comment id");
+    async listFindings(c) {
+      const found: Comment[] = [];
+      let cursor: string | undefined;
+      do {
+        const args = [bin, "trail", "finding", "list", ...at(c), "--status", "any", "--include-dismissed", "--freshness", "any", "--limit", "100", "--json"];
+        const page = parsed(await runCmd(cursor ? [...args, "--cursor", cursor] : args), "trail finding list");
+        if (!Array.isArray(page.findings)) throw new LedgerError("entire returned no findings list");
+        for (const f of page.findings) {
+          const id = isObject(f) ? present(f.id) : undefined;
+          if (!id || !isObject(f)) throw new LedgerError("entire returned a finding without an id");
+          found.push({ id, body: typeof f.body === "string" ? f.body : "", author: present(f.actorId) ?? null });
+        }
+        cursor = page.has_more === true ? present(page.next_cursor) : undefined;
+        if (page.has_more === true && !cursor) throw new LedgerError("entire reported more findings without a cursor");
+      } while (cursor);
+      return found;
+    },
+    async postFinding(c, body, retryKey) {
+      const added = parsed(await runCmd([bin, "trail", "finding", "add", ...at(c), "--severity", "low", "--client-id", retryKey, "-m", body, "--json"]), "trail finding add");
+      const id = present(added.id);
+      if (!id) throw new Error("entire did not return a finding id");
+      // Resolved, an event stays readable without crowding the change's open review findings.
+      if (added.status === "open") await runCmd([bin, "trail", "finding", "resolve", id, ...at(c), "-m", "ship-loop ledger event"]);
       return id;
     },
   };
@@ -491,38 +542,40 @@ export async function commitOf(ref: string): Promise<string> {
 
 // ---- command line ----
 
-const HELP = `ship-loop: the one entry point for a PR's review-round state. Only the PR author's comments can write the ledger; other commenters' markers are ignored.
+const HELP = `ship-loop: the one entry point for an Entire change's review-round state. Only findings by the trail's author can write the ledger; other authors' markers are ignored.
 
-  init    --pr <url> --ticket <url> --rigor light|standard|critical --rigor-reason <text> --base <ref> --sha <head> --builder-thread <id>
+  init    --change <url> --ticket <url> --rigor light|standard|critical --rigor-reason <text> --base <ref> --sha <head> --builder-thread <id>
           Creates the ledger once. On an existing ledger it resumes and never resets.
-  status  --pr <url> [--json]
+  status  --change <url> [--json]
           --json prints the stable ${STATUS_SCHEMA} document: phase, fix_round, review_thread_ids, review_thread_count, source_head.
-  prompt  --pr <url> --role qa|review|qa-review|judge|recheck|final-judge|fix-builder
+  prompt  --change <url> --role qa|review|qa-review|judge|recheck|final-judge|fix-builder
           Prints the role's brief for the current phase. Refuses a role out of phase.
-  record  --pr <url> --kind report|verdict|recheck|head [--file <payload.json>]
+  record  --change <url> --kind report|verdict|recheck|head [--file <payload.json>]
           Payload JSON comes from --file or stdin. Records only what the user supplied: native thread IDs and report links.
           A repeated identical write is a no-op.
           head payloads, run inside a checkout holding every named commit:
             {"reason":"fix","sha":<new head>,"thread_id":<builder thread>}   after a judge's FIX
             {"reason":"carry","from":<judged head>,"from_base":<its base>,"sha":<new head>,"to_base":<its base>}
               judge, final-judge or shipped; carries only if both stable patch-ids match
-              from_base must resolve to the ledger's recorded base; to_base must resolve to origin/<GitHub PR base ref>
-              fetch origin first; retarget a stacked PR on GitHub before carrying onto its new target
+              from_base must resolve to the ledger's recorded base; to_base must resolve to origin/<the change's base branch>
+              fetch origin first; retarget a stacked change's base before carrying onto its new target
             {"reason":"refresh","from":<head>,"sha":<new head>,"base":<its base>}   verify only, before any report
           Bases may be refs; the event records their full commit SHAs.
+
+<url> is the change URL \`entire trail show\` prints: https://entire.com/<forge>/<project>/-/trails/<trail>/changes/<repo>/<number>.
 
 Exit codes: 0 recorded or already recorded; 1 refused by the workflow; 2 ledger unreadable or write outcome unknown (never treat as round 0); 3 lost a concurrent write, run status and retry.
 `;
 
 const COMMANDS: Record<string, string[]> = {
-  init: ["pr", "ticket", "rigor", "rigor-reason", "base", "sha", "builder-thread"],
-  status: ["pr", "json"],
-  prompt: ["pr", "role"],
-  record: ["pr", "kind", "file"],
+  init: ["change", "ticket", "rigor", "rigor-reason", "base", "sha", "builder-thread"],
+  status: ["change", "json"],
+  prompt: ["change", "role"],
+  record: ["change", "kind", "file"],
 };
 
 export type Deps = {
-  gh: Gh;
+  forge: Forge;
   commit: (ref: string) => Promise<string>;
   patchId: (base: string, sha: string) => Promise<string>;
   out: (s: string) => void;
@@ -549,25 +602,24 @@ export async function run(argv: string[], deps: Deps): Promise<number> {
     return await dispatch(cmd, flags, deps);
   } catch (err) {
     if (err instanceof Refused) { deps.err(`refused: ${err.message}\n`); return 1; }
-    if (err instanceof LedgerError) { deps.err(`ledger unknown: ${err.message}. Not treated as a fresh round; repair or inspect the PR comments.\n`); return 2; }
+    if (err instanceof LedgerError) { deps.err(`ledger unknown: ${err.message}. Not treated as a fresh round; inspect the change's findings with \`entire trail finding list --status any --include-dismissed --freshness any\`.\n`); return 2; }
     deps.err(`ledger unknown: ${(err as Error).message}\n`);
     return 2;
   }
 }
 
-function target(pr: unknown): { url: string; repo: string; n: number } {
-  const m = typeof pr === "string" ? /^https:\/\/github\.com\/([\w.-]+\/[\w.-]+)\/pull\/(\d+)$/.exec(pr) : null;
-  if (!m) throw new Refused("--pr must be a GitHub pull request URL");
-  return { url: pr as string, repo: m[1], n: Number(m[2]) };
+function target(url: unknown): Change {
+  const m = typeof url === "string" ? /^https:\/\/entire\.com\/([a-z]+)\/([\w.-]+)\/-\/trails\/\d+\/changes\/([\w.-]+)\/(\d+)$/.exec(url) : null;
+  if (!m) throw new Refused("--change must be a change URL as `entire trail show` prints it");
+  return { url: url as string, project: `${m[1]}/${m[2]}`, selector: `${m[3]}/${m[4]}` };
 }
 
 async function dispatch(cmd: string, f: Record<string, string | true>, d: Deps): Promise<number> {
-  const { url, repo, n } = target(f.pr);
+  const change = target(f.change);
+  const url = change.url;
   // Any read failure throws before a write can be attempted.
-  const pr = await d.gh.pullRequest(repo, n);
-  const writer = pr.author;
-  const comments = await d.gh.listComments(repo, n);
-  const ledger = replay(comments, writer);
+  const writer = await d.forge.author(change);
+  const ledger = replay(await d.forge.listFindings(change), writer);
 
   if (cmd === "status") {
     const doc = statusOf(ledger, url);
@@ -577,22 +629,22 @@ async function dispatch(cmd: string, f: Record<string, string | true>, d: Deps):
   }
 
   if (cmd === "prompt") {
-    need(ledger.state, "no ledger yet: run init after the builder opens the PR");
+    need(ledger.state, "no ledger yet: run init after the builder opens the change");
     d.out(prompt(ledger.state, url, String(f.role) as PromptRole) + "\n");
     return 0;
   }
 
   if (cmd === "init") {
     const body = {
-      v: 1, kind: "init", ticket: f.ticket, pr_url: url, rigor: f.rigor, rigor_reason: f["rigor-reason"],
+      v: 1, kind: "init", ticket: f.ticket, change_url: url, rigor: f.rigor, rigor_reason: f["rigor-reason"],
       base: f.base, sha: f.sha, builder_thread_id: f["builder-thread"],
     };
     if (ledger.state) {
-      need(ledger.state.ticket === f.ticket && ledger.state.pr_url === url, "the ledger belongs to another ticket or PR");
+      need(ledger.state.ticket === f.ticket && ledger.state.change_url === url, "the ledger belongs to another ticket or change");
       d.out(`resumed: ledger exists at seq ${ledger.last_seq}; phase ${ledger.state.phase}; no reset\n`);
       return 0;
     }
-    return await write(ledger, repo, n, writer, body, d);
+    return await write(ledger, change, writer, body, d);
   }
 
   // record
@@ -621,14 +673,14 @@ async function dispatch(cmd: string, f: Record<string, string | true>, d: Deps):
     // An exact accepted carry is still a no-op after it has moved the ledger's base.
     const retry = ledger.accepted.find(({ event }) => event.kind === "head" && event.reason === "carry" &&
       keyOf({ ...body, patch_id_from: event.patch_id_from, patch_id_to: event.patch_id_to }) === event.key);
-    if (retry) return await write(ledger, repo, n, writer, {
+    if (retry) return await write(ledger, change, writer, {
       ...body, patch_id_from: retry.event.patch_id_from, patch_id_to: retry.event.patch_id_to,
     }, d);
     const recordedBase = await commit(ledger.state.base, "recorded base");
     need(body.from_base === recordedBase, "from_base must resolve to the ledger's recorded base");
-    need(typeof pr.baseRef === "string" && pr.baseRef !== "", "GitHub PR base ref is unknown");
-    const targetBase = await commit(`origin/${pr.baseRef}`, "PR target base");
-    need(body.to_base === targetBase, `to_base must resolve to the PR target origin/${pr.baseRef}; retarget the PR on GitHub before carrying`);
+    const baseBranch = await d.forge.base(change);
+    const targetBase = await commit(`origin/${baseBranch}`, "change target base");
+    need(body.to_base === targetBase, `to_base must resolve to the change's target origin/${baseBranch}; retarget the change before carrying`);
     body.patch_id_from = await d.patchId(recordedBase, from);
     body.patch_id_to = await d.patchId(targetBase, sha);
   }
@@ -636,39 +688,40 @@ async function dispatch(cmd: string, f: Record<string, string | true>, d: Deps):
     await exact(payload.sha, "sha");
     body.base = await commit(payload.base, "base");
   }
-  return await write(ledger, repo, n, writer, body, d);
+  return await write(ledger, change, writer, body, d);
 }
 
 // Idempotent append: an identical accepted event is a no-op; otherwise validate, post, then read back.
-async function write(ledger: Ledger, repo: string, n: number, writer: string, body: Record<string, unknown>, d: Deps): Promise<number> {
+async function write(ledger: Ledger, change: Change, writer: string, body: Record<string, unknown>, d: Deps): Promise<number> {
   const key = keyOf(body);
   const seen = ledger.accepted.find((a) => a.event.key === key);
   if (seen) { d.out(`already recorded at seq ${seen.event.seq}\n`); return 0; }
   const seq = ledger.last_seq + 1;
   const event = { ...body, seq, key } as Event;
   apply(ledger.state, event);
-  let id: number;
+  let id: string;
   try {
-    id = await d.gh.postComment(repo, n, renderEvent(event));
+    // The retry key carries seq: a retry after a lost concurrent write is a new write, not the rejected one.
+    id = await d.forge.postFinding(change, renderEvent(event), `ship-loop-${seq}-${key}`);
   } catch (err) {
     // The write may have landed. Read back before deciding: rerunning is safe because identical events are no-ops.
-    const after = replay(await d.gh.listComments(repo, n), writer);
+    const after = replay(await d.forge.listFindings(change), writer);
     if (after.accepted.some((a) => a.event.key === key)) { d.out(`recorded at seq ${seq} (confirmed after a failed response)\n`); return 0; }
     throw new Error(`write outcome unknown: ${(err as Error).message}`);
   }
-  const after = replay(await d.gh.listComments(repo, n), writer);
+  const after = replay(await d.forge.listFindings(change), writer);
   if (after.accepted.some((a) => a.id === id)) { d.out(`recorded at seq ${seq}\n`); return 0; }
   if (after.rejected.includes(id)) {
     d.err(`lost a concurrent write at seq ${seq}; nothing recorded. Run status and retry.\n`);
     return 3;
   }
-  throw new Error(`comment ${id} is not in the ledger after write`);
+  throw new Error(`finding ${id} is not in the ledger after write`);
 }
 
 if (import.meta.main) {
-  const ghBin = process.env.SHIP_LOOP_GH ?? "gh";
+  const entireBin = process.env.SHIP_LOOP_ENTIRE ?? "entire";
   const code = await run(process.argv.slice(2), {
-    gh: ghBoundary(ghBin),
+    forge: entireBoundary(entireBin),
     commit: commitOf,
     patchId,
     out: (s) => process.stdout.write(s),

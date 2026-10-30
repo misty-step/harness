@@ -20,8 +20,9 @@ shape; a test that survives a behavior-preserving refactor tests behavior. Remov
 tautologies and duplicate layers, not the contract they accidentally protected.
 
 Run affected checks and the actual consumer path through the `verification` skill.
-Report deleted proof, retained contracts and residual risk in the existing PR,
-not a per-test ledger. A subsystem audit groups by contract only when commissioned.
+Report deleted proof, retained contracts and residual risk on the existing trail
+through the [forge procedure](../misty/entire.md), not a per-test ledger.
+A subsystem audit groups by contract only when commissioned.
 For installers reading committed HEAD, distinguish that run from working-source
 composition smoked in a disposable destination.
 

@@ -33,7 +33,7 @@ is not execution. Required skipped or unavailable checks leave proof incomplete.
 ## 2. Drive and inspect
 
 Use `.agents/skills/verify-<app>/`. If needed proof has no skill, [generate it](generate.md)
-in this change or stack on the PR adding it. A documents-only change does not
+in this change or depend on the change adding it through the [forge procedure](../misty/entire.md). A documents-only change does not
 inherit missing product infrastructure. Production sign-in uses the [QA account
 contract](accounts.md), including proof of the required role.
 
@@ -51,6 +51,6 @@ Follow the core's claim rule.
 For a verification-skill/feature-map audit, use [maintenance.md](maintenance.md).
 For check placement, deletion or schedule repair, use [check-cadence.md](check-cadence.md).
 For recurring product QA, agents use distinct user personas to walk pre-release
-and live SPEC stories and file bugs/friction in the owned backlog. Such walks
+and live SPEC stories and file bugs/friction as tickets through the [Entire forge procedure](../misty/entire.md). Such walks
 prove behavior, not demand or benefit; compare actual use to the initiative's
 outcome criterion before continuing, revising or stopping it.

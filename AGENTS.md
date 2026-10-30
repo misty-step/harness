@@ -12,7 +12,7 @@ and pi; Grok Bots install the shared tree through their runtime brief.
 | --- | --- |
 | `.omp-plugin/`, `.claude-plugin/`, `.codex-plugin/`, `.agents/plugins/`, `package.json` | Native plugin, marketplace and pi package manifests |
 | `rules/core.md` | Always-on core; keep it at most 20 lines |
-| `skills/misty/` | Mode routing, brief contract and task playbooks |
+| `skills/misty/` | Mode routing, brief contract, Entire forge procedure and task playbooks |
 | `skills/principle-*/` | One principle per on-demand leaf |
 | `skills/` | Task procedures; frontmatter follows DOMAIN.md |
 | `adapters/` | Claude/Codex role agents and native hooks/extensions; model choices stay in harness-native configuration |
@@ -26,6 +26,9 @@ Edit maintained source, not installed plugin copies. Keep one home per fact;
 migrate callers before deleting an old path. Fleet runtime, credentials, hosts
 and launchers belong to private `misty-step/workstation`. Adapters use
 native harness mechanisms, not a custom installer or duplicated method content.
+
+Use [Entire](skills/misty/entire.md) for the backlog, changes, findings and merges.
+Keep intent and delivery on one trail.
 
 ## Verify and release
 

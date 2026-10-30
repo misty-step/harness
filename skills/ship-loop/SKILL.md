@@ -10,7 +10,8 @@ metadata:
 
 # Ship loop
 
-The tracker owns tickets, PRs and reports. The PR's comments own its review round.
+Entire owns tickets, changes and reports: a ticket is a trail, and its delivery is a
+change on that trail ([entire.md](../misty/entire.md)). The change's findings own its review round.
 An independent judge's SHIP and passing affected checks are the merge gate;
 generator-only machine release PRs use passing checks alone. Authored changes,
 including documents and measurements, take the ordinary round.
@@ -19,16 +20,16 @@ including documents and measurements, take the ordinary round.
 
 Carry confirmed intent forward. Unsettled product intent goes to the `grill` skill;
 a builder needs the briefing contract in the `misty` skill and [roles.md](roles.md).
-Split the whole outcome into independently useful PRs, each keeping main working.
+Split the whole outcome into independently useful changes, each keeping main working.
 Record `Story: <IDs>` from SPEC.md or USER_STORIES.md, or `Story: none`, and
 `Rigor: <tier> — <changed-path risk>` with diff size. The machine-release exception
 also omits the Story line.
 
-The frontier contains tickets whose blockers are closed or have one open PR.
+The frontier contains tickets whose blockers are closed or have one open change.
 Apply misty's delegation boundary to disjoint subagent writers through your harness's mechanism. A child
-with one open blocker starts at that PR's head and targets its branch; QA/review
-use that base and exclude its owned diff. Fix a blocker in the PR that owns it.
-With two open blocker PRs, wait for one to land.
+with one open blocker starts at that change's head and targets its branch; QA/review
+use that base and exclude its owned diff. Fix a blocker in the change that owns it.
+With two open blocker changes, wait for one to land.
 
 Done when each unit has an Oracle, a base and the [rigor role](roles.md#rigor)
 assigned by the `setup-mistystack` skill.
@@ -37,13 +38,13 @@ assigned by the `setup-mistystack` skill.
 
 Use this skill's installed directory as `<skill-dir>`. Run
 `bun <skill-dir>/scripts/ship-loop.ts --help`; the helper is the only writer path.
-It authenticates the PR author as the sole ledger writer, ignores other authors'
+It trusts only findings written by the trail's author account, ignores other authors'
 markers, and stops on unknown authors or unreadable trusted events. A new session,
 retry, rebase or changed SHA resumes the same round, never a fresh allowance.
 
 1. **Build.** Start from the recorded base under misty's delegation boundary. The builder returns
-   PR, head SHA, native thread ID and proof. `init --pr <url> ...` records them;
-   existing state resumes. Verification follows the `verification` skill.
+   the change URL `entire trail show` prints, head SHA, native thread ID and proof.
+   `init --change <url> ...` records them; existing state resumes. Verification follows the `verification` skill.
 2. **Verify.** `prompt --role qa-review` for light; `qa` and `review` otherwise.
    Dispatch the generated briefs through your harness's mechanism for the selected rigor tier, then
    `record --kind report --file <payload.json>`. One QA owner per SHA; an additional
@@ -58,7 +59,7 @@ retry, rebase or changed SHA resumes the same round, never a fresh allowance.
    SHIP with worthwhile follow-ups or REVERT / SPLIT. There is one fix round;
    unrelated findings and pre-existing defects become follow-ups, not new gates.
 
-Use `status --pr <url> --json` for phase, fix round, review threads and source head.
+Use `status --change <url> --json` for phase, fix round, review threads and source head.
 Before any report, a head-only refresh uses `record --kind head` with reason
 `refresh`; after a report, only a recorded fix or validated carry moves the head.
 When replacing a child, stop the superseded thread before dispatching its retry.
@@ -68,8 +69,11 @@ or meets the generator-only exception. Missing proof cannot ship.
 
 ## 3. Merge and watch
 
-Confirm fast affected checks at the judged SHA. Squash-merge with a Conventional
-Commit title. [merging.md](merging.md) owns patch-id carries and bottom-first stack
+Confirm fast affected checks at the judged SHA. Resolve the findings the fix closed and
+dismiss the rest with the judge's ruling or follow-up trail link. Then run
+`entire trail merge --dry-run` and `entire trail merge`; never bypass a gate. A
+GitHub-backed change squashes under its backing PR's Conventional Commit title.
+[merging.md](merging.md) owns patch-id carries and bottom-first stack
 landing; conflict resolution or any changed patch requires renewed judgment under
 the same round cap.
 
