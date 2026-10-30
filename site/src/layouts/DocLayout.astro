@@ -13,12 +13,13 @@ const next = siblings[index + 1];
 const children = graph.documents.filter((item) => item.parentId === document.id);
 const backlinks = [...document.backlinks].map((id) => graph.byId.get(id));
 const articles = document.articles ?? [];
+const kindIndex = { Decisions: '/decisions/', Guide: '/guide/', Install: '/install/', Evals: '/evals/', Foundation: '/foundation/' }[document.kind] ?? '/library/';
 ---
 <SiteLayout title={document.title} description={document.skill?.description} section={document.kind} path={document.url}>
   <div class="docs-shell">
     <aside class="docs-sidebar" data-pagefind-ignore><DocNavigation {document} {graph} /></aside>
     <article class="docs-content">
-      <nav class="breadcrumb" aria-label="Breadcrumb" data-pagefind-ignore><a href="/">Home</a> / <a href={document.kind === 'Decisions' ? '/decisions/' : document.kind === 'Guide' ? '/guide/' : '/library/'}>{document.kind}</a>{document.parent && <> / <a href={document.parent.url}>{document.parent.title}</a></>}</nav>
+      <nav class="breadcrumb" aria-label="Breadcrumb" data-pagefind-ignore><a href="/">Home</a> / <a href={kindIndex}>{document.kind}</a>{document.parent && <> / <a href={document.parent.url}>{document.parent.title}</a></>}</nav>
       <details class="browse-mobile" data-pagefind-ignore><summary>Browse documentation</summary><DocNavigation {document} {graph} /></details>
       <header class="doc-header">
         <h1 id={titleHeading.id}>{document.title}<a class="heading-anchor" href={`#${titleHeading.id}`} aria-label={`Link to ${document.title}`} data-pagefind-ignore>#</a></h1>
