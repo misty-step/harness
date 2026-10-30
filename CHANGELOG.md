@@ -1,3 +1,9 @@
+# [0.3.12](https://github.com/misty-step/mistystack/compare/v0.3.11...v0.3.12) (2026-10-30)
+<!-- landmark:protected-release previous=v0.3.11 source=47c33b54dbfa64bfeea12f94784ca55f6a40766955fa2a8f195c8fb0bfdc8acb -->
+
+### Features
+
+* **site:** publish stack.mistystep.io in the locked Misty Step identity (#625) ([b93eb4b](https://github.com/misty-step/mistystack/commit/b93eb4bb026d8b799ad559043cd89e3aab6dd711))
 # [0.3.11](https://github.com/misty-step/mistystack/compare/v0.3.10...v0.3.11) (2026-10-29)
 <!-- landmark:protected-release previous=v0.3.10 source=cbb2b721356588cd0ada8afdcba263543aeb6dba67ea76fe839a8d02f261fe27 -->
 
