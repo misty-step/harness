@@ -1,3 +1,9 @@
+# [0.3.15](https://github.com/misty-step/mistystack/compare/v0.3.14...v0.3.15) (2026-10-31)
+<!-- landmark:protected-release previous=v0.3.14 source=edcbf07be2d9999436fa8ababc20aaa5f24ad5e03eea22a377b22525d7933666 -->
+
+### Features
+
+* **ship-loop:** preserve rounds through the Entire cutover (#636) ([ecdb9ea](https://github.com/misty-step/mistystack/commit/ecdb9eac94f5d845547643b1ce18dc5f658c847a))
 # [0.3.14](https://github.com/misty-step/mistystack/compare/v0.3.13...v0.3.14) (2026-10-30)
 <!-- landmark:protected-release previous=v0.3.13 source=cb411f388564ef1780837bfeb4c5f488f2d5ece9af0d552561d562ba314f0dec -->
 
