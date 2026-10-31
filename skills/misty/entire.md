@@ -20,14 +20,24 @@ current change URL printed by `entire trail show`, not a constructed URL.
 
 ## Tickets and backlog
 
-Create a ticket with `entire trail create --no-branch --title "<intent>"
+**Ticket scope:** the migrated non-archived `misty-step` repositories and
+`moomooskycow/daybook` use Entire tickets. Other projects, including `r90group`,
+retain their established ticket tracker and native blocking relationships until
+their backlog is explicitly migrated. An Entire mirror alone does not move it.
+For a GitHub backlog outside that scope, read `gh issue list -R <owner>/<repo>
+--state open --limit 1000 --json number,title,url,body`; if the limit is reached,
+paginate `gh api repos/<owner>/<repo>/issues?state=open&per_page=100` and exclude
+pull requests. Read and update tickets and blockers through that established
+tracker; do not create a second backlog in Entire.
+
+Within the migrated scope, create a ticket with `entire trail create --no-branch --title "<intent>"
 --type <bug|feature|task> --priority <urgent|high|medium|low|none>
 --body "<intent and acceptance>"`. The current repository scopes the ticket.
 For work outside any repository, use `--repo gh/moomooskycow/daybook` and link
 the trail from the Daybook note that holds its context. That note is not a second
 backlog; keep private context in its approved destination.
 
-Read a repository's backlog with:
+Within that scope, read a repository's backlog with:
 
 ```sh
 entire trail list --project <forge>/<project> --repo <forge>/<project>/<repo> --status open --limit 100 --json
@@ -50,11 +60,14 @@ closure; release recovery reopens the ticket.
 
 ## Open and describe a change
 
-For an existing ticket, publish the feature branch and run
-`entire trail link <trail-number> --branch <branch>`. Ticket and change share
-one trail; do not use `Closes #N` to connect them. Without a ticket, run
+For an existing ticket that is an Entire trail, publish the feature branch and
+run `entire trail link <trail-number> --branch <branch>`. Ticket and change share
+one trail; do not use `Closes #N` to connect them. Without an Entire ticket,
+including work whose ticket stays in another tracker, run
 `entire trail create --title "<Conventional Commit title>" --type <type>
 --body "<change body>"` from the feature branch; this publishes the branch.
+Keep the original ticket URL in the change body and the helper's `--ticket`;
+close that ticket in its established tracker after its last delivery merges.
 If branch linking fails after creation, retry `trail link` on the created trail
 rather than creating a duplicate.
 
@@ -132,8 +145,9 @@ approvals refuse the merge. Never bypass a refused gate.
 This is the one list of `gh` exceptions: GitHub Actions runs/logs; repository
 settings and the pre-merge settings read above; backing PR discovery, title and
 base edits; Landmark releases and generator-only release PRs; PR media
-attachments until Entire has an attachment command; and the bounded issue
-migration and legacy-ledger cutovers in this file. Never use `gh pr merge` for a new Entire
+attachments until Entire has an attachment command; established ticket trackers
+outside the migrated scope above; and the bounded issue migration and
+legacy-ledger cutovers in this file. Never use `gh pr merge` for a new Entire
 change. [Evidence](../verification/evidence.md) owns retention and delivery;
 keep its links on the trail. GitHub Actions workflows stay on GitHub. Leave
 historical ADRs, postmortems and provenance citations unchanged.
@@ -169,11 +183,25 @@ Entire mirror's merge gates where available. If a PR still has no mirror, finish
 that named PR only with `gh pr merge <number> -R <owner>/<repo> --squash`, after
 the same title and squash-only settings checks above. Stop if those settings do
 not hold; the authorization for `misty-step` settings does not cover `r90group`.
-Record delivery against the original ticket. If its GitHub issue was migrated,
-follow its migration comment to the intent trail and apply ship-loop's closure
-step there; the issue's migration closure is not delivery. This exception
-expires separately for each of the six rounds when it closes; it cannot start
-another v1 round.
+Record delivery against the original ticket. For a migrated v1 ticket whose
+delivery change already belongs to another trail, do not try to link that branch
+again or require the change in the intent trail's `changes[]`. After the frozen
+v1 ledger has SHIP, read `entire trail show <repo>/<change-number> --project
+<forge>/<project> --json` and require that exact delivery change's status to be
+`merged`. For an unmirrored PR, require `state=MERGED` and its merge commit from
+`gh pr view <number> -R <owner>/<repo> --json state,mergeCommit,url`.
+Record `Delivered by: <merged change or PR URL>` in the migrated intent trail's
+body through the preservation rule above. Read it back, confirm acceptance is
+delivered and no other delivery remains, then close that intent trail with
+`entire trail update <ticket-trail-number> --project <forge>/<project>
+--status closed` and read back `status=closed`.
+
+For example, hundred#8 delivers workstation#48: read merged change `hundred/2`
+on trail 63, record its delivery URL on intent trail 405, and close 405 only
+after the checks above. This bounded v1 exception does not require `hundred/2`
+to move onto 405. An unmigrated ticket still closes in its established tracker.
+The GitHub issue's migration closure is not delivery. The exception expires for
+each of the six rounds when it closes; it cannot start another v1 round.
 
 ## Migrate the open GitHub issues
 
@@ -210,6 +238,23 @@ changed intent or a wrong repository scope fail closed. The script saves a
 created trail's mapping immediately, verifies its intent-only shape and full
 intent on `trail show`, then closes the GitHub issue as `not planned` with a
 comment linking the trail. That closure means moved, not delivered.
+
+After creating the selected trails, the script reads every page of each mapped
+issue's native GitHub `blockedBy` connection and writes `Blocked by: <trail URL>`
+for blockers that also have a mapped trail. This second pass resolves forward
+dependencies after their trails exist. Sub-issue parents are not blockers.
+For the existing migrated trails, use the same snapshot and mapping:
+
+```sh
+bun skills/misty/scripts/migrate-issues.ts --snapshot "$RUN/snapshot.json" --mapping "$RUN/mapping.json" --all --sync-blockers --dry-run
+bun skills/misty/scripts/migrate-issues.ts --snapshot "$RUN/snapshot.json" --mapping "$RUN/mapping.json" --all --sync-blockers
+bun skills/misty/scripts/migrate-issues.ts --snapshot "$RUN/snapshot.json" --mapping "$RUN/mapping.json" --all --sync-blockers --verify
+```
+
+The corrective pass reads each full body and appends only missing lines, leaving
+every existing byte unchanged; a rerun adds nothing. The final command is
+read-only and requires zero missing lines and failures. Neither it nor the live
+corrective pass creates or closes a ticket.
 
 Rerun the same command and mapping after interruption; never discard the
 mapping or recreate a trail by hand. `--limit` and `--max-failures` bound a run.

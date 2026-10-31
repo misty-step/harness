@@ -50,9 +50,11 @@ Measured on trail 140 and change `workstation/6` with Entire CLI 0.12.2:
 - **Entire owns changes, findings and merge.** The
   [forge procedure](../../skills/misty/entire.md) is the one home for commands,
   backing-forge exceptions, ticket scope and cutover rules. DOMAIN.md owns terms.
-- **Tickets are trails.** Intent-only trails form the backlog; delivery changes
-  link to that same trail. The forge procedure owns repository scope and the
-  authorized issue migration, not a second copy of ticket state.
+- **Migrated tickets are trails.** Within the forge procedure's migrated scope,
+  intent-only trails form the backlog and delivery changes link to that same
+  trail. Other projects retain their established ticket tracker until migrated.
+  The procedure owns scope and the authorized issue migration, not a second
+  copy of ticket state.
 - **Delivery closes intent, recovery reopens it.** Ship-loop closes a ticket
   only after its last change merges and acceptance is delivered. Release-watch
   reopens intent removed by recovery. Report/body updates retain acceptance

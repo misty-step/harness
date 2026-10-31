@@ -29,7 +29,7 @@ diff touching no deployed artifact ends here without queries or waiting.
   or update against the authorized destination, recording command, source head,
   destination and exit status. Stop and report a failed step.
 - **Missing mechanism/signal:** report `unwatched`. Reuse one open
-  `release-mechanism` ticket, or create an intent-only trail; no implied live claim.
+  `release-mechanism` ticket, or create one in the tracker selected by the forge procedure; no implied live claim.
 
 ## 2. Observe
 

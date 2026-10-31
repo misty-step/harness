@@ -33,7 +33,7 @@ implementation and QA/review, even when all use the same rigor role.
 ## Builder
 
 ```text
-Outcome and why: <consumer change, ticket trail URL, parent spec URL>.
+Outcome and why: <consumer change, ticket URL, parent spec URL>.
 Terms: <DOMAIN.md terms involved>.
 Raw material: <failing run, logs, data or source links; not a summary>.
 Oracle: <check outside the worker, exact command and expected result>.
@@ -49,9 +49,10 @@ Run the Oracle and affected checks, then use the `verification` skill for the ch
 consumer path. Its generator owns a missing .agents/skills/verify-<app>/ skill,
 or stack on the change adding it. Link proof from the trail.
 
-Open the change on the ticket's trail with `entire trail link`, or with
-`entire trail create` when there is no ticket, against <base branch>; the
-misty skill's entire.md owns the commands and body-update preservation rule.
+For an Entire ticket, open the change on its trail with `entire trail link`;
+otherwise use `entire trail create` against <base branch> and retain the original
+ticket URL. The misty skill's entire.md owns ticket scope, commands and the
+body-update preservation rule.
 Use a Conventional Commit title and the `writing` skill for the trail body.
 Include Story: <IDs|none>,
 Rigor: <tier> — <reason>, diff size, and observed verification results.

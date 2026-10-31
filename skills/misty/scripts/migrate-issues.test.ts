@@ -12,7 +12,7 @@ const DAYBOOK = "moomooskycow/daybook";
 // Issue bodies carry this text; it may reach state files and trails, never the console.
 const BODY_MARK = "body-text-kept-off-the-console";
 
-type FakeIssue = { url: string; title: string; body: string; labels: string[]; state: "OPEN" | "CLOSED"; comments: string[]; reason?: string };
+type FakeIssue = { url: string; title: string; body: string; labels: string[]; state: "OPEN" | "CLOSED"; comments: string[]; reason?: string; blockedBy?: string[] };
 type FakeTrail = {
   id: string;
   number: number;
@@ -50,8 +50,11 @@ type Outcome = {
   priority?: string | null;
   mentions?: number[];
   error?: string | null;
+  expected_lines?: string[];
+  missing_lines?: string[];
+  preserved_body?: boolean;
 };
-type Report = { dry_run?: boolean; counts: Record<string, number>; issues: Outcome[]; open_not_in_snapshot?: string[] };
+type Report = { dry_run?: boolean; counts: Record<string, number>; issues: Outcome[]; open_not_in_snapshot?: string[]; blockers?: { counts: Record<string, number>; issues: Outcome[] } };
 type World = { dir: string; store: string; snapshot: string; mapping: string };
 
 const scratch: string[] = [];
@@ -96,7 +99,7 @@ function world(seed: Partial<Store> = {}): World {
 
 const read = (w: World): Store => JSON.parse(readFileSync(w.store, "utf8"));
 const mappingOf = (w: World) => JSON.parse(readFileSync(w.mapping, "utf8")).issues;
-const isWrite = (call: string[]) => (call[0] === "trail" && call[1] === "create") || (call[0] === "issue" && call[1] === "close");
+const isWrite = (call: string[]) => (call[0] === "trail" && ["create", "update"].includes(call[1])) || (call[0] === "issue" && call[1] === "close");
 const isCreate = (call: string[]) => call[0] === "trail" && call[1] === "create";
 const named = (call: string[], flag: string) => call.find((arg) => arg.startsWith(`--${flag}=`))?.slice(flag.length + 3);
 
@@ -478,4 +481,73 @@ test("state files stay in a private run directory under ~/.cache/tmp, the snapsh
   const mixed = await cli(w, ["--all", "--dry-run"], { snapshot: join(w.dir, "other", "snapshot.json") });
   expect(mixed.code).toBe(1);
   expect(mixed.err).toContain("belongs to another snapshot");
+}, SLOW);
+
+test("native blockedBy pages become mapped trail lines after later blocker issues are migrated", async () => {
+  const source = issue(ALPHA, 1, { body: `${BODY_MARK}\n\nKeep #44 verbatim.`, blockedBy: [issueUrl(ALPHA, 2), issueUrl(ALPHA, 3), issueUrl(ALPHA, 99)] });
+  const w = world({ issues: [source, issue(ALPHA, 2), issue(ALPHA, 3)], trails: [trail(1)] });
+  const run = await cli(w, ["--all"]);
+  expect(run.code, run.err).toBe(0);
+  expect(run.report?.blockers?.counts).toMatchObject({ trails_checked: 3, expected_lines: 2, trails_updated: 1, lines_added: 2, missing_lines: 0, failures: 0 });
+  const store = read(w);
+  const moved = store.trails.find((t) => claimedSource(t.body) === source.url)!;
+  expect(moved.body).toBe(`${trailBody(source)}\n\nBlocked by: ${trailUrl(101)}\nBlocked by: ${trailUrl(102)}`);
+  expect(moved.body).not.toContain("Blocked by: https://github.com/");
+  const pages = store.calls.filter((c) => c[0] === "api" && c[1] === "graphql" && c.includes("number=1"));
+  expect(pages.map((c) => c.find((arg) => arg.startsWith("cursor=")) ?? null)).toEqual([null, "cursor=2"]);
+}, SLOW);
+
+test("the corrective blocker pass is dry-run first, append-only, idempotent and independently verifiable", async () => {
+  const source = issue(ALPHA, 1);
+  const w = world({ issues: [source, issue(ALPHA, 2)], trails: [trail(1)] });
+  expect((await cli(w, ["--all"])).code).toBe(0);
+  const original = `${trailBody(source).replaceAll("\n", "\r\n")}\r\n\r\n## Operator acceptance\r\nKeep #44 and these spaces. \t`;
+  change(w, (store) => {
+    store.issues[0].blockedBy = [issueUrl(ALPHA, 2)];
+    store.trails.find((t) => t.number === 100)!.body = original;
+  });
+  const snapshot = readFileSync(w.snapshot, "utf8");
+  const mapping = readFileSync(w.mapping, "utf8");
+  let before = read(w).calls.length;
+  const plan = await cli(w, ["--all", "--sync-blockers", "--dry-run"]);
+  expect(plan.code, plan.err).toBe(0);
+  expect(plan.report?.counts).toMatchObject({ trails_checked: 2, trails_needing_update: 1, missing_lines: 1, trails_updated: 0, lines_added: 0 });
+  expect(read(w).calls.slice(before).filter(isWrite)).toEqual([]);
+  expect(read(w).trails.find((t) => t.number === 100)!.body).toBe(original);
+  const missing = await cli(w, ["--all", "--sync-blockers", "--verify"]);
+  expect(missing.code).toBe(2);
+  expect(missing.report?.counts.missing_lines).toBe(1);
+  const ordinaryVerify = await cli(w, ["--all", "--verify"]);
+  expect(ordinaryVerify.code).toBe(2);
+  expect(ordinaryVerify.report?.blockers?.counts.missing_lines).toBe(1);
+
+  const live = await cli(w, ["--all", "--sync-blockers"]);
+  expect(live.code, live.err).toBe(0);
+  expect(live.report?.counts).toMatchObject({ trails_checked: 2, trails_updated: 1, lines_added: 1, missing_lines: 0, failures: 0 });
+  expect(live.report?.issues.find((r) => r.issue === source.url)?.preserved_body).toBe(true);
+  expect(read(w).trails.find((t) => t.number === 100)!.body).toBe(`${original}\n\nBlocked by: ${trailUrl(101)}`);
+  before = read(w).calls.length;
+  const rerun = await cli(w, ["--all", "--sync-blockers"]);
+  expect(rerun.code).toBe(0);
+  expect(rerun.report?.counts).toMatchObject({ trails_updated: 0, lines_added: 0, missing_lines: 0 });
+  const verified = await cli(w, ["--all", "--sync-blockers", "--verify"]);
+  expect(verified.code).toBe(0);
+  expect(verified.report?.counts).toMatchObject({ expected_lines: 1, missing_lines: 0, failures: 0 });
+  expect(read(w).calls.slice(before).filter(isWrite)).toEqual([]);
+  expect(readFileSync(w.snapshot, "utf8")).toBe(snapshot);
+  expect(readFileSync(w.mapping, "utf8")).toBe(mapping);
+}, SLOW);
+
+test("a native blocker read failure cannot masquerade as an empty dependency graph", async () => {
+  const w = world({ issues: [issue(ALPHA, 1)], trails: [trail(1)] });
+  expect((await cli(w, ["--all"])).code).toBe(0);
+  change(w, (store) => {
+    store.fail = [{ match: "^api graphql", when: "before", stderr: "HTTP 503: unavailable" }];
+  });
+  const before = read(w).calls.length;
+  const run = await cli(w, ["--all", "--sync-blockers"]);
+  expect(run.code).toBe(2);
+  expect(run.report?.counts).toMatchObject({ failures: 1, trails_updated: 0, lines_added: 0 });
+  expect(run.report?.issues[0].error).toContain("gh api graphql");
+  expect(read(w).calls.slice(before).filter(isWrite)).toEqual([]);
 }, SLOW);

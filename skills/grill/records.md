@@ -22,7 +22,7 @@ Keep the initiative's full value in view. A delivery slice is not a reduced defi
 
 Preserve decision-rich schemas or state tables when they are more exact than prose. Link source and version; leave incidental implementation detail with the code.
 
-Use the existing story home: `USER_STORIES.md` when present, otherwise the stories section of `SPEC.md`. Link between the two instead of copying stories. Preserve existing IDs and allocate unused `US-###` IDs. Status and priority belong on the Entire trail.
+Use the existing story home: `USER_STORIES.md` when present, otherwise the stories section of `SPEC.md`. Link between the two instead of copying stories. Preserve existing IDs and allocate unused `US-###` IDs. Status and priority belong in the initiative's owned ticket tracker.
 
 ```markdown
 ## US-### <capability sentence>
@@ -42,10 +42,10 @@ Use EARS conditions that match the behavior: WHEN for events, WHILE for states, 
 
 ## Tickets and reconciliation
 
-Use the [Entire forge procedure](../misty/entire.md) for tickets, backlog and dependencies. Read the source trail, its discussions and linked decisions before changing it. For each slice, record the delivered behavior, stable story IDs, acceptance criteria, direct blockers and the full briefing contract from the `misty` skill. Link raw material at its source. Prefer the highest existing consumer boundary for its Oracle.
+Use the [forge procedure's ticket scope](../misty/entire.md#tickets-and-backlog) before reading a backlog: Entire for the migrated repositories, the established tracker elsewhere. Read the source ticket, its discussions and linked decisions before changing it. For each slice, record the delivered behavior, stable story IDs, acceptance criteria, direct blockers and the full briefing contract from the `misty` skill. Link raw material at its source. Prefer the highest existing consumer boundary for its Oracle.
 
 An infrastructure-only step earns a separate ticket only when it is independently useful and verifiable. A mechanical wide refactor that cannot land in useful vertical slices stays one atomic migration when feasible. If compatibility requires stages, make the stages explicit and end with every caller migrated and the old form deleted; temporary coexistence is a migration constraint, not a permanent second API.
 
 For backlog work, compare the complete in-scope board with accepted direction and current product evidence. Take the highest-value mismatch first. Give each item a disposition: keep, update, merge into an existing owner, retire with a reason, delivered with proof, or unresolved with an exact question. Record priority as an explicit owner decision rather than inferring it from creation order or changing blocker meanings.
 
-Publish accepted decisions without another approval round. Preserve parent history and existing ownership; shaping does not claim a worker lease or close delivery on another worker's behalf. Merge duplicates into one surviving trail and link the history. Record dependencies through the forge procedure, then read each changed trail back and reconcile the resulting in-scope board. Report accepted changes, unresolved decisions and evidence limits with clickable links under the `misty` skill's claim rule.
+Publish accepted decisions without another approval round. Preserve parent history and existing ownership; shaping does not claim a worker lease or close delivery on another worker's behalf. Merge duplicates into one surviving ticket and link the history. Record dependencies through the forge procedure or the established tracker's native relation, then read each changed ticket back and reconcile the resulting in-scope board. Report accepted changes, unresolved decisions and evidence limits with clickable links under the `misty` skill's claim rule.

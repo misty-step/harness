@@ -278,6 +278,33 @@ async function viewIssue(gh: Run, issue: Issue): Promise<Live> {
   return { ...live, state: typeof raw.state === "string" ? raw.state : "", comments };
 }
 
+// Native blocking edges are not part of gh issue view's --json fields. Read every GraphQL page.
+async function blockedBy(gh: Run, issue: Issue): Promise<string[]> {
+  const [owner, repo] = issue.repo.split("/");
+  const query = "query($owner:String!,$repo:String!,$number:Int!,$cursor:String){repository(owner:$owner,name:$repo){issue(number:$number){blockedBy(first:100,after:$cursor){nodes{url}pageInfo{hasNextPage endCursor}}}}}";
+  const urls = new Set<string>();
+  const cursors = new Set<string>();
+  let cursor: string | null = null;
+  do {
+    const raw = parse(await gh(["api", "graphql", "-f", `query=${query}`, "-f", `owner=${owner}`, "-f", `repo=${repo}`, "-F", `number=${issue.number}`, ...(cursor === null ? [] : ["-f", `cursor=${cursor}`])]), "gh api graphql");
+    const data = isRecord(raw) && isRecord(raw.data) ? raw.data : null;
+    const repository = data && isRecord(data.repository) ? data.repository : null;
+    const found = repository && isRecord(repository.issue) ? repository.issue : null;
+    const edges = found && isRecord(found.blockedBy) ? found.blockedBy : null;
+    need(edges && isRecord(edges.pageInfo), `GitHub did not report native blockedBy for ${issue.url}`);
+    for (const node of items(edges.nodes, "GitHub blockedBy nodes")) {
+      need(isRecord(node) && typeof node.url === "string" && ISSUE_URL.test(node.url), "GitHub returned a blocker without its issue URL");
+      urls.add(node.url);
+    }
+    const info = edges.pageInfo;
+    need(typeof info.hasNextPage === "boolean", "GitHub blockedBy has no pagination state");
+    cursor = info.hasNextPage === false ? null : typeof info.endCursor === "string" ? info.endCursor : null;
+    need(info.hasNextPage === false || (cursor !== null && cursor !== "" && !cursors.has(cursor)), "GitHub blockedBy has no new page cursor");
+    if (cursor !== null) cursors.add(cursor);
+  } while (cursor !== null);
+  return [...urls].sort();
+}
+
 async function closeIssue(gh: Run, url: string, comment: string | null): Promise<void> {
   await gh(["issue", "close", url, `--reason=${CLOSE_REASON}`, ...(comment === null ? [] : [`--comment=${comment}`])]);
 }
@@ -498,6 +525,76 @@ class MappingFile {
   }
 }
 
+// The second pass resolves edges after all possible blocker issues have their own mapped trails.
+// It also repairs older migrations, appending only missing lines to the full body read from Entire.
+type BlockerMode = "sync" | "dry-run" | "verify";
+type BlockerResult = {
+  issue: string; trail: string | null; step: "unmapped" | "unchanged" | "would-update" | "updated" | "missing" | "failed";
+  expected_lines: string[]; missing_lines: string[]; lines_added: number; preserved_body: boolean; error: string | null;
+};
+
+function missingBlockerLines(body: string, expected: string[]): string[] {
+  const lines = new Set(body.split(/\r?\n/));
+  return expected.filter((line) => !lines.has(line));
+}
+
+async function syncBlockers(issues: Issue[], forge: Forge, mapping: MappingFile, mode: BlockerMode) {
+  const results: BlockerResult[] = [];
+  for (const issue of issues) {
+    const entry = mapping.get(issue.url)?.trail;
+    const result: BlockerResult = { issue: issue.url, trail: entry?.url ?? null, step: "unmapped", expected_lines: [], missing_lines: [], lines_added: 0, preserved_body: true, error: null };
+    results.push(result);
+    if (!entry) continue;
+    try {
+      const blockers = await blockedBy(forge.gh, issue);
+      result.expected_lines = [...new Set(blockers.flatMap((url) => {
+        const target = mapping.get(url)?.trail?.url;
+        return target ? [`Blocked by: ${target}`] : [];
+      }))].sort();
+      const project = projectOf(issue.repo);
+      const trail = await showTrail(forge.entire, project, entry.number);
+      need(trail.id === entry.id && claimedSource(trail.body) === issue.url, `mapped trail #${entry.number} no longer belongs to ${issue.url}`);
+      result.missing_lines = missingBlockerLines(trail.body, result.expected_lines);
+      if (result.missing_lines.length === 0) {
+        result.step = "unchanged";
+        continue;
+      }
+      if (mode !== "sync") {
+        result.step = mode === "verify" ? "missing" : "would-update";
+        continue;
+      }
+      // Do not trim, normalize, replace sections or rewrite source references in the existing body.
+      const separator = trail.body === "" ? "" : trail.body.endsWith("\n") ? "\n" : "\n\n";
+      const body = trail.body + separator + result.missing_lines.join("\n");
+      await forge.entire(["trail", "update", String(entry.number), `--project=${project}`, `--body=${body}`, "--json"]);
+      const after = await showTrail(forge.entire, project, entry.number);
+      result.preserved_body = after.id === entry.id && after.body === body;
+      need(result.preserved_body, `trail #${entry.number} did not retain its exact body plus the appended blocker lines`);
+      result.lines_added = result.missing_lines.length;
+      result.missing_lines = missingBlockerLines(after.body, result.expected_lines);
+      need(result.missing_lines.length === 0, `trail #${entry.number} is still missing native blocker lines`);
+      result.step = "updated";
+    } catch (err) {
+      result.step = "failed";
+      result.error = (err as Error).message;
+    }
+  }
+  return {
+    counts: {
+      issues_found: results.length,
+      trails_checked: results.filter((r) => r.trail !== null).length,
+      unmapped: results.filter((r) => r.step === "unmapped").length,
+      expected_lines: results.reduce((n, r) => n + r.expected_lines.length, 0),
+      trails_updated: results.filter((r) => r.step === "updated").length,
+      lines_added: results.reduce((n, r) => n + r.lines_added, 0),
+      trails_needing_update: results.filter((r) => r.step === "would-update" || r.step === "missing").length,
+      missing_lines: results.reduce((n, r) => n + r.missing_lines.length, 0),
+      failures: results.filter((r) => r.step === "failed").length,
+    },
+    issues: results,
+  };
+}
+
 // ---- one issue ----
 
 type Step = "closed" | "failed" | "already-migrated" | "closed-elsewhere" | "would-create" | "would-close" | "not-started";
@@ -615,6 +712,7 @@ type Options = {
   repos: string[] | "all";
   dryRun: boolean;
   verify: boolean;
+  syncBlockers: boolean;
   limit: number | null;
   maxFailures: number | null;
   timeoutMs: number;
@@ -655,6 +753,7 @@ async function migrateRun(o: Options, gh: Run, entire: Run, d: Deps): Promise<nu
     results.push(result);
   }
   const count = (keep: (r: Result) => boolean) => results.filter(keep).length;
+  const blockers = !o.dryRun && started > 0 ? await syncBlockers(select(snapshot, o.repos), forge, mapping, "sync") : null;
   const counts = {
     issues_found: results.length,
     trails_created: count((r) => r.created),
@@ -670,10 +769,10 @@ async function migrateRun(o: Options, gh: Run, entire: Run, d: Deps): Promise<nu
   const about = { path: o.snapshot, taken_at: snapshot.taken_at, taken_now: taken, repositories: snapshot.repos.length, issues: snapshot.issues.length };
   d.out(`${JSON.stringify({
     schema: REPORT_SCHEMA, mode: o.dryRun ? "dry-run" : "migrate", dry_run: o.dryRun, selection: o.repos,
-    snapshot: about, mapping: o.mapping, counts, issues: results,
+    snapshot: about, mapping: o.mapping, counts, issues: results, blockers,
   }, null, 2)}\n`);
   log(Object.entries(counts).map(([name, value]) => `${name}=${value}`).join(" "));
-  return counts.failures > 0 ? 2 : 0;
+  return counts.failures > 0 || (blockers?.counts.failures ?? 0) > 0 ? 2 : 0;
 }
 
 async function verifyRun(o: Options, gh: Run, entire: Run, d: Deps): Promise<number> {
@@ -704,6 +803,7 @@ async function verifyRun(o: Options, gh: Run, entire: Run, d: Deps): Promise<num
     }
   }
   const count = (status: Check["status"]) => checks.filter((c) => c.status === status).length;
+  const blockers = await syncBlockers(issues, forge, mapping, "verify");
   const counts = {
     issues_found: checks.length,
     migrated: count("migrated"),
@@ -718,10 +818,20 @@ async function verifyRun(o: Options, gh: Run, entire: Run, d: Deps): Promise<num
   const about = { path: o.snapshot, taken_at: snapshot.taken_at, taken_now: false, repositories: snapshot.repos.length, issues: snapshot.issues.length };
   d.out(`${JSON.stringify({
     schema: REPORT_SCHEMA, mode: "verify", selection: o.repos, snapshot: about, mapping: o.mapping,
-    counts, open_not_in_snapshot: unsnapshotted, claims_outside_snapshot: outside, issues: checks,
+    counts, open_not_in_snapshot: unsnapshotted, claims_outside_snapshot: outside, issues: checks, blockers,
   }, null, 2)}\n`);
   log(Object.entries(counts).map(([name, value]) => `${name}=${value}`).join(" "));
-  return counts.issues_open + counts.mismatches + counts.open_not_in_snapshot > 0 ? 2 : 0;
+  return counts.issues_open + counts.mismatches + counts.open_not_in_snapshot + blockers.counts.missing_lines + blockers.counts.failures > 0 ? 2 : 0;
+}
+
+async function blockerRun(o: Options, gh: Run, entire: Run, d: Deps): Promise<number> {
+  const { snapshot, sha } = await snapshotOf(o.snapshot, gh, false, (line) => d.err(`migrate-issues: ${line}\n`));
+  need(existsSync(o.mapping), "a blocker pass requires the existing migration mapping");
+  const mapping = MappingFile.load(o.mapping, sha, true);
+  const mode = o.verify ? "verify" : o.dryRun ? "dry-run" : "sync";
+  const report = await syncBlockers(select(snapshot, o.repos), new Forge(gh, entire), mapping, mode);
+  d.out(`${JSON.stringify({ schema: REPORT_SCHEMA, mode: `blockers-${mode}`, snapshot: o.snapshot, mapping: o.mapping, ...report }, null, 2)}\n`);
+  return report.counts.failures > 0 || (o.verify && report.counts.missing_lines > 0) ? 2 : 0;
 }
 
 // ---- command line ----
@@ -732,6 +842,8 @@ const HELP = `migrate-issues: move open GitHub issues to intent-only Entire trai
       [--limit <n>] [--max-failures <n>] [--command-timeout <seconds>]
   bun migrate-issues.ts --snapshot <file> --mapping <file> (--all | --repo <owner/name>...) --verify
       [--command-timeout <seconds>]
+  bun migrate-issues.ts --snapshot <file> --mapping <file> (--all | --repo <owner/name>...) --sync-blockers
+      [--dry-run | --verify] [--command-timeout <seconds>]
 
 Scope: every repository \`gh repo list ${OWNER} --no-archived\` returns, plus ${EXTRA_REPOS.join(", ")}.
 
@@ -749,6 +861,9 @@ Scope: every repository \`gh repo list ${OWNER} --no-archived\` returns, plus ${
                       is then unknown; a rerun finds what it did.
   --verify            Read-only final scan: each selected snapshot issue, open issues missing from
                       the snapshot, and provenance claims on issues outside it.
+  --sync-blockers     Read native GitHub blockedBy edges for the mapped snapshot issues and append
+                      missing "Blocked by: <mapped trail URL>" lines, retaining every existing byte.
+                      Use --dry-run first; --verify is read-only. Never creates or closes tickets.
 
 Per issue: read it live; search its project's trails, all pages and statuses, for its URL. Only a
 trail whose first body line is exactly "${PROVENANCE}<issue URL>" claims it. Two claims,
@@ -757,6 +872,9 @@ create one --no-branch trail scoped to the issue's repository, with its title, p
 and body, the type and priority its labels state, and a --idempotency-key derived from its URL.
 Close the issue as "${CLOSE_REASON}" with a comment linking the trail only after \`entire trail
 show\` confirms provenance, no changes, repository scope, title, body, type and priority.
+After a migration pass, resolve native blockedBy edges against the complete mapping in a second
+pass. Edges to issues outside the mapping stay outside the migrated dependency graph; sub-issue
+parents are not blockers. --sync-blockers repairs existing trails with the same idempotent append.
 Run one migration at a time.
 
 Output: progress and failures on stderr, with commands shown without titles, bodies or comments;
@@ -779,6 +897,7 @@ function parseArgs(argv: string[]): Options {
   let all = false;
   let dryRun = false;
   let verify = false;
+  let syncBlockers = false;
   let limit: number | null = null;
   let maxFailures: number | null = null;
   let timeout = 120;
@@ -795,6 +914,7 @@ function parseArgs(argv: string[]): Options {
     else if (name === "--all") all = true;
     else if (name === "--dry-run") dryRun = true;
     else if (name === "--verify") verify = true;
+    else if (name === "--sync-blockers") syncBlockers = true;
     else if (name === "--limit") limit = whole(name, value());
     else if (name === "--max-failures") maxFailures = whole(name, value());
     else if (name === "--command-timeout") timeout = whole(name, value());
@@ -806,9 +926,10 @@ function parseArgs(argv: string[]): Options {
   for (const repo of repos) if (!/^[\w.-]+\/[\w.-]+$/.test(repo)) throw new UsageError(`--repo takes owner/name, not ${repo}`);
   if (dryRun && verify) throw new UsageError("--dry-run and --verify are separate runs");
   if (verify && (limit !== null || maxFailures !== null)) throw new UsageError("--verify checks every selected issue; --limit and --max-failures bound migrations");
+  if (syncBlockers && (limit !== null || maxFailures !== null)) throw new UsageError("--sync-blockers checks every selected mapped trail; do not combine it with --limit or --max-failures");
   return {
     snapshot: privatePath(snapshot, "--snapshot"), mapping: privatePath(mapping, "--mapping"), repos: all ? "all" : repos,
-    dryRun, verify, limit, maxFailures, timeoutMs: timeout * 1000,
+    dryRun, verify, syncBlockers, limit, maxFailures, timeoutMs: timeout * 1000,
   };
 }
 
@@ -828,7 +949,7 @@ async function main(argv: string[], d: Deps): Promise<number> {
   const gh = runner("gh", d.ghBin, o.timeoutMs);
   const entire = runner("entire", d.entireBin, o.timeoutMs);
   try {
-    return o.verify ? await verifyRun(o, gh, entire, d) : await migrateRun(o, gh, entire, d);
+    return o.syncBlockers ? await blockerRun(o, gh, entire, d) : o.verify ? await verifyRun(o, gh, entire, d) : await migrateRun(o, gh, entire, d);
   } catch (err) {
     d.err(`migrate-issues: stopped: ${(err as Error).message}\n`);
     return 1;

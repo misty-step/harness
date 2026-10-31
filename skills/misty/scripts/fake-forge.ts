@@ -7,7 +7,7 @@
 // Every call is appended to store.calls.
 import { readFileSync, writeFileSync, writeSync } from "node:fs";
 
-type Issue = { url: string; title: string; body: string; labels: string[]; state: "OPEN" | "CLOSED"; comments: string[]; reason?: string };
+type Issue = { url: string; title: string; body: string; labels: string[]; state: "OPEN" | "CLOSED"; comments: string[]; reason?: string; blockedBy?: string[] };
 type Trail = {
   id: string;
   number: number;
@@ -62,7 +62,7 @@ if (failure?.when === "before") failed(`HTTP 502: injected failure for ${command
 const after = () => {
   if (failure?.when === "after") failed(`HTTP 502: response lost for ${command}`);
 };
-if (command !== "issue close" && !args.includes("--json")) exit(2, `fake forge: ${command} without --json prints a table`);
+if (command !== "issue close" && command !== "api graphql" && !args.includes("--json")) exit(2, `fake forge: ${command} without --json prints a table`);
 
 const repoOf = (url: string) => url.split("/").slice(3, 5).join("/");
 const issueJson = (i: Issue) => ({ url: i.url, number: Number(i.url.split("/").pop()), title: i.title, body: i.body, labels: i.labels.map((name) => ({ name })) });
@@ -73,7 +73,15 @@ const trailJson = ({ project, hidden: _hidden, changes, ...trail }: Trail) => ({
 const onboarded = (repo: string) => store.onboarded[repo] ?? exit(1, `resolve processing placement for ${repo.slice(3)}: repo is not onboarded to Entire`);
 const issueAt = (url: string) => store.issues.find((i) => i.url === url) ?? exit(1, `GraphQL: Could not resolve to an issue with the URL ${url}`);
 
-if (command === "repo list") {
+if (command === "api graphql") {
+  const value = (key: string) => args.find((arg) => arg.startsWith(`${key}=`))?.slice(key.length + 1);
+  if (!value("query")?.includes("blockedBy(first:100,after:$cursor)")) exit(2, "fake gh: the native blockedBy connection is required");
+  const issue = issueAt(`https://github.com/${value("owner")}/${value("repo")}/issues/${value("number")}`);
+  const from = Number(value("cursor") ?? 0);
+  const nodes = (issue.blockedBy ?? []).slice(from, from + 2).map((url) => ({ url }));
+  const hasNextPage = from + 2 < (issue.blockedBy ?? []).length;
+  print({ data: { repository: { issue: { blockedBy: { nodes, pageInfo: { hasNextPage, endCursor: hasNextPage ? String(from + 2) : null } } } } } });
+} else if (command === "repo list") {
   const repos = store.repos.filter((r) => r.nameWithOwner.startsWith(`${args[2]}/`) && !(args.includes("--no-archived") && r.isArchived));
   print(repos.slice(0, Number(flag("limit") ?? 30)).map(repoJson));
 } else if (command === "repo view") {
@@ -113,6 +121,15 @@ if (command === "repo list") {
 } else if (command === "trail show") {
   const trail = store.trails.find((t) => t.project === flag("project") && t.number === Number(args[2]));
   print(trailJson(trail ?? exit(1, `trail ${args[2]} not found`)));
+} else if (command === "trail update") {
+  const trail = store.trails.find((t) => t.project === flag("project") && t.number === Number(args[2]));
+  if (!trail) exit(1, `trail ${args[2]} not found`);
+  const body = flag("body");
+  if (body === undefined) exit(2, "fake entire: blocker updates must supply --body");
+  trail.body = body;
+  save();
+  after();
+  print(trailJson(trail));
 } else if (command === "trail create") {
   if (!args.includes("--no-branch")) exit(2, "fake entire: create without --no-branch publishes a branch");
   const repo = flag("repo") ?? "";
