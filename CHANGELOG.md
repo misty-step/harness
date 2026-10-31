@@ -1,3 +1,9 @@
+# [0.3.16](https://github.com/misty-step/mistystack/compare/v0.3.15...v0.3.16) (2026-10-31)
+<!-- landmark:protected-release previous=v0.3.15 source=3a9b28cd63c7c6ea7a2c40159e58aac5f45548db8752805b29ad478e26cf30a7 -->
+
+### Features
+
+* **forge:** migrate tickets and backlog to Entire trails (#637) ([7e8b65a](https://github.com/misty-step/mistystack/commit/7e8b65a273dd0f17559fdff26d4b7dfaf5090b6b))
 # [0.3.15](https://github.com/misty-step/mistystack/compare/v0.3.14...v0.3.15) (2026-10-31)
 <!-- landmark:protected-release previous=v0.3.14 source=edcbf07be2d9999436fa8ababc20aaa5f24ad5e03eea22a377b22525d7933666 -->
 
