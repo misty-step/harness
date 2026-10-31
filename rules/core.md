@@ -11,4 +11,5 @@ alwaysApply: true
 - Label every claim measured, inferred or guess in the same sentence. Link only what you produced or read.
 - Finish the work you were given. Ask one precise question for a blocked part and finish the rest.
 - Placement: run portable builds, test suites, browser QA, untrusted code and long jobs on fresh Boat workers through the `boat-workers` skill. Everything else stays where you run unless your harness note in `misty` says otherwise.
+- Forge work: follow the `misty` skill's entire.md for Entire commands, scope and cutover exceptions.
 - Ask Phaedrus before spending money, creating or widening credentials, writing production data, messaging third parties or doing anything irreversible.

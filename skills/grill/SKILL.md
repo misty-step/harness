@@ -22,4 +22,4 @@ metadata:
 
 6. **Slice and publish.** Split the whole outcome into independently useful, atomically shippable vertical slices; keep existing users working. Publish them in the project's native tracker, reusing existing items and native blocking relationships. Each ticket carries the briefing contract owned by the `misty` skill; load it rather than copying the contract here. Apply its **Oracle gate** before dispatch: a ticket without an Oracle returns to shaping. For backlog reconciliation or publication, read [records.md](records.md#tickets-and-reconciliation). Done when every slice has acceptance behavior, a story link, direct blockers and a complete brief, and the tracker readback matches the decisions.
 
-Every authored PR carries `Story: US-###` for each story it changes, or `Story: none` when it changes no story. Generator-only release PRs are the exception. Use the `writing` skill for the PR body and the report; the `misty` skill owns claim precision.
+Use [writing](../writing/publications.md#trail-body) for the trail body, required story and rigor fields, and reports; the `misty` skill owns claim precision.

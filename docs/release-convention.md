@@ -6,12 +6,12 @@ included. The [foundation checklist](../skills/foundation/checklist.md) records
 why we deploy continuously and keep useful notes and maintained versions; this
 page says how. A repository's ADR records its local choices (release units,
 baseline, any existing pre-1.0 policy) and links here instead of restating it.
-Change this convention with a normal pull request to this file.
+Change this convention through a reviewed Entire change to this file.
 
 ## Pipeline
 
 ```text
-reviewed PR with a Conventional Commit title
+reviewed Entire change with a Conventional Commit title
   -> squash commit on the protected default branch
   -> one generator per release unit decides the SemVer bump
   -> release PR containing only generator output (versions, CHANGELOG.md)
@@ -22,6 +22,9 @@ reviewed PR with a Conventional Commit title
 The formats are [Conventional Commits 1.0.0](https://www.conventionalcommits.org/en/v1.0.0/)
 and [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html). Use a maintained
 generator; never build a release service.
+
+Authored work follows the [Entire forge procedure](../skills/misty/entire.md),
+including its backing PR title rule and forge exceptions.
 
 ## Rules
 
@@ -43,8 +46,8 @@ generator; never build a release service.
    the program: what changed, and what they gain or must do. Titles are
    published, so they carry no ticket IDs, internal paths or hosts,
    credentials or client details. `fix` is a patch, `feat` a minor, and `!` in
-   the title marks a major. Put migration and rollback steps in the PR
-   description; the generated notes link to the PR.
+   the title marks a major. Put migration and rollback steps in the trail
+   body; the generated notes link to the backing PR.
    `chore`, `docs`, `test`, `build`, `ci`, `refactor` and `style`
    changes never cut a release on their own.
 4. **Baseline once.** The previous immutable release tag is the baseline. When
@@ -130,7 +133,7 @@ adding a second generator:
 
 ## Adoption
 
-Adopt per release unit in one small pull request: generator configuration,
+Adopt per release unit in one small Entire change: generator configuration,
 release workflow, title check, `/changelog` where there is a site, and the
 ADR, with `squash_merge_commit_title: PR_TITLE`,
 `squash_merge_commit_message: BLANK` and default-branch protection applied.
@@ -146,6 +149,6 @@ from synthetic or public content.
 Adoption is complete when a real reviewed merge has produced the expected
 version, a merged release PR (where the generator uses one), an immutable
 GitHub Release, a matching changelog entry and a live `/changelog` at the
-deployed revision. Record the expected and actual version and the PR, head,
-CI, release, provider revision and HTTP readbacks. A dry run or an open pull
-request is not adoption.
+deployed revision. Record the expected and actual version and the trail, release
+PR, head, CI, release, provider revision and HTTP readbacks. A dry run or an
+unmerged change is not adoption.

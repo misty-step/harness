@@ -13,21 +13,23 @@ metadata:
 Watch one merge SHA through the repo's release path. For user harm, restore first
 and attribute second. Compatible recovery follows existing authorization and the
 repo's own pipeline; accepted-data risk stops that mutation and is escalated.
+Use the [Entire forge procedure](../misty/entire.md) for work records and exceptions.
 
 ## 1. Find the path
 
 Read AGENTS.md, README and the release decision. A recorded `no deploy` plus a
 diff touching no deployed artifact ends here without queries or waiting.
 
-- **Library/tool:** find the release PR/tag containing the merge. Passed release
-  checks mean `released`; a failed check is a recovery trigger.
+- **Library/tool:** find the release/tag containing the merge; a Landmark-backed
+  repository may use its generator-only release PR. Passed release checks mean
+  `released`; a failed check is a recovery trigger.
 - **Automated deploy:** follow the run/deployment for this SHA to completion.
 - **Installer/plugin:** use a disposable detached worktree at freshly fetched
   default-branch HEAD; prove the merge is its ancestor. Run the documented install
   or update against the authorized destination, recording command, source head,
   destination and exit status. Stop and report a failed step.
 - **Missing mechanism/signal:** report `unwatched`. Reuse one open
-  `release-mechanism` issue, or create it and its label; no implied live claim.
+  `release-mechanism` ticket, or create it in the current backlog; no implied live claim.
 
 ## 2. Observe
 
@@ -50,8 +52,9 @@ names one change that removes the error class, not another reminder.
 
 ## Report
 
-Post once in the owning lane/PR with merge and checked live identity, evidence,
-consumer impact and exact gaps under the core's claim rule; follow misty's report-link duty.
+Record the result once on the owning trail with merge and checked live identity,
+evidence, consumer impact and exact gaps under the core's claim rule. Follow
+misty's report-link duty and link that record from the owning lane.
 
 | Outcome | Required observation |
 | --- | --- |

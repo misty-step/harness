@@ -78,8 +78,8 @@ When a change merits a release, I want its generated changelog verified before
 publication, so an unverified default-branch candidate cannot be published.
 
 Criteria:
-1. Landmark stages generated notes in a PR rather than pushing to protected master.
-2. A generator-only PR merges through native GitHub auto-merge after required
+1. Landmark stages generated notes in a release PR rather than pushing to protected master.
+2. A generator-only release PR merges through native GitHub auto-merge after required
    exact-head checks pass, without another authored-policy review round.
 3. Publication refuses an unlanded candidate or a tag pointing to another commit.
 4. Retries preserve an already published version without duplicate notes or
@@ -103,7 +103,7 @@ Criteria:
 
 Proof: `skills/test-audit/SKILL.md` and the changed consumer's native checks.
 
-## US-022 Review work through product stories
+## US-022 Review work against product stories
 
 When I assess a change or recurring product health, I want agents to walk the
 user's real interface, so the report distinguishes observed behavior from tests
@@ -118,7 +118,7 @@ Criteria:
 4. A report separates measured outcomes, inferences and blocked criteria. An
    internal change uses composition proof rather than an invented browser walk.
 5. Recurring health review rotates through a curated story list without
-   requiring every journey on every PR.
+   requiring every journey on every change.
 
 Proof: `skills/verification/SKILL.md` and the consumer's verification evidence.
 
@@ -128,10 +128,10 @@ When work reaches review, I want risk-scaled independent proof and a bounded fix
 round, so a new thread cannot restart review or turn an unrelated finding into scope.
 
 Criteria:
-1. `ship-loop` records rigor, its concrete reason and diff size on the PR; light
-   work uses combined QA/review and an independent judge, while riskier work
+1. `ship-loop` records rigor, its concrete reason and diff size in the trail body;
+   light work uses combined QA/review and an independent judge, while riskier work
    separates QA, review and judge.
-2. The PR's native ledger survives head changes and new sessions. Only a judge's
+2. The trail's finding ledger survives head changes and new sessions. Only a judge's
    FIX naming eligible blockers authorizes the one permitted fix round.
 3. The blocking reporter rechecks the named fixes. The next verdict is SHIP with
    tickets or REVERT / SPLIT; new unrelated findings become tickets.
@@ -179,7 +179,7 @@ Proof: `rules/core.md`, `skills/misty/`, `skills/agent-design/`,
 ## US-053 Lead full-value initiatives through atomic delivery
 
 When I commission an initiative, I want the full useful outcome shaped and split
-into independently shippable slices, so small PRs do not conceal a narrowed goal.
+into independently shippable slices, so small changes do not conceal a narrowed goal.
 
 Criteria:
 1. [Grill](skills/grill/SKILL.md) records the complete outcome, boundaries and acceptance criteria.

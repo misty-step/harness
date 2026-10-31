@@ -1,6 +1,6 @@
 ---
 name: judge
-description: "Rule on PR review and QA findings: blocker, filed follow-up or skip, then SHIP, FIX, REVERT or SPLIT."
+description: "Rule on change review and QA findings: blocker, filed follow-up or skip, then SHIP, FIX, REVERT or SPLIT."
 metadata:
   owner: phaedrus
   prevents: "Reviewer-driven fix loops and renewed rounds after retries: bounded behind judge rulings in mistystack PRs #450 and #454."
@@ -12,8 +12,9 @@ metadata:
 
 An independent judge has neither built, reviewed nor tested this change. An
 involved thread returns the independence conflict instead of ruling. Read intent,
-acceptance criteria, stories, PR head, QA/review reports and earlier resolutions.
+acceptance criteria, stories, change head, QA/review reports and earlier resolutions.
 The brief comes from the `ship-loop` skill's `prompt --role judge|final-judge`.
+Use the [Entire forge procedure](../misty/entire.md) for findings and follow-up tickets.
 
 ## 1. Confirm
 
@@ -28,9 +29,9 @@ Each finding gets one ruling and one reason:
 
 - **blocker:** demonstrated harm introduced by this unit, a broken acceptance
   criterion, or missing required proof. Includes security, data loss, broken build,
-  deploy or rollback. Pre-existing defects cannot block this PR.
+  deploy or rollback. Pre-existing defects cannot block this change.
 - **file:** worthwhile actionable work, while this unit is a net improvement now.
-  Reuse an issue for the same cause; every such ruling gets a ticket link.
+  Reuse a ticket for the same cause; every such ruling gets its ticket link.
 - **skip:** disproved, already covered, speculative, preference-only or not worth
   doing. A reviewer's suggestion alone does not earn a ticket.
 
@@ -42,9 +43,12 @@ changed-path risk. Record `no deploy` when no deployed artifact changes.
 
 ## 3. Decide and record
 
-Post `Verdict at <head SHA>` with linked QA/review, one outcome and its reason,
-exact blockers with owner and observable fix, useful follow-ups, consequential
-skips and intent calls under the core's claim rule. Omit empty sections.
+Return the ruling with linked QA/review, one outcome and its reason, exact
+blockers with owner and observable fix, useful follow-ups, consequential skips
+and intent calls under the core's claim rule. Omit empty sections. The conductor
+records it through the helper's `record --kind verdict`; that ledger is the one
+home of the verdict. Do not add a separate verdict finding or trail approval.
+The conductor applies finding dispositions after the ruling.
 
 - **SHIP:** independent completed QA/review cover this SHA; all blockers resolved.
   The `verification` skill defines the required real-path proof, including sign-in
@@ -58,7 +62,8 @@ named fixes and fix-introduced regressions in a fresh thread. Unrelated findings
 become follow-ups. Final judgment allows SHIP, REVERT or SPLIT; changed SHAs,
 rebases and retries never reset the cap.
 
-Return native thread ID, SHA, outcome, blockers, ticket links and PR report URL to
-the conductor for the helper's `record --kind verdict`. Its schema and state
-machine enforce eligibility and independence. SHIP plus passing affected checks
-is the merge gate; no additional human review follows.
+Return native thread ID, SHA, outcome, blockers, ticket links and the change's
+trail URL to the conductor for the helper's `record --kind verdict`. Its schema
+and state machine enforce eligibility and independence. SHIP plus passing
+affected checks and Entire's merge gates authorize the merge; no additional
+human review follows.

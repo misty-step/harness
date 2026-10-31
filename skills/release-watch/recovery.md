@@ -32,11 +32,12 @@ uncertainty. Restore for user harm precedes this attribution work.
 
 ## 3. Close the incident class
 
-For harmed users or accepted data at risk, reuse/open a `bug` incident with
-impact, onset, evidence, suspect revision/range, recovery links, owner and live
-state. The source fix returns as a scoped ticket. A harmless failed deploy or
-precautionary restore records its result/lesson on the PR, without an incident
-or postmortem.
+For harmed users or accepted data at risk, reuse/open a `bug` incident in the
+ticket backlog defined by the [forge procedure](../misty/entire.md), with impact,
+onset, evidence, suspect revision/range, recovery links, owner and live state.
+The source fix returns as a scoped ticket. A harmless failed deploy or
+precautionary restore records its result/lesson on the owning trail, without an
+incident or postmortem.
 
 After a material incident, use [postmortem-template.md](postmortem-template.md) in
 the product's `docs/postmortems/` and link it from the incident. Name one change

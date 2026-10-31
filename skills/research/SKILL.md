@@ -10,7 +10,7 @@ metadata:
 
 # Research
 
-1. **Question.** Frame the implementation-critical question and identify the installed version, disputed behavior and decision it changes. Memory is not an interface contract. For why code is the way it is, read blame, the introducing PR and its linked issue. Verify unfamiliar APIs before code depends on them. Done when the question has an answer that source or observation can distinguish from alternatives.
+1. **Question.** Frame the implementation-critical question and identify the installed version, disputed behavior and decision it changes. Memory is not an interface contract. For why code is the way it is, read blame and the introducing change's trail and linked decisions through the [Entire forge procedure](../misty/entire.md); follow backing-forge links when researching historical work. Verify unfamiliar APIs before code depends on them. Done when the question has an answer that source or observation can distinguish from alternatives.
 
 2. **Sources.** Start with the source that owns the fact: installed code or types, official docs, first-party APIs, standards, changelogs or original papers. Use secondary writing to locate primary evidence. Match consequential claims to the version in use; a current web page does not prove an older installed version. For a dependency choice, compare the standard library, a maintained package and owned code; check license, maintenance, transitive weight and compatibility. Done when each critical claim has direct evidence or an explicit gap.
 

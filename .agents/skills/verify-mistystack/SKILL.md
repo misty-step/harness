@@ -25,7 +25,7 @@ not evidence that the method loaded.
    ```
    Require exit 0 for plugin structure, skill behavior, protected-release and
    trufflehog-gate tests. Confirm ship-loop's behavioral tests ran, including its
-   native PR-ledger and bounded-fix-round contracts. CI runs
+   native trail-finding ledger and bounded-fix-round contracts. CI runs
    `./scripts/check plugin --strict --lint-only` for strict references and the same
    maintained tests; its explicit install skip is structural evidence only. When
    `LANDMARK_BIN` is available, retain the real release-replay result separately
@@ -63,7 +63,8 @@ not evidence that the method loaded.
    native ledger and retain the affected behavioral output. The gate does not
    prove provider access, model quality or a completed shipping journey.
 5. **Publish.** Put the checked source and runtime identities, command, exit
-   status, observed postcondition and reviewer-open output on the PR.
+   status, observed postcondition and reviewer-open output on the trail through the
+   [Entire forge procedure](../../../skills/misty/entire.md).
    Follow the core's claim rule; list every skipped or unproved criterion.
    Preserve output outside Git. The private workstation repository owns host,
    audio, credential and backup proof.
