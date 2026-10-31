@@ -10,8 +10,10 @@ metadata:
 
 # Ship loop
 
-Entire owns changes and reports; the ticket backlog follows the cutover in
-[entire.md](../misty/entire.md). The change's findings own its review round.
+Entire owns changes and reports; the change's findings own its review round.
+Tickets follow the [forge procedure's migrated scope](../misty/entire.md#tickets-and-backlog):
+an Entire ticket shares its trail with delivery changes; other projects retain
+their established ticket tracker.
 An independent judge's SHIP and passing affected checks are the merge gate;
 generator-only machine release PRs use passing checks alone. Authored changes,
 including documents and measurements, take the ordinary round.
@@ -82,11 +84,24 @@ Then run `entire trail merge <repo>/<change-number> --project <forge>/<project> 
 Confirm the dry run's change and `headSha` match the judged change and SHA.
 Only when they match and the dry run allows it, run
 `entire trail merge <repo>/<change-number> --project <forge>/<project> --json`;
-never bypass a gate. Close the delivered ticket through that procedure after its
-last change.
+never bypass a gate.
 [merging.md](merging.md) owns patch-id carries and bottom-first stack
 landing; conflict resolution or any changed patch requires renewed judgment under
 the same round cap.
+
+**Close the delivered ticket after its last change merges.** For a ticket on
+the same Entire trail, read `entire trail show <ticket-trail-number> --project
+<forge>/<project> --json`.
+Require the merged change in `changes[]`, no remaining open delivery change and
+the ticket's acceptance criteria delivered. A closed-but-unmerged change is
+not delivery proof. Only then run `entire trail update <ticket-trail-number>
+--project <forge>/<project> --status closed` and read back `status=closed`.
+Never close a trail with open changes: that can also close their backing PRs.
+Keep its intent, acceptance and dependency lines intact.
+For v1 rounds whose migrated intent is on a separate trail, use the
+[bounded legacy closing rule](../misty/entire.md#finish-the-six-open-v1-review-rounds)
+instead of requiring `changes[]` membership. Tickets outside the migrated scope
+close through their established tracker after delivery is verified.
 
 No deployed artifact changed: the judge records `no deploy`; skip release queries.
 Otherwise dispatch the `release-watch` skill with merge SHA and stories. Report

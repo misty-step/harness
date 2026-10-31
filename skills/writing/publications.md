@@ -9,7 +9,9 @@ the backing PR title rule for GitHub-backed repositories.
 
 ## Trail body
 
-Use the repository's required headings in the trail body. Include these fields even when its template differs:
+Use the repository's required headings in the trail body. For an existing ticket,
+follow the [body-update procedure](../misty/entire.md#open-and-describe-a-change)
+before applying this template. Include these fields even when its template differs:
 
 ```markdown
 ## Why

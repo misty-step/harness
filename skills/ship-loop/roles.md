@@ -49,10 +49,12 @@ Run the Oracle and affected checks, then use the `verification` skill for the ch
 consumer path. Its generator owns a missing .agents/skills/verify-<app>/ skill,
 or stack on the change adding it. Link proof from the trail.
 
-Open the change with `entire trail create` against <base branch>; the
-misty skill's entire.md owns commands and the ticket cutover. Record the ticket
-URL in the trail body. Use a Conventional Commit title and the `writing` skill
-for the trail body. Include Story: <IDs|none>,
+For an Entire ticket, open the change on its trail with `entire trail link`;
+otherwise use `entire trail create` against <base branch> and retain the original
+ticket URL. The misty skill's entire.md owns ticket scope, commands and the
+body-update preservation rule.
+Use a Conventional Commit title and the `writing` skill for the trail body.
+Include Story: <IDs|none>,
 Rigor: <tier> — <reason>, diff size, and observed verification results.
 The conductor owns merge; preserve other writers' commits.
 

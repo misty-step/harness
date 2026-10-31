@@ -49,9 +49,10 @@ not ingested again. Gists and committed evidence branches/repos are not archives
 Foundation audits move old bulky proof through focused cleanup, preserving useful
 artifacts and updating links before removal; this run does not widen into cleanup.
 
-Update one Evidence section in the trail body through the
-[Entire forge procedure](../misty/entire.md): claim/scenario, before/after links,
-revision/runtime identity, commands/results and exact gaps. Open delivered links
+Update one Evidence section through the trail's
+[body-update procedure](../misty/entire.md#open-and-describe-a-change):
+claim/scenario, before/after links, revision/runtime identity, commands/results
+and exact gaps. Retain the ticket's intent and acceptance. Open delivered links
 as a reviewer with repository access. Local paths and hashes alone do not deliver
 review proof; a failed upload leaves readiness blocked, with local proof preserved.
 Without a requested trail/public write, return inspected local paths as unpublished.
