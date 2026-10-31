@@ -91,9 +91,12 @@ stop; do not guess which method Entire will choose or change settings without
 the owner's authorization. A native repository needs its own documented merge
 policy; the GitHub squash guarantee does not apply to it.
 
-Then run `entire trail merge --dry-run --json`, followed by `entire trail merge`
-only when allowed. The dry run exits nonzero when checks, findings, up-to-date
-state or configured approvals refuse the merge. Never bypass a refused gate.
+Then run `entire trail merge <repo>/<change-number> --project <forge>/<project> --dry-run --json`.
+Confirm the dry run's change and `headSha` match the judged change and SHA.
+Only when they match and the dry run allows it, run
+`entire trail merge <repo>/<change-number> --project <forge>/<project> --json`.
+The dry run exits nonzero when checks, findings, up-to-date state or configured
+approvals refuse the merge. Never bypass a refused gate.
 
 This is the one list of `gh` exceptions: GitHub Actions runs/logs; repository
 settings and the pre-merge settings read above; backing PR discovery, title and

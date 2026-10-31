@@ -11,8 +11,9 @@ git diff <new-base>...<new-head> | git patch-id --stable
 
 Fetch origin first. The old base must resolve to the ledger's recorded base,
 including an earlier refresh/carry; the new base must resolve to
-`origin/<the change's base branch>` as `entire trail merge --dry-run --json` reports it,
-not a caller-selected branch or change-internal commit. Retarget a stacked
+`origin/<the change's base branch>` as
+`entire trail merge <repo>/<change-number> --project <forge>/<project> --dry-run --json`
+reports it, not a caller-selected branch or change-internal commit. Retarget a stacked
 change before recording its carry through the
 [backing PR procedure](../misty/entire.md#merge-and-forge-exceptions), discovering
 the PR by branch rather than using the change number. With all four commits
@@ -45,4 +46,8 @@ and independent judgment under the existing fix-round cap.
    judgment only for an unchanged patch; otherwise re-verify under the round cap.
    Repeat from the resulting judged head with a lease pinned to that same head.
    The next change still cuts ancestry at the first head recorded for the change below.
-4. Run fast affected checks at the new head before `entire trail merge`.
+4. Run fast affected checks at the new head, then run
+   `entire trail merge <repo>/<change-number> --project <forge>/<project> --dry-run --json`.
+   Confirm the dry run's change and `headSha` match the judged change and SHA.
+   Only when they match and the dry run allows it, run
+   `entire trail merge <repo>/<change-number> --project <forge>/<project> --json`.

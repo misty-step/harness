@@ -78,8 +78,12 @@ dismiss the rest with the judge's ruling or follow-up trail link. Then run
 the [forge procedure's merge preflight](../misty/entire.md#merge-and-forge-exceptions):
 discover the backing PR by branch, set its title and require squash-only settings
 with `squash_merge_commit_title=PR_TITLE`. Stop if merge commits are allowed.
-Then run `entire trail merge --dry-run` and `entire trail merge`; never bypass a
-gate. Close the delivered ticket through that procedure after its last change.
+Then run `entire trail merge <repo>/<change-number> --project <forge>/<project> --dry-run --json`.
+Confirm the dry run's change and `headSha` match the judged change and SHA.
+Only when they match and the dry run allows it, run
+`entire trail merge <repo>/<change-number> --project <forge>/<project> --json`;
+never bypass a gate. Close the delivered ticket through that procedure after its
+last change.
 [merging.md](merging.md) owns patch-id carries and bottom-first stack
 landing; conflict resolution or any changed patch requires renewed judgment under
 the same round cap.
